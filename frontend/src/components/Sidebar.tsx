@@ -4,78 +4,93 @@ import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Box from '@mui/material/Box';
+import { SIDEBAR_WIDTH } from './layoutConstants.js';
 
 const sidebarOptions: Record<string, string[]> = {
-  Productos: [
-    'Catálogo de productos',
-    'Inventario',
-    'Precios y listas',
-    'Familias y líneas',
-    'Unidades de medida',
-    'Ajustes de stock',
-    'Importar productos',
-  ],
-  Clientes: [
-    'Listado de clientes',
-    'Segmentos de clientes',
+  'Catálogos': [
     'Contactos',
-    'Direcciones',
-    'Créditos y límites',
-    'Historial de compras',
-    'Importar clientes',
+    'Productos',
+    'Importar catálogos',
+    'Listas maestras',
   ],
-  Proveedores: [
-    'Listado de proveedores',
-    'Cuentas por pagar',
-    'Contactos de proveedor',
-    'Condiciones de pago',
-    'Productos suministrados',
-    'Historial de compras',
-    'Importar proveedores',
+  Ventas: [
+    'Pedidos',
+    'Cotizaciones',
+    'Facturación',
+    'Clientes y segmentos',
+    'Reportes de ventas',
+  ],
+  Compras: [
+    'Órdenes de compra',
+    'Solicitudes',
+    'Proveedores',
+    'Recepciones',
+    'Reportes de compras',
   ],
   Finanzas: [
     'Cuentas bancarias',
     'Movimientos bancarios',
     'Conciliaciones',
-    'Reportes financieros',
-    'Facturación',
     'Cobros y pagos',
     'Presupuestos',
   ],
+  Inventarios: [
+    'Inventario',
+    'Ajustes de stock',
+    'Kardex',
+    'Ubicaciones',
+    'Reportes de inventario',
+  ],
 };
 
-interface SidebarProps {
-  section: string;
-}
+interface SidebarProps { section: string; }
 
-export const SIDEBAR_WIDTH = 260;
-export const HEADER_HEIGHT = 146; // 90 + 56, ambas barras
 
 export default function Sidebar({ section }: SidebarProps) {
   const options = section && sidebarOptions[section] ? sidebarOptions[section] : [];
   return (
     <Box
       sx={{
-        position: 'fixed',
-        top: HEADER_HEIGHT,
-        left: 0,
         width: SIDEBAR_WIDTH,
-        height: `calc(100vh - ${HEADER_HEIGHT}px)`,
-        bgcolor: '#f5f5f5',
-        borderRight: '1px solid #e0e0e0',
-        zIndex: 1200,
-        pt: 2,
+        minHeight: '100%',
+        flexShrink: 0,
+        bgcolor: '#f4f6f8',
+        borderRight: '1px solid #e5e7eb',
+        pt: 3,
+        pb: 3,
       }}
       className="sidebar"
     >
-      <List>
-        {options.map((text) => (
-          <ListItem key={text} disablePadding>
-            <ListItemButton>
-              <ListItemText primary={text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
+      <List sx={{ gap: 0.5, display: 'flex', flexDirection: 'column' }}>
+        {options.map((text, idx) => {
+          const isActive = idx === 0; // placeholder active item for styling
+          return (
+            <ListItem key={text} disablePadding sx={{ px: 1.5 }}>
+              <ListItemButton
+                selected={isActive}
+                sx={{
+                  borderLeft: isActive ? `3px solid #006261` : '3px solid transparent',
+                  borderRadius: 1,
+                  color: isActive ? '#1d2f68' : '#111827',
+                  '&:hover': {
+                    backgroundColor: '#e8eef3',
+                    color: '#1d2f68',
+                    borderLeft: `3px solid #006261`,
+                  },
+                  py: 1.25,
+                  pl: 1.5,
+                  pr: 1,
+                  alignItems: 'center',
+                }}
+              >
+                <ListItemText
+                  primary={text}
+                  primaryTypographyProps={{ fontSize: 14, fontWeight: isActive ? 700 : 500 }}
+                />
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
       </List>
     </Box>
   );

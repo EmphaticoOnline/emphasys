@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
-import { Box, Button, Card, CardContent, Grid, Tab, Tabs, Typography, Divider, Chip, Stack } from '@mui/material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import Typography from '@mui/material/Typography';
+import Divider from '@mui/material/Divider';
+import Chip from '@mui/material/Chip';
+import Stack from '@mui/material/Stack';
 import AddIcon from '@mui/icons-material/Add';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
@@ -48,8 +55,8 @@ export default function ProductosPage() {
           alignItems: 'center',
           justifyContent: 'space-between',
           mb: 2,
-          px: 2,
-          pt: 1,
+          px: 0,
+          pt: 0,
         }}
       >
         <Typography variant="h5" fontWeight={700}>
@@ -66,61 +73,88 @@ export default function ProductosPage() {
       </Box>
 
       {/* Panel superior: Datos generales */}
-      <Card sx={{ mb: 2, mx: 2 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
-              <Typography variant="h6" fontWeight={600}>
-                {mockProducto.nombre}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {mockProducto.descripcion}
-              </Typography>
-              <Chip
-                label={mockProducto.estado}
-                color={mockProducto.estado === 'Activo' ? 'success' : 'default'}
-                size="small"
-                sx={{ mt: 1 }}
-              />
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Typography variant="subtitle2" color="text.secondary">
-                SKU
-              </Typography>
-              <Typography>{mockProducto.sku}</Typography>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Typography variant="subtitle2" color="text.secondary">
-                Categoría
-              </Typography>
-              <Typography>{mockProducto.categoria}</Typography>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Typography variant="subtitle2" color="text.secondary">
-                Stock
-              </Typography>
-              <Typography>{mockProducto.stock}</Typography>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Typography variant="subtitle2" color="text.secondary">
-                Precio
-              </Typography>
-              <Typography>
-                {mockProducto.moneda} {mockProducto.precio.toLocaleString()}
-              </Typography>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+      <Box
+        sx={{
+          mb: 2,
+          px: 0,
+          py: 2,
+          borderBottom: '1px solid #e5e7eb',
+        }}
+      >
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
+          <Box>
+            <Typography variant="h6" fontWeight={600}>
+              {mockProducto.nombre}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {mockProducto.descripcion}
+            </Typography>
+            <Chip
+              label={mockProducto.estado}
+              color={mockProducto.estado === 'Activo' ? 'success' : 'default'}
+              size="small"
+              sx={{ mt: 1 }}
+            />
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" color="text.secondary">
+              SKU
+            </Typography>
+            <Typography>{mockProducto.sku}</Typography>
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" color="text.secondary">
+              Categoría
+            </Typography>
+            <Typography>{mockProducto.categoria}</Typography>
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" color="text.secondary">
+              Stock
+            </Typography>
+            <Typography>{mockProducto.stock}</Typography>
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" color="text.secondary">
+              Precio
+            </Typography>
+            <Typography>
+              {mockProducto.moneda} {mockProducto.precio.toLocaleString()}
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
 
       {/* Tabs de información */}
-      <Box sx={{ mx: 2 }}>
+      <Box sx={{ mx: 0 }}>
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
-          indicatorColor="primary"
-          textColor="primary"
           variant="scrollable"
+          textColor="inherit"
+          TabIndicatorProps={{ style: { display: 'none' } }}
+          sx={{
+            minHeight: 0,
+            '& .MuiTab-root': {
+              minHeight: 0,
+              textTransform: 'none',
+              fontWeight: 600,
+              color: '#4b5563',
+              borderTop: '3px solid transparent',
+              borderRadius: '6px 6px 0 0',
+              padding: '10px 12px',
+              mr: 1,
+              alignItems: 'flex-end',
+            },
+            '& .Mui-selected': {
+              color: '#1d2f68',
+              backgroundColor: '#fff',
+              borderTop: '3px solid #006261',
+              borderLeft: '1px solid #e5e7eb',
+              borderRight: '1px solid #e5e7eb',
+              borderBottom: '1px solid #fff',
+            },
+          }}
         >
           <Tab label="Información" />
           <Tab label="Inventario" />
@@ -130,26 +164,26 @@ export default function ProductosPage() {
         <Divider />
         <TabPanel value={tab} index={0}>
           {/* Información */}
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} md={6}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr' }, gap: 2, mt: 1 }}>
+            <Box>
               <Typography variant="subtitle2" color="text.secondary">
                 Descripción
               </Typography>
               <Typography>{mockProducto.descripcion}</Typography>
-            </Grid>
-            <Grid item xs={12} md={3}>
+            </Box>
+            <Box>
               <Typography variant="subtitle2" color="text.secondary">
                 Estado
               </Typography>
               <Typography>{mockProducto.estado}</Typography>
-            </Grid>
-            <Grid item xs={12} md={3}>
+            </Box>
+            <Box>
               <Typography variant="subtitle2" color="text.secondary">
                 Ubicación
               </Typography>
               <Typography>{mockProducto.ubicacion}</Typography>
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
         </TabPanel>
         <TabPanel value={tab} index={1}>
           {/* Inventario */}
@@ -177,20 +211,12 @@ export default function ProductosPage() {
           </Typography>
           {mockProducto.movimientos.map((mov, idx) => (
             <Box key={idx} sx={{ mb: 1, p: 1, border: '1px solid #eee', borderRadius: 1 }}>
-              <Grid container spacing={1}>
-                <Grid item xs={3}>
-                  <Typography variant="body2">{mov.fecha}</Typography>
-                </Grid>
-                <Grid item xs={3}>
-                  <Typography variant="body2">{mov.tipo}</Typography>
-                </Grid>
-                <Grid item xs={3}>
-                  <Typography variant="body2">{mov.cantidad}</Typography>
-                </Grid>
-                <Grid item xs={3}>
-                  <Typography variant="body2">{mov.referencia}</Typography>
-                </Grid>
-              </Grid>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+                <Typography variant="body2">{mov.fecha}</Typography>
+                <Typography variant="body2">{mov.tipo}</Typography>
+                <Typography variant="body2">{mov.cantidad}</Typography>
+                <Typography variant="body2">{mov.referencia}</Typography>
+              </Box>
             </Box>
           ))}
         </TabPanel>
