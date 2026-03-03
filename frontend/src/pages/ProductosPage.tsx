@@ -1,226 +1,210 @@
-import React, { useState } from 'react';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
-import Typography from '@mui/material/Typography';
-import Divider from '@mui/material/Divider';
-import Chip from '@mui/material/Chip';
-import Stack from '@mui/material/Stack';
+import * as React from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Paper,
+  Snackbar,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Toolbar,
+  Typography,
+} from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/DeleteOutline';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
-// Mock de datos de producto
-const mockProducto = {
-  nombre: 'Laptop Dell XPS 13',
-  sku: 'XPS13-2024',
-  categoria: 'Computadoras',
-  estado: 'Activo',
-  descripcion: 'Ultrabook premium de 13 pulgadas, Intel i7, 16GB RAM, 512GB SSD.',
-  stock: 25,
-  ubicacion: 'Almacén Central',
-  precio: 1899.99,
-  moneda: 'USD',
-  movimientos: [
-    { fecha: '2026-02-01', tipo: 'Entrada', cantidad: 10, referencia: 'Compra #1234' },
-    { fecha: '2026-01-28', tipo: 'Salida', cantidad: 2, referencia: 'Venta #5678' },
-    { fecha: '2026-01-20', tipo: 'Ajuste', cantidad: 1, referencia: 'Inventario anual' },
-  ],
-};
-
-function TabPanel(props: { children?: React.ReactNode; value: number; index: number }) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`producto-tabpanel-${index}`}
-      aria-labelledby={`producto-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
-    </div>
-  );
-}
+import type { Producto } from '../types/producto';
+import type { ProductoColumnConfig } from './productosColumns';
+import { productoColumns } from './productosColumns';
+import {
+  createProducto,
+  deleteProducto,
+  fetchProductos,
+  updateProducto,
+} from '../services/productosService';
 
 export default function ProductosPage() {
-  const [tab, setTab] = useState(0);
+  const navigate = useNavigate();
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
+    { open: false, message: '', severity: 'success' }
+  );
+
+  const formatter = useMemo(
+    () =>
+      new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+        minimumFractionDigits: 2,
+      }),
+    []
+  );
+
+  const loadProductos = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchProductos();
+      setProductos(data);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al cargar productos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProductos();
+  }, []);
+
+  const handleDelete = async (producto: Producto) => {
+    const confirmed = window.confirm(`¿Eliminar el producto "${producto.descripcion}"?`);
+    if (!confirmed) return;
+
+    try {
+      await deleteProducto(producto.id);
+      setSnackbar({ open: true, message: 'Producto eliminado', severity: 'success' });
+      loadProductos();
+    } catch (e) {
+      setSnackbar({
+        open: true,
+        message: e instanceof Error ? e.message : 'No se pudo eliminar',
+        severity: 'error',
+      });
+    }
+  };
+
+  const renderCell = (producto: Producto, field: ProductoColumnConfig['field']) => {
+    const value = producto[field];
+
+    if (field === 'activo') {
+      const isActive = Boolean(value);
+      return <Chip label={isActive ? 'Activo' : 'Inactivo'} size="small" color={isActive ? 'success' : 'default'} />;
+    }
+
+    if (field === 'precio_publico') {
+      return value === null || value === undefined
+        ? '—'
+        : formatter.format(Number(value));
+    }
+
+    if (field === 'existencia_actual') {
+      return value === null || value === undefined ? '—' : Number(value).toLocaleString('es-MX');
+    }
+
+    if (value === null || value === undefined || value === '') return '—';
+    return String(value);
+  };
 
   return (
-    <Box sx={{ p: 0 }}>
-      {/* Header del módulo */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          mb: 2,
-          px: 0,
-          pt: 0,
-        }}
-      >
-        <Typography variant="h5" fontWeight={700}>
-          Productos
-        </Typography>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700} color="#1d2f68">
+            Productos
+          </Typography>
+          <Typography variant="body2" color="#4b5563">
+            Gestiona el catálogo básico de productos. Existencias son solo de lectura.
+          </Typography>
+        </Box>
         <Stack direction="row" spacing={1}>
-          <Button variant="contained" color="primary" startIcon={<AddIcon />}>
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadProductos} disabled={loading}>
+            Recargar
+          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/productos/nuevo')}>
             Nuevo
           </Button>
-          <Button variant="outlined" color="primary" startIcon={<CloudUploadIcon />}>
-            Importar
-          </Button>
         </Stack>
-      </Box>
+      </Toolbar>
 
-      {/* Panel superior: Datos generales */}
-      <Box
-        sx={{
-          mb: 2,
-          px: 0,
-          py: 2,
-          borderBottom: '1px solid #e5e7eb',
-        }}
-      >
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
-          <Box>
-            <Typography variant="h6" fontWeight={600}>
-              {mockProducto.nombre}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {mockProducto.descripcion}
-            </Typography>
-            <Chip
-              label={mockProducto.estado}
-              color={mockProducto.estado === 'Activo' ? 'success' : 'default'}
-              size="small"
-              sx={{ mt: 1 }}
-            />
-          </Box>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              SKU
-            </Typography>
-            <Typography>{mockProducto.sku}</Typography>
-          </Box>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Categoría
-            </Typography>
-            <Typography>{mockProducto.categoria}</Typography>
-          </Box>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Stock
-            </Typography>
-            <Typography>{mockProducto.stock}</Typography>
-          </Box>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Precio
-            </Typography>
-            <Typography>
-              {mockProducto.moneda} {mockProducto.precio.toLocaleString()}
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
-      {/* Tabs de información */}
-      <Box sx={{ mx: 0 }}>
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          variant="scrollable"
-          textColor="inherit"
-          TabIndicatorProps={{ style: { display: 'none' } }}
-          sx={{
-            minHeight: 0,
-            '& .MuiTab-root': {
-              minHeight: 0,
-              textTransform: 'none',
-              fontWeight: 600,
-              color: '#4b5563',
-              borderTop: '3px solid transparent',
-              borderRadius: '6px 6px 0 0',
-              padding: '10px 12px',
-              mr: 1,
-              alignItems: 'flex-end',
-            },
-            '& .Mui-selected': {
-              color: '#1d2f68',
-              backgroundColor: '#fff',
-              borderTop: '3px solid #006261',
-              borderLeft: '1px solid #e5e7eb',
-              borderRight: '1px solid #e5e7eb',
-              borderBottom: '1px solid #fff',
-            },
-          }}
-        >
-          <Tab label="Información" />
-          <Tab label="Inventario" />
-          <Tab label="Precios" />
-          <Tab label="Movimientos" />
-        </Tabs>
-        <Divider />
-        <TabPanel value={tab} index={0}>
-          {/* Información */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr' }, gap: 2, mt: 1 }}>
-            <Box>
-              <Typography variant="subtitle2" color="text.secondary">
-                Descripción
-              </Typography>
-              <Typography>{mockProducto.descripcion}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="subtitle2" color="text.secondary">
-                Estado
-              </Typography>
-              <Typography>{mockProducto.estado}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="subtitle2" color="text.secondary">
-                Ubicación
-              </Typography>
-              <Typography>{mockProducto.ubicacion}</Typography>
-            </Box>
-          </Box>
-        </TabPanel>
-        <TabPanel value={tab} index={1}>
-          {/* Inventario */}
-          <Typography variant="subtitle2" color="text.secondary">
-            Stock actual:
-          </Typography>
-          <Typography variant="h6">{mockProducto.stock}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Ubicación: {mockProducto.ubicacion}
-          </Typography>
-        </TabPanel>
-        <TabPanel value={tab} index={2}>
-          {/* Precios */}
-          <Typography variant="subtitle2" color="text.secondary">
-            Precio de lista:
-          </Typography>
-          <Typography variant="h6">
-            {mockProducto.moneda} {mockProducto.precio.toLocaleString()}
-          </Typography>
-        </TabPanel>
-        <TabPanel value={tab} index={3}>
-          {/* Movimientos */}
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            Últimos movimientos:
-          </Typography>
-          {mockProducto.movimientos.map((mov, idx) => (
-            <Box key={idx} sx={{ mb: 1, p: 1, border: '1px solid #eee', borderRadius: 1 }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
-                <Typography variant="body2">{mov.fecha}</Typography>
-                <Typography variant="body2">{mov.tipo}</Typography>
-                <Typography variant="body2">{mov.cantidad}</Typography>
-                <Typography variant="body2">{mov.referencia}</Typography>
-              </Box>
-            </Box>
-          ))}
-        </TabPanel>
-      </Box>
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <TableContainer>
+          <Table size="medium" sx={{ minWidth: 750 }}>
+            <TableHead sx={{ backgroundColor: '#f6f8fa' }}>
+              <TableRow>
+                {productoColumns.map((col) => (
+                  <TableCell
+                    key={col.field}
+                    align={col.align || 'left'}
+                    sx={{ fontWeight: 700, color: '#1d2f68', minWidth: col.minWidth, width: col.flex ? undefined : col.minWidth }}
+                  >
+                    {col.headerName}
+                  </TableCell>
+                ))}
+                <TableCell align="center" sx={{ fontWeight: 700, color: '#1d2f68', minWidth: 140 }}>
+                  Acciones
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={productoColumns.length + 1} align="center" sx={{ py: 4 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                      <CircularProgress size={22} />
+                      <Typography variant="body2" color="text.secondary">
+                        Cargando productos...
+                      </Typography>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ) : productos.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={productoColumns.length + 1} align="center" sx={{ py: 4, color: '#4b5563' }}>
+                    No hay productos registrados.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                productos.map((producto) => (
+                  <TableRow
+                    key={producto.id}
+                    hover
+                    sx={{
+                      '&:hover': { backgroundColor: '#f8fbfa' },
+                      borderBottom: '1px solid #e5e7eb',
+                      transition: 'background-color 0.1s ease',
+                    }}
+                  >
+                    {productoColumns.map((col) => (
+                      <TableCell key={col.field} align={col.align || 'left'} sx={{ verticalAlign: 'middle' }}>
+                        {renderCell(producto, col.field)}
+                      </TableCell>
+                    ))}
+                    <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                      <IconButton color="primary" size="small" onClick={() => navigate(`/productos/${producto.id}`)}>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton color="error" size="small" onClick={() => handleDelete(producto)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
     </Box>
   );
 }

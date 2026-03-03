@@ -1,5 +1,9 @@
 import React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
+import Typography from '@mui/material/Typography';
 import Menu from './Menu.js';
 import { MODULE_TABS, MODULE_DESCRIPTIONS } from './navigationData.js';
 
@@ -8,19 +12,55 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const [selectedSection, setSelectedSection] = React.useState('Catálogos');
-  const [selectedTab, setSelectedTab] = React.useState<string>(MODULE_TABS['Catálogos']?.[0] || '');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const tabPathMap: Record<string, string> = {
+    Contactos: '/contactos',
+    Productos: '/productos',
+  };
+
+  const getTabFromPath = (pathname: string): string => {
+    if (pathname.startsWith('/productos')) return 'Productos';
+    if (pathname.startsWith('/contactos')) return 'Contactos';
+    return MODULE_TABS['Catálogos']?.[0] || '';
+  };
+
+  const getSectionForTab = (tab: string): string => {
+    const entry = Object.entries(MODULE_TABS).find(([, tabs]) => tabs.includes(tab));
+    return entry ? entry[0] : 'Catálogos';
+  };
+
+  const [selectedTab, setSelectedTab] = React.useState<string>(getTabFromPath(location.pathname));
+  const [selectedSection, setSelectedSection] = React.useState<string>(getSectionForTab(selectedTab));
 
   const tabsForSection = MODULE_TABS[selectedSection] || [];
 
   React.useEffect(() => {
-    const nextTab = tabsForSection[0] || '';
-    setSelectedTab(nextTab);
-  }, [selectedSection]);
+    const tabFromPath = getTabFromPath(location.pathname);
+    setSelectedTab(tabFromPath);
+    setSelectedSection(getSectionForTab(tabFromPath));
+  }, [location.pathname]);
+
+  const handleSectionChange = (section: string) => {
+    setSelectedSection(section);
+    const nextTab = MODULE_TABS[section]?.[0];
+    if (nextTab) {
+      setSelectedTab(nextTab);
+      const path = tabPathMap[nextTab];
+      if (path) navigate(path);
+    }
+  };
+
+  const handleTabChange = (_: React.SyntheticEvent, value: string) => {
+    setSelectedTab(value);
+    const path = tabPathMap[value];
+    if (path) navigate(path);
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#eef1f4' }}>
-      <Menu selectedSection={selectedSection} onSelect={setSelectedSection} />
+  <Menu selectedSection={selectedSection} onSelect={handleSectionChange} />
 
       <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: 3 }}>
         <Box
@@ -51,45 +91,56 @@ export default function Layout({ children }: LayoutProps) {
               gap: 1.5,
             }}
           >
-            <Box sx={{ color: '#1d2f68', fontSize: 24, fontWeight: 700 }}>{selectedSection}</Box>
-            <Box sx={{ color: '#4b5563', fontSize: 14 }}>
+            <Typography variant="h5" fontWeight={700} color="#1d2f68">
+              {selectedSection}
+            </Typography>
+            <Typography variant="body2" color="#4b5563">
               {MODULE_DESCRIPTIONS[selectedSection] || ''}
-            </Box>
+            </Typography>
 
             {tabsForSection.length > 0 && (
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', pt: 1 }}>
-                {tabsForSection.map((tab) => {
-                  const active = tab === selectedTab;
-                  return (
-                    <Box
-                      key={tab}
-                      onClick={() => setSelectedTab(tab)}
-                      sx={{
-                        cursor: 'pointer',
-                        px: 1.5,
-                        py: 1,
-                        fontSize: 14,
-                        fontWeight: active ? 700 : 500,
-                        color: active ? '#1d2f68' : '#4b5563',
-                        backgroundColor: active ? '#fff' : 'transparent',
-                        borderTop: active ? `3px solid #006261` : '3px solid transparent',
-                        borderLeft: active ? '1px solid #e5e7eb' : '1px solid transparent',
-                        borderRight: active ? '1px solid #e5e7eb' : '1px solid transparent',
-                        borderBottom: active ? '1px solid #fff' : '1px solid transparent',
-                        borderTopLeftRadius: 6,
-                        borderTopRightRadius: 6,
-                        transition: 'all 0.15s ease',
-                        '&:hover': {
-                          color: '#1d2f68',
-                          backgroundColor: active ? '#fff' : '#f1f3f6',
-                        },
-                      }}
-                    >
-                      {tab}
-                    </Box>
-                  );
-                })}
-              </Box>
+              <Tabs
+                value={selectedTab}
+                onChange={handleTabChange}
+                variant="scrollable"
+                allowScrollButtonsMobile
+                textColor="inherit"
+                TabIndicatorProps={{ style: { display: 'none' } }}
+                sx={{
+                  pt: 1,
+                  minHeight: 0,
+                  '& .MuiTabs-flexContainer': {
+                    alignItems: 'flex-end',
+                  },
+                  '& .MuiTab-root': {
+                    minHeight: 0,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    color: '#4b5563',
+                    borderTop: '3px solid transparent',
+                    borderRadius: '6px 6px 0 0',
+                    padding: '10px 12px',
+                    mr: 1,
+                    alignItems: 'flex-end',
+                  },
+                  '& .Mui-selected': {
+                    color: '#1d2f68',
+                    backgroundColor: '#fff',
+                    borderTop: '3px solid #006261',
+                    borderLeft: '1px solid #e5e7eb',
+                    borderRight: '1px solid #e5e7eb',
+                    borderBottom: '1px solid #fff',
+                  },
+                  '& .MuiTab-root:hover': {
+                    color: '#1d2f68',
+                    backgroundColor: '#f1f3f6',
+                  },
+                }}
+              >
+                {tabsForSection.map((tab) => (
+                  <Tab key={tab} label={tab} value={tab} disableRipple />
+                ))}
+              </Tabs>
             )}
           </Box>
 

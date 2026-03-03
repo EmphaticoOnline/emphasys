@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "deploy": "powershell -ExecutionPolicy Bypass -File ./deploy.ps1"
+    "deploy": "powershell -ExecutionPolicy Bypass -File ./deploy.ps1",
+    "deploy:test": "bash ./deploy-test.sh"
   },
   "keywords": [],
   "author": "",

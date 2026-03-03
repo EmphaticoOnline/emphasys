@@ -2,6 +2,7 @@ import * as React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import ContactosPage from './pages/ContactosPage.js';
 import ProductosPage from './pages/ProductosPage.js';
+import ProductoFormPage from './pages/ProductoFormPage.js';
 import Layout from './components/Layout.js';
 
 export default function App() {
@@ -11,6 +12,8 @@ export default function App() {
         <Routes>
           <Route path="/contactos" element={<ContactosPage />} />
           <Route path="/productos" element={<ProductosPage />} />
+          <Route path="/productos/nuevo" element={<ProductoFormPage />} />
+          <Route path="/productos/:id" element={<ProductoFormPage />} />
           <Route path="*" element={<Navigate to="/contactos" />} />
         </Routes>
       </Layout>

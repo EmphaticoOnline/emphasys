@@ -1,0 +1,65 @@
+export interface Producto {
+  id: number;
+  clave: string;
+  descripcion: string;
+  activo: boolean;
+  clasificacion: string | null;
+  tipo_producto: string | null;
+  familia: string | null;
+  linea: string | null;
+  presentacion: string | null;
+  unidad_venta: string | null;
+  unidad_compra: string | null;
+  unidad_inventario: string | null;
+  factor_conversion: number | null;
+  existencia_actual: number | null;
+  minimo_inventario: number | null;
+  costo_estandar: number | null;
+  costo_promedio: number | null;
+  ultimo_costo: number | null;
+  precio_publico: number | null;
+  precio_mayoreo: number | null;
+  precio_menudeo: number | null;
+  precio_distribuidor: number | null;
+  iva_porcentaje: number | null;
+  ieps_porcentaje: number | null;
+  retiene_iva: boolean;
+  retiene_isr: boolean;
+  clave_producto_sat: string | null;
+  unidad_sat: string | null;
+  fraccion_arancelaria: string | null;
+  largo: number | null;
+  ancho: number | null;
+  alto: number | null;
+  espesor: number | null;
+  diametro: number | null;
+  peso_unitario: number | null;
+  equivalente_m2: number | null;
+  piezas_por_empaque: number | null;
+  peso_por_empaque: number | null;
+  unidad_peso_empaque: string | null;
+  ubicacion_almacen: string | null;
+  proveedor_principal_id: number | null;
+  proveedor_alternativo_1_id: number | null;
+  proveedor_alternativo_2_id: number | null;
+  archivo_fotografia_1: string | null;
+  archivo_fotografia_2: string | null;
+  archivo_ficha_tecnica: string | null;
+  archivo_certificado: string | null;
+  es_estacional: boolean;
+  demanda_mensual_estimado: number | null;
+  factor_demanda: number | null;
+  observaciones: string | null;
+  observaciones_compras: string | null;
+  observaciones_diseno: string | null;
+  fecha_creacion: string;
+}
+
+export interface ProductoBasico {
+  clave: string;
+  descripcion: string;
+  clasificacion?: string | null;
+  tipo_producto?: string | null;
+  precio_publico?: number | null;
+  activo: boolean;
+}
