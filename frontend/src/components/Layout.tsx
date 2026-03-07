@@ -44,12 +44,14 @@ export default function Layout({ children }: LayoutProps) {
   const tabPathMap: Record<string, string> = {
     Contactos: '/contactos',
     Productos: '/productos',
-    Cotizaciones: '/cotizaciones',
+    Cotizaciones: '/documentos',
+    'Facturación': '/facturas',
   };
 
   const getTabFromPath = (pathname: string): string => {
     if (pathname.startsWith('/configuracion')) return '';
-    if (pathname.startsWith('/cotizaciones')) return 'Cotizaciones';
+    if (pathname.startsWith('/facturas')) return 'Facturación';
+  if (pathname.startsWith('/documentos')) return 'Cotizaciones';
     if (pathname.startsWith('/productos')) return 'Productos';
     if (pathname.startsWith('/contactos')) return 'Contactos';
     return MODULE_TABS['Catálogos']?.[0] || '';

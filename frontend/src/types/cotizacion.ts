@@ -1,3 +1,5 @@
+import type { TipoDocumento } from './documentos.types';
+
 export interface CotizacionListado {
   id: number;
   serie: string | null;
@@ -14,7 +16,7 @@ export interface CotizacionListado {
 export interface CotizacionDocumento {
   id: number;
   empresa_id: number;
-  tipo_documento: string;
+  tipo_documento: TipoDocumento;
   serie: string | null;
   numero: number | null;
   fecha_documento: string;
@@ -50,6 +52,7 @@ export interface CotizacionDetalle {
 
 export interface CotizacionCrearPayload {
   empresa_id?: number;
+  tipo_documento?: TipoDocumento;
   contacto_principal_id: number | null;
   fecha_documento: string;
   moneda: string | null;

@@ -9,6 +9,7 @@ import contactosRouter from "./modules/contactos/contactos.routes";
 import productosRouter from "./modules/productos/productos.routes";
 import unidadesRouter from "./modules/unidades/unidades.routes";
 import documentosRouter from "./modules/documentos/documentos.routes";
+import facturasRouter from "./modules/documentos/facturas.routes";
 import whatsappRoutes from "./whatsapp/whatsapp.routes";
 import satCatalogosRouter from "./modules/catalogos/sat/sat.routes";
 import catalogosRouter from "./modules/catalogos/catalogos.routes";
@@ -60,6 +61,8 @@ app.use("/api/unidades", unidadesRouter);
 
 // monta el módulo de documentos (cotizaciones)
 app.use("/api/documentos", documentosRouter);
+// módulo de facturas reutilizando la misma lógica de documentos
+app.use("/api/facturas", facturasRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

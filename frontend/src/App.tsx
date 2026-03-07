@@ -4,8 +4,8 @@ import ContactosPage from './pages/ContactosPage.js';
 import ContactoFormPage from './pages/ContactoFormPage.js';
 import ProductosPage from './pages/ProductosPage.js';
 import ProductoFormPage from './pages/ProductoFormPage.js';
-import CotizacionesPage from './pages/CotizacionesPage.js';
-import CotizacionFormPage from './pages/CotizacionFormPage.js';
+import DocumentosPage from './pages/DocumentosPage.js';
+import DocumentosFormPage from './pages/DocumentosFormPage.js';
 import Layout from './components/Layout.js';
 import LoginPage from './pages/LoginPage.js';
 import SeleccionEmpresaPage from './pages/SeleccionEmpresaPage.js';
@@ -33,9 +33,12 @@ export default function App() {
               <Route path="/productos" element={<ProductosPage />} />
               <Route path="/productos/nuevo" element={<ProductoFormPage />} />
               <Route path="/productos/:id" element={<ProductoFormPage />} />
-              <Route path="/cotizaciones" element={<CotizacionesPage />} />
-              <Route path="/cotizaciones/nuevo" element={<CotizacionFormPage />} />
-              <Route path="/cotizaciones/:id" element={<CotizacionFormPage />} />
+              <Route path="/documentos" element={<DocumentosPage tipoDocumento="cotizacion" />} />
+              <Route path="/documentos/nuevo" element={<DocumentosFormPage tipoDocumento="cotizacion" />} />
+              <Route path="/documentos/:id" element={<DocumentosFormPage tipoDocumento="cotizacion" />} />
+              <Route path="/facturas" element={<DocumentosPage tipoDocumento="factura" />} />
+              <Route path="/facturas/nuevo" element={<DocumentosFormPage tipoDocumento="factura" />} />
+              <Route path="/facturas/:id" element={<DocumentosFormPage tipoDocumento="factura" />} />
               <Route path="/configuracion" element={<ConfiguracionPage />} />
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />

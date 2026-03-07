@@ -4,6 +4,7 @@ import PDFDocument from 'pdfkit';
 
 type DocumentoCotizacion = {
   id?: number;
+  tipo_documento?: string | null;
   serie?: string | null;
   numero?: number | null;
   fecha_documento?: string | null;
@@ -47,6 +48,14 @@ const formatDate = (value: string | null | undefined) => {
   return date.toLocaleDateString('es-MX');
 };
 
+const tituloPorTipo = (tipo: string | null | undefined) => {
+  const t = (tipo || '').toString().toLowerCase();
+  if (t === 'factura') return 'FACTURA';
+  if (t === 'pedido') return 'PEDIDO';
+  if (t === 'remision') return 'REMISIÓN';
+  return 'COTIZACIÓN';
+};
+
 export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer> {
   const { documento, partidas } = data;
   const contentWidth = 595.28 - 2 * 50; // A4 width minus default margins (approx)
@@ -86,7 +95,7 @@ export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer>
       .font('Helvetica-Bold')
       .fontSize(18)
       .fillColor(primaryColor)
-      .text('COTIZACIÓN', infoX, headerTop + 14, { width: infoWidth, align: 'right' });
+      .text(tituloPorTipo(documento?.tipo_documento), infoX, headerTop + 14, { width: infoWidth, align: 'right' });
 
     const encabezadoDatos: Array<[string, string]> = [
       ['Folio', folio || 'N/D'],

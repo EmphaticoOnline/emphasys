@@ -7,6 +7,11 @@ import {
   Autocomplete,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   CircularProgress,
   IconButton,
   Paper,
@@ -33,7 +38,8 @@ import type {
   CotizacionCrearPayload,
   CotizacionPartida,
 } from '../types/cotizacion';
-import { getCotizacion, createCotizacion, updateCotizacion, replacePartidas, downloadCotizacionPdf } from '../services/cotizacionesService';
+import type { TipoDocumento } from '../types/documentos.types';
+import { getDocumento, createDocumento, updateDocumento, replacePartidas, downloadDocumentoPdf } from '../services/documentosService';
 import { fetchContactos } from '../services/contactosService';
 import { fetchProductos } from '../services/productosService';
 import type { Producto } from '../types/producto';
@@ -59,12 +65,53 @@ const emptyPartida = (): PartidaForm => ({
   observaciones: '',
 });
 
-export default function CotizacionFormPage() {
+type DocumentosFormPageProps = {
+  tipoDocumento?: TipoDocumento;
+};
+
+const TEXTOS: Record<TipoDocumento, { nuevo: string; editar: string; descripcion: string; guardado: string; cargando: string; singular: string }> = {
+  cotizacion: {
+    nuevo: 'Nueva cotización',
+    editar: 'Editar cotización',
+    descripcion: 'Captura el encabezado y las partidas de la cotización.',
+    guardado: 'Cotización guardada',
+    cargando: 'Cargando cotización...',
+    singular: 'cotización',
+  },
+  factura: {
+    nuevo: 'Nueva factura',
+    editar: 'Editar factura',
+    descripcion: 'Captura el encabezado y las partidas de la factura.',
+    guardado: 'Factura guardada',
+    cargando: 'Cargando factura...',
+    singular: 'factura',
+  },
+  pedido: {
+    nuevo: 'Nuevo pedido',
+    editar: 'Editar pedido',
+    descripcion: 'Captura el encabezado y las partidas del pedido.',
+    guardado: 'Pedido guardado',
+    cargando: 'Cargando pedido...',
+    singular: 'pedido',
+  },
+  remision: {
+    nuevo: 'Nueva remisión',
+    editar: 'Editar remisión',
+    descripcion: 'Captura el encabezado y las partidas de la remisión.',
+    guardado: 'Remisión guardada',
+    cargando: 'Cargando remisión...',
+    singular: 'remisión',
+  },
+};
+
+export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: DocumentosFormPageProps) {
   const { id } = useParams();
   const isEdit = Boolean(id && id !== 'nuevo');
   const navigate = useNavigate();
+  const basePath = tipoDocumento === 'factura' ? '/facturas' : '/documentos';
 
   const [form, setForm] = useState<CotizacionCrearPayload>({
+    tipo_documento: tipoDocumento,
     contacto_principal_id: null,
     fecha_documento: defaultFecha(),
     moneda: 'MXN',
@@ -89,6 +136,7 @@ export default function CotizacionFormPage() {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
+  const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
 
   const precioRefs = useRef<(HTMLInputElement | null)[]>([]);
   const cantidadRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -185,16 +233,17 @@ export default function CotizacionFormPage() {
     }
   };
 
-  const loadCotizacion = async () => {
+  const loadDocumento = async () => {
     if (!isEdit || !id) return;
     try {
       setLoading(true);
-      const data: CotizacionDetalle = await getCotizacion(Number(id));
+      const data: CotizacionDetalle = await getDocumento(Number(id), tipoDocumento);
       const doc = data.documento;
       setForm({
+        tipo_documento: doc.tipo_documento ?? tipoDocumento,
         contacto_principal_id: doc.contacto_principal_id,
         fecha_documento: doc.fecha_documento?.substring(0, 10) || defaultFecha(),
-  moneda: 'MXN',
+        moneda: doc.moneda || 'MXN',
         observaciones: doc.observaciones || '',
         subtotal: doc.subtotal || 0,
         iva: doc.iva || 0,
@@ -226,7 +275,8 @@ export default function CotizacionFormPage() {
       recalcTotales(mapped);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo cargar la cotización');
+      const mensaje = e instanceof Error ? e.message : `No se pudo cargar la ${TEXTOS[tipoDocumento].singular}`;
+      setError(mensaje);
     } finally {
       setLoading(false);
     }
@@ -237,9 +287,9 @@ export default function CotizacionFormPage() {
   }, []);
 
   useEffect(() => {
-    loadCotizacion();
+    loadDocumento();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, id]);
+  }, [isEdit, id, tipoDocumento]);
 
   const handleSave = async () => {
     if (!form.contacto_principal_id) {
@@ -250,6 +300,7 @@ export default function CotizacionFormPage() {
       setSaving(true);
       const payload: CotizacionCrearPayload = {
         ...form,
+        tipo_documento: tipoDocumento,
         subtotal: form.subtotal || 0,
         iva: form.iva || 0,
         total: form.total || 0,
@@ -258,10 +309,10 @@ export default function CotizacionFormPage() {
 
       let docId: number;
       if (isEdit && id) {
-        const updated = await updateCotizacion(Number(id), payload);
+        const updated = await updateDocumento(Number(id), tipoDocumento, payload);
         docId = (updated as any).id ?? Number(id);
       } else {
-        const created = await createCotizacion(payload);
+        const created = await createDocumento(tipoDocumento, payload);
         docId = (created as any).id;
       }
 
@@ -275,12 +326,17 @@ export default function CotizacionFormPage() {
         total_partida: p.total_partida ?? 0,
         observaciones: p.observaciones ?? '',
       }));
-      await replacePartidas(docId, partidasPayload);
+      await replacePartidas(docId, tipoDocumento, partidasPayload);
 
-      setSnackbar({ open: true, message: 'Cotización guardada', severity: 'success' });
-      setTimeout(() => navigate('/cotizaciones'), 400);
+      setSnackbar({ open: true, message: TEXTOS[tipoDocumento].guardado, severity: 'success' });
+      setTimeout(() => navigate(basePath), 400);
     } catch (e) {
-      setSnackbar({ open: true, message: e instanceof Error ? e.message : 'No se pudo guardar', severity: 'error' });
+      const message = e instanceof Error ? e.message : 'No se pudo guardar';
+      if (message.toLowerCase().includes('serie') && message.toLowerCase().includes('número')) {
+        setDuplicateDialog({ open: true, message });
+      } else {
+        setSnackbar({ open: true, message, severity: 'error' });
+      }
     } finally {
       setSaving(false);
     }
@@ -330,15 +386,15 @@ export default function CotizacionFormPage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <Button variant="text" startIcon={<ArrowBackIcon />} onClick={() => navigate('/cotizaciones')}>
+          <Button variant="text" startIcon={<ArrowBackIcon />} onClick={() => navigate(basePath)}>
             Volver
           </Button>
           <Box>
             <Typography variant="h5" fontWeight={700} color="#1d2f68">
-              {isEdit ? 'Editar cotización' : 'Nueva cotización'}
+              {isEdit ? TEXTOS[tipoDocumento].editar : TEXTOS[tipoDocumento].nuevo}
             </Typography>
             <Typography variant="body2" color="#4b5563">
-              Captura el encabezado y las partidas de la cotización.
+              {TEXTOS[tipoDocumento].descripcion}
             </Typography>
           </Box>
         </Stack>
@@ -350,7 +406,7 @@ export default function CotizacionFormPage() {
               onClick={async () => {
                 try {
                   setDownloadingPdf(true);
-                  const blob = await downloadCotizacionPdf(Number(id));
+                  const blob = await downloadDocumentoPdf(Number(id), tipoDocumento);
                   const url = URL.createObjectURL(blob);
                   window.open(url, '_blank');
                   setTimeout(() => URL.revokeObjectURL(url), 10_000);
@@ -381,7 +437,7 @@ export default function CotizacionFormPage() {
         {loading ? (
           <Stack direction="row" spacing={1.5} alignItems="center">
             <CircularProgress size={22} />
-            <Typography color="text.secondary">Cargando cotización...</Typography>
+            <Typography color="text.secondary">{TEXTOS[tipoDocumento].cargando}</Typography>
           </Stack>
         ) : (
           <>
@@ -726,6 +782,27 @@ export default function CotizacionFormPage() {
           </>
         )}
       </Paper>
+
+      <Dialog open={duplicateDialog.open} onClose={() => setDuplicateDialog({ open: false, message: '' })}>
+        <DialogTitle fontWeight={700}>Documento duplicado</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: '#374151' }}>
+            Ya existe un documento con la misma serie y número. Por favor verifique el consecutivo antes de continuar.
+            {duplicateDialog.message && (
+              <>
+                <br />
+                <br />
+                <strong>Detalle:</strong> {duplicateDialog.message}
+              </>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button variant="contained" onClick={() => setDuplicateDialog({ open: false, message: '' })}>
+            Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={snackbar.open}

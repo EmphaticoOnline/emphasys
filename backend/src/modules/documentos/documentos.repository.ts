@@ -1,9 +1,10 @@
 import pool from '../../config/database';
+import type { TipoDocumento } from '../../types/documentos';
 
 export type Documento = {
   id: number;
   empresa_id: number;
-  tipo_documento: string;
+  tipo_documento: TipoDocumento;
   serie: string | null;
   numero: number | null;
   fecha_documento: string;
@@ -47,7 +48,7 @@ const CAMPOS_DOCUMENTO = [
 ] as const;
 
 type DocumentoInput = Partial<Record<typeof CAMPOS_DOCUMENTO[number], any>> & {
-  tipo_documento?: string;
+  tipo_documento?: TipoDocumento;
 };
 
 type PartidaInput = {
@@ -61,7 +62,7 @@ type PartidaInput = {
   observaciones?: string | null;
 };
 
-export async function listarCotizacionesRepository(tipoDocumento = 'Cotizacion', empresaId: number) {
+export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number) {
   const query = `
     SELECT
       d.id,
@@ -76,14 +77,14 @@ export async function listarCotizacionesRepository(tipoDocumento = 'Cotizacion',
       d.estatus_documento
     FROM documentos d
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
-    WHERE d.empresa_id = $1 AND d.tipo_documento = $2
+    WHERE d.empresa_id = $1 AND LOWER(d.tipo_documento) = $2
     ORDER BY d.fecha_documento DESC, d.id DESC
   `;
-  const { rows } = await pool.query(query, [empresaId, tipoDocumento]);
+  const { rows } = await pool.query(query, [empresaId, tipoDocumento.toLowerCase()]);
   return rows;
 }
 
-export async function obtenerCotizacionRepository(id: number, empresaId: number) {
+export async function obtenerDocumentoRepository(id: number, empresaId: number, tipoDocumento?: TipoDocumento) {
   const docQuery = `
     SELECT
       d.*,
@@ -102,9 +103,11 @@ export async function obtenerCotizacionRepository(id: number, empresaId: number)
     LEFT JOIN contactos_domicilios cd ON cd.contacto_id = c.id AND cd.es_principal = true
     LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
     WHERE d.empresa_id = $1 AND d.id = $2
+      ${tipoDocumento ? 'AND LOWER(d.tipo_documento) = LOWER($3)' : ''}
     LIMIT 1
   `;
-  const { rows: docRows } = await pool.query(docQuery, [empresaId, id]);
+  const params = tipoDocumento ? [empresaId, id, tipoDocumento] : [empresaId, id];
+  const { rows: docRows } = await pool.query(docQuery, params);
   const documento = docRows[0];
   if (!documento) return null;
 
@@ -120,24 +123,36 @@ export async function obtenerCotizacionRepository(id: number, empresaId: number)
   return { documento, partidas };
 }
 
-export async function crearCotizacionRepository(data: DocumentoInput, empresaId: number) {
+const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
+  cotizacion: 'COT',
+  factura: 'FAC',
+  pedido: 'PED',
+  remision: 'REM',
+};
+
+export async function crearDocumentoRepository(data: DocumentoInput, empresaId: number, tipoDocumento: TipoDocumento) {
   const estatus = data.estatus_documento || 'Borrador';
-  const tipoDocumento = data.tipo_documento || 'Cotizacion';
+  const tipoDocumentoNormalizado = (data.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
+  const tipoDocumentoDb = tipoDocumentoNormalizado;
 
   // Asigna número secuencial si no viene en la petición
   let numero = data.numero;
   if (numero === undefined || numero === null) {
     const { rows } = await pool.query(
-      'SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero FROM documentos WHERE empresa_id = $1 AND tipo_documento = $2',
-      [empresaId, tipoDocumento]
+      `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
+       FROM documentos
+       WHERE empresa_id = $1
+         AND LOWER(tipo_documento) = LOWER($2)
+         AND COALESCE(serie, '') = COALESCE($3, '')`,
+      [empresaId, tipoDocumentoDb, data.serie ?? SERIE_DEFAULTS[tipoDocumentoNormalizado] ?? '']
     );
     numero = rows[0]?.next_numero ?? 1;
   }
 
-  // Serie por defecto para cotizaciones (evita null / constraint de NOT NULL)
-  const serie = data.serie ?? 'COT';
+  // Serie por defecto por tipo de documento (evita null / constraint de NOT NULL)
+  const serie = data.serie ?? SERIE_DEFAULTS[tipoDocumentoNormalizado] ?? 'DOC';
 
-  const valores: any[] = [empresaId, tipoDocumento, estatus, serie, numero];
+  const valores: any[] = [empresaId, tipoDocumentoDb, estatus, serie, numero];
 
   const columnas: string[] = ['empresa_id', 'tipo_documento', 'estatus_documento', 'serie', 'numero'];
   CAMPOS_DOCUMENTO.forEach((campo) => {
@@ -152,27 +167,51 @@ export async function crearCotizacionRepository(data: DocumentoInput, empresaId:
   const params = valores.map((_, idx) => `$${idx + 1}`).join(', ');
   const query = `INSERT INTO documentos (${columnas.join(', ')}) VALUES (${params}) RETURNING *`;
 
+  // Validar duplicado serie + número + tipo + empresa
+  const { rowCount: dupCount } = await pool.query(
+    `SELECT 1 FROM documentos
+     WHERE empresa_id = $1
+       AND LOWER(tipo_documento) = LOWER($2)
+       AND COALESCE(serie,'') = COALESCE($3,'')
+       AND numero = $4
+     LIMIT 1`,
+    [empresaId, tipoDocumentoDb, serie, numero]
+  );
+  if ((dupCount ?? 0) > 0) {
+    const err: any = new Error(`Ya existe un documento con la serie ${serie ?? ''} y número ${numero}.`);
+    err.code = 'DOCUMENTO_DUPLICADO';
+    throw err;
+  }
+
   const { rows } = await pool.query(query, valores);
   return rows[0];
 }
 
-export async function actualizarCotizacionRepository(id: number, data: DocumentoInput, empresaId: number) {
+export async function actualizarDocumentoRepository(
+  id: number,
+  data: DocumentoInput,
+  empresaId: number,
+  tipoDocumento?: TipoDocumento
+) {
   const entries = CAMPOS_DOCUMENTO.filter((campo) => data[campo] !== undefined);
   const sets = entries.map((campo, idx) => `${campo} = $${idx + 1}`).join(', ');
   const valores = entries.map((campo) => data[campo]);
   if (!sets) {
-    const { rows } = await pool.query('SELECT * FROM documentos WHERE id = $1 AND empresa_id = $2', [id, empresaId]);
+    const query = `SELECT * FROM documentos WHERE id = $1 AND empresa_id = $2 ${tipoDocumento ? 'AND LOWER(tipo_documento) = LOWER($3)' : ''}`;
+    const { rows } = await pool.query(query, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
     return rows[0] || null;
   }
 
+  const whereTipo = tipoDocumento ? ` AND LOWER(tipo_documento) = LOWER($${valores.length + 3})` : '';
   const query = `
     UPDATE documentos
     SET ${sets}
-    WHERE id = $${valores.length + 1} AND empresa_id = $${valores.length + 2}
+    WHERE id = $${valores.length + 1} AND empresa_id = $${valores.length + 2}${whereTipo}
     RETURNING *
   `;
 
-  const { rows } = await pool.query(query, [...valores, id, empresaId]);
+  const params = tipoDocumento ? [...valores, id, empresaId, tipoDocumento] : [...valores, id, empresaId];
+  const { rows } = await pool.query(query, params);
   return rows[0] || null;
 }
 
@@ -280,15 +319,22 @@ export async function reemplazarPartidasRepository(documentoId: number, partidas
   }
 }
 
-export async function eliminarCotizacionRepository(id: number, empresaId: number) {
+export async function eliminarDocumentoRepository(id: number, empresaId: number, tipoDocumento?: TipoDocumento) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query(
-      'DELETE FROM documentos_partidas dp WHERE dp.documento_id = $1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2)',
-      [id, empresaId]
-    );
-    const result = await client.query('DELETE FROM documentos WHERE id = $1 AND empresa_id = $2', [id, empresaId]);
+
+    const deletePartidasSql = tipoDocumento
+      ? 'DELETE FROM documentos_partidas dp WHERE dp.documento_id = $1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2 AND LOWER(d.tipo_documento) = LOWER($3))'
+      : 'DELETE FROM documentos_partidas dp WHERE dp.documento_id = $1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2)';
+
+    await client.query(deletePartidasSql, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
+
+    const deleteDocumentoSql = tipoDocumento
+      ? 'DELETE FROM documentos WHERE id = $1 AND empresa_id = $2 AND LOWER(tipo_documento) = LOWER($3)'
+      : 'DELETE FROM documentos WHERE id = $1 AND empresa_id = $2';
+
+    const result = await client.query(deleteDocumentoSql, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
     await client.query('COMMIT');
     return (result.rowCount ?? 0) > 0;
   } catch (error) {

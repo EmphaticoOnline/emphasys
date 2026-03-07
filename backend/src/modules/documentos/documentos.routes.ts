@@ -8,7 +8,7 @@ import {
   actualizarCotizacion,
   reemplazarPartidas,
   eliminarCotizacion,
-  obtenerDocumentoPDF,
+  obtenerCotizacionPDF,
 } from './documentos.controller';
 
 const router = Router();
@@ -20,7 +20,7 @@ router.get('/', requireAuth, requireEmpresaActiva, listarCotizaciones);
 router.get('/:id', requireAuth, requireEmpresaActiva, obtenerCotizacion);
 
 // GET /api/documentos/:id/pdf
-router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerDocumentoPDF);
+router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerCotizacionPDF);
 
 // POST /api/documentos
 router.post('/', requireAuth, requireEmpresaActiva, crearCotizacion);
