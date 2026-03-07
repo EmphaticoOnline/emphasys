@@ -1,10 +1,19 @@
 
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import path from "path";
 import fs from "fs";
 import contactosRouter from "./modules/contactos/contactos.routes";
 import productosRouter from "./modules/productos/productos.routes";
+import unidadesRouter from "./modules/unidades/unidades.routes";
+import documentosRouter from "./modules/documentos/documentos.routes";
 import whatsappRoutes from "./whatsapp/whatsapp.routes";
+import satCatalogosRouter from "./modules/catalogos/sat/sat.routes";
+import catalogosRouter from "./modules/catalogos/catalogos.routes";
+import authRoutes from "./modules/auth/auth.routes";
+import configuracionCatalogosRouter from "./modules/configuracion/catalogos/catalogos-configurables.routes";
 
 const app = express();
 
@@ -30,8 +39,27 @@ console.log(
 // monta el módulo contactos
 app.use("/api/contactos", contactosRouter);
 
+// autenticación
+app.use("/auth", authRoutes);
+
+// catálogos SAT
+app.use("/api/catalogos/sat", satCatalogosRouter);
+app.use("/api/sat", satCatalogosRouter);
+
+// catálogos configurables (core.catalogos)
+app.use("/api/catalogos", catalogosRouter);
+
+// catálogos configurables (core)
+app.use("/api/configuracion/catalogos", configuracionCatalogosRouter);
+
 // monta el módulo productos
 app.use("/api/productos", productosRouter);
+
+// monta el catálogo de unidades
+app.use("/api/unidades", unidadesRouter);
+
+// monta el módulo de documentos (cotizaciones)
+app.use("/api/documentos", documentosRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });
@@ -40,12 +68,22 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/whatsapp", whatsappRoutes);
 
+// 404 explícito para rutas /api no manejadas (evita caer al fallback del frontend)
+app.use("/api", (_req, res) => {
+  res.status(404).json({ message: "Ruta de API no encontrada" });
+});
+
 // Servir frontend estático
 app.use(express.static(frontendDistPath));
 
 // Fallback para SPA
 app.use((_req, res) => {
-  res.sendFile(path.join(frontendDistPath, "index.html"));
+  const indexPath = path.join(frontendDistPath, "index.html");
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  console.error("[static-fallback] index.html no encontrado en", indexPath);
+  return res.status(500).json({ message: "frontend-dist no encontrado (index.html)" });
 });
 
 export default app;

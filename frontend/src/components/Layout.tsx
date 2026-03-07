@@ -4,8 +4,17 @@ import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import Menu from './Menu.js';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import LogoutIcon from '@mui/icons-material/Logout';
+import PersonIcon from '@mui/icons-material/Person';
+import MenuItem from '@mui/material/MenuItem';
+import Menu from '@mui/material/Menu';
+import Divider from '@mui/material/Divider';
+import MainMenu from './Menu.js';
+import EmpresaSelector from './EmpresaSelector.js';
 import { MODULE_TABS, MODULE_DESCRIPTIONS } from './navigationData.js';
+import { useSession } from '../session/useSession';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,16 +23,42 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { logout, session } = useSession();
+  const userName = session.user?.nombre || 'Usuario';
+
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const menuOpen = Boolean(anchorEl);
+
+  const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleUserMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const sectionPathMap: Record<string, string> = {
+    Configuración: '/configuracion',
+  };
 
   const tabPathMap: Record<string, string> = {
     Contactos: '/contactos',
     Productos: '/productos',
+    Cotizaciones: '/cotizaciones',
   };
 
   const getTabFromPath = (pathname: string): string => {
+    if (pathname.startsWith('/configuracion')) return '';
+    if (pathname.startsWith('/cotizaciones')) return 'Cotizaciones';
     if (pathname.startsWith('/productos')) return 'Productos';
     if (pathname.startsWith('/contactos')) return 'Contactos';
     return MODULE_TABS['Catálogos']?.[0] || '';
+  };
+
+  const getSectionFromPath = (pathname: string): string => {
+    if (pathname.startsWith('/configuracion')) return 'Configuración';
+    const tab = getTabFromPath(pathname);
+    return getSectionForTab(tab);
   };
 
   const getSectionForTab = (tab: string): string => {
@@ -32,23 +67,30 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   const [selectedTab, setSelectedTab] = React.useState<string>(getTabFromPath(location.pathname));
-  const [selectedSection, setSelectedSection] = React.useState<string>(getSectionForTab(selectedTab));
+  const [selectedSection, setSelectedSection] = React.useState<string>(getSectionFromPath(location.pathname));
 
   const tabsForSection = MODULE_TABS[selectedSection] || [];
 
   React.useEffect(() => {
     const tabFromPath = getTabFromPath(location.pathname);
     setSelectedTab(tabFromPath);
-    setSelectedSection(getSectionForTab(tabFromPath));
+    setSelectedSection(getSectionFromPath(location.pathname));
   }, [location.pathname]);
 
   const handleSectionChange = (section: string) => {
     setSelectedSection(section);
-    const nextTab = MODULE_TABS[section]?.[0];
+    const availableTabs = MODULE_TABS[section] || [];
+    const tabWithPath = availableTabs.find((t) => tabPathMap[t]);
+    const nextTab = tabWithPath || availableTabs[0];
+
     if (nextTab) {
       setSelectedTab(nextTab);
       const path = tabPathMap[nextTab];
       if (path) navigate(path);
+    } else {
+      setSelectedTab('');
+      const sectionPath = sectionPathMap[section];
+      if (sectionPath) navigate(sectionPath);
     }
   };
 
@@ -58,17 +100,89 @@ export default function Layout({ children }: LayoutProps) {
     if (path) navigate(path);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#eef1f4' }}>
-  <Menu selectedSection={selectedSection} onSelect={handleSectionChange} />
+      <Box
+        sx={{
+          width: '100%',
+          background: '#1d2f68',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 3,
+          height: 72,
+          boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0 }}>
+          <MainMenu selectedSection={selectedSection} onSelect={handleSectionChange} />
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <EmpresaSelector />
+          <Tooltip title={userName}>
+            <IconButton
+              onClick={handleUserMenuOpen}
+              size="small"
+              color="inherit"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 1,
+                borderRadius: '999px',
+                backgroundColor: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.25)',
+                '&:hover': { backgroundColor: 'rgba(255,255,255,0.22)' },
+              }}
+              aria-label="Menú de usuario"
+            >
+              <PersonIcon sx={{ color: '#fff', fontSize: 22 }} />
+              <Typography component="span" sx={{ fontWeight: 600, color: '#fff', display: { xs: 'none', sm: 'inline' } }}>
+                {userName}
+              </Typography>
+            </IconButton>
+          </Tooltip>
+          <Menu
+            anchorEl={anchorEl}
+            open={menuOpen}
+            onClose={handleUserMenuClose}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            PaperProps={{
+              sx: {
+                mt: 1,
+                minWidth: 200,
+              },
+            }}
+          >
+            <MenuItem onClick={handleUserMenuClose}>Perfil</MenuItem>
+            <MenuItem onClick={handleUserMenuClose}>Cambiar contraseña</MenuItem>
+            <Divider />
+            <MenuItem
+              onClick={() => {
+                handleUserMenuClose();
+                handleLogout();
+              }}
+              sx={{ color: 'error.main' }}
+            >
+              Cerrar sesión
+            </MenuItem>
+          </Menu>
+        </Box>
+      </Box>
 
       <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: 3 }}>
         <Box
           component="main"
           sx={{
-            maxWidth: '1200px',
             width: '100%',
-            margin: '0 auto',
             minHeight: '70vh',
             background: '#fff',
             boxShadow: '0px 12px 30px rgba(0,0,0,0.05)',
@@ -81,24 +195,16 @@ export default function Layout({ children }: LayoutProps) {
             gap: 0,
           }}
         >
-          <Box
-            sx={{
-              background: '#f6f8fa',
-              borderBottom: '1px solid #e5e7eb',
-              p: 3,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1.5,
-            }}
-          >
-            <Typography variant="h5" fontWeight={700} color="#1d2f68">
-              {selectedSection}
-            </Typography>
-            <Typography variant="body2" color="#4b5563">
-              {MODULE_DESCRIPTIONS[selectedSection] || ''}
-            </Typography>
-
-            {tabsForSection.length > 0 && (
+          {tabsForSection.length > 0 && (
+            <Box
+              sx={{
+                background: '#f6f8fa',
+                borderBottom: '1px solid #e5e7eb',
+                px: 2.5,
+                pt: 1.5,
+                pb: 0.5,
+              }}
+            >
               <Tabs
                 value={selectedTab}
                 onChange={handleTabChange}
@@ -107,7 +213,6 @@ export default function Layout({ children }: LayoutProps) {
                 textColor="inherit"
                 TabIndicatorProps={{ style: { display: 'none' } }}
                 sx={{
-                  pt: 1,
                   minHeight: 0,
                   '& .MuiTabs-flexContainer': {
                     alignItems: 'flex-end',
@@ -119,7 +224,7 @@ export default function Layout({ children }: LayoutProps) {
                     color: '#4b5563',
                     borderTop: '3px solid transparent',
                     borderRadius: '6px 6px 0 0',
-                    padding: '10px 12px',
+                    padding: '8px 10px',
                     mr: 1,
                     alignItems: 'flex-end',
                   },
@@ -141,8 +246,8 @@ export default function Layout({ children }: LayoutProps) {
                   <Tab key={tab} label={tab} value={tab} disableRipple />
                 ))}
               </Tabs>
-            )}
-          </Box>
+            </Box>
+          )}
 
           <Box sx={{ flex: 1, minHeight: 0, p: 3 }}>{children}</Box>
         </Box>

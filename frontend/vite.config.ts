@@ -5,7 +5,11 @@ export default defineConfig({
 	plugins: [react()],
 	server: {
 		proxy: {
-			'/api': 'http://localhost:7001'
+			'/api': 'http://localhost:7001',
+			'/auth': 'http://localhost:7001'
 		}
+	},
+	build: {
+		chunkSizeWarningLimit: 1200
 	}
 });

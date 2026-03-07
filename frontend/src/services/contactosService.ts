@@ -1,5 +1,6 @@
-export async function fetchContactos() {
-  const res = await fetch('/api/contactos');
-  if (!res.ok) throw new Error('Error al obtener contactos');
-  return res.json();
+import { apiFetch } from './apiFetch';
+import type { Contacto } from '../types/contactos.types';
+
+export async function fetchContactos(): Promise<Contacto[]> {
+  return apiFetch('/api/contactos');
 }

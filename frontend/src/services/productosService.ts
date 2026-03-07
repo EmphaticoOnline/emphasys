@@ -1,44 +1,59 @@
 import type { Producto, ProductoBasico } from '../types/producto';
+import { apiFetch } from './apiFetch';
 
 const BASE_URL = '/api/productos';
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const message = await res.text();
-    throw new Error(message || 'Error en la solicitud de productos');
-  }
-  return res.json();
-}
+export type CatalogoConfigurablesProductoRespuesta = {
+  entidad_tipo_id: number;
+  tipos: {
+    id: number;
+    nombre: string | null;
+    descripcion: string | null;
+    valores: {
+      id: number;
+      tipo_catalogo_id: number;
+      descripcion: string;
+      clave: string | null;
+      orden: number | null;
+    }[];
+  }[];
+  seleccionados: number[];
+};
 
 export async function fetchProductos(): Promise<Producto[]> {
-  const res = await fetch(BASE_URL);
-  return handleResponse<Producto[]>(res);
+  return apiFetch(BASE_URL);
 }
 
 export async function fetchProducto(id: number): Promise<Producto> {
-  const res = await fetch(`${BASE_URL}/${id}`);
-  return handleResponse<Producto>(res);
+  return apiFetch(`${BASE_URL}/${id}`);
 }
 
 export async function createProducto(payload: ProductoBasico): Promise<Producto> {
-  const res = await fetch(BASE_URL, {
+  return apiFetch(BASE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: payload as any,
   });
-  return handleResponse<Producto>(res);
 }
 
 export async function updateProducto(id: number, payload: ProductoBasico): Promise<Producto> {
-  const res = await fetch(`${BASE_URL}/${id}`, {
+  return apiFetch(`${BASE_URL}/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: payload as any,
   });
-  return handleResponse<Producto>(res);
 }
 
 export async function deleteProducto(id: number): Promise<void> {
-  const res = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE' });
-  await handleResponse(res);
+  await apiFetch(`${BASE_URL}/${id}`, { method: 'DELETE' });
+}
+
+export async function obtenerCatalogosConfigurablesProducto(productoId?: number): Promise<CatalogoConfigurablesProductoRespuesta> {
+  const url = productoId ? `${BASE_URL}/catalogos-configurables?productoId=${productoId}` : `${BASE_URL}/catalogos-configurables`;
+  return apiFetch(url);
+}
+
+export async function guardarCatalogosConfigurablesProducto(productoId: number, catalogoIds: number[]): Promise<{ ok: boolean }> {
+  return apiFetch(`${BASE_URL}/${productoId}/catalogos-configurables`, {
+    method: 'PUT',
+    body: { catalogoIds } as any,
+  });
 }

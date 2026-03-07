@@ -3,8 +3,21 @@ import { normalizeWhatsappPayload } from "./whatsapp.mapper";
 import { sendTextMessage } from "./whatsapp.service";
 import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
+import { getEmpresaActivaId } from "../shared/context/empresa";
+
+
+
 
 export const whatsappWebhook = async (req: Request, res: Response) => {
+
+  const token = req.headers["x-webhook-token"];
+
+  if (token !== process.env.WHATSAPP_WEBHOOK_TOKEN) {
+    return res.status(200).json({ ignored: true });
+  }
+
+  const empresaId = getEmpresaActivaId();
+
   try {
     const normalized = normalizeWhatsappPayload(req.body);
 
@@ -23,7 +36,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
         AND telefono = $2
       LIMIT 1
       `,
-      [1, telefono]
+      [empresaId, telefono]
     );
 
     let contactoId;
@@ -39,7 +52,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
         VALUES ($1, 'Cliente', $2, $3, true, false)
         RETURNING id
         `,
-        [1, telefono, telefono]
+        [empresaId, telefono, telefono]
       );
 
       contactoId = newContacto.rows[0].id;
@@ -57,7 +70,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       ORDER BY creada_en DESC
       LIMIT 1
       `,
-      [1, contactoId]
+      [empresaId, contactoId]
     );
 
     let conversacionId;
@@ -72,7 +85,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
         VALUES ($1, $2, 'abierta', NOW(), NOW())
         RETURNING id
         `,
-        [1, contactoId]
+        [empresaId, contactoId]
       );
 
       conversacionId = newConv.rows[0].id;
@@ -98,7 +111,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
       `,
       [
-        1,
+        empresaId,
         conversacionId,
         telefono,
         'entrante',
@@ -110,7 +123,18 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       ]
     );
 
+    await pool.query(
+      `
+      UPDATE whatsapp.whatsapp_conversaciones
+      SET ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW())
+      WHERE id = $1
+      `,
+      [conversacionId]
+    );
+
     return res.status(200).json({ received: true });
+
+
 
   } catch (err) {
     console.error("Error procesando webhook:", err);

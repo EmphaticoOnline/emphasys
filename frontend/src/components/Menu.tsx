@@ -3,7 +3,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import AccountCircle from '@mui/icons-material/AccountCircle';
-import logo from '../assets/logo-transparente.png';
+import logo from '../assets/emphasys-w.png';
 import { MAIN_MENUS } from './navigationData.js';
 
 const azul = '#1d2f68';
@@ -25,18 +25,17 @@ export default function MainMenu({ selectedSection, onSelect }: MainMenuProps) {
   return (
     <Box
       sx={{
-        height: 64,
-        background: azul,
-        borderBottom: `1px solid ${verde}33`,
         display: 'flex',
         alignItems: 'center',
-        px: 2,
         gap: 2,
         color: '#fff',
+        flex: 1,
+        minWidth: 0,
+        height: '100%',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-        <img src={logo} alt="Logo Emphasys" style={{ height: 56, width: 'auto' }} />
+        <img src={logo} alt="Logo Emphasys" style={{ height: 44, width: 'auto' }} />
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, height: '100%', minWidth: 0 }}>
@@ -68,12 +67,6 @@ export default function MainMenu({ selectedSection, onSelect }: MainMenuProps) {
             </Button>
           );
         })}
-      </Box>
-
-      <Box sx={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-        <IconButton color="default" sx={{ color: '#fff' }}>
-          <AccountCircle />
-        </IconButton>
       </Box>
     </Box>
   );

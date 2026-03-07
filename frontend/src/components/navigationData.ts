@@ -4,14 +4,16 @@ export const MAIN_MENUS = [
   { label: 'Compras' },
   { label: 'Finanzas' },
   { label: 'Inventarios' },
+  { label: 'Configuración' },
 ];
 
 export const MODULE_TABS: Record<string, string[]> = {
-  Catálogos: ['Contactos', 'Productos', 'Importar catálogos', 'Listas maestras'],
-  Ventas: ['Pedidos', 'Cotizaciones', 'Facturación', 'Clientes y segmentos', 'Reportes de ventas'],
-  Compras: ['Órdenes de compra', 'Solicitudes', 'Proveedores', 'Recepciones', 'Reportes de compras'],
-  Finanzas: ['Cuentas bancarias', 'Movimientos bancarios', 'Conciliaciones', 'Cobros y pagos', 'Presupuestos'],
+  Catálogos: ['Contactos', 'Productos'],
+  Ventas: ['Cotizaciones', 'Pedidos', 'Órdenes de entrega', 'Facturación', 'Reportes de ventas'],
+  Compras: ['Requisiciones', 'Órdenes de compra', 'Recepciones', 'Facturas'],
+  Finanzas: ['Cuentas bancarias', 'Movimientos', 'Conciliaciones', 'Presupuestos'],
   Inventarios: ['Inventario', 'Ajustes de stock', 'Kardex', 'Ubicaciones', 'Reportes de inventario'],
+  Configuración: [],
 };
 
 export const MODULE_DESCRIPTIONS: Record<string, string> = {
@@ -20,4 +22,5 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   Compras: 'Controla proveedores, solicitudes y órdenes de compra.',
   Finanzas: 'Supervisa cuentas, movimientos y conciliaciones financieras.',
   Inventarios: 'Monitorea stock, ajustes, ubicaciones y reportes de inventario.',
+  Configuración: 'Configura catálogos del sistema, usuarios, roles y empresas.',
 };

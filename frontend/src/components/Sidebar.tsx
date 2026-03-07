@@ -14,10 +14,10 @@ const sidebarOptions: Record<string, string[]> = {
     'Listas maestras',
   ],
   Ventas: [
-    'Pedidos',
     'Cotizaciones',
+    'Pedidos',
+    'Órdenes de entrega',
     'Facturación',
-    'Clientes y segmentos',
     'Reportes de ventas',
   ],
   Compras: [

@@ -8,9 +8,9 @@ export interface Producto {
   familia: string | null;
   linea: string | null;
   presentacion: string | null;
-  unidad_venta: string | null;
+  unidad_venta_id: number;
   unidad_compra: string | null;
-  unidad_inventario: string | null;
+  unidad_inventario_id: number;
   factor_conversion: number | null;
   existencia_actual: number | null;
   minimo_inventario: number | null;
@@ -53,6 +53,10 @@ export interface Producto {
   observaciones_compras: string | null;
   observaciones_diseno: string | null;
   fecha_creacion: string;
+  unidad_venta_clave?: string;
+  unidad_venta_descripcion?: string;
+  unidad_inventario_clave?: string;
+  unidad_inventario_descripcion?: string;
 }
 
 export interface ProductoBasico {
@@ -60,6 +64,7 @@ export interface ProductoBasico {
   descripcion: string;
   clasificacion?: string | null;
   tipo_producto?: string | null;
-  precio_publico?: number | null;
   activo: boolean;
+  unidad_venta_id?: number | null;
+  unidad_inventario_id?: number | null;
 }

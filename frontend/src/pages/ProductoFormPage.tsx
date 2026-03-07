@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -7,6 +7,9 @@ import {
   Button,
   CircularProgress,
   FormControlLabel,
+  Autocomplete,
+  Tabs,
+  Tab,
   MenuItem,
   Paper,
   Snackbar,
@@ -20,7 +23,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 
 import type { ProductoBasico, Producto } from '../types/producto';
-import { createProducto, fetchProducto, updateProducto } from '../services/productosService';
+import { createProducto, fetchProducto, updateProducto, obtenerCatalogosConfigurablesProducto, guardarCatalogosConfigurablesProducto, type CatalogoConfigurablesProductoRespuesta } from '../services/productosService';
+import { fetchUnidades, type Unidad } from '../services/unidadesService';
 
 const tipoProductoOptions = ['Inventariable', 'No inventariable', 'Kit'] as const;
 
@@ -29,8 +33,24 @@ const initialForm: ProductoBasico = {
   descripcion: '',
   clasificacion: '',
   tipo_producto: 'Inventariable',
-  precio_publico: null,
   activo: true,
+  unidad_venta_id: null,
+  unidad_inventario_id: null,
+};
+
+type CatalogoComercialValor = {
+  id: number;
+  tipo_catalogo_id: number;
+  descripcion: string;
+  clave: string | null;
+  orden: number | null;
+};
+
+type CatalogoComercialTipo = {
+  id: number;
+  nombre: string | null;
+  descripcion: string | null;
+  valores: CatalogoComercialValor[];
 };
 
 export default function ProductoFormPage() {
@@ -40,22 +60,34 @@ export default function ProductoFormPage() {
   const isEdit = Boolean(id && id !== 'nuevo');
   const [form, setForm] = useState<ProductoBasico>(initialForm);
   const [loading, setLoading] = useState(isEdit);
+  const [activeTab, setActiveTab] = useState(0);
+  const [loadingUnidades, setLoadingUnidades] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
   const [productoLoaded, setProductoLoaded] = useState<Producto | null>(null);
+  const [unidades, setUnidades] = useState<Unidad[]>([]);
+  const [comercialTipos, setComercialTipos] = useState<CatalogoComercialTipo[]>([]);
+  const [comercialSeleccionados, setComercialSeleccionados] = useState<Record<number, number[]>>({});
+  const [comercialLoading, setComercialLoading] = useState<boolean>(false);
+  const [comercialError, setComercialError] = useState<string | null>(null);
 
-  const formatter = useMemo(
-    () =>
-      new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: 'MXN',
-        minimumFractionDigits: 2,
-      }),
-    []
-  );
+  useEffect(() => {
+    const loadUnidades = async () => {
+      try {
+        setLoadingUnidades(true);
+        const data = await fetchUnidades();
+        setUnidades(data.filter((u) => u.activo));
+      } catch (e) {
+        setSnackbar({ open: true, message: e instanceof Error ? e.message : 'No se pudieron cargar unidades', severity: 'error' });
+      } finally {
+        setLoadingUnidades(false);
+      }
+    };
+    loadUnidades();
+  }, []);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -69,8 +101,9 @@ export default function ProductoFormPage() {
           descripcion: producto.descripcion,
           clasificacion: producto.clasificacion ?? '',
           tipo_producto: (producto.tipo_producto as ProductoBasico['tipo_producto']) ?? 'Inventariable',
-          precio_publico: producto.precio_publico ?? null,
           activo: producto.activo,
+          unidad_venta_id: producto.unidad_venta_id ?? null,
+          unidad_inventario_id: producto.unidad_inventario_id ?? null,
         });
         setError(null);
       } catch (e) {
@@ -82,8 +115,60 @@ export default function ProductoFormPage() {
     load();
   }, [id, isEdit]);
 
+  const buildSeleccionInicial = (
+    tipos: CatalogoComercialTipo[],
+    seleccionados: number[]
+  ): Record<number, number[]> => {
+    const setSel = new Set(seleccionados);
+    return tipos.reduce<Record<number, number[]>>((acc, tipo) => {
+      acc[tipo.id] = tipo.valores.filter((v) => setSel.has(v.id)).map((v) => v.id);
+      return acc;
+    }, {});
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadComercial = async () => {
+      setComercialLoading(true);
+      try {
+        const data: CatalogoConfigurablesProductoRespuesta = await obtenerCatalogosConfigurablesProducto(isEdit ? Number(id) : undefined);
+        if (!isMounted) return;
+        setComercialTipos(data.tipos || []);
+        setComercialSeleccionados(buildSeleccionInicial(data.tipos || [], data.seleccionados || []));
+        setComercialError(null);
+      } catch (err) {
+        if (!isMounted) return;
+        const message = err instanceof Error ? err.message : 'Error al cargar catálogos comerciales';
+        setComercialError(message);
+        setComercialTipos([]);
+        setComercialSeleccionados({});
+      } finally {
+        if (isMounted) setComercialLoading(false);
+      }
+    };
+
+    loadComercial();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, isEdit]);
+
   const handleChange = (field: keyof ProductoBasico, value: unknown) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleComercialChange = (tipoId: number, values: CatalogoComercialValor[]) => {
+    setComercialSeleccionados((prev) => ({
+      ...prev,
+      [tipoId]: values.map((v) => v.id),
+    }));
+  };
+
+  const obtenerCatalogosSeleccionados = () => {
+    const todos = Object.values(comercialSeleccionados).flat();
+    return Array.from(new Set(todos));
   };
 
   const handleSubmit = async () => {
@@ -97,17 +182,25 @@ export default function ProductoFormPage() {
       descripcion: form.descripcion.trim(),
       clasificacion: form.clasificacion?.trim() || null,
       tipo_producto: form.tipo_producto || 'Inventariable',
-      precio_publico: form.precio_publico ?? null,
     };
 
     try {
       setSaving(true);
+      let productoId = isEdit && id ? Number(id) : null;
+
       if (isEdit && id) {
-        await updateProducto(Number(id), payload);
+        const actualizado = await updateProducto(Number(id), payload);
+        productoId = actualizado?.id ?? productoId;
         setSnackbar({ open: true, message: 'Producto actualizado', severity: 'success' });
       } else {
-        await createProducto(payload);
+        const creado = await createProducto(payload);
+        productoId = creado?.id ?? null;
         setSnackbar({ open: true, message: 'Producto creado', severity: 'success' });
+      }
+
+      if (productoId && Number.isFinite(productoId)) {
+        const catalogoIds = obtenerCatalogosSeleccionados();
+        await guardarCatalogosConfigurablesProducto(productoId, catalogoIds);
       }
       setTimeout(() => navigate('/productos'), 300);
     } catch (e) {
@@ -115,6 +208,10 @@ export default function ProductoFormPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
   };
 
   const title = isEdit ? 'Editar producto' : 'Nuevo producto';
@@ -159,81 +256,163 @@ export default function ProductoFormPage() {
           </Stack>
         ) : (
           <Stack spacing={2.5}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Clave"
-                value={form.clave}
-                onChange={(e) => handleChange('clave', e.target.value)}
-                required
-                fullWidth
-              />
-              <TextField
-                label="Tipo de producto"
-                select
-                value={form.tipo_producto || 'Inventariable'}
-                onChange={(e) => handleChange('tipo_producto', e.target.value)}
-                fullWidth
-              >
-                {tipoProductoOptions.map((opt) => (
-                  <MenuItem key={opt} value={opt}>
-                    {opt}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Stack>
+            <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" allowScrollButtonsMobile>
+              <Tab label="General" />
+              <Tab label="Comercial" />
+            </Tabs>
 
-            <TextField
-              label="Descripción"
-              value={form.descripcion}
-              onChange={(e) => handleChange('descripcion', e.target.value)}
-              required
-              fullWidth
-              multiline
-              minRows={2}
-            />
+            {activeTab === 0 && (
+              <Stack spacing={2.5}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <TextField
+                    label="Clave"
+                    value={form.clave}
+                    onChange={(e) => handleChange('clave', e.target.value)}
+                    required
+                    fullWidth
+                  />
+                  <TextField
+                    label="Tipo de producto"
+                    select
+                    value={form.tipo_producto || 'Inventariable'}
+                    onChange={(e) => handleChange('tipo_producto', e.target.value)}
+                    fullWidth
+                  >
+                    {tipoProductoOptions.map((opt) => (
+                      <MenuItem key={opt} value={opt}>
+                        {opt}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Stack>
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Clasificación"
-                value={form.clasificacion ?? ''}
-                onChange={(e) => handleChange('clasificacion', e.target.value)}
-                fullWidth
-              />
-              <TextField
-                label="Precio público"
-                value={form.precio_publico ?? ''}
-                onChange={(e) => handleChange('precio_publico', e.target.value === '' ? null : Number(e.target.value))}
-                type="number"
-                inputProps={{ min: 0, step: '0.01' }}
-                fullWidth
-                helperText={form.precio_publico ? formatter.format(Number(form.precio_publico)) : 'Opcional'}
-              />
-            </Stack>
+                <TextField
+                  label="Descripción"
+                  value={form.descripcion}
+                  onChange={(e) => handleChange('descripcion', e.target.value)}
+                  required
+                  fullWidth
+                  multiline
+                  minRows={2}
+                />
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <TextField
+                    label="Clasificación"
+                    value={form.clasificacion ?? ''}
+                    onChange={(e) => handleChange('clasificacion', e.target.value)}
+                    fullWidth
+                  />
+                  <TextField
+                    select
+                    label="Unidad de venta"
+                    value={form.unidad_venta_id ?? ''}
+                    onChange={(e) => handleChange('unidad_venta_id', e.target.value === '' ? null : Number(e.target.value))}
+                    fullWidth
+                    disabled={loadingUnidades}
+                    helperText={loadingUnidades ? 'Cargando unidades...' : 'Opcional'}
+                  >
+                    {unidades.map((u) => (
+                      <MenuItem key={u.id} value={u.id}>
+                        {u.descripcion} ({u.clave})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Stack>
 
-            {isEdit && productoLoaded && (
-              <TextField
-                label="Existencia actual"
-                value={productoLoaded.existencia_actual ?? 0}
-                InputProps={{ readOnly: true }}
-                fullWidth
-                helperText="Solo lectura"
-              />
+                <TextField
+                  select
+                  label="Unidad de inventario"
+                  value={form.unidad_inventario_id ?? ''}
+                  onChange={(e) => handleChange('unidad_inventario_id', e.target.value === '' ? null : Number(e.target.value))}
+                  fullWidth
+                  disabled={loadingUnidades}
+                  helperText={loadingUnidades ? 'Cargando unidades...' : 'Opcional'}
+                >
+                  {unidades.map((u) => (
+                    <MenuItem key={u.id} value={u.id}>
+                      {u.descripcion} ({u.clave})
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                {isEdit && productoLoaded && (
+                  <TextField
+                    label="Existencia actual"
+                    value={productoLoaded.existencia_actual ?? 0}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                    helperText="Solo lectura"
+                  />
+                )}
+
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={form.activo}
+                      onChange={(e) => handleChange('activo', e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label="Activo"
+                />
+
+                <Typography variant="caption" color="text.secondary">
+                  Este formulario se ampliará con pestañas internas para dimensiones, archivos, impuestos y proveedores.
+                </Typography>
+              </Stack>
             )}
 
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={form.activo}
-                  onChange={(e) => handleChange('activo', e.target.checked)}
-                  color="primary"
-                />
-              }
-              label="Activo"
-            />
+            {activeTab === 1 && (
+              <Stack spacing={2}>
+                {comercialLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : comercialError ? (
+                  <Typography color="#b91c1c">{comercialError}</Typography>
+                ) : !comercialTipos.length ? (
+                  <Typography color="#4b5563">No hay catálogos configurables para productos.</Typography>
+                ) : (
+                  comercialTipos.map((tipo) => {
+                    const seleccionadosIds = comercialSeleccionados[tipo.id] || [];
+                    const valorSeleccionado = tipo.valores.filter((v) => seleccionadosIds.includes(v.id));
 
-            <Typography variant="caption" color="text.secondary">
-              Este formulario se ampliará con pestañas internas para dimensiones, archivos, impuestos y proveedores.
-            </Typography>
+                    return (
+                      <Stack key={tipo.id} spacing={1}>
+                        <Box>
+                          <Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
+                            {tipo.nombre || 'Catálogo'}
+                          </Typography>
+                          {tipo.descripcion ? (
+                            <Typography variant="body2" color="#4b5563">
+                              {tipo.descripcion}
+                            </Typography>
+                          ) : null}
+                        </Box>
+
+                        <Autocomplete
+                          multiple
+                          options={tipo.valores}
+                          value={valorSeleccionado}
+                          getOptionLabel={(option) => option.clave || option.descripcion || ''}
+                          onChange={(_, values) => handleComercialChange(tipo.id, values)}
+                          renderInput={(params) => (
+                            <TextField
+                              {...(params as any)}
+                              label={tipo.nombre || 'Valores'}
+                              placeholder="Selecciona valores"
+                              fullWidth
+                            />
+                          )}
+                          noOptionsText="Sin valores"
+                          disableCloseOnSelect
+                        />
+                      </Stack>
+                    );
+                  })
+                )}
+              </Stack>
+            )}
           </Stack>
         )}
       </Paper>
