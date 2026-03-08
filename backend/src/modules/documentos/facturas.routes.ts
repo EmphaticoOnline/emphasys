@@ -9,6 +9,8 @@ import {
   agregarPartida,
   reemplazarPartidas,
   obtenerFacturaPDF,
+  obtenerFacturaXML,
+  timbrarFacturaCfdi,
 } from './documentos.controller';
 
 const router = Router();
@@ -21,6 +23,9 @@ router.get('/:id', requireAuth, requireEmpresaActiva, obtenerFactura);
 
 // GET /api/facturas/:id/pdf
 router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerFacturaPDF);
+
+// GET /api/facturas/:id/xml
+router.get('/:id/xml', requireAuth, requireEmpresaActiva, obtenerFacturaXML);
 
 // POST /api/facturas
 router.post('/', requireAuth, requireEmpresaActiva, crearFactura);
@@ -36,5 +41,8 @@ router.post('/:id/partidas', requireAuth, requireEmpresaActiva, agregarPartida);
 
 // PUT /api/facturas/:id/partidas (reemplaza todas)
 router.put('/:id/partidas', requireAuth, requireEmpresaActiva, reemplazarPartidas);
+
+// POST /api/facturas/:id/timbrar
+router.post('/:id/timbrar', requireAuth, requireEmpresaActiva, timbrarFacturaCfdi);
 
 export default router;

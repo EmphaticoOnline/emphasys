@@ -38,6 +38,13 @@ const CAMPOS_DOCUMENTO = [
   'numero',
   'fecha_documento',
   'contacto_principal_id',
+  'rfc_receptor',
+  'nombre_receptor',
+  'regimen_fiscal_receptor',
+  'uso_cfdi',
+  'forma_pago',
+  'metodo_pago',
+  'codigo_postal_receptor',
   'moneda',
   'observaciones',
   'subtotal',
@@ -92,16 +99,15 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
       c.email AS cliente_email,
       c.telefono AS cliente_telefono,
       TRIM(CONCAT_WS(' ', cd.calle, cd.numero_exterior, cd.numero_interior, cd.colonia, cd.ciudad, cd.estado, cd.cp, cd.pais)) AS cliente_direccion,
-      cdf.rfc AS cliente_rfc,
-      cdf.regimen_fiscal,
-      cdf.uso_cfdi,
-      cdf.forma_pago,
-      cdf.metodo_pago,
-      cdf.codigo_postal
+      d.rfc_receptor AS cliente_rfc,
+      d.regimen_fiscal_receptor,
+      d.uso_cfdi,
+      d.forma_pago,
+      d.metodo_pago,
+      d.codigo_postal_receptor
     FROM documentos d
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     LEFT JOIN contactos_domicilios cd ON cd.contacto_id = c.id AND cd.es_principal = true
-    LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
     WHERE d.empresa_id = $1 AND d.id = $2
       ${tipoDocumento ? 'AND LOWER(d.tipo_documento) = LOWER($3)' : ''}
     LIMIT 1
@@ -134,6 +140,36 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
   const estatus = data.estatus_documento || 'Borrador';
   const tipoDocumentoNormalizado = (data.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
   const tipoDocumentoDb = tipoDocumentoNormalizado;
+
+  // Prellenar datos fiscales del contacto en facturas si no vienen en la petición
+  if (tipoDocumentoDb === 'factura' && data.contacto_principal_id) {
+    try {
+      const { rows: contactoRows } = await pool.query(
+        `SELECT nombre FROM contactos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+        [data.contacto_principal_id, empresaId]
+      );
+      const nombreContacto = contactoRows[0]?.nombre || null;
+
+      const { rows: fiscalesRows } = await pool.query(
+        `SELECT rfc, regimen_fiscal, uso_cfdi, forma_pago, metodo_pago, codigo_postal
+           FROM contactos_datos_fiscales
+          WHERE contacto_id = $1
+          LIMIT 1`,
+        [data.contacto_principal_id]
+      );
+      const fiscales = fiscalesRows[0] || {};
+
+      data.rfc_receptor = data.rfc_receptor ?? fiscales.rfc ?? null;
+      data.nombre_receptor = data.nombre_receptor ?? nombreContacto ?? null;
+      data.regimen_fiscal_receptor = data.regimen_fiscal_receptor ?? fiscales.regimen_fiscal ?? null;
+      data.uso_cfdi = data.uso_cfdi ?? fiscales.uso_cfdi ?? null;
+      data.forma_pago = data.forma_pago ?? fiscales.forma_pago ?? null;
+      data.metodo_pago = data.metodo_pago ?? fiscales.metodo_pago ?? null;
+      data.codigo_postal_receptor = data.codigo_postal_receptor ?? fiscales.codigo_postal ?? null;
+    } catch (err) {
+      console.warn('No se pudieron precargar datos fiscales del contacto', err);
+    }
+  }
 
   // Asigna número secuencial si no viene en la petición
   let numero = data.numero;

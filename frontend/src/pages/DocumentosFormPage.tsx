@@ -21,6 +21,8 @@ import {
   Typography,
   Divider,
   Snackbar,
+  Tabs,
+  Tab,
 } from '@mui/material';
 
 import Grid from '@mui/material/Grid';
@@ -43,10 +45,13 @@ import { getDocumento, createDocumento, updateDocumento, replacePartidas, downlo
 import { fetchContactos } from '../services/contactosService';
 import { fetchProductos } from '../services/productosService';
 import type { Producto } from '../types/producto';
-import type { Contacto } from '../types/contactos.types';
+import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
+import { DocumentoDatosFiscalesTab } from '../modules/documentos';
+import { getContacto } from '../services/contactos.api';
 
 const defaultFecha = () => new Date().toISOString().substring(0, 10);
+const validarRFC = (rfc: string) => /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(rfc);
 
 type PartidaForm = CotizacionPartidaPayload & {
   id?: number;
@@ -109,6 +114,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
   const isEdit = Boolean(id && id !== 'nuevo');
   const navigate = useNavigate();
   const basePath = tipoDocumento === 'factura' ? '/facturas' : '/documentos';
+  const showFiscalTab = tipoDocumento === 'factura';
 
   const [form, setForm] = useState<CotizacionCrearPayload>({
     tipo_documento: tipoDocumento,
@@ -121,6 +127,13 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     total: 0,
     usuario_creacion_id: 1,
     empresa_id: getEmpresaActivaId(),
+    rfc_receptor: '',
+    nombre_receptor: '',
+    regimen_fiscal_receptor: '',
+    uso_cfdi: '',
+    forma_pago: '',
+    metodo_pago: '',
+    codigo_postal_receptor: '',
   });
 
   const [partidas, setPartidas] = useState<PartidaForm[]>([emptyPartida()]);
@@ -137,9 +150,12 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     { open: false, message: '', severity: 'success' }
   );
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+  const [activeTab, setActiveTab] = useState<number>(0);
 
   const precioRefs = useRef<(HTMLInputElement | null)[]>([]);
   const cantidadRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const prevContactoRef = useRef<number | null | undefined>(undefined);
+  const skipFiscalFetchRef = useRef<boolean>(false);
 
   const formatter = useMemo(
     () =>
@@ -250,7 +266,16 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
         total: doc.total || 0,
         usuario_creacion_id: doc.usuario_creacion_id || 1,
         empresa_id: doc.empresa_id,
+        rfc_receptor: (doc as any).rfc_receptor || (doc as any).cliente_rfc || '',
+        nombre_receptor: (doc as any).nombre_receptor || (doc as any).cliente_nombre || '',
+        regimen_fiscal_receptor: (doc as any).regimen_fiscal_receptor || '',
+        uso_cfdi: (doc as any).uso_cfdi || '',
+        forma_pago: (doc as any).forma_pago || '',
+        metodo_pago: (doc as any).metodo_pago || '',
+        codigo_postal_receptor: (doc as any).codigo_postal_receptor || '',
       });
+      skipFiscalFetchRef.current = true;
+      prevContactoRef.current = doc.contacto_principal_id;
 
       const mapped: PartidaForm[] = data.partidas.map((p: CotizacionPartida) => {
         const prod = productos.find((pr) => pr.id === p.producto_id) || null;
@@ -291,10 +316,42 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, id, tipoDocumento]);
 
+  useEffect(() => {
+    if (tipoDocumento !== 'factura') return;
+
+    const contactoId = form.contacto_principal_id;
+
+    if (!contactoId) {
+      prevContactoRef.current = contactoId;
+      return;
+    }
+
+    if (skipFiscalFetchRef.current) {
+      skipFiscalFetchRef.current = false;
+      prevContactoRef.current = contactoId;
+      return;
+    }
+
+    if (prevContactoRef.current === contactoId) return;
+
+    cargarDatosFiscalesContacto(contactoId);
+    prevContactoRef.current = contactoId;
+  }, [form.contacto_principal_id, tipoDocumento]);
+
   const handleSave = async () => {
     if (!form.contacto_principal_id) {
       setSnackbar({ open: true, message: 'Selecciona un cliente', severity: 'error' });
       return;
+    }
+    if (tipoDocumento === 'factura') {
+      if (!form.rfc_receptor || !validarRFC(form.rfc_receptor)) {
+        setSnackbar({ open: true, message: 'RFC receptor es obligatorio y debe ser válido', severity: 'error' });
+        return;
+      }
+      if (!form.regimen_fiscal_receptor || !form.uso_cfdi || !form.forma_pago || !form.metodo_pago || !form.codigo_postal_receptor) {
+        setSnackbar({ open: true, message: 'Completa los datos fiscales requeridos', severity: 'error' });
+        return;
+      }
     }
     try {
       setSaving(true);
@@ -305,6 +362,13 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
         iva: form.iva || 0,
         total: form.total || 0,
         empresa_id: getEmpresaActivaId(),
+        rfc_receptor: form.rfc_receptor?.trim() || null,
+        nombre_receptor: form.nombre_receptor?.trim() || null,
+        regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
+        uso_cfdi: form.uso_cfdi?.trim() || null,
+        forma_pago: form.forma_pago?.trim() || null,
+        metodo_pago: form.metodo_pago?.trim() || null,
+        codigo_postal_receptor: form.codigo_postal_receptor?.trim() || null,
       };
 
       let docId: number;
@@ -372,6 +436,38 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     });
   };
 
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
+  const esDetalleContacto = (resp: ContactoDetalle | Contacto): resp is ContactoDetalle => 'contacto' in resp;
+
+  const handleClienteSelect = (value: Contacto | null) => {
+    setForm((prev) => ({ ...prev, contacto_principal_id: value?.id ?? null }));
+  };
+
+  const cargarDatosFiscalesContacto = async (contactoId: number) => {
+    try {
+      const detalle = await getContacto(contactoId);
+      const datosFiscales = esDetalleContacto(detalle) ? detalle.datos_fiscales : null;
+      const nombreContacto = esDetalleContacto(detalle) ? detalle.contacto?.nombre : (detalle as Contacto).nombre;
+
+      setForm((prev) => ({
+        ...prev,
+        contacto_principal_id: contactoId,
+        rfc_receptor: datosFiscales?.rfc || '',
+        nombre_receptor: nombreContacto || '',
+        regimen_fiscal_receptor: datosFiscales?.regimen_fiscal || '',
+        uso_cfdi: datosFiscales?.uso_cfdi || '',
+        forma_pago: datosFiscales?.forma_pago || '',
+        metodo_pago: datosFiscales?.metodo_pago || '',
+        codigo_postal_receptor: datosFiscales?.codigo_postal || '',
+      }));
+    } catch (err) {
+      console.error('No se pudo cargar datos fiscales del contacto', err);
+    }
+  };
+
   const filterProductos = (options: Producto[], state: any) => {
     const term = (state.inputValue || '').toString().trim().toLowerCase();
     if (!term) return options;
@@ -380,6 +476,16 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
       const descripcion = (opt.descripcion || '').toLowerCase();
       return clave.includes(term) || descripcion.includes(term);
     });
+  };
+
+  const fiscalValues = {
+    rfc_receptor: form.rfc_receptor || '',
+    nombre_receptor: form.nombre_receptor || '',
+    regimen_fiscal_receptor: form.regimen_fiscal_receptor || '',
+    uso_cfdi: form.uso_cfdi || '',
+    forma_pago: form.forma_pago || '',
+    metodo_pago: form.metodo_pago || '',
+    codigo_postal_receptor: form.codigo_postal_receptor || '',
   };
 
   return (
@@ -433,355 +539,376 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {loading ? (
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <CircularProgress size={22} />
-            <Typography color="text.secondary">{TEXTOS[tipoDocumento].cargando}</Typography>
-          </Stack>
-        ) : (
-          <>
-            <Grid container spacing={2} alignItems="center">
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Autocomplete
-                  fullWidth
-                  options={contactos}
-                  loading={contactos.length === 0}
-                  getOptionLabel={(option) => option.nombre || ''}
-                  value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
-                  onChange={(_, value) => setForm((prev) => ({ ...prev, contacto_principal_id: value?.id ?? null }))}
-                  renderInput={(params) => (
-                    <TextField
-                      {...(params as any)}
-                      fullWidth
-                      label="Cliente"
-                      required
-                      size="small"
-                      InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                      inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 2 }}>
-                <TextField
-                  label="Fecha documento"
-                  type="date"
-                  value={form.fecha_documento}
-                  onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
-                  InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                  inputProps={{ style: { fontSize: 13 } }}
-                  fullWidth
-                  size="small"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Observaciones"
-                  value={form.observaciones || ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
-                  fullWidth
-                  size="small"
-                  InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                  inputProps={{ style: { fontSize: 13 } }}
-                />
-              </Grid>
-            </Grid>
+      {showFiscalTab && (
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={activeTab} onChange={handleTabChange} aria-label="Pestañas documento">
+            <Tab label="Documento" value={0} />
+            <Tab label="Datos fiscales" value={1} />
+          </Tabs>
+        </Box>
+      )}
 
-            <Divider />
-
-            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-              <Typography variant="h6" color="#1d2f68" fontWeight={700}>
-                Partidas
-              </Typography>
-              <Button startIcon={<AddIcon />} onClick={addRow} variant="outlined" size="small">
-                Agregar partida
-              </Button>
+      {(!showFiscalTab || activeTab === 0) && (
+        <Paper variant="outlined" sx={{ borderRadius: 2, p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {loading ? (
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <CircularProgress size={22} />
+              <Typography color="text.secondary">{TEXTOS[tipoDocumento].cargando}</Typography>
             </Stack>
-
-            <Stack spacing={1}>
-              <Box
-                sx={{
-                  display: { xs: 'none', md: 'grid' },
-                  gridTemplateColumns: '180px 1fr 80px 120px 120px 120px 120px 40px 48px',
-                  gap: 1,
-                  px: 1,
-                  color: '#6b7280',
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                <Box>Producto</Box>
-                <Box>Descripción</Box>
-                <Box textAlign="right">Cant.</Box>
-                <Box textAlign="right">Precio</Box>
-                <Box textAlign="right">Subtotal</Box>
-                <Box textAlign="right">IVA</Box>
-                <Box textAlign="right">Total</Box>
-                <Box textAlign="center">Obs.</Box>
-                <Box textAlign="center">&nbsp;</Box>
-              </Box>
-
-              {partidas.map((partida, index) => (
-                <React.Fragment key={index}>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.25,
-                      borderRadius: 1.25,
-                      borderColor: '#e5e7eb',
-                      display: 'grid',
-                      gridTemplateColumns: {
-                        xs: '1fr',
-                        md: '180px 1fr 80px 120px 120px 120px 120px 40px 48px',
-                      },
-                      gap: { xs: 1, md: 1 },
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Autocomplete
-                      options={productos}
-                      loading={productos.length === 0}
-                      getOptionLabel={(option) => option.clave || ''}
-                      value={productos.find((p) => p.id === partida.producto_id) || null}
-                      onChange={(_, value) => handleProductoChange(index, value)}
-                      filterOptions={filterProductos}
-                      slotProps={{
-                        popper: {
-                          placement: 'bottom-start',
-                          modifiers: [
-                            {
-                              name: 'offset',
-                              options: {
-                                offset: [0, 4],
-                              },
-                            },
-                          ],
-                          sx: {
-                            minWidth: 560,
-                            maxWidth: 720,
-                          },
-                        },
-                      }}
-                      renderOption={(props, option) => (
-                        <Box
-                          component="li"
-                          {...props}
-                          sx={{
-                            display: 'grid !important',
-                            gridTemplateColumns: '140px 1fr',
-                            columnGap: 2,
-                            alignItems: 'center',
-                            fontSize: 12,
-                            px: 1,
-                            width: '100%',
-                          }}
-                        >
-                          <Typography
-                            component="span"
-                            fontWeight={700}
-                            sx={{
-                              fontSize: 12,
-                              color: '#111827',
-                              textAlign: 'left',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {(option as Producto)?.clave || ''}
-                          </Typography>
-                          <Typography
-                            component="span"
-                            sx={{
-                              fontSize: 12,
-                              color: '#374151',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {(option as Producto)?.descripcion || ''}
-                          </Typography>
-                        </Box>
-                      )}
-                      renderInput={(params) => (
-                        <TextField
-                          {...(params as any)}
-                          label={undefined}
-                          placeholder="Producto"
-                          size="small"
-                          InputLabelProps={{ sx: { fontSize: 13 } }}
-                          inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
-                        />
-                      )}
-                      sx={{ minWidth: 0 }}
-                    />
-
-                    <TextField
-                      label={undefined}
-                      placeholder="Descripción"
-                      value={partida.descripcion_alterna ?? ''}
-                      onChange={(e) => handleDescripcionChange(index, e.target.value)}
-                      size="small"
-                      InputProps={{ sx: { fontSize: 13 } }}
-                      inputProps={{ style: { fontSize: 13 } }}
-                      sx={{ minWidth: 0 }}
-                      disabled
-                    />
-
-                    <TextField
-                      label={undefined}
-                      placeholder="Cant."
-                      type="number"
-                      value={partida.cantidad ?? 0}
-                      onChange={(e) => handleCantidadPrecioChange(index, 'cantidad', e.target.value)}
-                      size="small"
-                      inputProps={{ min: 0, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
-                      onFocus={() => {
-                        requestAnimationFrame(() => {
-                          cantidadRefs.current[index]?.select();
-                        });
-                      }}
-                      inputRef={(el) => {
-                        cantidadRefs.current[index] = el;
-                      }}
-                    />
-
-                    <TextField
-                      label={undefined}
-                      placeholder="Precio"
-                      type="text"
-                      value={editingPrecio[index]
-                        ? precioInputs[index] ?? ''
-                        : formatter.format(partida.precio_unitario ?? 0)}
-                      onChange={(e) => {
-                        const raw = e.target.value ?? '';
-                        setPrecioInputs((prev) => {
-                          const next = [...prev];
-                          next[index] = raw;
-                          return next;
-                        });
-                        const numeric = parseFloat(raw.replace(/[^0-9.,-]/g, '').replace(',', '.'));
-                        handleCantidadPrecioChange(index, 'precio_unitario', Number.isFinite(numeric) ? String(numeric) : '0');
-                      }}
-                      onFocus={(e) => {
-                        setEditingPrecio((prev) => {
-                          const next = [...prev];
-                          next[index] = true;
-                          return next;
-                        });
-                        setPrecioInputs((prev) => {
-                          const next = [...prev];
-                          next[index] = (partida.precio_unitario ?? '').toString();
-                          return next;
-                        });
-                        requestAnimationFrame(() => {
-                          precioRefs.current[index]?.select();
-                        });
-                      }}
-                      onBlur={() => {
-                        setEditingPrecio((prev) => {
-                          const next = [...prev];
-                          next[index] = false;
-                          return next;
-                        });
-                        setPrecioInputs((prev) => {
-                          const next = [...prev];
-                          next[index] = '';
-                          return next;
-                        });
-                      }}
-                      size="small"
-                      inputProps={{ style: { textAlign: 'right', fontSize: 13 } }}
-                      inputRef={(el) => {
-                        precioRefs.current[index] = el;
-                      }}
-                    />
-
-                    <TextField
-                      label={undefined}
-                      value={formatter.format(partida.subtotal_partida ?? 0)}
-                      InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
-                      size="small"
-                    />
-
-                    <TextField
-                      label={undefined}
-                      value={formatter.format(partida.iva_monto ?? 0)}
-                      InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
-                      size="small"
-                    />
-
-                    <TextField
-                      label={undefined}
-                      value={formatter.format(partida.total_partida ?? 0)}
-                      InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
-                      size="small"
-                    />
-
-                    <IconButton
-                      onClick={() => toggleObservaciones(index)}
-                      aria-label="Observaciones"
-                      size="small"
-                      color={(partida.observaciones?.trim() || expandedObs[index]) ? 'primary' : 'default'}
-                    >
-                      <CommentIcon fontSize="small" />
-                    </IconButton>
-
-                    <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small">
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Paper>
-
-                  {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
-                    <Box sx={{ gridColumn: { xs: '1', md: '2 / 9' }, mt: { xs: 0.5, md: 0.25 } }}>
+          ) : (
+            <>
+              <Grid container spacing={2} alignItems="center">
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Autocomplete
+                    fullWidth
+                    options={contactos}
+                    loading={contactos.length === 0}
+                    getOptionLabel={(option) => option.nombre || ''}
+                    value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
+                    onChange={(_, value) => handleClienteSelect(value)}
+                    renderInput={(params) => (
                       <TextField
-                        label="Observaciones de la partida"
-                        placeholder="Texto adicional para impresión"
-                        value={partida.observaciones ?? ''}
-                        onChange={(e) => handleObservacionesChange(index, e.target.value)}
+                        {...(params as any)}
                         fullWidth
-                        multiline
-                        minRows={2}
+                        label="Cliente"
+                        required
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                        inputProps={{ style: { fontSize: 13 } }}
+                        inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
                       />
-                    </Box>
-                  )}
-                </React.Fragment>
-              ))}
-            </Stack>
+                    )}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 2 }}>
+                  <TextField
+                    label="Fecha documento"
+                    type="date"
+                    value={form.fecha_documento}
+                    onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
+                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                    inputProps={{ style: { fontSize: 13 } }}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    label="Observaciones"
+                    value={form.observaciones || ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                    inputProps={{ style: { fontSize: 13 } }}
+                  />
+                </Grid>
+              </Grid>
 
-            <Divider />
+              <Divider />
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" spacing={1.5} alignItems="flex-end">
-              <TextField
-                label="Subtotal"
-                value={formatter.format(form.subtotal || 0)}
-                InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
-                size="small"
-                sx={{ width: { xs: '100%', sm: 180 } }}
-              />
-              <TextField
-                label="IVA"
-                value={formatter.format(form.iva || 0)}
-                InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
-                size="small"
-                sx={{ width: { xs: '100%', sm: 160 } }}
-              />
-              <TextField
-                label="Total"
-                value={formatter.format(form.total || 0)}
-                InputProps={{ readOnly: true, sx: { fontSize: 13, fontWeight: 700 }, style: { textAlign: 'right' } }}
-                size="small"
-                sx={{ width: { xs: '100%', sm: 180 } }}
-              />
-            </Stack>
-          </>
-        )}
-      </Paper>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                <Typography variant="h6" color="#1d2f68" fontWeight={700}>
+                  Partidas
+                </Typography>
+                <Button startIcon={<AddIcon />} onClick={addRow} variant="outlined" size="small">
+                  Agregar partida
+                </Button>
+              </Stack>
+
+              <Stack spacing={1}>
+                <Box
+                  sx={{
+                    display: { xs: 'none', md: 'grid' },
+                    gridTemplateColumns: '180px 1fr 80px 120px 120px 120px 120px 40px 48px',
+                    gap: 1,
+                    px: 1,
+                    color: '#6b7280',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  <Box>Producto</Box>
+                  <Box>Descripción</Box>
+                  <Box textAlign="right">Cant.</Box>
+                  <Box textAlign="right">Precio</Box>
+                  <Box textAlign="right">Subtotal</Box>
+                  <Box textAlign="right">IVA</Box>
+                  <Box textAlign="right">Total</Box>
+                  <Box textAlign="center">Obs.</Box>
+                  <Box textAlign="center">&nbsp;</Box>
+                </Box>
+
+                {partidas.map((partida, index) => (
+                  <React.Fragment key={index}>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 1.25,
+                        borderColor: '#e5e7eb',
+                        display: 'grid',
+                        gridTemplateColumns: {
+                          xs: '1fr',
+                          md: '180px 1fr 80px 120px 120px 120px 120px 40px 48px',
+                        },
+                        gap: { xs: 1, md: 1 },
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Autocomplete
+                        options={productos}
+                        loading={productos.length === 0}
+                        getOptionLabel={(option) => option.clave || ''}
+                        value={productos.find((p) => p.id === partida.producto_id) || null}
+                        onChange={(_, value) => handleProductoChange(index, value)}
+                        filterOptions={filterProductos}
+                        slotProps={{
+                          popper: {
+                            placement: 'bottom-start',
+                            modifiers: [
+                              {
+                                name: 'offset',
+                                options: {
+                                  offset: [0, 4],
+                                },
+                              },
+                            ],
+                            sx: {
+                              minWidth: 560,
+                              maxWidth: 720,
+                            },
+                          },
+                            }}
+                        renderOption={(props, option) => (
+                          <Box
+                            component="li"
+                            {...props}
+                            sx={{
+                              display: 'grid !important',
+                              gridTemplateColumns: '140px 1fr',
+                              columnGap: 2,
+                              alignItems: 'center',
+                              fontSize: 12,
+                              px: 1,
+                              width: '100%',
+                            }}
+                          >
+                            <Typography
+                              component="span"
+                              fontWeight={700}
+                              sx={{
+                                fontSize: 12,
+                                color: '#111827',
+                                textAlign: 'left',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {(option as Producto)?.clave || ''}
+                            </Typography>
+                            <Typography
+                              component="span"
+                              sx={{
+                                fontSize: 12,
+                                color: '#374151',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {(option as Producto)?.descripcion || ''}
+                            </Typography>
+                          </Box>
+                        )}
+                        renderInput={(params) => (
+                          <TextField
+                            {...(params as any)}
+                            label={undefined}
+                            placeholder="Producto"
+                            size="small"
+                            InputLabelProps={{ sx: { fontSize: 13 } }}
+                            inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
+                          />
+                        )}
+                        sx={{ minWidth: 0 }}
+                      />
+
+                      <TextField
+                        label={undefined}
+                        placeholder="Descripción"
+                        value={partida.descripcion_alterna ?? ''}
+                        onChange={(e) => handleDescripcionChange(index, e.target.value)}
+                        size="small"
+                        InputProps={{ sx: { fontSize: 13 } }}
+                        inputProps={{ style: { fontSize: 13 } }}
+                        sx={{ minWidth: 0 }}
+                        disabled
+                      />
+
+                      <TextField
+                        label={undefined}
+                        placeholder="Cant."
+                        type="number"
+                        value={partida.cantidad ?? 0}
+                        onChange={(e) => handleCantidadPrecioChange(index, 'cantidad', e.target.value)}
+                        size="small"
+                        inputProps={{ min: 0, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
+                        onFocus={() => {
+                          requestAnimationFrame(() => {
+                            cantidadRefs.current[index]?.select();
+                          });
+                        }}
+                        inputRef={(el) => {
+                          cantidadRefs.current[index] = el;
+                        }}
+                      />
+
+                      <TextField
+                        label={undefined}
+                        placeholder="Precio"
+                        type="text"
+                        value={editingPrecio[index]
+                          ? precioInputs[index] ?? ''
+                          : formatter.format(partida.precio_unitario ?? 0)}
+                        onChange={(e) => {
+                          const raw = e.target.value ?? '';
+                          setPrecioInputs((prev) => {
+                            const next = [...prev];
+                            next[index] = raw;
+                            return next;
+                          });
+                          const numeric = parseFloat(raw.replace(/[^0-9.,-]/g, '').replace(',', '.'));
+                          handleCantidadPrecioChange(index, 'precio_unitario', Number.isFinite(numeric) ? String(numeric) : '0');
+                        }}
+                        onFocus={(e) => {
+                          setEditingPrecio((prev) => {
+                            const next = [...prev];
+                            next[index] = true;
+                            return next;
+                          });
+                          setPrecioInputs((prev) => {
+                            const next = [...prev];
+                            next[index] = (partida.precio_unitario ?? '').toString();
+                            return next;
+                          });
+                          requestAnimationFrame(() => {
+                            precioRefs.current[index]?.select();
+                          });
+                        }}
+                        onBlur={() => {
+                          setEditingPrecio((prev) => {
+                            const next = [...prev];
+                            next[index] = false;
+                            return next;
+                          });
+                          setPrecioInputs((prev) => {
+                            const next = [...prev];
+                            next[index] = '';
+                            return next;
+                          });
+                        }}
+                        size="small"
+                        inputProps={{ style: { textAlign: 'right', fontSize: 13 } }}
+                        inputRef={(el) => {
+                          precioRefs.current[index] = el;
+                        }}
+                      />
+
+                      <TextField
+                        label={undefined}
+                        value={formatter.format(partida.subtotal_partida ?? 0)}
+                        InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
+                        size="small"
+                      />
+
+                      <TextField
+                        label={undefined}
+                        value={formatter.format(partida.iva_monto ?? 0)}
+                        InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
+                        size="small"
+                      />
+
+                      <TextField
+                        label={undefined}
+                        value={formatter.format(partida.total_partida ?? 0)}
+                        InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
+                        size="small"
+                      />
+
+                      <IconButton
+                        onClick={() => toggleObservaciones(index)}
+                        aria-label="Observaciones"
+                        size="small"
+                        color={(partida.observaciones?.trim() || expandedObs[index]) ? 'primary' : 'default'}
+                      >
+                        <CommentIcon fontSize="small" />
+                      </IconButton>
+
+                      <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small">
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Paper>
+
+                    {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
+                      <Box sx={{ gridColumn: { xs: '1', md: '2 / 9' }, mt: { xs: 0.5, md: 0.25 } }}>
+                        <TextField
+                          label="Observaciones de la partida"
+                          placeholder="Texto adicional para impresión"
+                          value={partida.observaciones ?? ''}
+                          onChange={(e) => handleObservacionesChange(index, e.target.value)}
+                          fullWidth
+                          multiline
+                          minRows={2}
+                          size="small"
+                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                          inputProps={{ style: { fontSize: 13 } }}
+                        />
+                      </Box>
+                    )}
+                  </React.Fragment>
+                ))}
+              </Stack>
+
+              <Divider />
+
+              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" spacing={1.5} alignItems="flex-end">
+                <TextField
+                  label="Subtotal"
+                  value={formatter.format(form.subtotal || 0)}
+                  InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
+                  size="small"
+                  sx={{ width: { xs: '100%', sm: 180 } }}
+                />
+                <TextField
+                  label="IVA"
+                  value={formatter.format(form.iva || 0)}
+                  InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
+                  size="small"
+                  sx={{ width: { xs: '100%', sm: 160 } }}
+                />
+                <TextField
+                  label="Total"
+                  value={formatter.format(form.total || 0)}
+                  InputProps={{ readOnly: true, sx: { fontSize: 13, fontWeight: 700 }, style: { textAlign: 'right' } }}
+                  size="small"
+                  sx={{ width: { xs: '100%', sm: 180 } }}
+                />
+              </Stack>
+            </>
+          )}
+        </Paper>
+      )}
+
+      {showFiscalTab && activeTab === 1 && (
+        <Paper variant="outlined" sx={{ borderRadius: 2, p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <DocumentoDatosFiscalesTab
+            values={fiscalValues}
+            onChange={(changes) => setForm((prev) => ({ ...prev, ...changes }))}
+            disabled={saving || loading}
+          />
+        </Paper>
+      )}
 
       <Dialog open={duplicateDialog.open} onClose={() => setDuplicateDialog({ open: false, message: '' })}>
         <DialogTitle fontWeight={700}>Documento duplicado</DialogTitle>

@@ -1,0 +1,26 @@
+{
+    "dbcode.connections": [
+        {
+            "connectionId": "2APRVNCB4dGwRP_N8LA94",
+            "name": "Emphasys Local",
+            "driver": "postgres",
+            "color": "#00634A",
+            "connectionType": "host",
+            "host": "localhost",
+            "port": 5432,
+            "ssl": false,
+            "authMethod": "password",
+            "username": "postgres",
+            "password": "",
+            "savePassword": "secretStorage",
+            "database": "emphasys",
+            "readOnly": false,
+            "postConnectionSqlType": "inline",
+            "connectionTimeout": 30,
+            "pinnedConnectionTimeout": "0",
+            "introspection": {
+                "progressive": false
+            }
+        }
+    ]
+}

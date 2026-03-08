@@ -32,9 +32,12 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import VerifiedIcon from '@mui/icons-material/Verified';
+import { Tooltip } from '@mui/material';
 import type { CotizacionListado } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
 import { deleteDocumento, downloadDocumentoPdf, getDocumentos } from '../services/documentosService';
+import { timbrarFactura } from '../services/facturasService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
 
@@ -57,6 +60,7 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [timbrandoId, setTimbrandoId] = useState<number | null>(null);
   const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>({});
   const [orderedFields, setOrderedFields] = useState<string[] | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -114,8 +118,8 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
     load();
   }, [tipoDocumento]);
 
-  const baseColumns: GridColDef[] = useMemo(
-    () => [
+  const baseColumns: GridColDef[] = useMemo(() => {
+    const columns: GridColDef[] = [
       {
         field: 'folio',
         headerName: 'Folio',
@@ -167,62 +171,97 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
           return <Chip label={estatus} size="small" color={color as any} />;
         },
       },
-      {
-        field: 'pdf',
-        headerName: 'PDF',
-        width: 80,
-        sortable: false,
-        filterable: false,
-        renderCell: (params: GridRenderCellParams) => (
+    ];
+
+    columns.push({
+      field: 'actions',
+      headerName: 'Acciones',
+      width: 150,
+      sortable: false,
+      filterable: false,
+      headerAlign: 'center',
+      align: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <IconButton size="small" color="primary" onClick={() => navigate(`${basePath}/${params.id}`)}>
+            <EditIcon fontSize="small" />
+          </IconButton>
           <IconButton
             size="small"
-            color="primary"
-            onClick={(e) => {
+            color="error"
+            disabled={deletingId === params.row.id || loading}
+            onClick={async (e) => {
               e.stopPropagation();
-              downloadDocumentoPdf(Number(params.row.id), tipoDocumento)
-                .then((blob) => {
-                  const url = URL.createObjectURL(blob);
-                  window.open(url, '_blank');
-                  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-                })
-                .catch((err) => {
-                  setError(err?.message || 'No se pudo generar el PDF');
-                });
+              setPendingDeleteId(params.row.id as number);
+              setConfirmOpen(true);
             }}
           >
-            <PictureAsPdfIcon fontSize="small" />
+            <DeleteIcon fontSize="small" />
           </IconButton>
-        ),
-      },
-      {
-        field: 'actions',
-        headerName: 'Acciones',
-        width: 150,
-        sortable: false,
-        filterable: false,
-        renderCell: (params: GridRenderCellParams) => (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <IconButton size="small" color="primary" onClick={() => navigate(`${basePath}/${params.id}`)}>
-              <EditIcon fontSize="small" />
-            </IconButton>
+          <Tooltip title="Descargar PDF">
             <IconButton
               size="small"
-              color="error"
-              disabled={deletingId === params.row.id || loading}
-              onClick={async (e) => {
+              color="primary"
+              onClick={(e) => {
                 e.stopPropagation();
-                setPendingDeleteId(params.row.id as number);
-                setConfirmOpen(true);
+                downloadDocumentoPdf(Number(params.row.id), tipoDocumento)
+                  .then((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+                  })
+                  .catch((err) => {
+                    setError(err?.message || 'No se pudo generar el PDF');
+                  });
               }}
             >
-              <DeleteIcon fontSize="small" />
+              <PictureAsPdfIcon fontSize="small" />
             </IconButton>
-          </Stack>
-        ),
-      },
-    ],
-    [currency, navigate, deletingId, loading, tipoDocumento]
-  );
+          </Tooltip>
+          {tipoDocumento === 'factura' && (
+            <Tooltip title="Timbrar CFDI">
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading || timbrandoId === params.row.id}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      setTimbrandoId(params.row.id as number);
+                      await timbrarFactura(Number(params.row.id));
+                      await load();
+                    } catch (err: any) {
+                      setError(err?.message || 'No se pudo timbrar la factura');
+                    } finally {
+                      setTimbrandoId(null);
+                    }
+                  }}
+                >
+                  <VerifiedIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
+        </Stack>
+      ),
+    });
+
+    return columns;
+  }, [
+    currency,
+    formatFecha,
+    tipoDocumento,
+    loading,
+    timbrandoId,
+    navigate,
+    basePath,
+    deletingId,
+    load,
+    setError,
+    setPendingDeleteId,
+    setConfirmOpen,
+  ]);
 
   useEffect(() => {
     if (!orderedFields) {

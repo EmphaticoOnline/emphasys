@@ -10,6 +10,8 @@ import {
 } from './documentos.repository';
 import { generarDocumentoPDF } from './documentos.pdf';
 import type { TipoDocumento } from '../../types/documentos';
+import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
+import pool from '../../config/database';
 
 const TIPOS_VALIDOS: TipoDocumento[] = ['cotizacion', 'factura', 'pedido', 'remision'];
 
@@ -131,6 +133,38 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
     const result = await obtenerDocumentoRepository(id, Number(empresaId), tipo);
     if (!result) return res.status(404).json({ message: 'Documento no encontrado' });
 
+    // Adjuntar timbre CFDI si existe
+    try {
+      const { rows } = await pool.query(
+        `SELECT uuid, fecha_timbrado, rfc_proveedor_certificacion, no_certificado_sat, sello_cfdi, sello_sat, cadena_original, rfc_emisor, rfc_receptor, total
+           FROM documentos_cfdi
+          WHERE documento_id = $1
+          LIMIT 1`,
+        [id]
+      );
+
+      const timbre = rows[0];
+      if (timbre) {
+        result.documento = result.documento || ({} as any);
+        (result.documento as any).timbre = {
+          uuid: timbre.uuid,
+          fecha_timbrado: timbre.fecha_timbrado?.toISOString?.() ?? timbre.fecha_timbrado,
+          rfc_proveedor_certificacion: timbre.rfc_proveedor_certificacion,
+          no_certificado_sat: timbre.no_certificado_sat,
+          sello_cfdi: timbre.sello_cfdi,
+          sello_sat: timbre.sello_sat,
+          cadena_original: timbre.cadena_original,
+          rfc_emisor: timbre.rfc_emisor,
+          rfc_receptor: timbre.rfc_receptor,
+          total: timbre.total,
+        };
+        // Marcar estatus como Timbrado para el PDF
+        (result.documento as any).estatus_documento = 'Timbrado';
+      }
+    } catch (err) {
+      console.error('Error al consultar timbre CFDI para PDF', err);
+    }
+
     const pdfBuffer = await generarDocumentoPDF(result);
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -144,6 +178,38 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
 
 export const obtenerCotizacionPDF = buildPdfHandler('cotizacion');
 export const obtenerFacturaPDF = buildPdfHandler('factura', true);
+
+export async function obtenerFacturaXML(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    if (Number.isNaN(documentoId) || !empresaId) {
+      return res.status(400).json({ message: 'ID o empresaId inválido' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT dc.xml_timbrado
+         FROM documentos_cfdi dc
+         JOIN documentos d ON d.id = dc.documento_id
+        WHERE dc.documento_id = $1
+          AND d.empresa_id = $2
+        LIMIT 1`,
+      [documentoId, Number(empresaId)]
+    );
+
+    const row = rows[0];
+    if (!row || !row.xml_timbrado) {
+      return res.status(404).json({ message: 'XML timbrado no encontrado' });
+    }
+
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename=factura-${documentoId}.xml`);
+    res.send(row.xml_timbrado);
+  } catch (error) {
+    console.error('Error al obtener XML timbrado', error);
+    res.status(500).json({ message: 'Error al obtener XML timbrado' });
+  }
+}
 
 export async function agregarPartida(req: Request, res: Response) {
   try {
@@ -173,5 +239,24 @@ export async function reemplazarPartidas(req: Request, res: Response) {
   } catch (error) {
     console.error('Error al reemplazar partidas', error);
     res.status(500).json({ message: 'Error al reemplazar partidas' });
+  }
+}
+
+export async function timbrarFacturaCfdi(req: Request, res: Response) {
+  const documentoId = Number(req.params.id);
+  const empresaId = req.context?.empresaId;
+  if (Number.isNaN(documentoId) || !empresaId) {
+    return res.status(400).json({ message: 'ID o empresaId inválido' });
+  }
+
+  try {
+    const resultado = await cfdiService.timbrarFactura(documentoId, Number(empresaId));
+    res.json(resultado);
+  } catch (error) {
+    if (error instanceof CfdiValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
+    console.error('Error al timbrar factura', error);
+    res.status(500).json({ message: 'Error al timbrar la factura' });
   }
 }

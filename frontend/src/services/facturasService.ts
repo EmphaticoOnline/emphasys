@@ -9,6 +9,7 @@ import {
   deleteDocumento,
   downloadDocumentoPdf,
 } from './documentosService';
+import { apiFetch } from './apiFetch';
 
 const TIPO: TipoDocumento = 'factura';
 
@@ -20,3 +21,8 @@ export const replacePartidas = (documentoId: number, partidas: CotizacionPartida
   replacePartidasBase(documentoId, TIPO, partidas);
 export const deleteFactura = (id: number) => deleteDocumento(id, TIPO);
 export const downloadFacturaPdf = (id: number) => downloadDocumentoPdf(id, TIPO);
+
+export const timbrarFactura = (id: number) =>
+  apiFetch(`/api/facturas/${id}/timbrar`, {
+    method: 'POST',
+  });

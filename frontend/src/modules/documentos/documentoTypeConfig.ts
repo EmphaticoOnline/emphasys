@@ -1,0 +1,151 @@
+import type { TipoDocumento } from '../../types/documentos.types';
+import type {
+  DocumentoField,
+  DocumentoSectionKey,
+  DocumentoTypeConfigMap,
+  DocumentoFieldRule,
+  DocumentoSectionRule,
+} from './documentoTypes';
+
+const seccionesBase: Partial<Record<DocumentoSectionKey, DocumentoSectionRule>> = {
+  encabezado: { visible: true, label: 'Encabezado' },
+  cliente: { visible: true, label: 'Cliente' },
+  fechas: { visible: true, label: 'Fechas' },
+  moneda: { visible: true, label: 'Moneda' },
+  fiscal: { visible: false, label: 'Datos fiscales' },
+  partidas: { visible: true, label: 'Partidas' },
+  totales: { visible: true, label: 'Totales' },
+  observaciones: { visible: true, label: 'Observaciones' },
+  otros: { visible: false, label: 'Otros' },
+};
+
+const camposBase: Partial<Record<DocumentoField, DocumentoFieldRule>> = {
+  contacto_principal_id: { required: true, section: 'cliente' },
+  fecha_documento: { required: true, section: 'fechas' },
+  moneda: { required: true, section: 'moneda' },
+  observaciones: { required: false, section: 'observaciones' },
+  partidas: { required: true, section: 'partidas' },
+  subtotal: { readOnly: true, section: 'totales' },
+  iva: { readOnly: true, section: 'totales' },
+  total: { readOnly: true, section: 'totales' },
+  usuario_creacion_id: { visible: false, section: 'otros' },
+  empresa_id: { visible: false, section: 'otros' },
+  tipo_cambio: { required: false, section: 'moneda', visible: false },
+  serie: { visible: false, section: 'encabezado' },
+  numero: { visible: false, section: 'encabezado' },
+  rfc_receptor: { visible: false, section: 'fiscal' },
+  nombre_receptor: { visible: false, section: 'fiscal' },
+  metodo_pago: { visible: false, section: 'fiscal' },
+  forma_pago: { visible: false, section: 'fiscal' },
+  uso_cfdi: { visible: false, section: 'fiscal' },
+  regimen_fiscal_receptor: { visible: false, section: 'fiscal' },
+  lugar_expedicion: { visible: false, section: 'fiscal' },
+  codigo_postal_receptor: { visible: false, section: 'fiscal' },
+};
+
+const withOverrides = <T extends object>(base: T, overrides: Partial<T> = {}): T => ({ ...base, ...overrides });
+
+export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
+  cotizacion: {
+    tipo: 'cotizacion',
+    label: 'Cotización',
+    descripcion: 'Propuesta económica o estimado de venta.',
+    secciones: { ...seccionesBase },
+    campos: {
+      ...camposBase,
+      serie: { ...camposBase.serie, visible: false },
+      numero: { ...camposBase.numero, visible: false },
+      moneda: { ...camposBase.moneda, required: true },
+      tipo_cambio: { ...camposBase.tipo_cambio, visible: false },
+    },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
+  },
+  factura: {
+    tipo: 'factura',
+    label: 'Factura',
+    descripcion: 'Documento fiscal timbrable.',
+    secciones: {
+      ...seccionesBase,
+      fiscal: withOverrides(seccionesBase.fiscal ?? { label: 'Datos fiscales' }, { visible: true }),
+    },
+    campos: {
+      ...camposBase,
+      serie: { ...camposBase.serie, visible: true, required: true },
+      numero: { ...camposBase.numero, visible: true, required: true },
+      rfc_receptor: { ...camposBase.rfc_receptor, visible: true, required: true },
+      nombre_receptor: { ...camposBase.nombre_receptor, visible: true, required: false },
+      moneda: { ...camposBase.moneda, required: true },
+      tipo_cambio: { ...camposBase.tipo_cambio, visible: true },
+      metodo_pago: { ...camposBase.metodo_pago, visible: true, required: true },
+      forma_pago: { ...camposBase.forma_pago, visible: true, required: true },
+      uso_cfdi: { ...camposBase.uso_cfdi, visible: true, required: true },
+      regimen_fiscal_receptor: { ...camposBase.regimen_fiscal_receptor, visible: true, required: true },
+      codigo_postal_receptor: { ...camposBase.codigo_postal_receptor, visible: true, required: true },
+      lugar_expedicion: { ...camposBase.lugar_expedicion, visible: true, required: true },
+    },
+    fiscales: {
+      requiereDatosFiscales: true,
+      requiereMetodoPago: true,
+      requiereFormaPago: true,
+      requiereUsoCfdi: true,
+      requiereRegimenFiscal: true,
+      requiereTipoCambio: true,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado', 'timbrado'],
+  },
+  pedido: {
+    tipo: 'pedido',
+    label: 'Pedido',
+    descripcion: 'Orden interna para surtir productos o servicios.',
+    secciones: { ...seccionesBase },
+    campos: {
+      ...camposBase,
+      serie: { ...camposBase.serie, visible: false },
+      numero: { ...camposBase.numero, visible: false },
+      moneda: { ...camposBase.moneda, required: true },
+      tipo_cambio: { ...camposBase.tipo_cambio, visible: false },
+    },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
+  },
+  remision: {
+    tipo: 'remision',
+    label: 'Remisión',
+    descripcion: 'Documento de entrega o salida de almacén.',
+    secciones: { ...seccionesBase },
+    campos: {
+      ...camposBase,
+      serie: { ...camposBase.serie, visible: false },
+      numero: { ...camposBase.numero, visible: false },
+      moneda: { ...camposBase.moneda, required: true },
+      tipo_cambio: { ...camposBase.tipo_cambio, visible: false },
+      observaciones: { ...camposBase.observaciones, required: false },
+    },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
+  },
+};
+
+export const getDocumentoTypeConfig = (tipo: TipoDocumento) => DOCUMENTO_TYPE_CONFIG[tipo];

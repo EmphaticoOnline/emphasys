@@ -28,6 +28,13 @@ export interface CotizacionDocumento {
   total: number;
   estatus_documento: string;
   usuario_creacion_id?: number | null;
+  rfc_receptor?: string | null;
+  nombre_receptor?: string | null;
+  regimen_fiscal_receptor?: string | null;
+  uso_cfdi?: string | null;
+  forma_pago?: string | null;
+  metodo_pago?: string | null;
+  codigo_postal_receptor?: string | null;
 }
 
 export interface CotizacionPartida {
@@ -61,6 +68,13 @@ export interface CotizacionCrearPayload {
   iva?: number;
   total: number;
   usuario_creacion_id?: number | null;
+  rfc_receptor?: string | null;
+  nombre_receptor?: string | null;
+  regimen_fiscal_receptor?: string | null;
+  uso_cfdi?: string | null;
+  forma_pago?: string | null;
+  metodo_pago?: string | null;
+  codigo_postal_receptor?: string | null;
 }
 
 export interface CotizacionPartidaPayload {
