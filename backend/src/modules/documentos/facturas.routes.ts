@@ -11,6 +11,7 @@ import {
   obtenerFacturaPDF,
   obtenerFacturaXML,
   timbrarFacturaCfdi,
+  enviarFacturaPorCorreo,
 } from './documentos.controller';
 
 const router = Router();
@@ -44,5 +45,8 @@ router.put('/:id/partidas', requireAuth, requireEmpresaActiva, reemplazarPartida
 
 // POST /api/facturas/:id/timbrar
 router.post('/:id/timbrar', requireAuth, requireEmpresaActiva, timbrarFacturaCfdi);
+
+// POST /api/facturas/:id/enviar
+router.post('/:id/enviar', requireAuth, requireEmpresaActiva, enviarFacturaPorCorreo);
 
 export default router;

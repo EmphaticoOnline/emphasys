@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  TextField,
   IconButton,
   Paper,
   Stack,
@@ -32,12 +33,15 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import VerifiedIcon from '@mui/icons-material/Verified';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import EmailIcon from '@mui/icons-material/Email';
 import { Tooltip } from '@mui/material';
+import Snackbar from '@mui/material/Snackbar';
+import AlertSnackbar from '@mui/material/Alert';
 import type { CotizacionListado } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
 import { deleteDocumento, downloadDocumentoPdf, getDocumentos } from '../services/documentosService';
-import { timbrarFactura } from '../services/facturasService';
+import { timbrarFactura, enviarFactura } from '../services/facturasService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
 
@@ -64,6 +68,16 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
   const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>({});
   const [orderedFields, setOrderedFields] = useState<string[] | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
+    { open: false, message: '', severity: 'success' }
+  );
+  const [enviarDialog, setEnviarDialog] = useState<{
+    open: boolean;
+    id: number | null;
+    email: string;
+    enviando: boolean;
+    error?: string | null;
+  }>({ open: false, id: null, email: '', enviando: false, error: null });
 
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = tipoDocumento === 'factura' ? '/facturas' : '/documentos';
@@ -117,6 +131,9 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
   useEffect(() => {
     load();
   }, [tipoDocumento]);
+
+  const obtenerEmailFactura = (row: any) =>
+    row?.contacto_email ?? row?.email_contacto ?? row?.cliente_email ?? row?.email_cliente ?? row?.email ?? '';
 
   const baseColumns: GridColDef[] = useMemo(() => {
     const columns: GridColDef[] = [
@@ -176,7 +193,7 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
     columns.push({
       field: 'actions',
       headerName: 'Acciones',
-      width: 150,
+  width: 230,
       sortable: false,
       filterable: false,
       headerAlign: 'center',
@@ -231,6 +248,8 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
                       setTimbrandoId(params.row.id as number);
                       await timbrarFactura(Number(params.row.id));
                       await load();
+                      const emailInicial = obtenerEmailFactura(params.row);
+                      setEnviarDialog({ open: true, id: Number(params.row.id), email: emailInicial, enviando: false, error: null });
                     } catch (err: any) {
                       setError(err?.message || 'No se pudo timbrar la factura');
                     } finally {
@@ -238,7 +257,25 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
                     }
                   }}
                 >
-                  <VerifiedIcon fontSize="small" />
+                  <ReceiptLongIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
+          {tipoDocumento === 'factura' && (
+            <Tooltip title="Enviar factura por correo">
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const emailInicial = obtenerEmailFactura(params.row);
+                    setEnviarDialog({ open: true, id: Number(params.row.id), email: emailInicial, enviando: false, error: null });
+                  }}
+                >
+                  <EmailIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
@@ -256,6 +293,7 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
     timbrandoId,
     navigate,
     basePath,
+    obtenerEmailFactura,
     deletingId,
     load,
     setError,
@@ -310,11 +348,17 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
         </Stack>
       </Toolbar>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      <Dialog open={Boolean(error)} onClose={() => setError(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Error</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{error}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setError(null)}>
+            ENTENDIDO
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
         <DataGrid
@@ -397,6 +441,76 @@ export default function DocumentosPage({ tipoDocumento = 'cotizacion' }: Documen
           }}
         />
       </Paper>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <AlertSnackbar
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </AlertSnackbar>
+      </Snackbar>
+
+      <Dialog
+        open={enviarDialog.open}
+        onClose={() => !enviarDialog.enviando && setEnviarDialog({ open: false, id: null, email: '', enviando: false, error: null })}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Enviar factura por correo</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <DialogContentText sx={{ mb: 2 }}>Ingresa o ajusta el correo del cliente antes de enviar.</DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Correo electrónico"
+            type="email"
+            value={enviarDialog.email}
+            onChange={(e) => setEnviarDialog((prev) => ({ ...prev, email: e.target.value, error: null }))}
+            error={Boolean(enviarDialog.error)}
+            helperText={enviarDialog.error || ' '}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button
+            onClick={() => setEnviarDialog({ open: false, id: null, email: '', enviando: false, error: null })}
+            disabled={enviarDialog.enviando}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              const email = enviarDialog.email.trim();
+              if (!email) {
+                setEnviarDialog((prev) => ({ ...prev, error: 'El correo es obligatorio' }));
+                return;
+              }
+              try {
+                setEnviarDialog((prev) => ({ ...prev, enviando: true, error: null }));
+                await enviarFactura(Number(enviarDialog.id), email);
+                setSnackbar({ open: true, message: 'Factura enviada correctamente', severity: 'success' });
+                setEnviarDialog({ open: false, id: null, email: '', enviando: false, error: null });
+              } catch (err: any) {
+                const msg = err?.message || 'No se pudo enviar la factura';
+                setEnviarDialog((prev) => ({ ...prev, enviando: false, error: msg }));
+                setSnackbar({ open: true, message: msg, severity: 'error' });
+              }
+            }}
+            disabled={enviarDialog.enviando}
+            startIcon={enviarDialog.enviando ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {enviarDialog.enviando ? 'Enviando...' : 'Enviar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={confirmOpen}

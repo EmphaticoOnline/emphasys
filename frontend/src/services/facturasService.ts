@@ -26,3 +26,10 @@ export const timbrarFactura = (id: number) =>
   apiFetch(`/api/facturas/${id}/timbrar`, {
     method: 'POST',
   });
+
+export const enviarFactura = (id: number, email?: string) =>
+  apiFetch(`/api/facturas/${id}/enviar`, {
+    method: 'POST',
+    // El body se serializa como JSON en apiFetch si es un objeto
+    body: email ? ({ email } as any) : undefined,
+  });

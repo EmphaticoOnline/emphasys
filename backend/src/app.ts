@@ -1,9 +1,13 @@
 
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+
+// Carga .env explícitamente y loguea valores para diagnosticar
+dotenv.config({ path: ".env" });
+console.log("SMTP_HOST runtime:", process.env.SMTP_HOST);
+console.log("CWD runtime:", process.cwd());
 
 import express from "express";
-import path from "path";
 import fs from "fs";
 import contactosRouter from "./modules/contactos/contactos.routes";
 import productosRouter from "./modules/productos/productos.routes";

@@ -2,6 +2,7 @@ import path from 'path';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import { generarImagenQR, DatosQrCfdi } from '../../utils/generarCadenaQR';
+import { formatearFolioDocumento } from '../../utils/documentos';
 
 type TimbreCfdi = {
   uuid?: string | null;
@@ -65,6 +66,24 @@ const formatDate = (value?: string | Date | null) => {
   return date.toLocaleDateString('es-MX');
 };
 
+const formatDateTime = (value?: string | Date | null) => {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/);
+    if (match) return match[1]; // ya viene en formato ISO CFDI
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+};
+
 const mapRegimen = (code: string | null | undefined) => {
   const map: Record<string, string> = {
     '616': 'Sin obligaciones fiscales',
@@ -91,6 +110,7 @@ const mapUsoCfdi = (code: string | null | undefined) => {
     G01: 'Adquisición de mercancías',
     G03: 'Gastos en general',
     P01: 'Por definir',
+    S01: 'Sin efectos fiscales',
   };
   return code ? map[code] || code : 'N/D';
 };
@@ -222,12 +242,12 @@ export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer>
 
     // Encabezado clásico CFDI
     const headerTop = doc.y;
-    const headerHeight = 88;
+  const headerHeight = 122;
     const headerWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
     // Logo y nombre empresa
     if (hasLogo) {
-      doc.image(logoPath, doc.page.margins.left, headerTop, { width: 130, fit: [130, 72] });
+      doc.image(logoPath, doc.page.margins.left, headerTop, { height: headerHeight * 0.7 });
     }
 
     // Caja gris a la derecha
@@ -238,35 +258,52 @@ export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer>
     doc.roundedRect(boxX, boxY, boxW, boxH, 6).fill('#eeeeee');
     doc.fillColor('#111827');
 
-    const folio = `${documento?.serie ?? ''}${documento?.numero ? `-${documento.numero}` : ''}`.trim();
-    const fechaCert = documento?.timbre?.fecha_timbrado ? formatDate(documento.timbre.fecha_timbrado) : 'N/D';
+  const folio = formatearFolioDocumento(documento?.serie ?? '', Number(documento?.numero ?? 0));
+  const fechaTimbrado = documento?.timbre?.fecha_timbrado ? formatDateTime(documento.timbre.fecha_timbrado) : 'N/D';
     const uuid = documento?.timbre?.uuid || 'N/D';
     const fechaEmision = formatDate(documento?.fecha_documento) || 'N/D';
     const tipoComp = tituloPorTipo(documento?.tipo_documento);
 
+  // Título centrado en el recuadro gris
+  const titleHeight = doc.heightOfString(tipoComp, { width: boxW });
+  const titleY = boxY + 8; // encabezado alto, centrado solo horizontalmente
+  setFont(true, 13, primaryColor);
+  doc.text(tipoComp, boxX, titleY, { width: boxW, align: 'center' });
+
     const boxData: Array<[string, string]> = [
-      ['Factura', tipoComp],
-      ['UUID', uuid],
       ['Folio', folio || 'N/D'],
-      ['Fecha certificación', fechaCert],
       ['Fecha elaboración', fechaEmision],
-      ['Tipo comprobante', tipoComp],
+  ['Fecha timbrado', fechaTimbrado],
+      ['Método Pago', mapMetodoPago(documento?.metodo_pago)],
+      ['Forma Pago', mapFormaPago(documento?.forma_pago)],
+      ['Uso CFDI', mapUsoCfdi(documento?.uso_cfdi)],
     ];
 
-    let cursorY = boxY + 10;
-    boxData.forEach(([label, value], idx) => {
-      setFont(idx === 0, idx === 0 ? 12 : 9, idx === 0 ? primaryColor : '#111827');
-      doc.text(idx === 0 ? value : `${label}: ${value}`, boxX + 10, cursorY, { width: boxW - 20 });
-      cursorY += idx === 0 ? 16 : 13;
+  let cursorY = titleY + titleHeight + 4; // datos inmediatamente debajo del encabezado dentro del recuadro (ligeramente más arriba)
+
+    // UUID centrado, independiente de columnas
+    setFont(true, 9, '#111827');
+    doc.text(uuid, boxX, cursorY, { width: boxW, align: 'center' });
+    cursorY += 12;
+
+    // Columnas para etiquetas y valores
+    const labelColWidth = 88;
+    const gapCols = 8;
+    const valueColWidth = boxW - 24 - labelColWidth - gapCols;
+    const labelX = boxX + 12;
+    const valueX = labelX + labelColWidth + gapCols;
+
+    boxData.forEach(([label, value]) => {
+      setFont(false, 9, '#111827');
+      doc.text(label + ':', labelX, cursorY, { width: labelColWidth, align: 'right' });
+      doc.text(value, valueX, cursorY, { width: valueColWidth, align: 'left' });
+      cursorY += 12;
     });
 
-    doc.y = Math.max(headerTop + headerHeight, cursorY) + 10;
-
-    // Barra de datos fiscales (Método, Forma, Uso)
-    setFont(true, 10, textColor);
-    const barraText = `Método Pago: ${mapMetodoPago(documento?.metodo_pago)}    Forma Pago: ${mapFormaPago(documento?.forma_pago)}    Uso CFDI: ${mapUsoCfdi(documento?.uso_cfdi)}`;
-    doc.text(barraText, doc.page.margins.left, doc.y, { width: contentWidth });
-    doc.moveTo(doc.page.margins.left, doc.y + 6).lineTo(doc.page.width - doc.page.margins.right, doc.y + 6).strokeColor('#cccccc').stroke();
+  doc.y = Math.max(headerTop + headerHeight, cursorY) + 10;
+  // Línea divisoria (ligeramente por encima de Emisor)
+  const lineY = doc.y + 2; // bajar ~12 pts respecto al ajuste anterior
+  doc.moveTo(doc.page.margins.left, lineY).lineTo(doc.page.width - doc.page.margins.right, lineY).strokeColor('#cccccc').stroke();
     doc.moveDown(0.6);
 
     // Bloque Emisor / Receptor
@@ -295,24 +332,28 @@ export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer>
   receptorY += drawLabelValue('Domicilio Fiscal', documento?.codigo_postal_receptor, doc.page.margins.left + colWidth + 12, receptorY);
     receptorY += drawLabelValue('Régimen Fiscal', mapRegimen(documento?.regimen_fiscal_receptor), doc.page.margins.left + colWidth + 12, receptorY);
 
-    doc.y = Math.max(emisorY, receptorY) + 6;
-    doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).strokeColor('#cccccc').stroke();
-    doc.moveDown(0.4);
+  doc.y = Math.max(emisorY, receptorY) + 6;
+  doc.moveDown(0.4);
 
     // Tabla de partidas (sin título "Partidas")
   const startX = doc.page.margins.left;
-  const columnWidths = [90, 210, 60, 70, 65]; // total = contentWidth
+  const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const columnWidths = [
+    90, // Producto (se mantiene)
+    tableWidth - (90 + 60 + 70 + 65), // Descripción absorbe espacio extra
+    60, // Cantidad
+    70, // Precio unitario
+    65, // Importe (alineado a margen derecho)
+  ];
   const headers = ['Producto', 'Descripción', 'Cantidad', 'Precio unitario', 'Importe'];
 
     const drawRow = (values: string[], isHeader = false) => {
-      const rowHeight = isHeader ? 20 : 18;
+        const rowHeight = isHeader ? 20 : 17;
       const y = doc.y;
       const rowWidth = columnWidths.reduce((acc, w) => acc + w, 0);
 
       if (isHeader) {
         doc.rect(startX, y, rowWidth, rowHeight).fill(primaryColor);
-      } else {
-        doc.moveTo(startX, y + rowHeight).lineTo(startX + rowWidth, y + rowHeight).strokeColor(borderGray).stroke();
       }
 
       doc.save();
@@ -341,61 +382,113 @@ export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer>
       drawRow(values, false);
     });
 
-    doc.moveDown(0.8);
+  doc.moveDown(0.5);
 
-    // Totales (debajo de la tabla, alineados a la derecha)
-  const totalLabelWidth = 90;
-  const totalValueWidth = 100;
-  const tableWidth = columnWidths.reduce((acc, w) => acc + w, 0);
-  const tableEndX = startX + tableWidth;
-  const totalsStartX = tableEndX - (totalLabelWidth + totalValueWidth) - 12;
-
+    // Totales se renderizarán en el pie de página
     const totalRows: Array<[string, number | null | undefined]> = [
       ['Subtotal', documento?.subtotal],
       ['IVA', documento?.iva],
       ['Total', documento?.total],
     ];
 
-    const totalsBoxHeight = totalRows.length * 18 + 16;
-    doc
-      .roundedRect(totalsStartX - 12, doc.y - 6, totalLabelWidth + totalValueWidth + 24, totalsBoxHeight)
-      .strokeColor(borderGray)
-      .lineWidth(1.6)
-      .stroke();
+    doc.moveDown(0.4);
 
-    totalRows.forEach(([label, value], idx) => {
-      const y = doc.y + idx * 18;
-      setFont(label === 'Total', 10, textColor);
-      doc
-        .text(label === 'Total' ? 'TOTAL' : label, totalsStartX, y, { width: totalLabelWidth, align: 'right' })
-        .text(formatCurrency(value), totalsStartX + totalLabelWidth, y, { width: totalValueWidth, align: 'right' });
-    });
+    // Observaciones (antes de reservar espacio del pie)
+    const qrWidth = 110;
+    const textoWidthBase = qrBuffer ? contentWidth - qrWidth - 24 : contentWidth;
 
-    doc.y += totalRows.length * 18 + 10;
+    const calcularAlturaPie = () => {
+      if (!estaTimbrado) return 50; // margen de seguridad mínimo cuando no hay timbre
 
-    // Sección de timbrado CFDI
-    const timbreHeightEstimate = estaTimbrado ? (qrBuffer ? 180 : 140) : 40;
-    const availableSpace = doc.page.height - doc.page.margins.bottom - doc.y;
-    if (availableSpace < timbreHeightEstimate) {
+      const textoLargo: Array<[string, string, number]> = [
+        ['Cadena original del complemento', timbre?.cadena_original || 'N/D', 7],
+        ['Sello digital del CFDI', timbre?.sello_cfdi || 'N/D', 6],
+        ['Sello del SAT', timbre?.sello_sat || 'N/D', 6],
+      ];
+
+      let hIzq = 0;
+      const gapCols = 12;
+      const totalsLabelWidth = 70;
+      const totalsValueWidth = 90;
+      const totalsWidth = totalsLabelWidth + totalsValueWidth;
+      const textoWidth = contentWidth - totalsWidth - gapCols;
+
+      textoLargo.forEach(([label, value, size]) => {
+        setFont(true, 8, textColor);
+        hIzq += doc.heightOfString(`${label}:`, { width: textoWidth });
+        setFont(false, size, mutedText);
+        hIzq += doc.heightOfString(value, { width: textoWidth, lineGap: size <= 6 ? 0.2 : 0 });
+        hIzq += 4; // espaciado equivalente a moveDown corto
+      });
+
+      // Altura del bloque de totales (columna derecha, sin recuadro)
+  const rowHeightCompact = 12; // espaciado compacto
+  const totalsHeight = totalRows.length * rowHeightCompact;
+
+  // QR debajo de totales (ligeramente más pequeño y con gap)
+  const qrGap = 10;
+  const qrHeight = qrBuffer ? Math.min(qrWidth, 85) : 0;
+
+      // Leyenda final
+      setFont(true, 10, textColor);
+      const alturaLeyenda = doc.heightOfString('** Este documento es una representación impresa de un CFDI. **', {
+        width: contentWidth,
+      });
+
+      const padding = 10; // padding superior/inferior
+      const topOffset = 8; // desplazamiento usado al comenzar el footer (doc.y = footerY + 8)
+
+      const alturaTotalBloque = Math.max(hIzq, totalsHeight + qrGap + qrHeight) + alturaLeyenda + 12;
+
+      return alturaTotalBloque + padding + topOffset;
+    };
+
+  const footerHeight = calcularAlturaPie();
+  const footerBottomMargin = 22; // margen inferior ~20-25 px para garantizar que no se corte
+  const footerTop = doc.page.height - footerBottomMargin - footerHeight;
+
+    if (documento?.observaciones) {
+      const obsWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const obsHeight = doc.heightOfString(documento.observaciones, { width: obsWidth }) + 28;
+      if (doc.y + obsHeight > footerTop - 6) {
+        doc.addPage();
+      }
+      doc.moveDown(0.6);
+      drawSectionHeader('Observaciones');
+      setFont(false, 10, mutedText);
+      doc.text(documento.observaciones, { width: obsWidth });
+      doc.moveDown(0.6);
+    }
+
+    // Pie fijo timbrado CFDI anclado al borde inferior
+    if (doc.y > footerTop - 8) {
       doc.addPage();
     }
 
-    doc.moveDown(1);
-    drawSectionHeader('Datos fiscales CFDI');
+  const footerY = doc.page.height - footerBottomMargin - footerHeight;
+    doc
+      .moveTo(doc.page.margins.left, footerY)
+      .lineTo(doc.page.width - doc.page.margins.right, footerY)
+      .strokeColor('#cccccc')
+      .stroke();
+
+  doc.y = footerY + 8;
 
     if (!estaTimbrado) {
       setFont(true, 11, textColor);
       doc.text('Estatus: Borrador');
     } else {
       const startYTimbrado = doc.y;
+      const gapCols = 12;
+      const totalsLabelWidth = 70;
+  const totalsValueWidth = 90;
+      const totalsWidth = totalsLabelWidth + totalsValueWidth;
       const colLeftX = doc.page.margins.left;
-      const colRightX = doc.page.width - doc.page.margins.right - 120;
+      const textoWidth = contentWidth - totalsWidth - gapCols;
+      const colRightX = colLeftX + textoWidth + gapCols;
+      let selloCfdiEndY = startYTimbrado;
 
-      // QR a la derecha
-      if (qrBuffer) {
-        doc.image(qrBuffer, colRightX, startYTimbrado, { width: 110 });
-      }
-
+      // Columna izquierda: cadena y sellos
       const textoLargo: Array<[string, string, number]> = [
         ['Cadena original del complemento', timbre?.cadena_original || 'N/D', 7],
         ['Sello digital del CFDI', timbre?.sello_cfdi || 'N/D', 6],
@@ -404,28 +497,54 @@ export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer>
 
       textoLargo.forEach(([label, value, size]) => {
         setFont(true, 8, textColor);
-        doc.text(`${label}:`, colLeftX, doc.y, { width: contentWidth - 140 });
+        doc.text(`${label}:`, colLeftX, doc.y, { width: textoWidth });
         setFont(false, size, mutedText);
         doc.text(value, {
-          width: contentWidth - 140,
-          lineGap: size <= 6 ? 1 : 0,
+          width: textoWidth,
+          lineGap: size <= 6 ? 0.2 : 0,
         });
-        doc.moveDown(0.5);
+        if (label === 'Sello digital del CFDI') {
+          selloCfdiEndY = doc.y;
+        }
+        doc.moveDown(0.35);
       });
 
+      // Columna derecha: Subtotal / IVA / TOTAL compactos
+      let totY = startYTimbrado;
+      const rowHeightCompact = 12;
+      totalRows.forEach(([label, value]) => {
+        const isTotal = label === 'Total';
+        setFont(isTotal, 9, textColor); // mismo tamaño para TOTAL, mantiene negritas
+
+        const importeX = startX + columnWidths[0] + columnWidths[1] + columnWidths[2] + columnWidths[3];
+        const gapLabelValor = 8; // acerca la etiqueta al monto
+        const labelRight = importeX - gapLabelValor;
+        const labelX = labelRight - totalsLabelWidth;
+
+        doc.text(label.toUpperCase(), labelX, totY, { width: totalsLabelWidth, align: 'right' });
+        doc.text(formatCurrency(value), importeX, totY, {
+          width: columnWidths[4],
+          align: 'right',
+        });
+        totY += rowHeightCompact;
+      });
+
+      // QR debajo de los totales
+      if (qrBuffer) {
+        const qrWidthAdjusted = Math.min(qrWidth, 85); // ~10-15% más pequeño
+        const qrX = doc.page.width - doc.page.margins.right - qrWidthAdjusted; // alinea borde derecho con margen
+        const qrY = totY + 10; // más espacio vertical respecto al TOTAL
+        doc.image(qrBuffer, qrX, qrY, { width: qrWidthAdjusted });
+        totY = qrY + qrWidthAdjusted;
+      }
+
+      // Leyenda final centrada en todo el ancho disponible del pie
+  const leyendaY = Math.max(doc.y, totY + 4, selloCfdiEndY + 2); // reduce gap para que no salte de página
+      doc.y = leyendaY;
       setFont(true, 10, textColor);
-      doc.text('Este documento es una representación impresa de un CFDI.', colLeftX, doc.y, {
-        width: contentWidth - 140,
-      });
-    }
-
-    // Observaciones
-    if (documento?.observaciones) {
-      doc.moveDown(1);
-      drawSectionHeader('Observaciones');
-      setFont(false, 10, mutedText);
-      doc.text(documento.observaciones, {
-        width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+      doc.text('** Este documento es una representación impresa de un CFDI. **', colLeftX, doc.y, {
+        width: contentWidth,
+        align: 'center',
       });
     }
 

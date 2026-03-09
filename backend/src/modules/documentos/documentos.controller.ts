@@ -179,6 +179,28 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
 export const obtenerCotizacionPDF = buildPdfHandler('cotizacion');
 export const obtenerFacturaPDF = buildPdfHandler('factura', true);
 
+export async function enviarFacturaPorCorreo(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+
+    if (Number.isNaN(documentoId)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+  // Import dinámico para no acoplar el controlador a la implementación
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  const { FacturaEmailService } = await import('../../services/factura-email.service');
+
+  await FacturaEmailService.enviarFactura(documentoId);
+
+    return res.json({ success: true, message: 'Factura enviada correctamente' });
+  } catch (error) {
+    const message = (error as Error)?.message ?? 'Error al enviar la factura';
+    return res.status(400).json({ error: message });
+  }
+}
+
 export async function obtenerFacturaXML(req: Request, res: Response) {
   try {
     const documentoId = Number(req.params.id);

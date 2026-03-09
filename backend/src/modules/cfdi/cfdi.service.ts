@@ -26,6 +26,10 @@ export class CfdiService {
     const data = await this.obtenerFactura(documentoId, empresaId);
     this.validarDatos(data);
 
+    // Validaciones: impedir timbrar si ya existe CFDI o si el documento ya está marcado como timbrado
+    await this.assertDocumentoNoTimbrado(documentoId, empresaId);
+    await this.assertNoCfdi(documentoId);
+
     const { xml } = this.builder.build(data);
 
     const facturama = FacturamaClient.fromEnv();
@@ -254,36 +258,65 @@ export class CfdiService {
       totalComprobante,
     ];
 
-    const { rows } = await pool.query<TimbradoPersisted>(
-      `INSERT INTO documentos_cfdi (
-          documento_id, uuid, fecha_timbrado, version_cfdi, serie_cfdi, folio_cfdi,
-          no_certificado, no_certificado_sat, sello_cfdi, sello_sat, cadena_original,
-          xml_timbrado, qr_url, estado_sat, rfc_proveedor_certificacion,
-          rfc_emisor, rfc_receptor, total
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-        ON CONFLICT (documento_id) DO UPDATE SET
-          uuid = EXCLUDED.uuid,
-          fecha_timbrado = EXCLUDED.fecha_timbrado,
-          version_cfdi = EXCLUDED.version_cfdi,
-          serie_cfdi = EXCLUDED.serie_cfdi,
-          folio_cfdi = EXCLUDED.folio_cfdi,
-          no_certificado = EXCLUDED.no_certificado,
-          no_certificado_sat = EXCLUDED.no_certificado_sat,
-          sello_cfdi = EXCLUDED.sello_cfdi,
-          sello_sat = EXCLUDED.sello_sat,
-          cadena_original = EXCLUDED.cadena_original,
-          xml_timbrado = EXCLUDED.xml_timbrado,
-          qr_url = EXCLUDED.qr_url,
-          estado_sat = EXCLUDED.estado_sat,
-          rfc_proveedor_certificacion = EXCLUDED.rfc_proveedor_certificacion,
-          rfc_emisor = EXCLUDED.rfc_emisor,
-          rfc_receptor = EXCLUDED.rfc_receptor,
-          total = EXCLUDED.total
-        RETURNING *`,
-      values
+    try {
+      const pre = await pool.query('SELECT 1 FROM public.documentos_cfdi WHERE documento_id = $1 LIMIT 1', [documentoId]);
+      if (pre.rowCount && pre.rowCount > 0) {
+        throw new CfdiValidationError('Esta factura ya fue timbrada y no puede timbrarse nuevamente.');
+      }
+
+      const { rows } = await pool.query<TimbradoPersisted>(
+        `INSERT INTO public.documentos_cfdi (
+            documento_id, uuid, fecha_timbrado, version_cfdi, serie_cfdi, folio_cfdi,
+            no_certificado, no_certificado_sat, sello_cfdi, sello_sat, cadena_original,
+            xml_timbrado, qr_url, estado_sat, rfc_proveedor_certificacion,
+            rfc_emisor, rfc_receptor, total
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+          RETURNING *`,
+        values
+      );
+
+      return rows[0];
+    } catch (err: any) {
+      // Defensa contra condiciones de carrera: si ya existe un timbre, no sobrescribir.
+      if (err?.code === '23505') {
+        throw new CfdiValidationError('Esta factura ya fue timbrada y no puede timbrarse nuevamente.');
+      }
+      throw err;
+    }
+  }
+
+  private async assertNoCfdi(documentoId: number): Promise<void> {
+    console.log('[cfdi-debug] documentoId recibido (assertNoCfdi):', documentoId);
+    const { rows } = await pool.query<{ uuid: string | null }>(
+      'SELECT uuid FROM public.documentos_cfdi WHERE documento_id = $1 LIMIT 1',
+      [documentoId]
     );
 
-    return rows[0];
+    console.log('[cfdi-debug] SQL documentos_cfdi: SELECT uuid FROM public.documentos_cfdi WHERE documento_id = $1 LIMIT 1; params:', [documentoId]);
+    console.log('[cfdi-debug] resultado documentos_cfdi:', rows);
+
+    const existente = rows[0]?.uuid;
+    if (existente && String(existente).trim().length > 0) {
+      throw new CfdiValidationError('Esta factura ya fue timbrada y no puede timbrarse nuevamente.');
+    }
+  }
+
+  private async assertDocumentoNoTimbrado(documentoId: number, empresaId: number): Promise<void> {
+    const { rows } = await pool.query<{ estatus_documento: string | null }>(
+      `SELECT estatus_documento
+         FROM public.documentos
+        WHERE id = $1 AND empresa_id = $2
+        LIMIT 1`,
+      [documentoId, empresaId]
+    );
+
+    console.log('[cfdi-debug] SQL estatus_documento: SELECT estatus_documento FROM public.documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1; params:', [documentoId, empresaId]);
+    console.log('[cfdi-debug] estatus_documento consultado:', rows);
+
+    const estatus = rows[0]?.estatus_documento?.toLowerCase?.() ?? null;
+    if (estatus === 'timbrado') {
+      throw new CfdiValidationError('Esta factura ya fue timbrada y no puede timbrarse nuevamente.');
+    }
   }
 
   private async marcarDocumentoTimbrado(documentoId: number): Promise<void> {
