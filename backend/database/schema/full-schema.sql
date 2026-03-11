@@ -1,6 +1,6 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-03-11T00:37:03.746Z
+-- Generated at: 2026-03-11T04:06:57.348Z
 --
 -- PostgreSQL database dump
 --
@@ -990,6 +990,221 @@ CREATE SEQUENCE core.entidades_tipos_id_seq
 --
 
 ALTER SEQUENCE core.entidades_tipos_id_seq OWNED BY core.entidades_tipos.id;
+
+
+--
+-- Name: modulos; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.modulos (
+    modulo_id integer NOT NULL,
+    clave character varying(50) NOT NULL,
+    nombre character varying(100) NOT NULL,
+    orden integer DEFAULT 0,
+    activo boolean DEFAULT true
+);
+
+
+--
+-- Name: TABLE modulos; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.modulos IS 'Módulos funcionales del ERP utilizados para agrupar parámetros.';
+
+
+--
+-- Name: COLUMN modulos.clave; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.modulos.clave IS 'Clave técnica del módulo (inventarios, ventas, etc).';
+
+
+--
+-- Name: COLUMN modulos.nombre; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.modulos.nombre IS 'Nombre visible del módulo en la interfaz del sistema.';
+
+
+--
+-- Name: modulos_modulo_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.modulos_modulo_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: modulos_modulo_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.modulos_modulo_id_seq OWNED BY core.modulos.modulo_id;
+
+
+--
+-- Name: parametros; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.parametros (
+    parametro_id integer NOT NULL,
+    clave character varying(100) NOT NULL,
+    nombre character varying(200) NOT NULL,
+    descripcion text,
+    tipo_dato character varying(20) NOT NULL,
+    tipo_control character varying(20) NOT NULL,
+    valor_default text,
+    orden integer DEFAULT 0,
+    activo boolean DEFAULT true
+);
+
+
+--
+-- Name: TABLE parametros; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.parametros IS 'Catálogo global de parámetros configurables del sistema ERP.';
+
+
+--
+-- Name: COLUMN parametros.clave; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.parametros.clave IS 'Clave técnica del parámetro utilizada por el sistema.';
+
+
+--
+-- Name: COLUMN parametros.nombre; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.parametros.nombre IS 'Caption mostrado al usuario en la pantalla de configuración.';
+
+
+--
+-- Name: COLUMN parametros.tipo_dato; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.parametros.tipo_dato IS 'Tipo de dato esperado del parámetro.';
+
+
+--
+-- Name: COLUMN parametros.tipo_control; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.parametros.tipo_control IS 'Tipo de control de interfaz utilizado para editar el parámetro.';
+
+
+--
+-- Name: parametros_empresa; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.parametros_empresa (
+    empresa_id integer NOT NULL,
+    parametro_id integer NOT NULL,
+    valor text
+);
+
+
+--
+-- Name: TABLE parametros_empresa; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.parametros_empresa IS 'Valores configurados de parámetros para cada empresa del ERP.';
+
+
+--
+-- Name: parametros_modulos; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.parametros_modulos (
+    parametro_id integer NOT NULL,
+    modulo_id integer NOT NULL
+);
+
+
+--
+-- Name: TABLE parametros_modulos; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.parametros_modulos IS 'Relación muchos-a-muchos entre parámetros del sistema y módulos del ERP.';
+
+
+--
+-- Name: parametros_opciones; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.parametros_opciones (
+    opcion_id integer NOT NULL,
+    parametro_id integer NOT NULL,
+    valor character varying(100) NOT NULL,
+    etiqueta character varying(200) NOT NULL,
+    orden integer DEFAULT 0
+);
+
+
+--
+-- Name: TABLE parametros_opciones; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.parametros_opciones IS 'Opciones disponibles para parámetros tipo dropdown.';
+
+
+--
+-- Name: COLUMN parametros_opciones.valor; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.parametros_opciones.valor IS 'Valor que se guardará en la base de datos.';
+
+
+--
+-- Name: COLUMN parametros_opciones.etiqueta; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.parametros_opciones.etiqueta IS 'Texto que se mostrará al usuario.';
+
+
+--
+-- Name: parametros_opciones_opcion_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.parametros_opciones_opcion_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: parametros_opciones_opcion_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.parametros_opciones_opcion_id_seq OWNED BY core.parametros_opciones.opcion_id;
+
+
+--
+-- Name: parametros_parametro_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.parametros_parametro_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: parametros_parametro_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.parametros_parametro_id_seq OWNED BY core.parametros.parametro_id;
 
 
 --
@@ -3075,6 +3290,27 @@ ALTER TABLE ONLY core.entidades_tipos ALTER COLUMN id SET DEFAULT nextval('core.
 
 
 --
+-- Name: modulos modulo_id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.modulos ALTER COLUMN modulo_id SET DEFAULT nextval('core.modulos_modulo_id_seq'::regclass);
+
+
+--
+-- Name: parametros parametro_id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros ALTER COLUMN parametro_id SET DEFAULT nextval('core.parametros_parametro_id_seq'::regclass);
+
+
+--
+-- Name: parametros_opciones opcion_id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_opciones ALTER COLUMN opcion_id SET DEFAULT nextval('core.parametros_opciones_opcion_id_seq'::regclass);
+
+
+--
 -- Name: roles id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -3299,6 +3535,62 @@ ALTER TABLE ONLY core.entidades_tipos
 
 
 --
+-- Name: modulos modulos_clave_key; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.modulos
+    ADD CONSTRAINT modulos_clave_key UNIQUE (clave);
+
+
+--
+-- Name: modulos modulos_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.modulos
+    ADD CONSTRAINT modulos_pkey PRIMARY KEY (modulo_id);
+
+
+--
+-- Name: parametros parametros_clave_key; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros
+    ADD CONSTRAINT parametros_clave_key UNIQUE (clave);
+
+
+--
+-- Name: parametros_empresa parametros_empresa_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_empresa
+    ADD CONSTRAINT parametros_empresa_pkey PRIMARY KEY (empresa_id, parametro_id);
+
+
+--
+-- Name: parametros_modulos parametros_modulos_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_modulos
+    ADD CONSTRAINT parametros_modulos_pkey PRIMARY KEY (parametro_id, modulo_id);
+
+
+--
+-- Name: parametros_opciones parametros_opciones_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_opciones
+    ADD CONSTRAINT parametros_opciones_pkey PRIMARY KEY (opcion_id);
+
+
+--
+-- Name: parametros parametros_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros
+    ADD CONSTRAINT parametros_pkey PRIMARY KEY (parametro_id);
+
+
+--
 -- Name: roles roles_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -3312,6 +3604,14 @@ ALTER TABLE ONLY core.roles
 
 ALTER TABLE ONLY core.tipos_documento
     ADD CONSTRAINT tipos_documento_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: usuarios_roles uq_usuarios_roles_usuario_empresa; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.usuarios_roles
+    ADD CONSTRAINT uq_usuarios_roles_usuario_empresa UNIQUE (usuario_id, empresa_id);
 
 
 --
@@ -4017,6 +4317,20 @@ COMMENT ON INDEX core.idx_entidades_catalogos_entidad IS 'Optimiza consultas de 
 
 
 --
+-- Name: idx_parametros_empresa_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_parametros_empresa_empresa ON core.parametros_empresa USING btree (empresa_id);
+
+
+--
+-- Name: idx_parametros_opciones_parametro; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_parametros_opciones_parametro ON core.parametros_opciones USING btree (parametro_id);
+
+
+--
 -- Name: idx_roles_empresa; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4581,6 +4895,38 @@ ALTER TABLE ONLY core.empresas
 
 ALTER TABLE ONLY core.empresas
     ADD CONSTRAINT fk_empresas_regimen FOREIGN KEY (regimen_fiscal_id) REFERENCES sat.regimenes_fiscales(id);
+
+
+--
+-- Name: parametros_empresa fk_parametro_empresa_parametro; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_empresa
+    ADD CONSTRAINT fk_parametro_empresa_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
+
+
+--
+-- Name: parametros_opciones fk_parametro_opciones; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_opciones
+    ADD CONSTRAINT fk_parametro_opciones FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
+
+
+--
+-- Name: parametros_modulos fk_parametros_modulos_modulo; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_modulos
+    ADD CONSTRAINT fk_parametros_modulos_modulo FOREIGN KEY (modulo_id) REFERENCES core.modulos(modulo_id) ON DELETE CASCADE;
+
+
+--
+-- Name: parametros_modulos fk_parametros_modulos_parametro; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_modulos
+    ADD CONSTRAINT fk_parametros_modulos_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
 
 
 --

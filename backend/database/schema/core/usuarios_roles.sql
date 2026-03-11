@@ -71,6 +71,14 @@ COMMENT ON COLUMN core.usuarios_roles.created_at IS 'Fecha de creación de la as
 
 
 --
+-- Name: usuarios_roles uq_usuarios_roles_usuario_empresa; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.usuarios_roles
+    ADD CONSTRAINT uq_usuarios_roles_usuario_empresa UNIQUE (usuario_id, empresa_id);
+
+
+--
 -- Name: usuarios_roles usuarios_roles_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
