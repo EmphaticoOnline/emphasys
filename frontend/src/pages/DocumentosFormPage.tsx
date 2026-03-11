@@ -1,6 +1,5 @@
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -33,6 +32,8 @@ import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import DynamicFieldControl from '../components/DynamicFieldControl';
+import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 
 import type {
   CotizacionDetalle,
@@ -49,6 +50,13 @@ import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
 import { DocumentoDatosFiscalesTab } from '../modules/documentos';
 import { getContacto } from '../services/contactos.api';
+import {
+  guardarCamposDocumento,
+  guardarCamposPartida,
+  fetchCamposDocumento,
+  fetchCamposPartida,
+} from '../services/camposDinamicosService';
+import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
 
 const defaultFecha = () => new Date().toISOString().substring(0, 10);
 const validarRFC = (rfc: string) => /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(rfc);
@@ -109,6 +117,38 @@ const TEXTOS: Record<TipoDocumento, { nuevo: string; editar: string; descripcion
   },
 };
 
+const ENTIDAD_TIPO_DOCUMENTO = 'DOCUMENTO';
+const ENTIDAD_TIPO_PARTIDA = 'DOCUMENTO_PARTIDA';
+
+const mapValoresToRecord = (valores: (CampoValorGuardado | CampoValorPayload)[]): Record<number, CampoValorPayload> => {
+  const bucket: Record<number, CampoValorPayload> = {};
+  valores.forEach((v) => {
+    if (!v?.campo_id) return;
+    bucket[v.campo_id] = {
+      campo_id: v.campo_id,
+      catalogo_id: v.catalogo_id ?? null,
+      valor_texto: v.valor_texto ?? null,
+      valor_numero: v.valor_numero ?? null,
+      valor_fecha: v.valor_fecha ?? null,
+      valor_boolean: v.valor_boolean ?? null,
+    };
+  });
+  return bucket;
+};
+
+const prefetchOpcionesLista = (
+  campos: ReturnType<typeof useCamposDinamicos>['campos'],
+  valores: Record<number, CampoValorPayload>,
+  loadOptions: (campoId: number, parentId: number | null) => void
+) => {
+  campos
+    .filter((c) => c.tipo_dato === 'lista')
+    .forEach((campo) => {
+      const parentId = campo.campo_padre_id ? valores[campo.campo_padre_id]?.catalogo_id ?? null : null;
+      loadOptions(campo.id, parentId ?? null);
+    });
+};
+
 export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: DocumentosFormPageProps) {
   const { id } = useParams();
   const isEdit = Boolean(id && id !== 'nuevo');
@@ -152,6 +192,11 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [activeTab, setActiveTab] = useState<number>(0);
 
+  const camposDocumento = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_DOCUMENTO, tipoDocumento });
+  const camposPartida = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_PARTIDA, tipoDocumento });
+  const [valoresCamposDocumento, setValoresCamposDocumento] = useState<Record<number, CampoValorPayload>>({});
+  const [valoresCamposPartidas, setValoresCamposPartidas] = useState<Record<number, CampoValorPayload>[]>([{}]);
+
   const precioRefs = useRef<(HTMLInputElement | null)[]>([]);
   const cantidadRefs = useRef<(HTMLInputElement | null)[]>([]);
   const prevContactoRef = useRef<number | null | undefined>(undefined);
@@ -166,6 +211,26 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
       }),
     [form.moneda]
   );
+
+  const clearDependientes = useCallback(
+    (bucket: Record<number, CampoValorPayload>, dependenciasMap: Record<number, number[]>, parentId: number) => {
+      const hijos = dependenciasMap[parentId] || [];
+      hijos.forEach((childId) => {
+        delete bucket[childId];
+        clearDependientes(bucket, dependenciasMap, childId);
+      });
+    },
+    []
+  );
+
+  const tieneValorCapturado = (valor: CampoValorPayload) => {
+    if (valor.catalogo_id !== undefined && valor.catalogo_id !== null) return true;
+    if (valor.valor_texto !== undefined && valor.valor_texto !== null && valor.valor_texto !== '') return true;
+    if (valor.valor_numero !== undefined && valor.valor_numero !== null) return true;
+    if (valor.valor_fecha !== undefined && valor.valor_fecha !== null && valor.valor_fecha !== '') return true;
+    if (valor.valor_boolean !== undefined && valor.valor_boolean !== null) return true;
+    return false;
+  };
 
   const recalcTotales = (partidasList: PartidaForm[]) => {
     const subtotal = partidasList.reduce((acc, p) => acc + (p.subtotal_partida || 0), 0);
@@ -207,6 +272,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     setExpandedObs((prev) => [...prev, false]);
     setEditingPrecio((prev) => [...prev, false]);
     setPrecioInputs((prev) => [...prev, '']);
+    setValoresCamposPartidas((prev) => [...prev, {}]);
   };
 
   const removeRow = (index: number) => {
@@ -234,7 +300,31 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
         if (aligned.length === 0) aligned = [''];
         return aligned;
       });
+      setValoresCamposPartidas((prevValores) => {
+        const filteredValores = prevValores.filter((_, i) => i !== index);
+        const aligned = filteredValores.length === 0 ? [{}] : filteredValores;
+        return aligned;
+      });
       recalcTotales(next);
+      return next;
+    });
+  };
+
+  const handleValorCampoDocumentoChange = (valor: CampoValorPayload) => {
+    setValoresCamposDocumento((prev) => {
+      const next = { ...prev, [valor.campo_id]: { ...prev[valor.campo_id], ...valor, campo_id: valor.campo_id } };
+      clearDependientes(next, camposDocumento.dependencias, valor.campo_id);
+      return next;
+    });
+  };
+
+  const handleValorCampoPartidaChange = (index: number, valor: CampoValorPayload) => {
+    setValoresCamposPartidas((prev) => {
+      const next = [...prev];
+      const bucket = { ...(next[index] || {}) } as Record<number, CampoValorPayload>;
+      bucket[valor.campo_id] = { ...bucket[valor.campo_id], ...valor, campo_id: valor.campo_id };
+      clearDependientes(bucket, camposPartida.dependencias, valor.campo_id);
+      next[index] = bucket;
       return next;
     });
   };
@@ -253,6 +343,8 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     if (!isEdit || !id) return;
     try {
       setLoading(true);
+      setValoresCamposDocumento({});
+      setValoresCamposPartidas([{}]);
       const data: CotizacionDetalle = await getDocumento(Number(id), tipoDocumento);
       const doc = data.documento;
       setForm({
@@ -298,6 +390,23 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
       setEditingPrecio(nextPartidas.map(() => false));
       setPrecioInputs(nextPartidas.map((p) => (p.precio_unitario ?? '').toString()));
       recalcTotales(mapped);
+
+      // Carga valores dinámicos ya capturados
+      const [valoresDocResp, valoresPartidasResp] = await Promise.all([
+        fetchCamposDocumento(Number(id)),
+        Promise.all(nextPartidas.map((p) => (p.id ? fetchCamposPartida(p.id) : Promise.resolve([] as CampoValorGuardado[])))),
+      ]);
+
+      const bucketDoc = mapValoresToRecord(valoresDocResp || []);
+      setValoresCamposDocumento(bucketDoc);
+      prefetchOpcionesLista(camposDocumento.campos, bucketDoc, camposDocumento.loadOptions);
+
+      const bucketsPartidas = nextPartidas.map((_, idx) => mapValoresToRecord(valoresPartidasResp[idx] || []));
+      setValoresCamposPartidas(bucketsPartidas.length ? bucketsPartidas : [{}]);
+      bucketsPartidas.forEach((bucket) => {
+        prefetchOpcionesLista(camposPartida.campos, bucket, camposPartida.loadOptions);
+      });
+
       setError(null);
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : `No se pudo cargar la ${TEXTOS[tipoDocumento].singular}`;
@@ -315,6 +424,56 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     loadDocumento();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, id, tipoDocumento]);
+
+  useEffect(() => {
+    setValoresCamposPartidas((prev) => {
+      const next = [...prev];
+      while (next.length < partidas.length) next.push({});
+      while (next.length > partidas.length) next.pop();
+      return next;
+    });
+  }, [partidas.length]);
+
+  useEffect(() => {
+    camposDocumento.campos
+      .filter((campo) => campo.tipo_dato === 'lista' && !campo.campo_padre_id)
+      .forEach((campo) => {
+        camposDocumento.loadOptions(campo.id, null);
+      });
+  }, [camposDocumento.campos, camposDocumento.loadOptions]);
+
+  useEffect(() => {
+    camposPartida.campos
+      .filter((campo) => campo.tipo_dato === 'lista' && !campo.campo_padre_id)
+      .forEach((campo) => {
+        camposPartida.loadOptions(campo.id, null);
+      });
+  }, [camposPartida.campos, camposPartida.loadOptions]);
+
+  // Carga opciones dependientes según valores actuales (evita setState en render)
+  useEffect(() => {
+    camposDocumento.campos
+      .filter((campo) => campo.tipo_dato === 'lista')
+      .forEach((campo) => {
+        const parentCatalogId = campo.campo_padre_id
+          ? valoresCamposDocumento[campo.campo_padre_id]?.catalogo_id ?? null
+          : null;
+        camposDocumento.loadOptions(campo.id, parentCatalogId ?? null);
+      });
+  }, [camposDocumento.campos, camposDocumento.loadOptions, valoresCamposDocumento]);
+
+  useEffect(() => {
+    camposPartida.campos
+      .filter((campo) => campo.tipo_dato === 'lista')
+      .forEach((campo) => {
+        valoresCamposPartidas.forEach((bucket) => {
+          const parentCatalogId = campo.campo_padre_id
+            ? bucket?.[campo.campo_padre_id]?.catalogo_id ?? null
+            : null;
+          camposPartida.loadOptions(campo.id, parentCatalogId ?? null);
+        });
+      });
+  }, [camposPartida.campos, camposPartida.loadOptions, valoresCamposPartidas]);
 
   useEffect(() => {
     if (tipoDocumento !== 'factura') return;
@@ -390,7 +549,27 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
         total_partida: p.total_partida ?? 0,
         observaciones: p.observaciones ?? '',
       }));
-      await replacePartidas(docId, tipoDocumento, partidasPayload);
+      const partidasGuardadas = await replacePartidas(docId, tipoDocumento, partidasPayload);
+
+      const valoresDocumento = Object.values(valoresCamposDocumento).filter(tieneValorCapturado);
+      if (valoresDocumento.length) {
+        await guardarCamposDocumento({ documento_id: docId, valores: valoresDocumento });
+      }
+
+      if (Array.isArray(partidasGuardadas) && partidasGuardadas.length) {
+        const tareasCamposPartida = partidasGuardadas
+          .map((p, idx) => {
+            const valoresMapa = valoresCamposPartidas[idx] || {};
+            const valores = Object.values(valoresMapa).filter(tieneValorCapturado);
+            if (!p?.id || valores.length === 0) return null;
+            return guardarCamposPartida({ partida_id: p.id, valores });
+          })
+          .filter(Boolean) as Promise<unknown>[];
+
+        if (tareasCamposPartida.length) {
+          await Promise.all(tareasCamposPartida);
+        }
+      }
 
       setSnackbar({ open: true, message: TEXTOS[tipoDocumento].guardado, severity: 'success' });
       setTimeout(() => navigate(basePath), 400);
@@ -603,6 +782,36 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
                   />
                 </Grid>
               </Grid>
+
+              {camposDocumento.campos.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ mb: 1 }}>
+                    Campos configurables
+                  </Typography>
+                  <Grid container spacing={1.5}>
+                    {camposDocumento.campos.map((campo) => {
+                      const parentCatalogId = campo.campo_padre_id
+                        ? valoresCamposDocumento[campo.campo_padre_id]?.catalogo_id ?? null
+                        : null;
+                      const options = camposDocumento.getOptions(campo.id, parentCatalogId ?? null);
+                      const disabled = campo.campo_padre_id ? !parentCatalogId : false;
+                      const valorCampo = valoresCamposDocumento[campo.id];
+                      return (
+                        <Grid key={campo.id} size={{ xs: 12, md: 4 }}>
+                          <DynamicFieldControl
+                            campo={campo}
+                            {...(valorCampo ? { value: valorCampo } : {})}
+                            options={options}
+                            loading={Boolean(camposDocumento.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
+                            disabled={disabled}
+                            onChange={(val) => handleValorCampoDocumentoChange({ ...val, campo_id: campo.id })}
+                          />
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+                </Box>
+              )}
 
               <Divider />
 
@@ -849,6 +1058,33 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Paper>
+
+                    {camposPartida.campos.length > 0 && (
+                      <Box sx={{ gridColumn: { xs: '1', md: '1 / -1' }, mt: 1 }}>
+                        <Grid container spacing={1.5}>
+                          {camposPartida.campos.map((campo) => {
+                            const parentCatalogId = campo.campo_padre_id
+                              ? valoresCamposPartidas[index]?.[campo.campo_padre_id]?.catalogo_id ?? null
+                              : null;
+                            const options = camposPartida.getOptions(campo.id, parentCatalogId ?? null);
+                            const valorCampo = valoresCamposPartidas[index]?.[campo.id];
+                            const disabled = campo.campo_padre_id ? !parentCatalogId : false;
+                            return (
+                              <Grid key={`${campo.id}-${index}`} size={{ xs: 12, md: 4 }}>
+                                <DynamicFieldControl
+                                  campo={campo}
+                                  {...(valorCampo ? { value: valorCampo } : {})}
+                                  options={options}
+                                  loading={Boolean(camposPartida.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
+                                  disabled={disabled}
+                                  onChange={(val) => handleValorCampoPartidaChange(index, { ...val, campo_id: campo.id })}
+                                />
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      </Box>
+                    )}
 
                     {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
                       <Box sx={{ gridColumn: { xs: '1', md: '2 / 9' }, mt: { xs: 0.5, md: 0.25 } }}>

@@ -1,28 +1,51 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material';
+import {
+  BusinessRounded,
+  CategoryRounded,
+  GroupRounded,
+  SchemaRounded,
+  SettingsRounded,
+  ShieldRounded,
+  TuneRounded,
+} from '@mui/icons-material';
 
 const opciones = [
   {
     titulo: 'Empresas',
     descripcion: 'Configura empresas y sus parámetros generales.',
+    icono: BusinessRounded,
+    path: '/configuracion/empresas',
   },
   {
     titulo: 'Usuarios',
     descripcion: 'Gestiona cuentas de acceso y credenciales.',
+    icono: GroupRounded,
+    path: '/configuracion/usuarios',
   },
   {
     titulo: 'Roles',
     descripcion: 'Define roles y permisos para los usuarios.',
+    icono: ShieldRounded,
+    path: '/configuracion/roles',
   },
   {
     titulo: 'Catálogos configurables',
     descripcion: 'Administra catálogos basados en core.catalogos_tipos y core.catalogos.',
+    icono: CategoryRounded,
     path: '/configuracion/catalogos',
+  },
+  {
+    titulo: 'Campos dinámicos',
+    descripcion: 'Configura campos dinámicos y sus dependencias.',
+    icono: TuneRounded,
+    path: '/configuracion/campos',
   },
   {
     titulo: 'Parámetros del sistema',
     descripcion: 'Ajusta preferencias y configuraciones globales.',
+    icono: SettingsRounded,
   },
 ];
 
@@ -51,27 +74,46 @@ export default function ConfiguracionPage() {
           gap: 2,
         }}
       >
-        {opciones.map((opcion) => (
-          <Card
-            key={opcion.titulo}
-            elevation={0}
-            sx={{ border: '1px solid #e5e7eb', borderRadius: 2, height: '100%' }}
-          >
-            <CardActionArea
-              sx={{ height: '100%' }}
-              onClick={opcion.path ? () => navigate(opcion.path!) : undefined}
+        {opciones.map((opcion) => {
+          const Icono = opcion.icono ?? SchemaRounded;
+
+          return (
+            <Card
+              key={opcion.titulo}
+              elevation={0}
+              sx={{ border: '1px solid #e5e7eb', borderRadius: 2, height: '100%' }}
             >
-              <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-                  {opcion.titulo}
-                </Typography>
-                <Typography variant="body2" color="#4b5563">
-                  {opcion.descripcion}
-                </Typography>
-              </CardContent>
-            </CardActionArea>
-          </Card>
-        ))}
+              <CardActionArea
+                sx={{ height: '100%' }}
+                onClick={opcion.path ? () => navigate(opcion.path!) : undefined}
+              >
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                  <Stack direction="row" alignItems="center" spacing={1.5}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 1,
+                        display: 'grid',
+                        placeItems: 'center',
+                        backgroundColor: '#eef2ff',
+                        color: '#1d2f68',
+                      }}
+                    >
+                      <Icono fontSize="small" />
+                    </Box>
+                    <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                      {opcion.titulo}
+                    </Typography>
+                  </Stack>
+                  <Typography variant="body2" color="#4b5563">
+                    {opcion.descripcion}
+                  </Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          );
+        })}
       </Box>
     </Box>
   );

@@ -42,7 +42,7 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
   if (session?.token) {
     headers.set("Authorization", `Bearer ${session.token}`);
   }
-  if (session?.empresaActivaId) {
+  if (session?.empresaActivaId && !headers.has("X-Empresa-Id")) {
     headers.set("X-Empresa-Id", String(session.empresaActivaId));
   }
 

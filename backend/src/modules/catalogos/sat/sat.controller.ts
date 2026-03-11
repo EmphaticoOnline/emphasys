@@ -7,6 +7,7 @@ import {
   buscarFormasPago,
   buscarMetodosPago,
   buscarCodigosPostales,
+  RegimenFiscal,
 } from "./sat.repository";
 
 export async function getCodigoPostal(req: Request, res: Response) {
@@ -54,6 +55,16 @@ export async function getRegimenesFiscales(req: Request, res: Response) {
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const items = await buscarRegimenesFiscales(q, limit);
     res.json({ items });
+  } catch (error) {
+    console.error("Error al consultar regímenes fiscales:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+
+export async function getRegimenesFiscalesCatalogo(req: Request, res: Response) {
+  try {
+    const items: RegimenFiscal[] = await buscarRegimenesFiscales(null, 200);
+    res.json(items.map((r) => ({ id: r.id, descripcion: r.descripcion })));
   } catch (error) {
     console.error("Error al consultar regímenes fiscales:", error);
     res.status(500).json({ message: "Error interno del servidor" });

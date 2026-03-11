@@ -325,8 +325,8 @@ export async function reemplazarPartidasRepository(documentoId: number, partidas
       RETURNING *
     `;
 
-    const inserted: any[] = [];
-    partidas.forEach((partida, idx) => {
+    const insertedRows: any[] = [];
+    for (const [idx, partida] of partidas.entries()) {
       const values = [
         documentoId,
         idx + 1, // numero_partida secuencial por documento
@@ -339,15 +339,12 @@ export async function reemplazarPartidasRepository(documentoId: number, partidas
         partida.total_partida ?? 0,
         partida.observaciones ?? null,
       ];
-      inserted.push(client.query(insertQuery, values).then((r) => r.rows[0]));
-    });
-
-    for (const p of inserted) {
-      await p;
+      const { rows } = await client.query(insertQuery, values);
+      insertedRows.push(rows[0]);
     }
 
-    await client.query('COMMIT');
-    return inserted;
+  await client.query('COMMIT');
+  return insertedRows;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

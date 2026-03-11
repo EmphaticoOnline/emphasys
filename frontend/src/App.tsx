@@ -14,6 +14,10 @@ import RequireEmpresa from './auth/RequireEmpresa.js';
 import ConfiguracionPage from './pages/ConfiguracionPage.js';
 import CatalogosConfigurablesPage from './pages/CatalogosConfigurablesPage.js';
 import CatalogoTipoDetallePage from './pages/CatalogoTipoDetallePage.js';
+import CamposConfiguracionPage from './pages/CamposConfiguracionPage.js';
+import EmpresasPage from './pages/configuracion/EmpresasPage.js';
+import RolesPage from './pages/configuracion/RolesPage.js';
+import UsuariosPage from './pages/configuracion/UsuariosPage.js';
 import { Outlet } from 'react-router-dom';
 
 export default function App() {
@@ -40,8 +44,12 @@ export default function App() {
               <Route path="/facturas/nuevo" element={<DocumentosFormPage tipoDocumento="factura" />} />
               <Route path="/facturas/:id" element={<DocumentosFormPage tipoDocumento="factura" />} />
               <Route path="/configuracion" element={<ConfiguracionPage />} />
+              <Route path="/configuracion/empresas" element={<EmpresasPage />} />
+              <Route path="/configuracion/usuarios" element={<UsuariosPage />} />
+              <Route path="/configuracion/roles" element={<RolesPage />} />
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
+              <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
               <Route path="/" element={<Navigate to="/contactos" replace />} />
               <Route path="*" element={<Navigate to="/contactos" replace />} />
             </Route>

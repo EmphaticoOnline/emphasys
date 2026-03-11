@@ -103,14 +103,6 @@ ALTER TABLE ONLY public.usuarios_empresas
 
 
 --
--- Name: usuarios_empresas fk_ue_usuario; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.usuarios_empresas
-    ADD CONSTRAINT fk_ue_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE;
-
-
---
 -- PostgreSQL database dump complete
 --
 

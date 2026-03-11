@@ -10,6 +10,7 @@ import {
   eliminarCotizacion,
   obtenerCotizacionPDF,
 } from './documentos.controller';
+import { obtenerCamposDocumento } from './documentos-campos.controller';
 
 const router = Router();
 
@@ -18,6 +19,9 @@ router.get('/', requireAuth, requireEmpresaActiva, listarCotizaciones);
 
 // GET /api/documentos/:id
 router.get('/:id', requireAuth, requireEmpresaActiva, obtenerCotizacion);
+
+// GET /api/documentos/:id/campos (valores dinámicos)
+router.get('/:id/campos', requireAuth, requireEmpresaActiva, obtenerCamposDocumento);
 
 // GET /api/documentos/:id/pdf
 router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerCotizacionPDF);

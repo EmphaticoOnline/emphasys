@@ -8,6 +8,9 @@ export type CatalogoValor = {
   descripcion: string;
   orden: number | null;
   activo: boolean | null;
+  catalogo_padre_id?: number | null;
+  catalogo_padre_nombre?: string | null;
+  catalogo_padre_tipo_catalogo_id?: number | null;
   extra?: any;
   tipo_catalogo_nombre?: string | null;
 };
@@ -27,6 +30,7 @@ export async function createCatalogoValor(payload: {
   clave?: string | null;
   descripcion: string;
   orden?: number | null;
+  catalogo_padre_id?: number | null;
   activo?: boolean;
 }): Promise<CatalogoValor> {
   return apiFetch(BASE_URL, {

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -68,14 +69,17 @@ export default function CatalogoValoresPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogoValor | null>(null);
-  const [form, setForm] = useState<{ clave: string; descripcion: string; orden: string; activo: boolean }>({
+  const [form, setForm] = useState<{ clave: string; descripcion: string; orden: string; activo: boolean; catalogo_padre_id: number | null }>({
     clave: '',
     descripcion: '',
     orden: '',
     activo: true,
+    catalogo_padre_id: null,
   });
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<CatalogoValor | null>(null);
+  const [parentOptions, setParentOptions] = useState<CatalogoValor[]>([]);
+  const [parentOptionsLoading, setParentOptionsLoading] = useState(false);
 
   const { nombre: tituloCatalogo, loading: loadingTipo, error: errorTipo } = useTipoCatalogo(tipoId);
 
@@ -103,7 +107,7 @@ export default function CatalogoValoresPage() {
   }, [tipoId]);
 
   const resetForm = () => {
-    setForm({ clave: '', descripcion: '', orden: '', activo: true });
+    setForm({ clave: '', descripcion: '', orden: '', activo: true, catalogo_padre_id: null });
     setEditing(null);
   };
 
@@ -119,6 +123,7 @@ export default function CatalogoValoresPage() {
       descripcion: row.descripcion || '',
       orden: row.orden !== null && row.orden !== undefined ? String(row.orden) : '',
       activo: row.activo !== null && row.activo !== undefined ? Boolean(row.activo) : true,
+      catalogo_padre_id: row.catalogo_padre_id ?? null,
     });
     setDialogOpen(true);
   };
@@ -129,12 +134,17 @@ export default function CatalogoValoresPage() {
       setError('La descripción es obligatoria');
       return;
     }
+    if (editing && form.catalogo_padre_id === editing.id) {
+      setError('Un registro no puede ser su propio padre');
+      return;
+    }
     try {
       const payload = {
         tipo_catalogo_id: tipoId,
         clave: form.clave.trim() || null,
         descripcion: form.descripcion.trim(),
         orden: form.orden ? Number(form.orden) : null,
+        catalogo_padre_id: form.catalogo_padre_id ?? null,
         activo: form.activo,
       };
       if (editing) {
@@ -150,6 +160,14 @@ export default function CatalogoValoresPage() {
     }
   };
 
+  const parentLookup = useMemo(() => {
+    const map: Record<number, CatalogoValor> = {};
+    rows.forEach((r) => {
+      map[r.id] = r;
+    });
+    return map;
+  }, [rows]);
+
   const columns: GridColDef[] = useMemo(
     () => [
       {
@@ -163,6 +181,17 @@ export default function CatalogoValoresPage() {
         headerName: 'Descripción',
         flex: 1,
         minWidth: 200,
+      },
+      {
+        field: 'padre',
+        headerName: 'Padre',
+        flex: 1,
+        minWidth: 200,
+        renderCell: (params: GridRenderCellParams<CatalogoValor>) => {
+          const parentName = params.row.catalogo_padre_nombre
+            || parentLookup[params.row.catalogo_padre_id || 0]?.descripcion;
+          return parentName || '—';
+        },
       },
       {
         field: 'orden',
@@ -207,9 +236,47 @@ export default function CatalogoValoresPage() {
         ),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [parentLookup]
   );
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+
+    const parentTipoId = editing?.catalogo_padre_tipo_catalogo_id ?? null;
+    const targetTipoId = parentTipoId ?? tipoId;
+
+    if (!targetTipoId) {
+      setParentOptions([]);
+      return;
+    }
+
+    const load = async () => {
+      try {
+        setParentOptionsLoading(true);
+        const baseList = targetTipoId === tipoId ? rows : await fetchCatalogos(targetTipoId);
+
+        let list = baseList.filter((r) => r.activo ?? true);
+        if (editing) {
+          list = list.filter((r) => r.id !== editing.id);
+        }
+
+        if (form.catalogo_padre_id) {
+          const currentParent = baseList.find((r) => r.id === form.catalogo_padre_id);
+          if (currentParent && !list.find((r) => r.id === currentParent.id)) {
+            list = [...list, currentParent];
+          }
+        }
+
+        setParentOptions(list);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'No se pudieron cargar los padres');
+      } finally {
+        setParentOptionsLoading(false);
+      }
+    };
+
+    load();
+  }, [dialogOpen, editing, rows, tipoId, form.catalogo_padre_id]);
 
   const handleToggleActivo = async (row: CatalogoValor) => {
     try {
@@ -353,6 +420,21 @@ export default function CatalogoValoresPage() {
             onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
             required
             size="small"
+          />
+          <Autocomplete
+            options={parentOptions}
+            getOptionLabel={(option) => option.descripcion || ''}
+            value={parentOptions.find((opt) => opt.id === form.catalogo_padre_id) || null}
+            onChange={(_, value) => setForm((f) => ({ ...f, catalogo_padre_id: value?.id ?? null }))}
+            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+            renderInput={(params) => (
+              <TextField
+                {...(params as any)}
+                label="Padre"
+                placeholder="Sin padre"
+                size="small"
+              />
+            )}
           />
           <TextField
             label="Orden"

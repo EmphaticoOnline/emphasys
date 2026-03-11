@@ -5,6 +5,11 @@ export type SatClaveNombre = {
   nombre: string;
 };
 
+export type RegimenFiscal = {
+  id: string;
+  descripcion: string;
+};
+
 export type CodigoPostalResultado = {
   codigo_postal: string;
   estado: SatClaveNombre;
@@ -79,11 +84,11 @@ ON sat.colonias (codigo_postal, texto);
 
 const QUERY_REGIMENES = `
 SELECT
-    id,
-    texto
+  id,
+  texto
 FROM sat.regimenes_fiscales
 WHERE ($1::text IS NULL OR texto ILIKE '%' || $1 || '%' OR id ILIKE '%' || $1 || '%')
-ORDER BY texto
+ORDER BY id
 LIMIT $2;
 `;
 
@@ -160,10 +165,10 @@ export async function listarColoniasPorCp(cp: string, q?: string | null, limit =
   return rows.map((row: any) => ({ clave: row.colonia, nombre: row.texto }));
 }
 
-export async function buscarRegimenesFiscales(q: string | null, limit?: number): Promise<SatClaveNombre[]> {
+export async function buscarRegimenesFiscales(q: string | null, limit?: number): Promise<RegimenFiscal[]> {
   const safeLimit = sanitizeLimit(limit);
   const { rows } = await pool.query(QUERY_REGIMENES, [q ?? null, safeLimit]);
-  return rows.map((row: any) => ({ clave: row.id, nombre: row.texto }));
+  return rows.map((row: any) => ({ id: String(row.id), descripcion: row.texto }));
 }
 
 export async function buscarUsosCfdi(q: string | null, limit?: number): Promise<SatClaveNombre[]> {

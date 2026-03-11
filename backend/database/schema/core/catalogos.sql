@@ -36,7 +36,8 @@ CREATE TABLE core.catalogos (
     orden integer,
     activo boolean DEFAULT true,
     extra jsonb,
-    created_at timestamp without time zone DEFAULT now()
+    created_at timestamp without time zone DEFAULT now(),
+    catalogo_padre_id integer
 );
 
 
@@ -111,6 +112,13 @@ COMMENT ON COLUMN core.catalogos.created_at IS 'Fecha de creación del registro'
 
 
 --
+-- Name: COLUMN catalogos.catalogo_padre_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.catalogos.catalogo_padre_id IS 'Referencia al registro padre dentro del mismo catálogo. Permite construir jerarquías como Marca → Modelo.';
+
+
+--
 -- Name: catalogos_id_seq; Type: SEQUENCE; Schema: core; Owner: -
 --
 
@@ -160,6 +168,20 @@ COMMENT ON INDEX core.idx_catalogos_empresa IS 'Optimiza consultas de catálogos
 
 
 --
+-- Name: idx_catalogos_padre; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_catalogos_padre ON core.catalogos USING btree (catalogo_padre_id);
+
+
+--
+-- Name: INDEX idx_catalogos_padre; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_catalogos_padre IS 'Optimiza consultas que filtran registros por catálogo padre (ejemplo: modelos de una marca).';
+
+
+--
 -- Name: idx_catalogos_tipo; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -179,6 +201,14 @@ COMMENT ON INDEX core.idx_catalogos_tipo IS 'Optimiza consultas por tipo de cat�
 
 ALTER TABLE ONLY core.catalogos
     ADD CONSTRAINT catalogos_tipo_catalogo_id_fkey FOREIGN KEY (tipo_catalogo_id) REFERENCES core.catalogos_tipos(id);
+
+
+--
+-- Name: catalogos fk_catalogos_padre; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.catalogos
+    ADD CONSTRAINT fk_catalogos_padre FOREIGN KEY (catalogo_padre_id) REFERENCES core.catalogos(id) ON DELETE SET NULL;
 
 
 --

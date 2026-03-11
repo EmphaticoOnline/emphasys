@@ -14,11 +14,20 @@ import productosRouter from "./modules/productos/productos.routes";
 import unidadesRouter from "./modules/unidades/unidades.routes";
 import documentosRouter from "./modules/documentos/documentos.routes";
 import facturasRouter from "./modules/documentos/facturas.routes";
+import tiposDocumentoRouter from "./modules/documentos/tipos-documento.routes";
 import whatsappRoutes from "./whatsapp/whatsapp.routes";
 import satCatalogosRouter from "./modules/catalogos/sat/sat.routes";
 import catalogosRouter from "./modules/catalogos/catalogos.routes";
 import authRoutes from "./modules/auth/auth.routes";
 import configuracionCatalogosRouter from "./modules/configuracion/catalogos/catalogos-configurables.routes";
+import camposConfiguracionRouter from "./modules/campos-configuracion/campos-configuracion.routes";
+import entidadesTiposRouter from "./modules/entidades/entidades-tipos.routes";
+import documentosCamposRouter from "./modules/documentos/documentos-campos.routes";
+import documentosPartidasCamposRouter from "./modules/documentos/documentos-partidas-campos.routes";
+import documentosEsquemaRouter from "./modules/documentos/documentos-esquema.routes";
+import empresasRoutes from "./routes/empresasRoutes";
+import rolesRouter from "./modules/roles/roles.routes";
+import usuariosRouter from "./modules/usuarios/usuarios.routes";
 
 const app = express();
 
@@ -57,6 +66,15 @@ app.use("/api/catalogos", catalogosRouter);
 // catálogos configurables (core)
 app.use("/api/configuracion/catalogos", configuracionCatalogosRouter);
 
+// tipos de entidades (core)
+app.use("/api/entidades-tipos", entidadesTiposRouter);
+
+// tipos de documento (core/documentos)
+app.use("/api/tipos-documento", tiposDocumentoRouter);
+
+// campos dinámicos configurables
+app.use("/api/campos-configuracion", camposConfiguracionRouter);
+
 // monta el módulo productos
 app.use("/api/productos", productosRouter);
 
@@ -67,6 +85,18 @@ app.use("/api/unidades", unidadesRouter);
 app.use("/api/documentos", documentosRouter);
 // módulo de facturas reutilizando la misma lógica de documentos
 app.use("/api/facturas", facturasRouter);
+// esquema de campos dinámicos (documentos)
+app.use("/api/documentos", documentosEsquemaRouter);
+
+// valores dinámicos capturados
+app.use("/api/documentos-campos", documentosCamposRouter);
+app.use("/api/documentos-partidas-campos", documentosPartidasCamposRouter);
+app.use("/api/documentos-partidas", documentosPartidasCamposRouter);
+
+// empresas
+app.use("/api/empresas", empresasRoutes);
+app.use("/api", rolesRouter);
+app.use("/api/usuarios", usuariosRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

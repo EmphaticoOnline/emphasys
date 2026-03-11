@@ -4,8 +4,11 @@ import {
   crearCatalogoValor,
   actualizarCatalogoValor,
   obtenerCatalogoTipoNombre,
+  listarCatalogosTipos,
   catalogoEstaEnUso,
   eliminarCatalogoValor,
+  obtenerCatalogosPorTipoFlexible,
+  CatalogoJerarquiaError,
 } from './catalogos.repository';
 
 export async function listarCatalogos(req: Request, res: Response) {
@@ -39,6 +42,19 @@ export async function obtenerCatalogoTipo(req: Request, res: Response) {
   }
 }
 
+export async function obtenerCatalogosTipos(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    if (!empresaId) return res.status(400).json({ message: 'empresaId es obligatorio' });
+
+    const data = await listarCatalogosTipos(empresaId);
+    res.json(data);
+  } catch (error) {
+    console.error('Error al listar tipos de catálogo:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+}
+
 export async function crearCatalogo(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId;
@@ -56,6 +72,9 @@ export async function crearCatalogo(req: Request, res: Response) {
     });
     res.status(201).json(nuevo);
   } catch (error) {
+    if (error instanceof CatalogoJerarquiaError) {
+      return res.status(error.status).json({ message: error.message });
+    }
     console.error('Error al crear catálogo:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
@@ -77,6 +96,9 @@ export async function actualizarCatalogo(req: Request, res: Response) {
 
     res.json(actualizado);
   } catch (error) {
+    if (error instanceof CatalogoJerarquiaError) {
+      return res.status(error.status).json({ message: error.message });
+    }
     console.error('Error al actualizar catálogo:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
@@ -103,6 +125,29 @@ export async function eliminarCatalogo(req: Request, res: Response) {
     res.json(eliminado);
   } catch (error) {
     console.error('Error al eliminar catálogo:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+}
+
+export async function listarCatalogosPorTipoFlexible(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const tipo = String(req.params.tipo);
+    const parentIdRaw = req.query.parent_id;
+
+    if (!empresaId) return res.status(400).json({ message: 'empresaId es obligatorio' });
+    if (!tipo) return res.status(400).json({ message: 'tipo de catálogo es obligatorio' });
+
+    const parentId = parentIdRaw === undefined ? undefined : Number(parentIdRaw);
+    if (parentIdRaw !== undefined && Number.isNaN(parentId)) {
+      return res.status(400).json({ message: 'parent_id debe ser numérico' });
+    }
+
+    const tipoCatalogo = /^\d+$/.test(tipo) ? Number(tipo) : tipo;
+    const data = await obtenerCatalogosPorTipoFlexible(Number(empresaId), tipoCatalogo, parentId ?? null);
+    res.json(data);
+  } catch (error) {
+    console.error('Error al listar catálogo dependiente:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 }
