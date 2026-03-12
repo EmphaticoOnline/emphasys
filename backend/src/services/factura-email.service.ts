@@ -132,7 +132,7 @@ export class FacturaEmailService {
       console.error('No se pudo adjuntar timbre CFDI al PDF', err);
     }
 
-    return generarDocumentoPDF(data);
+    return generarDocumentoPDF(data, data.documento?.empresa_id ?? undefined);
   }
 
   // Normaliza nombre base de archivos usando el formateador de folio del sistema

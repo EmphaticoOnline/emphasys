@@ -29,13 +29,14 @@ SET default_table_access_method = heap;
 
 CREATE TABLE core.tipos_documento (
     id integer NOT NULL,
-    codigo character varying(50) NOT NULL,
+    codigo character varying(30) NOT NULL,
     nombre character varying(120) NOT NULL,
     nombre_plural character varying(120) NOT NULL,
     icono character varying(50),
     orden integer DEFAULT 0,
     activo boolean DEFAULT true,
-    created_at timestamp without time zone DEFAULT now()
+    created_at timestamp without time zone DEFAULT now(),
+    modulo character varying(30)
 );
 
 
@@ -103,6 +104,13 @@ COMMENT ON COLUMN core.tipos_documento.created_at IS 'Fecha y hora de creación 
 
 
 --
+-- Name: COLUMN tipos_documento.modulo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.tipos_documento.modulo IS 'Módulo al que pertenece el documento (ventas o compras).';
+
+
+--
 -- Name: tipos_documento_id_seq; Type: SEQUENCE; Schema: core; Owner: -
 --
 
@@ -130,11 +138,33 @@ ALTER TABLE ONLY core.tipos_documento ALTER COLUMN id SET DEFAULT nextval('core.
 
 
 --
+-- Name: tipos_documento tipos_documento_codigo_unique; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.tipos_documento
+    ADD CONSTRAINT tipos_documento_codigo_unique UNIQUE (codigo);
+
+
+--
 -- Name: tipos_documento tipos_documento_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
 ALTER TABLE ONLY core.tipos_documento
     ADD CONSTRAINT tipos_documento_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_tipos_documento_modulo; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_tipos_documento_modulo ON core.tipos_documento USING btree (modulo);
+
+
+--
+-- Name: INDEX idx_tipos_documento_modulo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_tipos_documento_modulo IS 'Permite filtrar rápidamente tipos de documento por módulo (ventas o compras).';
 
 
 --

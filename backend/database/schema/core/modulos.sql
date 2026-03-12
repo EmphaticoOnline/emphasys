@@ -29,32 +29,9 @@ SET default_table_access_method = heap;
 
 CREATE TABLE core.modulos (
     modulo_id integer NOT NULL,
-    clave character varying(50) NOT NULL,
-    nombre character varying(100) NOT NULL,
-    orden integer DEFAULT 0,
-    activo boolean DEFAULT true
+    clave text NOT NULL,
+    nombre text NOT NULL
 );
-
-
---
--- Name: TABLE modulos; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON TABLE core.modulos IS 'Módulos funcionales del ERP utilizados para agrupar parámetros.';
-
-
---
--- Name: COLUMN modulos.clave; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.modulos.clave IS 'Clave técnica del módulo (inventarios, ventas, etc).';
-
-
---
--- Name: COLUMN modulos.nombre; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.modulos.nombre IS 'Nombre visible del módulo en la interfaz del sistema.';
 
 
 --

@@ -13,11 +13,9 @@ import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import pool from '../../config/database';
 
-const TIPOS_VALIDOS: TipoDocumento[] = ['cotizacion', 'factura', 'pedido', 'remision'];
-
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
-  const t = (valor ?? '').toString().toLowerCase();
-  return (TIPOS_VALIDOS as string[]).includes(t) ? (t as TipoDocumento) : fallback;
+  const t = (valor ?? fallback) as any;
+  return t ? t.toString().toLowerCase() : fallback;
 };
 
 const nombreDocumento: Record<TipoDocumento, string> = {
@@ -25,6 +23,11 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   factura: 'factura',
   pedido: 'pedido',
   remision: 'remisión',
+  orden_entrega: 'orden de entrega',
+  requisicion: 'requisición',
+  orden_compra: 'orden de compra',
+  recepcion: 'recepción',
+  factura_compra: 'factura de compra',
 };
 
 const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => async (req: Request, res: Response) => {
@@ -165,7 +168,7 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
       console.error('Error al consultar timbre CFDI para PDF', err);
     }
 
-    const pdfBuffer = await generarDocumentoPDF(result);
+  const pdfBuffer = await generarDocumentoPDF(result, empresaId);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename=documento-${id}.pdf`);

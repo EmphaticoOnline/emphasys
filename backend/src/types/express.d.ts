@@ -1,4 +1,5 @@
 import type { AuthTokenPayload } from "../modules/auth/auth.service";
+import type { File as MulterFile } from "multer";
 
 declare global {
   namespace Express {
@@ -9,6 +10,7 @@ declare global {
         empresaIdentificador?: string;
         empresaNombre?: string;
       };
+      file?: MulterFile;
     }
   }
 }

@@ -57,11 +57,26 @@ CREATE INDEX idx_parametros_empresa_empresa ON core.parametros_empresa USING btr
 
 
 --
--- Name: parametros_empresa fk_parametro_empresa_parametro; Type: FK CONSTRAINT; Schema: core; Owner: -
+-- Name: idx_parametros_empresa_parametro; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_parametros_empresa_parametro ON core.parametros_empresa USING btree (parametro_id);
+
+
+--
+-- Name: parametros_empresa fk_parametros_empresa_empresa; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
 ALTER TABLE ONLY core.parametros_empresa
-    ADD CONSTRAINT fk_parametro_empresa_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_parametros_empresa_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: parametros_empresa fk_parametros_empresa_parametro; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_empresa
+    ADD CONSTRAINT fk_parametros_empresa_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
 
 
 --

@@ -1,6 +1,6 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-03-11T04:06:57.348Z
+-- Generated at: 2026-03-12T02:18:23.083Z
 --
 -- PostgreSQL database dump
 --
@@ -859,6 +859,113 @@ COMMENT ON COLUMN core.empresas.created_at IS 'Fecha de creación del registro';
 
 
 --
+-- Name: empresas_assets; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.empresas_assets (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    tipo character varying(50) NOT NULL,
+    nombre_archivo character varying(255) NOT NULL,
+    ruta character varying(500) NOT NULL,
+    mime_type character varying(100),
+    tamano_bytes bigint,
+    activo boolean DEFAULT true,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: TABLE empresas_assets; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.empresas_assets IS 'Archivos asociados a empresas (logos, firmas, documentos u otros assets corporativos).';
+
+
+--
+-- Name: COLUMN empresas_assets.id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.id IS 'Identificador interno del asset';
+
+
+--
+-- Name: COLUMN empresas_assets.empresa_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.empresa_id IS 'Empresa propietaria del archivo';
+
+
+--
+-- Name: COLUMN empresas_assets.tipo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.tipo IS 'Tipo de asset (logo_default, logo_factura, firma, marca_agua, etc.)';
+
+
+--
+-- Name: COLUMN empresas_assets.nombre_archivo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.nombre_archivo IS 'Nombre original del archivo subido por el usuario';
+
+
+--
+-- Name: COLUMN empresas_assets.ruta; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.ruta IS 'Ruta física o URL donde se encuentra almacenado el archivo';
+
+
+--
+-- Name: COLUMN empresas_assets.mime_type; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.mime_type IS 'Tipo MIME del archivo';
+
+
+--
+-- Name: COLUMN empresas_assets.tamano_bytes; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.tamano_bytes IS 'Tamaño del archivo en bytes';
+
+
+--
+-- Name: COLUMN empresas_assets.activo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.activo IS 'Indica si el asset está activo';
+
+
+--
+-- Name: COLUMN empresas_assets.created_at; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_assets.created_at IS 'Fecha de creación del registro';
+
+
+--
+-- Name: empresas_assets_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.empresas_assets_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: empresas_assets_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.empresas_assets_id_seq OWNED BY core.empresas_assets.id;
+
+
+--
 -- Name: empresas_id_seq; Type: SEQUENCE; Schema: core; Owner: -
 --
 
@@ -876,6 +983,182 @@ CREATE SEQUENCE core.empresas_id_seq
 --
 
 ALTER SEQUENCE core.empresas_id_seq OWNED BY core.empresas.id;
+
+
+--
+-- Name: empresas_tipos_documento; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.empresas_tipos_documento (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    tipo_documento_id integer NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    orden integer DEFAULT 0,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE empresas_tipos_documento; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.empresas_tipos_documento IS 'Tabla que define qué tipos de documentos utiliza cada empresa y permite habilitarlos o deshabilitarlos.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.empresa_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.empresa_id IS 'Empresa a la que aplica el tipo de documento.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.tipo_documento_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.tipo_documento_id IS 'Tipo de documento habilitado para la empresa.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.activo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.activo IS 'Indica si el tipo de documento está habilitado para la empresa.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.orden; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.orden IS 'Orden de aparición en la interfaz del ERP para esa empresa.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.usuario_creacion_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.usuario_creacion_id IS 'Usuario que creó el registro.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.fecha_creacion; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.fecha_creacion IS 'Fecha de creación del registro.';
+
+
+--
+-- Name: empresas_tipos_documento_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.empresas_tipos_documento_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: empresas_tipos_documento_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.empresas_tipos_documento_id_seq OWNED BY core.empresas_tipos_documento.id;
+
+
+--
+-- Name: empresas_tipos_documento_transiciones; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.empresas_tipos_documento_transiciones (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    tipo_documento_origen_id integer NOT NULL,
+    tipo_documento_destino_id integer NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    orden integer DEFAULT 0,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE empresas_tipos_documento_transiciones; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.empresas_tipos_documento_transiciones IS 'Define, por empresa, qué tipos de documento pueden generarse a partir de otros dentro del ERP.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento_transiciones.empresa_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento_transiciones.empresa_id IS 'Empresa a la que aplica la transición entre tipos de documento.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento_transiciones.tipo_documento_origen_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento_transiciones.tipo_documento_origen_id IS 'Tipo de documento desde el cual se genera otro documento.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento_transiciones.tipo_documento_destino_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento_transiciones.tipo_documento_destino_id IS 'Tipo de documento que puede generarse a partir del documento origen.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento_transiciones.activo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento_transiciones.activo IS 'Indica si la transición está habilitada para la empresa.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento_transiciones.orden; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento_transiciones.orden IS 'Orden en que aparecerá la opción en la interfaz.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento_transiciones.usuario_creacion_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento_transiciones.usuario_creacion_id IS 'Usuario que registró la transición.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento_transiciones.fecha_creacion; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento_transiciones.fecha_creacion IS 'Fecha de creación del registro.';
+
+
+--
+-- Name: empresas_tipos_documento_transiciones_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.empresas_tipos_documento_transiciones_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: empresas_tipos_documento_transiciones_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.empresas_tipos_documento_transiciones_id_seq OWNED BY core.empresas_tipos_documento_transiciones.id;
 
 
 --
@@ -998,32 +1281,9 @@ ALTER SEQUENCE core.entidades_tipos_id_seq OWNED BY core.entidades_tipos.id;
 
 CREATE TABLE core.modulos (
     modulo_id integer NOT NULL,
-    clave character varying(50) NOT NULL,
-    nombre character varying(100) NOT NULL,
-    orden integer DEFAULT 0,
-    activo boolean DEFAULT true
+    clave text NOT NULL,
+    nombre text NOT NULL
 );
-
-
---
--- Name: TABLE modulos; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON TABLE core.modulos IS 'Módulos funcionales del ERP utilizados para agrupar parámetros.';
-
-
---
--- Name: COLUMN modulos.clave; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.modulos.clave IS 'Clave técnica del módulo (inventarios, ventas, etc).';
-
-
---
--- Name: COLUMN modulos.nombre; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.modulos.nombre IS 'Nombre visible del módulo en la interfaz del sistema.';
 
 
 --
@@ -1052,50 +1312,21 @@ ALTER SEQUENCE core.modulos_modulo_id_seq OWNED BY core.modulos.modulo_id;
 
 CREATE TABLE core.parametros (
     parametro_id integer NOT NULL,
-    clave character varying(100) NOT NULL,
-    nombre character varying(200) NOT NULL,
-    descripcion text,
-    tipo_dato character varying(20) NOT NULL,
-    tipo_control character varying(20) NOT NULL,
-    valor_default text,
-    orden integer DEFAULT 0,
-    activo boolean DEFAULT true
+    clave text NOT NULL,
+    nombre text NOT NULL,
+    tipo_dato text NOT NULL,
+    tipo_control text NOT NULL,
+    parametro_padre_id integer,
+    valor_activacion text,
+    valor_default text
 );
 
 
 --
--- Name: TABLE parametros; Type: COMMENT; Schema: core; Owner: -
+-- Name: COLUMN parametros.valor_default; Type: COMMENT; Schema: core; Owner: -
 --
 
-COMMENT ON TABLE core.parametros IS 'Catálogo global de parámetros configurables del sistema ERP.';
-
-
---
--- Name: COLUMN parametros.clave; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.parametros.clave IS 'Clave técnica del parámetro utilizada por el sistema.';
-
-
---
--- Name: COLUMN parametros.nombre; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.parametros.nombre IS 'Caption mostrado al usuario en la pantalla de configuración.';
-
-
---
--- Name: COLUMN parametros.tipo_dato; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.parametros.tipo_dato IS 'Tipo de dato esperado del parámetro.';
-
-
---
--- Name: COLUMN parametros.tipo_control; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.parametros.tipo_control IS 'Tipo de control de interfaz utilizado para editar el parámetro.';
+COMMENT ON COLUMN core.parametros.valor_default IS 'Valor por defecto del parámetro si la empresa no ha configurado uno.';
 
 
 --
@@ -1124,13 +1355,6 @@ CREATE TABLE core.parametros_modulos (
     parametro_id integer NOT NULL,
     modulo_id integer NOT NULL
 );
-
-
---
--- Name: TABLE parametros_modulos; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON TABLE core.parametros_modulos IS 'Relación muchos-a-muchos entre parámetros del sistema y módulos del ERP.';
 
 
 --
@@ -1296,13 +1520,14 @@ ALTER SEQUENCE core.roles_id_seq OWNED BY core.roles.id;
 
 CREATE TABLE core.tipos_documento (
     id integer NOT NULL,
-    codigo character varying(50) NOT NULL,
+    codigo character varying(30) NOT NULL,
     nombre character varying(120) NOT NULL,
     nombre_plural character varying(120) NOT NULL,
     icono character varying(50),
     orden integer DEFAULT 0,
     activo boolean DEFAULT true,
-    created_at timestamp without time zone DEFAULT now()
+    created_at timestamp without time zone DEFAULT now(),
+    modulo character varying(30)
 );
 
 
@@ -1367,6 +1592,13 @@ COMMENT ON COLUMN core.tipos_documento.activo IS 'Indica si el tipo de documento
 --
 
 COMMENT ON COLUMN core.tipos_documento.created_at IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN tipos_documento.modulo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.tipos_documento.modulo IS 'Módulo al que pertenece el documento (ventas o compras).';
 
 
 --
@@ -2220,6 +2452,113 @@ ALTER SEQUENCE public.documentos_partidas_id_seq OWNED BY public.documentos_part
 
 
 --
+-- Name: documentos_partidas_vinculos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.documentos_partidas_vinculos (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    documento_origen_id integer NOT NULL,
+    documento_destino_id integer NOT NULL,
+    partida_origen_id integer NOT NULL,
+    partida_destino_id integer NOT NULL,
+    cantidad numeric(15,6) NOT NULL,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE documentos_partidas_vinculos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.documentos_partidas_vinculos IS 'Tabla que registra vínculos entre partidas de documentos permitiendo relaciones muchos-a-muchos y control de cantidades aplicadas entre documentos (pedido, factura, entrega, recepción, etc.).';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.id IS 'Identificador único del vínculo entre partidas.';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.empresa_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.empresa_id IS 'Empresa a la que pertenece el vínculo entre partidas.';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.documento_origen_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.documento_origen_id IS 'Documento del cual proviene la partida origen.';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.documento_destino_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.documento_destino_id IS 'Documento que recibe o consume la cantidad.';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.partida_origen_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.partida_origen_id IS 'Partida que origina la cantidad (ejemplo: partida del pedido o requisición).';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.partida_destino_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.partida_destino_id IS 'Partida que consume o aplica la cantidad (ejemplo: partida de factura, entrega o recepción).';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.cantidad; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.cantidad IS 'Cantidad aplicada desde la partida origen hacia la partida destino.';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.usuario_creacion_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.usuario_creacion_id IS 'Usuario que registró la creación del vínculo entre partidas.';
+
+
+--
+-- Name: COLUMN documentos_partidas_vinculos.fecha_creacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_vinculos.fecha_creacion IS 'Fecha y hora de creación del vínculo.';
+
+
+--
+-- Name: documentos_partidas_vinculos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.documentos_partidas_vinculos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: documentos_partidas_vinculos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.documentos_partidas_vinculos_id_seq OWNED BY public.documentos_partidas_vinculos.id;
+
+
+--
 -- Name: finanzas_conciliaciones; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2621,40 +2960,6 @@ CREATE SEQUENCE public.unidades_id_seq
 --
 
 ALTER SEQUENCE public.unidades_id_seq OWNED BY public.unidades.id;
-
-
---
--- Name: usuarios_empresas; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.usuarios_empresas (
-    id integer NOT NULL,
-    usuario_id integer NOT NULL,
-    empresa_id integer NOT NULL,
-    rol_id integer NOT NULL,
-    activo boolean DEFAULT true NOT NULL,
-    fecha_alta timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: usuarios_empresas_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.usuarios_empresas_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: usuarios_empresas_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.usuarios_empresas_id_seq OWNED BY public.usuarios_empresas.id;
 
 
 --
@@ -3283,6 +3588,27 @@ ALTER TABLE ONLY core.empresas ALTER COLUMN id SET DEFAULT nextval('core.empresa
 
 
 --
+-- Name: empresas_assets id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_assets ALTER COLUMN id SET DEFAULT nextval('core.empresas_assets_id_seq'::regclass);
+
+
+--
+-- Name: empresas_tipos_documento id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento ALTER COLUMN id SET DEFAULT nextval('core.empresas_tipos_documento_id_seq'::regclass);
+
+
+--
+-- Name: empresas_tipos_documento_transiciones id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento_transiciones ALTER COLUMN id SET DEFAULT nextval('core.empresas_tipos_documento_transiciones_id_seq'::regclass);
+
+
+--
 -- Name: entidades_tipos id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -3409,6 +3735,13 @@ ALTER TABLE ONLY public.documentos_partidas_campos ALTER COLUMN id SET DEFAULT n
 
 
 --
+-- Name: documentos_partidas_vinculos id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_vinculos ALTER COLUMN id SET DEFAULT nextval('public.documentos_partidas_vinculos_id_seq'::regclass);
+
+
+--
 -- Name: finanzas_conciliaciones id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3465,13 +3798,6 @@ ALTER TABLE ONLY public.unidades ALTER COLUMN id SET DEFAULT nextval('public.uni
 
 
 --
--- Name: usuarios_empresas id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.usuarios_empresas ALTER COLUMN id SET DEFAULT nextval('public.usuarios_empresas_id_seq'::regclass);
-
-
---
 -- Name: unidades id; Type: DEFAULT; Schema: sat; Owner: -
 --
 
@@ -3503,11 +3829,35 @@ ALTER TABLE ONLY core.catalogos_tipos
 
 
 --
+-- Name: empresas_assets empresas_assets_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_assets
+    ADD CONSTRAINT empresas_assets_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: empresas empresas_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
 ALTER TABLE ONLY core.empresas
     ADD CONSTRAINT empresas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: empresas_tipos_documento empresas_tipos_documento_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento
+    ADD CONSTRAINT empresas_tipos_documento_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: empresas_tipos_documento_transiciones empresas_tipos_documento_transiciones_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento_transiciones
+    ADD CONSTRAINT empresas_tipos_documento_transiciones_pkey PRIMARY KEY (id);
 
 
 --
@@ -3599,11 +3949,43 @@ ALTER TABLE ONLY core.roles
 
 
 --
+-- Name: tipos_documento tipos_documento_codigo_unique; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.tipos_documento
+    ADD CONSTRAINT tipos_documento_codigo_unique UNIQUE (codigo);
+
+
+--
 -- Name: tipos_documento tipos_documento_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
 ALTER TABLE ONLY core.tipos_documento
     ADD CONSTRAINT tipos_documento_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: empresas_tipos_documento uq_empresas_tipos_documento; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento
+    ADD CONSTRAINT uq_empresas_tipos_documento UNIQUE (empresa_id, tipo_documento_id);
+
+
+--
+-- Name: empresas_tipos_documento_transiciones uq_empresas_tipos_documento_transiciones; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento_transiciones
+    ADD CONSTRAINT uq_empresas_tipos_documento_transiciones UNIQUE (empresa_id, tipo_documento_origen_id, tipo_documento_destino_id);
+
+
+--
+-- Name: parametros_opciones uq_parametro_opcion; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_opciones
+    ADD CONSTRAINT uq_parametro_opcion UNIQUE (parametro_id, valor);
 
 
 --
@@ -3727,6 +4109,14 @@ ALTER TABLE ONLY public.documentos_partidas
 
 
 --
+-- Name: documentos_partidas_vinculos documentos_partidas_vinculos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_vinculos
+    ADD CONSTRAINT documentos_partidas_vinculos_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: documentos documentos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3815,6 +4205,14 @@ ALTER TABLE ONLY public.crm_ruteo_leads
 
 
 --
+-- Name: documentos_partidas_vinculos uq_doc_partidas_vinculos; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_vinculos
+    ADD CONSTRAINT uq_doc_partidas_vinculos UNIQUE (partida_origen_id, partida_destino_id);
+
+
+--
 -- Name: productos uq_productos_empresa_clave; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3828,14 +4226,6 @@ ALTER TABLE ONLY public.productos
 
 ALTER TABLE ONLY public.unidades
     ADD CONSTRAINT uq_unidad_empresa UNIQUE (empresa_id, clave);
-
-
---
--- Name: usuarios_empresas usuarios_empresas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.usuarios_empresas
-    ADD CONSTRAINT usuarios_empresas_pkey PRIMARY KEY (id);
 
 
 --
@@ -3860,14 +4250,6 @@ ALTER TABLE ONLY public.finanzas_cuentas
 
 ALTER TABLE ONLY public.finanzas_conciliaciones_operaciones
     ADD CONSTRAINT ux_fco_unique UNIQUE (conciliacion_id, operacion_id);
-
-
---
--- Name: usuarios_empresas ux_ue_unico; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.usuarios_empresas
-    ADD CONSTRAINT ux_ue_unico UNIQUE (usuario_id, empresa_id);
 
 
 --
@@ -4219,6 +4601,34 @@ COMMENT ON INDEX core.idx_catalogos_tipos_empresa IS 'Optimiza consultas de tipo
 
 
 --
+-- Name: idx_empresas_assets_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_empresas_assets_empresa ON core.empresas_assets USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_empresas_assets_empresa; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_empresas_assets_empresa IS 'Optimiza consultas de assets por empresa';
+
+
+--
+-- Name: idx_empresas_assets_tipo; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_empresas_assets_tipo ON core.empresas_assets USING btree (empresa_id, tipo);
+
+
+--
+-- Name: INDEX idx_empresas_assets_tipo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_empresas_assets_tipo IS 'Optimiza consultas de assets por empresa y tipo';
+
+
+--
 -- Name: idx_empresas_cp; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4303,6 +4713,27 @@ COMMENT ON INDEX core.idx_empresas_rfc IS 'Optimiza búsqueda de empresa por RFC
 
 
 --
+-- Name: idx_empresas_tipos_documento_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_empresas_tipos_documento_empresa ON core.empresas_tipos_documento USING btree (empresa_id);
+
+
+--
+-- Name: idx_empresas_tipos_documento_tipo; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_empresas_tipos_documento_tipo ON core.empresas_tipos_documento USING btree (tipo_documento_id);
+
+
+--
+-- Name: INDEX idx_empresas_tipos_documento_tipo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_empresas_tipos_documento_tipo IS 'Índice para consultas por tipo de documento.';
+
+
+--
 -- Name: idx_entidades_catalogos_entidad; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4317,6 +4748,48 @@ COMMENT ON INDEX core.idx_entidades_catalogos_entidad IS 'Optimiza consultas de 
 
 
 --
+-- Name: idx_etdt_destino; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_etdt_destino ON core.empresas_tipos_documento_transiciones USING btree (tipo_documento_destino_id);
+
+
+--
+-- Name: INDEX idx_etdt_destino; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_etdt_destino IS 'Índice para consultas por tipo de documento destino.';
+
+
+--
+-- Name: idx_etdt_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_etdt_empresa ON core.empresas_tipos_documento_transiciones USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_etdt_empresa; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_etdt_empresa IS 'Índice para consultas por empresa.';
+
+
+--
+-- Name: idx_etdt_origen; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_etdt_origen ON core.empresas_tipos_documento_transiciones USING btree (tipo_documento_origen_id);
+
+
+--
+-- Name: INDEX idx_etdt_origen; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_etdt_origen IS 'Índice para consultas por tipo de documento origen.';
+
+
+--
 -- Name: idx_parametros_empresa_empresa; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -4324,10 +4797,24 @@ CREATE INDEX idx_parametros_empresa_empresa ON core.parametros_empresa USING btr
 
 
 --
+-- Name: idx_parametros_empresa_parametro; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_parametros_empresa_parametro ON core.parametros_empresa USING btree (parametro_id);
+
+
+--
 -- Name: idx_parametros_opciones_parametro; Type: INDEX; Schema: core; Owner: -
 --
 
 CREATE INDEX idx_parametros_opciones_parametro ON core.parametros_opciones USING btree (parametro_id);
+
+
+--
+-- Name: idx_parametros_padre; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_parametros_padre ON core.parametros USING btree (parametro_padre_id);
 
 
 --
@@ -4349,6 +4836,20 @@ COMMENT ON INDEX core.idx_roles_empresa IS 'Optimiza consultas de roles por empr
 --
 
 CREATE UNIQUE INDEX idx_roles_empresa_nombre ON core.roles USING btree (empresa_id, nombre);
+
+
+--
+-- Name: idx_tipos_documento_modulo; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_tipos_documento_modulo ON core.tipos_documento USING btree (modulo);
+
+
+--
+-- Name: INDEX idx_tipos_documento_modulo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_tipos_documento_modulo IS 'Permite filtrar rápidamente tipos de documento por módulo (ventas o compras).';
 
 
 --
@@ -4447,6 +4948,76 @@ CREATE INDEX idx_dc_empresa ON public.documentos_campos USING btree (empresa_id)
 --
 
 COMMENT ON INDEX public.idx_dc_empresa IS 'Optimiza consultas de campos dinámicos filtradas por empresa.';
+
+
+--
+-- Name: idx_doc_partidas_vinculos_destino; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_partidas_vinculos_destino ON public.documentos_partidas_vinculos USING btree (partida_destino_id);
+
+
+--
+-- Name: INDEX idx_doc_partidas_vinculos_destino; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_doc_partidas_vinculos_destino IS 'Índice para consultas por partida destino.';
+
+
+--
+-- Name: idx_doc_partidas_vinculos_doc_destino; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_partidas_vinculos_doc_destino ON public.documentos_partidas_vinculos USING btree (documento_destino_id);
+
+
+--
+-- Name: INDEX idx_doc_partidas_vinculos_doc_destino; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_doc_partidas_vinculos_doc_destino IS 'Índice para consultas por documento destino.';
+
+
+--
+-- Name: idx_doc_partidas_vinculos_doc_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_partidas_vinculos_doc_origen ON public.documentos_partidas_vinculos USING btree (documento_origen_id);
+
+
+--
+-- Name: INDEX idx_doc_partidas_vinculos_doc_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_doc_partidas_vinculos_doc_origen IS 'Índice para consultas por documento origen.';
+
+
+--
+-- Name: idx_doc_partidas_vinculos_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_partidas_vinculos_empresa ON public.documentos_partidas_vinculos USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_doc_partidas_vinculos_empresa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_doc_partidas_vinculos_empresa IS 'Índice para consultas por empresa.';
+
+
+--
+-- Name: idx_doc_partidas_vinculos_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_partidas_vinculos_origen ON public.documentos_partidas_vinculos USING btree (partida_origen_id);
+
+
+--
+-- Name: INDEX idx_doc_partidas_vinculos_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_doc_partidas_vinculos_origen IS 'Índice para consultas por partida origen.';
 
 
 --
@@ -4587,20 +5158,6 @@ CREATE INDEX ix_contactos_tipo ON public.contactos USING btree (tipo_contacto);
 --
 
 CREATE INDEX ix_productos_empresa ON public.productos USING btree (empresa_id);
-
-
---
--- Name: ix_ue_empresa; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_ue_empresa ON public.usuarios_empresas USING btree (empresa_id);
-
-
---
--- Name: ix_ue_usuario; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX ix_ue_usuario ON public.usuarios_empresas USING btree (usuario_id);
 
 
 --
@@ -4858,6 +5415,14 @@ ALTER TABLE ONLY core.catalogos
 
 
 --
+-- Name: empresas_assets fk_empresas_assets_empresa; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_assets
+    ADD CONSTRAINT fk_empresas_assets_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
 -- Name: empresas fk_empresas_colonia; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -4898,19 +5463,59 @@ ALTER TABLE ONLY core.empresas
 
 
 --
--- Name: parametros_empresa fk_parametro_empresa_parametro; Type: FK CONSTRAINT; Schema: core; Owner: -
+-- Name: empresas_tipos_documento fk_empresas_tipos_documento_empresa; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento
+    ADD CONSTRAINT fk_empresas_tipos_documento_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: empresas_tipos_documento fk_empresas_tipos_documento_tipo; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento
+    ADD CONSTRAINT fk_empresas_tipos_documento_tipo FOREIGN KEY (tipo_documento_id) REFERENCES core.tipos_documento(id) ON DELETE CASCADE;
+
+
+--
+-- Name: empresas_tipos_documento_transiciones fk_etdt_destino; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento_transiciones
+    ADD CONSTRAINT fk_etdt_destino FOREIGN KEY (tipo_documento_destino_id) REFERENCES core.tipos_documento(id) ON DELETE CASCADE;
+
+
+--
+-- Name: empresas_tipos_documento_transiciones fk_etdt_empresa; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento_transiciones
+    ADD CONSTRAINT fk_etdt_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: empresas_tipos_documento_transiciones fk_etdt_origen; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento_transiciones
+    ADD CONSTRAINT fk_etdt_origen FOREIGN KEY (tipo_documento_origen_id) REFERENCES core.tipos_documento(id) ON DELETE CASCADE;
+
+
+--
+-- Name: parametros_empresa fk_parametros_empresa_empresa; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
 ALTER TABLE ONLY core.parametros_empresa
-    ADD CONSTRAINT fk_parametro_empresa_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_parametros_empresa_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
 
 
 --
--- Name: parametros_opciones fk_parametro_opciones; Type: FK CONSTRAINT; Schema: core; Owner: -
+-- Name: parametros_empresa fk_parametros_empresa_parametro; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
-ALTER TABLE ONLY core.parametros_opciones
-    ADD CONSTRAINT fk_parametro_opciones FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
+ALTER TABLE ONLY core.parametros_empresa
+    ADD CONSTRAINT fk_parametros_empresa_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
 
 
 --
@@ -4927,6 +5532,22 @@ ALTER TABLE ONLY core.parametros_modulos
 
 ALTER TABLE ONLY core.parametros_modulos
     ADD CONSTRAINT fk_parametros_modulos_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
+
+
+--
+-- Name: parametros_opciones fk_parametros_opciones_parametro; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_opciones
+    ADD CONSTRAINT fk_parametros_opciones_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
+
+
+--
+-- Name: parametros fk_parametros_padre; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros
+    ADD CONSTRAINT fk_parametros_padre FOREIGN KEY (parametro_padre_id) REFERENCES core.parametros(parametro_id) ON DELETE SET NULL;
 
 
 --
@@ -5063,6 +5684,38 @@ ALTER TABLE ONLY public.documentos_campos
 
 ALTER TABLE ONLY public.documentos_campos
     ADD CONSTRAINT fk_dc_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentos_partidas_vinculos fk_doc_partidas_vinculos_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_vinculos
+    ADD CONSTRAINT fk_doc_partidas_vinculos_destino FOREIGN KEY (partida_destino_id) REFERENCES public.documentos_partidas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentos_partidas_vinculos fk_doc_partidas_vinculos_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_vinculos
+    ADD CONSTRAINT fk_doc_partidas_vinculos_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentos_partidas_vinculos fk_doc_partidas_vinculos_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_vinculos
+    ADD CONSTRAINT fk_doc_partidas_vinculos_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentos_partidas_vinculos fk_doc_partidas_vinculos_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_vinculos
+    ADD CONSTRAINT fk_doc_partidas_vinculos_origen FOREIGN KEY (partida_origen_id) REFERENCES public.documentos_partidas(id) ON DELETE CASCADE;
 
 
 --
@@ -5271,14 +5924,6 @@ ALTER TABLE ONLY public.productos
 
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT fk_producto_unidad_venta FOREIGN KEY (unidad_venta_id) REFERENCES public.unidades(id);
-
-
---
--- Name: usuarios_empresas fk_ue_rol; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.usuarios_empresas
-    ADD CONSTRAINT fk_ue_rol FOREIGN KEY (rol_id) REFERENCES public.roles(id) ON DELETE RESTRICT;
 
 
 --

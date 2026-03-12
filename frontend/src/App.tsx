@@ -18,6 +18,9 @@ import CamposConfiguracionPage from './pages/CamposConfiguracionPage.js';
 import EmpresasPage from './pages/configuracion/EmpresasPage.js';
 import RolesPage from './pages/configuracion/RolesPage.js';
 import UsuariosPage from './pages/configuracion/UsuariosPage.js';
+import ParametrosPage from './pages/configuracion/ParametrosPage.js';
+import OpcionesParametrosPage from './pages/configuracion/OpcionesParametrosPage.js';
+import DocumentosConfiguracionPage from './pages/configuracion/DocumentosConfiguracionPage.js';
 import { Outlet } from 'react-router-dom';
 
 export default function App() {
@@ -37,16 +40,21 @@ export default function App() {
               <Route path="/productos" element={<ProductosPage />} />
               <Route path="/productos/nuevo" element={<ProductoFormPage />} />
               <Route path="/productos/:id" element={<ProductoFormPage />} />
-              <Route path="/documentos" element={<DocumentosPage tipoDocumento="cotizacion" />} />
-              <Route path="/documentos/nuevo" element={<DocumentosFormPage tipoDocumento="cotizacion" />} />
-              <Route path="/documentos/:id" element={<DocumentosFormPage tipoDocumento="cotizacion" />} />
-              <Route path="/facturas" element={<DocumentosPage tipoDocumento="factura" />} />
-              <Route path="/facturas/nuevo" element={<DocumentosFormPage tipoDocumento="factura" />} />
-              <Route path="/facturas/:id" element={<DocumentosFormPage tipoDocumento="factura" />} />
+              <Route path="/ventas/:codigo" element={<DocumentosPage />} />
+              <Route path="/ventas/:codigo/nuevo" element={<DocumentosFormPage />} />
+              <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />
+              <Route path="/compras/:codigo" element={<DocumentosPage />} />
+              <Route path="/compras/:codigo/nuevo" element={<DocumentosFormPage />} />
+              <Route path="/compras/:codigo/:id" element={<DocumentosFormPage />} />
+              <Route path="/documentos" element={<Navigate to="/ventas/cotizacion" replace />} />
+              <Route path="/facturas" element={<Navigate to="/ventas/factura" replace />} />
               <Route path="/configuracion" element={<ConfiguracionPage />} />
               <Route path="/configuracion/empresas" element={<EmpresasPage />} />
               <Route path="/configuracion/usuarios" element={<UsuariosPage />} />
               <Route path="/configuracion/roles" element={<RolesPage />} />
+              <Route path="/configuracion/parametros" element={<ParametrosPage />} />
+              <Route path="/configuracion/parametros-opciones" element={<OpcionesParametrosPage />} />
+              <Route path="/configuracion/documentos" element={<DocumentosConfiguracionPage />} />
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />

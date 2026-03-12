@@ -16,6 +16,7 @@ import {
   Paper,
   Stack,
   TextField,
+  MenuItem,
   Toolbar,
   Typography,
   Divider,
@@ -40,6 +41,7 @@ import type {
   CotizacionPartidaPayload,
   CotizacionCrearPayload,
   CotizacionPartida,
+  TratamientoImpuestos,
 } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
 import { getDocumento, createDocumento, updateDocumento, replacePartidas, downloadDocumentoPdf } from '../services/documentosService';
@@ -66,11 +68,19 @@ type PartidaForm = CotizacionPartidaPayload & {
   producto?: Producto | null;
 };
 
+const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
+  { label: 'Operación estándar', value: 'normal' },
+  { label: 'Nota de venta', value: 'sin_iva' },
+  { label: 'Operación a tasa 0%', value: 'tasa_cero' },
+  { label: 'Operación exenta', value: 'exento' },
+];
+
 const emptyPartida = (): PartidaForm => ({
   producto_id: null,
   descripcion_alterna: '',
   cantidad: 1,
   precio_unitario: 0,
+  iva_porcentaje: null,
   subtotal_partida: 0,
   iva_monto: 0,
   total_partida: 0,
@@ -82,7 +92,7 @@ type DocumentosFormPageProps = {
   tipoDocumento?: TipoDocumento;
 };
 
-const TEXTOS: Record<TipoDocumento, { nuevo: string; editar: string; descripcion: string; guardado: string; cargando: string; singular: string }> = {
+const TEXTOS: Record<string, { nuevo: string; editar: string; descripcion: string; guardado: string; cargando: string; singular: string }> = {
   cotizacion: {
     nuevo: 'Nueva cotización',
     editar: 'Editar cotización',
@@ -149,15 +159,25 @@ const prefetchOpcionesLista = (
     });
 };
 
-export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: DocumentosFormPageProps) {
-  const { id } = useParams();
+export default function DocumentosFormPage({ tipoDocumento: propTipo }: DocumentosFormPageProps) {
+  const { id, codigo } = useParams();
+  const tipoDocumento = (propTipo ?? (codigo as TipoDocumento)) || 'cotizacion';
   const isEdit = Boolean(id && id !== 'nuevo');
   const navigate = useNavigate();
-  const basePath = tipoDocumento === 'factura' ? '/facturas' : '/documentos';
+  const basePath = `/ventas/${tipoDocumento}`;
   const showFiscalTab = tipoDocumento === 'factura';
+  const textos = TEXTOS[tipoDocumento] ?? {
+    nuevo: 'Nuevo documento',
+    editar: 'Editar documento',
+    descripcion: 'Crea o edita documentos.',
+    guardado: 'Documento guardado',
+    cargando: 'Cargando documento...',
+    singular: 'documento',
+  };
 
   const [form, setForm] = useState<CotizacionCrearPayload>({
     tipo_documento: tipoDocumento,
+    serie: tipoDocumento === 'factura' ? 'FAC' : null,
     contacto_principal_id: null,
     fecha_documento: defaultFecha(),
     moneda: 'MXN',
@@ -167,6 +187,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     total: 0,
     usuario_creacion_id: 1,
     empresa_id: getEmpresaActivaId(),
+    tratamiento_impuestos: 'normal',
     rfc_receptor: '',
     nombre_receptor: '',
     regimen_fiscal_receptor: '',
@@ -242,7 +263,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
   const calcularPartida = (partida: PartidaForm): PartidaForm => {
     const cantidad = Number(partida.cantidad) || 0;
     const precio = Number(partida.precio_unitario) || 0;
-    const ivaPorcentaje = partida.producto?.iva_porcentaje ?? 16;
+    const ivaPorcentaje = partida.iva_porcentaje ?? partida.producto?.iva_porcentaje ?? 16;
     const subtotal_partida = cantidad * precio;
     const iva_monto = subtotal_partida * (ivaPorcentaje / 100);
     const total_partida = subtotal_partida + iva_monto;
@@ -250,10 +271,22 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
       ...partida,
       cantidad,
       precio_unitario: precio,
+      iva_porcentaje: ivaPorcentaje,
       subtotal_partida,
       iva_monto,
       total_partida,
     };
+  };
+
+  const aplicarTratamientoEnLista = (lista: PartidaForm[], valor: TratamientoImpuestos): PartidaForm[] => {
+    return lista.map((p) => {
+      const base: PartidaForm = {
+        ...p,
+        iva_porcentaje: valor === 'sin_iva' ? 0 : null,
+        iva_monto: valor === 'sin_iva' ? 0 : p.iva_monto,
+      };
+      return calcularPartida(base);
+    });
   };
 
   const setPartidaAt = (index: number, updater: (prev: PartidaForm) => PartidaForm) => {
@@ -267,8 +300,31 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
     });
   };
 
+  const handleTratamientoChange = (valor: TratamientoImpuestos) => {
+    setForm((prev) => ({
+      ...prev,
+      tratamiento_impuestos: valor,
+      serie:
+        valor === 'sin_iva'
+          ? 'N'
+          : valor === 'normal'
+          ? 'FAC'
+          : prev.serie ?? null,
+    }));
+    setPartidas((prev) => {
+      const next = aplicarTratamientoEnLista(prev, valor);
+      recalcTotales(next);
+      return next;
+    });
+  };
+
   const addRow = () => {
-    setPartidas((prev) => [...prev, emptyPartida()]);
+    setPartidas((prev) => {
+      const next = [...prev, emptyPartida()];
+      const ajustadas = form.tratamiento_impuestos === 'sin_iva' ? aplicarTratamientoEnLista(next, 'sin_iva') : next;
+      setTimeout(() => recalcTotales(ajustadas), 0);
+      return ajustadas;
+    });
     setExpandedObs((prev) => [...prev, false]);
     setEditingPrecio((prev) => [...prev, false]);
     setPrecioInputs((prev) => [...prev, '']);
@@ -349,6 +405,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
       const doc = data.documento;
       setForm({
         tipo_documento: doc.tipo_documento ?? tipoDocumento,
+  serie: (doc as any).serie || null,
         contacto_principal_id: doc.contacto_principal_id,
         fecha_documento: doc.fecha_documento?.substring(0, 10) || defaultFecha(),
         moneda: doc.moneda || 'MXN',
@@ -358,6 +415,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
         total: doc.total || 0,
         usuario_creacion_id: doc.usuario_creacion_id || 1,
         empresa_id: doc.empresa_id,
+  tratamiento_impuestos: (doc as any).tratamiento_impuestos || 'normal',
         rfc_receptor: (doc as any).rfc_receptor || (doc as any).cliente_rfc || '',
         nombre_receptor: (doc as any).nombre_receptor || (doc as any).cliente_nombre || '',
         regimen_fiscal_receptor: (doc as any).regimen_fiscal_receptor || '',
@@ -377,6 +435,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
           descripcion_alterna: p.descripcion_alterna ?? '',
           cantidad: p.cantidad,
           precio_unitario: p.precio_unitario,
+          iva_porcentaje: (p as any).iva_porcentaje ?? null,
           subtotal_partida: p.subtotal_partida,
           iva_monto: p.iva_monto,
           total_partida: p.total_partida,
@@ -384,12 +443,15 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
           producto: prod,
         });
       });
-      const nextPartidas = mapped.length ? mapped : [emptyPartida()];
+      let nextPartidas = mapped.length ? mapped : [emptyPartida()];
+      if ((doc as any).tratamiento_impuestos === 'sin_iva') {
+        nextPartidas = aplicarTratamientoEnLista(nextPartidas, 'sin_iva');
+      }
       setPartidas(nextPartidas);
       setExpandedObs(nextPartidas.map((p) => Boolean(p.observaciones?.trim())) || [false]);
       setEditingPrecio(nextPartidas.map(() => false));
       setPrecioInputs(nextPartidas.map((p) => (p.precio_unitario ?? '').toString()));
-      recalcTotales(mapped);
+      recalcTotales(nextPartidas);
 
       // Carga valores dinámicos ya capturados
       const [valoresDocResp, valoresPartidasResp] = await Promise.all([
@@ -409,7 +471,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
 
       setError(null);
     } catch (e) {
-      const mensaje = e instanceof Error ? e.message : `No se pudo cargar la ${TEXTOS[tipoDocumento].singular}`;
+  const mensaje = e instanceof Error ? e.message : `No se pudo cargar la ${textos.singular}`;
       setError(mensaje);
     } finally {
       setLoading(false);
@@ -502,7 +564,9 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
       setSnackbar({ open: true, message: 'Selecciona un cliente', severity: 'error' });
       return;
     }
-    if (tipoDocumento === 'factura') {
+    const requiereDatosFiscales = tipoDocumento === 'factura' && form.tratamiento_impuestos !== 'sin_iva';
+
+    if (requiereDatosFiscales) {
       if (!form.rfc_receptor || !validarRFC(form.rfc_receptor)) {
         setSnackbar({ open: true, message: 'RFC receptor es obligatorio y debe ser válido', severity: 'error' });
         return;
@@ -517,10 +581,12 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
       const payload: CotizacionCrearPayload = {
         ...form,
         tipo_documento: tipoDocumento,
+        serie: form.serie?.trim() || null,
         subtotal: form.subtotal || 0,
         iva: form.iva || 0,
         total: form.total || 0,
         empresa_id: getEmpresaActivaId(),
+  tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : null,
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
         regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
@@ -571,7 +637,7 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
         }
       }
 
-      setSnackbar({ open: true, message: TEXTOS[tipoDocumento].guardado, severity: 'success' });
+  setSnackbar({ open: true, message: textos.guardado, severity: 'success' });
       setTimeout(() => navigate(basePath), 400);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'No se pudo guardar';
@@ -676,10 +742,10 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
           </Button>
           <Box>
             <Typography variant="h5" fontWeight={700} color="#1d2f68">
-              {isEdit ? TEXTOS[tipoDocumento].editar : TEXTOS[tipoDocumento].nuevo}
+              {isEdit ? textos.editar : textos.nuevo}
             </Typography>
             <Typography variant="body2" color="#4b5563">
-              {TEXTOS[tipoDocumento].descripcion}
+              {textos.descripcion}
             </Typography>
           </Box>
         </Stack>
@@ -732,12 +798,12 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
           {loading ? (
             <Stack direction="row" spacing={1.5} alignItems="center">
               <CircularProgress size={22} />
-              <Typography color="text.secondary">{TEXTOS[tipoDocumento].cargando}</Typography>
+              <Typography color="text.secondary">{textos.cargando}</Typography>
             </Stack>
           ) : (
             <>
               <Grid container spacing={2} alignItems="center">
-                <Grid size={{ xs: 12, md: 6 }}>
+                <Grid size={{ xs: 12, md: 5 }}>
                   <Autocomplete
                     fullWidth
                     options={contactos}
@@ -770,7 +836,27 @@ export default function DocumentosFormPage({ tipoDocumento = 'cotizacion' }: Doc
                     size="small"
                   />
                 </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
+                {tipoDocumento === 'factura' && (
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <TextField
+                      select
+                      label="Tratamiento fiscal"
+                      value={form.tratamiento_impuestos || 'normal'}
+                      onChange={(e) => handleTratamientoChange((e.target.value as TratamientoImpuestos) || 'normal')}
+                      fullWidth
+                      size="small"
+                      InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                      inputProps={{ style: { fontSize: 13 } }}
+                    >
+                      {TRATAMIENTO_OPCIONES.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                )}
+                <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
                     label="Observaciones"
                     value={form.observaciones || ''}

@@ -34,13 +34,6 @@ CREATE TABLE core.parametros_modulos (
 
 
 --
--- Name: TABLE parametros_modulos; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON TABLE core.parametros_modulos IS 'Relación muchos-a-muchos entre parámetros del sistema y módulos del ERP.';
-
-
---
 -- Name: parametros_modulos parametros_modulos_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 

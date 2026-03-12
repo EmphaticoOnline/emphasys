@@ -43,9 +43,22 @@ const opciones = [
     path: '/configuracion/campos',
   },
   {
+    titulo: 'Documentos y flujo',
+    descripcion: 'Activa tipos de documento y define las transiciones entre ellos.',
+    icono: SchemaRounded,
+    path: '/configuracion/documentos',
+  },
+  {
     titulo: 'Parámetros del sistema',
     descripcion: 'Ajusta preferencias y configuraciones globales.',
     icono: SettingsRounded,
+    path: '/configuracion/parametros',
+  },
+  {
+    titulo: 'Opciones de parámetros',
+    descripcion: 'Gestiona opciones para parámetros tipo dropdown.',
+    icono: SettingsRounded,
+    path: '/configuracion/parametros-opciones',
   },
 ];
 

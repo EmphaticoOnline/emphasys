@@ -64,6 +64,7 @@ type PartidaInput = {
   cantidad?: number | null;
   precio_unitario?: number | null;
   subtotal_partida?: number | null;
+  iva_porcentaje?: number | null;
   iva_monto?: number | null;
   total_partida?: number | null;
   observaciones?: string | null;
@@ -135,6 +136,11 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   factura: 'FAC',
   pedido: 'PED',
   remision: 'REM',
+  orden_entrega: 'ODE',
+  requisicion: 'REQ',
+  orden_compra: 'OC',
+  recepcion: 'REC',
+  factura_compra: 'FCO',
 };
 
 export async function crearDocumentoRepository(data: DocumentoInput, empresaId: number, tipoDocumento: TipoDocumento) {
@@ -258,6 +264,14 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
     const { rowCount: docExists } = await client.query('SELECT 1 FROM documentos WHERE id = $1 AND empresa_id = $2', [documentoId, empresaId]);
     if (!docExists) return null;
 
+    const partidaData = { ...data };
+    if ((partidaData.iva_porcentaje === undefined || partidaData.iva_porcentaje === null)
+        && partidaData.iva_monto != null
+        && partidaData.subtotal_partida != null
+        && Number(partidaData.subtotal_partida) !== 0) {
+      partidaData.iva_porcentaje = Number(((Number(partidaData.iva_monto) / Number(partidaData.subtotal_partida)) * 100).toFixed(4));
+    }
+
     const campos: string[] = ['documento_id'];
     const valores: any[] = [documentoId];
 
@@ -268,15 +282,16 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
     'cantidad',
     'precio_unitario',
     'subtotal_partida',
+    'iva_porcentaje',
     'iva_monto',
     'total_partida',
     'observaciones',
   ];
 
     camposPermitidos.forEach((campo) => {
-      if (data[campo] !== undefined) {
+      if (partidaData[campo] !== undefined) {
         campos.push(campo);
-        valores.push(data[campo]);
+        valores.push(partidaData[campo]);
       }
     });
 
@@ -318,26 +333,36 @@ export async function reemplazarPartidasRepository(documentoId: number, partidas
         cantidad,
         precio_unitario,
         subtotal_partida,
+        iva_porcentaje,
         iva_monto,
         total_partida,
         observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
 
     const insertedRows: any[] = [];
     for (const [idx, partida] of partidas.entries()) {
+      const partidaData = { ...partida };
+      if ((partidaData.iva_porcentaje === undefined || partidaData.iva_porcentaje === null)
+          && partidaData.iva_monto != null
+          && partidaData.subtotal_partida != null
+          && Number(partidaData.subtotal_partida) !== 0) {
+        partidaData.iva_porcentaje = Number(((Number(partidaData.iva_monto) / Number(partidaData.subtotal_partida)) * 100).toFixed(4));
+      }
+
       const values = [
         documentoId,
         idx + 1, // numero_partida secuencial por documento
-        partida.producto_id ?? null,
-        partida.descripcion_alterna ?? null,
-        partida.cantidad ?? 0,
-        partida.precio_unitario ?? 0,
-        partida.subtotal_partida ?? 0,
-        partida.iva_monto ?? 0,
-        partida.total_partida ?? 0,
-        partida.observaciones ?? null,
+        partidaData.producto_id ?? null,
+        partidaData.descripcion_alterna ?? null,
+        partidaData.cantidad ?? 0,
+        partidaData.precio_unitario ?? 0,
+        partidaData.subtotal_partida ?? 0,
+        partidaData.iva_porcentaje ?? null,
+        partidaData.iva_monto ?? 0,
+        partidaData.total_partida ?? 0,
+        partidaData.observaciones ?? null,
       ];
       const { rows } = await client.query(insertQuery, values);
       insertedRows.push(rows[0]);

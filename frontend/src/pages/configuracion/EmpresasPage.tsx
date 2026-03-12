@@ -31,6 +31,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import ReplayIcon from '@mui/icons-material/Replay';
 import { createEmpresa, deleteEmpresa, fetchEmpresas, updateEmpresa } from '../../services/empresasService';
+import { buildAssetUrl, fetchEmpresaAsset, uploadEmpresaAsset } from '../../services/empresasAssetsService';
 import type { Empresa, EmpresaPayload } from '../../types/empresa';
 import { apiFetch } from '../../services/apiFetch';
 
@@ -85,6 +86,20 @@ export default function EmpresasPage() {
   const [regimenLookup, setRegimenLookup] = useState<Record<string, string>>({});
   const [regimenOptions, setRegimenOptions] = useState<{ id: string; descripcion: string }[]>([]);
   const [regimenLoading, setRegimenLoading] = useState(false);
+  const [logoLoading, setLogoLoading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoSuccess, setLogoSuccess] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoAsset, setLogoAsset] = useState<{ ruta: string } | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const resetLogoState = () => {
+    setLogoLoading(false);
+    setLogoError(null);
+    setLogoSuccess(null);
+    setLogoFile(null);
+    setLogoAsset(null);
+  };
 
   const tituloDialogo = editId ? 'Editar empresa' : 'Crear empresa';
 
@@ -146,12 +161,15 @@ export default function EmpresasPage() {
     if (regimenOptions.length === 0) {
       void loadRegimenesOptions();
     }
+    resetLogoState();
+    void loadLogoAsset(empresa.id);
     setDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setFormError(null);
+    resetLogoState();
   };
 
   const handleChange = (campo: keyof EmpresaPayload, value: any) => {
@@ -352,8 +370,74 @@ export default function EmpresasPage() {
     if (dialogOpen && regimenOptions.length === 0) {
       void loadRegimenesOptions();
     }
+    if (dialogOpen && editId) {
+      resetLogoState();
+      void loadLogoAsset(editId);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogOpen]);
+
+  const loadLogoAsset = async (empresaId: number) => {
+    setLogoLoading(true);
+    setLogoError(null);
+    try {
+      const asset = await fetchEmpresaAsset(empresaId, 'logo_default');
+      if (asset) {
+        setLogoAsset({ ruta: asset.ruta });
+      } else {
+        setLogoAsset(null);
+      }
+    } catch (err) {
+      console.warn('No se pudo obtener el logo', err);
+      setLogoError(err instanceof Error ? err.message : 'No se pudo cargar el logo');
+    } finally {
+      setLogoLoading(false);
+    }
+  };
+
+  const handleLogoFileChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setLogoFile(null);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError('El archivo supera los 5MB');
+      setLogoFile(null);
+      return;
+    }
+    setLogoError(null);
+    setLogoSuccess(null);
+    setLogoFile(file);
+  };
+
+  const handleUploadLogo = async () => {
+    if (!editId) {
+      setLogoError('Guarda primero la empresa para subir su logo');
+      return;
+    }
+    if (!logoFile) {
+      setLogoError('Selecciona un archivo');
+      return;
+    }
+    if (logoFile.size > 5 * 1024 * 1024) {
+      setLogoError('El archivo supera los 5MB');
+      return;
+    }
+    setUploadingLogo(true);
+    setLogoError(null);
+    setLogoSuccess(null);
+    try {
+      const asset = await uploadEmpresaAsset(editId, logoFile, 'logo_default');
+      setLogoAsset({ ruta: asset.ruta });
+      setLogoSuccess('Logo actualizado exitosamente');
+      setLogoFile(null);
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : 'No se pudo subir el logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -588,6 +672,67 @@ export default function EmpresasPage() {
             value={form.sitio_web || ''}
             onChange={(e) => handleChange('sitio_web', e.target.value)}
           />
+          <Box sx={{ gridColumn: '1 / -1', border: '1px solid #e5e7eb', borderRadius: 1, p: 2, backgroundColor: '#fafafa' }}>
+            <Typography variant="h6" gutterBottom>
+              Imagen corporativa
+            </Typography>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Logo principal (tipo: <strong>logo_default</strong>). Tamaño máximo 5MB.
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+              <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
+                Seleccionar archivo
+                <input type="file" accept="image/*" hidden onChange={handleLogoFileChange} />
+              </Button>
+              <Typography variant="body2" sx={{ flex: 1 }}>
+                {logoFile ? `${logoFile.name} (${Math.round(logoFile.size / 1024)} KB)` : 'Ningún archivo seleccionado'}
+              </Typography>
+              <Button
+                variant="contained"
+                onClick={handleUploadLogo}
+                disabled={!editId || uploadingLogo || !logoFile}
+                sx={{ textTransform: 'none' }}
+              >
+                {uploadingLogo ? 'Subiendo...' : 'Subir logo'}
+              </Button>
+            </Stack>
+            <Box mt={2}>
+              {logoError && (
+                <Alert severity="error" onClose={() => setLogoError(null)}>
+                  {logoError}
+                </Alert>
+              )}
+              {logoSuccess && (
+                <Alert severity="success" onClose={() => setLogoSuccess(null)}>
+                  {logoSuccess}
+                </Alert>
+              )}
+            </Box>
+            <Box mt={2}>
+              {logoLoading ? (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <CircularProgress size={18} />
+                  <Typography variant="body2">Cargando logo...</Typography>
+                </Stack>
+              ) : logoAsset ? (
+                <Stack spacing={1}>
+                  <Typography variant="body2" color="text.secondary">
+                    Logo actual:
+                  </Typography>
+                  <Box
+                    component="img"
+                    src={buildAssetUrl(logoAsset.ruta)}
+                    alt="Logo de la empresa"
+                    sx={{ maxWidth: 240, maxHeight: 120, objectFit: 'contain', border: '1px solid #e5e7eb', borderRadius: 1, p: 1, backgroundColor: '#fff' }}
+                  />
+                </Stack>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No hay un logo principal cargado.
+                </Typography>
+              )}
+            </Box>
+          </Box>
           <FormControlLabel
             control={
               <Switch

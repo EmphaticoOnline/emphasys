@@ -1,6 +1,7 @@
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
+import pool from '../../config/database';
 import { generarImagenQR, DatosQrCfdi } from '../../utils/generarCadenaQR';
 import { formatearFolioDocumento } from '../../utils/documentos';
 
@@ -166,7 +167,36 @@ const numeroALetras = (num: number): string => {
   return `${letras.toUpperCase()} PESOS ${centavosTxt}/100 MXN`;
 };
 
-export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer> {
+async function obtenerLogoEmpresaPath(empresaId?: number): Promise<string | null> {
+  if (!empresaId) return null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT ruta
+         FROM core.empresas_assets
+        WHERE empresa_id = $1 AND tipo = 'logo_default' AND activo = true
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [empresaId]
+    );
+
+    const ruta = rows?.[0]?.ruta as string | undefined;
+    if (!ruta) return null;
+
+    // La ruta almacenada viene como /uploads/empresas/...; resolvemos a disco
+    const uploadsRoot = process.env.UPLOADS_DIR
+      ? path.resolve(process.env.UPLOADS_DIR)
+      : path.resolve(process.cwd(), 'uploads');
+
+    const relative = ruta.replace(/^\/?uploads\/?/i, '');
+    const absPath = path.join(uploadsRoot, relative);
+    return fs.existsSync(absPath) ? absPath : null;
+  } catch (error) {
+    console.warn('[pdf] No se pudo obtener logo de empresa', error);
+    return null;
+  }
+}
+
+export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: number): Promise<Buffer> {
   const { documento, partidas } = data;
   const timbre = documento?.timbre;
 
@@ -196,7 +226,9 @@ export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer>
   const borderGray = '#e5e7eb';
 
   const backendRoot = path.resolve(__dirname, '..', '..', '..');
-  const logoPath = path.resolve(backendRoot, '..', 'frontend', 'public', 'logos', 'logo-emphasys.jpg');
+  const defaultLogoPath = path.resolve(backendRoot, '..', 'frontend', 'public', 'logos', 'logo-emphasys.jpg');
+  const empresaLogoPath = await obtenerLogoEmpresaPath(empresaId ?? (documento as any)?.empresa_id);
+  const logoPath = empresaLogoPath && fs.existsSync(empresaLogoPath) ? empresaLogoPath : defaultLogoPath;
   const hasLogo = fs.existsSync(logoPath);
   const fontRegularPath = path.join(__dirname, '../../fonts/TrebuchetMS.ttf');
   const fontBoldPath = path.join(__dirname, '../../fonts/TrebuchetMS-Bold.ttf');
@@ -245,9 +277,13 @@ export async function generarDocumentoPDF(data: DataCotizacion): Promise<Buffer>
   const headerHeight = 122;
     const headerWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-    // Logo y nombre empresa
+    // Logo (mismo espacio que antes, escalado con proporción dentro de un cuadro fijo)
+    const logoMaxHeight = headerHeight * 0.7;
+    const logoMaxWidth = 200; // ancho máximo permitido sin cambiar layout
     if (hasLogo) {
-      doc.image(logoPath, doc.page.margins.left, headerTop, { height: headerHeight * 0.7 });
+      doc.image(logoPath, doc.page.margins.left, headerTop, {
+        fit: [logoMaxWidth, logoMaxHeight],
+      });
     }
 
     // Caja gris a la derecha

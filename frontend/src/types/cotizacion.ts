@@ -1,5 +1,7 @@
 import type { TipoDocumento } from './documentos.types';
 
+export type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
+
 export interface CotizacionListado {
   id: number;
   serie: string | null;
@@ -35,6 +37,7 @@ export interface CotizacionDocumento {
   forma_pago?: string | null;
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
+  tratamiento_impuestos?: TratamientoImpuestos | null;
 }
 
 export interface CotizacionPartida {
@@ -45,6 +48,7 @@ export interface CotizacionPartida {
   cantidad: number;
   precio_unitario: number;
   subtotal_partida: number;
+  iva_porcentaje?: number | null;
   iva_monto: number;
   total_partida: number;
   producto_descripcion?: string | null;
@@ -60,6 +64,7 @@ export interface CotizacionDetalle {
 export interface CotizacionCrearPayload {
   empresa_id?: number;
   tipo_documento?: TipoDocumento;
+  serie?: string | null;
   contacto_principal_id: number | null;
   fecha_documento: string;
   moneda: string | null;
@@ -75,6 +80,7 @@ export interface CotizacionCrearPayload {
   forma_pago?: string | null;
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
+  tratamiento_impuestos?: TratamientoImpuestos | null;
 }
 
 export interface CotizacionPartidaPayload {
@@ -83,6 +89,7 @@ export interface CotizacionPartidaPayload {
   cantidad: number;
   precio_unitario: number;
   subtotal_partida: number;
+  iva_porcentaje?: number | null;
   iva_monto: number;
   total_partida: number;
   observaciones?: string | null;

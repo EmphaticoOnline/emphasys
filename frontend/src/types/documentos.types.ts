@@ -1,5 +1,1 @@
-export type TipoDocumento =
-  | "cotizacion"
-  | "factura"
-  | "pedido"
-  | "remision";
+export type TipoDocumento = string;

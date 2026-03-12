@@ -14,6 +14,7 @@ import productosRouter from "./modules/productos/productos.routes";
 import unidadesRouter from "./modules/unidades/unidades.routes";
 import documentosRouter from "./modules/documentos/documentos.routes";
 import facturasRouter from "./modules/documentos/facturas.routes";
+import documentosGeneracionRouter from "./modules/documentos/document-generation.routes";
 import tiposDocumentoRouter from "./modules/documentos/tipos-documento.routes";
 import whatsappRoutes from "./whatsapp/whatsapp.routes";
 import satCatalogosRouter from "./modules/catalogos/sat/sat.routes";
@@ -25,14 +26,21 @@ import entidadesTiposRouter from "./modules/entidades/entidades-tipos.routes";
 import documentosCamposRouter from "./modules/documentos/documentos-campos.routes";
 import documentosPartidasCamposRouter from "./modules/documentos/documentos-partidas-campos.routes";
 import documentosEsquemaRouter from "./modules/documentos/documentos-esquema.routes";
+import parametrosSistemaRouter from "./modules/configuracion/parametros/parametros.routes";
 import empresasRoutes from "./routes/empresasRoutes";
 import rolesRouter from "./modules/roles/roles.routes";
 import usuariosRouter from "./modules/usuarios/usuarios.routes";
+import documentosEmpresaRouter from "./modules/configuracion/documentos-empresa/documentos-empresa.routes";
 
 const app = express();
 
 app.use(express.json());
 console.log("=== BUILD VERSION 2 ===");
+
+// Static uploads (logos, etc.)
+const uploadsDir = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : path.resolve(process.cwd(), "uploads");
+console.log("[uploads-static] uploadsDir:", uploadsDir, "exists?:", fs.existsSync(uploadsDir));
+app.use("/uploads", express.static(uploadsDir));
 
 // Path del frontend (permite override por env).
 // En producción __dirname ≈ /var/www/emphasys-backend/backend/dist, y frontend-dist está en /var/www/emphasys-backend/frontend-dist
@@ -65,6 +73,8 @@ app.use("/api/catalogos", catalogosRouter);
 
 // catálogos configurables (core)
 app.use("/api/configuracion/catalogos", configuracionCatalogosRouter);
+// parámetros del sistema
+app.use("/api", parametrosSistemaRouter);
 
 // tipos de entidades (core)
 app.use("/api/entidades-tipos", entidadesTiposRouter);
@@ -80,6 +90,9 @@ app.use("/api/productos", productosRouter);
 
 // monta el catálogo de unidades
 app.use("/api/unidades", unidadesRouter);
+
+// generación de documentos (flujos origen -> destino)
+app.use("/api/documentos", documentosGeneracionRouter);
 
 // monta el módulo de documentos (cotizaciones)
 app.use("/api/documentos", documentosRouter);
@@ -97,6 +110,7 @@ app.use("/api/documentos-partidas", documentosPartidasCamposRouter);
 app.use("/api/empresas", empresasRoutes);
 app.use("/api", rolesRouter);
 app.use("/api/usuarios", usuariosRouter);
+app.use("/api", documentosEmpresaRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

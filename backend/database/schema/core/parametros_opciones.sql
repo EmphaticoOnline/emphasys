@@ -93,6 +93,14 @@ ALTER TABLE ONLY core.parametros_opciones
 
 
 --
+-- Name: parametros_opciones uq_parametro_opcion; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros_opciones
+    ADD CONSTRAINT uq_parametro_opcion UNIQUE (parametro_id, valor);
+
+
+--
 -- Name: idx_parametros_opciones_parametro; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -100,11 +108,11 @@ CREATE INDEX idx_parametros_opciones_parametro ON core.parametros_opciones USING
 
 
 --
--- Name: parametros_opciones fk_parametro_opciones; Type: FK CONSTRAINT; Schema: core; Owner: -
+-- Name: parametros_opciones fk_parametros_opciones_parametro; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
 ALTER TABLE ONLY core.parametros_opciones
-    ADD CONSTRAINT fk_parametro_opciones FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_parametros_opciones_parametro FOREIGN KEY (parametro_id) REFERENCES core.parametros(parametro_id) ON DELETE CASCADE;
 
 
 --

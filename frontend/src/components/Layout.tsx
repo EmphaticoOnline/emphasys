@@ -15,6 +15,16 @@ import MainMenu from './Menu.js';
 import EmpresaSelector from './EmpresaSelector.js';
 import { MODULE_TABS, MODULE_DESCRIPTIONS } from './navigationData.js';
 import { useSession } from '../session/useSession';
+import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import WarehouseIcon from '@mui/icons-material/Warehouse';
+import DescriptionIcon from '@mui/icons-material/Description';
+import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -25,9 +35,57 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const { logout, session } = useSession();
   const userName = session.user?.nombre || 'Usuario';
+  const empresaId = session.empresaActivaId;
 
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
+
+  const [ventasTabs, setVentasTabs] = React.useState<{ label: string; value: string; icon?: string | null }[]>([]);
+  const [comprasTabs, setComprasTabs] = React.useState<{ label: string; value: string; icon?: string | null }[]>([]);
+  const iconMap: Record<string, React.ComponentType<any>> = React.useMemo(
+    () => ({
+      RequestQuote: RequestQuoteIcon,
+      ShoppingCart: ShoppingCartIcon,
+      LocalShipping: LocalShippingIcon,
+      AssignmentReturn: AssignmentReturnIcon,
+      ReceiptLong: ReceiptLongIcon,
+      PlaylistAddCheck: PlaylistAddCheckIcon,
+      Inventory: InventoryIcon,
+      Warehouse: WarehouseIcon,
+      Description: DescriptionIcon,
+    }),
+    []
+  );
+
+  React.useEffect(() => {
+    const loadTabs = async () => {
+      if (!empresaId) {
+        setVentasTabs([]);
+        return;
+      }
+      try {
+        const [ventas, compras] = await Promise.all([
+          fetchTiposDocumentoHabilitados('ventas'),
+          fetchTiposDocumentoHabilitados('compras'),
+        ]);
+
+        const sortDocs = (docs: typeof ventas) =>
+          [...docs].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.nombre.localeCompare(b.nombre));
+
+        setVentasTabs(
+          sortDocs(ventas).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }))
+        );
+        setComprasTabs(
+          sortDocs(compras).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }))
+        );
+      } catch (err) {
+        console.error('No se pudieron cargar los tabs de ventas', err);
+        setVentasTabs([]);
+        setComprasTabs([]);
+      }
+    };
+    void loadTabs();
+  }, [empresaId]);
 
   const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -44,14 +102,12 @@ export default function Layout({ children }: LayoutProps) {
   const tabPathMap: Record<string, string> = {
     Contactos: '/contactos',
     Productos: '/productos',
-    Cotizaciones: '/documentos',
-    'Facturación': '/facturas',
   };
 
   const getTabFromPath = (pathname: string): string => {
     if (pathname.startsWith('/configuracion')) return '';
-    if (pathname.startsWith('/facturas')) return 'Facturación';
-  if (pathname.startsWith('/documentos')) return 'Cotizaciones';
+    if (pathname.startsWith('/ventas/')) return pathname.split('/')[2] || '';
+    if (pathname.startsWith('/compras/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/productos')) return 'Productos';
     if (pathname.startsWith('/contactos')) return 'Contactos';
     return MODULE_TABS['Catálogos']?.[0] || '';
@@ -59,6 +115,8 @@ export default function Layout({ children }: LayoutProps) {
 
   const getSectionFromPath = (pathname: string): string => {
     if (pathname.startsWith('/configuracion')) return 'Configuración';
+    if (pathname.startsWith('/ventas/')) return 'Ventas';
+    if (pathname.startsWith('/compras/')) return 'Compras';
     const tab = getTabFromPath(pathname);
     return getSectionForTab(tab);
   };
@@ -71,7 +129,12 @@ export default function Layout({ children }: LayoutProps) {
   const [selectedTab, setSelectedTab] = React.useState<string>(getTabFromPath(location.pathname));
   const [selectedSection, setSelectedSection] = React.useState<string>(getSectionFromPath(location.pathname));
 
-  const tabsForSection = MODULE_TABS[selectedSection] || [];
+  const tabsForSection =
+    selectedSection === 'Ventas'
+      ? ventasTabs.map((t) => t.value)
+      : selectedSection === 'Compras'
+      ? comprasTabs.map((t) => t.value)
+      : MODULE_TABS[selectedSection] || [];
 
   React.useEffect(() => {
     const tabFromPath = getTabFromPath(location.pathname);
@@ -81,14 +144,25 @@ export default function Layout({ children }: LayoutProps) {
 
   const handleSectionChange = (section: string) => {
     setSelectedSection(section);
-    const availableTabs = MODULE_TABS[section] || [];
+    const availableTabs =
+      section === 'Ventas'
+        ? ventasTabs.map((t) => t.value)
+        : section === 'Compras'
+        ? comprasTabs.map((t) => t.value)
+        : MODULE_TABS[section] || [];
     const tabWithPath = availableTabs.find((t) => tabPathMap[t]);
     const nextTab = tabWithPath || availableTabs[0];
 
     if (nextTab) {
       setSelectedTab(nextTab);
       const path = tabPathMap[nextTab];
-      if (path) navigate(path);
+      if (section === 'Ventas') {
+        navigate(`/ventas/${nextTab}`);
+      } else if (section === 'Compras') {
+        navigate(`/compras/${nextTab}`);
+      } else if (path) {
+        navigate(path);
+      }
     } else {
       setSelectedTab('');
       const sectionPath = sectionPathMap[section];
@@ -98,6 +172,18 @@ export default function Layout({ children }: LayoutProps) {
 
   const handleTabChange = (_: React.SyntheticEvent, value: string) => {
     setSelectedTab(value);
+
+    if (selectedSection === 'Ventas') {
+      navigate(`/ventas/${value}`);
+      return;
+    }
+
+    if (selectedSection === 'Compras') {
+      navigate(`/compras/${value}`);
+      return;
+    }
+
+    // Tabs estáticos (Contactos, Productos)
     const path = tabPathMap[value];
     if (path) navigate(path);
   };
@@ -244,9 +330,41 @@ export default function Layout({ children }: LayoutProps) {
                   },
                 }}
               >
-                {tabsForSection.map((tab) => (
-                  <Tab key={tab} label={tab} value={tab} disableRipple />
-                ))}
+                {selectedSection === 'Ventas'
+                  ? ventasTabs.map((tab) => {
+                      const IconComponent = tab.icon ? iconMap[tab.icon] : null;
+                      if (IconComponent) {
+                        return (
+                          <Tab
+                            key={tab.value}
+                            label={tab.label}
+                            value={tab.value}
+                            icon={<IconComponent fontSize="small" />}
+                            iconPosition="start"
+                            disableRipple
+                          />
+                        );
+                      }
+                      return <Tab key={tab.value} label={tab.label} value={tab.value} disableRipple />;
+                    })
+                  : selectedSection === 'Compras'
+                  ? comprasTabs.map((tab) => {
+                      const IconComponent = tab.icon ? iconMap[tab.icon] : null;
+                      if (IconComponent) {
+                        return (
+                          <Tab
+                            key={tab.value}
+                            label={tab.label}
+                            value={tab.value}
+                            icon={<IconComponent fontSize="small" />}
+                            iconPosition="start"
+                            disableRipple
+                          />
+                        );
+                      }
+                      return <Tab key={tab.value} label={tab.label} value={tab.value} disableRipple />;
+                    })
+                  : tabsForSection.map((tab) => <Tab key={tab} label={tab} value={tab} disableRipple />)}
               </Tabs>
             </Box>
           )}

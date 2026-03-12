@@ -29,50 +29,21 @@ SET default_table_access_method = heap;
 
 CREATE TABLE core.parametros (
     parametro_id integer NOT NULL,
-    clave character varying(100) NOT NULL,
-    nombre character varying(200) NOT NULL,
-    descripcion text,
-    tipo_dato character varying(20) NOT NULL,
-    tipo_control character varying(20) NOT NULL,
-    valor_default text,
-    orden integer DEFAULT 0,
-    activo boolean DEFAULT true
+    clave text NOT NULL,
+    nombre text NOT NULL,
+    tipo_dato text NOT NULL,
+    tipo_control text NOT NULL,
+    parametro_padre_id integer,
+    valor_activacion text,
+    valor_default text
 );
 
 
 --
--- Name: TABLE parametros; Type: COMMENT; Schema: core; Owner: -
+-- Name: COLUMN parametros.valor_default; Type: COMMENT; Schema: core; Owner: -
 --
 
-COMMENT ON TABLE core.parametros IS 'Catálogo global de parámetros configurables del sistema ERP.';
-
-
---
--- Name: COLUMN parametros.clave; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.parametros.clave IS 'Clave técnica del parámetro utilizada por el sistema.';
-
-
---
--- Name: COLUMN parametros.nombre; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.parametros.nombre IS 'Caption mostrado al usuario en la pantalla de configuración.';
-
-
---
--- Name: COLUMN parametros.tipo_dato; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.parametros.tipo_dato IS 'Tipo de dato esperado del parámetro.';
-
-
---
--- Name: COLUMN parametros.tipo_control; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.parametros.tipo_control IS 'Tipo de control de interfaz utilizado para editar el parámetro.';
+COMMENT ON COLUMN core.parametros.valor_default IS 'Valor por defecto del parámetro si la empresa no ha configurado uno.';
 
 
 --
@@ -116,6 +87,21 @@ ALTER TABLE ONLY core.parametros
 
 ALTER TABLE ONLY core.parametros
     ADD CONSTRAINT parametros_pkey PRIMARY KEY (parametro_id);
+
+
+--
+-- Name: idx_parametros_padre; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_parametros_padre ON core.parametros USING btree (parametro_padre_id);
+
+
+--
+-- Name: parametros fk_parametros_padre; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.parametros
+    ADD CONSTRAINT fk_parametros_padre FOREIGN KEY (parametro_padre_id) REFERENCES core.parametros(parametro_id) ON DELETE SET NULL;
 
 
 --

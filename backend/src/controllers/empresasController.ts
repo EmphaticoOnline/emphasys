@@ -8,6 +8,8 @@ import {
   listarEmpresasActivas,
   obtenerEmpresaPorId,
 } from "../services/empresasService";
+import { crearEmpresaAsset, obtenerEmpresaAssetPorTipo } from "../services/empresasAssetsService";
+import { removeFileIfExists, saveEmpresaFile } from "../services/fileStorage.service";
 
 function validarRequeridos(body: any) {
   const faltantes: string[] = [];
@@ -150,6 +152,84 @@ export async function eliminarEmpresaController(req: Request, res: Response) {
     if (error instanceof Error && error.message === "EMPRESA_CON_RELACIONES") {
       return res.status(409).json({ message: "No se puede eliminar: existen registros relacionados" });
     }
+    return res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+
+export async function subirAssetEmpresaController(req: Request, res: Response) {
+  try {
+    const empresaId = Number(req.params.empresa_id);
+    if (!Number.isFinite(empresaId)) {
+      return res.status(400).json({ message: "empresa_id inválido" });
+    }
+
+    const tipo = typeof req.body?.tipo === "string" ? req.body.tipo.trim() : "";
+    if (!tipo) {
+      return res.status(400).json({ message: "El campo 'tipo' es requerido" });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ message: "Se requiere un archivo en el campo 'archivo'" });
+    }
+
+    const empresa = await obtenerEmpresaPorId(empresaId);
+    if (!empresa) {
+      return res.status(404).json({ message: "Empresa no encontrada" });
+    }
+
+    const saved = await saveEmpresaFile({
+      empresaIdentificador: empresa.identificador,
+      file,
+    });
+
+    try {
+      const asset = await crearEmpresaAsset({
+        empresa_id: empresaId,
+        tipo,
+        nombre_archivo: saved.filename,
+        ruta: saved.relativePath,
+        mime_type: saved.mimeType,
+        tamano_bytes: saved.size,
+      });
+
+      return res.status(201).json(asset);
+    } catch (dbError) {
+      await removeFileIfExists(saved.absolutePath);
+      throw dbError;
+    }
+  } catch (error) {
+    console.error("Error al subir asset de empresa:", error);
+    return res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+
+export async function obtenerAssetEmpresaController(req: Request, res: Response) {
+  try {
+    const empresaId = Number(req.params.empresa_id);
+    const tipo = String(req.params.tipo || "").trim();
+
+    if (!Number.isFinite(empresaId)) {
+      return res.status(400).json({ message: "empresa_id inválido" });
+    }
+
+    if (!tipo) {
+      return res.status(400).json({ message: "tipo es requerido" });
+    }
+
+    const empresa = await obtenerEmpresaPorId(empresaId);
+    if (!empresa) {
+      return res.status(404).json({ message: "Empresa no encontrada" });
+    }
+
+    const asset = await obtenerEmpresaAssetPorTipo(empresaId, tipo);
+    if (!asset) {
+      return res.status(404).json({ message: "Asset no encontrado" });
+    }
+
+    return res.json(asset);
+  } catch (error) {
+    console.error("Error al obtener asset de empresa:", error);
     return res.status(500).json({ message: "Error interno del servidor" });
   }
 }

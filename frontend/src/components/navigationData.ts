@@ -9,7 +9,7 @@ export const MAIN_MENUS = [
 
 export const MODULE_TABS: Record<string, string[]> = {
   Catálogos: ['Contactos', 'Productos'],
-  Ventas: ['Cotizaciones', 'Pedidos', 'Órdenes de entrega', 'Facturación', 'Reportes de ventas'],
+  Ventas: [],
   Compras: ['Requisiciones', 'Órdenes de compra', 'Recepciones', 'Facturas'],
   Finanzas: ['Cuentas bancarias', 'Movimientos', 'Conciliaciones', 'Presupuestos'],
   Inventarios: ['Inventario', 'Ajustes de stock', 'Kardex', 'Ubicaciones', 'Reportes de inventario'],
