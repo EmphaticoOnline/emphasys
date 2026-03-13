@@ -50,6 +50,7 @@ import { fetchProductos } from '../services/productosService';
 import type { Producto } from '../types/producto';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
+import { calcularImpuestosPartida, type ImpuestoEntrada, type ImpuestoCalculadoUI } from '../utils/impuestos';
 import { DocumentoDatosFiscalesTab } from '../modules/documentos';
 import { getContacto } from '../services/contactos.api';
 import {
@@ -66,6 +67,8 @@ const validarRFC = (rfc: string) => /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(r
 type PartidaForm = CotizacionPartidaPayload & {
   id?: number;
   producto?: Producto | null;
+  impuestos?: ImpuestoEntrada[];
+  impuestos_calculados?: ImpuestoCalculadoUI[];
 };
 
 const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
@@ -86,6 +89,8 @@ const emptyPartida = (): PartidaForm => ({
   total_partida: 0,
   producto: null,
   observaciones: '',
+  impuestos: [],
+  impuestos_calculados: [],
 });
 
 type DocumentosFormPageProps = {
@@ -260,21 +265,59 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     setForm((prev) => ({ ...prev, subtotal, iva, total }));
   };
 
+  const buildImpuestosBase = (p: PartidaForm): ImpuestoEntrada[] => {
+    const normalizados = (p.impuestos ?? [])
+      .map((imp) => ({
+        ...imp,
+        tasa: Number(imp.tasa),
+      }))
+      .filter((imp) => Number.isFinite(imp.tasa));
+
+  if (!normalizados.length || Number(normalizados[0]?.tasa) === 0) {
+      return [
+        {
+          id: 'iva_16',
+          nombre: 'IVA 16%',
+          tipo: 'traslado',
+          tasa: 16,
+        },
+      ];
+    }
+
+    return normalizados;
+  };
+
   const calcularPartida = (partida: PartidaForm): PartidaForm => {
     const cantidad = Number(partida.cantidad) || 0;
     const precio = Number(partida.precio_unitario) || 0;
-    const ivaPorcentaje = partida.iva_porcentaje ?? partida.producto?.iva_porcentaje ?? 16;
     const subtotal_partida = cantidad * precio;
-    const iva_monto = subtotal_partida * (ivaPorcentaje / 100);
+
+    const impuestosBase = buildImpuestosBase(partida);
+    console.log('DEBUG partida', {
+      cantidad: partida.cantidad,
+      precio_unitario: partida.precio_unitario,
+      cantidadNum: cantidad,
+      precioNum: precio,
+      subtotal: subtotal_partida,
+      impuestosBase,
+    });
+    const impuestos_calculados = calcularImpuestosPartida(subtotal_partida, impuestosBase);
+
+    const iva_monto = impuestos_calculados
+      .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'traslado')
+      .reduce((acc, imp) => acc + Number(imp.monto || 0), 0);
+
     const total_partida = subtotal_partida + iva_monto;
+
     return {
       ...partida,
       cantidad,
       precio_unitario: precio,
-      iva_porcentaje: ivaPorcentaje,
       subtotal_partida,
       iva_monto,
       total_partida,
+      impuestos: impuestosBase,
+      impuestos_calculados,
     };
   };
 
@@ -295,7 +338,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       const current = next[index];
       if (!current) return prev;
       next[index] = calcularPartida(updater(current));
-      setTimeout(() => recalcTotales(next), 0);
+      recalcTotales(next);
       return next;
     });
   };
@@ -658,6 +701,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       descripcion_alterna: producto?.descripcion || prev.descripcion_alterna,
       precio_unitario: producto?.precio_publico ?? producto?.precio_menudeo ?? prev.precio_unitario ?? 0,
       producto: producto ?? null,
+      impuestos: producto?.iva_porcentaje != null
+        ? [{ id: `iva_${producto.iva_porcentaje}`, nombre: `IVA ${producto.iva_porcentaje}%`, tipo: 'traslado', tasa: producto.iva_porcentaje }]
+        : (prev.impuestos ?? []),
     }));
   };
 

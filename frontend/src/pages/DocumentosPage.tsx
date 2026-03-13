@@ -339,6 +339,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         field: 'folio',
         headerName: 'Folio',
         width: 160,
+        headerClassName: 'finanzas-header',
         renderCell: (params: any) =>
           formatearFolioDocumento(params?.row?.serie ?? '', Number(params?.row?.numero ?? 0)),
       },
@@ -346,18 +347,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         field: 'fecha_documento',
         headerName: 'Fecha',
         width: 120,
+        headerClassName: 'finanzas-header',
         renderCell: (params: any) => {
           const value = params?.row?.fecha_documento;
           return formatFecha(value);
         },
       },
-      { field: 'nombre_cliente', headerName: 'Cliente', flex: 1, minWidth: 220 },
+      { field: 'nombre_cliente', headerName: 'Cliente', flex: 1, minWidth: 220, headerClassName: 'finanzas-header' },
       {
         field: 'subtotal',
         headerName: 'Subtotal',
         width: 140,
         align: 'right',
         headerAlign: 'right',
+        headerClassName: 'finanzas-header',
         renderCell: (params: any) => currency.format(Number(params.row.subtotal ?? 0)),
       },
       {
@@ -366,6 +369,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         width: 120,
         align: 'right',
         headerAlign: 'right',
+        headerClassName: 'finanzas-header',
         renderCell: (params: any) => currency.format(Number(params.row.iva ?? 0)),
       },
       {
@@ -374,16 +378,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         width: 140,
         align: 'right',
         headerAlign: 'right',
+        headerClassName: 'finanzas-header',
         renderCell: (params: any) => currency.format(Number(params.row.total ?? 0)),
       },
       {
         field: 'estatus_documento',
         headerName: 'Estatus',
         width: 140,
+        headerClassName: 'finanzas-header',
         renderCell: (params: any) => {
           const estatus = params.row?.estatus_documento || 'Borrador';
           const color = estatus === 'Borrador' ? 'default' : estatus === 'Enviado' ? 'info' : 'success';
-          return <Chip label={estatus} size="small" color={color as any} />;
+          return (
+            <Chip
+              label={estatus}
+              size="small"
+              color={color as any}
+              sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5 }}
+            />
+          );
         },
       },
     ];
@@ -395,6 +408,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       sortable: false,
       filterable: false,
       headerAlign: 'center',
+      headerClassName: 'finanzas-header',
       align: 'center',
       renderCell: (params: GridRenderCellParams) => (
         <Stack direction="row" spacing={0.5} alignItems="center">
@@ -578,7 +592,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           rows={rows}
           columns={columns}
           autoHeight
-          density="compact"
+          density="standard"
+          rowHeight={42}
+          columnHeaderHeight={52}
           loading={loading}
           disableRowSelectionOnClick
           onRowClick={(params: GridRowParams) => navigate(`${basePath}/${params.id}`)}
@@ -627,11 +643,38 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           }}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
           sx={{
-            '& .MuiDataGrid-columnHeaders': { backgroundColor: '#f6f8fa' },
-            '& .MuiDataGrid-columnHeader': { userSelect: 'none', color: '#1d2f68', fontWeight: 700 },
-            '& .MuiDataGrid-columnHeaderTitle': { color: '#1d2f68', fontWeight: 700 },
-            '& .MuiDataGrid-virtualScrollerRenderZone .MuiDataGrid-row:nth-of-type(even)': { backgroundColor: '#f7fbfa' },
-            '& .MuiDataGrid-row.Mui-hovered': { backgroundColor: '#eef7f4' },
+            '--DataGrid-overlayHeight': '200px',
+            '& .MuiDataGrid-cell': {
+              display: 'flex',
+              alignItems: 'center',
+            },
+            '& .MuiDataGrid-row:nth-of-type(even)': {
+              backgroundColor: 'rgba(0, 120, 70, 0.05)',
+            },
+            '& .finanzas-header': {
+              backgroundColor: '#1d2f68 !important',
+              color: '#ffffff !important',
+              fontWeight: 600,
+            },
+            '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
+              color: '#ffffff !important',
+              fontWeight: 600,
+            },
+            '& .finanzas-header .MuiDataGrid-sortIcon': {
+              color: '#ffffff !important',
+            },
+            '& .finanzas-header .MuiDataGrid-menuIcon': {
+              color: '#ffffff !important',
+            },
+            '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
+              color: '#ffffff !important',
+            },
+            '& .finanzas-header .MuiIconButton-root': {
+              color: '#ffffff !important',
+            },
+            '& .MuiDataGrid-columnSeparator': {
+              color: 'rgba(255,255,255,0.25) !important',
+            },
           }}
           hideFooterPagination
           hideFooterSelectedRowCount

@@ -124,6 +124,7 @@ export default function ProductosPage() {
         sortable: true,
         filterable: true,
         type: 'string',
+        headerClassName: 'finanzas-header',
       };
       if (col.align !== undefined) {
         base.align = col.align;
@@ -141,6 +142,7 @@ export default function ProductosPage() {
       sortable: false,
       filterable: false,
       disableColumnMenu: true,
+      headerClassName: 'finanzas-header',
       renderCell: (params: GridRenderCellParams<Producto>) => (
         <Box sx={{ display: 'flex', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <IconButton color="primary" size="small" onClick={() => navigate(`/productos/${params.id}`)}>
@@ -226,23 +228,37 @@ export default function ProductosPage() {
           onRowClick={(params: GridRowParams) => navigate(`/productos/${params.id}`)}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
           sx={{
-            '& .MuiDataGrid-columnHeaders': {
-              backgroundColor: '#f6f8fa',
+            '--DataGrid-overlayHeight': '200px',
+            '& .MuiDataGrid-cell': {
+              display: 'flex',
+              alignItems: 'center',
             },
-            '& .MuiDataGrid-columnHeader': {
-              userSelect: 'none',
-              color: '#1d2f68',
-              fontWeight: 700,
+            '& .MuiDataGrid-row:nth-of-type(even)': {
+              backgroundColor: 'rgba(0, 120, 70, 0.05)',
             },
-            '& .MuiDataGrid-columnHeaderTitle': {
-              color: '#1d2f68',
-              fontWeight: 700,
+            '& .finanzas-header': {
+              backgroundColor: '#1d2f68 !important',
+              color: '#ffffff !important',
+              fontWeight: 600,
             },
-            '& .MuiDataGrid-virtualScrollerRenderZone .MuiDataGrid-row:nth-of-type(even)': {
-              backgroundColor: '#f7fbfa',
+            '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
+              color: '#ffffff !important',
+              fontWeight: 600,
             },
-            '& .MuiDataGrid-row.Mui-hovered': {
-              backgroundColor: '#eef7f4',
+            '& .finanzas-header .MuiDataGrid-sortIcon': {
+              color: '#ffffff !important',
+            },
+            '& .finanzas-header .MuiDataGrid-menuIcon': {
+              color: '#ffffff !important',
+            },
+            '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
+              color: '#ffffff !important',
+            },
+            '& .finanzas-header .MuiIconButton-root': {
+              color: '#ffffff !important',
+            },
+            '& .MuiDataGrid-columnSeparator': {
+              color: 'rgba(255,255,255,0.25) !important',
             },
           }}
           slots={{

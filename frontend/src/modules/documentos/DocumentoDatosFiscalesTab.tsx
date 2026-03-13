@@ -47,12 +47,15 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled }: Props)
   const [formaLoading, setFormaLoading] = useState(false);
   const [metodoLoading, setMetodoLoading] = useState(false);
 
+  const mapRegimenItems = (items: any[]) => (items || []).map((r) => ({ clave: r.id, nombre: r.descripcion }));
+
   const loadCatalog = (
     endpoint: string,
     search: string,
     setter: React.Dispatch<React.SetStateAction<CatalogItem[]>>,
     setLoading: React.Dispatch<React.SetStateAction<boolean>>,
-    debounceKey: string
+    debounceKey: string,
+    mapper?: (items: any[]) => CatalogItem[]
   ) => {
     if (debounceRefs.current[debounceKey]) {
       clearTimeout(debounceRefs.current[debounceKey] as number);
@@ -63,8 +66,9 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled }: Props)
         const url = new URL(endpoint, window.location.origin);
         if (search) url.searchParams.set('q', search);
         url.searchParams.set('limit', '20');
-        const data = await apiFetch<{ items: CatalogItem[] }>(url.pathname + url.search);
-        setter(data.items || []);
+  const data = await apiFetch<{ items: any[] }>(url.pathname + url.search);
+  const items = mapper ? mapper(data.items || []) : (data.items || []);
+  setter(items);
       } catch (err) {
         console.error('Error cargando catálogo', endpoint, err);
         setter([]);
@@ -154,7 +158,7 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled }: Props)
   );
 
   useEffect(() => {
-    loadCatalog(endpoints.regimen, '', setRegimenOptions, setRegimenLoading, 'regimen');
+  loadCatalog(endpoints.regimen, '', setRegimenOptions, setRegimenLoading, 'regimen', mapRegimenItems);
     loadCatalog(endpoints.uso, '', setUsoOptions, setUsoLoading, 'uso');
   loadCatalogForma('');
     loadCatalog(endpoints.metodo, '', setMetodoOptions, setMetodoLoading, 'metodo');
@@ -200,7 +204,7 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled }: Props)
           values.regimen_fiscal_receptor,
           regimenOptions,
           regimenLoading,
-          (search) => loadCatalog(endpoints.regimen, search, setRegimenOptions, setRegimenLoading, 'regimen'),
+          (search) => loadCatalog(endpoints.regimen, search, setRegimenOptions, setRegimenLoading, 'regimen', mapRegimenItems),
           (clave) => onChange({ regimen_fiscal_receptor: clave })
         )}
         {buildAutocomplete(

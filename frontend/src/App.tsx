@@ -1,26 +1,29 @@
 import * as React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import ContactosPage from './pages/ContactosPage.js';
-import ContactoFormPage from './pages/ContactoFormPage.js';
-import ProductosPage from './pages/ProductosPage.js';
-import ProductoFormPage from './pages/ProductoFormPage.js';
-import DocumentosPage from './pages/DocumentosPage.js';
-import DocumentosFormPage from './pages/DocumentosFormPage.js';
-import Layout from './components/Layout.js';
-import LoginPage from './pages/LoginPage.js';
-import SeleccionEmpresaPage from './pages/SeleccionEmpresaPage.js';
-import RequireAuth from './auth/RequireAuth.js';
-import RequireEmpresa from './auth/RequireEmpresa.js';
-import ConfiguracionPage from './pages/ConfiguracionPage.js';
-import CatalogosConfigurablesPage from './pages/CatalogosConfigurablesPage.js';
-import CatalogoTipoDetallePage from './pages/CatalogoTipoDetallePage.js';
-import CamposConfiguracionPage from './pages/CamposConfiguracionPage.js';
-import EmpresasPage from './pages/configuracion/EmpresasPage.js';
-import RolesPage from './pages/configuracion/RolesPage.js';
-import UsuariosPage from './pages/configuracion/UsuariosPage.js';
-import ParametrosPage from './pages/configuracion/ParametrosPage.js';
-import OpcionesParametrosPage from './pages/configuracion/OpcionesParametrosPage.js';
-import DocumentosConfiguracionPage from './pages/configuracion/DocumentosConfiguracionPage.js';
+import ContactosPage from './pages/ContactosPage';
+import ContactoFormPage from './pages/ContactoFormPage';
+import ProductosPage from './pages/ProductosPage';
+import ProductoFormPage from './pages/ProductoFormPage';
+import DocumentosPage from './pages/DocumentosPage';
+import DocumentosFormPage from './pages/DocumentosFormPage';
+import Layout from './components/Layout';
+import LoginPage from './pages/LoginPage';
+import SeleccionEmpresaPage from './pages/SeleccionEmpresaPage';
+import RequireAuth from './auth/RequireAuth';
+import RequireEmpresa from './auth/RequireEmpresa';
+import ConfiguracionPage from './pages/ConfiguracionPage';
+import CatalogosConfigurablesPage from './pages/CatalogosConfigurablesPage';
+import CatalogoTipoDetallePage from './pages/CatalogoTipoDetallePage';
+import CamposConfiguracionPage from './pages/CamposConfiguracionPage';
+import EmpresasPage from './pages/configuracion/EmpresasPage';
+import RolesPage from './pages/configuracion/RolesPage';
+import UsuariosPage from './pages/configuracion/UsuariosPage';
+import ParametrosPage from './pages/configuracion/ParametrosPage';
+import OpcionesParametrosPage from './pages/configuracion/OpcionesParametrosPage';
+import DocumentosConfiguracionPage from './pages/configuracion/DocumentosConfiguracionPage';
+import ConceptosConfigPage from './pages/configuracion/ConceptosPage';
+import EmpresaImpuestosDefaultPage from './pages/configuracion/EmpresaImpuestosDefaultPage';
+import FinanzasPage from './pages/FinanzasPage';
 import { Outlet } from 'react-router-dom';
 
 export default function App() {
@@ -55,9 +58,12 @@ export default function App() {
               <Route path="/configuracion/parametros" element={<ParametrosPage />} />
               <Route path="/configuracion/parametros-opciones" element={<OpcionesParametrosPage />} />
               <Route path="/configuracion/documentos" element={<DocumentosConfiguracionPage />} />
+              <Route path="/configuracion/conceptos" element={<ConceptosConfigPage />} />
+              <Route path="/configuracion/empresa/impuestos-default" element={<EmpresaImpuestosDefaultPage />} />
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
+              <Route path="/finanzas" element={<FinanzasPage />} />
               <Route path="/" element={<Navigate to="/contactos" replace />} />
               <Route path="*" element={<Navigate to="/contactos" replace />} />
             </Route>

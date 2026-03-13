@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import type { PoolClient } from 'pg';
 import type { TipoDocumento } from '../../types/documentos';
 
 export type Documento = {
@@ -58,7 +59,7 @@ type DocumentoInput = Partial<Record<typeof CAMPOS_DOCUMENTO[number], any>> & {
   tipo_documento?: TipoDocumento;
 };
 
-type PartidaInput = {
+export type PartidaInput = {
   producto_id?: number | null;
   descripcion_alterna?: string | null;
   cantidad?: number | null;
@@ -158,7 +159,7 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
       const nombreContacto = contactoRows[0]?.nombre || null;
 
       const { rows: fiscalesRows } = await pool.query(
-        `SELECT rfc, regimen_fiscal, uso_cfdi, forma_pago, metodo_pago, codigo_postal
+        `SELECT rfc, regimen_fiscal, uso_cfdi, forma_pago, metodo_pago
            FROM contactos_datos_fiscales
           WHERE contacto_id = $1
           LIMIT 1`,
@@ -166,13 +167,24 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
       );
       const fiscales = fiscalesRows[0] || {};
 
+      // CP fiscal ahora proviene del domicilio principal (cp_sat)
+      const { rows: domicilioRows } = await pool.query(
+        `SELECT cp_sat
+           FROM contactos_domicilios
+          WHERE contacto_id = $1
+            AND es_principal = true
+          LIMIT 1`,
+        [data.contacto_principal_id]
+      );
+      const cpSat = domicilioRows[0]?.cp_sat ?? null;
+
       data.rfc_receptor = data.rfc_receptor ?? fiscales.rfc ?? null;
       data.nombre_receptor = data.nombre_receptor ?? nombreContacto ?? null;
       data.regimen_fiscal_receptor = data.regimen_fiscal_receptor ?? fiscales.regimen_fiscal ?? null;
       data.uso_cfdi = data.uso_cfdi ?? fiscales.uso_cfdi ?? null;
       data.forma_pago = data.forma_pago ?? fiscales.forma_pago ?? null;
       data.metodo_pago = data.metodo_pago ?? fiscales.metodo_pago ?? null;
-      data.codigo_postal_receptor = data.codigo_postal_receptor ?? fiscales.codigo_postal ?? null;
+      data.codigo_postal_receptor = data.codigo_postal_receptor ?? cpSat ?? null;
     } catch (err) {
       console.warn('No se pudieron precargar datos fiscales del contacto', err);
     }
@@ -258,10 +270,11 @@ export async function actualizarDocumentoRepository(
   return rows[0] || null;
 }
 
-export async function agregarPartidaRepository(documentoId: number, data: PartidaInput, empresaId: number) {
-  const client = await pool.connect();
+export async function agregarPartidaRepository(documentoId: number, data: PartidaInput, empresaId: number, client?: PoolClient) {
+  const ownedClient = !client;
+  const executor = client ?? (await pool.connect());
   try {
-    const { rowCount: docExists } = await client.query('SELECT 1 FROM documentos WHERE id = $1 AND empresa_id = $2', [documentoId, empresaId]);
+    const { rowCount: docExists } = await executor.query('SELECT 1 FROM documentos WHERE id = $1 AND empresa_id = $2', [documentoId, empresaId]);
     if (!docExists) return null;
 
     const partidaData = { ...data };
@@ -306,23 +319,34 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
     const query = `INSERT INTO documentos_partidas (${campos.join(', ')})
       VALUES (${params.substring(0, params.lastIndexOf(','))}, ${nextNumeroSql})
       RETURNING *`;
-    const { rows } = await client.query(query, valores);
+    const { rows } = await executor.query(query, valores);
     return rows[0];
   } finally {
-    client.release();
+    if (ownedClient) {
+      executor.release();
+    }
   }
 }
 
-export async function reemplazarPartidasRepository(documentoId: number, partidas: PartidaInput[], empresaId: number) {
-  const client = await pool.connect();
+export async function reemplazarPartidasRepository(
+  documentoId: number,
+  partidas: PartidaInput[],
+  empresaId: number,
+  client?: PoolClient
+) {
+  const ownedClient = !client;
+  const executor = client ?? (await pool.connect());
   try {
-    const { rowCount: docExists } = await client.query('SELECT 1 FROM documentos WHERE id = $1 AND empresa_id = $2', [documentoId, empresaId]);
+    const { rowCount: docExists } = await executor.query('SELECT 1 FROM documentos WHERE id = $1 AND empresa_id = $2', [documentoId, empresaId]);
     if (!docExists) {
       return null;
     }
 
-    await client.query('BEGIN');
-    await client.query('DELETE FROM documentos_partidas WHERE documento_id = $1', [documentoId]);
+    if (ownedClient) {
+      await executor.query('BEGIN');
+    }
+    console.log('[documentos] reemplazarPartidasRepository - delete partidas documento', documentoId);
+    await executor.query('DELETE FROM documentos_partidas WHERE documento_id = $1', [documentoId]);
 
     const insertQuery = `
       INSERT INTO documentos_partidas (
@@ -364,17 +388,31 @@ export async function reemplazarPartidasRepository(documentoId: number, partidas
         partidaData.total_partida ?? 0,
         partidaData.observaciones ?? null,
       ];
-      const { rows } = await client.query(insertQuery, values);
+      console.log('[documentos] reemplazarPartidasRepository - insert partida', {
+        documentoId,
+        numero_partida: idx + 1,
+        iva_monto: values[8],
+        total_partida: values[9],
+      });
+      const { rows } = await executor.query(insertQuery, values);
+      console.log('[documentos] partida insertada id', rows[0]?.id);
       insertedRows.push(rows[0]);
     }
 
-  await client.query('COMMIT');
+    if (ownedClient) {
+      await executor.query('COMMIT');
+    }
+    console.log('[documentos] reemplazarPartidasRepository - commit partidas', { documentoId, count: insertedRows.length });
   return insertedRows;
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (ownedClient) {
+      await executor.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (ownedClient) {
+      executor.release();
+    }
   }
 }
 

@@ -327,12 +327,15 @@ function validarRFC(rfc: string) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.cp_sat]);
 
+  const mapRegimenItems = (items: any[]) => (items || []).map((r) => ({ clave: r.id, nombre: r.descripcion }));
+
   const loadCatalog = (
     endpoint: string,
     search: string,
     setter: React.Dispatch<React.SetStateAction<{ clave: string; nombre: string }[]>>,
     setLoading: React.Dispatch<React.SetStateAction<boolean>>,
-    debounceKey: string
+    debounceKey: string,
+    mapper?: (items: any[]) => { clave: string; nombre: string }[]
   ) => {
     if (debounceRefs.current[debounceKey]) {
       clearTimeout(debounceRefs.current[debounceKey] as number);
@@ -340,11 +343,13 @@ function validarRFC(rfc: string) {
     debounceRefs.current[debounceKey] = setTimeout(async () => {
       setLoading(true);
       try {
-        const url = new URL(endpoint, window.location.origin);
-        if (search) url.searchParams.set('q', search);
-        url.searchParams.set('limit', '20');
-        const data = await fetchJson<{ items: { clave: string; nombre: string }[] }>(url.pathname + url.search);
-        setter(data.items || []);
+  const url = new URL(endpoint, window.location.origin);
+  if (search) url.searchParams.set('q', search);
+  // Catálogo SAT de formas de pago tiene >20 registros; pedimos hasta 50.
+  url.searchParams.set('limit', '50');
+    const data = await fetchJson<{ items: any[] }>(url.pathname + url.search);
+    const items = mapper ? mapper(data.items || []) : data.items || [];
+    setter(items);
       } catch (err) {
         console.error('Error cargando catálogo', endpoint, err);
         setter([]);
@@ -353,6 +358,15 @@ function validarRFC(rfc: string) {
       }
     }, 300);
   };
+
+  // Precargar catálogos SAT para mostrar descripción completa en modo edición.
+  useEffect(() => {
+    loadCatalog('/api/catalogos/sat/regimenes-fiscales', '', setRegimenOptions, setRegimenLoading, 'regimen', mapRegimenItems);
+    loadCatalog('/api/catalogos/sat/usos-cfdi', '', setUsoOptions, setUsoLoading, 'uso');
+    loadCatalog('/api/catalogos/sat/formas-pago', '', setFormaOptions, setFormaLoading, 'forma');
+    loadCatalog('/api/catalogos/sat/metodos-pago', '', setMetodoOptions, setMetodoLoading, 'metodo');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelectChange = (event: SelectChangeEvent<string>) => {
     setForm((prev) => ({ ...prev, tipo_contacto: event.target.value }));
@@ -722,7 +736,14 @@ function validarRFC(rfc: string) {
                     getOptionLabel={(option) => option?.nombre || ''}
                     onInputChange={(_, value) => {
                       setRegimenSearch(value);
-                      loadCatalog('/api/catalogos/sat/regimenes-fiscales', value, setRegimenOptions, setRegimenLoading, 'regimen');
+                      loadCatalog(
+                        '/api/catalogos/sat/regimenes-fiscales',
+                        value,
+                        setRegimenOptions,
+                        setRegimenLoading,
+                        'regimen',
+                        mapRegimenItems
+                      );
                     }}
                     onChange={(_, value) => setForm((prev) => ({ ...prev, regimen_fiscal: value?.clave || '' }))}
                     renderInput={(params) => (
@@ -745,7 +766,7 @@ function validarRFC(rfc: string) {
                     noOptionsText="Sin resultados"
                     onOpen={() => {
                       if (!regimenOptions.length) {
-                        loadCatalog('/api/catalogos/sat/regimenes-fiscales', '', setRegimenOptions, setRegimenLoading, 'regimen');
+                        loadCatalog('/api/catalogos/sat/regimenes-fiscales', '', setRegimenOptions, setRegimenLoading, 'regimen', mapRegimenItems);
                       }
                     }}
                   />

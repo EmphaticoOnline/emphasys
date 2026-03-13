@@ -48,14 +48,14 @@ export default function ContactosPage() {
   };
 
   const baseColumns: GridColDef[] = [
-    { field: 'nombre', headerName: 'Nombre', flex: 1, minWidth: 180 },
-    { field: 'email', headerName: 'Email', flex: 1, minWidth: 200 },
-    { field: 'clasificacion', headerName: 'Clasificación', width: 150 },
-    { field: 'origen_contacto', headerName: 'Origen Contacto', width: 160 },
-    { field: 'vendedor_id', headerName: 'Vendedor(a)', width: 140 },
-    { field: 'telefono', headerName: 'Celular', width: 130 },
-    { field: 'telefono_secundario', headerName: 'Teléfono', width: 130 },
-    { field: 'tipo_contacto', headerName: 'Tipo contacto', width: 150 },
+    { field: 'nombre', headerName: 'Nombre', flex: 1, minWidth: 180, headerClassName: 'finanzas-header' },
+    { field: 'email', headerName: 'Email', flex: 1, minWidth: 200, headerClassName: 'finanzas-header' },
+    { field: 'clasificacion', headerName: 'Clasificación', width: 150, headerClassName: 'finanzas-header' },
+    { field: 'origen_contacto', headerName: 'Origen Contacto', width: 160, headerClassName: 'finanzas-header' },
+    { field: 'vendedor_id', headerName: 'Vendedor(a)', width: 140, headerClassName: 'finanzas-header' },
+    { field: 'telefono', headerName: 'Celular', width: 130, headerClassName: 'finanzas-header' },
+    { field: 'telefono_secundario', headerName: 'Teléfono', width: 130, headerClassName: 'finanzas-header' },
+    { field: 'tipo_contacto', headerName: 'Tipo contacto', width: 150, headerClassName: 'finanzas-header' },
     {
       field: 'actions',
       headerName: 'Acciones',
@@ -63,6 +63,7 @@ export default function ContactosPage() {
       sortable: false,
       filterable: false,
       disableColumnMenu: true,
+      headerClassName: 'finanzas-header',
       renderCell: (params: GridRenderCellParams) => (
         <Box sx={{ display: 'flex', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
           <IconButton size="small" onClick={() => navigate(`/contactos/${params.id}`)}>
@@ -254,23 +255,37 @@ export default function ContactosPage() {
             hideFooterPagination
             hideFooterSelectedRowCount
             sx={{
-              '& .MuiDataGrid-columnHeaders': {
-                backgroundColor: '#f6f8fa',
+              '--DataGrid-overlayHeight': '200px',
+              '& .MuiDataGrid-cell': {
+                display: 'flex',
+                alignItems: 'center',
               },
-              '& .MuiDataGrid-columnHeader': {
-                userSelect: 'none',
-                color: '#1d2f68',
-                fontWeight: 700,
+              '& .MuiDataGrid-row:nth-of-type(even)': {
+                backgroundColor: 'rgba(0, 120, 70, 0.05)',
               },
-              '& .MuiDataGrid-columnHeaderTitle': {
-                color: '#1d2f68',
-                fontWeight: 700,
+              '& .finanzas-header': {
+                backgroundColor: '#1d2f68 !important',
+                color: '#ffffff !important',
+                fontWeight: 600,
               },
-              '& .MuiDataGrid-virtualScrollerRenderZone .MuiDataGrid-row:nth-of-type(even)': {
-                backgroundColor: '#f7fbfa',
+              '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
+                color: '#ffffff !important',
+                fontWeight: 600,
               },
-              '& .MuiDataGrid-row.Mui-hovered': {
-                backgroundColor: '#eef7f4',
+              '& .finanzas-header .MuiDataGrid-sortIcon': {
+                color: '#ffffff !important',
+              },
+              '& .finanzas-header .MuiDataGrid-menuIcon': {
+                color: '#ffffff !important',
+              },
+              '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
+                color: '#ffffff !important',
+              },
+              '& .finanzas-header .MuiIconButton-root': {
+                color: '#ffffff !important',
+              },
+              '& .MuiDataGrid-columnSeparator': {
+                color: 'rgba(255,255,255,0.25) !important',
               },
             }}
           />

@@ -43,6 +43,7 @@ CREATE TABLE public.finanzas_operaciones (
     estado_conciliacion character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
     saldo numeric(15,2),
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    concepto_id integer,
     CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY ((ARRAY['pendiente'::character varying, 'cotejado'::character varying, 'conciliado'::character varying])::text[]))),
     CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY ((ARRAY['Deposito'::character varying, 'Retiro'::character varying])::text[])))
 );
@@ -81,6 +82,21 @@ ALTER TABLE ONLY public.finanzas_operaciones ALTER COLUMN id SET DEFAULT nextval
 
 ALTER TABLE ONLY public.finanzas_operaciones
     ADD CONSTRAINT finanzas_operaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_fo_concepto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fo_concepto ON public.finanzas_operaciones USING btree (concepto_id);
+
+
+--
+-- Name: finanzas_operaciones fk_fo_concepto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_operaciones
+    ADD CONSTRAINT fk_fo_concepto FOREIGN KEY (concepto_id) REFERENCES public.conceptos(id) ON DELETE SET NULL;
 
 
 --

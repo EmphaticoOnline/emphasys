@@ -4,11 +4,13 @@ import { Box, Card, CardActionArea, CardContent, Stack, Typography } from '@mui/
 import {
   BusinessRounded,
   CategoryRounded,
+  ReceiptLongRounded,
   GroupRounded,
   SchemaRounded,
   SettingsRounded,
   ShieldRounded,
   TuneRounded,
+  PercentRounded,
 } from '@mui/icons-material';
 
 const opciones = [
@@ -59,6 +61,18 @@ const opciones = [
     descripcion: 'Gestiona opciones para parámetros tipo dropdown.',
     icono: SettingsRounded,
     path: '/configuracion/parametros-opciones',
+  },
+  {
+    titulo: 'Conceptos',
+    descripcion: 'Administra el catálogo de conceptos financieros.',
+    icono: ReceiptLongRounded,
+    path: '/configuracion/conceptos',
+  },
+  {
+    titulo: 'Impuestos por default',
+    descripcion: 'Define los impuestos predeterminados por empresa.',
+    icono: PercentRounded,
+    path: '/configuracion/empresa/impuestos-default',
   },
 ];
 

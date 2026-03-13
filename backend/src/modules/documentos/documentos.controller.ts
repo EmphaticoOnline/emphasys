@@ -1,17 +1,16 @@
 import { Request, Response } from 'express';
 import {
-  agregarPartidaRepository,
   crearDocumentoRepository,
   listarDocumentosRepository,
   obtenerDocumentoRepository,
   actualizarDocumentoRepository,
-  reemplazarPartidasRepository,
   eliminarDocumentoRepository,
 } from './documentos.repository';
 import { generarDocumentoPDF } from './documentos.pdf';
 import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import pool from '../../config/database';
+import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -242,7 +241,7 @@ export async function agregarPartida(req: Request, res: Response) {
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(documentoId) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
-    const partida = await agregarPartidaRepository(documentoId, req.body || {}, Number(empresaId));
+  const partida = await agregarPartidaService(documentoId, req.body || {}, Number(empresaId));
     if (!partida) return res.status(404).json({ message: 'Documento no encontrado' });
     res.status(201).json(partida);
   } catch (error) {
@@ -257,8 +256,8 @@ export async function reemplazarPartidas(req: Request, res: Response) {
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(documentoId) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
-    const partidas = Array.isArray(req.body?.partidas) ? req.body.partidas : [];
-    const inserted = await reemplazarPartidasRepository(documentoId, partidas, Number(empresaId));
+  const partidas = Array.isArray(req.body?.partidas) ? req.body.partidas : [];
+  const inserted = await reemplazarPartidasService(documentoId, partidas, Number(empresaId));
     if (!inserted) return res.status(404).json({ message: 'Documento no encontrado' });
     res.json(inserted);
   } catch (error) {

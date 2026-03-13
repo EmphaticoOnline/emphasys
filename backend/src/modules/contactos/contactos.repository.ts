@@ -252,19 +252,20 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
         cd.numero_exterior,
         cd.numero_interior,
         cd.colonia,
-        cd.ciudad,
-        cd.estado,
-        cd.cp,
-  cd.pais,
-  cd.cp_sat,
-  cd.colonia_sat,
+    cd.ciudad,
+    cd.estado,
+    cd.cp,
+    cd.pais,
+    cd.cp_sat,
+    cd.colonia_sat,
 
-        cdf.rfc AS rfc_fiscal,
-        cdf.regimen_fiscal,
-        cdf.uso_cfdi,
-        cdf.forma_pago,
-        cdf.metodo_pago,
-        cdf.codigo_postal
+    cd.cp_sat AS contacto_codigo_postal,
+
+  cdf.rfc AS rfc_fiscal,
+  cdf.regimen_fiscal,
+  cdf.uso_cfdi,
+  cdf.forma_pago,
+  cdf.metodo_pago
 
       FROM contactos c
 
@@ -312,7 +313,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
       uso_cfdi: row.uso_cfdi,
       forma_pago: row.forma_pago,
       metodo_pago: row.metodo_pago,
-      codigo_postal: row.codigo_postal,
+      codigo_postal: row.contacto_codigo_postal,
     },
   };
 }

@@ -19,6 +19,7 @@ import tiposDocumentoRouter from "./modules/documentos/tipos-documento.routes";
 import whatsappRoutes from "./whatsapp/whatsapp.routes";
 import satCatalogosRouter from "./modules/catalogos/sat/sat.routes";
 import catalogosRouter from "./modules/catalogos/catalogos.routes";
+import impuestosRouter from "./modules/impuestos/impuestos.routes";
 import authRoutes from "./modules/auth/auth.routes";
 import configuracionCatalogosRouter from "./modules/configuracion/catalogos/catalogos-configurables.routes";
 import camposConfiguracionRouter from "./modules/campos-configuracion/campos-configuracion.routes";
@@ -31,6 +32,8 @@ import empresasRoutes from "./routes/empresasRoutes";
 import rolesRouter from "./modules/roles/roles.routes";
 import usuariosRouter from "./modules/usuarios/usuarios.routes";
 import documentosEmpresaRouter from "./modules/configuracion/documentos-empresa/documentos-empresa.routes";
+import finanzasRouter from "./modules/finanzas/finanzas.routes";
+import conceptosRouter from "./modules/conceptos/conceptos.routes";
 
 const app = express();
 
@@ -70,6 +73,7 @@ app.use("/api/sat", satCatalogosRouter);
 
 // catálogos configurables (core.catalogos)
 app.use("/api/catalogos", catalogosRouter);
+app.use("/api", impuestosRouter);
 
 // catálogos configurables (core)
 app.use("/api/configuracion/catalogos", configuracionCatalogosRouter);
@@ -111,6 +115,8 @@ app.use("/api/empresas", empresasRoutes);
 app.use("/api", rolesRouter);
 app.use("/api/usuarios", usuariosRouter);
 app.use("/api", documentosEmpresaRouter);
+app.use("/api/finanzas", finanzasRouter);
+app.use("/api/conceptos", conceptosRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

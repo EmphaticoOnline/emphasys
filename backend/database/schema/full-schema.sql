@@ -1,6 +1,6 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-03-12T02:18:23.083Z
+-- Generated at: 2026-03-13T00:30:02.329Z
 --
 -- PostgreSQL database dump
 --
@@ -1815,6 +1815,41 @@ COMMENT ON COLUMN core.usuarios_roles.created_at IS 'Fecha de creación de la as
 
 
 --
+-- Name: conceptos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.conceptos (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    nombre_concepto character varying(60) NOT NULL,
+    es_gasto boolean DEFAULT true NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    rubro_presupuesto_id integer,
+    observaciones text
+);
+
+
+--
+-- Name: conceptos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.conceptos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: conceptos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.conceptos_id_seq OWNED BY public.conceptos.id;
+
+
+--
 -- Name: contactos; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2067,7 +2102,7 @@ CREATE TABLE public.documentos (
     fecha_vencimiento date,
     fecha_entrega date,
     fecha_cancelacion date,
-    moneda character varying(10) NOT NULL,
+    moneda character varying(10) DEFAULT 'MXN'::character varying NOT NULL,
     tipo_cambio numeric(9,4),
     subtotal numeric(15,2) NOT NULL,
     descuento_global numeric(9,4),
@@ -2085,7 +2120,6 @@ CREATE TABLE public.documentos (
     documento_origen_id integer,
     documento_padre_id integer,
     documento_relacionado_id integer,
-    es_nota boolean DEFAULT false NOT NULL,
     es_restitucion boolean DEFAULT false NOT NULL,
     es_publico_general boolean DEFAULT false NOT NULL,
     usuario_creacion_id integer NOT NULL,
@@ -2098,8 +2132,23 @@ CREATE TABLE public.documentos (
     uso_cfdi text,
     forma_pago text,
     metodo_pago text,
-    codigo_postal_receptor character varying(10)
+    codigo_postal_receptor character varying(10),
+    tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL
 );
+
+
+--
+-- Name: TABLE documentos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.documentos IS 'Tabla universal de documentos del ERP (cotizaciones, pedidos, facturas, etc.).';
+
+
+--
+-- Name: COLUMN documentos.tratamiento_impuestos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.tratamiento_impuestos IS 'Define el tratamiento fiscal del documento. Valores esperados: normal, sin_iva, tasa_cero, exento. Determina cómo se calculan los impuestos.';
 
 
 --
@@ -2452,6 +2501,82 @@ ALTER SEQUENCE public.documentos_partidas_id_seq OWNED BY public.documentos_part
 
 
 --
+-- Name: documentos_partidas_impuestos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.documentos_partidas_impuestos (
+    id integer NOT NULL,
+    partida_id integer NOT NULL,
+    impuesto_id character varying(30) NOT NULL,
+    tasa numeric(9,4) NOT NULL,
+    base numeric(15,2) NOT NULL,
+    monto numeric(15,2) NOT NULL
+);
+
+
+--
+-- Name: TABLE documentos_partidas_impuestos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.documentos_partidas_impuestos IS 'Impuestos aplicados a cada partida de documento. Permite múltiples impuestos por partida (IVA, IEPS, retenciones).';
+
+
+--
+-- Name: COLUMN documentos_partidas_impuestos.partida_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_impuestos.partida_id IS 'Referencia a la partida del documento.';
+
+
+--
+-- Name: COLUMN documentos_partidas_impuestos.impuesto_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_impuestos.impuesto_id IS 'Impuesto aplicado a la partida.';
+
+
+--
+-- Name: COLUMN documentos_partidas_impuestos.tasa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_impuestos.tasa IS 'Tasa del impuesto utilizada al momento del cálculo.';
+
+
+--
+-- Name: COLUMN documentos_partidas_impuestos.base; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_impuestos.base IS 'Base sobre la cual se calcula el impuesto.';
+
+
+--
+-- Name: COLUMN documentos_partidas_impuestos.monto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_impuestos.monto IS 'Monto calculado del impuesto.';
+
+
+--
+-- Name: documentos_partidas_impuestos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.documentos_partidas_impuestos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: documentos_partidas_impuestos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.documentos_partidas_impuestos_id_seq OWNED BY public.documentos_partidas_impuestos.id;
+
+
+--
 -- Name: documentos_partidas_vinculos; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2556,6 +2681,82 @@ CREATE SEQUENCE public.documentos_partidas_vinculos_id_seq
 --
 
 ALTER SEQUENCE public.documentos_partidas_vinculos_id_seq OWNED BY public.documentos_partidas_vinculos.id;
+
+
+--
+-- Name: finanzas_aplicaciones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finanzas_aplicaciones (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    operacion_id integer NOT NULL,
+    documento_id integer NOT NULL,
+    monto numeric(15,2) NOT NULL,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE finanzas_aplicaciones; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finanzas_aplicaciones IS 'Relación entre operaciones financieras y documentos. Permite aplicar pagos o cobros a facturas, pedidos u otros documentos.';
+
+
+--
+-- Name: COLUMN finanzas_aplicaciones.empresa_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_aplicaciones.empresa_id IS 'Empresa propietaria del registro.';
+
+
+--
+-- Name: COLUMN finanzas_aplicaciones.operacion_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_aplicaciones.operacion_id IS 'Operación financiera que aplica el pago o cobro.';
+
+
+--
+-- Name: COLUMN finanzas_aplicaciones.documento_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_aplicaciones.documento_id IS 'Documento al que se aplica el monto (ej. factura).';
+
+
+--
+-- Name: COLUMN finanzas_aplicaciones.monto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_aplicaciones.monto IS 'Monto aplicado del pago o cobro al documento.';
+
+
+--
+-- Name: COLUMN finanzas_aplicaciones.fecha_creacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_aplicaciones.fecha_creacion IS 'Fecha de creación del registro.';
+
+
+--
+-- Name: finanzas_aplicaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finanzas_aplicaciones_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finanzas_aplicaciones_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finanzas_aplicaciones_id_seq OWNED BY public.finanzas_aplicaciones.id;
 
 
 --
@@ -2689,6 +2890,7 @@ CREATE TABLE public.finanzas_operaciones (
     estado_conciliacion character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
     saldo numeric(15,2),
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    concepto_id integer,
     CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY ((ARRAY['pendiente'::character varying, 'cotejado'::character varying, 'conciliado'::character varying])::text[]))),
     CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY ((ARRAY['Deposito'::character varying, 'Retiro'::character varying])::text[])))
 );
@@ -2751,6 +2953,61 @@ CREATE SEQUENCE public.finanzas_transferencias_id_seq
 --
 
 ALTER SEQUENCE public.finanzas_transferencias_id_seq OWNED BY public.finanzas_transferencias.id;
+
+
+--
+-- Name: impuestos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.impuestos (
+    id character varying(30) NOT NULL,
+    nombre character varying(100) NOT NULL,
+    tipo character varying(20) NOT NULL,
+    tasa numeric(9,4) NOT NULL,
+    activo boolean DEFAULT true NOT NULL
+);
+
+
+--
+-- Name: TABLE impuestos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.impuestos IS 'Catálogo general de impuestos que pueden aplicarse en documentos y partidas (IVA, IEPS, retenciones, etc).';
+
+
+--
+-- Name: COLUMN impuestos.id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.impuestos.id IS 'Identificador único del impuesto (ej. iva_16, iva_8, ret_iva).';
+
+
+--
+-- Name: COLUMN impuestos.nombre; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.impuestos.nombre IS 'Nombre descriptivo del impuesto.';
+
+
+--
+-- Name: COLUMN impuestos.tipo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.impuestos.tipo IS 'Tipo de impuesto: traslado o retencion.';
+
+
+--
+-- Name: COLUMN impuestos.tasa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.impuestos.tasa IS 'Porcentaje del impuesto.';
+
+
+--
+-- Name: COLUMN impuestos.activo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.impuestos.activo IS 'Indica si el impuesto está activo.';
 
 
 --
@@ -2894,6 +3151,110 @@ CREATE SEQUENCE public.productos_id_seq
 --
 
 ALTER SEQUENCE public.productos_id_seq OWNED BY public.productos.id;
+
+
+--
+-- Name: productos_impuestos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.productos_impuestos (
+    id integer NOT NULL,
+    producto_id integer NOT NULL,
+    impuesto_id character varying(30) NOT NULL
+);
+
+
+--
+-- Name: TABLE productos_impuestos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.productos_impuestos IS 'Relación entre productos e impuestos aplicables. Permite que cada producto tenga uno o varios impuestos.';
+
+
+--
+-- Name: COLUMN productos_impuestos.producto_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.productos_impuestos.producto_id IS 'Identificador del producto al que se le aplica el impuesto.';
+
+
+--
+-- Name: COLUMN productos_impuestos.impuesto_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.productos_impuestos.impuesto_id IS 'Impuesto que aplica al producto.';
+
+
+--
+-- Name: productos_impuestos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.productos_impuestos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: productos_impuestos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.productos_impuestos_id_seq OWNED BY public.productos_impuestos.id;
+
+
+--
+-- Name: reglas_tratamiento_impuestos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reglas_tratamiento_impuestos (
+    id integer NOT NULL,
+    tratamiento character varying(20) NOT NULL,
+    impuesto_id character varying(30) NOT NULL
+);
+
+
+--
+-- Name: TABLE reglas_tratamiento_impuestos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.reglas_tratamiento_impuestos IS 'Define qué impuestos se aplican dependiendo del tratamiento_impuestos del documento (normal, sin_iva, tasa_cero, exento).';
+
+
+--
+-- Name: COLUMN reglas_tratamiento_impuestos.tratamiento; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reglas_tratamiento_impuestos.tratamiento IS 'Tratamiento fiscal definido en el documento.';
+
+
+--
+-- Name: COLUMN reglas_tratamiento_impuestos.impuesto_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reglas_tratamiento_impuestos.impuesto_id IS 'Impuesto que debe aplicarse cuando el documento tiene ese tratamiento.';
+
+
+--
+-- Name: reglas_tratamiento_impuestos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.reglas_tratamiento_impuestos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: reglas_tratamiento_impuestos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.reglas_tratamiento_impuestos_id_seq OWNED BY public.reglas_tratamiento_impuestos.id;
 
 
 --
@@ -3658,6 +4019,13 @@ ALTER TABLE ONLY core.usuarios ALTER COLUMN id SET DEFAULT nextval('core.usuario
 
 
 --
+-- Name: conceptos id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conceptos ALTER COLUMN id SET DEFAULT nextval('public.conceptos_id_seq'::regclass);
+
+
+--
 -- Name: contactos id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -3735,10 +4103,24 @@ ALTER TABLE ONLY public.documentos_partidas_campos ALTER COLUMN id SET DEFAULT n
 
 
 --
+-- Name: documentos_partidas_impuestos id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_impuestos ALTER COLUMN id SET DEFAULT nextval('public.documentos_partidas_impuestos_id_seq'::regclass);
+
+
+--
 -- Name: documentos_partidas_vinculos id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.documentos_partidas_vinculos ALTER COLUMN id SET DEFAULT nextval('public.documentos_partidas_vinculos_id_seq'::regclass);
+
+
+--
+-- Name: finanzas_aplicaciones id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_aplicaciones ALTER COLUMN id SET DEFAULT nextval('public.finanzas_aplicaciones_id_seq'::regclass);
 
 
 --
@@ -3781,6 +4163,20 @@ ALTER TABLE ONLY public.finanzas_transferencias ALTER COLUMN id SET DEFAULT next
 --
 
 ALTER TABLE ONLY public.productos ALTER COLUMN id SET DEFAULT nextval('public.productos_id_seq'::regclass);
+
+
+--
+-- Name: productos_impuestos id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos_impuestos ALTER COLUMN id SET DEFAULT nextval('public.productos_impuestos_id_seq'::regclass);
+
+
+--
+-- Name: reglas_tratamiento_impuestos id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reglas_tratamiento_impuestos ALTER COLUMN id SET DEFAULT nextval('public.reglas_tratamiento_impuestos_id_seq'::regclass);
 
 
 --
@@ -4021,6 +4417,14 @@ ALTER TABLE ONLY core.usuarios_roles
 
 
 --
+-- Name: conceptos conceptos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conceptos
+    ADD CONSTRAINT conceptos_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: contactos_datos_fiscales contactos_datos_fiscales_contacto_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4101,6 +4505,14 @@ ALTER TABLE ONLY public.documentos_partidas_campos
 
 
 --
+-- Name: documentos_partidas_impuestos documentos_partidas_impuestos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_impuestos
+    ADD CONSTRAINT documentos_partidas_impuestos_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: documentos_partidas documentos_partidas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4122,6 +4534,14 @@ ALTER TABLE ONLY public.documentos_partidas_vinculos
 
 ALTER TABLE ONLY public.documentos
     ADD CONSTRAINT documentos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finanzas_aplicaciones finanzas_aplicaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_aplicaciones
+    ADD CONSTRAINT finanzas_aplicaciones_pkey PRIMARY KEY (id);
 
 
 --
@@ -4165,6 +4585,14 @@ ALTER TABLE ONLY public.finanzas_transferencias
 
 
 --
+-- Name: impuestos impuestos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.impuestos
+    ADD CONSTRAINT impuestos_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: credito_operaciones_items operaciones_credito_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4173,11 +4601,27 @@ ALTER TABLE ONLY public.credito_operaciones_items
 
 
 --
+-- Name: productos_impuestos productos_impuestos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos_impuestos
+    ADD CONSTRAINT productos_impuestos_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: productos productos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT productos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reglas_tratamiento_impuestos reglas_tratamiento_impuestos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reglas_tratamiento_impuestos
+    ADD CONSTRAINT reglas_tratamiento_impuestos_pkey PRIMARY KEY (id);
 
 
 --
@@ -4234,6 +4678,14 @@ ALTER TABLE ONLY public.unidades
 
 ALTER TABLE ONLY public.contactos_domicilios
     ADD CONSTRAINT ux_cd_identificador UNIQUE (contacto_id, identificador);
+
+
+--
+-- Name: conceptos ux_concepto_empresa; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.conceptos
+    ADD CONSTRAINT ux_concepto_empresa UNIQUE (empresa_id, nombre_concepto);
 
 
 --
@@ -5091,6 +5543,76 @@ COMMENT ON INDEX public.idx_dpc_partida IS 'Optimiza consultas de campos dinámi
 
 
 --
+-- Name: idx_fa_documento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fa_documento ON public.finanzas_aplicaciones USING btree (documento_id);
+
+
+--
+-- Name: INDEX idx_fa_documento; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_fa_documento IS 'Permite localizar rápidamente los pagos aplicados a un documento.';
+
+
+--
+-- Name: idx_fa_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fa_empresa ON public.finanzas_aplicaciones USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_fa_empresa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_fa_empresa IS 'Optimiza consultas multiempresa en aplicaciones financieras.';
+
+
+--
+-- Name: idx_fa_operacion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fa_operacion ON public.finanzas_aplicaciones USING btree (operacion_id);
+
+
+--
+-- Name: INDEX idx_fa_operacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_fa_operacion IS 'Permite localizar rápidamente las aplicaciones de una operación financiera.';
+
+
+--
+-- Name: idx_fo_concepto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fo_concepto ON public.finanzas_operaciones USING btree (concepto_id);
+
+
+--
+-- Name: idx_partida_impuestos_partida; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_partida_impuestos_partida ON public.documentos_partidas_impuestos USING btree (partida_id);
+
+
+--
+-- Name: idx_productos_impuestos_producto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_productos_impuestos_producto ON public.productos_impuestos USING btree (producto_id);
+
+
+--
+-- Name: idx_reglas_tratamiento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_reglas_tratamiento ON public.reglas_tratamiento_impuestos USING btree (tratamiento);
+
+
+--
 -- Name: ix_contactos_codigo_legacy; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5775,6 +6297,22 @@ ALTER TABLE ONLY public.documentos_partidas_campos
 
 
 --
+-- Name: finanzas_aplicaciones fk_fa_documento; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_aplicaciones
+    ADD CONSTRAINT fk_fa_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finanzas_aplicaciones fk_fa_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_aplicaciones
+    ADD CONSTRAINT fk_fa_operacion FOREIGN KEY (operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
+
+
+--
 -- Name: finanzas_conciliaciones fk_fc_cuenta; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5796,6 +6334,14 @@ ALTER TABLE ONLY public.finanzas_conciliaciones_operaciones
 
 ALTER TABLE ONLY public.finanzas_conciliaciones_operaciones
     ADD CONSTRAINT fk_fco_operacion FOREIGN KEY (operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finanzas_operaciones fk_fo_concepto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_operaciones
+    ADD CONSTRAINT fk_fo_concepto FOREIGN KEY (concepto_id) REFERENCES public.conceptos(id) ON DELETE SET NULL;
 
 
 --
@@ -5879,6 +6425,14 @@ ALTER TABLE ONLY public.credito_operaciones_items
 
 
 --
+-- Name: documentos_partidas_impuestos fk_partida_impuesto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_impuestos
+    ADD CONSTRAINT fk_partida_impuesto FOREIGN KEY (impuesto_id) REFERENCES public.impuestos(id);
+
+
+--
 -- Name: documentos_partidas fk_partida_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5924,6 +6478,22 @@ ALTER TABLE ONLY public.productos
 
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT fk_producto_unidad_venta FOREIGN KEY (unidad_venta_id) REFERENCES public.unidades(id);
+
+
+--
+-- Name: productos_impuestos fk_productos_impuestos_impuesto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos_impuestos
+    ADD CONSTRAINT fk_productos_impuestos_impuesto FOREIGN KEY (impuesto_id) REFERENCES public.impuestos(id);
+
+
+--
+-- Name: reglas_tratamiento_impuestos fk_regla_impuesto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reglas_tratamiento_impuestos
+    ADD CONSTRAINT fk_regla_impuesto FOREIGN KEY (impuesto_id) REFERENCES public.impuestos(id);
 
 
 --

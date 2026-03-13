@@ -102,12 +102,14 @@ export default function Layout({ children }: LayoutProps) {
   const tabPathMap: Record<string, string> = {
     Contactos: '/contactos',
     Productos: '/productos',
+    Finanzas: '/finanzas',
   };
 
   const getTabFromPath = (pathname: string): string => {
     if (pathname.startsWith('/configuracion')) return '';
     if (pathname.startsWith('/ventas/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/compras/')) return pathname.split('/')[2] || '';
+  if (pathname.startsWith('/finanzas')) return 'Finanzas';
     if (pathname.startsWith('/productos')) return 'Productos';
     if (pathname.startsWith('/contactos')) return 'Contactos';
     return MODULE_TABS['Catálogos']?.[0] || '';
@@ -117,6 +119,7 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith('/configuracion')) return 'Configuración';
     if (pathname.startsWith('/ventas/')) return 'Ventas';
     if (pathname.startsWith('/compras/')) return 'Compras';
+  if (pathname.startsWith('/finanzas')) return 'Finanzas';
     const tab = getTabFromPath(pathname);
     return getSectionForTab(tab);
   };
@@ -160,6 +163,8 @@ export default function Layout({ children }: LayoutProps) {
         navigate(`/ventas/${nextTab}`);
       } else if (section === 'Compras') {
         navigate(`/compras/${nextTab}`);
+      } else if (section === 'Finanzas') {
+        navigate(path || '/finanzas');
       } else if (path) {
         navigate(path);
       }
@@ -180,6 +185,10 @@ export default function Layout({ children }: LayoutProps) {
 
     if (selectedSection === 'Compras') {
       navigate(`/compras/${value}`);
+      return;
+    }
+    if (selectedSection === 'Finanzas') {
+      navigate('/finanzas');
       return;
     }
 

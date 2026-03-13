@@ -43,7 +43,7 @@ CREATE TABLE public.documentos (
     fecha_vencimiento date,
     fecha_entrega date,
     fecha_cancelacion date,
-    moneda character varying(10) NOT NULL,
+    moneda character varying(10) DEFAULT 'MXN'::character varying NOT NULL,
     tipo_cambio numeric(9,4),
     subtotal numeric(15,2) NOT NULL,
     descuento_global numeric(9,4),
@@ -61,7 +61,6 @@ CREATE TABLE public.documentos (
     documento_origen_id integer,
     documento_padre_id integer,
     documento_relacionado_id integer,
-    es_nota boolean DEFAULT false NOT NULL,
     es_restitucion boolean DEFAULT false NOT NULL,
     es_publico_general boolean DEFAULT false NOT NULL,
     usuario_creacion_id integer NOT NULL,
@@ -74,8 +73,23 @@ CREATE TABLE public.documentos (
     uso_cfdi text,
     forma_pago text,
     metodo_pago text,
-    codigo_postal_receptor character varying(10)
+    codigo_postal_receptor character varying(10),
+    tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL
 );
+
+
+--
+-- Name: TABLE documentos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.documentos IS 'Tabla universal de documentos del ERP (cotizaciones, pedidos, facturas, etc.).';
+
+
+--
+-- Name: COLUMN documentos.tratamiento_impuestos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.tratamiento_impuestos IS 'Define el tratamiento fiscal del documento. Valores esperados: normal, sin_iva, tasa_cero, exento. Determina cómo se calculan los impuestos.';
 
 
 --
