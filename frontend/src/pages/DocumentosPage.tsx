@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -159,6 +159,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       }),
     []
   );
+
+  const currencyFormatter = useCallback((value: number | string | null | undefined) => currency.format(Number(value ?? 0)), [currency]);
+  const showSaldo = tipoDocumento === 'factura' || tipoDocumento === 'factura_compra';
+  const calcularEstatusFinanciero = useCallback((saldo: number, total: number) => {
+    if (saldo === total) return 'Pendiente';
+    if (saldo > 0 && saldo < total) return 'Parcial';
+    if (saldo === 0) return 'Pagado';
+    return null;
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -381,6 +390,54 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         headerClassName: 'finanzas-header',
         renderCell: (params: any) => currency.format(Number(params.row.total ?? 0)),
       },
+      ...(showSaldo
+        ? ([
+            {
+              field: 'saldo',
+              headerName: 'Saldo',
+              width: 140,
+              align: 'right',
+              headerAlign: 'right',
+              headerClassName: 'finanzas-header',
+              renderCell: ({ value }: any) => (
+                <Box
+                  sx={{
+                    color: Number(value ?? 0) === 0 ? 'success.main' : 'error.main',
+                    fontWeight: 600,
+                  }}
+                >
+                  {currencyFormatter(value)}
+                </Box>
+              ),
+            },
+            {
+              field: 'estatus_financiero',
+              headerName: 'Estatus financiero',
+              width: 160,
+              headerClassName: 'finanzas-header',
+              sortable: false,
+              filterable: false,
+              valueGetter: (params: any) => {
+                const row = params?.row ?? {};
+                const saldo = Number(row.saldo ?? 0);
+                const total = Number(row.total ?? 0);
+                return calcularEstatusFinanciero(saldo, total);
+              },
+              renderCell: ({ value }: any) => {
+                if (!value) return null;
+                const color = value === 'Parcial' ? 'warning' : value === 'Pagado' ? 'success' : 'default';
+                return (
+                  <Chip
+                    label={value}
+                    size="small"
+                    color={color as any}
+                    sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5 }}
+                  />
+                );
+              },
+            },
+          ] as GridColDef[])
+        : []),
       {
         field: 'estatus_documento',
         headerName: 'Estatus',
@@ -526,6 +583,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     opcionesGeneracion,
     menuLoading,
     handleOpenMenuGenerar,
+    showSaldo,
+    currencyFormatter,
+    calcularEstatusFinanciero,
   ]);
 
   useEffect(() => {

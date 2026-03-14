@@ -72,6 +72,10 @@ export type PartidaInput = {
 };
 
 export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number) {
+  const esFactura = ['factura', 'factura_compra'].includes((tipoDocumento || '').toLowerCase());
+  const selectSaldo = esFactura ? 'COALESCE(ds.saldo, 0) AS saldo' : 'NULL::numeric AS saldo';
+  const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
+
   const query = `
     SELECT
       d.id,
@@ -84,8 +88,10 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
       d.subtotal,
       d.iva,
       d.total,
-      d.estatus_documento
+      d.estatus_documento,
+      ${selectSaldo}
     FROM documentos d
+    ${joinSaldo}
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     WHERE d.empresa_id = $1 AND LOWER(d.tipo_documento) = $2
     ORDER BY d.fecha_documento DESC, d.id DESC

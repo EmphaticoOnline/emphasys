@@ -13,6 +13,7 @@ export interface CotizacionListado {
   iva: number;
   total: number;
   estatus_documento: string;
+  saldo?: number | null;
 }
 
 export interface CotizacionDocumento {
