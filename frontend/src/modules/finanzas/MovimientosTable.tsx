@@ -1,12 +1,13 @@
 import React from 'react';
-import { Chip, IconButton, Paper, Stack, Typography, Tooltip, TextField, InputAdornment } from '@mui/material';
+import { Box, Chip, IconButton, Paper, Stack, Typography, Tooltip, TextField, InputAdornment } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { DataGrid, GridToolbarContainer } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
-import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
+import type { GridColDef, GridRenderCellParams, GridSortModel } from '@mui/x-data-grid';
 import type { FinanzasOperacion } from '../../types/finanzas';
 
 export type FinanzasSearchToolbarProps = {
@@ -51,6 +52,7 @@ interface MovimientosTableProps {
   moneda?: string;
   onEdit?: (op: FinanzasOperacion) => void;
   onDelete?: (op: FinanzasOperacion) => void;
+  onView?: (op: FinanzasOperacion) => void;
   searchTerm?: string;
   onSearchChange?: (value: string) => void;
   showToolbar?: boolean;
@@ -87,10 +89,13 @@ export function MovimientosTable({
   onDelete,
   onEditTransferencia,
   onDeleteTransferencia,
+  onView,
   searchTerm,
   onSearchChange,
   showToolbar = true,
 }: MovimientosTableProps) {
+  const STORAGE_KEY = 'finanzas.movimientos.gridPrefs';
+
   type Row = FinanzasOperacion & {
     runningSaldo: number;
     fecha_fmt: string;
@@ -111,6 +116,37 @@ export function MovimientosTable({
   const [search, setSearch] = React.useState('');
   const effectiveSearch = searchTerm ?? search;
   const handleSearchChange = onSearchChange ?? setSearch;
+
+  const defaultSort: GridSortModel = [{ field: 'fecha', sort: 'desc' }];
+  const [sortModel, setSortModel] = React.useState<GridSortModel>(defaultSort);
+  const [columnWidths, setColumnWidths] = React.useState<Record<string, number>>({});
+  const [prefsLoaded, setPrefsLoaded] = React.useState(false);
+
+  // Load persisted preferences (sort model, column widths)
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { sortModel?: GridSortModel; columnWidths?: Record<string, number> };
+        if (parsed.sortModel) setSortModel(parsed.sortModel);
+        if (parsed.columnWidths) setColumnWidths(parsed.columnWidths);
+      }
+    } catch (err) {
+      console.warn('No se pudieron cargar preferencias de la tabla de movimientos', err);
+    } finally {
+      setPrefsLoaded(true);
+    }
+  }, []);
+
+  // Persist preferences
+  React.useEffect(() => {
+    if (!prefsLoaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sortModel, columnWidths }));
+    } catch (err) {
+      console.warn('No se pudieron guardar preferencias de la tabla de movimientos', err);
+    }
+  }, [sortModel, columnWidths, prefsLoaded]);
 
   // Precompute ledger saldo per operación id using chronological order
   const ledgerById = React.useMemo(() => {
@@ -160,7 +196,7 @@ export function MovimientosTable({
       {
         field: 'fecha',
         headerName: 'Fecha',
-        width: 130,
+  width: columnWidths.fecha ?? 105,
         sortable: true,
         filterable: true,
         headerClassName: 'finanzas-header',
@@ -171,13 +207,12 @@ export function MovimientosTable({
       {
         field: 'contacto_display',
         headerName: 'Contacto',
-        flex: 1,
-        minWidth: 160,
+        width: columnWidths.contacto_display ?? 180,
         sortable: true,
         filterable: true,
         headerClassName: 'finanzas-header',
         renderCell: (params: GridRenderCellParams<Row>) => (
-          <Typography variant="body2" fontWeight={600} color="#111827">
+          <Typography variant="body2" fontWeight={400} color="#111827">
             {params.value || '—'}
           </Typography>
         ),
@@ -185,14 +220,14 @@ export function MovimientosTable({
       {
         field: 'concepto_display',
         headerName: 'Concepto',
-        flex: 1,
-        minWidth: 160,
+  flex: 1,
+  minWidth: 140,
         sortable: true,
         filterable: true,
         headerClassName: 'finanzas-header',
         renderCell: (params: GridRenderCellParams<Row>) => (
           <Stack spacing={0.25}>
-            <Typography variant="body2" fontWeight={700} color="#1d2f68">
+            <Typography variant="body2" fontWeight={400} color="#1d2f68">
               {params.value || '—'}
             </Typography>
             {params.row.observaciones && (
@@ -206,8 +241,7 @@ export function MovimientosTable({
       {
         field: 'referencia',
         headerName: 'Referencia',
-        flex: 1,
-        minWidth: 140,
+  width: columnWidths.referencia_display ?? 120,
         sortable: true,
         filterable: true,
         headerClassName: 'finanzas-header',
@@ -220,7 +254,7 @@ export function MovimientosTable({
       {
         field: 'monto',
         headerName: 'Monto',
-        width: 140,
+  width: columnWidths.monto ?? 120,
         align: 'right',
         headerAlign: 'right',
         sortable: true,
@@ -239,7 +273,7 @@ export function MovimientosTable({
       {
         field: 'runningSaldo',
         headerName: 'Saldo',
-        width: 150,
+  width: columnWidths.runningSaldo ?? 130,
         align: 'right',
         headerAlign: 'right',
         sortable: true,
@@ -254,14 +288,14 @@ export function MovimientosTable({
       {
         field: 'acciones',
         headerName: 'Acciones',
-        width: 120,
+  width: columnWidths.acciones ?? 100,
         sortable: true,
         filterable: true,
         align: 'center',
         headerAlign: 'center',
         headerClassName: 'finanzas-header',
         renderCell: (params: GridRenderCellParams<Row>) => (
-          <Stack direction="row" spacing={0.5} justifyContent="center" width="100%">
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: '100%' }}>
             {onEdit && (
               <Tooltip title="Editar">
                 <span>
@@ -278,6 +312,7 @@ export function MovimientosTable({
                 </span>
               </Tooltip>
             )}
+
             {onDelete && (
               <Tooltip title="Eliminar">
                 <span>
@@ -295,13 +330,25 @@ export function MovimientosTable({
                 </span>
               </Tooltip>
             )}
-          </Stack>
+
+            <Tooltip title="Ver detalle">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={!onView || params.row.naturaleza_operacion !== 'cobro_cliente'}
+                  onClick={() => onView && onView(params.row)}
+                >
+                  <VisibilityIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
         ),
       },
       {
         field: 'estado_conciliacion',
         headerName: 'Estado',
-        width: 130,
+  width: columnWidths.estado_conciliacion ?? 120,
         sortable: true,
         filterable: true,
         align: 'center',
@@ -310,25 +357,28 @@ export function MovimientosTable({
         renderCell: (params: GridRenderCellParams<Row>) => renderEstadoChip(params.value as string),
       },
     ],
-    [formatter, onDelete, onEdit]
+    [formatter, onDelete, onEdit, onView, onEditTransferencia, onDeleteTransferencia, columnWidths]
   );
 
   return (
     <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid #e5e7eb', background: '#fff', overflow: 'hidden' }}>
       <DataGrid<Row>
-        autoHeight
         rows={rows}
         columns={columns}
-  rowHeight={32}
+  density="compact"
+  rowHeight={34}
+  columnHeaderHeight={34}
+  columnBufferPx={2}
         loading={!!loading}
-        initialState={{
-          sorting: {
-            sortModel: [{ field: 'fecha', sort: 'desc' }],
-          },
-        }}
+        sortModel={sortModel}
+        onSortModelChange={(model) => setSortModel(model.length ? model : defaultSort)}
         localeText={esES.components.MuiDataGrid.defaultProps.localeText}
         hideFooterPagination
         disableRowSelectionOnClick
+        onColumnWidthChange={(params) => {
+          if (!params.colDef?.field || typeof params.width !== 'number') return;
+          setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }));
+        }}
         slots={
           showToolbar
             ? {
@@ -345,10 +395,20 @@ export function MovimientosTable({
             : {}
         }
         sx={{
+          height: '100%',
+          fontSize: 12.5,
           '--DataGrid-overlayHeight': '200px',
           '& .MuiDataGrid-cell': {
             display: 'flex',
             alignItems: 'center',
+            fontSize: 12.5,
+          },
+          '& .MuiDataGrid-columnHeaders': {
+            fontSize: 12.5,
+          },
+          '& .MuiDataGrid-columnHeaderTitle': {
+            fontSize: 12.5,
+            fontWeight: 600,
           },
           '& .MuiDataGrid-row:nth-of-type(even)': {
             backgroundColor: 'rgba(0, 120, 70, 0.05)',

@@ -6,7 +6,6 @@ import {
   List,
   ListItem,
   ListItemButton,
-  ListItemSecondaryAction,
   ListItemText,
   Paper,
   Stack,
@@ -43,8 +42,17 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
   );
 
   return (
-    <Paper elevation={0} sx={{ width: 320, flexShrink: 0, borderRadius: 3, border: '1px solid #e5e7eb', background: '#fff' }}>
-      <Box sx={{ p: 2, pb: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <Paper
+      elevation={0}
+      sx={{
+  flex: { xs: '1 1 auto', md: '0 0 200px' },
+        flexShrink: 0,
+        borderRadius: 3,
+        border: '1px solid #e5e7eb',
+        background: '#fff',
+      }}
+    >
+      <Box sx={{ px: 1.5, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
           Cuentas
         </Typography>
@@ -64,7 +72,7 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
         </Button>
       </Box>
       <Divider />
-      <List sx={{ py: 0 }}>
+      <List sx={{ py: 0.5 }}>
         {loading
           ? Array.from({ length: 4 }).map((_, idx) => (
               <ListItem key={`skeleton-${idx}`}>
@@ -83,27 +91,27 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
                   onClick={() => onSelect(cuenta.id)}
                   sx={{
                     borderRadius: 2,
-                    mx: 1,
-                    my: 0.5,
+                    mx: 0.75,
+                    my: 0.25,
+                    py: 0.75,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
                     '&.Mui-selected': {
                       backgroundColor: alpha('#1d2f68', 0.08),
                       border: `1px solid ${alpha('#1d2f68', 0.3)}`,
                     },
                   }}
                 >
-                  <ListItemText
-                    primary={
-                      <Typography fontWeight={700} color={selected ? '#1d2f68' : '#111827'}>
-                        {cuenta.identificador}
-                      </Typography>
-                    }
-                    secondary={
-                      <Typography variant="body2" color="text.secondary">
-                        {currency.format(Number(cuenta.saldo ?? 0))}
-                      </Typography>
-                    }
-                  />
-                  <ListItemSecondaryAction onClick={(e) => e.stopPropagation()} sx={{ display: 'flex', gap: 0.5 }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: 14, fontWeight: 600, color: selected ? '#1d2f68' : '#111827' }} noWrap>
+                      {cuenta.identificador}
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary' }} noWrap>
+                      {currency.format(Number(cuenta.saldo ?? 0))}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
                     <Tooltip title="Editar">
                       <IconButton size="small" onClick={() => onEdit(cuenta)}>
                         <EditIcon fontSize="small" />
@@ -114,13 +122,13 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                  </ListItemSecondaryAction>
+                  </Box>
                 </ListItemButton>
               );
             })}
 
         {!loading && cuentas.length === 0 && (
-          <Box sx={{ p: 2 }}>
+          <Box sx={{ p: 1.5 }}>
             <Typography variant="body2" color="text.secondary">
               No hay cuentas registradas todavía.
             </Typography>

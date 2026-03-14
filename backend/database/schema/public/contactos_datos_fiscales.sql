@@ -36,7 +36,6 @@ CREATE TABLE public.contactos_datos_fiscales (
     uso_cfdi character varying(10),
     forma_pago character varying(10),
     metodo_pago character varying(10),
-    codigo_postal character varying(10),
     enviar_cfd boolean DEFAULT true NOT NULL,
     enviar_cfd_agente boolean DEFAULT false NOT NULL,
     es_publico_general boolean DEFAULT false NOT NULL,

@@ -1,20 +1,130 @@
 import { Request, Response } from 'express';
 import {
+  actualizarCuenta,
+  actualizarOperacion,
+  actualizarTransferencia,
   crearAplicacion,
   crearConciliacion,
   crearCuenta,
   crearOperacion,
   crearTransferencia,
-  actualizarTransferencia,
-  eliminarTransferencia,
   eliminarAplicacion,
-  eliminarOperacion,
-  listarCuentas,
-  listarOperaciones,
-  actualizarCuenta,
   eliminarCuenta,
-  actualizarOperacion,
+  eliminarOperacion,
+  eliminarTransferencia,
+  listarAplicacionesPorDocumento,
+  listarCuentas,
+  listarEstadoCuentaContacto,
+  listarOperaciones,
+  obtenerSaldoDocumento,
+  obtenerReporteAging,
+  obtenerReporteAgingResumen,
+  obtenerDisponibleOperacion,
+  obtenerOperacionPorId,
+  listarAplicacionesPorOperacion,
 } from './finanzas.repository';
+
+export async function getReporteAging(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const rows = await obtenerReporteAging(empresaId);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener el reporte aging' });
+  }
+}
+
+export async function getReporteAgingResumen(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const rows = await obtenerReporteAgingResumen(empresaId);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener el reporte aging resumen' });
+  }
+}
+
+export async function getDisponibleOperacion(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const operacionId = Number(req.params.id);
+  if (!Number.isFinite(operacionId)) return res.status(400).json({ message: 'operacionId inválido' });
+  try {
+    const row = await obtenerDisponibleOperacion(operacionId, empresaId);
+    if (!row) return res.status(404).json({ message: 'Operación no encontrada' });
+    res.json(row);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener disponible de la operación' });
+  }
+}
+
+export async function getOperacion(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const operacionId = Number(req.params.id);
+  if (!Number.isFinite(operacionId)) return res.status(400).json({ message: 'operacionId inválido' });
+  try {
+    const row = await obtenerOperacionPorId(operacionId, empresaId);
+    if (!row) return res.status(404).json({ message: 'Operación no encontrada' });
+    res.json(row);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener la operación' });
+  }
+}
+
+export async function getAplicacionesPorOperacion(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const operacionId = Number(req.params.id);
+  if (!Number.isFinite(operacionId)) return res.status(400).json({ message: 'operacionId inválido' });
+  try {
+    const rows = await listarAplicacionesPorOperacion(operacionId, empresaId);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener aplicaciones de la operación' });
+  }
+}
+
+export async function getSaldoDocumento(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const documentoId = Number(req.params.id);
+  if (!Number.isFinite(documentoId)) return res.status(400).json({ message: 'documentoId inválido' });
+  try {
+    const row = await obtenerSaldoDocumento(documentoId, empresaId);
+    if (!row) return res.status(404).json({ message: 'Documento no encontrado' });
+    res.json(row);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener saldo' });
+  }
+}
+export async function getAplicacionesPorDocumento(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const documentoId = Number(req.params.id);
+  if (!documentoId) return res.status(400).json({ message: 'documentoId inválido' });
+  try {
+    const rows = await listarAplicacionesPorDocumento(documentoId, empresaId);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener aplicaciones' });
+  }
+}
+
+export async function getEstadoCuentaContacto(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const contactoId = Number(req.params.id);
+  if (!Number.isFinite(contactoId)) return res.status(400).json({ message: 'contactoId inválido' });
+  try {
+    const rows = await listarEstadoCuentaContacto(contactoId, empresaId);
+    res.json(rows);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener estado de cuenta' });
+  }
+}
 
 export async function getCuentas(req: Request, res: Response) {
   try {
@@ -162,7 +272,8 @@ export async function postAplicacion(req: Request, res: Response) {
     const result = await crearAplicacion(req.body, empresaId);
     res.status(201).json(result);
   } catch (err: any) {
-    res.status(400).json({ message: err.message || 'No se pudo registrar la aplicación' });
+    const status = err?.status ?? 400;
+    res.status(status).json({ message: err.message || 'No se pudo registrar la aplicación' });
   }
 }
 

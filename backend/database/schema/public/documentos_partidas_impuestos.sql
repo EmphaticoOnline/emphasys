@@ -115,6 +115,20 @@ ALTER TABLE ONLY public.documentos_partidas_impuestos
 
 
 --
+-- Name: idx_documentos_partidas_impuestos_partida_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_impuestos_partida_id ON public.documentos_partidas_impuestos USING btree (partida_id);
+
+
+--
+-- Name: INDEX idx_documentos_partidas_impuestos_partida_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_documentos_partidas_impuestos_partida_id IS 'Optimiza consultas que filtran por partida_id (cálculo y lectura de impuestos por partida).';
+
+
+--
 -- Name: idx_partida_impuestos_partida; Type: INDEX; Schema: public; Owner: -
 --
 

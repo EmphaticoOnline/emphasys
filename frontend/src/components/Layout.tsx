@@ -275,7 +275,7 @@ export default function Layout({ children }: LayoutProps) {
         </Box>
       </Box>
 
-      <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: 3 }}>
+  <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: { xs: 1.5, md: 2 } }}>
         <Box
           component="main"
           sx={{
@@ -378,7 +378,7 @@ export default function Layout({ children }: LayoutProps) {
             </Box>
           )}
 
-          <Box sx={{ flex: 1, minHeight: 0, p: 3 }}>{children}</Box>
+          <Box sx={{ flex: 1, minHeight: 0, p: 0 }}>{children}</Box>
         </Box>
       </Box>
     </Box>

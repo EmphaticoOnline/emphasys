@@ -1,4 +1,5 @@
 export type TipoMovimiento = 'Deposito' | 'Retiro';
+export type NaturalezaOperacion = 'cobro_cliente' | 'pago_proveedor' | 'movimiento_general';
 
 export interface FinanzasCuenta {
   id: number;
@@ -24,7 +25,10 @@ export interface FinanzasOperacion {
   empresa_id?: number;
   fecha: string;
   tipo_movimiento: TipoMovimiento;
+  naturaleza_operacion?: NaturalezaOperacion;
   monto: number;
+  moneda?: string;
+  tipo_cambio?: number;
   referencia?: string | null;
   observaciones?: string | null;
   cuenta_id: number;
@@ -42,6 +46,46 @@ export interface FinanzasOperacion {
   transferencia_cuenta_destino?: number | null;
   transferencia_origen_nombre?: string | null;
   transferencia_destino_nombre?: string | null;
+}
+
+export interface OperacionDisponible {
+  id: number;
+  monto_total: number;
+  monto_aplicado: number;
+  monto_disponible: number;
+}
+
+export interface AplicacionOperacion {
+  id: number;
+  empresa_id: number;
+  finanzas_operacion_id: number | null;
+  documento_origen_id: number | null;
+  documento_destino_id: number | null;
+  monto: number;
+  monto_moneda_documento: number;
+  fecha_aplicacion: string | null;
+  fecha_creacion?: string | null;
+  tipo_documento?: string | null;
+  serie?: string | null;
+  numero?: number | null;
+  fecha_documento?: string | null;
+  total_documento?: number | null;
+  moneda_documento?: string | null;
+}
+
+export interface EstadoCuentaItem {
+  id: number;
+  contacto_id: number;
+  empresa_id: number;
+  origen: 'documento' | 'operacion';
+  tipo: string;
+  moneda: string;
+  tipo_cambio?: number | null;
+  monto: number;
+  saldo: number | null;
+  fecha: string;
+  serie?: string | null;
+  numero?: number | null;
 }
 
 export interface TransferenciaPayload {

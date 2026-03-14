@@ -39,6 +39,15 @@ export interface CfdiPartida {
   descripcion: string;
   clave_producto_sat: string | null;
   clave_unidad_sat: string | null;
+  impuestos?: CfdiPartidaImpuesto[];
+}
+
+export interface CfdiPartidaImpuesto {
+  impuesto: string;
+  tipo: 'traslado' | 'retencion' | string;
+  tasa: number;
+  base: number;
+  monto: number;
 }
 
 export interface CfdiInvoiceData {

@@ -34,8 +34,32 @@ CREATE TABLE public.conceptos (
     es_gasto boolean DEFAULT true NOT NULL,
     activo boolean DEFAULT true NOT NULL,
     rubro_presupuesto_id integer,
-    observaciones text
+    observaciones text,
+    cuenta_contable character varying(30),
+    orden integer DEFAULT 0,
+    color character varying(20)
 );
+
+
+--
+-- Name: COLUMN conceptos.cuenta_contable; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conceptos.cuenta_contable IS 'Cuenta contable asociada al concepto. Se utilizará en el módulo de contabilidad.';
+
+
+--
+-- Name: COLUMN conceptos.orden; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conceptos.orden IS 'Orden de presentación del concepto en listas y dropdowns.';
+
+
+--
+-- Name: COLUMN conceptos.color; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conceptos.color IS 'Color opcional para representar el concepto en reportes o gráficos.';
 
 
 --
@@ -79,6 +103,27 @@ ALTER TABLE ONLY public.conceptos
 
 ALTER TABLE ONLY public.conceptos
     ADD CONSTRAINT ux_concepto_empresa UNIQUE (empresa_id, nombre_concepto);
+
+
+--
+-- Name: idx_conceptos_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conceptos_empresa ON public.conceptos USING btree (empresa_id);
+
+
+--
+-- Name: idx_conceptos_orden; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conceptos_orden ON public.conceptos USING btree (empresa_id, orden);
+
+
+--
+-- Name: idx_conceptos_rubro_presupuesto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conceptos_rubro_presupuesto ON public.conceptos USING btree (empresa_id, rubro_presupuesto_id);
 
 
 --

@@ -1,12 +1,20 @@
 import { Router } from 'express';
 import { requireAuth, requireEmpresaActiva } from '../auth/auth.middleware';
 import {
+  getAplicacionesPorOperacion,
   deleteAplicacion,
   deleteCuenta,
   deleteOperacion,
   deleteTransferencia,
+  getAplicacionesPorDocumento,
   getCuentas,
+  getEstadoCuentaContacto,
   getOperaciones,
+  getReporteAging,
+  getDisponibleOperacion,
+  getOperacion,
+  getReporteAgingResumen,
+  getSaldoDocumento,
   postAplicacion,
   postConciliacion,
   postCuenta,
@@ -19,7 +27,17 @@ import {
 
 const router = Router();
 
+// Todas las rutas requieren autenticación y empresa activa
 router.use(requireAuth, requireEmpresaActiva);
+
+router.get('/documentos/:id/aplicaciones', getAplicacionesPorDocumento);
+router.get('/documentos/:id/saldo', getSaldoDocumento);
+router.get('/contactos/:id/estado-cuenta', getEstadoCuentaContacto);
+router.get('/reportes/aging', getReporteAging);
+router.get('/reportes/aging-resumen', getReporteAgingResumen);
+router.get('/finanzas_operaciones/:id/disponible', getDisponibleOperacion);
+router.get('/finanzas_operaciones/:id', getOperacion);
+router.get('/finanzas_operaciones/:id/aplicaciones', getAplicacionesPorOperacion);
 
 router.get('/cuentas', getCuentas);
 router.post('/cuentas', postCuenta);

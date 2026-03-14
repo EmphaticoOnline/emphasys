@@ -1,5 +1,16 @@
 import { apiFetch } from './apiFetch';
-import type { FinanzasCuenta, FinanzasOperacion, TransferenciaPayload, ConciliacionPayload, TipoMovimiento, TransferenciaUpdatePayload } from '../types/finanzas';
+import type {
+  AplicacionOperacion,
+  ConciliacionPayload,
+  EstadoCuentaItem,
+  FinanzasCuenta,
+  FinanzasOperacion,
+  NaturalezaOperacion,
+  OperacionDisponible,
+  TipoMovimiento,
+  TransferenciaPayload,
+  TransferenciaUpdatePayload,
+} from '../types/finanzas';
 
 const BASE = '/api/finanzas';
 
@@ -33,6 +44,7 @@ export interface OperacionPayload {
   cuenta_id: number;
   fecha: string;
   tipo_movimiento: TipoMovimiento;
+  naturaleza_operacion?: NaturalezaOperacion;
   contacto_id?: number | null;
   referencia?: string | null;
   observaciones?: string | null;
@@ -81,4 +93,37 @@ export async function crearConciliacion(payload: ConciliacionPayload): Promise<a
     method: 'POST',
     body: payload as any,
   });
+}
+
+export async function fetchOperacionDetalle(id: number): Promise<FinanzasOperacion> {
+  return apiFetch(`${BASE}/finanzas_operaciones/${id}`);
+}
+
+export async function fetchOperacionDisponible(id: number): Promise<OperacionDisponible> {
+  return apiFetch(`${BASE}/finanzas_operaciones/${id}/disponible`);
+}
+
+export async function fetchAplicacionesPorOperacion(id: number): Promise<AplicacionOperacion[]> {
+  return apiFetch(`${BASE}/finanzas_operaciones/${id}/aplicaciones`);
+}
+
+export async function fetchEstadoCuenta(contactoId: number): Promise<EstadoCuentaItem[]> {
+  return apiFetch(`${BASE}/contactos/${contactoId}/estado-cuenta`);
+}
+
+export async function crearAplicacion(payload: {
+  finanzas_operacion_id: number;
+  documento_destino_id: number;
+  monto: number;
+  monto_moneda_documento?: number;
+  fecha_aplicacion?: string | null;
+}): Promise<AplicacionOperacion> {
+  return apiFetch(`${BASE}/aplicaciones`, {
+    method: 'POST',
+    body: payload as any,
+  });
+}
+
+export async function eliminarAplicacion(id: number): Promise<void> {
+  await apiFetch(`${BASE}/aplicaciones/${id}`, { method: 'DELETE' });
 }

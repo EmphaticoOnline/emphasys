@@ -12,6 +12,16 @@ const formatMoney = (value: number, decimals = 2) => value.toFixed(decimals);
 const formatRate = (value: number) => value.toFixed(6);
 const formatFecha = (value: string) => new Date(value).toISOString().slice(0, 19);
 
+const normalizeRate = (value: number): number => (value > 1 ? value / 100 : value);
+
+const mapImpuestoClave = (impuesto?: string | null): string => {
+  const val = (impuesto || '').toUpperCase();
+  if (val === 'IVA' || val === '002') return '002';
+  if (val === 'ISR' || val === '001') return '001';
+  if (val === 'IEPS' || val === '003') return '003';
+  return val || IVA_IMPUESTO;
+};
+
 const sanitize = <T extends Record<string, any>>(obj: T): Partial<T> => {
   const out: Partial<T> = {};
   Object.entries(obj).forEach(([key, val]) => {
@@ -48,12 +58,64 @@ export class CfdiBuilder {
 
     const conceptos = data.partidas.map((p) => {
       const { base, importeIva, tasa } = resolveImporte(p);
-      return { partida: p, base, importeIva, tasa };
+
+      const impuestosDetallados = Array.isArray(p.impuestos) ? p.impuestos : [];
+      const tieneImpuestosDetallados = impuestosDetallados.length > 0;
+
+      const impuestosCalculados = tieneImpuestosDetallados
+        ? impuestosDetallados.map((imp) => {
+            const tasaNorm = normalizeRate(Number(imp.tasa));
+            const baseImp = Number.isFinite(Number(imp.base)) ? Number(imp.base) : base;
+            const importeImp = Number.isFinite(Number(imp.monto)) ? Number(imp.monto) : baseImp * tasaNorm;
+            return {
+              tipo: (imp.tipo || '').toLowerCase() === 'retencion' ? 'retencion' : 'traslado',
+              impuestoClave: mapImpuestoClave(imp.impuesto),
+              tasa: tasaNorm,
+              base: baseImp,
+              importe: importeImp,
+            };
+          })
+        : [
+            {
+              tipo: 'traslado',
+              impuestoClave: IVA_IMPUESTO,
+              tasa,
+              base,
+              importe: importeIva,
+            },
+          ];
+
+      return { partida: p, base, importeIva, tasa, impuestosCalculados };
     });
 
     const subtotal = data.documento.subtotal ?? conceptos.reduce((acc, it) => acc + it.base, 0);
-    const totalImpuestosTrasladados = conceptos.reduce((acc, it) => acc + it.importeIva, 0);
-    const total = data.documento.total ?? subtotal + totalImpuestosTrasladados;
+
+    let totalImpuestosTrasladados = 0;
+    let totalImpuestosRetenidos = 0;
+
+    const globalTraslados = new Map<string, { impuesto: string; tasa: number; importe: number }>();
+    const globalRetenciones = new Map<string, { impuesto: string; tasa: number; importe: number }>();
+
+    conceptos.forEach((c) => {
+      c.impuestosCalculados.forEach((imp) => {
+        const key = `${imp.impuestoClave}|${formatRate(imp.tasa)}`;
+
+        if (imp.tipo === 'retencion') {
+          totalImpuestosRetenidos += imp.importe;
+          const current = globalRetenciones.get(key) || { impuesto: imp.impuestoClave, tasa: imp.tasa, importe: 0 };
+          current.importe += imp.importe;
+          globalRetenciones.set(key, current);
+          return;
+        }
+
+        totalImpuestosTrasladados += imp.importe;
+        const current = globalTraslados.get(key) || { impuesto: imp.impuestoClave, tasa: imp.tasa, importe: 0 };
+        current.importe += imp.importe;
+        globalTraslados.set(key, current);
+      });
+    });
+
+    const total = data.documento.total ?? subtotal + totalImpuestosTrasladados - totalImpuestosRetenidos;
 
     const comprobanteAttrs = sanitize({
       'xmlns:cfdi': CFDI_NAMESPACE,
@@ -72,6 +134,7 @@ export class CfdiBuilder {
       MetodoPago: data.documento.metodo_pago || 'PUE',
       FormaPago: data.documento.forma_pago || '99',
       TotalImpuestosTrasladados: totalImpuestosTrasladados > 0 ? formatMoney(totalImpuestosTrasladados) : undefined,
+      TotalImpuestosRetenidos: totalImpuestosRetenidos > 0 ? formatMoney(totalImpuestosRetenidos) : undefined,
     });
 
     const domicilioFiscalReceptorAjustado = ajustarDomicilioFiscalReceptor(
@@ -99,7 +162,7 @@ export class CfdiBuilder {
 
     const conceptosNode = xml.ele('cfdi:Conceptos');
 
-    conceptos.forEach(({ partida, base, importeIva, tasa }) => {
+    conceptos.forEach(({ partida, base, impuestosCalculados, tasa, importeIva }) => {
       const concepto = conceptosNode.ele('cfdi:Concepto', sanitize({
         ClaveProdServ: partida.clave_producto_sat,
         Cantidad: formatRate(partida.cantidad),
@@ -111,32 +174,76 @@ export class CfdiBuilder {
       }));
 
       const impuestos = concepto.ele('cfdi:Impuestos');
-      const traslados = impuestos.ele('cfdi:Traslados');
-      traslados.ele('cfdi:Traslado', sanitize({
-        Base: formatMoney(base),
-        Impuesto: IVA_IMPUESTO,
-        TipoFactor: 'Tasa',
-        TasaOCuota: formatRate(tasa),
-        Importe: formatMoney(importeIva),
-      }));
+
+      const trasladosPartida = impuestosCalculados.filter((imp) => imp.tipo !== 'retencion');
+      const retencionesPartida = impuestosCalculados.filter((imp) => imp.tipo === 'retencion');
+
+      if (trasladosPartida.length > 0) {
+        const traslados = impuestos.ele('cfdi:Traslados');
+        trasladosPartida.forEach((imp) => {
+          traslados.ele('cfdi:Traslado', sanitize({
+            Base: formatMoney(imp.base),
+            Impuesto: imp.impuestoClave,
+            TipoFactor: 'Tasa',
+            TasaOCuota: formatRate(imp.tasa),
+            Importe: formatMoney(imp.importe),
+          }));
+        });
+        traslados.up();
+      }
+
+      if (retencionesPartida.length > 0) {
+        const retenciones = impuestos.ele('cfdi:Retenciones');
+        retencionesPartida.forEach((imp) => {
+          retenciones.ele('cfdi:Retencion', sanitize({
+            Base: formatMoney(imp.base),
+            Impuesto: imp.impuestoClave,
+            TipoFactor: 'Tasa',
+            TasaOCuota: formatRate(imp.tasa),
+            Importe: formatMoney(imp.importe),
+          }));
+        });
+        retenciones.up();
+      }
+
       impuestos.up();
       concepto.up();
     });
 
     xml.up(); // cierra Conceptos
 
-    if (totalImpuestosTrasladados > 0) {
-      const impuestos = xml.ele('cfdi:Impuestos', {
-        TotalImpuestosTrasladados: formatMoney(totalImpuestosTrasladados),
-      });
-      const traslados = impuestos.ele('cfdi:Traslados');
-      traslados.ele('cfdi:Traslado', {
-        Impuesto: IVA_IMPUESTO,
-        TipoFactor: 'Tasa',
-        TasaOCuota: formatRate(IVA_TASA),
-        Importe: formatMoney(totalImpuestosTrasladados),
-      });
-      traslados.up();
+    if (totalImpuestosTrasladados > 0 || totalImpuestosRetenidos > 0) {
+      const impuestos = xml.ele('cfdi:Impuestos', sanitize({
+        TotalImpuestosTrasladados: totalImpuestosTrasladados > 0 ? formatMoney(totalImpuestosTrasladados) : undefined,
+        TotalImpuestosRetenidos: totalImpuestosRetenidos > 0 ? formatMoney(totalImpuestosRetenidos) : undefined,
+      }));
+
+      if (globalTraslados.size > 0) {
+        const traslados = impuestos.ele('cfdi:Traslados');
+        globalTraslados.forEach((imp) => {
+          traslados.ele('cfdi:Traslado', {
+            Impuesto: imp.impuesto,
+            TipoFactor: 'Tasa',
+            TasaOCuota: formatRate(imp.tasa),
+            Importe: formatMoney(imp.importe),
+          });
+        });
+        traslados.up();
+      }
+
+      if (globalRetenciones.size > 0) {
+        const retenciones = impuestos.ele('cfdi:Retenciones');
+        globalRetenciones.forEach((imp) => {
+          retenciones.ele('cfdi:Retencion', {
+            Impuesto: imp.impuesto,
+            TipoFactor: 'Tasa',
+            TasaOCuota: formatRate(imp.tasa),
+            Importe: formatMoney(imp.importe),
+          });
+        });
+        retenciones.up();
+      }
+
       impuestos.up();
     }
 

@@ -1,6 +1,6 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-03-13T00:30:02.329Z
+-- Generated at: 2026-03-14T15:40:38.014Z
 --
 -- PostgreSQL database dump
 --
@@ -986,6 +986,66 @@ ALTER SEQUENCE core.empresas_id_seq OWNED BY core.empresas.id;
 
 
 --
+-- Name: empresas_impuestos_default; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.empresas_impuestos_default (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    impuesto_id character varying(30) NOT NULL,
+    orden integer DEFAULT 0
+);
+
+
+--
+-- Name: TABLE empresas_impuestos_default; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.empresas_impuestos_default IS 'Impuestos predeterminados de una empresa. Se aplican cuando un producto no tiene impuestos definidos.';
+
+
+--
+-- Name: COLUMN empresas_impuestos_default.empresa_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_impuestos_default.empresa_id IS 'Empresa a la que pertenecen los impuestos predeterminados.';
+
+
+--
+-- Name: COLUMN empresas_impuestos_default.impuesto_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_impuestos_default.impuesto_id IS 'Impuesto que se aplicará por defecto a los productos sin impuestos definidos.';
+
+
+--
+-- Name: COLUMN empresas_impuestos_default.orden; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_impuestos_default.orden IS 'Orden de aplicación del impuesto cuando existen múltiples impuestos.';
+
+
+--
+-- Name: empresas_impuestos_default_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.empresas_impuestos_default_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: empresas_impuestos_default_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.empresas_impuestos_default_id_seq OWNED BY core.empresas_impuestos_default.id;
+
+
+--
 -- Name: empresas_tipos_documento; Type: TABLE; Schema: core; Owner: -
 --
 
@@ -1815,6 +1875,43 @@ COMMENT ON COLUMN core.usuarios_roles.created_at IS 'Fecha de creación de la as
 
 
 --
+-- Name: aplicaciones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.aplicaciones (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    finanzas_operacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer NOT NULL,
+    monto numeric(15,2) NOT NULL,
+    fecha_aplicacion timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_aplicacion_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
+);
+
+
+--
+-- Name: aplicaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.aplicaciones_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: aplicaciones_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.aplicaciones_id_seq OWNED BY public.aplicaciones.id;
+
+
+--
 -- Name: conceptos; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1825,8 +1922,32 @@ CREATE TABLE public.conceptos (
     es_gasto boolean DEFAULT true NOT NULL,
     activo boolean DEFAULT true NOT NULL,
     rubro_presupuesto_id integer,
-    observaciones text
+    observaciones text,
+    cuenta_contable character varying(30),
+    orden integer DEFAULT 0,
+    color character varying(20)
 );
+
+
+--
+-- Name: COLUMN conceptos.cuenta_contable; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conceptos.cuenta_contable IS 'Cuenta contable asociada al concepto. Se utilizará en el módulo de contabilidad.';
+
+
+--
+-- Name: COLUMN conceptos.orden; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conceptos.orden IS 'Orden de presentación del concepto en listas y dropdowns.';
+
+
+--
+-- Name: COLUMN conceptos.color; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conceptos.color IS 'Color opcional para representar el concepto en reportes o gráficos.';
 
 
 --
@@ -1891,7 +2012,6 @@ CREATE TABLE public.contactos_datos_fiscales (
     uso_cfdi character varying(10),
     forma_pago character varying(10),
     metodo_pago character varying(10),
-    codigo_postal character varying(10),
     enviar_cfd boolean DEFAULT true NOT NULL,
     enviar_cfd_agente boolean DEFAULT false NOT NULL,
     es_publico_general boolean DEFAULT false NOT NULL,
@@ -2681,82 +2801,6 @@ CREATE SEQUENCE public.documentos_partidas_vinculos_id_seq
 --
 
 ALTER SEQUENCE public.documentos_partidas_vinculos_id_seq OWNED BY public.documentos_partidas_vinculos.id;
-
-
---
--- Name: finanzas_aplicaciones; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.finanzas_aplicaciones (
-    id integer NOT NULL,
-    empresa_id integer NOT NULL,
-    operacion_id integer NOT NULL,
-    documento_id integer NOT NULL,
-    monto numeric(15,2) NOT NULL,
-    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: TABLE finanzas_aplicaciones; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.finanzas_aplicaciones IS 'Relación entre operaciones financieras y documentos. Permite aplicar pagos o cobros a facturas, pedidos u otros documentos.';
-
-
---
--- Name: COLUMN finanzas_aplicaciones.empresa_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.finanzas_aplicaciones.empresa_id IS 'Empresa propietaria del registro.';
-
-
---
--- Name: COLUMN finanzas_aplicaciones.operacion_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.finanzas_aplicaciones.operacion_id IS 'Operación financiera que aplica el pago o cobro.';
-
-
---
--- Name: COLUMN finanzas_aplicaciones.documento_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.finanzas_aplicaciones.documento_id IS 'Documento al que se aplica el monto (ej. factura).';
-
-
---
--- Name: COLUMN finanzas_aplicaciones.monto; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.finanzas_aplicaciones.monto IS 'Monto aplicado del pago o cobro al documento.';
-
-
---
--- Name: COLUMN finanzas_aplicaciones.fecha_creacion; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.finanzas_aplicaciones.fecha_creacion IS 'Fecha de creación del registro.';
-
-
---
--- Name: finanzas_aplicaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.finanzas_aplicaciones_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: finanzas_aplicaciones_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.finanzas_aplicaciones_id_seq OWNED BY public.finanzas_aplicaciones.id;
 
 
 --
@@ -3956,6 +4000,13 @@ ALTER TABLE ONLY core.empresas_assets ALTER COLUMN id SET DEFAULT nextval('core.
 
 
 --
+-- Name: empresas_impuestos_default id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_impuestos_default ALTER COLUMN id SET DEFAULT nextval('core.empresas_impuestos_default_id_seq'::regclass);
+
+
+--
 -- Name: empresas_tipos_documento id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -4016,6 +4067,13 @@ ALTER TABLE ONLY core.tipos_documento ALTER COLUMN id SET DEFAULT nextval('core.
 --
 
 ALTER TABLE ONLY core.usuarios ALTER COLUMN id SET DEFAULT nextval('core.usuarios_id_seq'::regclass);
+
+
+--
+-- Name: aplicaciones id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones ALTER COLUMN id SET DEFAULT nextval('public.aplicaciones_id_seq'::regclass);
 
 
 --
@@ -4114,13 +4172,6 @@ ALTER TABLE ONLY public.documentos_partidas_impuestos ALTER COLUMN id SET DEFAUL
 --
 
 ALTER TABLE ONLY public.documentos_partidas_vinculos ALTER COLUMN id SET DEFAULT nextval('public.documentos_partidas_vinculos_id_seq'::regclass);
-
-
---
--- Name: finanzas_aplicaciones id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.finanzas_aplicaciones ALTER COLUMN id SET DEFAULT nextval('public.finanzas_aplicaciones_id_seq'::regclass);
 
 
 --
@@ -4230,6 +4281,14 @@ ALTER TABLE ONLY core.catalogos_tipos
 
 ALTER TABLE ONLY core.empresas_assets
     ADD CONSTRAINT empresas_assets_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: empresas_impuestos_default empresas_impuestos_default_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_impuestos_default
+    ADD CONSTRAINT empresas_impuestos_default_pkey PRIMARY KEY (id);
 
 
 --
@@ -4361,6 +4420,14 @@ ALTER TABLE ONLY core.tipos_documento
 
 
 --
+-- Name: empresas_impuestos_default uq_empresas_impuestos_default; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_impuestos_default
+    ADD CONSTRAINT uq_empresas_impuestos_default UNIQUE (empresa_id, impuesto_id);
+
+
+--
 -- Name: empresas_tipos_documento uq_empresas_tipos_documento; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -4414,6 +4481,14 @@ ALTER TABLE ONLY core.usuarios
 
 ALTER TABLE ONLY core.usuarios_roles
     ADD CONSTRAINT usuarios_roles_pkey PRIMARY KEY (usuario_id, empresa_id, rol_id);
+
+
+--
+-- Name: aplicaciones aplicaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT aplicaciones_pkey PRIMARY KEY (id);
 
 
 --
@@ -4534,14 +4609,6 @@ ALTER TABLE ONLY public.documentos_partidas_vinculos
 
 ALTER TABLE ONLY public.documentos
     ADD CONSTRAINT documentos_pkey PRIMARY KEY (id);
-
-
---
--- Name: finanzas_aplicaciones finanzas_aplicaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.finanzas_aplicaciones
-    ADD CONSTRAINT finanzas_aplicaciones_pkey PRIMARY KEY (id);
 
 
 --
@@ -5123,6 +5190,20 @@ COMMENT ON INDEX core.idx_empresas_identificador IS 'Garantiza unicidad del alia
 
 
 --
+-- Name: idx_empresas_impuestos_default_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_empresas_impuestos_default_empresa ON core.empresas_impuestos_default USING btree (empresa_id);
+
+
+--
+-- Name: idx_empresas_impuestos_default_impuesto; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_empresas_impuestos_default_impuesto ON core.empresas_impuestos_default USING btree (impuesto_id);
+
+
+--
 -- Name: idx_empresas_nombre; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -5368,10 +5449,59 @@ CREATE UNIQUE INDEX documentos_unico ON public.documentos USING btree (empresa_i
 
 
 --
+-- Name: idx_aplicaciones_doc_destino; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_doc_destino ON public.aplicaciones USING btree (documento_destino_id);
+
+
+--
+-- Name: idx_aplicaciones_doc_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_doc_origen ON public.aplicaciones USING btree (documento_origen_id);
+
+
+--
+-- Name: idx_aplicaciones_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_empresa ON public.aplicaciones USING btree (empresa_id);
+
+
+--
+-- Name: idx_aplicaciones_operacion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_operacion ON public.aplicaciones USING btree (finanzas_operacion_id);
+
+
+--
 -- Name: idx_cd_cp_sat; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_cd_cp_sat ON public.contactos_domicilios USING btree (cp_sat);
+
+
+--
+-- Name: idx_conceptos_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conceptos_empresa ON public.conceptos USING btree (empresa_id);
+
+
+--
+-- Name: idx_conceptos_orden; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conceptos_orden ON public.conceptos USING btree (empresa_id, orden);
+
+
+--
+-- Name: idx_conceptos_rubro_presupuesto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_conceptos_rubro_presupuesto ON public.conceptos USING btree (empresa_id, rubro_presupuesto_id);
 
 
 --
@@ -5515,6 +5645,20 @@ COMMENT ON INDEX public.idx_documentos_partidas_campos_empresa_partida_campo IS 
 
 
 --
+-- Name: idx_documentos_partidas_impuestos_partida_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_impuestos_partida_id ON public.documentos_partidas_impuestos USING btree (partida_id);
+
+
+--
+-- Name: INDEX idx_documentos_partidas_impuestos_partida_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_documentos_partidas_impuestos_partida_id IS 'Optimiza consultas que filtran por partida_id (cálculo y lectura de impuestos por partida).';
+
+
+--
 -- Name: idx_dpc_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5540,48 +5684,6 @@ CREATE INDEX idx_dpc_partida ON public.documentos_partidas_campos USING btree (p
 --
 
 COMMENT ON INDEX public.idx_dpc_partida IS 'Optimiza consultas de campos dinámicos por partida.';
-
-
---
--- Name: idx_fa_documento; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_fa_documento ON public.finanzas_aplicaciones USING btree (documento_id);
-
-
---
--- Name: INDEX idx_fa_documento; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_fa_documento IS 'Permite localizar rápidamente los pagos aplicados a un documento.';
-
-
---
--- Name: idx_fa_empresa; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_fa_empresa ON public.finanzas_aplicaciones USING btree (empresa_id);
-
-
---
--- Name: INDEX idx_fa_empresa; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_fa_empresa IS 'Optimiza consultas multiempresa en aplicaciones financieras.';
-
-
---
--- Name: idx_fa_operacion; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_fa_operacion ON public.finanzas_aplicaciones USING btree (operacion_id);
-
-
---
--- Name: INDEX idx_fa_operacion; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_fa_operacion IS 'Permite localizar rápidamente las aplicaciones de una operación financiera.';
 
 
 --
@@ -5969,6 +6071,14 @@ ALTER TABLE ONLY core.empresas
 
 
 --
+-- Name: empresas_impuestos_default fk_empresas_impuestos_default_impuesto; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_impuestos_default
+    ADD CONSTRAINT fk_empresas_impuestos_default_impuesto FOREIGN KEY (impuesto_id) REFERENCES public.impuestos(id);
+
+
+--
 -- Name: empresas fk_empresas_localidad; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -6118,6 +6228,38 @@ ALTER TABLE ONLY core.usuarios_roles
 
 ALTER TABLE ONLY core.usuarios_roles
     ADD CONSTRAINT usuarios_roles_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: aplicaciones fk_aplicaciones_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT fk_aplicaciones_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones fk_aplicaciones_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT fk_aplicaciones_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones fk_aplicaciones_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT fk_aplicaciones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones fk_aplicaciones_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT fk_aplicaciones_operacion FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
 
 
 --
@@ -6294,22 +6436,6 @@ ALTER TABLE ONLY public.documentos_partidas_campos
 
 ALTER TABLE ONLY public.documentos_partidas_campos
     ADD CONSTRAINT fk_dpc_partida FOREIGN KEY (partida_id) REFERENCES public.documentos_partidas(id) ON DELETE CASCADE;
-
-
---
--- Name: finanzas_aplicaciones fk_fa_documento; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.finanzas_aplicaciones
-    ADD CONSTRAINT fk_fa_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
-
-
---
--- Name: finanzas_aplicaciones fk_fa_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.finanzas_aplicaciones
-    ADD CONSTRAINT fk_fa_operacion FOREIGN KEY (operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
 
 
 --

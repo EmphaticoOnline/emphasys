@@ -93,6 +93,42 @@ export class CfdiService {
       [documentoId]
     );
 
+    const partidasIds = partidasRows.map((p) => p.id);
+    let impuestosPorPartida: Record<number, {
+      impuesto: string;
+      tipo: string;
+      tasa: number;
+      base: number;
+      monto: number;
+    }[]> = {};
+
+    if (partidasIds.length > 0) {
+      const { rows: impuestosRows } = await pool.query(
+        `SELECT partida_id,
+                impuesto_id    AS impuesto,
+                tipo,
+                tasa,
+                base,
+                monto
+           FROM documentos_partidas_impuestos
+          WHERE partida_id = ANY($1::int[])
+          ORDER BY partida_id ASC, impuesto_id ASC`,
+        [partidasIds]
+      );
+
+      impuestosRows.forEach((row) => {
+        const list = impuestosPorPartida[row.partida_id] ?? [];
+        list.push({
+          impuesto: row.impuesto,
+          tipo: row.tipo,
+          tasa: Number(row.tasa),
+          base: Number(row.base),
+          monto: Number(row.monto),
+        });
+        impuestosPorPartida[row.partida_id] = list;
+      });
+    }
+
     const partidas: CfdiPartida[] = partidasRows.map((p) => ({
       id: p.id,
       cantidad: Number(p.cantidad),
@@ -103,6 +139,7 @@ export class CfdiService {
       descripcion: p.descripcion,
       clave_producto_sat: p.clave_producto_sat,
       clave_unidad_sat: p.clave_unidad_sat,
+      impuestos: impuestosPorPartida[p.id],
     }));
 
     return {

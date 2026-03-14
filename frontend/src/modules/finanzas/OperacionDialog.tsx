@@ -16,7 +16,7 @@ import {
   Typography,
 } from '@mui/material';
 import { createFilterOptions } from '@mui/material/Autocomplete';
-import type { Concepto, FinanzasCuenta, FinanzasOperacion, TipoMovimiento } from '../../types/finanzas';
+import type { Concepto, FinanzasCuenta, FinanzasOperacion, NaturalezaOperacion, TipoMovimiento } from '../../types/finanzas';
 import type { Contacto } from '../../types/contactos.types';
 import { actualizarOperacion, crearOperacion, type OperacionPayload } from '../../services/finanzasService';
 import { fetchConceptos, crearConcepto } from '../../services/conceptosService';
@@ -37,6 +37,7 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
   const [cuentaId, setCuentaId] = useState<number | ''>(defaultCuentaId || '');
   const [fecha, setFecha] = useState<string>('');
   const [tipoMovimiento, setTipoMovimiento] = useState<TipoMovimiento>('Deposito');
+  const [naturaleza, setNaturaleza] = useState<NaturalezaOperacion>('movimiento_general');
   const [contactoId, setContactoId] = useState<string>('');
   const [referencia, setReferencia] = useState('');
   const [observaciones, setObservaciones] = useState('');
@@ -66,16 +67,18 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
       setContactoId(operacion.contacto_id ? String(operacion.contacto_id) : '');
       setReferencia(operacion.referencia || '');
       setObservaciones(operacion.observaciones || '');
-  setMonto(formatCurrency(operacion.monto ?? ''));
+      setMonto(formatCurrency(operacion.monto ?? ''));
       setConceptoId(operacion.concepto_id ? String(operacion.concepto_id) : '');
+      setNaturaleza((operacion.naturaleza_operacion as NaturalezaOperacion) || 'movimiento_general');
     } else {
       setCuentaId(defaultCuentaId || '');
       setFecha(new Date().toISOString().slice(0, 10));
       setTipoMovimiento('Deposito');
+      setNaturaleza('movimiento_general');
       setContactoId('');
       setReferencia('');
       setObservaciones('');
-  setMonto('');
+      setMonto('');
       setConceptoId('');
     }
     setError(null);
@@ -107,10 +110,11 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
       cuenta_id: Number(cuentaId),
       fecha,
       tipo_movimiento: tipoMovimiento,
+      naturaleza_operacion: naturaleza || 'movimiento_general',
       contacto_id: contactoId ? Number(contactoId) : null,
       referencia: referencia || null,
       observaciones: observaciones || null,
-  monto: Number(montoNumerico),
+      monto: Number(montoNumerico),
       concepto_id: conceptoId ? Number(conceptoId) : null,
     };
 
@@ -177,6 +181,20 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
               </Select>
             </FormControl>
           </Stack>
+
+          <FormControl size="small" fullWidth>
+            <InputLabel id="naturaleza-label">Naturaleza de la operación</InputLabel>
+            <Select
+              labelId="naturaleza-label"
+              value={naturaleza}
+              label="Naturaleza de la operación"
+              onChange={(e) => setNaturaleza((e.target.value as NaturalezaOperacion) || 'movimiento_general')}
+            >
+              <MenuItem value="cobro_cliente">Cobro de cliente</MenuItem>
+              <MenuItem value="pago_proveedor">Pago a proveedor</MenuItem>
+              <MenuItem value="movimiento_general">Movimiento general</MenuItem>
+            </Select>
+          </FormControl>
 
           <Autocomplete<Contacto>
             options={contactos}

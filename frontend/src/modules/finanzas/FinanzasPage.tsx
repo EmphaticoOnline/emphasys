@@ -30,6 +30,7 @@ import { OperacionDialog } from './OperacionDialog';
 import { TransferenciaDialog } from './TransferenciaDialog';
 import { ConciliacionDialog } from './ConciliacionDialog';
 import { NuevaCuentaDialog } from './NuevaCuentaDialog';
+import { OperacionDetalleDrawer } from './OperacionDetalleDrawer';
 import type { FinanzasCuenta, FinanzasOperacion, TransferenciaUpdatePayload } from '../../types/finanzas';
 import {
   actualizarCuenta,
@@ -60,6 +61,8 @@ export function FinanzasPage() {
   const [cuentaDialog, setCuentaDialog] = useState<{ open: boolean; cuenta?: FinanzasCuenta | null }>({ open: false, cuenta: null });
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; operacion: FinanzasOperacion | null }>({ open: false, operacion: null });
+  const [detalleOperacionId, setDetalleOperacionId] = useState<number | null>(null);
+  const [detalleOpen, setDetalleOpen] = useState(false);
 
   const selectedCuenta = useMemo(() => cuentas.find((c) => c.id === selectedCuentaId) || null, [cuentas, selectedCuentaId]);
 
@@ -171,7 +174,7 @@ export function FinanzasPage() {
   };
 
   return (
-    <Box sx={{ width: '100%', px: 3, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ width: '100%', px: { xs: 2, md: 2 }, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
         <Box>
           <Typography variant="h5" fontWeight={700} color="#1d2f68">
@@ -232,8 +235,8 @@ export function FinanzasPage() {
 
       <Box
         sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '340px 1fr' },
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
           gap: 2,
           alignItems: 'stretch',
         }}
@@ -248,7 +251,7 @@ export function FinanzasPage() {
           loading={loadingCuentas}
         />
 
-        <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Paper
             elevation={0}
             sx={{
@@ -304,32 +307,38 @@ export function FinanzasPage() {
             </Box>
           </Paper>
 
-          <MovimientosTable
-            operaciones={operaciones}
-            loading={loadingOps}
-            initialBalance={selectedCuenta?.saldo_inicial || 0}
-            moneda={selectedCuenta?.moneda || 'MXN'}
-            onEdit={(op) => setOperacionDialog({ open: true, operacion: op })}
-            onDelete={requestDeleteOperacion}
-            onEditTransferencia={(op) => {
-              if (op.transferencia_id) {
-                setTransferenciaEdit({
-                  id: op.transferencia_id,
-                  cuenta_origen_id: op.transferencia_cuenta_origen || op.cuenta_id,
-                  cuenta_destino_id: op.transferencia_cuenta_destino || op.cuenta_id,
-                  monto: Number(op.monto),
-                  fecha: op.fecha,
-                  referencia: op.referencia || null,
-                  observaciones: op.observaciones || null,
-                });
-                setTransferenciaOpen(true);
-              }
-            }}
-            onDeleteTransferencia={(op) => requestDeleteOperacion(op)}
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            showToolbar={false}
-          />
+          <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+            <MovimientosTable
+              operaciones={operaciones}
+              loading={loadingOps}
+              initialBalance={selectedCuenta?.saldo_inicial || 0}
+              moneda={selectedCuenta?.moneda || 'MXN'}
+              onEdit={(op) => setOperacionDialog({ open: true, operacion: op })}
+              onDelete={requestDeleteOperacion}
+              onEditTransferencia={(op) => {
+                if (op.transferencia_id) {
+                  setTransferenciaEdit({
+                    id: op.transferencia_id,
+                    cuenta_origen_id: op.transferencia_cuenta_origen || op.cuenta_id,
+                    cuenta_destino_id: op.transferencia_cuenta_destino || op.cuenta_id,
+                    monto: Number(op.monto),
+                    fecha: op.fecha,
+                    referencia: op.referencia || null,
+                    observaciones: op.observaciones || null,
+                  });
+                  setTransferenciaOpen(true);
+                }
+              }}
+              onDeleteTransferencia={(op) => requestDeleteOperacion(op)}
+              onView={(op) => {
+                setDetalleOperacionId(op.id);
+                setDetalleOpen(true);
+              }}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              showToolbar={false}
+            />
+          </Box>
         </Box>
       </Box>
 
@@ -359,6 +368,12 @@ export function FinanzasPage() {
         cuentaId={selectedCuentaId}
         onClose={() => setConciliacionOpen(false)}
         onSaved={handleConciliacionGuardada}
+      />
+
+      <OperacionDetalleDrawer
+        open={detalleOpen}
+        operacionId={detalleOperacionId}
+        onClose={() => setDetalleOpen(false)}
       />
 
       <NuevaCuentaDialog
