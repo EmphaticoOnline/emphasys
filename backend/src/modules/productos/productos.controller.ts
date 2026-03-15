@@ -33,6 +33,7 @@ export async function getProductos(req: Request, res: Response) {
     }
 
     const productos = await getProductosRepository(Number(empresaId));
+    console.log('[BACK IVA DEBUG] getProductos response sample', productos.slice(0, 3).map((p) => ({ id: p?.id, iva_porcentaje: p?.iva_porcentaje })));
     res.json(productos);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener productos' });

@@ -363,11 +363,11 @@ export function MovimientosTable({
   return (
     <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid #e5e7eb', background: '#fff', overflow: 'hidden' }}>
       <DataGrid<Row>
-        rows={rows}
-        columns={columns}
+    rows={rows}
+    columns={columns}
   density="compact"
-  rowHeight={34}
-  columnHeaderHeight={34}
+  rowHeight={40}
+  columnHeaderHeight={42}
   columnBufferPx={2}
         loading={!!loading}
         sortModel={sortModel}
@@ -401,13 +401,16 @@ export function MovimientosTable({
           '& .MuiDataGrid-cell': {
             display: 'flex',
             alignItems: 'center',
-            fontSize: 12.5,
+            fontSize: 13,
+            py: 0.5,
           },
           '& .MuiDataGrid-columnHeaders': {
-            fontSize: 12.5,
+            fontSize: 13,
+            minHeight: 42,
+            maxHeight: 42,
           },
           '& .MuiDataGrid-columnHeaderTitle': {
-            fontSize: 12.5,
+            fontSize: 13,
             fontWeight: 600,
           },
           '& .MuiDataGrid-row:nth-of-type(even)': {

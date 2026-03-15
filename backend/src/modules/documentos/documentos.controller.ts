@@ -11,6 +11,7 @@ import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
+import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -124,6 +125,32 @@ export const obtenerFactura = buildObtenerHandler('factura', true);
 export const crearFactura = buildCrearHandler('factura');
 export const actualizarFactura = buildActualizarHandler('factura', true);
 export const eliminarFactura = buildEliminarHandler('factura', true);
+export const calcularImpuestosPreviewHandler = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId;
+    if (!empresaId) return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+
+    const {
+      producto_id,
+      cantidad,
+      precio_unitario,
+      tratamiento_impuestos,
+    } = req.body || {};
+
+    const result = await calcularImpuestosPreview({
+      empresaId: Number(empresaId),
+      productoId: producto_id != null ? Number(producto_id) : null,
+      cantidad: cantidad != null ? Number(cantidad) : null,
+      precioUnitario: precio_unitario != null ? Number(precio_unitario) : null,
+      tratamientoImpuestos: tratamiento_impuestos ?? 'normal',
+    });
+
+    return res.json(result);
+  } catch (error) {
+    console.error('Error en preview de cálculo de impuestos', error);
+    return res.status(500).json({ message: 'Error al calcular impuestos' });
+  }
+};
 
 const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => async (req: Request, res: Response) => {
   try {

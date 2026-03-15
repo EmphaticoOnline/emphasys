@@ -49,6 +49,29 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
       throw new Error(`Subtotal de partida inválido (NaN). partidaId=${partidaId}, subtotal=${subtotalPartida}`);
     }
 
+    // Si el tratamiento es sin IVA, omitir el resolver y dejar la partida sin impuestos
+    if ((tratamientoImpuestos ?? '').toLowerCase() === 'sin_iva') {
+      await eliminarImpuestosDePartida(partidaId, executor);
+
+      const ivaMonto = 0;
+      const totalPartida = subtotalNumber;
+      await executor.query(
+        `UPDATE documentos_partidas
+            SET iva_monto = $1,
+                total_partida = $2
+          WHERE id = $3`,
+        [ivaMonto, totalPartida, partidaId]
+      );
+
+      // Recalcular totales del documento (encabezado)
+      await actualizarTotales(documentoId, executor);
+
+      if (ownedClient) {
+        await executor.query('COMMIT');
+      }
+      return [];
+    }
+
     // Validación de estatus del documento
     const estadosBloqueados = ['TIMBRADO', 'CANCELADO', 'CERRADO'];
     if (estadosBloqueados.includes(estatusDocumento?.toUpperCase?.() ?? '')) {

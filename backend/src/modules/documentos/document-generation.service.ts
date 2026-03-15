@@ -7,6 +7,8 @@ import type {
   PrepararGeneracionResponse,
   GenerarDocumentoPartidaInput,
 } from "./document-generation.types.js";
+import { calcularImpuestosPartida } from "../impuestos/impuestos.service";
+import { actualizarTotales } from "./documentos.service";
 
 class ServiceError extends Error {
   code: string;
@@ -303,10 +305,7 @@ export class DocumentGenerationService {
 
       const documentoDestino = insertDocRows[0];
 
-      let subtotalAcumulado = 0;
-      let ivaAcumulado = 0;
-      let totalAcumulado = 0;
-      const partidasGeneradas: { partida_destino_id: number; partida_origen_id: number; cantidad: number }[] = [];
+  const partidasGeneradas: { partida_destino_id: number; partida_origen_id: number; cantidad: number }[] = [];
 
       for (const [idx, partidaPayload] of partidas.entries()) {
         const partidaOrigen = partidasOrigen.find((p) => Number(p.partida_id) === Number(partidaPayload.partida_origen_id));
@@ -321,21 +320,15 @@ export class DocumentGenerationService {
 
         const precioUnitario = Number(partidaOrigen.precio_unitario ?? 0);
         const subtotalPartida = Number((cantidad * precioUnitario).toFixed(2));
-        const ivaPartida = partidaOrigen.iva_porcentaje
-          ? Number(((cantidad * precioUnitario) * (Number(partidaOrigen.iva_porcentaje) / 100)).toFixed(2))
-          : 0;
-        const totalPartida = subtotalPartida + ivaPartida;
 
-        console.log("[GenDoc] partida calculo", {
+        console.log("[GenDoc] partida base", {
           documento_origen_id,
           documento_destino_id: documentoDestino.id,
           partida_origen_id: partidaOrigen.partida_id,
           cantidad,
           precioUnitario,
           subtotalPartida,
-          iva_porcentaje: partidaOrigen.iva_porcentaje ?? null,
-          ivaPartida,
-          totalPartida,
+          iva_porcentaje_legacy: partidaOrigen.iva_porcentaje ?? null,
         });
 
         const { rows: partidaInsertRows } = await client.query(
@@ -363,9 +356,9 @@ export class DocumentGenerationService {
             partidaOrigen.unidad ?? null,
             precioUnitario,
             subtotalPartida,
-            partidaOrigen.iva_porcentaje ?? null,
-            ivaPartida,
-            totalPartida,
+            partidaOrigen.iva_porcentaje ?? null, // legacy field; no cálculo
+            0, // iva_monto lo calculará calcularImpuestosPartida
+            0, // total_partida lo calculará calcularImpuestosPartida
             partidaOrigen.partida_id,
           ]
         );
@@ -376,10 +369,6 @@ export class DocumentGenerationService {
           partida_origen_id: Number(partidaOrigen.partida_id),
           cantidad,
         });
-
-        subtotalAcumulado += subtotalPartida;
-        ivaAcumulado += ivaPartida;
-        totalAcumulado += totalPartida;
 
         await client.query(
           `INSERT INTO documentos_partidas_vinculos (
@@ -401,16 +390,20 @@ export class DocumentGenerationService {
             usuarioId ?? null,
           ]
         );
+
+        // Calcular impuestos con el motor nuevo (misma transacción)
+        await calcularImpuestosPartida(partidaDestinoId, client);
       }
 
-      // Recalcular totales desde las partidas recién insertadas para el documento destino
+      // Recalcular totales del documento destino usando los valores actualizados por el motor
+      await actualizarTotales(documentoDestino.id, client);
+
+      // Obtener totales ya recalculados para la respuesta
       const { rows: totalesRows } = await client.query(
-        `SELECT
-            COALESCE(SUM(subtotal_partida), 0) AS subtotal,
-            COALESCE(SUM(iva_monto), 0) AS iva,
-            COALESCE(SUM(total_partida), 0) AS total
-         FROM documentos_partidas
-         WHERE documento_id = $1`,
+        `SELECT subtotal, iva, total
+           FROM documentos
+          WHERE id = $1
+          LIMIT 1`,
         [documentoDestino.id]
       );
 
@@ -423,24 +416,15 @@ export class DocumentGenerationService {
         total: Number(totales.total),
       });
 
-      await client.query(
-        `UPDATE documentos
-            SET subtotal = $1,
-                iva = $2,
-                total = $3
-          WHERE id = $4`,
-        [Number(totales.subtotal), Number(totales.iva), Number(totales.total), documentoDestino.id]
-      );
-
       await client.query("COMMIT");
 
       return {
         documento_destino_id: Number(documentoDestino.id),
         tipo_documento_destino,
         folio: buildFolio(documentoDestino.serie, documentoDestino.numero),
-        subtotal: subtotalAcumulado,
-        iva: ivaAcumulado,
-        total: totalAcumulado,
+        subtotal: Number(totales.subtotal ?? 0),
+        iva: Number(totales.iva ?? 0),
+        total: Number(totales.total ?? 0),
         partidas: partidasGeneradas,
       };
     } catch (error) {

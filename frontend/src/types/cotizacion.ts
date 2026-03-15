@@ -55,11 +55,31 @@ export interface CotizacionPartida {
   producto_descripcion?: string | null;
   producto_clave?: string | null;
   observaciones?: string | null;
+  impuestos?: ImpuestoPartida[];
+  impuestos_calculados?: ImpuestoCalculadoUI[];
 }
 
 export interface CotizacionDetalle {
   documento: CotizacionDocumento;
   partidas: CotizacionPartida[];
+}
+
+export interface ImpuestoPartida {
+  impuesto_id: string;
+  nombre?: string | null;
+  tipo?: string | null;
+  tasa: number;
+  base?: number | null;
+  monto: number;
+}
+
+export interface ImpuestoCalculadoUI {
+  id?: string | number;
+  nombre?: string;
+  tipo?: string;
+  tasa: number;
+  base: number;
+  monto: number;
 }
 
 export interface CotizacionCrearPayload {

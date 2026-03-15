@@ -93,3 +93,16 @@ export async function downloadDocumentoPdf(id: number, tipo: TipoDocumento): Pro
 
   return response.blob();
 }
+
+// Preview de cálculo de impuestos (no persiste)
+export function calcularImpuestosPreview(payload: {
+  producto_id?: number | null;
+  cantidad?: number | null;
+  precio_unitario?: number | null;
+  tratamiento_impuestos?: string | null;
+}) {
+  return apiFetch('/api/documentos/calcular-impuestos', {
+    method: 'POST',
+    body: payload as any,
+  });
+}

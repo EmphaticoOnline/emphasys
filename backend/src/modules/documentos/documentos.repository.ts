@@ -32,6 +32,14 @@ export type Partida = {
   producto_descripcion?: string | null;
   producto_clave?: string | null;
   observaciones?: string | null;
+  impuestos?: Array<{
+    impuesto_id: string;
+    nombre?: string | null;
+    tipo?: string | null;
+    tasa: number;
+    base?: number | null;
+    monto: number;
+  }>;
 };
 
 const CAMPOS_DOCUMENTO = [
@@ -53,6 +61,7 @@ const CAMPOS_DOCUMENTO = [
   'total',
   'estatus_documento',
   'usuario_creacion_id',
+  'tratamiento_impuestos',
 ] as const;
 
 type DocumentoInput = Partial<Record<typeof CAMPOS_DOCUMENTO[number], any>> & {
@@ -122,6 +131,8 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
     LIMIT 1
   `;
   const params = tipoDocumento ? [empresaId, id, tipoDocumento] : [empresaId, id];
+  console.log('[BACK SQL DEBUG] obtenerDocumento docQuery', docQuery);
+  console.log('[BACK SQL DEBUG] obtenerDocumento params', params);
   const { rows: docRows } = await pool.query(docQuery, params);
   const documento = docRows[0];
   if (!documento) return null;
@@ -133,7 +144,63 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
     WHERE dp.documento_id = $1
     ORDER BY dp.id
   `;
+  console.log('[BACK SQL DEBUG] obtenerDocumento partidasQuery', partidasQuery);
+  console.log('[BACK SQL DEBUG] obtenerDocumento partidas params', [id]);
   const { rows: partidas } = await pool.query(partidasQuery, [id]);
+
+  console.log('[BACK IVA DEBUG] obtenerDocumentoRepository partidas raw', partidas.map((p) => ({
+    id: p.id,
+    producto_id: p.producto_id,
+    iva_porcentaje: (p as any).iva_porcentaje,
+    iva_monto: p.iva_monto,
+    subtotal_partida: p.subtotal_partida,
+    total_partida: p.total_partida,
+  })));
+
+  // Obtener impuestos por partida y adjuntarlos sin duplicar filas
+  if (partidas.length > 0) {
+    const partidaIds = partidas.map((p) => p.id);
+    const impuestosQuery = `
+      SELECT dpi.partida_id,
+             dpi.impuesto_id,
+             dpi.tasa,
+             dpi.base,
+             dpi.monto,
+             i.nombre,
+             i.tipo
+        FROM documentos_partidas_impuestos dpi
+        LEFT JOIN impuestos i ON i.id::text = dpi.impuesto_id
+       WHERE dpi.partida_id = ANY($1::int[])
+       ORDER BY dpi.partida_id, dpi.id
+    `;
+    console.log('[BACK SQL DEBUG] obtenerDocumento impuestosQuery', impuestosQuery);
+    console.log('[BACK SQL DEBUG] obtenerDocumento impuestos params', [partidaIds]);
+    const { rows: impuestosRows } = await pool.query(impuestosQuery, [partidaIds]);
+  console.log('[BACK IVA DEBUG] obtenerDocumentoRepository impuestosRows', impuestosRows);
+    const impuestosPorPartida = impuestosRows.reduce<Record<number, any[]>>((acc, row) => {
+      if (!acc[row.partida_id]) acc[row.partida_id] = [];
+      acc[row.partida_id].push({
+        impuesto_id: row.impuesto_id,
+        nombre: row.nombre,
+        tipo: row.tipo,
+        tasa: Number(row.tasa),
+        base: row.base,
+        monto: Number(row.monto),
+      });
+      return acc;
+    }, {});
+
+    partidas.forEach((p: any) => {
+      p.impuestos = impuestosPorPartida[p.id] ?? [];
+    });
+
+    console.log('[BACK IVA DEBUG] obtenerDocumentoRepository partidas con impuestos', partidas.map((p: any) => ({
+      id: p.id,
+      producto_id: p.producto_id,
+      iva_porcentaje: p.iva_porcentaje,
+      impuestos: p.impuestos,
+    })));
+  }
 
   return { documento, partidas };
 }

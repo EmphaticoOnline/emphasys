@@ -66,7 +66,10 @@ export async function getProductosRepository(empresaId: number) {
     WHERE p.empresa_id = $1
     ORDER BY p.id
   `;
+  console.log('[BACK SQL DEBUG] getProductos SQL', query);
+  console.log('[BACK SQL DEBUG] getProductos params', [empresaId]);
   const { rows } = await pool.query(query, [empresaId]);
+  console.log('[BACK IVA DEBUG] getProductos rows', rows.map((r) => ({ id: r.id, iva_porcentaje: r.iva_porcentaje })));
   return rows;
 }
 
@@ -84,8 +87,12 @@ export async function getProductoByIdRepository(id: number, empresaId: number) {
     WHERE p.empresa_id = $1 AND p.id = $2
     LIMIT 1
   `;
+  console.log('[BACK SQL DEBUG] getProductoById SQL', query);
+  console.log('[BACK SQL DEBUG] getProductoById params', [empresaId, id]);
   const { rows } = await pool.query(query, [empresaId, id]);
-  return rows[0];
+  const row = rows[0];
+  console.log('[BACK IVA DEBUG] getProductoById row', row ? { id: row.id, iva_porcentaje: row.iva_porcentaje } : null);
+  return row;
 }
 
 export async function obtenerCatalogosConfigurablesDeProducto(

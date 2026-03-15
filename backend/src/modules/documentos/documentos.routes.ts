@@ -9,6 +9,7 @@ import {
   reemplazarPartidas,
   eliminarCotizacion,
   obtenerCotizacionPDF,
+  calcularImpuestosPreviewHandler,
 } from './documentos.controller';
 import { obtenerCamposDocumento } from './documentos-campos.controller';
 
@@ -40,5 +41,8 @@ router.post('/:id/partidas', requireAuth, requireEmpresaActiva, agregarPartida);
 
 // PUT /api/documentos/:id/partidas (reemplaza todas)
 router.put('/:id/partidas', requireAuth, requireEmpresaActiva, reemplazarPartidas);
+
+// POST /api/documentos/calcular-impuestos (preview sin persistir)
+router.post('/calcular-impuestos', requireAuth, requireEmpresaActiva, calcularImpuestosPreviewHandler);
 
 export default router;

@@ -50,7 +50,8 @@ import { fetchProductos } from '../services/productosService';
 import type { Producto } from '../types/producto';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
-import { calcularImpuestosPartida, type ImpuestoEntrada, type ImpuestoCalculadoUI } from '../utils/impuestos';
+import type { ImpuestoEntrada, ImpuestoCalculadoUI } from '../utils/impuestos';
+import { calcularImpuestosPreview } from '../services/documentosService';
 import { DocumentoDatosFiscalesTab } from '../modules/documentos';
 import { getContacto } from '../services/contactos.api';
 import {
@@ -227,6 +228,99 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const cantidadRefs = useRef<(HTMLInputElement | null)[]>([]);
   const prevContactoRef = useRef<number | null | undefined>(undefined);
   const skipFiscalFetchRef = useRef<boolean>(false);
+  const previewTimersRef = useRef<Record<number, ReturnType<typeof setTimeout> | null>>({});
+  const previewSeqRef = useRef<Record<number, number>>({});
+  const previewGlobalSeqRef = useRef<number>(0);
+  const tratamientoRef = useRef<TratamientoImpuestos | null>(form.tratamiento_impuestos ?? 'normal');
+  const isChangingTratamientoRef = useRef<boolean>(false);
+  const suppressPreviewRef = useRef<boolean>(false);
+  const tratamientoChangeSeqRef = useRef<number>(0);
+
+  const runImpuestosPreview = async (
+    index: number,
+    partida: PartidaForm,
+    tratamientoActual: TratamientoImpuestos,
+    seq: number,
+    immediate: boolean = false
+  ) => {
+    console.log('[impuestos] runPreview caller stack', new Error().stack);
+    console.log('[impuestos] debounce fired -> runPreview', {
+      index,
+      seq,
+      producto_id: partida.producto_id,
+      cantidad: partida.cantidad,
+      precio_unitario: partida.precio_unitario,
+      tratamiento_impuestos: tratamientoActual,
+      immediate,
+    });
+    try {
+      console.log('[impuestos] calling calcularImpuestosPreview', {
+        index,
+        seq,
+        producto_id: partida.producto_id,
+        cantidad: partida.cantidad,
+        precio_unitario: partida.precio_unitario,
+        tratamiento_impuestos: tratamientoActual,
+      });
+      const resp: any = await calcularImpuestosPreview({
+        producto_id: partida.producto_id ?? null,
+        cantidad: partida.cantidad ?? 0,
+        precio_unitario: partida.precio_unitario ?? 0,
+        tratamiento_impuestos: tratamientoActual,
+      });
+
+      if (previewSeqRef.current[index] !== seq) return;
+
+      console.log('[impuestos] preview response', {
+        index,
+        seq,
+        producto_id: partida.producto_id,
+        cantidad: partida.cantidad,
+        precio_unitario: partida.precio_unitario,
+        tratamiento_impuestos: tratamientoActual,
+        impuestos_len: Array.isArray(resp?.impuestos) ? resp.impuestos.length : null,
+        subtotal_partida: resp?.subtotal_partida,
+        iva_monto: resp?.iva_monto,
+        total_partida: resp?.total_partida,
+      });
+
+      setPartidas((prev) => {
+        const next = [...prev];
+        const current = next[index];
+        if (!current) return prev;
+
+        const impuestosEntrada: ImpuestoEntrada[] = (resp.impuestos ?? []).map((imp: any) => ({
+          id: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
+          nombre: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
+          tipo: imp.tipo ?? undefined,
+          tasa: Number(imp.tasa ?? 0),
+        }));
+
+        const impuestosCalc: ImpuestoCalculadoUI[] = (resp.impuestos ?? []).map((imp: any) => ({
+          impuestoId: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
+          nombre: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
+          tipo: imp.tipo ?? undefined,
+          tasa: Number(imp.tasa ?? 0),
+          monto: Number(imp.monto ?? 0),
+        }));
+
+        const updated: PartidaForm = {
+          ...current,
+          subtotal_partida: resp.subtotal_partida ?? current.subtotal_partida,
+          impuestos: impuestosEntrada,
+          impuestos_calculados: impuestosCalc,
+          iva_monto: resp.iva_monto ?? 0,
+          total_partida: resp.total_partida ?? (resp.subtotal_partida ?? current.subtotal_partida) + (resp.iva_monto ?? 0),
+        };
+
+        next[index] = updated;
+        recalcTotales(next);
+        return next;
+      });
+    } catch (error) {
+      console.error('Error al calcular impuestos (preview)', error);
+    }
+  };
 
   const formatter = useMemo(
     () =>
@@ -265,71 +359,91 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     setForm((prev) => ({ ...prev, subtotal, iva, total }));
   };
 
-  const buildImpuestosBase = (p: PartidaForm): ImpuestoEntrada[] => {
-    const normalizados = (p.impuestos ?? [])
-      .map((imp) => ({
-        ...imp,
-        tasa: Number(imp.tasa),
-      }))
-      .filter((imp) => Number.isFinite(imp.tasa));
-
-  if (!normalizados.length || Number(normalizados[0]?.tasa) === 0) {
-      return [
-        {
-          id: 'iva_16',
-          nombre: 'IVA 16%',
-          tipo: 'traslado',
-          tasa: 16,
-        },
-      ];
-    }
-
-    return normalizados;
-  };
+  const isSinIva = (t: TratamientoImpuestos | null | undefined) => (t ?? '').toLowerCase() === 'sin_iva';
+  const isOperacionEstandar = (t: TratamientoImpuestos | null | undefined) => ['normal', 'operacion_estandar'].includes((t ?? '').toLowerCase());
 
   const calcularPartida = (partida: PartidaForm): PartidaForm => {
     const cantidad = Number(partida.cantidad) || 0;
     const precio = Number(partida.precio_unitario) || 0;
     const subtotal_partida = cantidad * precio;
-
-    const impuestosBase = buildImpuestosBase(partida);
-    console.log('DEBUG partida', {
-      cantidad: partida.cantidad,
-      precio_unitario: partida.precio_unitario,
-      cantidadNum: cantidad,
-      precioNum: precio,
-      subtotal: subtotal_partida,
-      impuestosBase,
-    });
-    const impuestos_calculados = calcularImpuestosPartida(subtotal_partida, impuestosBase);
-
-    const iva_monto = impuestos_calculados
+    const impuestos_calculados = partida.impuestos_calculados ?? [];
+    const traslados = impuestos_calculados
       .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'traslado')
-      .reduce((acc, imp) => acc + Number(imp.monto || 0), 0);
+      .reduce((acc: number, imp: ImpuestoCalculadoUI) => acc + Number(imp.monto || 0), 0);
+    const retenciones = impuestos_calculados
+      .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'retencion')
+      .reduce((acc: number, imp: ImpuestoCalculadoUI) => acc + Number(imp.monto || 0), 0);
+    const iva_monto = traslados;
+    const total_partida = subtotal_partida + traslados - retenciones;
 
-    const total_partida = subtotal_partida + iva_monto;
-
-    return {
+    const result = {
       ...partida,
       cantidad,
       precio_unitario: precio,
       subtotal_partida,
       iva_monto,
       total_partida,
-      impuestos: impuestosBase,
       impuestos_calculados,
     };
+    console.log('[calc] calcularPartida out', result);
+    return result;
   };
 
   const aplicarTratamientoEnLista = (lista: PartidaForm[], valor: TratamientoImpuestos): PartidaForm[] => {
+    const esSinIva = isSinIva(valor);
+
     return lista.map((p) => {
       const base: PartidaForm = {
         ...p,
-        iva_porcentaje: valor === 'sin_iva' ? 0 : null,
-        iva_monto: valor === 'sin_iva' ? 0 : p.iva_monto,
+        iva_porcentaje: esSinIva ? 0 : null,
+        iva_monto: esSinIva ? 0 : p.iva_monto,
+        impuestos: esSinIva ? [] : p.impuestos ?? [],
+        impuestos_calculados: esSinIva ? [] : p.impuestos_calculados ?? [],
       };
       return calcularPartida(base);
     });
+  };
+
+  const scheduleImpuestosPreview = (
+    index: number,
+    partida: PartidaForm,
+    tratamientoOverride?: TratamientoImpuestos | null,
+    immediate: boolean = false
+  ) => {
+    if (suppressPreviewRef.current) {
+      console.log('[impuestos] preview suppressed during tratamiento change');
+      return;
+    }
+    console.log('[impuestos] scheduleImpuestosPreview called');
+    if (previewTimersRef.current[index]) {
+      clearTimeout(previewTimersRef.current[index] as any);
+    }
+
+    const seq = ++previewGlobalSeqRef.current;
+    previewSeqRef.current[index] = seq;
+
+    const tratamientoPlan = tratamientoOverride ?? tratamientoRef.current ?? form.tratamiento_impuestos ?? 'normal';
+    console.log('[impuestos] scheduleImpuestosPreview', {
+      index,
+      seq,
+      producto_id: partida.producto_id,
+      cantidad: partida.cantidad,
+      precio_unitario: partida.precio_unitario,
+      tratamiento_impuestos: tratamientoPlan,
+      immediate,
+    });
+
+    const runPreview = () => {
+      const tratamientoActual = tratamientoOverride ?? tratamientoRef.current ?? form.tratamiento_impuestos ?? 'normal';
+      runImpuestosPreview(index, partida, tratamientoActual, seq, immediate);
+    };
+
+    if (immediate) {
+      runPreview();
+      return;
+    }
+
+    previewTimersRef.current[index] = setTimeout(runPreview, 300);
   };
 
   const setPartidaAt = (index: number, updater: (prev: PartidaForm) => PartidaForm) => {
@@ -337,28 +451,78 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       const next = [...prev];
       const current = next[index];
       if (!current) return prev;
-      next[index] = calcularPartida(updater(current));
+
+      const updated = calcularPartida(updater(current));
+
+      next[index] = updated;
       recalcTotales(next);
+      if (!isChangingTratamientoRef.current) {
+        scheduleImpuestosPreview(index, updated);
+      }
+
       return next;
     });
   };
 
   const handleTratamientoChange = (valor: TratamientoImpuestos) => {
+    tratamientoChangeSeqRef.current += 1;
+    const changeSeq = tratamientoChangeSeqRef.current;
+    console.log('[impuestos] handleTratamientoChange', {
+      valor,
+      prev: tratamientoRef.current,
+      seq_before: previewGlobalSeqRef.current,
+    });
+
+    suppressPreviewRef.current = true;
+
+    // Cancelar todos los timers pendientes antes de cualquier acción
+    console.log('[impuestos] clearing debounce timers', previewTimersRef.current);
+    Object.keys(previewTimersRef.current).forEach((key) => {
+      const timer = previewTimersRef.current[Number(key)];
+      if (timer) clearTimeout(timer as any);
+    });
+    previewTimersRef.current = {} as any;
+
+    tratamientoRef.current = valor;
+
     setForm((prev) => ({
       ...prev,
       tratamiento_impuestos: valor,
       serie:
         valor === 'sin_iva'
           ? 'N'
-          : valor === 'normal'
+          : isOperacionEstandar(valor)
           ? 'FAC'
           : prev.serie ?? null,
     }));
+
+    const newSeq = ++previewGlobalSeqRef.current;
+
+    Object.keys(previewTimersRef.current).forEach((key) => {
+      const timer = previewTimersRef.current[Number(key)];
+      if (timer) clearTimeout(timer as any);
+      previewTimersRef.current[Number(key)] = null;
+      previewSeqRef.current[Number(key)] = newSeq;
+    });
+
     setPartidas((prev) => {
       const next = aplicarTratamientoEnLista(prev, valor);
       recalcTotales(next);
+
+      next.forEach((p, idx) => {
+        if (changeSeq !== tratamientoChangeSeqRef.current) {
+          return;
+        }
+        previewSeqRef.current[idx] = newSeq;
+        runImpuestosPreview(idx, p, valor, newSeq, true);
+      });
+
       return next;
     });
+
+    setTimeout(() => {
+      suppressPreviewRef.current = false;
+    }, 0);
   };
 
   const addRow = () => {
@@ -472,6 +636,33 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
       const mapped: PartidaForm[] = data.partidas.map((p: CotizacionPartida) => {
         const prod = productos.find((pr) => pr.id === p.producto_id) || null;
+        const impuestosEntrada: ImpuestoEntrada[] = (p.impuestos ?? []).map((imp) => ({
+          id: imp.impuesto_id,
+          nombre: imp.nombre ?? imp.impuesto_id,
+          tipo: imp.tipo ?? undefined,
+          tasa: imp.tasa,
+        }));
+
+        const impuestosCalcPersistidos: ImpuestoCalculadoUI[] = (p.impuestos_calculados ?? []).map((imp: any) => ({
+          impuestoId: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
+          nombre: imp.nombre ?? '',
+          tipo: imp.tipo ?? undefined,
+          tasa: Number(imp.tasa ?? 0),
+          monto: Number(imp.monto ?? 0),
+        }));
+
+        const impuestosCalcFallback: ImpuestoCalculadoUI[] =
+          !impuestosCalcPersistidos.length && Array.isArray(p.impuestos)
+            ? (p.impuestos as any[]).map((imp: any) => ({
+                impuestoId: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
+                nombre: imp.nombre ?? imp.impuesto_id ?? '',
+                tipo: imp.tipo ?? undefined,
+                tasa: Number(imp.tasa ?? 0),
+                monto: Number(imp.monto ?? 0),
+              }))
+            : [];
+
+        const impuestosCalc: ImpuestoCalculadoUI[] = impuestosCalcPersistidos.length ? impuestosCalcPersistidos : impuestosCalcFallback;
         return calcularPartida({
           id: p.id,
           producto_id: p.producto_id,
@@ -484,6 +675,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           total_partida: p.total_partida,
           observaciones: p.observaciones ?? '',
           producto: prod,
+          impuestos: impuestosEntrada,
+          impuestos_calculados: impuestosCalc,
         });
       });
       let nextPartidas = mapped.length ? mapped : [emptyPartida()];
@@ -529,6 +722,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     loadDocumento();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, id, tipoDocumento]);
+
+  useEffect(() => {
+    tratamientoRef.current = form.tratamiento_impuestos ?? 'normal';
+  }, [form.tratamiento_impuestos]);
 
   useEffect(() => {
     setValoresCamposPartidas((prev) => {
@@ -695,20 +892,28 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   };
 
   const handleProductoChange = (index: number, producto: Producto | null) => {
-    setPartidaAt(index, (prev) => ({
-      ...prev,
-      producto_id: producto?.id ?? null,
-      descripcion_alterna: producto?.descripcion || prev.descripcion_alterna,
-      precio_unitario: producto?.precio_publico ?? producto?.precio_menudeo ?? prev.precio_unitario ?? 0,
-      producto: producto ?? null,
-      impuestos: producto?.iva_porcentaje != null
-        ? [{ id: `iva_${producto.iva_porcentaje}`, nombre: `IVA ${producto.iva_porcentaje}%`, tipo: 'traslado', tasa: producto.iva_porcentaje }]
-        : (prev.impuestos ?? []),
-    }));
+    setPartidaAt(index, (prev) => {
+      return {
+        ...prev,
+        producto_id: producto?.id ?? null,
+        descripcion_alterna: producto?.descripcion || prev.descripcion_alterna,
+        precio_unitario: producto?.precio_publico ?? producto?.precio_menudeo ?? prev.precio_unitario ?? 0,
+        producto: producto ?? null,
+        impuestos: [],
+        impuestos_calculados: [],
+      };
+    });
   };
 
   const handleCantidadPrecioChange = (index: number, field: 'cantidad' | 'precio_unitario', value: string) => {
-    setPartidaAt(index, (prev) => ({ ...prev, [field]: Number(value) }));
+    console.log('[calc] onChange input', { index, field, value });
+    setPartidaAt(index, (prev) => {
+      return {
+        ...prev,
+        [field]: Number(value),
+        impuestos: prev.impuestos ?? [],
+      };
+    });
   };
 
   const handleDescripcionChange = (index: number, value: string) => {

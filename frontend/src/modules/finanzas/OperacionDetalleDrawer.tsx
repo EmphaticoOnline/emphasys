@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -76,21 +76,6 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
     { open: false, message: '', severity: 'success' }
   );
 
-  const [columnWidths, setColumnWidths] = useState({
-    folio: 220,
-    fecha: 140,
-    total: 140,
-    saldo: 140,
-    montoAplicar: 160,
-    accion: 80,
-  });
-
-  const resizingRef = useRef<{
-    column: keyof typeof columnWidths;
-    startX: number;
-    startWidth: number;
-  } | null>(null);
-
   const formatter = useMemo(
     () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }),
     []
@@ -114,38 +99,6 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   };
 
   const rowBaseSx = { height: 26, '&:hover': { backgroundColor: '#e8f5e9' } };
-
-  const startResize = (e: React.MouseEvent<HTMLDivElement>, column: keyof typeof columnWidths) => {
-    e.preventDefault();
-    e.stopPropagation();
-    resizingRef.current = { column, startX: e.clientX, startWidth: columnWidths[column] };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const handleMouseMove = (e: MouseEvent) => {
-    const current = resizingRef.current;
-    if (!current) return;
-    const deltaX = e.clientX - current.startX;
-    const nextWidth = Math.max(80, current.startWidth + deltaX);
-    setColumnWidths((prev) => ({ ...prev, [current.column]: nextWidth }));
-  };
-
-  const handleMouseUp = () => {
-    if (resizingRef.current) {
-      resizingRef.current = null;
-    }
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
-
-  useEffect(() => {
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, []);
-
   const fetchAll = async (id: number) => {
     try {
       setLoading(true);
@@ -290,7 +243,17 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   };
 
   return (
-    <Drawer anchor="right" open={open} onClose={onClose} PaperProps={{ sx: { width: { xs: '100%', md: 720 } } }}>
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      sx={{
+        '& .MuiDrawer-paper': {
+          width: { xs: '100%', md: '70vw' },
+          maxWidth: 1200,
+        },
+      }}
+    >
       <Box
         sx={{
           p: 3,
@@ -368,63 +331,22 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
             Documentos que ya están ligados a este movimiento.
           </Typography>
-          <TableContainer
-            sx={{
-              border: '1px solid #e5e7eb',
-              borderRadius: 2,
-              overflow: 'hidden',
-              boxShadow: 'none',
-            }}
-          >
-            <Table size="small" stickyHeader aria-label="Aplicaciones existentes" sx={{ tableLayout: 'fixed' }}>
+          <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
+            <TableContainer
+              sx={{
+                border: '1px solid #e5e7eb',
+                borderRadius: 2,
+                overflow: 'hidden',
+                boxShadow: 'none',
+              }}
+            >
+              <Table size="small" stickyHeader aria-label="Aplicaciones existentes" sx={{ width: '100%', minWidth: 0 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell
-                    sx={headerCellSx}
-                    style={{ width: columnWidths.folio, minWidth: columnWidths.folio }}
-                  >
-                    Folio
-                    <Box
-                      className="column-resizer"
-                      onMouseDown={(e) => startResize(e, 'folio')}
-                      sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                    />
-                  </TableCell>
-                  <TableCell
-                    sx={headerCellSx}
-                    style={{ width: columnWidths.fecha, minWidth: columnWidths.fecha }}
-                  >
-                    Fecha
-                    <Box
-                      className="column-resizer"
-                      onMouseDown={(e) => startResize(e, 'fecha')}
-                      sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                    />
-                  </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={headerCellSx}
-                    style={{ width: columnWidths.total, minWidth: columnWidths.total }}
-                  >
-                    Monto aplicado
-                    <Box
-                      className="column-resizer"
-                      onMouseDown={(e) => startResize(e, 'total')}
-                      sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                    />
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{ ...headerCellSx, pr: '8px' }}
-                    style={{ width: columnWidths.accion, minWidth: columnWidths.accion }}
-                  >
-                    Acciones
-                    <Box
-                      className="column-resizer"
-                      onMouseDown={(e) => startResize(e, 'accion')}
-                      sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                    />
-                  </TableCell>
+                    <TableCell sx={{ ...headerCellSx, width: '30%' }}>Folio</TableCell>
+                    <TableCell sx={{ ...headerCellSx, width: '20%' }}>Fecha</TableCell>
+                    <TableCell align="right" sx={{ ...headerCellSx, width: '30%' }}>Monto aplicado</TableCell>
+                    <TableCell align="center" sx={{ ...headerCellSx, width: '20%', pr: '8px' }}>Acciones</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -442,16 +364,16 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                   const backgroundColor = idx % 2 === 0 ? '#f4faf4' : '#ffffff';
                   return (
                     <TableRow key={row.id} sx={{ ...rowBaseSx, backgroundColor }} className="erp-row">
-                      <TableCell sx={{ ...bodyCellSx }} style={{ width: columnWidths.folio, minWidth: columnWidths.folio }}>
+                      <TableCell sx={{ ...bodyCellSx, width: '30%' }}>
                         {label || '—'}
                       </TableCell>
-                      <TableCell sx={{ ...bodyCellSx }} style={{ width: columnWidths.fecha, minWidth: columnWidths.fecha }}>
+                      <TableCell sx={{ ...bodyCellSx, width: '20%' }}>
                         {formatDateShort(row.fecha_documento)}
                       </TableCell>
-                      <TableCell align="right" sx={{ ...bodyCellSx }} style={{ width: columnWidths.total, minWidth: columnWidths.total }}>
+                      <TableCell align="right" sx={{ ...bodyCellSx, width: '30%' }}>
                         {formatter.format(Number(row.monto_moneda_documento) || 0)}
                       </TableCell>
-                      <TableCell align="center" sx={{ ...bodyCellSx, py: '2px' }} style={{ width: columnWidths.accion, minWidth: columnWidths.accion }}>
+                      <TableCell align="center" sx={{ ...bodyCellSx, py: '2px', width: '20%' }}>
                         <IconButton
                           size="small"
                           color="error"
@@ -467,6 +389,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
               </TableBody>
             </Table>
           </TableContainer>
+        </Box>
         </Stack>
 
         <Stack spacing={1} mt={1}>
@@ -494,87 +417,24 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
           {esMovimientoGeneral ? (
             <Alert severity="info">Este movimiento no permite aplicar documentos.</Alert>
           ) : (
-            <TableContainer
-              sx={{
-                border: '1px solid #e5e7eb',
-                borderRadius: 2,
-                maxHeight: 340,
-                boxShadow: 'none',
-                overflow: 'auto',
-              }}
-            >
-              <Table size="small" stickyHeader aria-label="Facturas pendientes" sx={{ tableLayout: 'fixed' }}>
+            <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
+              <TableContainer
+                sx={{
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 2,
+                  maxHeight: 340,
+                  boxShadow: 'none',
+                }}
+              >
+                <Table size="small" stickyHeader aria-label="Facturas pendientes" sx={{ width: '100%', minWidth: 0 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell
-                      sx={headerCellSx}
-                      style={{ width: columnWidths.folio, minWidth: columnWidths.folio }}
-                    >
-                      Folio
-                      <Box
-                        className="column-resizer"
-                        onMouseDown={(e) => startResize(e, 'folio')}
-                        sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                      />
-                    </TableCell>
-                    <TableCell
-                      sx={headerCellSx}
-                      style={{ width: columnWidths.fecha, minWidth: columnWidths.fecha }}
-                    >
-                      Fecha
-                      <Box
-                        className="column-resizer"
-                        onMouseDown={(e) => startResize(e, 'fecha')}
-                        sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                      />
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={headerCellSx}
-                      style={{ width: columnWidths.total, minWidth: columnWidths.total }}
-                    >
-                      Total
-                      <Box
-                        className="column-resizer"
-                        onMouseDown={(e) => startResize(e, 'total')}
-                        sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                      />
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={headerCellSx}
-                      style={{ width: columnWidths.saldo, minWidth: columnWidths.saldo }}
-                    >
-                      Saldo
-                      <Box
-                        className="column-resizer"
-                        onMouseDown={(e) => startResize(e, 'saldo')}
-                        sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                      />
-                    </TableCell>
-                    <TableCell
-                      sx={headerCellSx}
-                      style={{ width: columnWidths.montoAplicar, minWidth: columnWidths.montoAplicar }}
-                    >
-                      Monto a aplicar
-                      <Box
-                        className="column-resizer"
-                        onMouseDown={(e) => startResize(e, 'montoAplicar')}
-                        sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                      />
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{ ...headerCellSx, pr: '8px' }}
-                      style={{ width: columnWidths.accion, minWidth: columnWidths.accion }}
-                    >
-                      Acción
-                      <Box
-                        className="column-resizer"
-                        onMouseDown={(e) => startResize(e, 'accion')}
-                        sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '6px', cursor: 'col-resize' }}
-                      />
-                    </TableCell>
+                      <TableCell sx={{ ...headerCellSx, width: '22%' }}>Folio</TableCell>
+                      <TableCell sx={{ ...headerCellSx, width: '16%' }}>Fecha</TableCell>
+                      <TableCell align="right" sx={{ ...headerCellSx, width: '16%' }}>Total</TableCell>
+                      <TableCell align="right" sx={{ ...headerCellSx, width: '16%' }}>Saldo</TableCell>
+                      <TableCell sx={{ ...headerCellSx, width: '20%' }}>Monto a aplicar</TableCell>
+                      <TableCell align="center" sx={{ ...headerCellSx, width: '10%', pr: '8px' }}>Acción</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -593,58 +453,55 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                     return (
                       <TableRow key={row.id} sx={{ ...rowBaseSx, backgroundColor }}>
                         <TableCell
-                          sx={{ ...bodyCellSx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                          style={{ width: columnWidths.folio, minWidth: columnWidths.folio }}
+                          sx={{ ...bodyCellSx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '22%' }}
                         >
                           {label || '—'}
                         </TableCell>
-                        <TableCell sx={{ ...bodyCellSx }} style={{ width: columnWidths.fecha, minWidth: columnWidths.fecha }}>
+                        <TableCell sx={{ ...bodyCellSx, width: '16%' }}>
                           {formatDateShort(row.fecha)}
                         </TableCell>
-                        <TableCell align="right" sx={{ ...bodyCellSx }} style={{ width: columnWidths.total, minWidth: columnWidths.total }}>
+                        <TableCell align="right" sx={{ ...bodyCellSx, width: '16%' }}>
                           {formatter.format(row.monto || 0)}
                         </TableCell>
-                        <TableCell align="right" sx={{ ...bodyCellSx }} style={{ width: columnWidths.saldo, minWidth: columnWidths.saldo }}>
+                        <TableCell align="right" sx={{ ...bodyCellSx, width: '16%' }}>
                           {formatter.format(row.saldo || 0)}
                         </TableCell>
-                        <TableCell sx={{ ...bodyCellSx, py: '2px' }} style={{ width: columnWidths.montoAplicar, minWidth: columnWidths.montoAplicar }}>
-                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ width: '100%' }}>
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={montos[row.id] ?? ''}
-                              onChange={(e) => setMontos((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                              fullWidth
-                              inputProps={{ min: 0, step: '0.01', style: { MozAppearance: 'textfield' } }}
-                              sx={{
-                                '& .MuiInputBase-root': {
-                                  height: 22,
-                                  fontSize: '12px',
-                                  padding: '0 6px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  backgroundColor: '#fff',
-                                  border: '1px solid #cbd5e1',
-                                  borderRadius: 1,
-                                },
-                                '& .MuiInputBase-input': {
-                                  py: 0.2,
-                                  fontSize: '12px',
-                                  lineHeight: 1.15,
-                                  textAlign: 'right',
-                                },
-                                '& input[type=number]': {
-                                  MozAppearance: 'textfield',
-                                },
-                                '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-                                  WebkitAppearance: 'none',
-                                  margin: 0,
-                                },
-                              }}
-                            />
-                          </Stack>
+                        <TableCell sx={{ ...bodyCellSx, py: '2px', width: '20%' }}>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={montos[row.id] ?? ''}
+                            onChange={(e) => setMontos((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                            fullWidth
+                            inputProps={{ min: 0, step: '0.01', style: { MozAppearance: 'textfield' } }}
+                            sx={{
+                              '& .MuiInputBase-root': {
+                                height: 22,
+                                fontSize: '12px',
+                                px: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                backgroundColor: '#fff',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: 1,
+                              },
+                              '& .MuiInputBase-input': {
+                                py: 0.2,
+                                fontSize: '12px',
+                                lineHeight: 1.15,
+                                textAlign: 'right',
+                              },
+                              '& input[type=number]': {
+                                MozAppearance: 'textfield',
+                              },
+                              '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+                                WebkitAppearance: 'none',
+                                margin: 0,
+                              },
+                            }}
+                          />
                         </TableCell>
-                        <TableCell align="center" sx={{ ...bodyCellSx, py: '2px' }} style={{ width: columnWidths.accion, minWidth: columnWidths.accion }}>
+                        <TableCell align="center" sx={{ ...bodyCellSx, py: '2px', width: '10%' }}>
                           <Tooltip title="Aplicar monto (o saldo si está vacío)">
                             <span>
                               <IconButton
@@ -662,9 +519,10 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                       </TableRow>
                     );
                   })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
           )}
         </Stack>
       </Box>

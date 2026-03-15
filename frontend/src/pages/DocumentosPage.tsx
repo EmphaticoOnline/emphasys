@@ -15,6 +15,8 @@ import {
   TextField,
   IconButton,
   Paper,
+  Container,
+  InputAdornment,
   Stack,
   Toolbar,
   Typography,
@@ -27,6 +29,8 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type {
@@ -34,7 +38,6 @@ import type {
   GridRowParams,
   GridRenderCellParams,
   GridColumnVisibilityModel,
-  GridColumnOrderChangeParams,
   GridColumnResizeParams,
 } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -45,6 +48,11 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EmailIcon from '@mui/icons-material/Email';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
+import DonutLargeIcon from '@mui/icons-material/DonutLarge';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { Tooltip } from '@mui/material';
 import Snackbar from '@mui/material/Snackbar';
 import AlertSnackbar from '@mui/material/Alert';
@@ -120,7 +128,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [timbrandoId, setTimbrandoId] = useState<number | null>(null);
   const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>({});
-  const [orderedFields, setOrderedFields] = useState<string[] | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   type SnackbarSeverity = 'success' | 'error' | 'info' | 'warning';
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: SnackbarSeverity }>(
@@ -134,6 +141,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     error?: string | null;
   }>({ open: false, id: null, email: '', enviando: false, error: null });
   const [opcionesGeneracion, setOpcionesGeneracion] = useState<Record<number, OpcionGeneracionResponse[]>>({});
+  const [tieneOpcionesGeneracion, setTieneOpcionesGeneracion] = useState<boolean | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuDocumentoId, setMenuDocumentoId] = useState<number | null>(null);
   const [menuLoading, setMenuLoading] = useState(false);
@@ -146,6 +154,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     cantidades: Record<number, number>;
     enviando: boolean;
   }>({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false });
+  const [search, setSearch] = useState('');
+  const [soloPendientes, setSoloPendientes] = useState(false);
 
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = `/ventas/${tipoDocumento}`;
@@ -162,11 +172,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
   const currencyFormatter = useCallback((value: number | string | null | undefined) => currency.format(Number(value ?? 0)), [currency]);
   const showSaldo = tipoDocumento === 'factura' || tipoDocumento === 'factura_compra';
+  const isFacturaConSaldo = showSaldo;
   const calcularEstatusFinanciero = useCallback((saldo: number, total: number) => {
-    if (saldo === total) return 'Pendiente';
-    if (saldo > 0 && saldo < total) return 'Parcial';
-    if (saldo === 0) return 'Pagado';
-    return null;
+    const s = Number(saldo ?? 0);
+    const t = Number(total ?? 0);
+    if (s === 0) return 'Pagado';
+    if (s < t) return 'Parcial';
+    return 'Pendiente';
   }, []);
 
   useEffect(() => {
@@ -175,7 +187,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     try {
       const parsed = JSON.parse(stored);
       if (parsed?.columnVisibilityModel) setColumnVisibilityModel(parsed.columnVisibilityModel);
-      if (parsed?.orderedFields) setOrderedFields(parsed.orderedFields);
       if (parsed?.columnWidths) setColumnWidths(parsed.columnWidths);
     } catch (err) {
       console.warn('No se pudo leer preferencias de columnas', err);
@@ -318,6 +329,24 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       const data = await getDocumentos(tipoDocumento);
       setRows(data);
       setError(null);
+
+      // Detectar si existen opciones de generación para el tipo de documento (basado en el primer documento)
+      if (data && data.length > 0 && token && empresaId) {
+        try {
+          const firstId = Number((data?.[0] as any)?.id ?? (data?.[0] as any)?.documento_id ?? 0);
+          if (firstId) {
+            const opts = await getOpcionesGeneracion(firstId, token, empresaId);
+            setTieneOpcionesGeneracion((opts?.length ?? 0) > 0);
+          } else {
+            setTieneOpcionesGeneracion(false);
+          }
+        } catch (err) {
+          console.warn('No se pudieron obtener opciones de generación', err);
+          setTieneOpcionesGeneracion(false);
+        }
+      } else {
+        setTieneOpcionesGeneracion(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar documentos');
     } finally {
@@ -412,28 +441,27 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             },
             {
               field: 'estatus_financiero',
-              headerName: 'Estatus financiero',
-              width: 160,
+              headerName: '',
+              width: 50,
               headerClassName: 'finanzas-header',
               sortable: false,
               filterable: false,
+              align: 'center',
+              headerAlign: 'center',
               valueGetter: (params: any) => {
                 const row = params?.row ?? {};
                 const saldo = Number(row.saldo ?? 0);
                 const total = Number(row.total ?? 0);
                 return calcularEstatusFinanciero(saldo, total);
               },
-              renderCell: ({ value }: any) => {
-                if (!value) return null;
-                const color = value === 'Parcial' ? 'warning' : value === 'Pagado' ? 'success' : 'default';
-                return (
-                  <Chip
-                    label={value}
-                    size="small"
-                    color={color as any}
-                    sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5 }}
-                  />
-                );
+              renderCell: (params: any) => {
+                const row = params?.row ?? {};
+                const saldo = Number(row.saldo ?? 0);
+                const total = Number(row.total ?? 0);
+
+                if (saldo === 0) return <CheckCircleIcon fontSize="small" color="success" />;
+                if (saldo < total) return <DonutLargeIcon fontSize="small" color="warning" />;
+                return <RadioButtonUncheckedIcon fontSize="small" color="disabled" />;
               },
             },
           ] as GridColDef[])
@@ -484,18 +512,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           >
             <DeleteIcon fontSize="small" />
           </IconButton>
-          <Tooltip title="Generar">
-            <span>
-              <IconButton
-                size="small"
-                color="primary"
-                disabled={loading || menuLoading}
-                onClick={(e) => handleOpenMenuGenerar(e, Number(params.row.id))}
-              >
-                <AutoAwesomeIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
+          {tieneOpcionesGeneracion && (
+            <Tooltip title="Generar">
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading || menuLoading}
+                  onClick={(e) => handleOpenMenuGenerar(e, Number(params.row.id))}
+                >
+                  <AutoAwesomeIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
           <Tooltip title="Descargar PDF">
             <IconButton
               size="small"
@@ -580,37 +610,56 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     setError,
     setPendingDeleteId,
     setConfirmOpen,
-    opcionesGeneracion,
     menuLoading,
     handleOpenMenuGenerar,
     showSaldo,
     currencyFormatter,
     calcularEstatusFinanciero,
+    tieneOpcionesGeneracion,
   ]);
 
-  useEffect(() => {
-    if (!orderedFields) {
-      setOrderedFields(baseColumns.map((c) => c.field));
+  const columns: GridColDef[] = useMemo(
+    () =>
+      baseColumns.map((col) =>
+        columnWidths[col.field] != null ? { ...col, width: Number(columnWidths[col.field]) } : col
+      ) as GridColDef[],
+    [baseColumns, columnWidths]
+  );
+
+  const filteredRows = useMemo(() => {
+    let result = [...rows];
+
+    if (isFacturaConSaldo && soloPendientes) {
+      result = result.filter((row) => Number(row?.saldo ?? 0) > 0);
     }
-  }, [baseColumns, orderedFields]);
 
-  const columns: GridColDef[] = useMemo(() => {
-    const withWidths = baseColumns.map((col) =>
-      columnWidths[col.field] != null ? { ...col, width: Number(columnWidths[col.field]) } : col
-    ) as GridColDef[];
+    const q = search.trim().toLowerCase();
+    if (!q) return result;
 
-    if (!orderedFields || orderedFields.length === 0) return withWidths;
+    return result.filter((row) => {
+      const folio = `${row?.serie ?? ''}${row?.numero ?? ''}`.toLowerCase();
+  const folioAlt = String((row as any)?.folio ?? '').toLowerCase();
+  const cliente = String((row as any)?.nombre_cliente ?? (row as any)?.cliente_nombre ?? '').toLowerCase();
+      const subtotal = String(row?.subtotal ?? '').toLowerCase();
+      const total = String(row?.total ?? '').toLowerCase();
+      const saldo = String(row?.saldo ?? '').toLowerCase();
+      const fecha = String(row?.fecha_documento ?? '').toLowerCase();
 
-    const columnMap = new Map(withWidths.map((c) => [c.field, c]));
-    const ordered = orderedFields
-      .map((field) => columnMap.get(field))
-      .filter(Boolean) as GridColDef[];
-    const remaining = withWidths.filter((c) => !orderedFields.includes(c.field));
-    return [...ordered, ...remaining];
-  }, [baseColumns, columnWidths, orderedFields]);
+      return (
+        folio.includes(q) ||
+        folioAlt.includes(q) ||
+        cliente.includes(q) ||
+        subtotal.includes(q) ||
+        total.includes(q) ||
+        saldo.includes(q) ||
+        fecha.includes(q)
+      );
+    });
+  }, [rows, search, soloPendientes, isFacturaConSaldo]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Container maxWidth="xl" sx={{ py: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Stack spacing={0.5}>
           <Typography variant="h5" fontWeight={700} color="#1d2f68">
@@ -635,6 +684,37 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </Stack>
       </Toolbar>
 
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
+        <TextField
+          size="small"
+          fullWidth
+          placeholder="Buscar folio, cliente, monto, referencia..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+            endAdornment:
+              search && (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearch('')} aria-label="Limpiar búsqueda">
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+          }}
+        />
+        {isFacturaConSaldo && (
+          <FormControlLabel
+            control={<Checkbox checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} />}
+            label="Solo pendientes"
+          />
+        )}
+      </Stack>
+
       <Dialog open={Boolean(error)} onClose={() => setError(null)} fullWidth maxWidth="xs">
         <DialogTitle>Error</DialogTitle>
         <DialogContent>
@@ -649,7 +729,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
         <DataGrid
-          rows={rows}
+          rows={filteredRows}
           columns={columns}
           autoHeight
           density="standard"
@@ -657,35 +737,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           columnHeaderHeight={52}
           loading={loading}
           disableRowSelectionOnClick
+          // @ts-expect-error Deshabilitamos el reordenamiento para mantener el orden fijo de columnas
+          disableColumnReorder
           onRowClick={(params: GridRowParams) => navigate(`${basePath}/${params.id}`)}
           columnVisibilityModel={columnVisibilityModel}
           onColumnVisibilityModelChange={(model) => {
             setColumnVisibilityModel(model);
             const current = {
               columnVisibilityModel: model,
-              orderedFields: orderedFields ?? baseColumns.map((c) => c.field),
               columnWidths,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-          }}
-          onColumnOrderChange={(params: GridColumnOrderChangeParams) => {
-            setOrderedFields((prev) => {
-              const base = prev ?? baseColumns.map((c) => c.field);
-              const fromIndex = base.indexOf(params.column.field);
-              if (fromIndex === -1) return base;
-              const updated = [...base];
-              updated.splice(fromIndex, 1);
-              updated.splice(params.targetIndex, 0, params.column.field);
-              localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify({
-                  columnVisibilityModel,
-                  orderedFields: updated,
-                  columnWidths,
-                })
-              );
-              return updated;
-            });
           }}
           onColumnWidthChange={(params: GridColumnResizeParams) => {
             setColumnWidths((prev) => {
@@ -694,7 +756,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                 STORAGE_KEY,
                 JSON.stringify({
                   columnVisibilityModel,
-                  orderedFields: orderedFields ?? baseColumns.map((c) => c.field),
                   columnWidths: next,
                 })
               );
@@ -959,6 +1020,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+      </Box>
+    </Container>
   );
 }
