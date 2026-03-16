@@ -328,7 +328,6 @@ export class DocumentGenerationService {
           cantidad,
           precioUnitario,
           subtotalPartida,
-          iva_porcentaje_legacy: partidaOrigen.iva_porcentaje ?? null,
         });
 
         const { rows: partidaInsertRows } = await client.query(
@@ -341,11 +340,10 @@ export class DocumentGenerationService {
               unidad,
               precio_unitario,
               subtotal_partida,
-              iva_porcentaje,
               iva_monto,
               total_partida,
               partida_origen_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING id`,
           [
             documentoDestino.id,
@@ -356,7 +354,6 @@ export class DocumentGenerationService {
             partidaOrigen.unidad ?? null,
             precioUnitario,
             subtotalPartida,
-            partidaOrigen.iva_porcentaje ?? null, // legacy field; no cálculo
             0, // iva_monto lo calculará calcularImpuestosPartida
             0, // total_partida lo calculará calcularImpuestosPartida
             partidaOrigen.partida_id,

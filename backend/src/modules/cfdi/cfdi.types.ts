@@ -34,8 +34,8 @@ export interface CfdiPartida {
   cantidad: number;
   precio_unitario: number;
   subtotal_partida: number;
-  iva_porcentaje: number | null;
-  iva_monto: number | null;
+  iva_porcentaje?: number | null; // legacy
+  iva_monto?: number | null; // legacy
   descripcion: string;
   clave_producto_sat: string | null;
   clave_unidad_sat: string | null;

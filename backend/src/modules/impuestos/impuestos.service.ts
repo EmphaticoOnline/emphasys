@@ -53,14 +53,13 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
     if ((tratamientoImpuestos ?? '').toLowerCase() === 'sin_iva') {
       await eliminarImpuestosDePartida(partidaId, executor);
 
-      const ivaMonto = 0;
       const totalPartida = subtotalNumber;
       await executor.query(
         `UPDATE documentos_partidas
-            SET iva_monto = $1,
-                total_partida = $2
-          WHERE id = $3`,
-        [ivaMonto, totalPartida, partidaId]
+            SET iva_monto = 0,
+                total_partida = $1
+          WHERE id = $2`,
+        [totalPartida, partidaId]
       );
 
       // Recalcular totales del documento (encabezado)
@@ -94,7 +93,7 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
     const impuestosCalculados = calcularImpuestosParaSubtotal(subtotalNumber, impuestosAplicables);
     console.log('[impuestos] calculados', impuestosCalculados);
 
-    // 3.1) Actualiza totales de la partida (iva_monto y total_partida)
+    // 3.1) Actualiza totales de la partida (solo para visualización; los totales del documento salen de impuestos)
     const traslados = impuestosCalculados
       .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'traslado')
       .reduce((acc, imp) => acc + Number(imp.monto), 0);
@@ -102,8 +101,8 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
       .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'retencion')
       .reduce((acc, imp) => acc + Number(imp.monto), 0);
 
-    const ivaMonto = traslados; // IVA correspondiente a impuestos de tipo "traslado"
-  const totalPartida = subtotalNumber + traslados - retenciones;
+    const ivaMonto = traslados; // IVA correspondiente a impuestos de tipo "traslado" (compatibilidad legacy)
+    const totalPartida = subtotalNumber + traslados - retenciones;
 
     const updateResult = await executor.query(
       `UPDATE documentos_partidas

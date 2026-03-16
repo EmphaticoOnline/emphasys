@@ -15,15 +15,21 @@ export async function actualizarTotales(documentoId: number, client?: PoolClient
 
     const { rows: totalesRows } = await executor.query(
       `SELECT
-          COALESCE(SUM(subtotal_partida), 0) AS subtotal,
-          COALESCE(SUM(iva_monto), 0) AS iva,
-          COALESCE(SUM(total_partida), 0) AS total
-       FROM documentos_partidas
-       WHERE documento_id = $1`,
+          COALESCE(SUM(dp.subtotal_partida), 0) AS subtotal,
+          COALESCE(SUM(CASE WHEN LOWER(i.tipo) = 'traslado' THEN dpi.monto ELSE 0 END), 0) AS traslados,
+          COALESCE(SUM(CASE WHEN LOWER(i.tipo) = 'retencion' THEN dpi.monto ELSE 0 END), 0) AS retenciones
+       FROM documentos_partidas dp
+       LEFT JOIN documentos_partidas_impuestos dpi ON dpi.partida_id = dp.id
+       LEFT JOIN impuestos i ON i.id::text = dpi.impuesto_id
+       WHERE dp.documento_id = $1`,
       [documentoId]
     );
 
-    const totales = totalesRows[0] || { subtotal: 0, iva: 0, total: 0 };
+    const subtotal = Number(totalesRows[0]?.subtotal ?? 0);
+    const traslados = Number(totalesRows[0]?.traslados ?? 0);
+    const retenciones = Number(totalesRows[0]?.retenciones ?? 0);
+    const iva = traslados;
+    const total = subtotal + traslados - retenciones;
 
     await executor.query(
       `UPDATE documentos
@@ -31,7 +37,7 @@ export async function actualizarTotales(documentoId: number, client?: PoolClient
               iva = $2,
               total = $3
         WHERE id = $4`,
-      [Number(totales.subtotal), Number(totales.iva), Number(totales.total), documentoId]
+      [subtotal, iva, total, documentoId]
     );
 
     if (ownedClient) {

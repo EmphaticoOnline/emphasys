@@ -6,8 +6,6 @@ const CFDI_XSI = 'http://www.w3.org/2001/XMLSchema-instance';
 const CFDI_SCHEMA_LOCATION = `${CFDI_NAMESPACE} http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd`;
 
 const IVA_IMPUESTO = '002';
-const IVA_TASA = 0.16;
-
 const formatMoney = (value: number, decimals = 2) => value.toFixed(decimals);
 const formatRate = (value: number) => value.toFixed(6);
 const formatFecha = (value: string) => new Date(value).toISOString().slice(0, 19);
@@ -45,8 +43,20 @@ export function ajustarDomicilioFiscalReceptor(
 
 function resolveImporte(partida: CfdiPartida): { base: number; importeIva: number; tasa: number } {
   const base = partida.subtotal_partida ?? partida.cantidad * partida.precio_unitario;
-  const tasa = partida.iva_porcentaje != null ? partida.iva_porcentaje / 100 : IVA_TASA;
-  const importeIva = partida.iva_monto ?? Number((base * tasa).toFixed(2));
+  const impuestosDetallados = Array.isArray(partida.impuestos) ? partida.impuestos : [];
+  const ivaTraslado = impuestosDetallados.find(
+    (imp) => (imp.tipo || '').toLowerCase() !== 'retencion' && mapImpuestoClave(imp.impuesto) === IVA_IMPUESTO
+  );
+
+  const tasa = ivaTraslado ? normalizeRate(Number(ivaTraslado.tasa)) : 0;
+  const importeIva = ivaTraslado
+    ? Number(
+        (Number.isFinite(Number(ivaTraslado.monto))
+          ? Number(ivaTraslado.monto)
+          : Number(base) * normalizeRate(Number(ivaTraslado.tasa))).toFixed(2)
+      )
+    : 0;
+
   return { base, importeIva, tasa };
 }
 
@@ -57,35 +67,29 @@ export class CfdiBuilder {
     }
 
     const conceptos = data.partidas.map((p) => {
-      const { base, importeIva, tasa } = resolveImporte(p);
+      const { base } = resolveImporte(p);
 
       const impuestosDetallados = Array.isArray(p.impuestos) ? p.impuestos : [];
       const tieneImpuestosDetallados = impuestosDetallados.length > 0;
 
       const impuestosCalculados = tieneImpuestosDetallados
-        ? impuestosDetallados.map((imp) => {
-            const tasaNorm = normalizeRate(Number(imp.tasa));
-            const baseImp = Number.isFinite(Number(imp.base)) ? Number(imp.base) : base;
-            const importeImp = Number.isFinite(Number(imp.monto)) ? Number(imp.monto) : baseImp * tasaNorm;
-            return {
-              tipo: (imp.tipo || '').toLowerCase() === 'retencion' ? 'retencion' : 'traslado',
-              impuestoClave: mapImpuestoClave(imp.impuesto),
-              tasa: tasaNorm,
-              base: baseImp,
-              importe: importeImp,
-            };
-          })
-        : [
-            {
-              tipo: 'traslado',
-              impuestoClave: IVA_IMPUESTO,
-              tasa,
-              base,
-              importe: importeIva,
-            },
-          ];
+        ? impuestosDetallados
+            .map((imp) => {
+              const tasaNorm = normalizeRate(Number(imp.tasa));
+              const baseImp = Number.isFinite(Number(imp.base)) ? Number(imp.base) : base;
+              const importeImp = Number.isFinite(Number(imp.monto)) ? Number(imp.monto) : baseImp * tasaNorm;
+              return {
+                tipo: (imp.tipo || '').toLowerCase() === 'retencion' ? 'retencion' : 'traslado',
+                impuestoClave: mapImpuestoClave(imp.impuesto),
+                tasa: tasaNorm,
+                base: baseImp,
+                importe: importeImp,
+              };
+            })
+            .filter((imp) => imp.impuestoClave)
+        : [];
 
-      return { partida: p, base, importeIva, tasa, impuestosCalculados };
+      return { partida: p, base, impuestosCalculados };
     });
 
     const subtotal = data.documento.subtotal ?? conceptos.reduce((acc, it) => acc + it.base, 0);
@@ -162,7 +166,7 @@ export class CfdiBuilder {
 
     const conceptosNode = xml.ele('cfdi:Conceptos');
 
-    conceptos.forEach(({ partida, base, impuestosCalculados, tasa, importeIva }) => {
+  conceptos.forEach(({ partida, base, impuestosCalculados }) => {
       const concepto = conceptosNode.ele('cfdi:Concepto', sanitize({
         ClaveProdServ: partida.clave_producto_sat,
         Cantidad: formatRate(partida.cantidad),

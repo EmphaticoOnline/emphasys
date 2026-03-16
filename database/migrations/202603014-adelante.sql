@@ -210,5 +210,10 @@ GROUP BY
 COMMENT ON VIEW public.documentos_saldo IS 'Vista de compatibilidad: id, empresa_id, datos básicos y saldo = total - aplicaciones (COALESCE).';
 
 
+ALTER TABLE documentos_partidas
+DROP COLUMN iva_porcentaje;
+
+ALTER TABLE documentos_partidas
+DROP COLUMN iva_monto;
 
 COMMIT;

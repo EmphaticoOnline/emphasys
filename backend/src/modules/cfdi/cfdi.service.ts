@@ -81,8 +81,6 @@ export class CfdiService {
               dp.cantidad,
               dp.precio_unitario,
               dp.subtotal_partida,
-              dp.iva_porcentaje,
-              dp.iva_monto,
               COALESCE(dp.descripcion_alterna, p.descripcion) AS descripcion,
               p.clave_producto_sat,
               p.clave_unidad_sat
@@ -134,8 +132,6 @@ export class CfdiService {
       cantidad: Number(p.cantidad),
       precio_unitario: Number(p.precio_unitario),
       subtotal_partida: Number(p.subtotal_partida),
-      iva_porcentaje: p.iva_porcentaje != null ? Number(p.iva_porcentaje) : null,
-      iva_monto: p.iva_monto != null ? Number(p.iva_monto) : null,
       descripcion: p.descripcion,
       clave_producto_sat: p.clave_producto_sat,
       clave_unidad_sat: p.clave_unidad_sat,

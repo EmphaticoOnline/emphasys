@@ -11,7 +11,7 @@ export async function agregarPartidaService(documentoId: number, data: PartidaIn
   try {
     await client.query('BEGIN');
     const partida = await agregarPartidaRepository(documentoId, data, empresaId, client);
-    console.log('[BACK IVA DEBUG] agregarPartidaService partida creada', partida ? { id: partida.id, producto_id: partida.producto_id, iva_porcentaje: (partida as any)?.iva_porcentaje, iva_monto: partida.iva_monto, subtotal: partida.subtotal_partida, total: partida.total_partida } : null);
+    console.log('[BACK IVA DEBUG] agregarPartidaService partida creada', partida ? { id: partida.id, producto_id: partida.producto_id, subtotal: partida.subtotal_partida, total: partida.total_partida } : null);
     if (partida?.id) {
       console.log('[impuestos] Calculando impuestos para partida creada (id DB)', partida.id);
       await calcularImpuestosPartida(partida.id, client);
@@ -38,7 +38,7 @@ export async function reemplazarPartidasService(
   try {
     await client.query('BEGIN');
   const inserted = await reemplazarPartidasRepository(documentoId, partidas, empresaId, client);
-  console.log('[BACK IVA DEBUG] reemplazarPartidasService inserted', inserted?.map((p) => ({ id: p?.id, producto_id: p?.producto_id, iva_porcentaje: (p as any)?.iva_porcentaje, iva_monto: p?.iva_monto, subtotal: p?.subtotal_partida, total: p?.total_partida })));
+  console.log('[BACK IVA DEBUG] reemplazarPartidasService inserted', inserted?.map((p) => ({ id: p?.id, producto_id: p?.producto_id, subtotal: p?.subtotal_partida, total: p?.total_partida })));
 
     // Recuperar tratamiento del documento para decidir el flujo de impuestos
     const { rows: docRows } = await client.query(
@@ -54,7 +54,7 @@ export async function reemplazarPartidasService(
       const partidaIds = inserted.map((p) => p?.id).filter(Boolean) as number[];
 
       if (tratamiento === 'sin_iva') {
-        // Nota de venta: limpiar impuestos y asegurar iva_monto = 0
+        // Nota de venta: limpiar impuestos y asegurar totales sin impuestos
         if (partidaIds.length) {
           await client.query('DELETE FROM documentos_partidas_impuestos WHERE partida_id = ANY($1)', [partidaIds]);
           await client.query(
