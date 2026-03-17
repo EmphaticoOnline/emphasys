@@ -27,7 +27,6 @@ export type Partida = {
   cantidad: number;
   precio_unitario: number;
   subtotal_partida: number;
-  iva_monto: number;
   total_partida: number;
   producto_descripcion?: string | null;
   producto_clave?: string | null;
@@ -149,7 +148,6 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
   console.log('[BACK IVA DEBUG] obtenerDocumentoRepository partidas raw', partidas.map((p) => ({
     id: p.id,
     producto_id: p.producto_id,
-    iva_monto: p.iva_monto,
     subtotal_partida: p.subtotal_partida,
     total_partida: p.total_partida,
   })));
@@ -217,6 +215,11 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
   const estatus = data.estatus_documento || 'Borrador';
   const tipoDocumentoNormalizado = (data.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
   const tipoDocumentoDb = tipoDocumentoNormalizado;
+
+  // Asegurar tratamiento_impuestos por defecto
+  if (data.tratamiento_impuestos === undefined || data.tratamiento_impuestos === null) {
+    data.tratamiento_impuestos = 'normal';
+  }
 
   // Prellenar datos fiscales del contacto en facturas si no vienen en la petición
   if (tipoDocumentoDb === 'factura' && data.contacto_principal_id) {
@@ -317,9 +320,38 @@ export async function actualizarDocumentoRepository(
   empresaId: number,
   tipoDocumento?: TipoDocumento
 ) {
-  const entries = CAMPOS_DOCUMENTO.filter((campo) => data[campo] !== undefined);
+  // Traer valores actuales para comparar serie/número
+  const { rows: currentRows } = await pool.query(
+    `SELECT id, serie, numero, tipo_documento
+       FROM documentos
+      WHERE id = $1 AND empresa_id = $2 ${tipoDocumento ? 'AND LOWER(tipo_documento) = LOWER($3)' : ''}
+      LIMIT 1`,
+    tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]
+  );
+  const current = currentRows[0];
+  if (!current) return null;
+
+  const dataToUpdate: DocumentoInput = { ...data };
+  const serieActual = current.serie ?? null;
+  const serieNueva = dataToUpdate.serie ?? serieActual;
+  const tipoDestino = (dataToUpdate.tipo_documento ?? current.tipo_documento) as TipoDocumento;
+
+  // Si cambió la serie, reasignar número secuencial para esa serie
+  if (serieNueva !== serieActual) {
+    const { rows: nextRows } = await pool.query(
+      `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
+         FROM documentos
+        WHERE empresa_id = $1
+          AND LOWER(tipo_documento) = LOWER($2)
+          AND COALESCE(serie, '') = COALESCE($3, '')`,
+      [empresaId, tipoDestino, serieNueva ?? '']
+    );
+    dataToUpdate.numero = nextRows[0]?.next_numero ?? 1;
+  }
+
+  const entries = CAMPOS_DOCUMENTO.filter((campo) => dataToUpdate[campo] !== undefined);
   const sets = entries.map((campo, idx) => `${campo} = $${idx + 1}`).join(', ');
-  const valores = entries.map((campo) => data[campo]);
+  const valores = entries.map((campo) => dataToUpdate[campo]);
   if (!sets) {
     const query = `SELECT * FROM documentos WHERE id = $1 AND empresa_id = $2 ${tipoDocumento ? 'AND LOWER(tipo_documento) = LOWER($3)' : ''}`;
     const { rows } = await pool.query(query, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
@@ -361,20 +393,16 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
     ];
 
     camposPermitidos.forEach((campo) => {
-      if (data[campo] !== undefined) {
+      if (data[campo] !== undefined) {    
         campos.push(campo);
         valores.push(data[campo]);
       }
     });
 
-    // Asegurar columnas de total e IVA legacy inicializados (el motor de impuestos recalcula después)
+    // Asegurar columnas de total inicializados (el motor de impuestos recalcula después)
     if (!campos.includes('total_partida')) {
       campos.push('total_partida');
       valores.push(data.total_partida ?? data.subtotal_partida ?? 0);
-    }
-    if (!campos.includes('iva_monto')) {
-      campos.push('iva_monto');
-      valores.push(0);
     }
 
   // numero_partida secuencial (COUNT + 1 para ese documento)
@@ -428,7 +456,7 @@ export async function reemplazarPartidasRepository(
         subtotal_partida,
         total_partida,
         observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 

@@ -335,28 +335,20 @@ export class DocumentGenerationService {
               documento_id,
               numero_partida,
               producto_id,
-              descripcion_alterna,
               cantidad,
-              unidad,
               precio_unitario,
               subtotal_partida,
-              iva_monto,
-              total_partida,
-              partida_origen_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+              total_partida
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id`,
           [
             documentoDestino.id,
             idx + 1,
             partidaOrigen.producto_id ?? null,
-            partidaOrigen.descripcion_alterna ?? null,
             cantidad,
-            partidaOrigen.unidad ?? null,
             precioUnitario,
             subtotalPartida,
-            0, // iva_monto lo calculará calcularImpuestosPartida
             0, // total_partida lo calculará calcularImpuestosPartida
-            partidaOrigen.partida_id,
           ]
         );
 

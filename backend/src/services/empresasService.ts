@@ -1,4 +1,5 @@
 import pool from "../config/database";
+import { PoolClient } from "pg";
 import { normalizeRFC } from "../shared/normalizers/rfc";
 
 export type Empresa = {
@@ -123,7 +124,8 @@ export async function obtenerEmpresaPorId(id: number): Promise<Empresa | null> {
   return rows[0] ?? null;
 }
 
-async function validarUnicidadIdentificador(identificador: string, excluirId?: number) {
+async function validarUnicidadIdentificador(identificador: string, excluirId?: number, client?: PoolClient) {
+  const executor = client ?? pool;
   const params: any[] = [identificador];
   let sql = `SELECT 1 FROM core.empresas WHERE lower(identificador) = lower($1)`;
 
@@ -132,11 +134,12 @@ async function validarUnicidadIdentificador(identificador: string, excluirId?: n
     params.push(excluirId);
   }
 
-  const { rowCount } = await pool.query(sql, params);
+  const { rowCount } = await executor.query(sql, params);
   return (rowCount ?? 0) > 0;
 }
 
-async function validarUnicidadRfc(rfc: string, excluirId?: number) {
+async function validarUnicidadRfc(rfc: string, excluirId?: number, client?: PoolClient) {
+  const executor = client ?? pool;
   const params: any[] = [rfc];
   let sql = `SELECT 1 FROM core.empresas WHERE rfc = $1`;
 
@@ -145,75 +148,90 @@ async function validarUnicidadRfc(rfc: string, excluirId?: number) {
     params.push(excluirId);
   }
 
-  const { rowCount } = await pool.query(sql, params);
+  const { rowCount } = await executor.query(sql, params);
   return (rowCount ?? 0) > 0;
 }
 
-export async function crearEmpresa(payload: EmpresaPayload): Promise<Empresa> {
+export async function crearEmpresa(payload: EmpresaPayload, usuarioId: number): Promise<Empresa> {
   const data = sanitizePayload(payload);
 
   if (!data.identificador || !data.nombre || !data.razon_social || !data.rfc || !data.regimen_fiscal_id || !data.codigo_postal_id || !data.estado_id) {
     throw new Error("DATOS_INCOMPLETOS");
   }
 
-  const identificadorDuplicado = await validarUnicidadIdentificador(data.identificador);
-  if (identificadorDuplicado) {
-    const error = new Error("IDENTIFICADOR_DUPLICADO");
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+  const identificadorDuplicado = await validarUnicidadIdentificador(data.identificador, undefined, client);
+    if (identificadorDuplicado) {
+      throw new Error("IDENTIFICADOR_DUPLICADO");
+    }
+
+  const rfcDuplicado = await validarUnicidadRfc(data.rfc, undefined, client);
+    if (rfcDuplicado) {
+      throw new Error("RFC_DUPLICADO");
+    }
+
+    const values = [
+      data.identificador,
+      data.nombre,
+      data.razon_social,
+      data.rfc,
+      data.regimen_fiscal_id,
+      data.codigo_postal_id,
+      data.estado_id,
+      data.localidad_id ?? null,
+      data.colonia_id ?? null,
+      data.calle ?? null,
+      data.numero_exterior ?? null,
+      data.numero_interior ?? null,
+      data.pais ?? "México",
+      data.telefono ?? null,
+      data.email ?? null,
+      data.sitio_web ?? null,
+      data.certificado_csd ?? null,
+      data.llave_privada_csd ?? null,
+      data.password_csd ?? null,
+      data.codigo_postal ?? null,
+      data.regimen_fiscal ?? null,
+      data.activo ?? true,
+    ];
+
+    const { rows } = await client.query<Empresa>(
+      `INSERT INTO core.empresas (
+         identificador, nombre, razon_social, rfc,
+         regimen_fiscal_id, codigo_postal_id, estado_id, localidad_id, colonia_id,
+         calle, numero_exterior, numero_interior, pais,
+         telefono, email, sitio_web,
+         certificado_csd, llave_privada_csd, password_csd,
+         codigo_postal, regimen_fiscal, activo
+       ) VALUES (
+         $1, $2, $3, $4,
+         $5, $6, $7, $8, $9,
+         $10, $11, $12, $13,
+         $14, $15, $16,
+         $17, $18, $19,
+         $20, $21, $22
+       )
+       RETURNING *`,
+      values
+    );
+
+    const nueva = rows[0];
+
+    // Ejecutar bootstrap de empresa (plpgsql) usando el usuario creador
+    await client.query("CALL core.bootstrap_empresa($1, $2)", [nueva.id, usuarioId]);
+
+    await client.query("COMMIT");
+    return nueva;
+  } catch (error) {
+    await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
   }
-
-  const rfcDuplicado = await validarUnicidadRfc(data.rfc);
-  if (rfcDuplicado) {
-    const error = new Error("RFC_DUPLICADO");
-    throw error;
-  }
-
-  const values = [
-    data.identificador,
-    data.nombre,
-    data.razon_social,
-    data.rfc,
-    data.regimen_fiscal_id,
-    data.codigo_postal_id,
-    data.estado_id,
-    data.localidad_id ?? null,
-    data.colonia_id ?? null,
-    data.calle ?? null,
-    data.numero_exterior ?? null,
-    data.numero_interior ?? null,
-    data.pais ?? "México",
-    data.telefono ?? null,
-    data.email ?? null,
-    data.sitio_web ?? null,
-    data.certificado_csd ?? null,
-    data.llave_privada_csd ?? null,
-    data.password_csd ?? null,
-    data.codigo_postal ?? null,
-    data.regimen_fiscal ?? null,
-    data.activo ?? true,
-  ];
-
-  const { rows } = await pool.query<Empresa>(
-    `INSERT INTO core.empresas (
-       identificador, nombre, razon_social, rfc,
-       regimen_fiscal_id, codigo_postal_id, estado_id, localidad_id, colonia_id,
-       calle, numero_exterior, numero_interior, pais,
-       telefono, email, sitio_web,
-       certificado_csd, llave_privada_csd, password_csd,
-       codigo_postal, regimen_fiscal, activo
-     ) VALUES (
-       $1, $2, $3, $4,
-       $5, $6, $7, $8, $9,
-       $10, $11, $12, $13,
-       $14, $15, $16,
-       $17, $18, $19,
-       $20, $21, $22
-     )
-     RETURNING *`,
-    values
-  );
-
-  return rows[0];
 }
 
 export async function actualizarEmpresa(id: number, payload: EmpresaPayload): Promise<Empresa | null> {

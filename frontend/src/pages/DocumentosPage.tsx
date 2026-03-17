@@ -658,8 +658,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   }, [rows, search, soloPendientes, isFacturaConSaldo]);
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Container maxWidth={false} sx={{ py: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Stack spacing={0.5}>
           <Typography variant="h5" fontWeight={700} color="#1d2f68">
@@ -727,7 +727,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </DialogActions>
       </Dialog>
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -764,6 +764,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           }}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
           sx={{
+            width: '100%',
             '--DataGrid-overlayHeight': '200px',
             '& .MuiDataGrid-cell': {
               display: 'flex',

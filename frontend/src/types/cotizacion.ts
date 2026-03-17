@@ -49,8 +49,6 @@ export interface CotizacionPartida {
   cantidad: number;
   precio_unitario: number;
   subtotal_partida: number;
-  iva_porcentaje?: number | null;
-  iva_monto: number;
   total_partida: number;
   producto_descripcion?: string | null;
   producto_clave?: string | null;
@@ -110,8 +108,7 @@ export interface CotizacionPartidaPayload {
   cantidad: number;
   precio_unitario: number;
   subtotal_partida: number;
-  iva_porcentaje?: number | null;
-  iva_monto: number;
   total_partida: number;
   observaciones?: string | null;
+  impuestos?: ImpuestoPartida[];
 }

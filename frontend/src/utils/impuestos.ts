@@ -1,8 +1,11 @@
 export type ImpuestoEntrada = {
   id: string;
   nombre: string;
-  tipo?: string | undefined;
+  tipo?: string | null;
   tasa: number | string;
+  monto?: number;
+  base?: number | null;
+  impuesto_id?: string;
 };
 
 export type ImpuestoCalculadoUI = {
@@ -33,10 +36,11 @@ export function calcularImpuestosPartida(subtotal: number, impuestos: ImpuestoEn
       tipoTasa: typeof imp.tasa,
     });
     const monto = Math.round((base * tasaValor + Number.EPSILON) * 100) / 100;
+    const tipo = imp.tipo ?? undefined;
     return {
       impuestoId: imp.id,
       nombre: imp.nombre,
-      tipo: imp.tipo,
+      tipo,
       tasa,
       monto,
     };

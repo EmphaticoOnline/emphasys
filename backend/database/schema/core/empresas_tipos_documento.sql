@@ -34,7 +34,9 @@ CREATE TABLE core.empresas_tipos_documento (
     activo boolean DEFAULT true NOT NULL,
     orden integer DEFAULT 0,
     usuario_creacion_id integer,
-    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    afecta_inventario character varying(20) DEFAULT 'none'::character varying NOT NULL,
+    afecta_reservado boolean DEFAULT false NOT NULL
 );
 
 
@@ -85,6 +87,20 @@ COMMENT ON COLUMN core.empresas_tipos_documento.usuario_creacion_id IS 'Usuario 
 --
 
 COMMENT ON COLUMN core.empresas_tipos_documento.fecha_creacion IS 'Fecha de creación del registro.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.afecta_inventario; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.afecta_inventario IS 'Define cómo afecta inventario: none, entrada, salida, transferencia.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.afecta_reservado; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.afecta_reservado IS 'Indica si el documento afecta cantidades reservadas (apartados o compromisos).';
 
 
 --

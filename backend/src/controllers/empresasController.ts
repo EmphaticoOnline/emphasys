@@ -74,8 +74,9 @@ export async function crearEmpresaController(req: Request, res: Response) {
       return res.status(400).json({ message: `Campos requeridos: ${faltantes.join(", ")}` });
     }
 
-    const payload: EmpresaPayload = { ...req.body };
-    const nueva = await crearEmpresa(payload);
+  const payload: EmpresaPayload = { ...req.body };
+  const usuarioId = auth.userId;
+  const nueva = await crearEmpresa(payload, usuarioId);
     return res.status(201).json(nueva);
   } catch (error) {
     console.error("Error al crear empresa:", error);

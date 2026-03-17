@@ -21,7 +21,6 @@ export interface Producto {
   precio_mayoreo: number | null;
   precio_menudeo: number | null;
   precio_distribuidor: number | null;
-  iva_porcentaje: number | null;
   ieps_porcentaje: number | null;
   retiene_iva: boolean;
   retiene_isr: boolean;

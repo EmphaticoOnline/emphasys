@@ -41,6 +41,7 @@ import type {
   CotizacionPartidaPayload,
   CotizacionCrearPayload,
   CotizacionPartida,
+  ImpuestoPartida,
   TratamientoImpuestos,
 } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
@@ -65,10 +66,10 @@ import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinam
 const defaultFecha = () => new Date().toISOString().substring(0, 10);
 const validarRFC = (rfc: string) => /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(rfc);
 
-type PartidaForm = CotizacionPartidaPayload & {
+type PartidaForm = Omit<CotizacionPartidaPayload, 'impuestos'> & {
   id?: number;
   producto?: Producto | null;
-  impuestos?: ImpuestoEntrada[];
+  impuestos?: (ImpuestoEntrada | ImpuestoPartida)[];
   impuestos_calculados?: ImpuestoCalculadoUI[];
 };
 
@@ -84,9 +85,7 @@ const emptyPartida = (): PartidaForm => ({
   descripcion_alterna: '',
   cantidad: 1,
   precio_unitario: 0,
-  iva_porcentaje: null,
   subtotal_partida: 0,
-  iva_monto: 0,
   total_partida: 0,
   producto: null,
   observaciones: '',
@@ -280,7 +279,6 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         tratamiento_impuestos: tratamientoActual,
         impuestos_len: Array.isArray(resp?.impuestos) ? resp.impuestos.length : null,
         subtotal_partida: resp?.subtotal_partida,
-        iva_monto: resp?.iva_monto,
         total_partida: resp?.total_partida,
       });
 
@@ -292,8 +290,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         const impuestosEntrada: ImpuestoEntrada[] = (resp.impuestos ?? []).map((imp: any) => ({
           id: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
           nombre: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
-          tipo: imp.tipo ?? undefined,
+          tipo: imp.tipo ?? null,
           tasa: Number(imp.tasa ?? 0),
+          monto: Number(imp.monto ?? 0),
+          base: imp.base ?? null,
         }));
 
         const impuestosCalc: ImpuestoCalculadoUI[] = (resp.impuestos ?? []).map((imp: any) => ({
@@ -309,8 +309,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           subtotal_partida: resp.subtotal_partida ?? current.subtotal_partida,
           impuestos: impuestosEntrada,
           impuestos_calculados: impuestosCalc,
-          iva_monto: resp.iva_monto ?? 0,
-          total_partida: resp.total_partida ?? (resp.subtotal_partida ?? current.subtotal_partida) + (resp.iva_monto ?? 0),
+          total_partida: resp.total_partida ?? current.total_partida ?? 0,
         };
 
         next[index] = updated;
@@ -354,9 +353,17 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const recalcTotales = (partidasList: PartidaForm[]) => {
     const subtotal = partidasList.reduce((acc, p) => acc + (p.subtotal_partida || 0), 0);
-    const iva = partidasList.reduce((acc, p) => acc + (p.iva_monto || 0), 0);
-    const total = partidasList.reduce((acc, p) => acc + (p.total_partida || 0), 0);
-    setForm((prev) => ({ ...prev, subtotal, iva, total }));
+    const impuestosTotales = partidasList.reduce((acc, p) => {
+      const impuestos = p.impuestos ?? [];
+      const totalImpuestos = impuestos.reduce((s, imp: any) => {
+        const monto = Number(imp.monto ?? 0);
+        const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
+        return s + (esRetencion ? -monto : monto);
+      }, 0);
+      return acc + totalImpuestos;
+    }, 0);
+    const total = subtotal + impuestosTotales;
+    setForm((prev) => ({ ...prev, subtotal, iva: impuestosTotales, total }));
   };
 
   const isSinIva = (t: TratamientoImpuestos | null | undefined) => (t ?? '').toLowerCase() === 'sin_iva';
@@ -366,24 +373,22 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     const cantidad = Number(partida.cantidad) || 0;
     const precio = Number(partida.precio_unitario) || 0;
     const subtotal_partida = cantidad * precio;
-    const impuestos_calculados = partida.impuestos_calculados ?? [];
-    const traslados = impuestos_calculados
-      .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'traslado')
-      .reduce((acc: number, imp: ImpuestoCalculadoUI) => acc + Number(imp.monto || 0), 0);
-    const retenciones = impuestos_calculados
-      .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'retencion')
-      .reduce((acc: number, imp: ImpuestoCalculadoUI) => acc + Number(imp.monto || 0), 0);
-    const iva_monto = traslados;
-    const total_partida = subtotal_partida + traslados - retenciones;
+  const impuestosLista = (partida.impuestos ?? partida.impuestos_calculados ?? []) as any[];
+    const totalImpuestos = impuestosLista.reduce((acc: number, imp: any) => {
+      const monto = Number(imp.monto ?? 0);
+      const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
+      return acc + (esRetencion ? -monto : monto);
+    }, 0);
+    const total_partida = subtotal_partida + totalImpuestos;
 
     const result = {
       ...partida,
       cantidad,
       precio_unitario: precio,
       subtotal_partida,
-      iva_monto,
       total_partida,
-      impuestos_calculados,
+      impuestos: impuestosLista as any,
+      impuestos_calculados: partida.impuestos_calculados ?? [],
     };
     console.log('[calc] calcularPartida out', result);
     return result;
@@ -395,8 +400,6 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     return lista.map((p) => {
       const base: PartidaForm = {
         ...p,
-        iva_porcentaje: esSinIva ? 0 : null,
-        iva_monto: esSinIva ? 0 : p.iva_monto,
         impuestos: esSinIva ? [] : p.impuestos ?? [],
         impuestos_calculados: esSinIva ? [] : p.impuestos_calculados ?? [],
       };
@@ -639,8 +642,11 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         const impuestosEntrada: ImpuestoEntrada[] = (p.impuestos ?? []).map((imp) => ({
           id: imp.impuesto_id,
           nombre: imp.nombre ?? imp.impuesto_id,
-          tipo: imp.tipo ?? undefined,
-          tasa: imp.tasa,
+          tipo: imp.tipo ?? null,
+          tasa: Number(imp.tasa ?? 0),
+          monto: Number(imp.monto ?? 0),
+          base: imp.base ?? null,
+          impuesto_id: imp.impuesto_id,
         }));
 
         const impuestosCalcPersistidos: ImpuestoCalculadoUI[] = (p.impuestos_calculados ?? []).map((imp: any) => ({
@@ -669,9 +675,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           descripcion_alterna: p.descripcion_alterna ?? '',
           cantidad: p.cantidad,
           precio_unitario: p.precio_unitario,
-          iva_porcentaje: (p as any).iva_porcentaje ?? null,
           subtotal_partida: p.subtotal_partida,
-          iva_monto: p.iva_monto,
           total_partida: p.total_partida,
           observaciones: p.observaciones ?? '',
           producto: prod,
@@ -851,9 +855,16 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         cantidad: p.cantidad ?? 0,
         precio_unitario: p.precio_unitario ?? 0,
         subtotal_partida: p.subtotal_partida ?? 0,
-        iva_monto: p.iva_monto ?? 0,
         total_partida: p.total_partida ?? 0,
         observaciones: p.observaciones ?? '',
+        impuestos: (p.impuestos_calculados ?? p.impuestos ?? []).map((imp: any) => ({
+          impuesto_id: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? imp.id,
+          nombre: imp.nombre ?? null,
+          tipo: imp.tipo ?? null,
+          tasa: Number(imp.tasa ?? 0),
+          base: imp.base ?? null,
+          monto: Number(imp.monto ?? 0),
+        })),
       }));
       const partidasGuardadas = await replacePartidas(docId, tipoDocumento, partidasPayload);
 
@@ -1370,7 +1381,13 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
                       <TextField
                         label={undefined}
-                        value={formatter.format(partida.iva_monto ?? 0)}
+                        value={formatter.format(
+                          (partida.impuestos ?? []).reduce((acc, imp: any) => {
+                            const monto = Number(imp.monto ?? 0);
+                            const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
+                            return acc + (esRetencion ? -monto : monto);
+                          }, 0)
+                        )}
                         InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
                         size="small"
                       />

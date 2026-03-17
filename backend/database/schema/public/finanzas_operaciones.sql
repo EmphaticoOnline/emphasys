@@ -44,6 +44,7 @@ CREATE TABLE public.finanzas_operaciones (
     saldo numeric(15,2),
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     concepto_id integer,
+    naturaleza_operacion character varying(30) DEFAULT 'movimiento_general'::character varying NOT NULL,
     CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY ((ARRAY['pendiente'::character varying, 'cotejado'::character varying, 'conciliado'::character varying])::text[]))),
     CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY ((ARRAY['Deposito'::character varying, 'Retiro'::character varying])::text[])))
 );
@@ -82,6 +83,13 @@ ALTER TABLE ONLY public.finanzas_operaciones ALTER COLUMN id SET DEFAULT nextval
 
 ALTER TABLE ONLY public.finanzas_operaciones
     ADD CONSTRAINT finanzas_operaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_finanzas_operaciones_empresa_naturaleza; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_operaciones_empresa_naturaleza ON public.finanzas_operaciones USING btree (empresa_id, naturaleza_operacion);
 
 
 --

@@ -59,8 +59,7 @@ export async function reemplazarPartidasService(
           await client.query('DELETE FROM documentos_partidas_impuestos WHERE partida_id = ANY($1)', [partidaIds]);
           await client.query(
             `UPDATE documentos_partidas
-                SET iva_monto = 0,
-                    total_partida = subtotal_partida
+                SET total_partida = subtotal_partida
               WHERE id = ANY($1)`,
             [partidaIds]
           );

@@ -53,15 +53,6 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
     if ((tratamientoImpuestos ?? '').toLowerCase() === 'sin_iva') {
       await eliminarImpuestosDePartida(partidaId, executor);
 
-      const totalPartida = subtotalNumber;
-      await executor.query(
-        `UPDATE documentos_partidas
-            SET iva_monto = 0,
-                total_partida = $1
-          WHERE id = $2`,
-        [totalPartida, partidaId]
-      );
-
       // Recalcular totales del documento (encabezado)
       await actualizarTotales(documentoId, executor);
 
@@ -92,30 +83,6 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
     // 3) Calcula montos
     const impuestosCalculados = calcularImpuestosParaSubtotal(subtotalNumber, impuestosAplicables);
     console.log('[impuestos] calculados', impuestosCalculados);
-
-    // 3.1) Actualiza totales de la partida (solo para visualización; los totales del documento salen de impuestos)
-    const traslados = impuestosCalculados
-      .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'traslado')
-      .reduce((acc, imp) => acc + Number(imp.monto), 0);
-    const retenciones = impuestosCalculados
-      .filter((imp) => (imp.tipo ?? '').toLowerCase() === 'retencion')
-      .reduce((acc, imp) => acc + Number(imp.monto), 0);
-
-    const ivaMonto = traslados; // IVA correspondiente a impuestos de tipo "traslado" (compatibilidad legacy)
-    const totalPartida = subtotalNumber + traslados - retenciones;
-
-    const updateResult = await executor.query(
-      `UPDATE documentos_partidas
-          SET iva_monto = $1,
-              total_partida = $2
-        WHERE id = $3`,
-      [ivaMonto, totalPartida, partidaId]
-    );
-    console.log('[impuestos] update resultado', updateResult.rowCount);
-    if ((updateResult.rowCount ?? 0) === 0) {
-      throw new Error(`No se actualizó la partida ${partidaId} en documentos_partidas`);
-    }
-    console.log('[impuestos] partida totales actualizados', { partidaId, ivaMonto, totalPartida });
 
     // 4) Inserta resultados
     await insertarImpuestosDePartida(

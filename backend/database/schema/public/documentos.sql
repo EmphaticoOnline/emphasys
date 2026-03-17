@@ -86,6 +86,13 @@ COMMENT ON TABLE public.documentos IS 'Tabla universal de documentos del ERP (co
 
 
 --
+-- Name: COLUMN documentos.almacen_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.almacen_id IS 'Almacén predeterminado del documento. Se usa cuando la partida no especifica uno.';
+
+
+--
 -- Name: COLUMN documentos.tratamiento_impuestos; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -132,6 +139,21 @@ ALTER TABLE ONLY public.documentos
 --
 
 CREATE UNIQUE INDEX documentos_unico ON public.documentos USING btree (empresa_id, lower((tipo_documento)::text), COALESCE(serie, ''::character varying), numero);
+
+
+--
+-- Name: idx_documentos_almacen_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_almacen_id ON public.documentos USING btree (almacen_id);
+
+
+--
+-- Name: documentos fk_documentos_almacen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos
+    ADD CONSTRAINT fk_documentos_almacen FOREIGN KEY (almacen_id) REFERENCES inventario.almacenes(id) ON DELETE RESTRICT;
 
 
 --

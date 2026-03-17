@@ -257,9 +257,9 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
     cd.cp,
     cd.pais,
     cd.cp_sat,
-    cd.colonia_sat,
+  cd.colonia_sat,
 
-    cd.cp_sat AS contacto_codigo_postal,
+  cd.cp AS contacto_codigo_postal,
 
   cdf.rfc AS rfc_fiscal,
   cdf.regimen_fiscal,
