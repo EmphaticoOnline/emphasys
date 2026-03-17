@@ -12,7 +12,7 @@ export const MODULE_TABS: Record<string, string[]> = {
   Ventas: [],
   Compras: ['Requisiciones', 'Órdenes de compra', 'Recepciones', 'Facturas'],
   Finanzas: ['Finanzas'],
-  Inventarios: ['Inventario', 'Ajustes de stock', 'Kardex', 'Ubicaciones', 'Reportes de inventario'],
+  Inventarios: ['Movimientos', 'Inventario', 'Ajustes de stock', 'Kardex', 'Ubicaciones', 'Reportes de inventario'],
   Configuración: [],
 };
 

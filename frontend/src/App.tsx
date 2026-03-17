@@ -25,6 +25,7 @@ import ConceptosConfigPage from './pages/configuracion/ConceptosPage';
 import EmpresaImpuestosDefaultPage from './pages/configuracion/EmpresaImpuestosDefaultPage';
 import FinanzasPage from './pages/FinanzasPage';
 import { Outlet } from 'react-router-dom';
+import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 
 export default function App() {
   return (
@@ -64,6 +65,7 @@ export default function App() {
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
               <Route path="/finanzas" element={<FinanzasPage />} />
+              <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
               <Route path="/" element={<Navigate to="/contactos" replace />} />
               <Route path="*" element={<Navigate to="/contactos" replace />} />
             </Route>
