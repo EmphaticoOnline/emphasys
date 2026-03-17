@@ -21,8 +21,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 import { useNavigate } from 'react-router-dom';
@@ -48,7 +47,7 @@ export default function InventarioMovimientosPage() {
     { open: false, message: '', severity: 'success' }
   );
 
-  const formatoFecha = (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm');
+  const formatoFecha = (value: string) => dayjs(value).format('DD/MM/YYYY');
 
   const cargarDetalle = async (movimientoId: number) => {
     try {
@@ -141,7 +140,7 @@ export default function InventarioMovimientosPage() {
                   <TableCell>Observaciones</TableCell>
                   <TableCell>Usuario</TableCell>
                   <TableCell>Documento</TableCell>
-                  <TableCell align="center">Acciones</TableCell>
+                  <TableCell align="center">Ver detalle</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -165,23 +164,14 @@ export default function InventarioMovimientosPage() {
                     <TableCell>{formatoFecha(m.fecha)}</TableCell>
                     <TableCell sx={{ textTransform: 'capitalize' }}>{m.tipo_movimiento}</TableCell>
                     <TableCell>{m.observaciones || '—'}</TableCell>
-                    <TableCell>{m.usuario_id ?? '—'}</TableCell>
+                    <TableCell>{m.usuario_nombre ?? '—'}</TableCell>
                     <TableCell>{m.documento_id ?? '—'}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
-                        <Tooltip title="Editar">
-                          <span>
-                            <IconButton size="small" onClick={handleAccionNoImplementada} disabled>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <Tooltip title="Eliminar">
-                          <span>
-                            <IconButton size="small" color="error" onClick={handleAccionNoImplementada} disabled>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </span>
+                        <Tooltip title="Ver detalle">
+                          <IconButton size="small" onClick={() => handleSeleccion(m.id)}>
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
                         </Tooltip>
                       </Stack>
                     </TableCell>
@@ -220,13 +210,12 @@ export default function InventarioMovimientosPage() {
                   <TableCell>Almacén origen</TableCell>
                   <TableCell>Almacén destino</TableCell>
                   <TableCell align="right">Cantidad</TableCell>
-                  <TableCell align="center">Acciones</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {detalleLoading && (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={4} align="center">
                       <Stack direction="row" justifyContent="center" alignItems="center" spacing={1}>
                         <CircularProgress size={18} />
                         <Typography variant="body2" color="text.secondary">Cargando partidas…</Typography>
@@ -234,9 +223,9 @@ export default function InventarioMovimientosPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!detalleLoading && detalle && detalle.partidas.length === 0 && (
+                {!detalleLoading && detalle && detalle.partidas.length === 0 && ( 
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={4} align="center">
                       <Typography variant="body2" color="text.secondary">Sin partidas para este movimiento.</Typography>
                     </TableCell>
                   </TableRow>
@@ -247,24 +236,6 @@ export default function InventarioMovimientosPage() {
                     <TableCell>{p.almacen_origen_id ?? '—'}</TableCell>
                     <TableCell>{p.almacen_destino_id ?? '—'}</TableCell>
                     <TableCell align="right">{p.cantidad}</TableCell>
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={1} justifyContent="center">
-                        <Tooltip title="Editar">
-                          <span>
-                            <IconButton size="small" onClick={handleAccionNoImplementada} disabled>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <Tooltip title="Eliminar">
-                          <span>
-                            <IconButton size="small" color="error" onClick={handleAccionNoImplementada} disabled>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </Stack>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

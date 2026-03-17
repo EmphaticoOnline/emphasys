@@ -26,6 +26,7 @@ import EmpresaImpuestosDefaultPage from './pages/configuracion/EmpresaImpuestosD
 import FinanzasPage from './pages/FinanzasPage';
 import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
+import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 
 export default function App() {
   return (
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
               <Route path="/finanzas" element={<FinanzasPage />} />
               <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
+              <Route path="/inventario/movimientos/nuevo" element={<InventarioMovimientoFormPage />} />
               <Route path="/" element={<Navigate to="/contactos" replace />} />
               <Route path="*" element={<Navigate to="/contactos" replace />} />
             </Route>

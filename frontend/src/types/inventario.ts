@@ -20,6 +20,7 @@ export interface MovimientoListadoItem {
   tipo_movimiento: TipoMovimientoInventario;
   observaciones: string | null;
   usuario_id: number | null;
+  usuario_nombre?: string | null;
   documento_id: number | null;
 }
 
@@ -38,6 +39,7 @@ export interface MovimientoDetalle {
     tipo_movimiento: TipoMovimientoInventario;
     observaciones: string | null;
     usuario_id: number | null;
+    usuario_nombre?: string | null;
     documento_id: number | null;
   };
   partidas: MovimientoPartidaDetalle[];

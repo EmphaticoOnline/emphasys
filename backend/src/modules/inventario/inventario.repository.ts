@@ -6,6 +6,7 @@ export type MovimientoRow = {
   tipo_movimiento: string;
   observaciones: string | null;
   usuario_id: number | null;
+  usuario_nombre: string | null;
   documento_id: number | null;
 };
 
@@ -28,9 +29,11 @@ export async function listarMovimientosRepository(empresaId: number): Promise<Mo
            m.fecha,
            m.tipo_movimiento,
            m.observaciones,
-           m.usuario_id,
+       m.usuario_id,
+       u.nombre AS usuario_nombre,
            m.documento_id
       FROM inventario.movimientos m
+     LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      WHERE m.empresa_id = $1
      ORDER BY m.fecha DESC, m.id DESC
   `;
@@ -46,8 +49,10 @@ export async function obtenerMovimientoDetalleRepository(id: number, empresaId: 
            m.tipo_movimiento,
            m.observaciones,
            m.usuario_id,
+           u.nombre AS usuario_nombre,
            m.documento_id
       FROM inventario.movimientos m
+      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      WHERE m.id = $1
        AND m.empresa_id = $2
      LIMIT 1
