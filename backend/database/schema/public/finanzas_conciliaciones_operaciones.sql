@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict Th0weFGXrHWXe9CG6PoSElft45qBIZPxTxFOtuhf52XIH4fvpe8U5dyWUUYC5gN
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -96,4 +98,6 @@ ALTER TABLE ONLY public.finanzas_conciliaciones_operaciones
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict Th0weFGXrHWXe9CG6PoSElft45qBIZPxTxFOtuhf52XIH4fvpe8U5dyWUUYC5gN
 

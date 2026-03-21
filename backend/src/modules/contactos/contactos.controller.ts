@@ -8,7 +8,7 @@ import {
   obtenerCatalogosConfigurablesDeContacto,
   guardarCatalogosConfigurablesDeContacto,
 } from "./contactos.repository";
-import { normalizePhone } from "../../shared/normalizers/phone";
+import { normalizarTelefono } from "../../utils/telefono";
 import { normalizeRFC } from "../../shared/normalizers/rfc";
 import { normalizeEmail } from "../../shared/normalizers/email";
 
@@ -28,12 +28,17 @@ export async function crearContacto(req: Request, res: Response) {
 
     data.nombre = String(data.nombre).trim();
 
+    const normalizeTelefonoMx = (value: any) => {
+      if (value === undefined || value === null || String(value).trim() === "") return null;
+      return normalizarTelefono(String(value));
+    };
+
     if ("telefono" in data) {
-      data.telefono = normalizePhone(data.telefono);
+      data.telefono = normalizeTelefonoMx(data.telefono);
     }
 
     if ("telefono_secundario" in data) {
-      data.telefono_secundario = normalizePhone(data.telefono_secundario);
+      data.telefono_secundario = normalizeTelefonoMx(data.telefono_secundario);
     }
 
     if ("rfc" in data) {
@@ -49,6 +54,9 @@ export async function crearContacto(req: Request, res: Response) {
     res.status(201).json(contacto);
   } catch (error) {
     console.error("Error al crear contacto:", error);
+    if (error instanceof Error && error.message.includes('teléfono')) {
+      return res.status(400).json({ message: error.message });
+    }
     if (error instanceof Error && error.message === 'CP_SAT_NO_ENCONTRADO') {
       return res.status(400).json({ message: "El código postal SAT no existe" });
     }
@@ -104,12 +112,17 @@ export async function actualizarContacto(req: Request, res: Response) {
       return res.status(400).json({ message: "empresaId es obligatorio" });
     }
 
+    const normalizeTelefonoMx = (value: any) => {
+      if (value === undefined || value === null || String(value).trim() === "") return null;
+      return normalizarTelefono(String(value));
+    };
+
     if ("telefono" in data) {
-      data.telefono = normalizePhone(data.telefono);
+      data.telefono = normalizeTelefonoMx(data.telefono);
     }
 
     if ("telefono_secundario" in data) {
-      data.telefono_secundario = normalizePhone(data.telefono_secundario);
+      data.telefono_secundario = normalizeTelefonoMx(data.telefono_secundario);
     }
 
     if ("rfc" in data) {
@@ -124,6 +137,9 @@ export async function actualizarContacto(req: Request, res: Response) {
     res.json(contacto);
   } catch (error) {
     console.error("Error al actualizar contacto:", error);
+    if (error instanceof Error && error.message.includes('teléfono')) {
+      return res.status(400).json({ message: error.message });
+    }
     if (error instanceof Error && error.message === 'CP_SAT_NO_ENCONTRADO') {
       return res.status(400).json({ message: "El código postal SAT no existe" });
     }

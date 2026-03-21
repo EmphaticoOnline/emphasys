@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict 5lFWj2kU8grgSRDbe4oIKP8LM3uxbbOw7D3WCxJZKuSml4qRhNXoSEI5iqmp95M
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -43,9 +45,9 @@ CREATE TABLE whatsapp.whatsapp_mensajes (
     intentos_envio integer DEFAULT 0 NOT NULL,
     respuesta_json jsonb,
     creado_en timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT whatsapp_mensajes_status_check CHECK ((((status)::text = ANY ((ARRAY['queued'::character varying, 'sent'::character varying, 'delivered'::character varying, 'read'::character varying, 'failed'::character varying, 'received'::character varying])::text[])) OR (status IS NULL))),
+    CONSTRAINT whatsapp_mensajes_status_check CHECK ((((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('sent'::character varying)::text, ('delivered'::character varying)::text, ('read'::character varying)::text, ('failed'::character varying)::text, ('received'::character varying)::text])) OR (status IS NULL))),
     CONSTRAINT whatsapp_mensajes_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text)),
-    CONSTRAINT whatsapp_mensajes_tipo_mensaje_check CHECK (((tipo_mensaje)::text = ANY ((ARRAY['saliente'::character varying, 'entrante'::character varying])::text[])))
+    CONSTRAINT whatsapp_mensajes_tipo_mensaje_check CHECK (((tipo_mensaje)::text = ANY (ARRAY[('saliente'::character varying)::text, ('entrante'::character varying)::text])))
 );
 
 
@@ -118,4 +120,6 @@ ALTER TABLE ONLY whatsapp.whatsapp_mensajes
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 5lFWj2kU8grgSRDbe4oIKP8LM3uxbbOw7D3WCxJZKuSml4qRhNXoSEI5iqmp95M
 

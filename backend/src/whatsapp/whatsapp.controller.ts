@@ -141,3 +141,138 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
     return res.status(200).json({ error: true });
   }
 };
+
+export const enviarWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const { telefono, mensaje } = req.body || {};
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!telefono || !mensaje) {
+      return res.status(400).json({ message: "telefono y mensaje son requeridos" });
+    }
+
+    await sendTextMessage(Number(empresaId), String(telefono), String(mensaje));
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error("Error al enviar mensaje de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo enviar el mensaje" });
+  }
+};
+
+export const listarConversacionesWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    const sinceRaw = req.query.since;
+    const sinceDate = sinceRaw ? new Date(String(sinceRaw)) : null;
+    const sinceFilter = sinceDate && !Number.isNaN(sinceDate.getTime());
+
+    const params: any[] = [empresaId];
+    if (sinceFilter) {
+      params.push(sinceDate.toISOString());
+    }
+
+    const sinceWhere = sinceFilter ? " AND c.ultimo_mensaje_en > $2" : "";
+
+    const result = await pool.query(
+      `
+      SELECT
+        c.id,
+        c.contacto_id AS "contactoId",
+        COALESCE(ct.telefono, lm.telefono) AS telefono,
+        COALESCE(ct.nombre, NULL) AS nombre,
+        lm.contenido AS "ultimoMensaje",
+        lm.fecha_envio AS "ultimoMensajeEn"
+      FROM whatsapp.whatsapp_conversaciones c
+      LEFT JOIN public.contactos ct ON ct.id = c.contacto_id
+      LEFT JOIN LATERAL (
+        SELECT m.telefono, m.contenido, m.fecha_envio
+        FROM whatsapp.whatsapp_mensajes m
+        WHERE m.conversacion_id = c.id
+        ORDER BY m.fecha_envio DESC NULLS LAST, m.creado_en DESC NULLS LAST
+        LIMIT 1
+      ) lm ON TRUE
+      WHERE c.empresa_id = $1
+      ${sinceWhere}
+      ORDER BY lm.fecha_envio DESC NULLS LAST, c.ultimo_mensaje_en DESC NULLS LAST, c.creada_en DESC
+      `,
+      params
+    );
+
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error listando conversaciones de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudieron obtener las conversaciones" });
+  }
+};
+
+export const obtenerConversacionWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const conversacionId = req.params.id;
+
+    const sinceRaw = req.query.since;
+    const sinceDate = sinceRaw ? new Date(String(sinceRaw)) : null;
+    const sinceFilter = sinceDate && !Number.isNaN(sinceDate.getTime());
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!conversacionId) {
+      return res.status(400).json({ message: "id de conversación requerido" });
+    }
+
+    // Verificar pertenencia de la conversación a la empresa
+    const convCheck = await pool.query(
+      `SELECT 1 FROM whatsapp.whatsapp_conversaciones WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+      [conversacionId, empresaId]
+    );
+
+    if (convCheck.rows.length === 0) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    const params: any[] = [conversacionId, empresaId];
+    if (sinceFilter) {
+      params.push(sinceDate?.toISOString());
+    }
+
+    const sinceWhere = sinceFilter
+      ? " AND (fecha_envio > $3 OR (fecha_envio IS NULL AND creado_en > $3))"
+      : "";
+
+    const messages = await pool.query(
+      `
+      SELECT
+        id,
+        telefono,
+        tipo_mensaje,
+        canal,
+        contenido,
+        fecha_envio,
+        status,
+        creado_en
+      FROM whatsapp.whatsapp_mensajes
+      WHERE conversacion_id = $1 AND empresa_id = $2
+      ${sinceWhere}
+      ORDER BY fecha_envio ASC NULLS LAST, creado_en ASC NULLS LAST
+      `,
+      params
+    );
+
+    return res.status(200).json(messages.rows);
+  } catch (error) {
+    console.error("Error obteniendo conversación de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudieron obtener los mensajes" });
+  }
+};

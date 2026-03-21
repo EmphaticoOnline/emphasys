@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict HjyY2vmX4STS1GQO0uNeFEwzg23eEMAbvUnsMuK2Fcvfu6ektEb15Mp5LujSlOw
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -44,9 +46,8 @@ CREATE TABLE public.finanzas_operaciones (
     saldo numeric(15,2),
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     concepto_id integer,
-    naturaleza_operacion character varying(30) DEFAULT 'movimiento_general'::character varying NOT NULL,
-    CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY ((ARRAY['pendiente'::character varying, 'cotejado'::character varying, 'conciliado'::character varying])::text[]))),
-    CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY ((ARRAY['Deposito'::character varying, 'Retiro'::character varying])::text[])))
+    CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('cotejado'::character varying)::text, ('conciliado'::character varying)::text]))),
+    CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY (ARRAY[('Deposito'::character varying)::text, ('Retiro'::character varying)::text])))
 );
 
 
@@ -86,13 +87,6 @@ ALTER TABLE ONLY public.finanzas_operaciones
 
 
 --
--- Name: idx_finanzas_operaciones_empresa_naturaleza; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_finanzas_operaciones_empresa_naturaleza ON public.finanzas_operaciones USING btree (empresa_id, naturaleza_operacion);
-
-
---
 -- Name: idx_fo_concepto; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -126,4 +120,6 @@ ALTER TABLE ONLY public.finanzas_operaciones
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict HjyY2vmX4STS1GQO0uNeFEwzg23eEMAbvUnsMuK2Fcvfu6ektEb15Mp5LujSlOw
 

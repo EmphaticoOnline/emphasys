@@ -10,6 +10,7 @@ console.log("CWD runtime:", process.cwd());
 import express from "express";
 import fs from "fs";
 import contactosRouter from "./modules/contactos/contactos.routes";
+import leadsRouter from "./modules/leads/leads.routes";
 import productosRouter from "./modules/productos/productos.routes";
 import unidadesRouter from "./modules/unidades/unidades.routes";
 import documentosRouter from "./modules/documentos/documentos.routes";
@@ -65,6 +66,7 @@ console.log(
 
 // monta el módulo contactos
 app.use("/api/contactos", contactosRouter);
+app.use("/api/leads", leadsRouter);
 
 // autenticación
 app.use("/auth", authRoutes);

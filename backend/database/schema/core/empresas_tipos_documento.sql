@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict PO0pPYtEcegszeiITgEBIPgFFwE56EDvmRg3hVGK1R1fNklEVa7wdX5WqWPm9dQ
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -34,9 +36,7 @@ CREATE TABLE core.empresas_tipos_documento (
     activo boolean DEFAULT true NOT NULL,
     orden integer DEFAULT 0,
     usuario_creacion_id integer,
-    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    afecta_inventario character varying(20) DEFAULT 'none'::character varying NOT NULL,
-    afecta_reservado boolean DEFAULT false NOT NULL
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -87,20 +87,6 @@ COMMENT ON COLUMN core.empresas_tipos_documento.usuario_creacion_id IS 'Usuario 
 --
 
 COMMENT ON COLUMN core.empresas_tipos_documento.fecha_creacion IS 'Fecha de creación del registro.';
-
-
---
--- Name: COLUMN empresas_tipos_documento.afecta_inventario; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.empresas_tipos_documento.afecta_inventario IS 'Define cómo afecta inventario: none, entrada, salida, transferencia.';
-
-
---
--- Name: COLUMN empresas_tipos_documento.afecta_reservado; Type: COMMENT; Schema: core; Owner: -
---
-
-COMMENT ON COLUMN core.empresas_tipos_documento.afecta_reservado IS 'Indica si el documento afecta cantidades reservadas (apartados o compromisos).';
 
 
 --
@@ -186,4 +172,6 @@ ALTER TABLE ONLY core.empresas_tipos_documento
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict PO0pPYtEcegszeiITgEBIPgFFwE56EDvmRg3hVGK1R1fNklEVa7wdX5WqWPm9dQ
 

@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict dvm46la4AevQjvL1WzvaY4oYzE5SnXnHPNwGcUwxubJYnxGPqrUmjuOHCYr5Ond
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -86,13 +88,6 @@ COMMENT ON TABLE public.documentos IS 'Tabla universal de documentos del ERP (co
 
 
 --
--- Name: COLUMN documentos.almacen_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.documentos.almacen_id IS 'Almacén predeterminado del documento. Se usa cuando la partida no especifica uno.';
-
-
---
 -- Name: COLUMN documentos.tratamiento_impuestos; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -142,21 +137,6 @@ CREATE UNIQUE INDEX documentos_unico ON public.documentos USING btree (empresa_i
 
 
 --
--- Name: idx_documentos_almacen_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_documentos_almacen_id ON public.documentos USING btree (almacen_id);
-
-
---
--- Name: documentos fk_documentos_almacen; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.documentos
-    ADD CONSTRAINT fk_documentos_almacen FOREIGN KEY (almacen_id) REFERENCES inventario.almacenes(id) ON DELETE RESTRICT;
-
-
---
 -- Name: documentos fk_documentos_forma_pago; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -191,4 +171,6 @@ ALTER TABLE ONLY public.documentos
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict dvm46la4AevQjvL1WzvaY4oYzE5SnXnHPNwGcUwxubJYnxGPqrUmjuOHCYr5Ond
 

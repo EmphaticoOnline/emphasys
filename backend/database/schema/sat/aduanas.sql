@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict bCbrQIArcA4pXt6HXfHtEoAjezHHT8whxaVj4dvBzwefdPwXPO76lYagOPxL8c6
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -46,4 +48,6 @@ ALTER TABLE ONLY sat.aduanas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict bCbrQIArcA4pXt6HXfHtEoAjezHHT8whxaVj4dvBzwefdPwXPO76lYagOPxL8c6
 

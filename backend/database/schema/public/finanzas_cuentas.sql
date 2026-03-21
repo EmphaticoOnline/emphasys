@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict pLMKazjYmhcqCjBbKK4zdvxzcGp5ddTeHN5cJYMoWOnlP5rmn3yiaMXExY67AtO
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -42,8 +44,8 @@ CREATE TABLE public.finanzas_cuentas (
     afecta_total_disponible boolean DEFAULT true NOT NULL,
     cuenta_cerrada boolean DEFAULT false NOT NULL,
     observaciones text,
-    CONSTRAINT chk_fc_moneda CHECK (((moneda)::text = ANY ((ARRAY['MXN'::character varying, 'USD'::character varying, 'EUR'::character varying])::text[]))),
-    CONSTRAINT chk_fc_tipo CHECK (((tipo_cuenta)::text = ANY ((ARRAY['Disponibilidad'::character varying, 'Seguimiento'::character varying])::text[])))
+    CONSTRAINT chk_fc_moneda CHECK (((moneda)::text = ANY (ARRAY[('MXN'::character varying)::text, ('USD'::character varying)::text, ('EUR'::character varying)::text]))),
+    CONSTRAINT chk_fc_tipo CHECK (((tipo_cuenta)::text = ANY (ARRAY[('Disponibilidad'::character varying)::text, ('Seguimiento'::character varying)::text])))
 );
 
 
@@ -93,4 +95,6 @@ ALTER TABLE ONLY public.finanzas_cuentas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict pLMKazjYmhcqCjBbKK4zdvxzcGp5ddTeHN5cJYMoWOnlP5rmn3yiaMXExY67AtO
 

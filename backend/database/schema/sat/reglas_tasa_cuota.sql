@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict Z9N4uCYCy4BqzPgexQkLjwWAPIe4GArg02sp0x09EN7fsM2pKTv1LkXIFC7IJh6
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -58,4 +60,6 @@ CREATE INDEX idx_reglas_tasa_cuota_impuesto ON sat.reglas_tasa_cuota USING btree
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict Z9N4uCYCy4BqzPgexQkLjwWAPIe4GArg02sp0x09EN7fsM2pKTv1LkXIFC7IJh6
 

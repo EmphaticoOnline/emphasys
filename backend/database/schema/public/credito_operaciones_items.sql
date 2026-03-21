@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict qEno0hvEfBUC9VvH0eShifOjQISZgbweSvurtTQhqTkQME81APYo06Rhwu2qF4J
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -110,4 +112,6 @@ ALTER TABLE ONLY public.credito_operaciones_items
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict qEno0hvEfBUC9VvH0eShifOjQISZgbweSvurtTQhqTkQME81APYo06Rhwu2qF4J
 

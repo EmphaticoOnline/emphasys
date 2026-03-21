@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict n5PcxeosFCESuvmigIvfTOiUFhB7FzfMtOjMoKsZ7JBQBiXsh1yg8TyJbCGRkTh
+
+-- Dumped from database version 16.11 (Homebrew)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -44,7 +46,7 @@ CREATE TABLE inventario.movimientos_partidas (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_inv_part_cantidad CHECK ((cantidad > (0)::numeric)),
     CONSTRAINT chk_inv_part_signo CHECK ((signo = ANY (ARRAY['-1'::integer, 1]))),
-    CONSTRAINT chk_inv_part_tipo CHECK (((tipo_partida)::text = ANY ((ARRAY['normal'::character varying, 'salida_transferencia'::character varying, 'entrada_transferencia'::character varying])::text[])))
+    CONSTRAINT chk_inv_part_tipo CHECK (((tipo_partida)::text = ANY (ARRAY[('normal'::character varying)::text, ('salida_transferencia'::character varying)::text, ('entrada_transferencia'::character varying)::text])))
 );
 
 
@@ -271,4 +273,6 @@ ALTER TABLE ONLY inventario.movimientos_partidas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict n5PcxeosFCESuvmigIvfTOiUFhB7FzfMtOjMoKsZ7JBQBiXsh1yg8TyJbCGRkTh
 

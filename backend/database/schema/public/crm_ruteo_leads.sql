@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict hvatigbcZx2REfl50dTS4py759jZ4QSlxdDemi8yUiXS9ZwW8sZotHx3o7tiVNG
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -39,7 +41,7 @@ CREATE TABLE public.crm_ruteo_leads (
     observaciones text,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     fecha_actualizacion timestamp with time zone,
-    CONSTRAINT chk_crl_modo_asignacion CHECK (((modo_asignacion)::text = ANY ((ARRAY['round_robin'::character varying, 'fijo'::character varying, 'prioridad'::character varying])::text[])))
+    CONSTRAINT chk_crl_modo_asignacion CHECK (((modo_asignacion)::text = ANY (ARRAY[('round_robin'::character varying)::text, ('fijo'::character varying)::text, ('prioridad'::character varying)::text])))
 );
 
 
@@ -105,4 +107,6 @@ ALTER TABLE ONLY public.crm_ruteo_leads
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict hvatigbcZx2REfl50dTS4py759jZ4QSlxdDemi8yUiXS9ZwW8sZotHx3o7tiVNG
 

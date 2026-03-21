@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict qaavCC5wV4dHnYOe2qcnTKCrF6aB5XcEf8Q4AwXzCmsofflgxmKwzPy7JiUEEeW
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -170,4 +172,6 @@ COMMENT ON INDEX core.idx_tipos_documento_modulo IS 'Permite filtrar rápidament
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict qaavCC5wV4dHnYOe2qcnTKCrF6aB5XcEf8Q4AwXzCmsofflgxmKwzPy7JiUEEeW
 

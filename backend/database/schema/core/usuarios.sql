@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict vkx1ovlAUIH1gmWwy0o2MDbHGO2kUbEpfyEUA321LW1sGX9T9zWF3RnstaCYAfX
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -154,4 +156,6 @@ COMMENT ON INDEX core.idx_usuarios_email IS 'Garantiza unicidad del correo elect
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict vkx1ovlAUIH1gmWwy0o2MDbHGO2kUbEpfyEUA321LW1sGX9T9zWF3RnstaCYAfX
 

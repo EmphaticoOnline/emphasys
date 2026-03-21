@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict Ms6LAGuEBSu6oNkSBg1W4UHSjPYanjSxu7Iwje1K9lI3oVDPGAvBwUa14ZeXDcL
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -39,7 +41,7 @@ CREATE TABLE public.credito_operaciones (
     observaciones text,
     usuario_id integer,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_credito_operaciones_tipo CHECK (((tipo_operacion)::text = ANY ((ARRAY['cargo'::character varying, 'abono'::character varying, 'ajuste'::character varying])::text[])))
+    CONSTRAINT chk_credito_operaciones_tipo CHECK (((tipo_operacion)::text = ANY (ARRAY[('cargo'::character varying)::text, ('abono'::character varying)::text, ('ajuste'::character varying)::text])))
 );
 
 
@@ -97,4 +99,6 @@ ALTER TABLE ONLY public.credito_operaciones
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict Ms6LAGuEBSu6oNkSBg1W4UHSjPYanjSxu7Iwje1K9lI3oVDPGAvBwUa14ZeXDcL
 

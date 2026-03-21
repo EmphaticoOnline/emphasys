@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict mj2EoDzr7sBz5xHa2XK5S4wtZaB4wL1OLV2WoFTuW56WN4qAohug5PUahNkR7j3
+
+-- Dumped from database version 16.11 (Homebrew)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -161,4 +163,6 @@ ALTER TABLE ONLY inventario.existencias
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict mj2EoDzr7sBz5xHa2XK5S4wtZaB4wL1OLV2WoFTuW56WN4qAohug5PUahNkR7j3
 

@@ -97,6 +97,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const sectionPathMap: Record<string, string> = {
     Configuración: '/configuracion',
+    Leads: '/leads',
   };
 
   const tabPathMap: Record<string, string> = {
@@ -110,7 +111,8 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith('/configuracion')) return '';
     if (pathname.startsWith('/ventas/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/compras/')) return pathname.split('/')[2] || '';
-  if (pathname.startsWith('/finanzas')) return 'Finanzas';
+    if (pathname.startsWith('/leads')) return '';
+    if (pathname.startsWith('/finanzas')) return 'Finanzas';
     if (pathname.startsWith('/inventario/')) return 'Movimientos';
     if (pathname.startsWith('/productos')) return 'Productos';
     if (pathname.startsWith('/contactos')) return 'Contactos';
@@ -121,8 +123,9 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith('/configuracion')) return 'Configuración';
     if (pathname.startsWith('/ventas/')) return 'Ventas';
     if (pathname.startsWith('/compras/')) return 'Compras';
-  if (pathname.startsWith('/finanzas')) return 'Finanzas';
+    if (pathname.startsWith('/finanzas')) return 'Finanzas';
     if (pathname.startsWith('/inventario/')) return 'Inventarios';
+    if (pathname.startsWith('/leads')) return 'Leads';
     const tab = getTabFromPath(pathname);
     return getSectionForTab(tab);
   };
@@ -140,6 +143,8 @@ export default function Layout({ children }: LayoutProps) {
       ? ventasTabs.map((t) => t.value)
       : selectedSection === 'Compras'
       ? comprasTabs.map((t) => t.value)
+      : selectedSection === 'Leads'
+      ? []
       : MODULE_TABS[selectedSection] || [];
 
   React.useEffect(() => {
@@ -192,6 +197,10 @@ export default function Layout({ children }: LayoutProps) {
     }
     if (selectedSection === 'Finanzas') {
       navigate('/finanzas');
+      return;
+    }
+    if (selectedSection === 'Leads') {
+      navigate('/leads');
       return;
     }
 

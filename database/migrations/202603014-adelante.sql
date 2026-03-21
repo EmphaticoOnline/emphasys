@@ -1241,4 +1241,11 @@ COMMENT ON COLUMN inventario.movimientos.es_reversion IS
  * ======================================== */
 
 
+
+ALTER TABLE whatsapp.whatsapp_conversaciones
+ADD COLUMN prioridad VARCHAR(10) DEFAULT 'media' NOT NULL;
+
+ALTER TABLE whatsapp.whatsapp_conversaciones
+ADD COLUMN siguiente_accion VARCHAR(30) DEFAULT 'responder' NOT NULL;
+
 COMMIT;

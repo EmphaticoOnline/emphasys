@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict TufNGhHOVBxAgd4Vnjun1qJNyhfbZmeJHNJxwBiYrRWjLmHHgokkFMHiqYYSXsO
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -40,6 +42,8 @@ CREATE TABLE public.documentos_partidas (
     precio_unitario numeric(15,6) NOT NULL,
     descuento numeric(9,4),
     subtotal_partida numeric(15,2) NOT NULL,
+    iva_porcentaje numeric(9,4),
+    iva_monto numeric(15,2),
     ieps_porcentaje numeric(9,4),
     ieps_monto numeric(15,2),
     retencion_iva_porcentaje numeric(9,4),
@@ -65,16 +69,8 @@ CREATE TABLE public.documentos_partidas (
     observaciones text,
     comentarios_internos text,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    fecha_modificacion timestamp with time zone,
-    almacen_id integer
+    fecha_modificacion timestamp with time zone
 );
-
-
---
--- Name: COLUMN documentos_partidas.almacen_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.documentos_partidas.almacen_id IS 'Almacén específico de la partida. Si es NULL, se usa el almacén del documento.';
 
 
 --
@@ -113,21 +109,6 @@ ALTER TABLE ONLY public.documentos_partidas
 
 
 --
--- Name: idx_documentos_partidas_almacen_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_documentos_partidas_almacen_id ON public.documentos_partidas USING btree (almacen_id);
-
-
---
--- Name: documentos_partidas fk_documentos_partidas_almacen; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.documentos_partidas
-    ADD CONSTRAINT fk_documentos_partidas_almacen FOREIGN KEY (almacen_id) REFERENCES inventario.almacenes(id) ON DELETE RESTRICT;
-
-
---
 -- Name: documentos_partidas fk_partida_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -162,4 +143,6 @@ ALTER TABLE ONLY public.documentos_partidas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict TufNGhHOVBxAgd4Vnjun1qJNyhfbZmeJHNJxwBiYrRWjLmHHgokkFMHiqYYSXsO
 

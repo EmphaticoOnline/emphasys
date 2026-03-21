@@ -1,5 +1,6 @@
 export const MAIN_MENUS = [
   { label: 'Catálogos' },
+  { label: 'Leads' },
   { label: 'Ventas' },
   { label: 'Compras' },
   { label: 'Finanzas' },
@@ -9,6 +10,7 @@ export const MAIN_MENUS = [
 
 export const MODULE_TABS: Record<string, string[]> = {
   Catálogos: ['Contactos', 'Productos'],
+  Leads: [],
   Ventas: [],
   Compras: ['Requisiciones', 'Órdenes de compra', 'Recepciones', 'Facturas'],
   Finanzas: ['Finanzas'],

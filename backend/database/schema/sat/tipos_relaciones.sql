@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 17.3
+\restrict Fw33rVmcK5e5tChUHTENgf5bmZ00C9Hgm4x3sbdoTFQctL0gNNmO4szqbHswP5d
+
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -46,4 +48,6 @@ ALTER TABLE ONLY sat.tipos_relaciones
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict Fw33rVmcK5e5tChUHTENgf5bmZ00C9Hgm4x3sbdoTFQctL0gNNmO4szqbHswP5d
 

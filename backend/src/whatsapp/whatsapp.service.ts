@@ -1,26 +1,62 @@
 import axios from "axios";
 import qs from "qs";
 import pool from "../config/database";
+import { normalizarTelefono } from "../utils/telefono";
 
 const GUPSHUP_API_URL = "https://api.gupshup.io/sm/api/v1/msg";
 const GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
 const GUPSHUP_PHONE_NUMBER = process.env.GUPSHUP_PHONE_NUMBER;
 
-export const sendTextMessage = async (to: string, text: string) => {
+export const sendTextMessage = async (empresaId: number, to: string, text: string) => {
   try {
 
-    // 🔎 1️⃣ Buscar conversación abierta para ese número
+    const destinoNormalizado = normalizarTelefono(to);
+    if (!destinoNormalizado) {
+      throw new Error("telefono inválido o vacío para WhatsApp");
+    }
+
+    // 🔎 1️⃣ Resolver contacto para el número (crear si falta)
+    const contactoResult = await pool.query(
+      `
+      SELECT id
+      FROM public.contactos
+      WHERE empresa_id = $1
+        AND telefono = $2
+      LIMIT 1
+      `,
+      [empresaId, destinoNormalizado]
+    );
+
+    let contactoId: number;
+
+    if (contactoResult.rows.length > 0) {
+      contactoId = contactoResult.rows[0].id;
+    } else {
+      const newContacto = await pool.query(
+        `
+        INSERT INTO public.contactos
+        (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
+        VALUES ($1, 'Cliente', $2, $3, true, false)
+        RETURNING id
+        `,
+        [empresaId, destinoNormalizado, destinoNormalizado]
+      );
+
+      contactoId = newContacto.rows[0].id;
+    }
+
+    // 🔎 2️⃣ Buscar conversación abierta para ese contacto
     const convResult = await pool.query(
       `
       SELECT id
       FROM whatsapp.whatsapp_conversaciones
       WHERE empresa_id = $1
+        AND contacto_id = $2
         AND estado = 'abierta'
-        AND contacto_id IS NULL
       ORDER BY creada_en DESC
       LIMIT 1
       `,
-      [1]
+      [empresaId, contactoId]
     );
 
     let conversacionId: number;
@@ -31,21 +67,21 @@ export const sendTextMessage = async (to: string, text: string) => {
       const newConv = await pool.query(
         `
         INSERT INTO whatsapp.whatsapp_conversaciones
-        (empresa_id, estado, creada_en, ultimo_mensaje_en)
-        VALUES ($1, 'abierta', NOW(), NOW())
+        (empresa_id, contacto_id, estado, creada_en, ultimo_mensaje_en)
+        VALUES ($1, $2, 'abierta', NOW(), NOW())
         RETURNING id
         `,
-        [1]
+        [empresaId, contactoId]
       );
 
       conversacionId = newConv.rows[0].id;
     }
 
-    // 📤 2️⃣ Enviar mensaje a Gupshup
+    // 📤 3️⃣ Enviar mensaje a Gupshup
     const payload = qs.stringify({
       channel: "whatsapp",
       source: GUPSHUP_PHONE_NUMBER,
-      destination: to,
+      destination: destinoNormalizado,
       message: JSON.stringify({
         type: "text",
         text
@@ -65,7 +101,7 @@ export const sendTextMessage = async (to: string, text: string) => {
 
     console.log("📤 Mensaje enviado:", response.data);
 
-    // 💾 3️⃣ Guardar mensaje saliente
+    // 💾 4️⃣ Guardar mensaje saliente
     await pool.query(
       `
       INSERT INTO whatsapp.whatsapp_mensajes
@@ -81,18 +117,27 @@ export const sendTextMessage = async (to: string, text: string) => {
         status,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,$8,NOW())
       `,
       [
-        1,
+        empresaId,
         conversacionId,
-        to,
+        destinoNormalizado,
         'saliente',
         'whatsapp',
         text,
         response.data?.messageId || null,
         'sent'
       ]
+    );
+
+    await pool.query(
+      `
+      UPDATE whatsapp.whatsapp_conversaciones
+      SET ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW())
+      WHERE id = $1
+      `,
+      [conversacionId]
     );
 
     return response.data;
