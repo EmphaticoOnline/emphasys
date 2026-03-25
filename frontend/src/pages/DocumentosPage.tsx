@@ -53,6 +53,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import TableViewIcon from '@mui/icons-material/TableView';
 import { Tooltip } from '@mui/material';
 import Snackbar from '@mui/material/Snackbar';
 import AlertSnackbar from '@mui/material/Alert';
@@ -670,6 +671,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           </Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
+          {tipoDocumento === 'cotizacion' && (
+            <Button variant="outlined" startIcon={<TableViewIcon />} onClick={() => navigate('/ventas/cotizaciones-grid')}>
+              Vista Excel
+            </Button>
+          )}
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={load} disabled={loading}>
             Recargar
           </Button>

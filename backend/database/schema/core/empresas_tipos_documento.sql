@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict PO0pPYtEcegszeiITgEBIPgFFwE56EDvmRg3hVGK1R1fNklEVa7wdX5WqWPm9dQ
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -172,6 +170,4 @@ ALTER TABLE ONLY core.empresas_tipos_documento
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict PO0pPYtEcegszeiITgEBIPgFFwE56EDvmRg3hVGK1R1fNklEVa7wdX5WqWPm9dQ
 

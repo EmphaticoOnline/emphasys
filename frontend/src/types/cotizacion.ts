@@ -1,6 +1,7 @@
 import type { TipoDocumento } from './documentos.types';
 
 export type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
+export type EstadoSeguimiento = 'cotizado' | 'seguimiento' | 'cerrado' | 'perdido';
 
 export interface CotizacionListado {
   id: number;
@@ -13,6 +14,9 @@ export interface CotizacionListado {
   iva: number;
   total: number;
   estatus_documento: string;
+  producto_resumen?: string | null;
+  estado_seguimiento?: EstadoSeguimiento | null;
+  comentario_seguimiento?: string | null;
   saldo?: number | null;
 }
 
@@ -31,6 +35,9 @@ export interface CotizacionDocumento {
   total: number;
   estatus_documento: string;
   usuario_creacion_id?: number | null;
+  producto_resumen?: string | null;
+  estado_seguimiento?: EstadoSeguimiento | null;
+  comentario_seguimiento?: string | null;
   rfc_receptor?: string | null;
   nombre_receptor?: string | null;
   regimen_fiscal_receptor?: string | null;
@@ -92,6 +99,9 @@ export interface CotizacionCrearPayload {
   iva?: number;
   total: number;
   usuario_creacion_id?: number | null;
+  producto_resumen?: string | null;
+  estado_seguimiento?: EstadoSeguimiento | null;
+  comentario_seguimiento?: string | null;
   rfc_receptor?: string | null;
   nombre_receptor?: string | null;
   regimen_fiscal_receptor?: string | null;

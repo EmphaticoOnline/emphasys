@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict rbMfUB1bSnydCB7g45rh0Y3j98dy2fc9bmNqMRLTw8YaqVRIMdqcL8cuD1csf19
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -184,6 +182,4 @@ ALTER TABLE ONLY public.contactos
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict rbMfUB1bSnydCB7g45rh0Y3j98dy2fc9bmNqMRLTw8YaqVRIMdqcL8cuD1csf19
 

@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict DWyzapzV9YBHx9hbzD5Yi4apwyg2Sy6fhEwfnUgmMiOQWitbmxmi0zrZo0S3h5Y
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -50,6 +48,4 @@ ALTER TABLE ONLY sat.numeros_pedimento_aduana
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict DWyzapzV9YBHx9hbzD5Yi4apwyg2Sy6fhEwfnUgmMiOQWitbmxmi0zrZo0S3h5Y
 

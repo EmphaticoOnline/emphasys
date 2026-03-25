@@ -1,14 +1,12 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-03-21T17:55:15.176Z
+-- Generated at: 2026-03-24T21:46:33.556Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict P5cIUHcolQl8bpdGiDdlNZHli19H99piKi1NK8nsCPgoVGKGMapeToNmLwIwuWL
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -94,7 +92,8 @@ CREATE TYPE public.tipo_contacto_enum AS ENUM (
     'Proveedor',
     'Vendedor',
     'Prospecto',
-    'Otro'
+    'Otro',
+    'Lead'
 );
 
 
@@ -104,11 +103,11 @@ CREATE TYPE public.tipo_contacto_enum AS ENUM (
 
 CREATE FUNCTION public.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
 $$;
 
 
@@ -118,40 +117,40 @@ $$;
 
 CREATE FUNCTION whatsapp.fn_actualizar_estadisticas_whatsapp() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    f date;
-BEGIN
-    IF NEW.fecha_envio IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    f := NEW.fecha_envio::date;
-
-    INSERT INTO whatsapp.whatsapp_estadisticas (
-        fecha,
-        mensajes_enviados,
-        mensajes_recibidos,
-        plantillas_usadas
-    )
-    VALUES (
-        f,
-        CASE WHEN NEW.tipo_mensaje = 'saliente' THEN 1 ELSE 0 END,
-        CASE WHEN NEW.tipo_mensaje = 'entrante' THEN 1 ELSE 0 END,
-        CASE WHEN NEW.tipo_mensaje = 'saliente'
-             AND NEW.plantilla_nombre IS NOT NULL THEN 1 ELSE 0 END
-    )
-    ON CONFLICT (fecha)
-    DO UPDATE SET
-        mensajes_enviados =
-            whatsapp.whatsapp_estadisticas.mensajes_enviados + EXCLUDED.mensajes_enviados,
-        mensajes_recibidos =
-            whatsapp.whatsapp_estadisticas.mensajes_recibidos + EXCLUDED.mensajes_recibidos,
-        plantillas_usadas =
-            whatsapp.whatsapp_estadisticas.plantillas_usadas + EXCLUDED.plantillas_usadas;
-
-    RETURN NEW;
-END;
+    AS $$
+DECLARE
+    f date;
+BEGIN
+    IF NEW.fecha_envio IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    f := NEW.fecha_envio::date;
+
+    INSERT INTO whatsapp.whatsapp_estadisticas (
+        fecha,
+        mensajes_enviados,
+        mensajes_recibidos,
+        plantillas_usadas
+    )
+    VALUES (
+        f,
+        CASE WHEN NEW.tipo_mensaje = 'saliente' THEN 1 ELSE 0 END,
+        CASE WHEN NEW.tipo_mensaje = 'entrante' THEN 1 ELSE 0 END,
+        CASE WHEN NEW.tipo_mensaje = 'saliente'
+             AND NEW.plantilla_nombre IS NOT NULL THEN 1 ELSE 0 END
+    )
+    ON CONFLICT (fecha)
+    DO UPDATE SET
+        mensajes_enviados =
+            whatsapp.whatsapp_estadisticas.mensajes_enviados + EXCLUDED.mensajes_enviados,
+        mensajes_recibidos =
+            whatsapp.whatsapp_estadisticas.mensajes_recibidos + EXCLUDED.mensajes_recibidos,
+        plantillas_usadas =
+            whatsapp.whatsapp_estadisticas.plantillas_usadas + EXCLUDED.plantillas_usadas;
+
+    RETURN NEW;
+END;
 $$;
 
 
@@ -161,23 +160,23 @@ $$;
 
 CREATE FUNCTION whatsapp.fn_normaliza_telefono_e164(tel text) RETURNS text
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    s text;
-BEGIN
-    IF tel IS NULL THEN
-        RETURN NULL;
-    END IF;
-
-    s := regexp_replace(tel, '[\s\-\(\)\.\t]', '', 'g');
-    s := regexp_replace(s, '[^+0-9]', '', 'g');
-
-    IF left(s,1) <> '+' THEN
-        s := '+52' || s;
-    END IF;
-
-    RETURN s;
-END;
+    AS $$
+DECLARE
+    s text;
+BEGIN
+    IF tel IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    s := regexp_replace(tel, '[\s\-\(\)\.\t]', '', 'g');
+    s := regexp_replace(s, '[^+0-9]', '', 'g');
+
+    IF left(s,1) <> '+' THEN
+        s := '+52' || s;
+    END IF;
+
+    RETURN s;
+END;
 $$;
 
 
@@ -194,83 +193,83 @@ COMMENT ON FUNCTION whatsapp.fn_normaliza_telefono_e164(tel text) IS 'Normaliza 
 
 CREATE FUNCTION whatsapp.sp_whatsapp_log_mensaje_contactado(numero_telefono_raw text, tipo_mensaje text, canal text DEFAULT NULL::text, contenido text DEFAULT NULL::text, plantilla_nombre text DEFAULT NULL::text, fecha_envio timestamp with time zone DEFAULT NULL::timestamp with time zone, status text DEFAULT NULL::text, id_externo text DEFAULT NULL::text, respuesta_json jsonb DEFAULT NULL::jsonb) RETURNS void
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    tel text;
-    cid integer;
-    conv_id bigint;
-BEGIN
-    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
-
-    IF fecha_envio IS NULL THEN
-        fecha_envio := now();
-    END IF;
-
-    SELECT id INTO cid
-    FROM whatsapp.vcontactos_telefonos
-    WHERE telefonoe164 = tel
-    LIMIT 1;
-
-    SELECT id INTO conv_id
-    FROM whatsapp.whatsapp_conversaciones
-    WHERE contacto_id = cid
-      AND estado = 'abierta'
-    ORDER BY creada_en DESC
-    LIMIT 1;
-
-    IF conv_id IS NULL THEN
-        INSERT INTO whatsapp.whatsapp_conversaciones (
-            contacto_id,
-            creada_en,
-            ultimo_mensaje_en
-        )
-        VALUES (
-            cid,
-            fecha_envio,
-            fecha_envio
-        )
-        RETURNING id INTO conv_id;
-    ELSE
-        UPDATE whatsapp.whatsapp_conversaciones
-        SET ultimo_mensaje_en = fecha_envio
-        WHERE id = conv_id;
-    END IF;
-
-    INSERT INTO whatsapp.whatsapp_mensajes (
-        contacto_id,
-        conversacion_id,
-        numero_telefono,
-        tipo_mensaje,
-        canal,
-        contenido,
-        plantilla_nombre,
-        fecha_envio,
-        status,
-        id_externo,
-        respuesta_json
-    )
-    VALUES (
-        cid,
-        conv_id,
-        tel,
-        tipo_mensaje,
-        canal,
-        contenido,
-        plantilla_nombre,
-        fecha_envio,
-        status,
-        id_externo,
-        respuesta_json
-    );
-
-    PERFORM whatsapp.sp_whatsapp_touch_estado(
-        tel,
-        CASE WHEN tipo_mensaje = 'entrante'
-             THEN 'in'
-             ELSE 'out'
-        END
-    );
-END;
+    AS $$
+DECLARE
+    tel text;
+    cid integer;
+    conv_id bigint;
+BEGIN
+    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
+
+    IF fecha_envio IS NULL THEN
+        fecha_envio := now();
+    END IF;
+
+    SELECT id INTO cid
+    FROM whatsapp.vcontactos_telefonos
+    WHERE telefonoe164 = tel
+    LIMIT 1;
+
+    SELECT id INTO conv_id
+    FROM whatsapp.whatsapp_conversaciones
+    WHERE contacto_id = cid
+      AND estado = 'abierta'
+    ORDER BY creada_en DESC
+    LIMIT 1;
+
+    IF conv_id IS NULL THEN
+        INSERT INTO whatsapp.whatsapp_conversaciones (
+            contacto_id,
+            creada_en,
+            ultimo_mensaje_en
+        )
+        VALUES (
+            cid,
+            fecha_envio,
+            fecha_envio
+        )
+        RETURNING id INTO conv_id;
+    ELSE
+        UPDATE whatsapp.whatsapp_conversaciones
+        SET ultimo_mensaje_en = fecha_envio
+        WHERE id = conv_id;
+    END IF;
+
+    INSERT INTO whatsapp.whatsapp_mensajes (
+        contacto_id,
+        conversacion_id,
+        numero_telefono,
+        tipo_mensaje,
+        canal,
+        contenido,
+        plantilla_nombre,
+        fecha_envio,
+        status,
+        id_externo,
+        respuesta_json
+    )
+    VALUES (
+        cid,
+        conv_id,
+        tel,
+        tipo_mensaje,
+        canal,
+        contenido,
+        plantilla_nombre,
+        fecha_envio,
+        status,
+        id_externo,
+        respuesta_json
+    );
+
+    PERFORM whatsapp.sp_whatsapp_touch_estado(
+        tel,
+        CASE WHEN tipo_mensaje = 'entrante'
+             THEN 'in'
+             ELSE 'out'
+        END
+    );
+END;
 $$;
 
 
@@ -280,42 +279,42 @@ $$;
 
 CREATE FUNCTION whatsapp.sp_whatsapp_touch_estado(numero_telefono_raw text, tipo_evento text) RETURNS void
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    tel text;
-BEGIN
-    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
-
-    INSERT INTO whatsapp.whatsapp_contacto_estado (
-        numero_telefono,
-        opt_in,
-        opt_out,
-        ultimo_in,
-        ultimo_out
-    )
-    VALUES (
-        tel,
-        (tipo_evento = 'optin'),
-        (tipo_evento = 'optout'),
-        CASE WHEN tipo_evento = 'in' THEN now() ELSE NULL END,
-        CASE WHEN tipo_evento = 'out' THEN now() ELSE NULL END
-    )
-    ON CONFLICT (numero_telefono)
-    DO UPDATE SET
-        ultimo_in  = CASE WHEN tipo_evento = 'in'
-                          THEN now()
-                          ELSE whatsapp_contacto_estado.ultimo_in END,
-        ultimo_out = CASE WHEN tipo_evento = 'out'
-                          THEN now()
-                          ELSE whatsapp_contacto_estado.ultimo_out END,
-        opt_in  = CASE WHEN tipo_evento = 'optin'
-                       THEN true
-                       ELSE whatsapp_contacto_estado.opt_in END,
-        opt_out = CASE WHEN tipo_evento = 'optout'
-                       THEN true
-                       ELSE whatsapp_contacto_estado.opt_out END,
-        actualizado_en = now();
-END;
+    AS $$
+DECLARE
+    tel text;
+BEGIN
+    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
+
+    INSERT INTO whatsapp.whatsapp_contacto_estado (
+        numero_telefono,
+        opt_in,
+        opt_out,
+        ultimo_in,
+        ultimo_out
+    )
+    VALUES (
+        tel,
+        (tipo_evento = 'optin'),
+        (tipo_evento = 'optout'),
+        CASE WHEN tipo_evento = 'in' THEN now() ELSE NULL END,
+        CASE WHEN tipo_evento = 'out' THEN now() ELSE NULL END
+    )
+    ON CONFLICT (numero_telefono)
+    DO UPDATE SET
+        ultimo_in  = CASE WHEN tipo_evento = 'in'
+                          THEN now()
+                          ELSE whatsapp_contacto_estado.ultimo_in END,
+        ultimo_out = CASE WHEN tipo_evento = 'out'
+                          THEN now()
+                          ELSE whatsapp_contacto_estado.ultimo_out END,
+        opt_in  = CASE WHEN tipo_evento = 'optin'
+                       THEN true
+                       ELSE whatsapp_contacto_estado.opt_in END,
+        opt_out = CASE WHEN tipo_evento = 'optout'
+                       THEN true
+                       ELSE whatsapp_contacto_estado.opt_out END,
+        actualizado_en = now();
+END;
 $$;
 
 
@@ -2225,7 +2224,10 @@ CREATE TABLE public.documentos (
     forma_pago text,
     metodo_pago text,
     codigo_postal_receptor character varying(10),
-    tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL
+    tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL,
+    estado_seguimiento text DEFAULT 'cotizado'::text,
+    comentario_seguimiento text,
+    producto_resumen text
 );
 
 
@@ -3893,6 +3895,8 @@ CREATE TABLE whatsapp.whatsapp_conversaciones (
     cerrada_en timestamp with time zone,
     prioridad character varying(10) DEFAULT 'media'::character varying NOT NULL,
     siguiente_accion character varying(30) DEFAULT 'responder'::character varying NOT NULL,
+    etapa_oportunidad character varying(30) DEFAULT 'nuevo'::character varying NOT NULL,
+    CONSTRAINT chk_etapa_oportunidad CHECK (((etapa_oportunidad)::text = ANY ((ARRAY['nuevo'::character varying, 'contactado'::character varying, 'interesado'::character varying, 'cotizado'::character varying, 'negociacion'::character varying, 'ganado'::character varying, 'perdido'::character varying])::text[]))),
     CONSTRAINT whatsapp_conversaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('abierta'::character varying)::text, ('cerrada'::character varying)::text])))
 );
 
@@ -5653,6 +5657,13 @@ CREATE INDEX idx_documentos_cfdi_uuid ON public.documentos_cfdi USING btree (uui
 
 
 --
+-- Name: idx_documentos_estado_seguimiento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_estado_seguimiento ON public.documentos USING btree (estado_seguimiento);
+
+
+--
 -- Name: idx_documentos_partidas_campos_empresa_partida_campo; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6713,6 +6724,4 @@ ALTER TABLE ONLY whatsapp.whatsapp_mensajes
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict P5cIUHcolQl8bpdGiDdlNZHli19H99piKi1NK8nsCPgoVGKGMapeToNmLwIwuWL
 

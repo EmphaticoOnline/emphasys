@@ -8,6 +8,7 @@ import {
   List,
   ListItem,
   ListItemButton,
+  Menu,
   MenuItem,
   Paper,
   Stack,
@@ -27,6 +28,14 @@ import { apiFetch } from '../api/apiClient';
 
 type Priority = 'Alta' | 'Media' | 'Baja';
 type NextAction = 'Responder' | 'Llamar' | 'Enviar cotización' | 'Agendar demo' | 'Cerrar';
+type EtapaOportunidad =
+  | 'nuevo'
+  | 'contactado'
+  | 'interesado'
+  | 'cotizado'
+  | 'negociacion'
+  | 'ganado'
+  | 'perdido';
 
 type ConversationSummary = {
   id: string;
@@ -35,6 +44,7 @@ type ConversationSummary = {
   ultimoMensaje: string | null;
   ultimoMensajeEn: string | null;
   nombre?: string | null;
+  etapa_oportunidad?: EtapaOportunidad | null;
 };
 
 type ConversationMessage = {
@@ -63,7 +73,11 @@ type Lead = {
   nextAction: NextAction;
   owner: string;
   hot: boolean;
+  etapa_oportunidad: EtapaOportunidad;
 };
+
+type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
+type QuickFilter = 'todos' | 'seguimiento' | 'alta' | 'activos';
 const leadSelectMenuProps = {
   PaperProps: {
     sx: {
@@ -76,7 +90,17 @@ const leadSelectMenuProps = {
 
 const nextActionOptions: NextAction[] = ['Responder', 'Llamar', 'Enviar cotización', 'Agendar demo', 'Cerrar'];
 const priorityOptions: Priority[] = ['Alta', 'Media', 'Baja'];
+const etapaOptions: EtapaOportunidad[] = ['nuevo', 'contactado', 'interesado', 'cotizado', 'negociacion', 'ganado', 'perdido'];
 const REFRESH_INTERVAL_MS = 5000;
+const etapaChipColor: Record<EtapaOportunidad, 'default' | 'info' | 'primary' | 'warning' | 'secondary' | 'success' | 'error'> = {
+  nuevo: 'default',
+  contactado: 'info',
+  interesado: 'primary',
+  cotizado: 'warning',
+  negociacion: 'secondary',
+  ganado: 'success',
+  perdido: 'error',
+};
 
 const getIdleSeverity = (min: number): { color: 'default' | 'warning' | 'error'; showIcon: boolean } => {
   if (min > 180) return { color: 'error', showIcon: true };
@@ -99,14 +123,115 @@ function minutesSince(dateString: string | null): number {
   return Math.max(0, Math.floor(diffMs / 60000));
 }
 
-function derivePriorityFromIdle(idleMinutes: number): Priority {
-  if (idleMinutes > 180) return 'Alta';
-  if (idleMinutes >= 60) return 'Media';
-  return 'Baja';
-}
-
 function deriveNextAction(hasUnrepliedIncoming: boolean): NextAction {
   return hasUnrepliedIncoming ? 'Responder' : 'Responder';
+}
+
+function calcularPrioridad(lead: Lead): Priority {
+  const etapa = lead.etapa_oportunidad ?? 'nuevo';
+  const last = lead.conversation[lead.conversation.length - 1];
+  const minutos = minutesSince(last?.sentAt ?? lead.ultimoMensajeEn);
+
+  // Regla A: etapas cerradas → baja
+  if (etapa === 'ganado' || etapa === 'perdido') {
+    console.log('[prioridad] calc', { id: lead.id, etapa, lastFrom: last?.from, minutos, prioridad: 'Baja', motivo: 'etapa cerrada' });
+    return 'Baja';
+  }
+
+  let prioridad: Priority = 'Media';
+
+  // Regla B: último mensaje entrante → alta
+  if (last?.from === 'lead') {
+    prioridad = 'Alta';
+  } else {
+    // Regla C: último mensaje saliente → depende de etapa
+    switch (etapa) {
+      case 'nuevo':
+      case 'interesado':
+      case 'cotizado':
+      case 'negociacion':
+        prioridad = 'Alta';
+        break;
+      case 'contactado':
+        prioridad = 'Media';
+        break;
+      default:
+        prioridad = 'Media';
+        break;
+    }
+  }
+
+  // Regla D: ajuste por tiempo sin respuesta
+  if (minutos > 72 * 60) {
+    prioridad = 'Alta';
+  } else if (minutos > 24 * 60) {
+    prioridad = prioridad === 'Alta' ? 'Alta' : 'Media';
+  }
+
+  console.log('[prioridad] calc', {
+    id: lead.id,
+    etapa,
+    lastFrom: last?.from,
+    minutos,
+    prioridad,
+  });
+
+  return prioridad;
+}
+
+function esSeguimientoPendiente(lead: Lead): boolean {
+  const etapa = lead.etapa_oportunidad ?? 'nuevo';
+  if (etapa === 'ganado' || etapa === 'perdido') return false;
+
+  const last = lead.conversation[lead.conversation.length - 1];
+  const lastFrom = last?.from;
+  if (lastFrom !== 'lead') return false;
+
+  const minutos = minutesSince(last?.sentAt ?? lead.ultimoMensajeEn);
+  const limites: Record<EtapaOportunidad, number> = {
+    nuevo: 15,
+    contactado: 60,
+    interesado: 120,
+    cotizado: 360,
+    negociacion: 360,
+    ganado: Infinity,
+    perdido: Infinity,
+  };
+
+  const limite = limites[etapa] ?? 120;
+  return minutos > limite;
+}
+
+const prioridadRank: Record<Priority, number> = { Alta: 2, Media: 1, Baja: 0 };
+
+const getLastTimestampMs = (lead: Lead): number => {
+  const last = lead.conversation[lead.conversation.length - 1];
+  const ts = last?.sentAt ?? lead.ultimoMensajeEn;
+  const d = ts ? new Date(ts).getTime() : 0;
+  return Number.isNaN(d) ? 0 : d;
+};
+
+const ordenarLeads = (a: LeadConPrioridad, b: LeadConPrioridad): number => {
+  // 1) seguimiento pendiente primero
+  if (a.seguimientoPendiente !== b.seguimientoPendiente) {
+    return a.seguimientoPendiente ? -1 : 1;
+  }
+
+  // 2) prioridad alta > media > baja
+  const prioDiff = prioridadRank[b.computedPriority] - prioridadRank[a.computedPriority];
+  if (prioDiff !== 0) return prioDiff;
+
+  // 3) más reciente primero
+  return getLastTimestampMs(b) - getLastTimestampMs(a);
+};
+
+function aplicarPrioridad(lead: Lead): Lead {
+  const computedPriority = calcularPrioridad(lead);
+  return {
+    ...lead,
+    priority: computedPriority,
+    hot: computedPriority === 'Alta',
+  };
 }
 
 const getLatestTimestamp = (messages: ConversationMessage[]): string | null => {
@@ -139,18 +264,59 @@ export default function LeadsPage() {
   const [isSending, setIsSending] = React.useState(false);
   const [sendSuccess, setSendSuccess] = React.useState(false);
   const [testResults, setTestResults] = React.useState<Array<{ titulo: string; mensaje: string }>>([]);
+  const [etapaMenu, setEtapaMenu] = React.useState<{ leadId: string; anchorEl: HTMLElement | null } | null>(null);
+  const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
   const quickReplyRef = React.useRef<HTMLInputElement | null>(null);
   const conversationEndRef = React.useRef<HTMLDivElement | null>(null);
   const conversationScrollRef = React.useRef<HTMLDivElement | null>(null);
   const lastConversationsFetchRef = React.useRef<string | null>(null);
   const [isAtBottom, setIsAtBottom] = React.useState(true);
 
-  const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? leads[0];
+  const leadsConPrioridad = React.useMemo<LeadConPrioridad[]>(() => {
+    const enriched = leads.map((lead) => {
+      const computedPriority = calcularPrioridad(lead);
+      const seguimientoPendiente = esSeguimientoPendiente(lead);
+      return {
+        ...lead,
+        priority: computedPriority,
+        hot: computedPriority === 'Alta',
+        computedPriority,
+        seguimientoPendiente,
+      };
+    });
+
+    const pendientes = enriched.filter((l) => l.seguimientoPendiente).map((l) => ({ id: l.id, etapa: l.etapa_oportunidad, minutos: l.idleMinutes }));
+    console.log('[seguimiento pendiente] leads', pendientes);
+
+    return enriched;
+  }, [leads]);
+
+  const leadsFiltradosOrdenados = React.useMemo<LeadConPrioridad[]>(() => {
+    const filtered = leadsConPrioridad.filter((lead) => {
+      switch (leadFilter) {
+        case 'seguimiento':
+          return lead.seguimientoPendiente;
+        case 'alta':
+          return lead.computedPriority === 'Alta';
+        case 'activos':
+          return lead.etapa_oportunidad !== 'ganado' && lead.etapa_oportunidad !== 'perdido';
+        case 'todos':
+        default:
+          return true;
+      }
+    });
+
+    const sorted = [...filtered].sort(ordenarLeads);
+    console.log('[leads filtrados/ordenados]', { filtro: leadFilter, total: sorted.length, ids: sorted.map((l) => l.id) });
+    return sorted;
+  }, [leadFilter, leadsConPrioridad]);
+
+  const selectedLead = leadsConPrioridad.find((l) => l.id === selectedLeadId) ?? leadsConPrioridad[0];
+  const selectedLeadPriority = selectedLead?.computedPriority ?? 'Media';
 
   const buildLeadFromConversation = React.useCallback((conv: ConversationSummary): Lead => {
     const idle = minutesSince(conv.ultimoMensajeEn);
-    const priority = derivePriorityFromIdle(idle);
-    return {
+    const baseLead: Lead = {
       id: conv.id,
       name: conv.nombre?.trim() || conv.telefono || 'WhatsApp',
       phone: conv.telefono || '',
@@ -161,11 +327,13 @@ export default function LeadsPage() {
       conversation: [],
       contactoId: conv.contactoId,
       ultimoMensajeEn: conv.ultimoMensajeEn,
-      priority,
+      priority: 'Media',
       nextAction: deriveNextAction(true),
       owner: 'WhatsApp',
-      hot: priority === 'Alta',
+      hot: false,
+      etapa_oportunidad: conv.etapa_oportunidad ?? 'nuevo',
     };
+    return aplicarPrioridad(baseLead);
   }, []);
 
   const loadConversations = React.useCallback(async (opts?: { incremental?: boolean }) => {
@@ -216,10 +384,9 @@ export default function LeadsPage() {
         data.forEach((conv) => {
           const existing = map.get(conv.id);
           const idle = minutesSince(conv.ultimoMensajeEn);
-          const derivedPriority = derivePriorityFromIdle(idle);
 
           if (existing) {
-            map.set(conv.id, {
+            const updatedLead = {
               ...existing,
               name: conv.nombre?.trim() || conv.telefono || existing.name,
               phone: conv.telefono || existing.phone,
@@ -227,8 +394,9 @@ export default function LeadsPage() {
               lastMessageTimeMinutesAgo: idle,
               idleMinutes: idle,
               ultimoMensajeEn: conv.ultimoMensajeEn,
-              hot: existing.hot || derivedPriority === 'Alta',
-            });
+              etapa_oportunidad: conv.etapa_oportunidad ?? existing.etapa_oportunidad,
+            };
+            map.set(conv.id, aplicarPrioridad(updatedLead));
           } else {
             map.set(conv.id, buildLeadFromConversation(conv));
           }
@@ -284,7 +452,6 @@ export default function LeadsPage() {
       const lastMsg = data[data.length - 1];
       const lastSentAt = lastMsg?.fecha_envio ?? lastMsg?.creado_en ?? null;
       const idleMinutes = minutesSince(lastSentAt);
-      const priority = derivePriorityFromIdle(idleMinutes);
       const awaitingResponse = lastMsg?.tipo_mensaje === 'entrante';
       const nextAction = deriveNextAction(awaitingResponse);
       const lastMessageText = lastMsg?.contenido || '';
@@ -298,18 +465,18 @@ export default function LeadsPage() {
           ? [...l.conversation, ...mappedNew]
           : mapMessages(data);
 
-        return {
+        const updatedLead: Lead = {
           ...l,
           lastMessage: lastMsg ? lastMessageText : l.lastMessage,
           lastMessageTimeMinutesAgo: lastMsg ? idleMinutes : l.lastMessageTimeMinutesAgo,
           idleMinutes: lastMsg ? idleMinutes : l.idleMinutes,
-          priority: lastMsg ? priority : l.priority,
-          hot: lastMsg ? priority === 'Alta' : l.hot,
           nextAction: lastMsg ? nextAction : l.nextAction,
           awaitingResponse: lastMsg ? awaitingResponse : l.awaitingResponse,
           ultimoMensajeEn: lastSentAt ?? l.ultimoMensajeEn,
           conversation: mergedConversation,
         };
+
+        return aplicarPrioridad(updatedLead);
       }));
 
       setConversations((prev) => prev.map((c) => (c.id === conversationId && lastSentAt
@@ -346,13 +513,12 @@ export default function LeadsPage() {
   const refreshIdleTimers = React.useCallback(() => {
     setLeads((prev) => prev.map((l) => {
       const idle = minutesSince(l.ultimoMensajeEn);
-      const derivedPriority = derivePriorityFromIdle(idle);
-      return {
+      const updatedLead = {
         ...l,
         idleMinutes: idle,
         lastMessageTimeMinutesAgo: idle,
-        hot: derivedPriority === 'Alta' || l.hot,
       };
+      return aplicarPrioridad(updatedLead);
     }));
   }, []);
 
@@ -409,6 +575,42 @@ export default function LeadsPage() {
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
   };
 
+  const handleOpenEtapaMenu = (leadId: string, anchorEl: HTMLElement) => {
+    const lead = leads.find((l) => l.id === leadId);
+    console.log('[etapa] abrir menú', { leadId, etapa: lead?.etapa_oportunidad, lead });
+    setEtapaMenu({ leadId, anchorEl });
+  };
+
+  const handleCloseEtapaMenu = () => setEtapaMenu(null);
+
+  const handleSelectEtapa = async (etapa: EtapaOportunidad) => {
+    if (!etapaMenu?.leadId) return;
+    const leadId = etapaMenu.leadId;
+    const prev = leads.find((l) => l.id === leadId)?.etapa_oportunidad;
+    console.log('[etapa] seleccionar', { leadId, etapaNueva: etapa, etapaPrev: prev });
+    updateLead(leadId, { etapa_oportunidad: etapa });
+    handleCloseEtapaMenu();
+
+    try {
+      const response = await apiFetch(`/api/whatsapp/conversaciones/${leadId}/etapa`, {
+        method: 'PATCH',
+        body: JSON.stringify({ etapa_oportunidad: etapa }),
+      });
+      const data = await response.json();
+      console.log('[etapa] respuesta PATCH', { status: response.status, data });
+      if (!response.ok) {
+        throw new Error('PATCH etapa no OK');
+      }
+      // Actualiza con el valor real devuelto por backend
+      updateLead(leadId, { etapa_oportunidad: data?.etapa_oportunidad ?? etapa });
+    } catch (error) {
+      console.error('Error actualizando etapa_oportunidad:', error);
+      if (prev) {
+        updateLead(leadId, { etapa_oportunidad: prev });
+      }
+    }
+  };
+
   const handleSuggestMessage = async () => {
     if (!selectedLead) return;
     setIsSuggesting(true);
@@ -427,7 +629,7 @@ export default function LeadsPage() {
           ultimoMensaje: selectedLead.lastMessage,
           siguienteAccion: selectedLead.nextAction,
           tiempoSinRespuesta,
-          prioridad: selectedLead.priority,
+          prioridad: selectedLeadPriority,
           tipoLead,
           canal: 'WhatsApp',
         }),
@@ -483,26 +685,30 @@ export default function LeadsPage() {
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 2000);
 
-      setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? {
-        ...l,
-        lastMessage: messageText,
-        lastMessageTimeMinutesAgo: 0,
-        idleMinutes: 0,
-        priority: derivePriorityFromIdle(0),
-        hot: derivePriorityFromIdle(0) === 'Alta',
-        nextAction: 'Responder',
-        awaitingResponse: false,
-        conversation: [
-          ...l.conversation,
-          {
-            id: `temp-${Date.now()}`,
-            from: 'me',
-            text: messageText,
-            minutesAgo: 0,
-            sentAt: nowIso,
-          },
-        ],
-      } : l)));
+      setLeads((prev) => prev.map((l) => {
+        if (l.id !== selectedLead.id) return l;
+
+        const updatedLead: Lead = {
+          ...l,
+          lastMessage: messageText,
+          lastMessageTimeMinutesAgo: 0,
+          idleMinutes: 0,
+          nextAction: 'Responder',
+          awaitingResponse: false,
+          conversation: [
+            ...l.conversation,
+            {
+              id: `temp-${Date.now()}`,
+              from: 'me',
+              text: messageText,
+              minutesAgo: 0,
+              sentAt: nowIso,
+            },
+          ],
+        };
+
+        return aplicarPrioridad(updatedLead);
+      }));
 
       setIsAtBottom(true);
       await loadMessages(selectedLead.id, { since: lastSentAtBeforeSend, append: true, silent: true });
@@ -608,14 +814,18 @@ export default function LeadsPage() {
     }
   };
 
-  const urgentLeads = leads.filter((l) => l.idleMinutes > 180);
-  const followUpLeads = leads.filter((l) => l.idleMinutes >= 60 && l.idleMinutes <= 180);
-  const newLeads = leads.filter((l) => l.idleMinutes < 60);
+  const urgentLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes > 180);
+  const followUpLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes >= 60 && l.idleMinutes <= 180);
+  const newLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes < 60);
 
-  const attentionNow = leads.filter((l) => l.awaitingResponse || l.idleMinutes >= 60);
-  const otherLeads = leads.filter((l) => !attentionNow.includes(l));
+  const attentionNow = leadsFiltradosOrdenados.filter((l) => l.awaitingResponse || l.idleMinutes >= 60);
+  const otherLeads = leadsFiltradosOrdenados.filter((l) => !attentionNow.includes(l));
 
-  const renderLeadCard = (lead: Lead) => (
+  const renderLeadCard = (lead: LeadConPrioridad) => {
+    const { computedPriority } = lead;
+    console.log('[render lead]', { id: lead.id, etapa: lead.etapa_oportunidad, priority: computedPriority, lead });
+
+    return (
     <ListItem disablePadding key={lead.id} sx={{ mb: 1 }}>
       <ListItemButton
         selected={lead.id === selectedLead?.id}
@@ -657,9 +867,30 @@ export default function LeadsPage() {
           </Button>
 
           <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
-            <Typography variant="subtitle1" fontWeight={700} noWrap>
-              {lead.name?.trim() || `WhatsApp ${lead.phone}`}
-            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
+              <Typography variant="subtitle1" fontWeight={700} noWrap>
+                {lead.name?.trim() || `WhatsApp ${lead.phone}`}
+              </Typography>
+              {lead.etapa_oportunidad && (
+                <Chip
+                  size="small"
+                  label={lead.etapa_oportunidad}
+                  color={etapaChipColor[lead.etapa_oportunidad]}
+                  sx={{ textTransform: 'capitalize' }}
+                  onClick={(e) => handleOpenEtapaMenu(lead.id, e.currentTarget)}
+                  clickable
+                />
+              )}
+              {lead.seguimientoPendiente && (
+                <Chip
+                  size="small"
+                  label="Seguimiento pendiente"
+                  color="warning"
+                  variant="filled"
+                  sx={{ textTransform: 'none', fontWeight: 700 }}
+                />
+              )}
+            </Stack>
             {lead.hot && <WhatshotIcon color="error" fontSize="small" titleAccess="Lead caliente" />}
           </Stack>
 
@@ -735,7 +966,7 @@ export default function LeadsPage() {
               select
               size="small"
               label="Prioridad"
-              value={lead.priority}
+              value={computedPriority}
               onChange={(e) => updateLead(lead.id, { priority: e.target.value as Priority })}
               SelectProps={{ MenuProps: leadSelectMenuProps }}
               sx={{
@@ -755,10 +986,30 @@ export default function LeadsPage() {
         </Stack>
       </ListItemButton>
     </ListItem>
-  );
+  ); };
+
+  const etapaMenuLead = etapaMenu ? leads.find((l) => l.id === etapaMenu.leadId) : null;
 
   return (
     <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Menu
+        anchorEl={etapaMenu?.anchorEl ?? null}
+        open={Boolean(etapaMenu)}
+        onClose={handleCloseEtapaMenu}
+        MenuListProps={{ dense: true }}
+      >
+        {etapaOptions.map((etapa) => (
+          <MenuItem
+            key={etapa}
+            selected={etapaMenuLead?.etapa_oportunidad === etapa}
+            onClick={() => handleSelectEtapa(etapa)}
+            sx={{ textTransform: 'capitalize' }}
+          >
+            {etapa}
+          </MenuItem>
+        ))}
+      </Menu>
+
       <Stack direction="row" alignItems="center" spacing={2}>
         <Typography variant="h5" fontWeight={700}>
           Leads
@@ -797,8 +1048,28 @@ export default function LeadsPage() {
                 Agrupados por urgencia. Ajusta prioridad y siguiente acción en línea.
               </Typography>
             </Stack>
-            <Chip label={`${leads.length} abiertos`} size="small" sx={{ ml: 1.5, flexShrink: 0 }} />
+            <Chip label={`${leadsFiltradosOrdenados.length} visibles`} size="small" sx={{ ml: 1.5, flexShrink: 0 }} />
           </Box>
+
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {(
+              [
+                { key: 'todos', label: 'Todos' },
+                { key: 'seguimiento', label: 'Seguimiento pendiente' },
+                { key: 'alta', label: 'Alta prioridad' },
+                { key: 'activos', label: 'Activos' },
+              ] as const
+            ).map((opt) => (
+              <Chip
+                key={opt.key}
+                label={opt.label}
+                color={leadFilter === opt.key ? 'primary' : 'default'}
+                variant={leadFilter === opt.key ? 'filled' : 'outlined'}
+                onClick={() => setLeadFilter(opt.key)}
+                sx={{ fontWeight: 700 }}
+              />
+            ))}
+          </Stack>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Typography variant="h6" fontWeight={700}>
@@ -807,7 +1078,7 @@ export default function LeadsPage() {
             <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }}>
               <AccessTimeIcon fontSize="small" />
               <Typography variant="body2">Requieren atención: {attentionNow.length}</Typography>
-              <Typography variant="body2" color="text.disabled">· Total: {leads.length}</Typography>
+              <Typography variant="body2" color="text.disabled">· Visibles: {leadsFiltradosOrdenados.length}</Typography>
             </Stack>
           </Box>
 
@@ -870,6 +1141,15 @@ export default function LeadsPage() {
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }}>
                   <PersonIcon fontSize="small" />
                   <Typography variant="body2">{selectedLead.owner}</Typography>
+                  {selectedLead.seguimientoPendiente && (
+                    <Chip
+                      size="small"
+                      label="Seguimiento pendiente"
+                      color="warning"
+                      variant="filled"
+                      sx={{ fontWeight: 700 }}
+                    />
+                  )}
                   {(() => {
                     const idle = getIdleSeverity(selectedLead.idleMinutes);
                     return (
@@ -916,7 +1196,7 @@ export default function LeadsPage() {
                     select
                     size="small"
                     label="Prioridad"
-                    value={selectedLead.priority}
+                    value={selectedLeadPriority}
                     onChange={(e) => updateLead(selectedLead.id, { priority: e.target.value as Priority })}
                     SelectProps={{ MenuProps: leadSelectMenuProps }}
                     sx={{

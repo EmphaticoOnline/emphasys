@@ -35,8 +35,8 @@ export const sendTextMessage = async (empresaId: number, to: string, text: strin
       const newContacto = await pool.query(
         `
         INSERT INTO public.contactos
-        (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
-        VALUES ($1, 'Cliente', $2, $3, true, false)
+  (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
+  VALUES ($1, 'Lead', $2, $3, true, false)
         RETURNING id
         `,
         [empresaId, destinoNormalizado, destinoNormalizado]
@@ -134,10 +134,16 @@ export const sendTextMessage = async (empresaId: number, to: string, text: strin
     await pool.query(
       `
       UPDATE whatsapp.whatsapp_conversaciones
-      SET ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW())
+      SET
+        ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW()),
+        etapa_oportunidad = CASE
+          WHEN etapa_oportunidad = 'nuevo' THEN 'contactado'
+          ELSE etapa_oportunidad
+        END
       WHERE id = $1
+        AND empresa_id = $2
       `,
-      [conversacionId]
+      [conversacionId, empresaId]
     );
 
     return response.data;

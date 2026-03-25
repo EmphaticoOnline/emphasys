@@ -208,7 +208,8 @@ export async function insertarContacto(
   try {
     await client.query('BEGIN');
 
-    const entries = Object.entries(data).filter(([key]) => columnasPermitidasContacto.has(key));
+    // Evita duplicar la columna nombre (ya se agrega fijo en columns)
+    const entries = Object.entries(data).filter(([key]) => columnasPermitidasContacto.has(key) && key !== 'nombre');
 
   const columns = ['empresa_id', 'nombre', ...entries.map(([key]) => key)];
   const values = [empresaId, data.nombre, ...entries.map(([, value]) => value ?? null)];

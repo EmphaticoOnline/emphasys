@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict TYGQyJwm9rkWvm4btV2lbNbZStTF6OMbPzFqZ5iZfPWOUiOGuin70bxqnzDOpxZ
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -110,6 +108,4 @@ ALTER TABLE ONLY core.entidades_tipos
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict TYGQyJwm9rkWvm4btV2lbNbZStTF6OMbPzFqZ5iZfPWOUiOGuin70bxqnzDOpxZ
 

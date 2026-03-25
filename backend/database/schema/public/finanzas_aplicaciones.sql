@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict 86pyHf7yF2SOkCqM1ryHwUaIJe4LyyLXzjmcVr1vOLxkjQiP35RzgF2vgbNVx5V
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -177,6 +175,4 @@ ALTER TABLE ONLY public.finanzas_aplicaciones
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict 86pyHf7yF2SOkCqM1ryHwUaIJe4LyyLXzjmcVr1vOLxkjQiP35RzgF2vgbNVx5V
 

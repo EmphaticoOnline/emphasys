@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict 1Sgkwbt66Yn7hBR5AwYgU4cbzf4plNcnwVdinRSFoBNBJ1UpKUkYh23nVMRgJPo
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -75,6 +73,4 @@ CREATE INDEX idx_productos_servicios_texto_trgm ON sat.productos_servicios USING
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict 1Sgkwbt66Yn7hBR5AwYgU4cbzf4plNcnwVdinRSFoBNBJ1UpKUkYh23nVMRgJPo
 

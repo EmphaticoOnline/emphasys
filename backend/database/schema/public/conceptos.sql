@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict 7wpviIhthHeJiAu8L4A4DmUpFpABdhdNg8pZhT0QgeHUtNctKX7esONjYzccbbu
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -131,6 +129,4 @@ CREATE INDEX idx_conceptos_rubro_presupuesto ON public.conceptos USING btree (em
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict 7wpviIhthHeJiAu8L4A4DmUpFpABdhdNg8pZhT0QgeHUtNctKX7esONjYzccbbu
 

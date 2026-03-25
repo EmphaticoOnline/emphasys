@@ -7,8 +7,11 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy": "bash ./deploy.sh",
+    "deploy:rsync": "bash ./deploy-rsync.sh",
+    "deploy:fast": "node scripts/deploy.js",
     "deploy:backend:fast": "SKIP_FRONTEND=true SKIP_LOCAL_INSTALL=true SKIP_REMOTE_INSTALL=true bash ./deploy.sh",
     "deploy:win": "powershell -ExecutionPolicy Bypass -File ./deploy.ps1",
+    "deploy:win:rsync": "powershell -ExecutionPolicy Bypass -File ./deploy-rsync.ps1",
     "deploy:test": "bash ./deploy-test.sh",
     "backend:build": "cd backend && npm run build",
     "backend:start": "cd backend && npm start",

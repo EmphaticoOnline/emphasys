@@ -17,6 +17,9 @@ export type Documento = {
   moneda: string | null;
   observaciones?: string | null;
   usuario_creacion_id?: number | null;
+  producto_resumen?: string | null;
+  estado_seguimiento?: string | null;
+  comentario_seguimiento?: string | null;
 };
 
 export type Partida = {
@@ -55,6 +58,9 @@ const CAMPOS_DOCUMENTO = [
   'codigo_postal_receptor',
   'moneda',
   'observaciones',
+  'producto_resumen',
+  'estado_seguimiento',
+  'comentario_seguimiento',
   'subtotal',
   'iva',
   'total',
@@ -62,6 +68,32 @@ const CAMPOS_DOCUMENTO = [
   'usuario_creacion_id',
   'tratamiento_impuestos',
 ] as const;
+
+const SEGUIMIENTO_CAMPOS = ['producto_resumen', 'estado_seguimiento', 'comentario_seguimiento'] as const;
+
+let seguimientoColumnsPresent: boolean | null = null;
+
+async function ensureSeguimientoColumns(client?: PoolClient) {
+  if (seguimientoColumnsPresent !== null) return seguimientoColumnsPresent;
+  const executor = client ?? (await pool.connect());
+  try {
+    const { rows } = await executor.query(
+      `SELECT column_name
+         FROM information_schema.columns
+        WHERE table_name = 'documentos'
+          AND column_name = ANY($1::text[])`,
+      [SEGUIMIENTO_CAMPOS]
+    );
+    seguimientoColumnsPresent = rows.length === SEGUIMIENTO_CAMPOS.length;
+    return seguimientoColumnsPresent;
+  } catch (err) {
+    console.warn('[DOCUMENTOS] No se pudo verificar columnas de seguimiento, se asume ausentes', err);
+    seguimientoColumnsPresent = false;
+    return false;
+  } finally {
+    if (!client) executor.release();
+  }
+}
 
 type DocumentoInput = Partial<Record<typeof CAMPOS_DOCUMENTO[number], any>> & {
   tipo_documento?: TipoDocumento;
@@ -81,6 +113,15 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
   const esFactura = ['factura', 'factura_compra'].includes((tipoDocumento || '').toLowerCase());
   const selectSaldo = esFactura ? 'COALESCE(ds.saldo, 0) AS saldo' : 'NULL::numeric AS saldo';
   const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
+  const hasSeguimiento = await ensureSeguimientoColumns();
+
+  const selectSeguimiento = hasSeguimiento
+    ? `d.producto_resumen,
+       d.estado_seguimiento,
+       d.comentario_seguimiento,`
+    : `NULL::text AS producto_resumen,
+       NULL::text AS estado_seguimiento,
+       NULL::text AS comentario_seguimiento,`;
 
   const query = `
     SELECT
@@ -88,9 +129,10 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
       d.serie,
       d.numero,
       d.fecha_documento,
-  d.contacto_principal_id,
-  c.nombre AS nombre_cliente,
-  c.email AS contacto_email,
+      d.contacto_principal_id,
+      c.nombre AS nombre_cliente,
+      c.email AS contacto_email,
+      ${selectSeguimiento}
       d.subtotal,
       d.iva,
       d.total,
@@ -212,21 +254,26 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
 };
 
 export async function crearDocumentoRepository(data: DocumentoInput, empresaId: number, tipoDocumento: TipoDocumento) {
-  const estatus = data.estatus_documento || 'Borrador';
-  const tipoDocumentoNormalizado = (data.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
+  const dataConDefaults: DocumentoInput = {
+    estado_seguimiento: data.estado_seguimiento ?? 'cotizado',
+    ...data,
+  };
+
+  const estatus = dataConDefaults.estatus_documento || 'Borrador';
+  const tipoDocumentoNormalizado = (dataConDefaults.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
   const tipoDocumentoDb = tipoDocumentoNormalizado;
 
   // Asegurar tratamiento_impuestos por defecto
-  if (data.tratamiento_impuestos === undefined || data.tratamiento_impuestos === null) {
-    data.tratamiento_impuestos = 'normal';
+  if (dataConDefaults.tratamiento_impuestos === undefined || dataConDefaults.tratamiento_impuestos === null) {
+    dataConDefaults.tratamiento_impuestos = 'normal';
   }
 
   // Prellenar datos fiscales del contacto en facturas si no vienen en la petición
-  if (tipoDocumentoDb === 'factura' && data.contacto_principal_id) {
+  if (tipoDocumentoDb === 'factura' && dataConDefaults.contacto_principal_id) {
     try {
       const { rows: contactoRows } = await pool.query(
         `SELECT nombre FROM contactos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
-        [data.contacto_principal_id, empresaId]
+        [dataConDefaults.contacto_principal_id, empresaId]
       );
       const nombreContacto = contactoRows[0]?.nombre || null;
 
@@ -235,7 +282,7 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
            FROM contactos_datos_fiscales
           WHERE contacto_id = $1
           LIMIT 1`,
-        [data.contacto_principal_id]
+        [dataConDefaults.contacto_principal_id]
       );
       const fiscales = fiscalesRows[0] || {};
 
@@ -246,24 +293,24 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
           WHERE contacto_id = $1
             AND es_principal = true
           LIMIT 1`,
-        [data.contacto_principal_id]
+        [dataConDefaults.contacto_principal_id]
       );
       const cpSat = domicilioRows[0]?.cp_sat ?? null;
 
-      data.rfc_receptor = data.rfc_receptor ?? fiscales.rfc ?? null;
-      data.nombre_receptor = data.nombre_receptor ?? nombreContacto ?? null;
-      data.regimen_fiscal_receptor = data.regimen_fiscal_receptor ?? fiscales.regimen_fiscal ?? null;
-      data.uso_cfdi = data.uso_cfdi ?? fiscales.uso_cfdi ?? null;
-      data.forma_pago = data.forma_pago ?? fiscales.forma_pago ?? null;
-      data.metodo_pago = data.metodo_pago ?? fiscales.metodo_pago ?? null;
-      data.codigo_postal_receptor = data.codigo_postal_receptor ?? cpSat ?? null;
+      dataConDefaults.rfc_receptor = dataConDefaults.rfc_receptor ?? fiscales.rfc ?? null;
+      dataConDefaults.nombre_receptor = dataConDefaults.nombre_receptor ?? nombreContacto ?? null;
+      dataConDefaults.regimen_fiscal_receptor = dataConDefaults.regimen_fiscal_receptor ?? fiscales.regimen_fiscal ?? null;
+      dataConDefaults.uso_cfdi = dataConDefaults.uso_cfdi ?? fiscales.uso_cfdi ?? null;
+      dataConDefaults.forma_pago = dataConDefaults.forma_pago ?? fiscales.forma_pago ?? null;
+      dataConDefaults.metodo_pago = dataConDefaults.metodo_pago ?? fiscales.metodo_pago ?? null;
+      dataConDefaults.codigo_postal_receptor = dataConDefaults.codigo_postal_receptor ?? cpSat ?? null;
     } catch (err) {
       console.warn('No se pudieron precargar datos fiscales del contacto', err);
     }
   }
 
   // Asigna número secuencial si no viene en la petición
-  let numero = data.numero;
+  let numero = dataConDefaults.numero;
   if (numero === undefined || numero === null) {
     const { rows } = await pool.query(
       `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
@@ -271,23 +318,26 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
        WHERE empresa_id = $1
          AND LOWER(tipo_documento) = LOWER($2)
          AND COALESCE(serie, '') = COALESCE($3, '')`,
-      [empresaId, tipoDocumentoDb, data.serie ?? SERIE_DEFAULTS[tipoDocumentoNormalizado] ?? '']
+      [empresaId, tipoDocumentoDb, dataConDefaults.serie ?? SERIE_DEFAULTS[tipoDocumentoNormalizado] ?? '']
     );
     numero = rows[0]?.next_numero ?? 1;
   }
 
   // Serie por defecto por tipo de documento (evita null / constraint de NOT NULL)
-  const serie = data.serie ?? SERIE_DEFAULTS[tipoDocumentoNormalizado] ?? 'DOC';
+  const serie = dataConDefaults.serie ?? SERIE_DEFAULTS[tipoDocumentoNormalizado] ?? 'DOC';
 
   const valores: any[] = [empresaId, tipoDocumentoDb, estatus, serie, numero];
 
   const columnas: string[] = ['empresa_id', 'tipo_documento', 'estatus_documento', 'serie', 'numero'];
+  const hasSeguimiento = await ensureSeguimientoColumns();
+
   CAMPOS_DOCUMENTO.forEach((campo) => {
     // serie y numero ya se agregaron con sus defaults
     if (campo === 'serie' || campo === 'numero' || campo === 'estatus_documento') return;
-    if (data[campo] !== undefined) {
+    if (!hasSeguimiento && (SEGUIMIENTO_CAMPOS as readonly string[]).includes(campo)) return;
+    if (dataConDefaults[campo] !== undefined) {
       columnas.push(campo);
-      valores.push(data[campo]);
+      valores.push(dataConDefaults[campo]);
     }
   });
 
@@ -320,6 +370,8 @@ export async function actualizarDocumentoRepository(
   empresaId: number,
   tipoDocumento?: TipoDocumento
 ) {
+  const hasSeguimiento = await ensureSeguimientoColumns();
+
   // Traer valores actuales para comparar serie/número
   const { rows: currentRows } = await pool.query(
     `SELECT id, serie, numero, tipo_documento
@@ -349,7 +401,10 @@ export async function actualizarDocumentoRepository(
     dataToUpdate.numero = nextRows[0]?.next_numero ?? 1;
   }
 
-  const entries = CAMPOS_DOCUMENTO.filter((campo) => dataToUpdate[campo] !== undefined);
+  const entries = CAMPOS_DOCUMENTO.filter((campo) => {
+    if (!hasSeguimiento && (SEGUIMIENTO_CAMPOS as readonly string[]).includes(campo)) return false;
+    return dataToUpdate[campo] !== undefined;
+  });
   const sets = entries.map((campo, idx) => `${campo} = $${idx + 1}`).join(', ');
   const valores = entries.map((campo) => dataToUpdate[campo]);
   if (!sets) {

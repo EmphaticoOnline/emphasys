@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict pqHAsAzehKXQ3dvfTrpUxwXeNaG0y42eQURbzBExjwoUTqiKtaQfs1LChDgyz8g
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -65,6 +63,4 @@ CREATE INDEX idx_formas_pago_texto ON sat.formas_pago USING btree (texto);
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict pqHAsAzehKXQ3dvfTrpUxwXeNaG0y42eQURbzBExjwoUTqiKtaQfs1LChDgyz8g
 

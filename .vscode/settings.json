@@ -21,6 +21,28 @@
             "introspection": {
                 "progressive": false
             }
+        },
+        {
+            "connectionId": "vj1J80D0snmEnvYXvxuRc",
+            "name": "Emphasys Linux",
+            "driver": "postgres",
+            "color": "#F00019",
+            "connectionType": "host",
+            "host": "148.113.192.7",
+            "port": 5433,
+            "ssl": false,
+            "authMethod": "password",
+            "username": "postgres",
+            "password": "",
+            "savePassword": "secretStorage",
+            "database": "emphasys",
+            "readOnly": false,
+            "postConnectionSqlType": "inline",
+            "connectionTimeout": 30,
+            "pinnedConnectionTimeout": "0",
+            "introspection": {
+                "progressive": false
+            }
         }
     ]
 }

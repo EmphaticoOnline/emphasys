@@ -28,6 +28,7 @@ import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 import LeadsPage from './pages/LeadsPage';
+import CotizacionesGridPage from './pages/CotizacionesGridPage';
 
 export default function App() {
   return (
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="/ventas/:codigo" element={<DocumentosPage />} />
               <Route path="/ventas/:codigo/nuevo" element={<DocumentosFormPage />} />
               <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />
+              <Route path="/ventas/cotizaciones-grid" element={<CotizacionesGridPage />} />
               <Route path="/compras/:codigo" element={<DocumentosPage />} />
               <Route path="/compras/:codigo/nuevo" element={<DocumentosFormPage />} />
               <Route path="/compras/:codigo/:id" element={<DocumentosFormPage />} />

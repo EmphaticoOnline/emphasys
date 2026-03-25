@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict DEe3aRi9BMmfFVd7bMwKCGnQsB6LMocbDTHgTz1r632ALk8NmfEQsO55cijxYjv
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -121,6 +119,4 @@ ALTER TABLE ONLY core.entidades_catalogos
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict DEe3aRi9BMmfFVd7bMwKCGnQsB6LMocbDTHgTz1r632ALk8NmfEQsO55cijxYjv
 

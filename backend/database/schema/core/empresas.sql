@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict OVRTAOSbvv67e6ltcB3fb8aLNiz2Aw7tkcfo5Dcps6wvxRz4eEde2JWBmYaVD4d
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -380,6 +378,4 @@ ALTER TABLE ONLY core.empresas
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict OVRTAOSbvv67e6ltcB3fb8aLNiz2Aw7tkcfo5Dcps6wvxRz4eEde2JWBmYaVD4d
 

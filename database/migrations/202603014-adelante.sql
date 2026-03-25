@@ -1248,4 +1248,47 @@ ADD COLUMN prioridad VARCHAR(10) DEFAULT 'media' NOT NULL;
 ALTER TABLE whatsapp.whatsapp_conversaciones
 ADD COLUMN siguiente_accion VARCHAR(30) DEFAULT 'responder' NOT NULL;
 
+
+DO $$
+BEGIN
+    -- Agregar columna si no existe
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'whatsapp'
+          AND table_name = 'whatsapp_conversaciones'
+          AND column_name = 'etapa_oportunidad'
+    ) THEN
+        ALTER TABLE whatsapp.whatsapp_conversaciones
+        ADD COLUMN etapa_oportunidad VARCHAR(30) NOT NULL DEFAULT 'nuevo';
+    END IF;
+
+    -- Agregar constraint si no existe
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'chk_etapa_oportunidad'
+    ) THEN
+        ALTER TABLE whatsapp.whatsapp_conversaciones
+        ADD CONSTRAINT chk_etapa_oportunidad
+        CHECK (etapa_oportunidad IN (
+            'nuevo',
+            'contactado',
+            'interesado',
+            'cotizado',
+            'negociacion',
+            'ganado',
+            'perdido'
+        ));
+    END IF;
+END$$;
+
+-- COMMENT (siempre seguro ejecutar)
+COMMENT ON COLUMN whatsapp.whatsapp_conversaciones.etapa_oportunidad
+IS 'Etapa comercial de la oportunidad asociada a la conversación de WhatsApp.';
+
+UPDATE whatsapp.whatsapp_conversaciones
+SET etapa_oportunidad = 'nuevo'
+WHERE etapa_oportunidad IS NULL;
+
 COMMIT;

@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict odAxeqM1axYxJi24eZdRXkzGA5v2qN7r1aNd389bbKeUUhEpea7iSyhz5Am1Qgq
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -110,6 +108,4 @@ ALTER TABLE ONLY public.productos_impuestos
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict odAxeqM1axYxJi24eZdRXkzGA5v2qN7r1aNd389bbKeUUhEpea7iSyhz5Am1Qgq
 

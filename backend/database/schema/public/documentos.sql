@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict dvm46la4AevQjvL1WzvaY4oYzE5SnXnHPNwGcUwxubJYnxGPqrUmjuOHCYr5Ond
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -76,7 +74,10 @@ CREATE TABLE public.documentos (
     forma_pago text,
     metodo_pago text,
     codigo_postal_receptor character varying(10),
-    tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL
+    tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL,
+    estado_seguimiento text DEFAULT 'cotizado'::text,
+    comentario_seguimiento text,
+    producto_resumen text
 );
 
 
@@ -137,6 +138,13 @@ CREATE UNIQUE INDEX documentos_unico ON public.documentos USING btree (empresa_i
 
 
 --
+-- Name: idx_documentos_estado_seguimiento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_estado_seguimiento ON public.documentos USING btree (estado_seguimiento);
+
+
+--
 -- Name: documentos fk_documentos_forma_pago; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -171,6 +179,4 @@ ALTER TABLE ONLY public.documentos
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict dvm46la4AevQjvL1WzvaY4oYzE5SnXnHPNwGcUwxubJYnxGPqrUmjuOHCYr5Ond
 

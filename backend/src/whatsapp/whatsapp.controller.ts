@@ -5,6 +5,15 @@ import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
 import { getEmpresaActivaId } from "../shared/context/empresa";
 
+type EtapaOportunidad =
+  | "nuevo"
+  | "contactado"
+  | "interesado"
+  | "cotizado"
+  | "negociacion"
+  | "ganado"
+  | "perdido";
+
 
 
 
@@ -48,8 +57,8 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       const newContacto = await pool.query(
         `
         INSERT INTO public.contactos
-        (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
-        VALUES ($1, 'Cliente', $2, $3, true, false)
+  (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
+  VALUES ($1, 'Lead', $2, $3, true, false)
         RETURNING id
         `,
         [empresaId, telefono, telefono]
@@ -190,6 +199,7 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
         c.contacto_id AS "contactoId",
         COALESCE(ct.telefono, lm.telefono) AS telefono,
         COALESCE(ct.nombre, NULL) AS nombre,
+        c.etapa_oportunidad,
         lm.contenido AS "ultimoMensaje",
         lm.fecha_envio AS "ultimoMensajeEn"
       FROM whatsapp.whatsapp_conversaciones c
@@ -274,5 +284,78 @@ export const obtenerConversacionWhatsapp = async (req: Request, res: Response) =
   } catch (error) {
     console.error("Error obteniendo conversación de WhatsApp:", error);
     return res.status(500).json({ message: "No se pudieron obtener los mensajes" });
+  }
+};
+
+export const actualizarEtapaConversacion = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const conversacionId = req.params.id;
+    const { etapa_oportunidad } = req.body as { etapa_oportunidad?: EtapaOportunidad };
+
+    console.log("[PATCH /whatsapp/conversaciones/:id/etapa] payload", {
+      conversacionId,
+      etapa_oportunidad,
+      empresaId,
+    });
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!conversacionId) {
+      return res.status(400).json({ message: "id de conversación requerido" });
+    }
+
+    const etapasValidas: EtapaOportunidad[] = [
+      "nuevo",
+      "contactado",
+      "interesado",
+      "cotizado",
+      "negociacion",
+      "ganado",
+      "perdido",
+    ];
+
+    if (!etapa_oportunidad || !etapasValidas.includes(etapa_oportunidad)) {
+      return res.status(400).json({ message: "etapa_oportunidad inválida" });
+    }
+
+    // Verificar pertenencia
+    const convCheck = await pool.query(
+      `SELECT 1 FROM whatsapp.whatsapp_conversaciones WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+      [conversacionId, empresaId]
+    );
+
+    console.log("[PATCH /whatsapp/conversaciones/:id/etapa] convCheck rowCount", convCheck.rowCount);
+
+    if (convCheck.rows.length === 0) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    const updateResult = await pool.query(
+      `
+      UPDATE whatsapp.whatsapp_conversaciones
+      SET etapa_oportunidad = $1
+      WHERE id = $2 AND empresa_id = $3
+      RETURNING id, contacto_id AS "contactoId", estado, etapa_oportunidad, ultimo_mensaje_en, creada_en
+      `,
+      [etapa_oportunidad, conversacionId, empresaId]
+    );
+
+    console.log("[PATCH /whatsapp/conversaciones/:id/etapa] update rowCount", updateResult.rowCount);
+
+    if (updateResult.rowCount === 0) {
+      console.warn("[PATCH /whatsapp/conversaciones/:id/etapa] no rows updated", {
+        conversacionId,
+        empresaId,
+      });
+      return res.status(404).json({ message: "Conversación no encontrada o sin permiso" });
+    }
+
+    return res.status(200).json(updateResult.rows[0]);
+  } catch (error) {
+    console.error("Error actualizando etapa de conversación:", error);
+    return res.status(500).json({ message: "No se pudo actualizar la etapa" });
   }
 };

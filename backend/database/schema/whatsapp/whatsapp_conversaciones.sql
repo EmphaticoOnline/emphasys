@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict b3WjEkQ0DyI06S0VsuMZGHEi1JtygFDPpMpPOrHzYD4tNXXiI3T4KDz9194PcHw
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -40,6 +38,8 @@ CREATE TABLE whatsapp.whatsapp_conversaciones (
     cerrada_en timestamp with time zone,
     prioridad character varying(10) DEFAULT 'media'::character varying NOT NULL,
     siguiente_accion character varying(30) DEFAULT 'responder'::character varying NOT NULL,
+    etapa_oportunidad character varying(30) DEFAULT 'nuevo'::character varying NOT NULL,
+    CONSTRAINT chk_etapa_oportunidad CHECK (((etapa_oportunidad)::text = ANY ((ARRAY['nuevo'::character varying, 'contactado'::character varying, 'interesado'::character varying, 'cotizado'::character varying, 'negociacion'::character varying, 'ganado'::character varying, 'perdido'::character varying])::text[]))),
     CONSTRAINT whatsapp_conversaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('abierta'::character varying)::text, ('cerrada'::character varying)::text])))
 );
 
@@ -105,6 +105,4 @@ ALTER TABLE ONLY whatsapp.whatsapp_conversaciones
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict b3WjEkQ0DyI06S0VsuMZGHEi1JtygFDPpMpPOrHzYD4tNXXiI3T4KDz9194PcHw
 

@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict vapCgAHeRsdUAXwTHGPfeeCv9qm9l4CDZCoxAW9XU6POUWg1g820rBZfOE5jr6m
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -47,6 +45,4 @@ ALTER TABLE ONLY sat.tipos_factores
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict vapCgAHeRsdUAXwTHGPfeeCv9qm9l4CDZCoxAW9XU6POUWg1g820rBZfOE5jr6m
 

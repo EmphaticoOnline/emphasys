@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict Jx4sxW0fmhJtjbd1mO6kUkMF7vmLXwqnGD9Aje9eDPOpkeOe1a6QwWIRjS73xvg
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -64,6 +62,4 @@ ALTER TABLE ONLY whatsapp.whatsapp_estadisticas
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict Jx4sxW0fmhJtjbd1mO6kUkMF7vmLXwqnGD9Aje9eDPOpkeOe1a6QwWIRjS73xvg
 

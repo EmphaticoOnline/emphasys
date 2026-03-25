@@ -72,9 +72,13 @@ export default function Layout({ children }: LayoutProps) {
         const sortDocs = (docs: typeof ventas) =>
           [...docs].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.nombre.localeCompare(b.nombre));
 
-        setVentasTabs(
-          sortDocs(ventas).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }))
-        );
+        const ventasOrdenadas = sortDocs(ventas).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }));
+        const extras = [{ label: 'Vista Excel cotizaciones', value: 'cotizaciones-grid', icon: 'Description' as string | null }];
+        const combinadas = [...ventasOrdenadas];
+        extras.forEach((extra) => {
+          if (!combinadas.find((t) => t.value === extra.value)) combinadas.push(extra);
+        });
+        setVentasTabs(combinadas);
         setComprasTabs(
           sortDocs(compras).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }))
         );

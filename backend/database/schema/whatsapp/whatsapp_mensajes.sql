@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict 5lFWj2kU8grgSRDbe4oIKP8LM3uxbbOw7D3WCxJZKuSml4qRhNXoSEI5iqmp95M
-
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 18.0
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -120,6 +118,4 @@ ALTER TABLE ONLY whatsapp.whatsapp_mensajes
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict 5lFWj2kU8grgSRDbe4oIKP8LM3uxbbOw7D3WCxJZKuSml4qRhNXoSEI5iqmp95M
 
