@@ -32,13 +32,27 @@ export default function MainMenu({ selectedSection, onSelect }: MainMenuProps) {
         flex: 1,
         minWidth: 0,
         height: '100%',
+        overflowX: 'auto',
+        whiteSpace: 'nowrap',
+        scrollbarWidth: 'thin',
+        '&::-webkit-scrollbar': { height: 6 },
+        '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: 999 },
+        '&::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
         <img src={logo} alt="Logo Emphasys" style={{ height: 44, width: 'auto' }} />
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, height: '100%', minWidth: 0 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.1,
+          height: '100%',
+          minWidth: 0,
+        }}
+      >
         {MAIN_MENUS.map((menu, idx) => {
           const active = selectedSection === menu.label;
           return (
@@ -59,7 +73,7 @@ export default function MainMenu({ selectedSection, onSelect }: MainMenuProps) {
                   color: '#fff',
                   borderBottom: `3px solid ${verde}`,
                 },
-                px: 1.5,
+                px: 1.25,
                 minWidth: 0,
               }}
             >

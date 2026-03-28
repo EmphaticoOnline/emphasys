@@ -102,6 +102,7 @@ export default function Layout({ children }: LayoutProps) {
   const sectionPathMap: Record<string, string> = {
     Configuración: '/configuracion',
     Leads: '/leads',
+    Informes: '/informes/ia',
   };
 
   const tabPathMap: Record<string, string> = {
@@ -109,12 +110,14 @@ export default function Layout({ children }: LayoutProps) {
     Productos: '/productos',
     Finanzas: '/finanzas',
     Movimientos: '/inventario/movimientos',
+    "Pregúntale a tu negocio": '/informes/ia',
   };
 
   const getTabFromPath = (pathname: string): string => {
     if (pathname.startsWith('/configuracion')) return '';
     if (pathname.startsWith('/ventas/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/compras/')) return pathname.split('/')[2] || '';
+    if (pathname.startsWith('/informes/')) return "Pregúntale a tu negocio";
     if (pathname.startsWith('/leads')) return '';
     if (pathname.startsWith('/finanzas')) return 'Finanzas';
     if (pathname.startsWith('/inventario/')) return 'Movimientos';
@@ -127,9 +130,10 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith('/configuracion')) return 'Configuración';
     if (pathname.startsWith('/ventas/')) return 'Ventas';
     if (pathname.startsWith('/compras/')) return 'Compras';
-    if (pathname.startsWith('/finanzas')) return 'Finanzas';
-    if (pathname.startsWith('/inventario/')) return 'Inventarios';
-    if (pathname.startsWith('/leads')) return 'Leads';
+  if (pathname.startsWith('/finanzas')) return 'Finanzas';
+  if (pathname.startsWith('/inventario/')) return 'Inventarios';
+  if (pathname.startsWith('/informes/')) return 'Informes';
+  if (pathname.startsWith('/leads')) return 'Leads';
     const tab = getTabFromPath(pathname);
     return getSectionForTab(tab);
   };
@@ -183,6 +187,10 @@ export default function Layout({ children }: LayoutProps) {
     } else {
       setSelectedTab('');
       const sectionPath = sectionPathMap[section];
+      if (section === 'Informes') {
+        navigate('/informes/ia');
+        return;
+      }
       if (sectionPath) navigate(sectionPath);
     }
   };
@@ -201,6 +209,10 @@ export default function Layout({ children }: LayoutProps) {
     }
     if (selectedSection === 'Finanzas') {
       navigate('/finanzas');
+      return;
+    }
+    if (selectedSection === 'Informes') {
+      navigate('/informes/ia');
       return;
     }
     if (selectedSection === 'Leads') {

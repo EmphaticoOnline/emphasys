@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict n5PcxeosFCESuvmigIvfTOiUFhB7FzfMtOjMoKsZ7JBQBiXsh1yg8TyJbCGRkTh
-
--- Dumped from database version 16.11 (Homebrew)
--- Dumped by pg_dump version 18.0
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -273,6 +271,4 @@ ALTER TABLE ONLY inventario.movimientos_partidas
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict n5PcxeosFCESuvmigIvfTOiUFhB7FzfMtOjMoKsZ7JBQBiXsh1yg8TyJbCGRkTh
 

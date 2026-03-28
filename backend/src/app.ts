@@ -30,6 +30,7 @@ import documentosPartidasCamposRouter from "./modules/documentos/documentos-part
 import documentosEsquemaRouter from "./modules/documentos/documentos-esquema.routes";
 import parametrosSistemaRouter from "./modules/configuracion/parametros/parametros.routes";
 import empresasRoutes from "./routes/empresasRoutes";
+import aiReportesRoutes from "./routes/aiReportesRoutes";
 import rolesRouter from "./modules/roles/roles.routes";
 import usuariosRouter from "./modules/usuarios/usuarios.routes";
 import documentosEmpresaRouter from "./modules/configuracion/documentos-empresa/documentos-empresa.routes";
@@ -116,6 +117,7 @@ app.use("/api/documentos-partidas", documentosPartidasCamposRouter);
 
 // empresas
 app.use("/api/empresas", empresasRoutes);
+app.use("/api/ai", aiReportesRoutes);
 app.use("/api", rolesRouter);
 app.use("/api/usuarios", usuariosRouter);
 app.use("/api", documentosEmpresaRouter);

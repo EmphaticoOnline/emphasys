@@ -6,10 +6,8 @@
 -- PostgreSQL database dump
 --
 
-\restrict HsNADofwcvg6ddtJ5jTWu9wGKMxCwjo1GwZjdoLf9TLnUTSkc1z5NaMF51UB6Qt
-
--- Dumped from database version 16.11 (Homebrew)
--- Dumped by pg_dump version 18.0
+-- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped by pg_dump version 17.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -196,6 +194,4 @@ ALTER TABLE ONLY inventario.almacenes
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict HsNADofwcvg6ddtJ5jTWu9wGKMxCwjo1GwZjdoLf9TLnUTSkc1z5NaMF51UB6Qt
 

@@ -1,6 +1,6 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-03-24T21:46:33.556Z
+-- Generated at: 2026-03-28T20:26:04.540Z
 --
 -- PostgreSQL database dump
 --
@@ -25,6 +25,20 @@ SET row_security = off;
 --
 
 CREATE SCHEMA core;
+
+
+--
+-- Name: inventario; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA inventario;
+
+
+--
+-- Name: SCHEMA inventario; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON SCHEMA inventario IS 'Módulo de inventario del ERP. Contiene movimientos, partidas y existencias por producto y almacén.';
 
 
 --
@@ -95,6 +109,245 @@ CREATE TYPE public.tipo_contacto_enum AS ENUM (
     'Otro',
     'Lead'
 );
+
+
+--
+-- Name: bootstrap_empresa(integer, integer); Type: PROCEDURE; Schema: core; Owner: -
+--
+
+CREATE PROCEDURE core.bootstrap_empresa(IN p_empresa_id integer, IN p_usuario_id integer)
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  ---------------------------------------------------------------------------
+  -- Validaciones
+  ---------------------------------------------------------------------------
+  PERFORM 1 FROM core.empresas WHERE id = p_empresa_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'La empresa % no existe', p_empresa_id;
+  END IF;
+
+  PERFORM 1 FROM core.usuarios WHERE id = p_usuario_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'El usuario % no existe', p_usuario_id;
+  END IF;
+
+  ---------------------------------------------------------------------------
+  -- Roles base
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Creando roles base...';
+  INSERT INTO core.roles (empresa_id, nombre, descripcion, activo)
+  VALUES
+    (p_empresa_id, 'Administrador', 'Rol base administrador', true),
+    (p_empresa_id, 'Supervisor',    'Rol base supervisor',    true),
+    (p_empresa_id, 'Operador',      'Rol base operador',      true),
+    (p_empresa_id, 'Consulta',      'Rol base consulta',      true)
+  ON CONFLICT (empresa_id, nombre) DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Asociación usuario-empresa
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Registrando usuario en la empresa...';
+  INSERT INTO core.usuarios_empresas (usuario_id, empresa_id)
+  VALUES (p_usuario_id, p_empresa_id)
+  ON CONFLICT (usuario_id, empresa_id) DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Asignar rol Administrador al usuario
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Asignando rol Administrador al usuario...';
+  INSERT INTO core.usuarios_roles (usuario_id, empresa_id, rol_id)
+  SELECT
+    p_usuario_id,
+    p_empresa_id,
+    r.id
+  FROM core.roles r
+  WHERE r.empresa_id = p_empresa_id
+    AND r.nombre = 'Administrador'
+  ON CONFLICT (usuario_id, empresa_id, rol_id) DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Parámetros por empresa (copiando core.parametros)
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Inicializando parametros_empresa...';
+  INSERT INTO core.parametros_empresa (empresa_id, parametro_id, valor)
+  SELECT p_empresa_id, p.parametro_id, COALESCE(p.valor_default, NULL)
+  FROM core.parametros p
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM core.parametros_empresa pe
+    WHERE pe.empresa_id = p_empresa_id
+      AND pe.parametro_id = p.parametro_id
+  );
+
+---------------------------------------------------------------------------
+-- Valores críticos de parámetros (hardcoded)
+---------------------------------------------------------------------------
+RAISE NOTICE 'Aplicando valores críticos de configuración...';
+
+UPDATE core.parametros_empresa pe
+SET valor = v.valor
+FROM (
+  VALUES
+    ('decimales_costos','2'),
+    ('decimales_cantidades','2'),
+    ('decimales_precios','2'),
+    ('variacion_maxima_costos','0.20'),
+    ('porcentaje_iva_predeterminado','0.16'),
+
+    ('usar_series','true'),
+    ('permitir_afectacion_ajustes','true'),
+    ('usar_ultimo_costo_precios','true'),
+
+    ('serie_facturas','F'),
+    ('serie_notas','N'),
+    ('serie_notas_credito','NC'),
+    ('serie_pedidos','P'),
+    ('serie_ordenes_entrega','OE'),
+
+    ('serie_ordenes_compra','OC'),
+    ('serie_pagos_proveedores','PGP'),
+
+    ('serie_transacciones_inventario','INV'),
+    ('serie_ajustes','AJ'),
+    ('serie_entradas','EN'),
+
+    ('serie_nota_venta','N'),
+
+    ('oc_requiere_autorizacion','true'),
+    ('aprobacion_automatica_pagos','false'),
+    ('utilizar_limite_credito','true'),
+    ('restringir_segun_vencimiento','false'),
+    ('tipo_cliente_obligatorio','true')
+) AS v(clave,valor)
+JOIN core.parametros p
+  ON p.clave = v.clave
+WHERE pe.parametro_id = p.parametro_id
+AND pe.empresa_id = p_empresa_id;
+
+  ---------------------------------------------------------------------------
+  -- Impuestos por default
+  ---------------------------------------------------------------------------
+
+RAISE NOTICE 'Creando impuestos por defecto...';
+
+INSERT INTO core.empresas_impuestos_default
+(empresa_id, impuesto_id, orden)
+VALUES
+(p_empresa_id, 'iva_16', 1)
+ON CONFLICT DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Tipos de documento por empresa (copiando core.tipos_documento)
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Inicializando empresas_tipos_documento...';
+  INSERT INTO core.empresas_tipos_documento
+    (empresa_id, tipo_documento_id, activo, orden, usuario_creacion_id)
+  SELECT
+    p_empresa_id,
+    td.id,
+    td.activo,
+    td.orden,
+    p_usuario_id
+  FROM core.tipos_documento td
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM core.empresas_tipos_documento etd
+    WHERE etd.empresa_id = p_empresa_id
+      AND etd.tipo_documento_id = td.id
+  );
+
+  ---------------------------------------------------------------------------
+  -- Transiciones base de tipos de documento
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Inicializando transiciones de documentos...';
+  WITH t(cod_origen, cod_destino) AS (
+    VALUES
+      ('cotizacion',    'pedido'),
+      ('pedido',        'orden_entrega'),
+      ('orden_entrega', 'remision'),
+      ('remision',      'factura'),
+      ('requisicion',   'orden_compra'),
+      ('orden_compra',  'recepcion'),
+      ('recepcion',     'factura_compra')
+  )
+  INSERT INTO core.empresas_tipos_documento_transiciones
+    (empresa_id, tipo_documento_origen_id, tipo_documento_destino_id, activo, orden, usuario_creacion_id)
+  SELECT
+    p_empresa_id,
+    etd_origen.tipo_documento_id,
+    etd_destino.tipo_documento_id,
+    true,
+    ROW_NUMBER() OVER (ORDER BY t.cod_origen, t.cod_destino) - 1,
+    p_usuario_id
+  FROM t
+  JOIN core.tipos_documento td_origen   ON td_origen.codigo  = t.cod_origen
+  JOIN core.tipos_documento td_destino  ON td_destino.codigo = t.cod_destino
+  JOIN core.empresas_tipos_documento etd_origen
+       ON etd_origen.empresa_id = p_empresa_id
+      AND etd_origen.tipo_documento_id = td_origen.id
+  JOIN core.empresas_tipos_documento etd_destino
+       ON etd_destino.empresa_id = p_empresa_id
+      AND etd_destino.tipo_documento_id = td_destino.id
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM core.empresas_tipos_documento_transiciones x
+    WHERE x.empresa_id = p_empresa_id
+      AND x.tipo_documento_origen_id  = etd_origen.tipo_documento_id
+      AND x.tipo_documento_destino_id = etd_destino.tipo_documento_id
+  );
+
+  ---------------------------------------------------------------------------
+  -- Cuenta financiera inicial
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Creando cuenta financiera inicial...';
+  INSERT INTO public.finanzas_cuentas
+    (empresa_id, identificador, numero_cuenta, tipo_cuenta, moneda,
+     saldo, saldo_inicial, saldo_conciliado, es_cuenta_efectivo, afecta_total_disponible)
+  SELECT p_empresa_id, 'Caja', NULL, 'Disponibilidad', 'MXN',
+         0, 0, 0, true, true
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.finanzas_cuentas fc
+    WHERE fc.empresa_id = p_empresa_id
+      AND fc.identificador = 'Caja'
+  );
+
+  ---------------------------------------------------------------------------
+  -- Conceptos base
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Creando conceptos base...';
+  INSERT INTO public.conceptos
+    (empresa_id, nombre_concepto, es_gasto, activo, orden, color)
+  VALUES
+    (p_empresa_id, 'Ingreso', false, true, 0, '#2E7D32'),
+    (p_empresa_id, 'Venta',   false, true, 1, '#1565C0'),
+    (p_empresa_id, 'Gasto',   true,  true, 2, '#C62828'),
+    (p_empresa_id, 'Compra',  true,  true, 3, '#6A1B9A'),
+    (p_empresa_id, 'Ajuste',  true,  true, 4, '#F9A825')
+  ON CONFLICT (empresa_id, nombre_concepto) DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Unidades
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Creando unidades base...';
+  INSERT INTO public.unidades
+	(clave, descripcion, unidad_sat_id, empresa_id, activo)
+  VALUES
+    ('SERVICIO', 'Servicio', 1, p_empresa_id, true),
+    ('MES',   'Mes', 3, p_empresa_id, true),
+    ('HORA',   'Hora',  4, p_empresa_id, true),
+    ('PIEZA',  'Pieza', 2, p_empresa_id, true)
+  ON CONFLICT (empresa_id, clave) DO NOTHING;
+
+
+  ---------------------------------------------------------------------------
+  -- Aviso final
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Bootstrap completado para la empresa %.', p_empresa_id;
+
+END;
+$$;
 
 
 --
@@ -1883,6 +2136,555 @@ COMMENT ON COLUMN core.usuarios_roles.created_at IS 'Fecha de creación de la as
 
 
 --
+-- Name: almacenes; Type: TABLE; Schema: inventario; Owner: -
+--
+
+CREATE TABLE inventario.almacenes (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    clave character varying(30) NOT NULL,
+    nombre character varying(120) NOT NULL,
+    tipo character varying(30) DEFAULT 'normal'::character varying NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    CONSTRAINT chk_inventario_almacenes_clave_no_vacia CHECK ((btrim((clave)::text) <> ''::text)),
+    CONSTRAINT chk_inventario_almacenes_nombre_no_vacio CHECK ((btrim((nombre)::text) <> ''::text)),
+    CONSTRAINT chk_inventario_almacenes_tipo_no_vacio CHECK ((btrim((tipo)::text) <> ''::text))
+);
+
+
+--
+-- Name: TABLE almacenes; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON TABLE inventario.almacenes IS 'Catálogo de almacenes por empresa para el módulo de inventario.';
+
+
+--
+-- Name: COLUMN almacenes.id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.almacenes.id IS 'Identificador único interno del almacén.';
+
+
+--
+-- Name: COLUMN almacenes.empresa_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.almacenes.empresa_id IS 'Empresa a la que pertenece el almacén.';
+
+
+--
+-- Name: COLUMN almacenes.clave; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.almacenes.clave IS 'Clave corta obligatoria del almacén, usada como identificador visible para los usuarios.';
+
+
+--
+-- Name: COLUMN almacenes.nombre; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.almacenes.nombre IS 'Nombre descriptivo del almacén.';
+
+
+--
+-- Name: COLUMN almacenes.tipo; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.almacenes.tipo IS 'Tipo de almacén: normal, transito, virtual, produccion, consignacion, etc.';
+
+
+--
+-- Name: COLUMN almacenes.activo; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.almacenes.activo IS 'Indica si el almacén está activo para operación.';
+
+
+--
+-- Name: COLUMN almacenes.created_at; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.almacenes.created_at IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN almacenes.updated_at; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.almacenes.updated_at IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: almacenes_id_seq; Type: SEQUENCE; Schema: inventario; Owner: -
+--
+
+ALTER TABLE inventario.almacenes ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME inventario.almacenes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: existencias; Type: TABLE; Schema: inventario; Owner: -
+--
+
+CREATE TABLE inventario.existencias (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    producto_id integer NOT NULL,
+    almacen_id integer NOT NULL,
+    existencia numeric(18,6) DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE existencias; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON TABLE inventario.existencias IS 'Existencias actuales por producto y almacén. Permite consultas rápidas sin recorrer todo el kardex.';
+
+
+--
+-- Name: COLUMN existencias.id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.existencias.id IS 'Identificador único del registro de existencias.';
+
+
+--
+-- Name: COLUMN existencias.empresa_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.existencias.empresa_id IS 'Empresa propietaria del registro de existencias.';
+
+
+--
+-- Name: COLUMN existencias.producto_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.existencias.producto_id IS 'Producto al que corresponde la existencia.';
+
+
+--
+-- Name: COLUMN existencias.almacen_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.existencias.almacen_id IS 'Almacén donde se controla la existencia. La tabla de almacenes no se referencia aquí porque no quedó confirmada en el schema compartido.';
+
+
+--
+-- Name: COLUMN existencias.existencia; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.existencias.existencia IS 'Cantidad actual disponible del producto en el almacén.';
+
+
+--
+-- Name: COLUMN existencias.updated_at; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.existencias.updated_at IS 'Fecha y hora de última actualización del registro de existencias.';
+
+
+--
+-- Name: existencias_id_seq; Type: SEQUENCE; Schema: inventario; Owner: -
+--
+
+CREATE SEQUENCE inventario.existencias_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: existencias_id_seq; Type: SEQUENCE OWNED BY; Schema: inventario; Owner: -
+--
+
+ALTER SEQUENCE inventario.existencias_id_seq OWNED BY inventario.existencias.id;
+
+
+--
+-- Name: movimientos; Type: TABLE; Schema: inventario; Owner: -
+--
+
+CREATE TABLE inventario.movimientos (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    documento_id bigint,
+    usuario_id bigint,
+    tipo_movimiento character varying(30) NOT NULL,
+    fecha timestamp with time zone NOT NULL,
+    observaciones text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    es_reversion boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: TABLE movimientos; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON TABLE inventario.movimientos IS 'Encabezado de movimientos de inventario. Representa una transacción que afecta existencias, ya sea originada por documento o por captura independiente.';
+
+
+--
+-- Name: COLUMN movimientos.id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.id IS 'Identificador único del movimiento de inventario.';
+
+
+--
+-- Name: COLUMN movimientos.empresa_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.empresa_id IS 'Empresa propietaria del movimiento.';
+
+
+--
+-- Name: COLUMN movimientos.documento_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.documento_id IS 'Documento origen que generó el movimiento. Puede ser NULL para ajustes, transferencias, conteos u otros movimientos independientes.';
+
+
+--
+-- Name: COLUMN movimientos.usuario_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.usuario_id IS 'Usuario que registró o confirmó el movimiento.';
+
+
+--
+-- Name: COLUMN movimientos.tipo_movimiento; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.tipo_movimiento IS 'Tipo general del movimiento: compra, venta, ajuste, transferencia, conteo, merma, devolución, etc.';
+
+
+--
+-- Name: COLUMN movimientos.fecha; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.fecha IS 'Fecha efectiva del movimiento de inventario.';
+
+
+--
+-- Name: COLUMN movimientos.observaciones; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.observaciones IS 'Notas u observaciones generales relacionadas con el movimiento.';
+
+
+--
+-- Name: COLUMN movimientos.created_at; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.created_at IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN movimientos.updated_at; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.updated_at IS 'Fecha y hora de última actualización del registro.';
+
+
+--
+-- Name: COLUMN movimientos.es_reversion; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.es_reversion IS 'Indica si el movimiento fue generado como reverso por cancelación de documento.';
+
+
+--
+-- Name: movimientos_id_seq; Type: SEQUENCE; Schema: inventario; Owner: -
+--
+
+CREATE SEQUENCE inventario.movimientos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: movimientos_id_seq; Type: SEQUENCE OWNED BY; Schema: inventario; Owner: -
+--
+
+ALTER SEQUENCE inventario.movimientos_id_seq OWNED BY inventario.movimientos.id;
+
+
+--
+-- Name: movimientos_partidas; Type: TABLE; Schema: inventario; Owner: -
+--
+
+CREATE TABLE inventario.movimientos_partidas (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    movimiento_id bigint NOT NULL,
+    documento_partida_id integer,
+    producto_id integer NOT NULL,
+    almacen_id integer NOT NULL,
+    almacen_destino_id integer,
+    fecha_movimiento timestamp with time zone NOT NULL,
+    cantidad numeric(18,6) NOT NULL,
+    signo smallint NOT NULL,
+    tipo_partida character varying(25) DEFAULT 'normal'::character varying NOT NULL,
+    costo_unitario numeric(18,6),
+    existencia_resultante numeric(18,6) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_inv_part_cantidad CHECK ((cantidad > (0)::numeric)),
+    CONSTRAINT chk_inv_part_signo CHECK ((signo = ANY (ARRAY['-1'::integer, 1]))),
+    CONSTRAINT chk_inv_part_tipo CHECK (((tipo_partida)::text = ANY (ARRAY[('normal'::character varying)::text, ('salida_transferencia'::character varying)::text, ('entrada_transferencia'::character varying)::text])))
+);
+
+
+--
+-- Name: TABLE movimientos_partidas; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON TABLE inventario.movimientos_partidas IS 'Detalle de movimientos de inventario. Cada fila representa una afectación física en el kardex de un producto y un almacén.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.id IS 'Identificador único de la partida del movimiento.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.empresa_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.empresa_id IS 'Empresa propietaria de la partida.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.movimiento_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.movimiento_id IS 'Referencia al encabezado del movimiento de inventario.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.documento_partida_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.documento_partida_id IS 'Referencia opcional a la partida del documento que originó la afectación.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.producto_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.producto_id IS 'Producto afectado por la partida.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.almacen_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.almacen_id IS 'Almacén afectado por esta partida. La tabla de almacenes no se referencia aquí porque no quedó confirmada en el schema compartido.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.almacen_destino_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.almacen_destino_id IS 'Almacén destino relacionado. Se usa principalmente en transferencias. La tabla de almacenes no se referencia aquí porque no quedó confirmada en el schema compartido.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.fecha_movimiento; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.fecha_movimiento IS 'Fecha efectiva usada para ordenar el kardex y recalcular existencias históricas.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.cantidad; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.cantidad IS 'Cantidad del producto afectada por la partida.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.signo; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.signo IS 'Naturaleza del movimiento: +1 entrada, -1 salida.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.tipo_partida; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.tipo_partida IS 'Tipo de partida: normal, salida_transferencia o entrada_transferencia.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.costo_unitario; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.costo_unitario IS 'Costo unitario del producto al momento del movimiento.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.existencia_resultante; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.existencia_resultante IS 'Existencia del producto en el almacén inmediatamente después de aplicar esta partida.';
+
+
+--
+-- Name: COLUMN movimientos_partidas.created_at; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos_partidas.created_at IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: movimientos_partidas_id_seq; Type: SEQUENCE; Schema: inventario; Owner: -
+--
+
+CREATE SEQUENCE inventario.movimientos_partidas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: movimientos_partidas_id_seq; Type: SEQUENCE OWNED BY; Schema: inventario; Owner: -
+--
+
+ALTER SEQUENCE inventario.movimientos_partidas_id_seq OWNED BY inventario.movimientos_partidas.id;
+
+
+--
+-- Name: aplicaciones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.aplicaciones (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    finanzas_operacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer NOT NULL,
+    monto numeric(15,2) NOT NULL,
+    monto_moneda_documento numeric(15,2) NOT NULL,
+    fecha_aplicacion timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_aplicacion_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
+);
+
+
+--
+-- Name: TABLE aplicaciones; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.aplicaciones IS 'Registra aplicaciones de saldo desde pagos o notas de crédito hacia documentos destino (por ejemplo facturas). Soporta multimoneda.';
+
+
+--
+-- Name: COLUMN aplicaciones.id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.id IS 'Identificador único de la aplicación.';
+
+
+--
+-- Name: COLUMN aplicaciones.empresa_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.empresa_id IS 'Empresa a la que pertenece la aplicación (soporte multiempresa).';
+
+
+--
+-- Name: COLUMN aplicaciones.finanzas_operacion_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.finanzas_operacion_id IS 'Origen de la aplicación cuando proviene de una operación financiera (pago de banco o caja).';
+
+
+--
+-- Name: COLUMN aplicaciones.documento_origen_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.documento_origen_id IS 'Origen de la aplicación cuando proviene de un documento (por ejemplo una nota de crédito).';
+
+
+--
+-- Name: COLUMN aplicaciones.documento_destino_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.documento_destino_id IS 'Documento que recibe la aplicación de saldo (normalmente una factura).';
+
+
+--
+-- Name: COLUMN aplicaciones.monto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.monto IS 'Monto aplicado en moneda base del sistema (por ejemplo MXN). Se descuenta del saldo del origen.';
+
+
+--
+-- Name: COLUMN aplicaciones.monto_moneda_documento; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.monto_moneda_documento IS 'Monto aplicado expresado en la moneda del documento destino. Se utiliza para calcular el saldo del documento destino.';
+
+
+--
+-- Name: COLUMN aplicaciones.fecha_aplicacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.fecha_aplicacion IS 'Fecha efectiva en la que se realiza la aplicación del saldo.';
+
+
+--
+-- Name: COLUMN aplicaciones.fecha_creacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones.fecha_creacion IS 'Fecha en que se creó el registro de la aplicación en el sistema.';
+
+
+--
+-- Name: aplicaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.aplicaciones_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: aplicaciones_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.aplicaciones_id_seq OWNED BY public.aplicaciones.id;
+
+
+--
 -- Name: conceptos; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2775,6 +3577,30 @@ CREATE SEQUENCE public.documentos_partidas_vinculos_id_seq
 --
 
 ALTER SEQUENCE public.documentos_partidas_vinculos_id_seq OWNED BY public.documentos_partidas_vinculos.id;
+
+
+--
+-- Name: documentos_saldo; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.documentos_saldo AS
+ SELECT d.id,
+    d.empresa_id,
+    d.tipo_documento,
+    d.moneda,
+    d.tipo_cambio,
+    d.total,
+    (d.total - COALESCE(sum(a.monto), (0)::numeric)) AS saldo
+   FROM (public.documentos d
+     LEFT JOIN public.aplicaciones a ON (((a.documento_destino_id = d.id) AND (a.empresa_id = d.empresa_id))))
+  GROUP BY d.id, d.empresa_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total;
+
+
+--
+-- Name: VIEW documentos_saldo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.documentos_saldo IS 'Vista de compatibilidad: id, empresa_id, datos básicos y saldo = total - aplicaciones (COALESCE).';
 
 
 --
@@ -3965,6 +4791,120 @@ COMMENT ON COLUMN whatsapp.whatsapp_estadisticas.empresa_id IS 'Empresa a la que
 
 
 --
+-- Name: whatsapp_intentos_contacto; Type: TABLE; Schema: whatsapp; Owner: -
+--
+
+CREATE TABLE whatsapp.whatsapp_intentos_contacto (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    pagina_origen text,
+    producto text,
+    fuente text,
+    mensaje_prellenado text,
+    session_id text,
+    ip_address inet,
+    user_agent text,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE whatsapp_intentos_contacto; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON TABLE whatsapp.whatsapp_intentos_contacto IS 'Registra intentos de contacto a WhatsApp desde la web antes de que exista una conversacion real. Representa intencion del usuario.';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.id IS 'Identificador unico del intento de contacto.';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.empresa_id IS 'Empresa a la que pertenece el intento de contacto.';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.pagina_origen; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.pagina_origen IS 'Ruta o URL de la pagina donde se genero el clic (ej. /sky-dancer).';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.producto; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.producto IS 'Producto o categoria asociada al clic (ej. Sky Dancer, Display).';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.fuente; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.fuente IS 'Origen del trafico (ej. web, landing, campaña, QR).';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.mensaje_prellenado; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.mensaje_prellenado IS 'Mensaje que se envia prellenado al abrir WhatsApp.';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.session_id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.session_id IS 'Identificador de sesion del navegador para agrupar eventos del mismo usuario.';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.ip_address; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.ip_address IS 'Direccion IP del usuario al momento del clic.';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.user_agent; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.user_agent IS 'Cadena de identificacion del navegador o dispositivo del usuario.';
+
+
+--
+-- Name: COLUMN whatsapp_intentos_contacto.creado_en; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.whatsapp_intentos_contacto.creado_en IS 'Fecha y hora en que se registro el intento de contacto.';
+
+
+--
+-- Name: whatsapp_intentos_contacto_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
+--
+
+CREATE SEQUENCE whatsapp.whatsapp_intentos_contacto_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: whatsapp_intentos_contacto_id_seq; Type: SEQUENCE OWNED BY; Schema: whatsapp; Owner: -
+--
+
+ALTER SEQUENCE whatsapp.whatsapp_intentos_contacto_id_seq OWNED BY whatsapp.whatsapp_intentos_contacto.id;
+
+
+--
 -- Name: whatsapp_mensajes; Type: TABLE; Schema: whatsapp; Owner: -
 --
 
@@ -4121,6 +5061,34 @@ ALTER TABLE ONLY core.tipos_documento ALTER COLUMN id SET DEFAULT nextval('core.
 --
 
 ALTER TABLE ONLY core.usuarios ALTER COLUMN id SET DEFAULT nextval('core.usuarios_id_seq'::regclass);
+
+
+--
+-- Name: existencias id; Type: DEFAULT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.existencias ALTER COLUMN id SET DEFAULT nextval('inventario.existencias_id_seq'::regclass);
+
+
+--
+-- Name: movimientos id; Type: DEFAULT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos ALTER COLUMN id SET DEFAULT nextval('inventario.movimientos_id_seq'::regclass);
+
+
+--
+-- Name: movimientos_partidas id; Type: DEFAULT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos_partidas ALTER COLUMN id SET DEFAULT nextval('inventario.movimientos_partidas_id_seq'::regclass);
+
+
+--
+-- Name: aplicaciones id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones ALTER COLUMN id SET DEFAULT nextval('public.aplicaciones_id_seq'::regclass);
 
 
 --
@@ -4303,6 +5271,13 @@ ALTER TABLE ONLY public.unidades ALTER COLUMN id SET DEFAULT nextval('public.uni
 --
 
 ALTER TABLE ONLY sat.unidades ALTER COLUMN id SET DEFAULT nextval('sat.unidades_id_seq'::regclass);
+
+
+--
+-- Name: whatsapp_intentos_contacto id; Type: DEFAULT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.whatsapp_intentos_contacto ALTER COLUMN id SET DEFAULT nextval('whatsapp.whatsapp_intentos_contacto_id_seq'::regclass);
 
 
 --
@@ -4535,6 +5510,54 @@ ALTER TABLE ONLY core.usuarios
 
 ALTER TABLE ONLY core.usuarios_roles
     ADD CONSTRAINT usuarios_roles_pkey PRIMARY KEY (usuario_id, empresa_id, rol_id);
+
+
+--
+-- Name: existencias existencias_pkey; Type: CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.existencias
+    ADD CONSTRAINT existencias_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: movimientos_partidas movimientos_partidas_pkey; Type: CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos_partidas
+    ADD CONSTRAINT movimientos_partidas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: movimientos movimientos_pkey; Type: CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos
+    ADD CONSTRAINT movimientos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: almacenes pk_inventario_almacenes; Type: CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.almacenes
+    ADD CONSTRAINT pk_inventario_almacenes PRIMARY KEY (id);
+
+
+--
+-- Name: existencias uq_inv_existencias_empresa_producto_almacen; Type: CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.existencias
+    ADD CONSTRAINT uq_inv_existencias_empresa_producto_almacen UNIQUE (empresa_id, producto_id, almacen_id);
+
+
+--
+-- Name: aplicaciones aplicaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT aplicaciones_pkey PRIMARY KEY (id);
 
 
 --
@@ -5082,6 +6105,14 @@ ALTER TABLE ONLY whatsapp.whatsapp_estadisticas
 
 
 --
+-- Name: whatsapp_intentos_contacto whatsapp_intentos_contacto_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.whatsapp_intentos_contacto
+    ADD CONSTRAINT whatsapp_intentos_contacto_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: whatsapp_mensajes whatsapp_mensajes_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
@@ -5496,10 +6527,234 @@ COMMENT ON INDEX core.ux_catalogos_tipos_empresa_nombre IS 'Evita duplicar nombr
 
 
 --
+-- Name: idx_inv_existencias_lookup; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_existencias_lookup ON inventario.existencias USING btree (empresa_id, producto_id, almacen_id);
+
+
+--
+-- Name: INDEX idx_inv_existencias_lookup; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inv_existencias_lookup IS 'Índice para consultas rápidas de existencias por empresa, producto y almacén.';
+
+
+--
+-- Name: idx_inv_mov_documento; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_mov_documento ON inventario.movimientos USING btree (documento_id);
+
+
+--
+-- Name: INDEX idx_inv_mov_documento; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inv_mov_documento IS 'Índice para localizar movimientos originados por documentos.';
+
+
+--
+-- Name: idx_inv_mov_empresa; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_mov_empresa ON inventario.movimientos USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_inv_mov_empresa; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inv_mov_empresa IS 'Índice para consultas de movimientos por empresa.';
+
+
+--
+-- Name: idx_inv_mov_tipo; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_mov_tipo ON inventario.movimientos USING btree (empresa_id, tipo_movimiento);
+
+
+--
+-- Name: INDEX idx_inv_mov_tipo; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inv_mov_tipo IS 'Índice para consultas de movimientos por empresa y tipo de movimiento.';
+
+
+--
+-- Name: idx_inv_part_kardex; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_part_kardex ON inventario.movimientos_partidas USING btree (empresa_id, producto_id, almacen_id, fecha_movimiento, id);
+
+
+--
+-- Name: INDEX idx_inv_part_kardex; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inv_part_kardex IS 'Índice principal para recorridos de kardex y recalculo histórico por empresa, producto y almacén.';
+
+
+--
+-- Name: idx_inv_part_movimiento; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_part_movimiento ON inventario.movimientos_partidas USING btree (movimiento_id);
+
+
+--
+-- Name: INDEX idx_inv_part_movimiento; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inv_part_movimiento IS 'Índice para recuperar rápidamente las partidas de un movimiento.';
+
+
+--
+-- Name: idx_inv_part_recalculo; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_part_recalculo ON inventario.movimientos_partidas USING btree (empresa_id, producto_id, almacen_id, id);
+
+
+--
+-- Name: idx_inv_part_transferencia_destino; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_part_transferencia_destino ON inventario.movimientos_partidas USING btree (empresa_id, producto_id, almacen_destino_id, fecha_movimiento, id);
+
+
+--
+-- Name: INDEX idx_inv_part_transferencia_destino; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inv_part_transferencia_destino IS 'Índice auxiliar para rastrear transferencias hacia un almacén destino.';
+
+
+--
+-- Name: idx_inventario_almacenes_empresa_activo; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inventario_almacenes_empresa_activo ON inventario.almacenes USING btree (empresa_id, activo);
+
+
+--
+-- Name: INDEX idx_inventario_almacenes_empresa_activo; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inventario_almacenes_empresa_activo IS 'Índice para filtrar almacenes activos por empresa.';
+
+
+--
+-- Name: idx_inventario_almacenes_empresa_id; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inventario_almacenes_empresa_id ON inventario.almacenes USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_inventario_almacenes_empresa_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inventario_almacenes_empresa_id IS 'Índice para búsquedas de almacenes por empresa.';
+
+
+--
+-- Name: idx_inventario_almacenes_empresa_nombre; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inventario_almacenes_empresa_nombre ON inventario.almacenes USING btree (empresa_id, nombre);
+
+
+--
+-- Name: INDEX idx_inventario_almacenes_empresa_nombre; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.idx_inventario_almacenes_empresa_nombre IS 'Índice para búsquedas y ordenamientos por nombre dentro de la empresa.';
+
+
+--
+-- Name: uq_inventario_almacenes_empresa_clave; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_inventario_almacenes_empresa_clave ON inventario.almacenes USING btree (empresa_id, clave);
+
+
+--
+-- Name: INDEX uq_inventario_almacenes_empresa_clave; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON INDEX inventario.uq_inventario_almacenes_empresa_clave IS 'Garantiza que la clave del almacén no se repita dentro de una misma empresa.';
+
+
+--
 -- Name: documentos_unico; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX documentos_unico ON public.documentos USING btree (empresa_id, lower((tipo_documento)::text), COALESCE(serie, ''::character varying), numero);
+
+
+--
+-- Name: idx_aplicaciones_doc_destino; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_doc_destino ON public.aplicaciones USING btree (documento_destino_id);
+
+
+--
+-- Name: INDEX idx_aplicaciones_doc_destino; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aplicaciones_doc_destino IS 'Optimiza consultas para calcular saldo pendiente de documentos destino (facturas).';
+
+
+--
+-- Name: idx_aplicaciones_doc_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_doc_origen ON public.aplicaciones USING btree (documento_origen_id);
+
+
+--
+-- Name: INDEX idx_aplicaciones_doc_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aplicaciones_doc_origen IS 'Optimiza consultas para calcular saldo disponible de notas de crédito.';
+
+
+--
+-- Name: idx_aplicaciones_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_empresa ON public.aplicaciones USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_aplicaciones_empresa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aplicaciones_empresa IS 'Permite filtrar rápidamente aplicaciones por empresa.';
+
+
+--
+-- Name: idx_aplicaciones_operacion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_operacion ON public.aplicaciones USING btree (finanzas_operacion_id);
+
+
+--
+-- Name: INDEX idx_aplicaciones_operacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aplicaciones_operacion IS 'Optimiza consultas para calcular saldo de operaciones financieras (pagos).';
+
+
+--
+-- Name: idx_aplicaciones_operacion_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_operacion_empresa ON public.aplicaciones USING btree (empresa_id, finanzas_operacion_id);
 
 
 --
@@ -6306,6 +7561,118 @@ ALTER TABLE ONLY core.usuarios_roles
 
 
 --
+-- Name: existencias fk_inv_exist_empresa; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.existencias
+    ADD CONSTRAINT fk_inv_exist_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: existencias fk_inv_exist_producto; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.existencias
+    ADD CONSTRAINT fk_inv_exist_producto FOREIGN KEY (producto_id) REFERENCES public.productos(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+
+
+--
+-- Name: movimientos fk_inv_mov_documento; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos
+    ADD CONSTRAINT fk_inv_mov_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: movimientos fk_inv_mov_empresa; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos
+    ADD CONSTRAINT fk_inv_mov_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: movimientos fk_inv_mov_usuario; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos
+    ADD CONSTRAINT fk_inv_mov_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: movimientos_partidas fk_inv_part_doc_partida; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos_partidas
+    ADD CONSTRAINT fk_inv_part_doc_partida FOREIGN KEY (documento_partida_id) REFERENCES public.documentos_partidas(id) ON DELETE SET NULL;
+
+
+--
+-- Name: movimientos_partidas fk_inv_part_empresa; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos_partidas
+    ADD CONSTRAINT fk_inv_part_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: movimientos_partidas fk_inv_part_movimiento; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos_partidas
+    ADD CONSTRAINT fk_inv_part_movimiento FOREIGN KEY (movimiento_id) REFERENCES inventario.movimientos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: movimientos_partidas fk_inv_part_producto; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos_partidas
+    ADD CONSTRAINT fk_inv_part_producto FOREIGN KEY (producto_id) REFERENCES public.productos(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+
+
+--
+-- Name: almacenes fk_inventario_almacenes_empresa; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.almacenes
+    ADD CONSTRAINT fk_inventario_almacenes_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: aplicaciones fk_aplicaciones_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT fk_aplicaciones_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones fk_aplicaciones_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT fk_aplicaciones_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones fk_aplicaciones_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT fk_aplicaciones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones fk_aplicaciones_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones
+    ADD CONSTRAINT fk_aplicaciones_operacion FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
+
+
+--
 -- Name: contactos_domicilios fk_cd_contacto; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6703,6 +8070,14 @@ ALTER TABLE ONLY whatsapp.whatsapp_contacto_mapeo
 
 ALTER TABLE ONLY whatsapp.whatsapp_conversaciones
     ADD CONSTRAINT whatsapp_conversaciones_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
+
+
+--
+-- Name: whatsapp_intentos_contacto whatsapp_intentos_contacto_empresa_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.whatsapp_intentos_contacto
+    ADD CONSTRAINT whatsapp_intentos_contacto_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
 
 
 --

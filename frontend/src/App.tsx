@@ -29,6 +29,7 @@ import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 import LeadsPage from './pages/LeadsPage';
 import CotizacionesGridPage from './pages/CotizacionesGridPage';
+import AIReportesPage from './pages/AIReportesPage';
 
 export default function App() {
   return (
@@ -72,6 +73,7 @@ export default function App() {
               <Route path="/finanzas" element={<FinanzasPage />} />
               <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
               <Route path="/inventario/movimientos/nuevo" element={<InventarioMovimientoFormPage />} />
+              <Route path="/informes/ia" element={<AIReportesPage />} />
               <Route path="/" element={<Navigate to="/contactos" replace />} />
               <Route path="*" element={<Navigate to="/contactos" replace />} />
             </Route>
