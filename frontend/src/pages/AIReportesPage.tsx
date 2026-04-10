@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { DataGrid } from '@mui/x-data-grid';
+import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import { apiFetch } from '../api/apiClient';
 import { useSession } from '../session/useSession';
@@ -290,7 +291,32 @@ export default function AIReportesPage() {
               rows={rows}
               columns={columns}
               disableRowSelectionOnClick
-              sx={{ border: 'none' }}
+              localeText={{
+                ...esES.components.MuiDataGrid.defaultProps.localeText,
+                noRowsLabel: 'No hay registros',
+              }}
+              sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                '& .MuiDataGrid-columnHeaders': {
+                  backgroundColor: '#1e2a5a',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                },
+                '& .MuiDataGrid-columnHeaderTitle': {
+                  color: '#ffffff',
+                  fontWeight: 600,
+                },
+                '& .MuiDataGrid-sortIcon': {
+                  color: '#ffffff',
+                },
+                '& .MuiDataGrid-menuIcon': {
+                  color: '#ffffff',
+                },
+                '& .MuiDataGrid-columnSeparator': {
+                  color: 'rgba(255,255,255,0.25)',
+                },
+              }}
               getRowHeight={() => 'auto'}
             />
           </Box>

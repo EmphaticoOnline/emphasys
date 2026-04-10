@@ -31,6 +31,7 @@ import {
   type GridCellParams,
   type GridRenderEditCellParams,
 } from '@mui/x-data-grid';
+import { esES } from '@mui/x-data-grid/locales';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -939,12 +940,34 @@ export default function CotizacionesGridPage() {
                   sortModel: [{ field: 'fecha_documento', sort: 'desc' }],
                 },
               }}
+              localeText={{
+                ...esES.components.MuiDataGrid.defaultProps.localeText,
+                noRowsLabel: 'No hay registros',
+              }}
               sx={{
+                border: '1px solid',
+                borderColor: 'divider',
                 '& .MuiDataGrid-columnHeaders': {
-                  backgroundColor: '#f8fafc',
                   fontSize: 12.5,
                   minHeight: 34,
-                  '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 700 },
+                  color: '#ffffff',
+                },
+                '& .MuiDataGrid-columnHeader': {
+                  backgroundColor: '#1e2a5a',
+                  color: '#ffffff',
+                },
+                '& .MuiDataGrid-columnHeaderTitle': {
+                  fontWeight: 600,
+                  color: '#ffffff',
+                },
+                '& .MuiDataGrid-sortIcon': {
+                  color: '#ffffff',
+                },
+                '& .MuiDataGrid-menuIcon': {
+                  color: '#ffffff',
+                },
+                '& .MuiDataGrid-columnSeparator': {
+                  color: 'rgba(255,255,255,0.25)',
                 },
                 '& .MuiDataGrid-cell': {
                   fontSize: 12.5,
