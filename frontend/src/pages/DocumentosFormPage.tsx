@@ -46,15 +46,16 @@ import type {
 } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
 import { getDocumento, createDocumento, updateDocumento, replacePartidas, downloadDocumentoPdf } from '../services/documentosService';
-import { fetchContactos } from '../services/contactosService';
+import { fetchContactos, fetchVendedores } from '../services/contactosService';
 import { fetchProductos } from '../services/productosService';
 import type { Producto } from '../types/producto';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
+import { useSession } from '../session/useSession';
 import type { ImpuestoEntrada, ImpuestoCalculadoUI } from '../utils/impuestos';
 import { calcularImpuestosPreview } from '../services/documentosService';
 import { DocumentoDatosFiscalesTab } from '../modules/documentos';
-import { getContacto } from '../services/contactos.api';
+import { crearContacto, getContacto } from '../services/contactos.api';
 import {
   guardarCamposDocumento,
   guardarCamposPartida,
@@ -166,6 +167,8 @@ const prefetchOpcionesLista = (
 
 export default function DocumentosFormPage({ tipoDocumento: propTipo }: DocumentosFormPageProps) {
   const { id, codigo } = useParams();
+  const { session } = useSession();
+  const sessionUserId = session.user?.id ?? null;
   const tipoDocumento = (propTipo ?? (codigo as TipoDocumento)) || 'cotizacion';
   const isEdit = Boolean(id && id !== 'nuevo');
   const navigate = useNavigate();
@@ -184,13 +187,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     tipo_documento: tipoDocumento,
     serie: tipoDocumento === 'factura' ? 'FAC' : null,
     contacto_principal_id: null,
+    agente_id: null,
     fecha_documento: defaultFecha(),
     moneda: 'MXN',
     observaciones: '',
     subtotal: 0,
     iva: 0,
     total: 0,
-    usuario_creacion_id: 1,
+    usuario_creacion_id: sessionUserId ?? null,
     empresa_id: getEmpresaActivaId(),
     tratamiento_impuestos: 'normal',
     rfc_receptor: '',
@@ -207,6 +211,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [editingPrecio, setEditingPrecio] = useState<boolean[]>([false]);
   const [precioInputs, setPrecioInputs] = useState<string[]>(['']);
   const [contactos, setContactos] = useState<Contacto[]>([]);
+  const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState<boolean>(isEdit);
   const [saving, setSaving] = useState(false);
@@ -217,6 +222,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   );
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [activeTab, setActiveTab] = useState<number>(0);
+  const [crearClienteOpen, setCrearClienteOpen] = useState(false);
+  const [crearClienteNombre, setCrearClienteNombre] = useState('');
+  const [crearClienteTipo, setCrearClienteTipo] = useState<'Lead' | 'Cliente'>('Lead');
+  const [crearClienteLoading, setCrearClienteLoading] = useState(false);
 
   const camposDocumento = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_DOCUMENTO, tipoDocumento });
   const camposPartida = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_PARTIDA, tipoDocumento });
@@ -597,9 +606,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const loadCombos = async () => {
     try {
-      const [c, p] = await Promise.all([fetchContactos(), fetchProductos()]);
+      const [c, p, v] = await Promise.all([fetchContactos(), fetchProductos(), fetchVendedores()]);
       setContactos(c);
       setProductos(p);
+      setVendedores(v);
     } catch (e) {
       console.error(e);
     }
@@ -617,13 +627,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         tipo_documento: doc.tipo_documento ?? tipoDocumento,
   serie: (doc as any).serie || null,
         contacto_principal_id: doc.contacto_principal_id,
+        agente_id: (doc as any).agente_id ?? null,
         fecha_documento: doc.fecha_documento?.substring(0, 10) || defaultFecha(),
         moneda: doc.moneda || 'MXN',
         observaciones: doc.observaciones || '',
         subtotal: doc.subtotal || 0,
         iva: doc.iva || 0,
         total: doc.total || 0,
-        usuario_creacion_id: doc.usuario_creacion_id || 1,
+        usuario_creacion_id: doc.usuario_creacion_id ?? sessionUserId ?? null,
         empresa_id: doc.empresa_id,
   tratamiento_impuestos: (doc as any).tratamiento_impuestos || 'normal',
         rfc_receptor: (doc as any).rfc_receptor || (doc as any).cliente_rfc || '',
@@ -728,6 +739,12 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   }, [isEdit, id, tipoDocumento]);
 
   useEffect(() => {
+    if (isEdit) return;
+    if (!sessionUserId) return;
+    setForm((prev) => (prev.usuario_creacion_id ? prev : { ...prev, usuario_creacion_id: sessionUserId }));
+  }, [isEdit, sessionUserId]);
+
+  useEffect(() => {
     tratamientoRef.current = form.tratamiento_impuestos ?? 'normal';
   }, [form.tratamiento_impuestos]);
 
@@ -830,6 +847,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         iva: form.iva || 0,
         total: form.total || 0,
         empresa_id: getEmpresaActivaId(),
+        usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
   tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : null,
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
@@ -950,7 +968,11 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const esDetalleContacto = (resp: ContactoDetalle | Contacto): resp is ContactoDetalle => 'contacto' in resp;
 
   const handleClienteSelect = (value: Contacto | null) => {
-    setForm((prev) => ({ ...prev, contacto_principal_id: value?.id ?? null }));
+    setForm((prev) => ({
+      ...prev,
+      contacto_principal_id: value?.id ?? null,
+      agente_id: prev.agente_id ?? value?.vendedor_id ?? null,
+    }));
   };
 
   const cargarDatosFiscalesContacto = async (contactoId: number) => {
@@ -972,6 +994,30 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       }));
     } catch (err) {
       console.error('No se pudo cargar datos fiscales del contacto', err);
+    }
+  };
+
+  const handleCrearClienteSubmit = async () => {
+    const nombre = crearClienteNombre.trim();
+    if (!nombre) {
+      setSnackbar({ open: true, message: 'Ingresa el nombre del cliente', severity: 'error' });
+      return;
+    }
+
+    try {
+      setCrearClienteLoading(true);
+      const nuevo = await crearContacto({ nombre, tipo_contacto: crearClienteTipo });
+      setContactos((prev) => [nuevo, ...prev.filter((c) => c.id !== nuevo.id)]);
+      handleClienteSelect(nuevo);
+      await cargarDatosFiscalesContacto(nuevo.id);
+      setSnackbar({ open: true, message: 'Cliente creado', severity: 'success' });
+      setCrearClienteOpen(false);
+      setCrearClienteNombre('');
+      setCrearClienteTipo('Lead');
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'No se pudo crear el cliente', severity: 'error' });
+    } finally {
+      setCrearClienteLoading(false);
     }
   };
 
@@ -1068,17 +1114,46 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                 <Grid size={{ xs: 12, md: 5 }}>
                   <Autocomplete
                     fullWidth
-                    options={contactos}
+                    options={[...contactos, { id: -1, nombre: 'Crear cliente…' } as Contacto]}
                     loading={contactos.length === 0}
                     getOptionLabel={(option) => option.nombre || ''}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
-                    onChange={(_, value) => handleClienteSelect(value)}
+                    onChange={(_, value) => {
+                      if (value?.id === -1) {
+                        setCrearClienteOpen(true);
+                        setCrearClienteNombre('');
+                        setCrearClienteTipo('Lead');
+                        return;
+                      }
+                      handleClienteSelect(value);
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...(params as any)}
                         fullWidth
                         label="Cliente"
                         required
+                        size="small"
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <Autocomplete
+                    fullWidth
+                    options={vendedores}
+                    loading={vendedores.length === 0}
+                    getOptionLabel={(option) => option.nombre || ''}
+                    value={vendedores.find((c) => c.id === form.agente_id) || null}
+                    onChange={(_, value) => setForm((prev) => ({ ...prev, agente_id: value?.id ?? null }))}
+                    renderInput={(params) => (
+                      <TextField
+                        {...(params as any)}
+                        fullWidth
+                        label="Vendedor"
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                         inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
@@ -1517,6 +1592,43 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button variant="contained" onClick={() => setDuplicateDialog({ open: false, message: '' })}>
             Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={crearClienteOpen} onClose={() => { if (!crearClienteLoading) { setCrearClienteOpen(false); setCrearClienteNombre(''); setCrearClienteTipo('Lead'); } }} fullWidth maxWidth="xs">
+        <DialogTitle>Crear cliente rápido</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <TextField
+            label="Nombre"
+            size="small"
+            autoFocus
+            value={crearClienteNombre}
+            onChange={(e) => setCrearClienteNombre(e.target.value)}
+            disabled={crearClienteLoading}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            select
+            label="Tipo de contacto"
+            size="small"
+            value={crearClienteTipo}
+            onChange={(e) => setCrearClienteTipo(e.target.value as 'Lead' | 'Cliente')}
+            disabled={crearClienteLoading}
+          >
+            <MenuItem value="Lead">Lead</MenuItem>
+            <MenuItem value="Cliente">Cliente</MenuItem>
+          </TextField>
+          <Alert severity="info" sx={{ fontSize: 13 }}>
+            Se asignará al documento con el tipo seleccionado.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => { if (!crearClienteLoading) { setCrearClienteOpen(false); setCrearClienteNombre(''); setCrearClienteTipo('Lead'); } }} disabled={crearClienteLoading}>
+            Cancelar
+          </Button>
+          <Button variant="contained" onClick={() => void handleCrearClienteSubmit()} disabled={crearClienteLoading}>
+            {crearClienteLoading ? 'Creando…' : 'Crear y asignar'}
           </Button>
         </DialogActions>
       </Dialog>

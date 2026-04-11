@@ -4,6 +4,8 @@ export type Usuario = {
   email: string;
   activo: boolean;
   es_superadmin: boolean;
+  vendedor_contacto_id?: number | null;
+  vendedor_contacto_nombre?: string | null;
   created_at: string;
 };
 
@@ -18,4 +20,5 @@ export type UsuarioPayload = {
   password?: string;
   es_superadmin?: boolean;
   activo?: boolean;
+  vendedor_contacto_id?: number | null;
 };

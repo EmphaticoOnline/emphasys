@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import {
-  crearDocumentoRepository,
   listarDocumentosRepository,
   obtenerDocumentoRepository,
   actualizarDocumentoRepository,
@@ -11,6 +10,7 @@ import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
+import { crearDocumentoService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
@@ -71,7 +71,7 @@ const buildCrearHandler = (tipoPorDefecto: TipoDocumento) => async (req: Request
       estatus_documento: 'Borrador',
     };
 
-    const created = await crearDocumentoRepository(payload, Number(empresaId), tipoPorDefecto);
+  const created = await crearDocumentoService(payload, Number(empresaId), tipoPorDefecto);
     res.status(201).json(created);
   } catch (error) {
     if ((error as any)?.code === 'DOCUMENTO_DUPLICADO') {
@@ -200,7 +200,10 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
     res.setHeader('Content-Disposition', `inline; filename=documento-${id}.pdf`);
     res.send(pdfBuffer);
   } catch (error) {
-    console.error('Error al obtener PDF del documento', error);
+    console.error('Error al obtener PDF del documento', {
+      message: (error as Error)?.message,
+      stack: (error as Error)?.stack,
+    });
     res.status(500).json({ message: 'Error al generar PDF' });
   }
 };

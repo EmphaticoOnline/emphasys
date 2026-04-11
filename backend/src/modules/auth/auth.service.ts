@@ -16,6 +16,8 @@ export interface UsuarioConPassword {
   password_hash: string;
   activo: boolean;
   es_superadmin: boolean;
+  vendedor_contacto_id: number | null;
+  vendedor_contacto_nombre: string | null;
 }
 
 export interface UsuarioPublico {
@@ -24,6 +26,8 @@ export interface UsuarioPublico {
   email: string;
   activo: boolean;
   es_superadmin: boolean;
+  vendedor_contacto_id: number | null;
+  vendedor_contacto_nombre: string | null;
 }
 
 export interface EmpresaResumen {
@@ -68,13 +72,15 @@ export function construirPayloadToken(usuario: UsuarioPublico): AuthTokenPayload
   };
 }
 
-export function mapearUsuarioPublico<T extends { id: number; nombre: string; email: string; es_superadmin: boolean; activo?: boolean; }>(usuario: T): UsuarioPublico {
+export function mapearUsuarioPublico<T extends { id: number; nombre: string; email: string; es_superadmin: boolean; activo?: boolean; vendedor_contacto_id?: number | null; vendedor_contacto_nombre?: string | null }>(usuario: T): UsuarioPublico {
   return {
     id: usuario.id,
     nombre: usuario.nombre,
     email: usuario.email,
     es_superadmin: usuario.es_superadmin,
-    activo: "activo" in usuario ? Boolean((usuario as any).activo) : true,
+    activo: usuario.activo ?? true,
+    vendedor_contacto_id: usuario.vendedor_contacto_id ?? null,
+    vendedor_contacto_nombre: usuario.vendedor_contacto_nombre ?? null,
   };
 }
 
@@ -84,9 +90,17 @@ export function normalizarEmailLogin(email: string): string | null {
 
 export async function obtenerUsuarioPorEmail(email: string): Promise<UsuarioConPassword | null> {
   const { rows } = await pool.query<UsuarioConPassword>(
-    `SELECT id, nombre, email, password_hash, activo, es_superadmin
-       FROM core.usuarios
-      WHERE lower(email) = lower($1)
+    `SELECT u.id,
+      u.nombre,
+      u.email,
+      u.password_hash,
+      u.activo,
+      u.es_superadmin,
+      u.vendedor_contacto_id,
+      c.nombre AS vendedor_contacto_nombre
+       FROM core.usuarios u
+       LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id
+      WHERE lower(u.email) = lower($1)
       LIMIT 1`,
     [email]
   );
@@ -96,9 +110,16 @@ export async function obtenerUsuarioPorEmail(email: string): Promise<UsuarioConP
 
 export async function obtenerUsuarioPorId(id: number): Promise<UsuarioPublico | null> {
   const { rows } = await pool.query<UsuarioPublico>(
-    `SELECT id, nombre, email, activo, es_superadmin
-       FROM core.usuarios
-      WHERE id = $1
+    `SELECT u.id,
+      u.nombre,
+      u.email,
+      u.activo,
+      u.es_superadmin,
+      u.vendedor_contacto_id,
+      c.nombre AS vendedor_contacto_nombre
+       FROM core.usuarios u
+       LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id
+      WHERE u.id = $1
       LIMIT 1`,
     [id]
   );

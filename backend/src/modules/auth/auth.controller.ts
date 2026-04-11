@@ -50,6 +50,8 @@ export async function login(req: Request, res: Response) {
         nombre: userPublico.nombre,
         email: userPublico.email,
         es_superadmin: userPublico.es_superadmin,
+        vendedor_contacto_id: userPublico.vendedor_contacto_id,
+        vendedor_contacto_nombre: userPublico.vendedor_contacto_nombre,
       },
       empresas,
     });
@@ -94,6 +96,8 @@ export async function me(req: Request, res: Response) {
         nombre: usuario.nombre,
         email: usuario.email,
         es_superadmin: usuario.es_superadmin,
+        vendedor_contacto_id: usuario.vendedor_contacto_id,
+        vendedor_contacto_nombre: usuario.vendedor_contacto_nombre,
       },
       empresas,
       empresaActiva,

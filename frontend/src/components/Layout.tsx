@@ -5,13 +5,17 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
+import Drawer from '@mui/material/Drawer';
 import Tooltip from '@mui/material/Tooltip';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
+import MenuIcon from '@mui/icons-material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import Divider from '@mui/material/Divider';
-import MainMenu from './Menu.js';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
+import MainMenu, { MainMenuItems, MainMenuLogo } from './Menu.js';
 import EmpresaSelector from './EmpresaSelector.js';
 import { MODULE_TABS, MODULE_DESCRIPTIONS } from './navigationData.js';
 import { useSession } from '../session/useSession';
@@ -36,9 +40,12 @@ export default function Layout({ children }: LayoutProps) {
   const { logout, session } = useSession();
   const userName = session.user?.nombre || 'Usuario';
   const empresaId = session.empresaActivaId;
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
 
   const [ventasTabs, setVentasTabs] = React.useState<{ label: string; value: string; icon?: string | null }[]>([]);
   const [comprasTabs, setComprasTabs] = React.useState<{ label: string; value: string; icon?: string | null }[]>([]);
@@ -225,6 +232,15 @@ export default function Layout({ children }: LayoutProps) {
     if (path) navigate(path);
   };
 
+  const handleDrawerClose = () => {
+    setDrawerOpen(false);
+  };
+
+  const handleDrawerSelect = (section: string) => {
+    handleSectionChange(section);
+    handleDrawerClose();
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -246,7 +262,16 @@ export default function Layout({ children }: LayoutProps) {
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0 }}>
-          <MainMenu selectedSection={selectedSection} onSelect={handleSectionChange} />
+          {isMobile ? (
+            <>
+              <IconButton color="inherit" onClick={() => setDrawerOpen(true)} aria-label="Abrir menú">
+                <MenuIcon />
+              </IconButton>
+              <MainMenuLogo />
+            </>
+          ) : (
+            <MainMenu selectedSection={selectedSection} onSelect={handleSectionChange} />
+          )}
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -302,6 +327,13 @@ export default function Layout({ children }: LayoutProps) {
           </Menu>
         </Box>
       </Box>
+
+      <Drawer anchor="left" open={drawerOpen} onClose={handleDrawerClose}>
+        <Box sx={{ width: 280, p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <MainMenuLogo />
+          <MainMenuItems selectedSection={selectedSection} onSelect={handleDrawerSelect} variant="vertical" />
+        </Box>
+      </Drawer>
 
   <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: { xs: 1.5, md: 2 } }}>
         <Box

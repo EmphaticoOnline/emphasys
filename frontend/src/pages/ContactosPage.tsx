@@ -17,12 +17,13 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import { fetchContactos } from '../services/contactosService.js';
+import { fetchContactos, fetchVendedores } from '../services/contactosService.js';
 import { eliminarContacto } from '../services/contactos.api';
 
 export default function ContactosPage() {
   const navigate = useNavigate();
   const [contactos, setContactos] = useState<any[]>([]);
+  const [vendedores, setVendedores] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,12 +48,30 @@ export default function ContactosPage() {
     }
   };
 
+  const vendedorNombre = useMemo(() => {
+    const map = new Map<number, string>();
+    vendedores.forEach((v: any) => {
+      if (v?.id) map.set(Number(v.id), v.nombre || '');
+    });
+    return map;
+  }, [vendedores]);
+
   const baseColumns: GridColDef[] = [
     { field: 'nombre', headerName: 'Nombre', flex: 1, minWidth: 180, headerClassName: 'finanzas-header' },
     { field: 'email', headerName: 'Email', flex: 1, minWidth: 200, headerClassName: 'finanzas-header' },
     { field: 'clasificacion', headerName: 'Clasificación', width: 150, headerClassName: 'finanzas-header' },
     { field: 'origen_contacto', headerName: 'Origen Contacto', width: 160, headerClassName: 'finanzas-header' },
-    { field: 'vendedor_id', headerName: 'Vendedor(a)', width: 140, headerClassName: 'finanzas-header' },
+    {
+      field: 'vendedor_id',
+      headerName: 'Vendedor(a)',
+      width: 160,
+      headerClassName: 'finanzas-header',
+      renderCell: (params: GridRenderCellParams) => {
+        const value = Number(params.value);
+        if (!value) return '';
+        return vendedorNombre.get(value) || String(params.value ?? '');
+      },
+    },
     { field: 'telefono', headerName: 'Celular', width: 130, headerClassName: 'finanzas-header' },
     { field: 'telefono_secundario', headerName: 'Teléfono', width: 130, headerClassName: 'finanzas-header' },
     { field: 'tipo_contacto', headerName: 'Tipo contacto', width: 150, headerClassName: 'finanzas-header' },
@@ -115,7 +134,7 @@ export default function ContactosPage() {
         return col;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [columnWidths]
+    [columnWidths, vendedorNombre]
   );
 
   const orderedColumns = useMemo(() => {
@@ -151,9 +170,10 @@ export default function ContactosPage() {
 
   const loadContactos = () => {
     setLoading(true);
-    fetchContactos()
-      .then((data) => {
+    Promise.all([fetchContactos(), fetchVendedores()])
+      .then(([data, vendedoresData]) => {
         setContactos(data);
+        setVendedores(vendedoresData);
         setError(null);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))

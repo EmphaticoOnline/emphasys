@@ -7,6 +7,8 @@ export type Usuario = {
   email: string;
   activo: boolean;
   es_superadmin: boolean;
+  vendedor_contacto_id: number | null;
+  vendedor_contacto_nombre?: string | null;
   created_at: string;
 };
 
@@ -19,18 +21,34 @@ const SALT_ROUNDS = 10;
 
 export async function listarUsuarios(): Promise<Usuario[]> {
   const { rows } = await pool.query<Usuario>(
-    `SELECT id, nombre, email, activo, es_superadmin, created_at
-       FROM core.usuarios
-      ORDER BY nombre`
+    `SELECT u.id,
+            u.nombre,
+            u.email,
+            u.activo,
+            u.es_superadmin,
+            u.vendedor_contacto_id,
+            c.nombre AS vendedor_contacto_nombre,
+            u.created_at
+       FROM core.usuarios u
+       LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id
+      ORDER BY u.nombre`
   );
   return rows;
 }
 
 export async function obtenerUsuarioPorId(id: number): Promise<UsuarioDetalle | null> {
   const { rows } = await pool.query<Usuario>(
-    `SELECT id, nombre, email, activo, es_superadmin, created_at
-       FROM core.usuarios
-      WHERE id = $1
+    `SELECT u.id,
+      u.nombre,
+      u.email,
+      u.activo,
+      u.es_superadmin,
+      u.vendedor_contacto_id,
+      c.nombre AS vendedor_contacto_nombre,
+      u.created_at
+       FROM core.usuarios u
+       LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id
+      WHERE u.id = $1
       LIMIT 1`,
     [id]
   );
@@ -79,13 +97,26 @@ export async function crearUsuario(data: {
   password: string;
   es_superadmin?: boolean;
   activo?: boolean;
+  vendedor_contacto_id?: number | null;
 }): Promise<Usuario> {
   const password_hash = await bcrypt.hash(data.password, SALT_ROUNDS);
   const { rows } = await pool.query<Usuario>(
-    `INSERT INTO core.usuarios (nombre, email, password_hash, es_superadmin, activo)
-     VALUES ($1, lower($2), $3, $4, $5)
-     RETURNING id, nombre, email, activo, es_superadmin, created_at`,
-    [data.nombre.trim(), data.email.trim(), password_hash, Boolean(data.es_superadmin), data.activo ?? true]
+    `WITH inserted AS (
+        INSERT INTO core.usuarios (nombre, email, password_hash, es_superadmin, activo, vendedor_contacto_id)
+        VALUES ($1, lower($2), $3, $4, $5, $6)
+        RETURNING id, nombre, email, activo, es_superadmin, vendedor_contacto_id, created_at
+     )
+     SELECT i.id,
+            i.nombre,
+            i.email,
+            i.activo,
+            i.es_superadmin,
+            i.vendedor_contacto_id,
+            c.nombre AS vendedor_contacto_nombre,
+            i.created_at
+       FROM inserted i
+       LEFT JOIN public.contactos c ON c.id = i.vendedor_contacto_id`,
+    [data.nombre.trim(), data.email.trim(), password_hash, Boolean(data.es_superadmin), data.activo ?? true, data.vendedor_contacto_id ?? null]
   );
   return rows[0];
 }
@@ -96,6 +127,7 @@ export async function actualizarUsuario(id: number, data: {
   password?: string;
   es_superadmin?: boolean;
   activo?: boolean;
+  vendedor_contacto_id?: number | null;
 }): Promise<Usuario | null> {
   const updates: string[] = [];
   const values: any[] = [];
@@ -122,15 +154,31 @@ export async function actualizarUsuario(id: number, data: {
     updates.push(`activo = $${idx++}`);
     values.push(Boolean(data.activo));
   }
+  if (data.vendedor_contacto_id !== undefined) {
+    updates.push(`vendedor_contacto_id = $${idx++}`);
+    values.push(data.vendedor_contacto_id ?? null);
+  }
 
   if (!updates.length) return obtenerUsuarioSimple(id);
 
   values.push(id);
   const { rows } = await pool.query<Usuario>(
-    `UPDATE core.usuarios
-        SET ${updates.join(', ')}
-      WHERE id = $${idx}
-      RETURNING id, nombre, email, activo, es_superadmin, created_at`,
+    `WITH updated AS (
+        UPDATE core.usuarios
+           SET ${updates.join(', ')}
+         WHERE id = $${idx}
+      RETURNING id, nombre, email, activo, es_superadmin, vendedor_contacto_id, created_at
+     )
+     SELECT u.id,
+            u.nombre,
+            u.email,
+            u.activo,
+            u.es_superadmin,
+        u.vendedor_contacto_id,
+        c.nombre AS vendedor_contacto_nombre,
+            u.created_at
+       FROM updated u
+     LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id`,
     values
   );
   return rows[0] ?? null;
@@ -138,12 +186,38 @@ export async function actualizarUsuario(id: number, data: {
 
 async function obtenerUsuarioSimple(id: number): Promise<Usuario | null> {
   const { rows } = await pool.query<Usuario>(
-    `SELECT id, nombre, email, activo, es_superadmin, created_at
-       FROM core.usuarios
-      WHERE id = $1
+    `SELECT u.id,
+      u.nombre,
+      u.email,
+      u.activo,
+      u.es_superadmin,
+      u.vendedor_contacto_id,
+      c.nombre AS vendedor_contacto_nombre,
+      u.created_at
+    FROM core.usuarios u
+    LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id
+      WHERE u.id = $1
       LIMIT 1`,
     [id]
   );
+  return rows[0] ?? null;
+}
+
+export type ContactoBasico = {
+  id: number;
+  nombre: string;
+  tipo_contacto: string;
+};
+
+export async function obtenerContactoBasico(contactoId: number): Promise<ContactoBasico | null> {
+  const { rows } = await pool.query<ContactoBasico>(
+    `SELECT id, nombre, tipo_contacto
+       FROM public.contactos
+      WHERE id = $1
+      LIMIT 1`,
+    [contactoId]
+  );
+
   return rows[0] ?? null;
 }
 

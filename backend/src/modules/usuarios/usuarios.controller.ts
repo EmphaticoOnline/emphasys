@@ -6,10 +6,26 @@ import {
   crearUsuario,
   desactivarUsuario,
   listarUsuarios,
+  obtenerContactoBasico,
   obtenerUsuarioPorId,
   obtenerUsuarioEmpresasYRoles,
   usuarioTieneRelaciones,
 } from './usuarios.repository';
+
+type VendedorContactoIdParseResult = {
+  vendedorContactoId?: number | null;
+  error?: string;
+};
+
+function parseVendedorContactoId(value: unknown): VendedorContactoIdParseResult {
+  if (value === undefined) return { vendedorContactoId: undefined };
+  if (value === null) return { vendedorContactoId: null };
+  const vendedorContactoId = Number(value);
+  if (!Number.isFinite(vendedorContactoId)) {
+    return { error: 'vendedor_contacto_id inválido' };
+  }
+  return { vendedorContactoId };
+}
 
 export async function getUsuarios(_req: Request, res: Response) {
   try {
@@ -50,15 +66,27 @@ export async function getUsuarioEmpresas(req: Request, res: Response) {
 export async function postUsuario(req: Request, res: Response) {
   try {
     const { nombre, email, password, es_superadmin = false, activo = true } = req.body || {};
+  const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
+  if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
+  const vendedorContactoId = contactoParse.vendedorContactoId;
     if (!nombre || String(nombre).trim() === '') return res.status(400).json({ message: 'El nombre es obligatorio' });
     if (!email || String(email).trim() === '') return res.status(400).json({ message: 'El email es obligatorio' });
     if (!password || String(password).length < 6) return res.status(400).json({ message: 'El password es obligatorio (mínimo 6 caracteres)' });
 
+    if (vendedorContactoId !== undefined && vendedorContactoId !== null) {
+      const contacto = await obtenerContactoBasico(vendedorContactoId);
+      if (!contacto) return res.status(400).json({ message: 'vendedor_contacto_id no existe' });
+      if (contacto.tipo_contacto !== 'Vendedor') {
+        return res.status(400).json({ message: 'vendedor_contacto_id debe ser de tipo Vendedor' });
+      }
+    }
+
     try {
-      const nuevo = await crearUsuario({ nombre, email, password, es_superadmin, activo });
+      const nuevo = await crearUsuario({ nombre, email, password, es_superadmin, activo, vendedor_contacto_id: vendedorContactoId });
       res.status(201).json(nuevo);
     } catch (err: any) {
       if (err?.code === '23505') return res.status(409).json({ message: 'Ya existe un usuario con ese email' });
+      if (err?.code === '23514') return res.status(400).json({ message: 'vendedor_contacto_id debe ser de tipo Vendedor' });
       throw err;
     }
   } catch (error) {
@@ -73,16 +101,28 @@ export async function putUsuario(req: Request, res: Response) {
     if (!Number.isFinite(id)) return res.status(400).json({ message: 'id inválido' });
 
     const { nombre, email, password, es_superadmin, activo } = req.body || {};
+  const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
+  if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
+  const vendedorContactoId = contactoParse.vendedorContactoId;
     if (email !== undefined && String(email).trim() === '') return res.status(400).json({ message: 'El email no puede estar vacío' });
     if (nombre !== undefined && String(nombre).trim() === '') return res.status(400).json({ message: 'El nombre no puede estar vacío' });
     if (password !== undefined && String(password).length < 6) return res.status(400).json({ message: 'El password debe tener al menos 6 caracteres' });
 
+    if (vendedorContactoId !== undefined && vendedorContactoId !== null) {
+      const contacto = await obtenerContactoBasico(vendedorContactoId);
+      if (!contacto) return res.status(400).json({ message: 'vendedor_contacto_id no existe' });
+      if (contacto.tipo_contacto !== 'Vendedor') {
+        return res.status(400).json({ message: 'vendedor_contacto_id debe ser de tipo Vendedor' });
+      }
+    }
+
     try {
-      const actualizado = await actualizarUsuario(id, { nombre, email, password, es_superadmin, activo });
+      const actualizado = await actualizarUsuario(id, { nombre, email, password, es_superadmin, activo, vendedor_contacto_id: vendedorContactoId });
       if (!actualizado) return res.status(404).json({ message: 'Usuario no encontrado' });
       res.json(actualizado);
     } catch (err: any) {
       if (err?.code === '23505') return res.status(409).json({ message: 'Ya existe un usuario con ese email' });
+      if (err?.code === '23514') return res.status(400).json({ message: 'vendedor_contacto_id debe ser de tipo Vendedor' });
       throw err;
     }
   } catch (error) {

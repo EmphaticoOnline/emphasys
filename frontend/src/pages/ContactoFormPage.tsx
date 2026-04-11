@@ -22,6 +22,7 @@ import {
 import type { SelectChangeEvent } from '@mui/material/Select';
 import { getContacto, crearContacto, actualizarContacto, obtenerCatalogosConfigurablesContacto, guardarCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../services/contactos.api';
 import { apiFetch } from '../services/apiFetch';
+import { fetchVendedores } from '../services/contactosService';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
 
@@ -118,6 +119,8 @@ function validarRFC(rfc: string) {
   const [comercialLoading, setComercialLoading] = useState<boolean>(false);
   const [comercialError, setComercialError] = useState<string | null>(null);
 
+  const [vendedores, setVendedores] = useState<Contacto[]>([]);
+
   const [cpSatLoading, setCpSatLoading] = useState<boolean>(false);
   const [coloniasSatLoading, setColoniasSatLoading] = useState<boolean>(false);
   const [coloniasSatOptions, setColoniasSatOptions] = useState<{ colonia: string; texto: string }[]>([]);
@@ -180,6 +183,25 @@ function validarRFC(rfc: string) {
       isMounted = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadVendedores = async () => {
+      try {
+        const data = await fetchVendedores();
+        if (isMounted) setVendedores(data);
+      } catch (err) {
+        if (isMounted) setVendedores([]);
+      }
+    };
+
+    loadVendedores();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -522,6 +544,7 @@ function validarRFC(rfc: string) {
                     value={form.tipo_contacto}
                     onChange={handleSelectChange}
                   >
+                    <MenuItem value="Lead">Lead</MenuItem>
                     <MenuItem value="Cliente">Cliente</MenuItem>
                     <MenuItem value="Proveedor">Proveedor</MenuItem>
                     <MenuItem value="Vendedor">Vendedor</MenuItem>
@@ -542,12 +565,18 @@ function validarRFC(rfc: string) {
                   fullWidth
                 />
 
-                <TextField
-                  label="Vendedor(a) ID"
-                  type="number"
-                  value={form.vendedor_id}
-                  onChange={handleTextChange('vendedor_id')}
-                  fullWidth
+                <Autocomplete
+                  options={vendedores}
+                  getOptionLabel={(option) => option.nombre || ''}
+                  value={vendedores.find((v) => v.id === Number(form.vendedor_id)) || null}
+                  onChange={(_, value) => setForm((prev) => ({ ...prev, vendedor_id: value ? String(value.id) : '' }))}
+                  renderInput={(params) => (
+                    <TextField
+                      {...(params as any)}
+                      label="Vendedor"
+                      fullWidth
+                    />
+                  )}
                 />
 
                 <TextField label="RFC" value={form.rfc} onChange={handleTextChange('rfc')} fullWidth />

@@ -64,6 +64,7 @@ const CAMPOS_DOCUMENTO = [
   'subtotal',
   'iva',
   'total',
+  'agente_id',
   'estatus_documento',
   'usuario_creacion_id',
   'tratamiento_impuestos',

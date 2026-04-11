@@ -247,7 +247,8 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
         c.telefono,
         c.telefono_secundario,
         c.activo,
-        c.tipo_contacto,
+  c.tipo_contacto,
+  c.vendedor_id,
 
         cd.calle,
         cd.numero_exterior,
@@ -295,6 +296,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
       telefono_secundario: row.telefono_secundario,
       activo: row.activo,
       tipo_contacto: row.tipo_contacto,
+  vendedor_id: row.vendedor_id,
     },
     domicilio_principal: {
       calle: row.calle,

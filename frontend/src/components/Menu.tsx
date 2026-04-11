@@ -15,13 +15,78 @@ type MainMenuProps = {
   onSelect: (section: string) => void;
 };
 
-export default function MainMenu({ selectedSection, onSelect }: MainMenuProps) {
+type MainMenuItemsProps = {
+  selectedSection: string;
+  onSelect: (section: string) => void;
+  variant?: 'horizontal' | 'vertical';
+};
+
+export function MainMenuLogo() {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+      <img src={logo} alt="Logo Emphasys" style={{ height: 44, width: 'auto' }} />
+    </Box>
+  );
+}
+
+export function MainMenuItems({ selectedSection, onSelect, variant = 'horizontal' }: MainMenuItemsProps) {
   const handleMenuClick = (index: number, _event: React.MouseEvent<HTMLElement>) => {
     const item = MAIN_MENUS[index];
     if (!item) return;
     onSelect(item.label);
   };
 
+  const isVertical = variant === 'vertical';
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: isVertical ? 'stretch' : 'center',
+        gap: isVertical ? 0.75 : 1.1,
+        height: '100%',
+        minWidth: 0,
+        flexDirection: isVertical ? 'column' : 'row',
+      }}
+    >
+      {MAIN_MENUS.map((menu, idx) => {
+        const active = selectedSection === menu.label;
+        return (
+          <Button
+            key={menu.label}
+            onClick={(e) => handleMenuClick(idx, e)}
+            sx={{
+              height: isVertical ? 'auto' : '100%',
+              alignItems: 'center',
+              justifyContent: isVertical ? 'flex-start' : 'center',
+              color: isVertical ? (active ? azul : '#334155') : active ? '#fff' : grisInactivo,
+              fontWeight: active ? 700 : 600,
+              textTransform: 'none',
+              fontSize: 15,
+              borderRadius: isVertical ? 1 : 0,
+              borderBottom: !isVertical && active ? `3px solid ${verde}` : '3px solid transparent',
+              backgroundColor: isVertical && active ? 'rgba(29,47,104,0.12)' : 'transparent',
+              '&:hover': {
+                backgroundColor: isVertical ? 'rgba(29,47,104,0.16)' : 'transparent',
+                color: isVertical ? azul : '#fff',
+                borderBottom: !isVertical ? `3px solid ${verde}` : '3px solid transparent',
+              },
+              px: isVertical ? 1.5 : 1.25,
+              py: isVertical ? 1 : 0,
+              minWidth: 0,
+              width: isVertical ? '100%' : 'auto',
+              textAlign: isVertical ? 'left' : 'center',
+            }}
+          >
+            {menu.label}
+          </Button>
+        );
+      })}
+    </Box>
+  );
+}
+
+export default function MainMenu({ selectedSection, onSelect }: MainMenuProps) {
   return (
     <Box
       sx={{
@@ -40,48 +105,8 @@ export default function MainMenu({ selectedSection, onSelect }: MainMenuProps) {
         '&::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-        <img src={logo} alt="Logo Emphasys" style={{ height: 44, width: 'auto' }} />
-      </Box>
-
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.1,
-          height: '100%',
-          minWidth: 0,
-        }}
-      >
-        {MAIN_MENUS.map((menu, idx) => {
-          const active = selectedSection === menu.label;
-          return (
-            <Button
-              key={menu.label}
-              onClick={(e) => handleMenuClick(idx, e)}
-              sx={{
-                height: '100%',
-                alignItems: 'center',
-                color: active ? '#fff' : grisInactivo,
-                fontWeight: active ? 700 : 600,
-                textTransform: 'none',
-                fontSize: 15,
-                borderRadius: 0,
-                borderBottom: active ? `3px solid ${verde}` : '3px solid transparent',
-                '&:hover': {
-                  backgroundColor: 'transparent',
-                  color: '#fff',
-                  borderBottom: `3px solid ${verde}`,
-                },
-                px: 1.25,
-                minWidth: 0,
-              }}
-            >
-              {menu.label}
-            </Button>
-          );
-        })}
-      </Box>
+      <MainMenuLogo />
+      <MainMenuItems selectedSection={selectedSection} onSelect={onSelect} />
     </Box>
   );
 }

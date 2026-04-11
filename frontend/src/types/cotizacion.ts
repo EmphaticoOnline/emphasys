@@ -28,6 +28,7 @@ export interface CotizacionDocumento {
   numero: number | null;
   fecha_documento: string;
   contacto_principal_id: number | null;
+  agente_id?: number | null;
   moneda: string | null;
   observaciones?: string | null;
   subtotal: number;
@@ -92,6 +93,7 @@ export interface CotizacionCrearPayload {
   tipo_documento?: TipoDocumento;
   serie?: string | null;
   contacto_principal_id: number | null;
+  agente_id?: number | null;
   fecha_documento: string;
   moneda: string | null;
   observaciones?: string | null;

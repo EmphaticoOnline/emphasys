@@ -32,6 +32,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import { useSession } from '../../session/useSession';
 import type { Usuario, UsuarioPayload } from '../../types/usuario';
 import type { Rol } from '../../types/rol';
+import type { Contacto } from '../../types/contactos.types';
 import {
   asignarEmpresas,
   asignarRoles,
@@ -42,6 +43,7 @@ import {
   updateUsuario,
 } from '../../services/usuariosService';
 import { apiFetch } from '../../services/apiFetch';
+import { fetchContactos } from '../../services/contactosService';
 
 const emptyForm: UsuarioPayload & { password?: string } = {
   nombre: '',
@@ -49,6 +51,7 @@ const emptyForm: UsuarioPayload & { password?: string } = {
   password: '',
   es_superadmin: false,
   activo: true,
+  vendedor_contacto_id: null,
 };
 
 type RolesCache = Record<number, Rol[]>;
@@ -73,6 +76,8 @@ export default function UsuariosPage() {
   const [rolesCache, setRolesCache] = useState<RolesCache>({});
   const [rolesSeleccionados, setRolesSeleccionados] = useState<RolesSeleccionados>({});
   const [empresasSeleccionadas, setEmpresasSeleccionadas] = useState<{ empresa_id: number; activo: boolean }[]>([]);
+  const [vendedores, setVendedores] = useState<Contacto[]>([]);
+  const [vendedoresLoading, setVendedoresLoading] = useState(false);
 
   const faltantes = useMemo(() => {
     const missing: string[] = [];
@@ -101,9 +106,27 @@ export default function UsuariosPage() {
     void loadUsuarios();
   }, []);
 
+  useEffect(() => {
+    const loadVendedores = async () => {
+      setVendedoresLoading(true);
+      try {
+        const contactos = await fetchContactos();
+        const soloVendedores = contactos.filter((c) => c.tipo_contacto === 'Vendedor');
+        setVendedores(soloVendedores);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'No se pudieron cargar los vendedores';
+        setFormError(msg);
+      } finally {
+        setVendedoresLoading(false);
+      }
+    };
+
+    void loadVendedores();
+  }, []);
+
   const handleOpenCreate = () => {
     setEditId(null);
-    setForm({ ...emptyForm, activo: true, es_superadmin: false, password: '' });
+    setForm({ ...emptyForm, activo: true, es_superadmin: false, password: '', vendedor_contacto_id: null });
     setFormError(null);
     setDialogOpen(true);
     setEmpresasSeleccionadas([]);
@@ -112,7 +135,14 @@ export default function UsuariosPage() {
 
   const handleOpenEdit = async (usuario: Usuario) => {
     setEditId(usuario.id);
-    setForm({ nombre: usuario.nombre, email: usuario.email, activo: usuario.activo, es_superadmin: usuario.es_superadmin, password: '' });
+    setForm({
+      nombre: usuario.nombre,
+      email: usuario.email,
+      activo: usuario.activo,
+      es_superadmin: usuario.es_superadmin,
+      password: '',
+      vendedor_contacto_id: usuario.vendedor_contacto_id ?? null,
+    });
     setFormError(null);
     setDialogOpen(true);
     setDetalleLoading(true);
@@ -121,6 +151,10 @@ export default function UsuariosPage() {
     try {
       const det = await fetchUsuario(usuario.id);
       const empresasAsignadas = det.empresas ?? [];
+      setForm((prev) => ({
+        ...prev,
+        vendedor_contacto_id: det.vendedor_contacto_id ?? prev.vendedor_contacto_id ?? null,
+      }));
       setEmpresasSeleccionadas(empresasAsignadas);
       const rolesMap: RolesSeleccionados = {};
       (det.roles ?? []).forEach((r) => {
@@ -179,6 +213,7 @@ export default function UsuariosPage() {
       email: form.email,
       es_superadmin: Boolean(form.es_superadmin),
       activo: Boolean(form.activo),
+      vendedor_contacto_id: form.vendedor_contacto_id ?? null,
     };
     if (!editId || (form.password && form.password.length > 0)) {
       payload.password = form.password || '';
@@ -289,10 +324,19 @@ export default function UsuariosPage() {
 
       <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1, backgroundColor: '#fff' }}>
         <Table size="small">
-          <TableHead>
+          <TableHead
+            sx={{
+              '& .MuiTableCell-root': {
+                backgroundColor: '#1d2f68',
+                color: '#ffffff',
+                fontWeight: 600,
+              },
+            }}
+          >
             <TableRow>
               <TableCell>Nombre</TableCell>
               <TableCell>Email</TableCell>
+              <TableCell>Vendedor</TableCell>
               <TableCell>Superadmin</TableCell>
               <TableCell>Activo</TableCell>
               <TableCell align="right">Acciones</TableCell>
@@ -301,11 +345,11 @@ export default function UsuariosPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5}>Cargando...</TableCell>
+                <TableCell colSpan={6}>Cargando...</TableCell>
               </TableRow>
             ) : usuarios.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5}>No hay usuarios registrados.</TableCell>
+                <TableCell colSpan={6}>No hay usuarios registrados.</TableCell>
               </TableRow>
             ) : (
               usuarios.map((usuario) => (
@@ -317,6 +361,7 @@ export default function UsuariosPage() {
                     </Stack>
                   </TableCell>
                   <TableCell>{usuario.email}</TableCell>
+                  <TableCell>{usuario.vendedor_contacto_nombre ?? '—'}</TableCell>
                   <TableCell>{usuario.es_superadmin ? 'Sí' : 'No'}</TableCell>
                   <TableCell>{usuario.activo ? 'Activo' : 'Inactivo'}</TableCell>
                   <TableCell align="right">
@@ -382,6 +427,25 @@ export default function UsuariosPage() {
             control={<Switch checked={Boolean(form.activo)} onChange={(e) => handleChange('activo', e.target.checked)} color="primary" />}
             label="Usuario activo"
           />
+
+          <TextField
+            select
+            label="Vendedor"
+            fullWidth
+            value={form.vendedor_contacto_id ? String(form.vendedor_contacto_id) : ''}
+            onChange={(e) => handleChange('vendedor_contacto_id', e.target.value ? Number(e.target.value) : null)}
+            disabled={vendedoresLoading}
+            helperText="Opcional"
+          >
+            <MenuItem value="">
+              <em>Sin vendedor</em>
+            </MenuItem>
+            {vendedores.map((v) => (
+              <MenuItem key={v.id} value={String(v.id)}>
+                {v.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
 
           <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2, mt: 1 }}>
             <Typography variant="h6" fontWeight={700} color="#1d2f68" gutterBottom>

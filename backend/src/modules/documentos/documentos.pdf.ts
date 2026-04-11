@@ -180,16 +180,47 @@ async function obtenerLogoEmpresaPath(empresaId?: number): Promise<string | null
     );
 
     const ruta = rows?.[0]?.ruta as string | undefined;
-    if (!ruta) return null;
+    if (!ruta) {
+      try {
+        const dbInfo = await pool.query<{ db: string }>('SELECT current_database() AS db');
+        console.warn('[pdf] Logo no encontrado en BD', {
+          empresaId,
+          rowCount: rows?.length ?? 0,
+          dbEnv: process.env.DB_NAME,
+          currentDb: dbInfo.rows?.[0]?.db,
+        });
+      } catch (err) {
+        console.warn('[pdf] No se pudo obtener la BD actual al buscar logo', err);
+      }
+      return null;
+    }
 
     // La ruta almacenada viene como /uploads/empresas/...; resolvemos a disco
-    const uploadsRoot = process.env.UPLOADS_DIR
-      ? path.resolve(process.env.UPLOADS_DIR)
-      : path.resolve(process.cwd(), 'uploads');
+    const normalizedRuta = ruta.replace(/\\/g, '/');
+    if (path.isAbsolute(normalizedRuta) && !normalizedRuta.startsWith('/uploads/')) {
+      return fs.existsSync(normalizedRuta) ? normalizedRuta : null;
+    }
 
-    const relative = ruta.replace(/^\/?uploads\/?/i, '');
-    const absPath = path.join(uploadsRoot, relative);
-    return fs.existsSync(absPath) ? absPath : null;
+    const backendUploadsRoot = path.resolve(__dirname, '..', '..', '..', 'uploads');
+    const uploadsRootCandidates = [
+      process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : null,
+      path.resolve(process.cwd(), 'uploads'),
+      backendUploadsRoot,
+      path.resolve(__dirname, '..', '..', '..', '..', 'uploads'),
+    ].filter((candidate): candidate is string => Boolean(candidate));
+
+  const relative = normalizedRuta.replace(/^\/?uploads\/?/i, '');
+    for (const root of uploadsRootCandidates) {
+      const absPath = path.join(root, relative);
+      if (fs.existsSync(absPath)) return absPath;
+    }
+
+    console.warn('[pdf] Logo no encontrado en rutas esperadas', {
+      empresaId,
+      ruta,
+      uploadsRootCandidates,
+    });
+    return null;
   } catch (error) {
     console.warn('[pdf] No se pudo obtener logo de empresa', error);
     return null;
@@ -199,6 +230,8 @@ async function obtenerLogoEmpresaPath(empresaId?: number): Promise<string | null
 export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: number): Promise<Buffer> {
   const { documento, partidas } = data;
   const timbre = documento?.timbre;
+
+  try {
 
   let qrBuffer: Buffer | null = null;
   const estaTimbrado = !!timbre?.uuid;
@@ -226,25 +259,48 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const borderGray = '#e5e7eb';
 
   const backendRoot = path.resolve(__dirname, '..', '..', '..');
+  const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
   const defaultLogoPath = path.resolve(backendRoot, '..', 'frontend', 'public', 'logos', 'logo-emphasys.jpg');
   const empresaLogoPath = await obtenerLogoEmpresaPath(empresaId ?? (documento as any)?.empresa_id);
   const logoPath = empresaLogoPath && fs.existsSync(empresaLogoPath) ? empresaLogoPath : defaultLogoPath;
   const hasLogo = fs.existsSync(logoPath);
+  console.info('[pdf] Logo resuelto', {
+    empresaId: empresaId ?? (documento as any)?.empresa_id,
+    empresaLogoPath,
+    logoPath,
+    hasLogo,
+  });
   const fontRegularPath = path.join(__dirname, '../../fonts/TrebuchetMS.ttf');
   const fontBoldPath = path.join(__dirname, '../../fonts/TrebuchetMS-Bold.ttf');
 
   return await new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40, size: 'LETTER' });
 
-  const fontsPath = path.join(process.cwd(), 'fonts');
+    const fontCandidates = [
+      path.join(process.cwd(), 'fonts'),
+      path.join(repoRoot, 'fonts'),
+    ];
+    const fontsPath = fontCandidates.find((candidate) => fs.existsSync(candidate));
 
-  doc.registerFont('Trebuchet', path.join(fontsPath, 'TREBUC.ttf'));
-  doc.registerFont('Trebuchet-Bold', path.join(fontsPath, 'TREBUCBD.ttf'));
+    let hasTrebuchet = false;
+    let hasTrebuchetBold = false;
+    if (fontsPath) {
+      const regular = path.join(fontsPath, 'TREBUC.ttf');
+      const bold = path.join(fontsPath, 'TREBUCBD.ttf');
+      if (fs.existsSync(regular)) {
+        doc.registerFont('Trebuchet', regular);
+        hasTrebuchet = true;
+      }
+      if (fs.existsSync(bold)) {
+        doc.registerFont('Trebuchet-Bold', bold);
+        hasTrebuchetBold = true;
+      }
+    }
 
     const chunks: Buffer[] = [];
 
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-    doc.on('error', reject);
+  doc.on('error', reject);
     doc.on('end', () => resolve(Buffer.concat(chunks)));
 
     // Registrar fuentes Trebuchet si existen
@@ -252,14 +308,17 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
     const fontBold = fontBoldPath;
     if (fs.existsSync(fontRegular)) {
       doc.registerFont('Trebuchet', fontRegular);
+      hasTrebuchet = true;
     }
     if (fs.existsSync(fontBold)) {
       doc.registerFont('Trebuchet-Bold', fontBold);
+      hasTrebuchetBold = true;
     }
-    doc.font('Trebuchet');
+    doc.font(hasTrebuchet ? 'Trebuchet' : 'Helvetica');
 
     const setFont = (bold = false, size = 10, color = '#111827') => {
-      doc.font(bold ? 'Trebuchet-Bold' : 'Trebuchet');
+      const fontName = bold ? (hasTrebuchetBold ? 'Trebuchet-Bold' : 'Helvetica-Bold') : hasTrebuchet ? 'Trebuchet' : 'Helvetica';
+      doc.font(fontName);
       doc.fontSize(size).fillColor(color);
     };
 
@@ -395,11 +454,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       doc.save();
       values.forEach((text, idx) => {
         const x = startX + columnWidths.slice(0, idx).reduce((acc, w) => acc + w, 0) + 6;
-        doc
-          .fontSize(isHeader ? 10 : 9)
-          .font(isHeader ? 'Trebuchet-Bold' : 'Trebuchet')
-          .fillColor(isHeader ? '#ffffff' : mutedText)
-          .text(text, x, y + 6, { width: columnWidths[idx] - 12, align: idx >= 2 ? 'right' : 'left' });
+        setFont(isHeader, isHeader ? 10 : 9, isHeader ? '#ffffff' : mutedText);
+        doc.text(text, x, y + 6, { width: columnWidths[idx] - 12, align: idx >= 2 ? 'right' : 'left' });
       });
       doc.restore();
       doc.y = y + rowHeight;
@@ -586,4 +642,15 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
     doc.end();
   });
+  } catch (error) {
+    console.error('[pdf] Error al generar PDF', {
+      documentoId: documento?.id,
+      tipoDocumento: documento?.tipo_documento,
+      empresaId,
+      hasPartidas: Boolean(partidas?.length),
+      error: (error as Error)?.message,
+      stack: (error as Error)?.stack,
+    });
+    throw error;
+  }
 }

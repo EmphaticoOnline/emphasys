@@ -1,5 +1,86 @@
 import pool from '../../config/database';
 import type { PoolClient } from 'pg';
+import type { TipoDocumento } from '../../types/documentos';
+import { crearDocumentoRepository } from './documentos.repository';
+
+type DocumentoCrearPayload = Record<string, any> & {
+  agente_id?: number | null;
+  documento_origen_id?: number | null;
+  contacto_principal_id?: number | null;
+  usuario_creacion_id?: number | null;
+};
+
+/**
+ * Asigna agente_id (si no viene en el payload) con las reglas definidas.
+ */
+async function resolverAgenteId(payload: DocumentoCrearPayload, empresaId: number): Promise<number | null | undefined> {
+  let resolved = false;
+  let agenteId: number | null | undefined = undefined;
+
+  if (payload.documento_origen_id) {
+    const { rows } = await pool.query(
+      `SELECT agente_id
+         FROM documentos
+        WHERE id = $1 AND empresa_id = $2
+        LIMIT 1`,
+      [payload.documento_origen_id, empresaId]
+    );
+    if (rows[0]) {
+      agenteId = rows[0].agente_id ?? null;
+      resolved = true;
+    }
+  }
+
+  if (!resolved && payload.contacto_principal_id) {
+    const { rows } = await pool.query(
+      `SELECT vendedor_id
+         FROM contactos
+        WHERE id = $1 AND empresa_id = $2
+        LIMIT 1`,
+      [payload.contacto_principal_id, empresaId]
+    );
+    const vendedorId = rows[0]?.vendedor_id ?? null;
+    if (vendedorId !== null) {
+      agenteId = vendedorId;
+      resolved = true;
+    }
+  }
+
+  if (!resolved && payload.usuario_creacion_id) {
+    const { rows } = await pool.query(
+      `SELECT vendedor_contacto_id
+         FROM core.usuarios
+        WHERE id = $1
+        LIMIT 1`,
+      [payload.usuario_creacion_id]
+    );
+    if (rows[0]) {
+      agenteId = rows[0].vendedor_contacto_id ?? null;
+      resolved = true;
+    }
+  }
+
+  return resolved ? agenteId ?? null : undefined;
+}
+
+/**
+ * Crea documentos aplicando reglas de agente_id antes de persistir.
+ */
+export async function crearDocumentoService(
+  payload: DocumentoCrearPayload,
+  empresaId: number,
+  tipoDocumento: TipoDocumento
+) {
+  const data = { ...payload };
+  if (data.agente_id === undefined) {
+    const agenteId = await resolverAgenteId(data, empresaId);
+    if (agenteId !== undefined) {
+      data.agente_id = agenteId;
+    }
+  }
+
+  return crearDocumentoRepository(data, empresaId, tipoDocumento);
+}
 
 /**
  * Recalcula subtotal, iva y total de un documento a partir de sus partidas.
