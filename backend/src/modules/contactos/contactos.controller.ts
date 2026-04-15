@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import {
   obtenerContactos,
+  obtenerContactosPaginados,
   insertarContacto,
   actualizarContacto as actualizarContactoRepository,
   obtenerContactoPorId,
@@ -72,7 +73,33 @@ export const getContactos = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "empresaId es obligatorio" });
     }
 
-    const result = await obtenerContactos(Number(empresaId));
+  const tiposRaw = req.query.tipos;
+    const tipos = typeof tiposRaw === 'string'
+      ? tiposRaw
+          .split(',')
+          .map((tipo) => tipo.trim())
+          .filter(Boolean)
+      : undefined;
+
+  const searchRaw = req.query.search;
+  const search = typeof searchRaw === 'string' ? searchRaw.trim() : undefined;
+
+    const pageRaw = req.query.page;
+    const limitRaw = req.query.limit;
+    const page = typeof pageRaw === 'string' ? Number(pageRaw) : undefined;
+    const limit = typeof limitRaw === 'string' ? Number(limitRaw) : undefined;
+
+    const usingPagination = Number.isFinite(page) && Number.isFinite(limit);
+    if (usingPagination) {
+      if (!page || page < 1 || !limit || limit < 1 || limit > 100) {
+        return res.status(400).json({ message: 'page y limit deben ser válidos (1-100)' });
+      }
+
+      const result = await obtenerContactosPaginados(Number(empresaId), tipos, page, limit, search);
+      return res.json({ data: result.data, total: result.total, page, limit });
+    }
+
+    const result = await obtenerContactos(Number(empresaId), tipos);
     res.json(result);
   } catch (error) {
     console.error("Error al obtener contactos:", error);

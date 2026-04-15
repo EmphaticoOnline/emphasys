@@ -120,6 +120,7 @@ async function upsertDomicilioPrincipal(
   const insertResult = await client.query(
     `INSERT INTO contactos_domicilios (
         contacto_id,
+        identificador,
         calle,
         numero_exterior,
         numero_interior,
@@ -132,7 +133,7 @@ async function upsertDomicilioPrincipal(
         colonia_sat,
         es_principal
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true)
+  VALUES ($1,'PRINCIPAL',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true)
       RETURNING *`,
     [contactoId, ...values]
   );
@@ -183,16 +184,169 @@ async function upsertDatosFiscales(
   return insertResult.rows[0];
 }
 
-export async function obtenerContactos(empresaId: number) {
+export async function obtenerContactos(empresaId: number, tipos?: string[]) {
+  const tiposNormalizados = tipos?.map((tipo) => tipo.trim().toLowerCase()).filter(Boolean);
+  const params: Array<number | string[]> = [empresaId];
+  const filtros: string[] = ['contactos.empresa_id = $1'];
+
+  if (tiposNormalizados && tiposNormalizados.length) {
+    params.push(tiposNormalizados);
+    filtros.push('LOWER(contactos.tipo_contacto::text) = ANY($2)');
+  }
+
   const result = await pool.query(
-    `SELECT *
+    `SELECT contactos.*,
+            clasificacion.clave AS clasificacion,
+            clasificacion.descripcion AS clasificacion_descripcion,
+            origen.clave AS origen_contacto,
+            origen.descripcion AS origen_contacto_descripcion,
+            vendedor.nombre AS vendedor_nombre
      FROM contactos
-     WHERE empresa_id = $1
-     ORDER BY nombre ASC`,
-    [empresaId]
+     LEFT JOIN contactos vendedor
+       ON vendedor.id = contactos.vendedor_id
+      AND vendedor.empresa_id = contactos.empresa_id
+    LEFT JOIN LATERAL (
+  SELECT c.clave,
+         c.descripcion
+         FROM core.entidades_catalogos ec
+         JOIN core.catalogos c ON c.id = ec.catalogo_id
+         JOIN core.catalogos_tipos ct ON ct.id = c.tipo_catalogo_id
+        WHERE ec.empresa_id = contactos.empresa_id
+          AND ec.entidad_id = contactos.id
+          AND ec.entidad_tipo_id = (
+            SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+          )
+          AND ct.nombre ILIKE '%clasificacion%'
+        ORDER BY c.orden NULLS LAST, c.descripcion ASC
+    LIMIT 1
+     ) clasificacion ON true
+     LEFT JOIN LATERAL (
+  SELECT c.clave,
+         c.descripcion
+         FROM core.entidades_catalogos ec
+         JOIN core.catalogos c ON c.id = ec.catalogo_id
+         JOIN core.catalogos_tipos ct ON ct.id = c.tipo_catalogo_id
+        WHERE ec.empresa_id = contactos.empresa_id
+          AND ec.entidad_id = contactos.id
+          AND ec.entidad_tipo_id = (
+            SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+          )
+          AND ct.nombre ILIKE '%origen%'
+        ORDER BY c.orden NULLS LAST, c.descripcion ASC
+  LIMIT 1
+     ) origen ON true
+     WHERE ${filtros.join(' AND ')}
+     ORDER BY contactos.nombre ASC`,
+    params
   );
 
   return result.rows;
+}
+
+export async function obtenerContactosPaginados(
+  empresaId: number,
+  tipos: string[] | undefined,
+  page: number,
+  limit: number,
+  search?: string
+) {
+  const tiposNormalizados = tipos?.map((tipo) => tipo.trim().toLowerCase()).filter(Boolean);
+  const params: Array<number | string[] | string> = [empresaId];
+  const filtros: string[] = ['contactos.empresa_id = $1'];
+
+  if (tiposNormalizados && tiposNormalizados.length) {
+    params.push(tiposNormalizados);
+  filtros.push(`LOWER(contactos.tipo_contacto::text) = ANY($${params.length})`);
+  }
+
+  if (search && search.trim()) {
+    const term = `%${search.trim()}%`;
+    params.push(term);
+    const idx = params.length;
+    filtros.push(
+      `(
+        contactos.nombre ILIKE $${idx}
+        OR contactos.email ILIKE $${idx}
+        OR contactos.rfc ILIKE $${idx}
+        OR contactos.telefono ILIKE $${idx}
+        OR contactos.telefono_secundario ILIKE $${idx}
+        OR contactos.tipo_contacto::text ILIKE $${idx}
+        OR contactos.vendedor_id::text ILIKE $${idx}
+        OR vendedor.nombre ILIKE $${idx}
+        OR c.descripcion ILIKE $${idx}
+      )`
+    );
+  }
+
+  const offset = (page - 1) * limit;
+  params.push(limit, offset);
+  const limitIndex = params.length - 1;
+  const offsetIndex = params.length;
+
+  const result = await pool.query(
+    `SELECT base_contactos.*, COUNT(*) OVER() AS total_count
+     FROM (
+       SELECT DISTINCT ON (contactos.id)
+              contactos.*,
+    clasificacion.clave AS clasificacion,
+    clasificacion.descripcion AS clasificacion_descripcion,
+    origen.clave AS origen_contacto,
+    origen.descripcion AS origen_contacto_descripcion,
+              vendedor.nombre AS vendedor_nombre
+       FROM contactos
+       LEFT JOIN contactos vendedor
+         ON vendedor.id = contactos.vendedor_id
+        AND vendedor.empresa_id = contactos.empresa_id
+       LEFT JOIN core.entidades_catalogos ec
+         ON ec.empresa_id = contactos.empresa_id
+        AND ec.entidad_id = contactos.id
+        AND ec.entidad_tipo_id = (
+          SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+        )
+       LEFT JOIN core.catalogos c
+         ON c.id = ec.catalogo_id
+       LEFT JOIN LATERAL (
+    SELECT c2.clave,
+      c2.descripcion
+           FROM core.entidades_catalogos ec2
+           JOIN core.catalogos c2 ON c2.id = ec2.catalogo_id
+           JOIN core.catalogos_tipos ct2 ON ct2.id = c2.tipo_catalogo_id
+          WHERE ec2.empresa_id = contactos.empresa_id
+            AND ec2.entidad_id = contactos.id
+            AND ec2.entidad_tipo_id = (
+              SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+            )
+            AND ct2.nombre ILIKE '%clasificacion%'
+          ORDER BY c2.orden NULLS LAST, c2.descripcion ASC
+          LIMIT 1
+       ) clasificacion ON true
+       LEFT JOIN LATERAL (
+    SELECT c3.clave,
+      c3.descripcion
+           FROM core.entidades_catalogos ec3
+           JOIN core.catalogos c3 ON c3.id = ec3.catalogo_id
+           JOIN core.catalogos_tipos ct3 ON ct3.id = c3.tipo_catalogo_id
+          WHERE ec3.empresa_id = contactos.empresa_id
+            AND ec3.entidad_id = contactos.id
+            AND ec3.entidad_tipo_id = (
+              SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+            )
+            AND ct3.nombre ILIKE '%origen%'
+          ORDER BY c3.orden NULLS LAST, c3.descripcion ASC
+          LIMIT 1
+       ) origen ON true
+       WHERE ${filtros.join(' AND ')}
+       ORDER BY contactos.id, contactos.nombre ASC
+     ) base_contactos
+     ORDER BY base_contactos.nombre ASC
+     LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+    params
+  );
+
+  const total = result.rows.length ? Number(result.rows[0].total_count) : 0;
+  const data = result.rows.map(({ total_count, ...rest }) => rest);
+
+  return { data, total };
 }
 
 export async function insertarContacto(

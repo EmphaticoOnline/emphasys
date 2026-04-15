@@ -606,7 +606,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const loadCombos = async () => {
     try {
-      const [c, p, v] = await Promise.all([fetchContactos(), fetchProductos(), fetchVendedores()]);
+      const tiposContacto = tipoDocumento === 'cotizacion' ? ['Cliente', 'Lead'] : undefined;
+      const [c, p, v] = await Promise.all([fetchContactos(tiposContacto), fetchProductos(), fetchVendedores()]);
       setContactos(c);
       setProductos(p);
       setVendedores(v);
@@ -1128,6 +1129,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       }
                       handleClienteSelect(value);
                     }}
+                    renderOption={(props, option) => {
+                      const { key, ...rest } = props;
+                      return (
+                        <li {...rest} key={option.id ?? key}>
+                          {option.nombre || ''}
+                        </li>
+                      );
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...(params as any)}
@@ -1149,6 +1158,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     getOptionLabel={(option) => option.nombre || ''}
                     value={vendedores.find((c) => c.id === form.agente_id) || null}
                     onChange={(_, value) => setForm((prev) => ({ ...prev, agente_id: value?.id ?? null }))}
+                    renderOption={(props, option) => {
+                      const { key, ...rest } = props;
+                      return (
+                        <li {...rest} key={option.id ?? key}>
+                          {option.nombre || ''}
+                        </li>
+                      );
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...(params as any)}

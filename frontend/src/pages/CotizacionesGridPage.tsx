@@ -65,6 +65,8 @@ const ESTADOS: { value: EstadoSeguimiento; label: string; color: string; textCol
 
 const defaultFecha = () => new Date().toISOString().slice(0, 10);
 
+const TIPOS_CONTACTO_COTIZACION = ['Cliente', 'Lead'];
+
 type QuickFilter = 'todos' | 'pendientes' | 'cerrados' | 'perdidos';
 
 type CotizacionGridRow = CotizacionListado & {
@@ -147,12 +149,8 @@ export default function CotizacionesGridPage() {
 
   const cargarContactos = useCallback(async () => {
     try {
-      const data = await fetchContactos();
-      console.log('contactos recibidos (raw):', data);
-      console.log('tipos_contacto:', Array.from(new Set(data.map((c) => c.tipo_contacto))));
-      // Filtramos solo Lead / Cliente
-      const filtrados = data.filter((c) => ['Lead', 'Cliente'].includes((c.tipo_contacto || '').trim()));
-      setContactos(filtrados);
+      const data = await fetchContactos(TIPOS_CONTACTO_COTIZACION);
+      setContactos(data);
     } catch (err) {
       console.error('No se pudieron cargar contactos', err);
     }
@@ -461,6 +459,14 @@ export default function CotizacionesGridPage() {
               }
               void params.api.setEditCellValue({ id: params.id, field: 'contacto_principal_id', value: option?.id ?? null }, event ?? undefined);
               void params.api.setEditCellValue({ id: params.id, field: 'nombre_cliente', value: option?.nombre ?? 'Sin cliente' }, event ?? undefined);
+            }}
+            renderOption={(props, option) => {
+              const { key, ...rest } = props;
+              return (
+                <li {...rest} key={option.id ?? key}>
+                  {option.nombre || ''}
+                </li>
+              );
             }}
             renderInput={(p) => (
               <TextField

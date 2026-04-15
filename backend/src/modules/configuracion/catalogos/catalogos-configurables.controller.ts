@@ -1,9 +1,15 @@
 import { Request, Response } from 'express';
 import { obtenerCatalogosConfigurables } from './catalogos-configurables.repository';
 
-export async function listarCatalogosConfigurables(_req: Request, res: Response) {
+export async function listarCatalogosConfigurables(req: Request, res: Response) {
   try {
-    const rows = await obtenerCatalogosConfigurables();
+    const empresaId = req.context?.empresaId;
+
+    if (!empresaId || Number.isNaN(Number(empresaId))) {
+      return res.status(400).json({ message: 'empresaId es obligatorio' });
+    }
+
+    const rows = await obtenerCatalogosConfigurables(Number(empresaId));
 
     const grouped = Object.values(
       rows.reduce<Record<string, { entidad_tipo_id: number; entidad_nombre: string | null; entidad_descripcion: string | null; catalogos: { id: number; nombre: string | null; descripcion: string | null; }[] }>>((acc, row) => {

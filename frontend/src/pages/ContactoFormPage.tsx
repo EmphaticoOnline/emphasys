@@ -401,6 +401,30 @@ function validarRFC(rfc: string) {
     }));
   };
 
+  const handleComercialSingleChange = (tipoId: number, catalogoId: number | '') => {
+    setComercialSeleccionados((prev) => ({
+      ...prev,
+      [tipoId]: catalogoId ? [Number(catalogoId)] : [],
+    }));
+  };
+
+  const catalogoTipoIds = {
+    clasificacion: Number(import.meta.env.VITE_CONTACTO_CLASIFICACION_TIPO_ID) || null,
+    origen: Number(import.meta.env.VITE_CONTACTO_ORIGEN_TIPO_ID) || null,
+  };
+
+  const normalizarTexto = (value: string) =>
+    value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const obtenerCatalogoTipo = (nombre: string, id?: number | null) => {
+    if (id) return comercialTipos.find((tipo) => tipo.id === id);
+    const lookup = normalizarTexto(nombre);
+    return comercialTipos.find((tipo) => normalizarTexto(tipo.nombre || '').includes(lookup));
+  };
+
   const obtenerCatalogosSeleccionados = () => {
     const todos = Object.values(comercialSeleccionados).flat();
     return Array.from(new Set(todos));
@@ -551,19 +575,70 @@ function validarRFC(rfc: string) {
                   </Select>
                 </FormControl>
 
-                <TextField
-                  label="Clasificación"
-                  value={form.clasificacion}
-                  onChange={handleTextChange('clasificacion')}
-                  fullWidth
-                />
+                {(() => {
+                  const clasificacionTipo = obtenerCatalogoTipo('clasificacion', catalogoTipoIds.clasificacion);
+                  const clasificacionSeleccion = clasificacionTipo
+                    ? comercialSeleccionados[clasificacionTipo.id]?.[0] ?? ''
+                    : '';
+                  return (
+                    <FormControl fullWidth disabled={!clasificacionTipo}>
+                      <InputLabel id="clasificacion-label">Clasificación</InputLabel>
+                      <Select
+                        labelId="clasificacion-label"
+                        label="Clasificación"
+                        value={clasificacionSeleccion ? String(clasificacionSeleccion) : ''}
+                        onChange={(event) => {
+                          if (!clasificacionTipo) return;
+                          const value = event.target.value;
+                          handleComercialSingleChange(
+                            clasificacionTipo.id,
+                            value ? Number(value) : ''
+                          );
+                        }}
+                      >
+                        <MenuItem value="">
+                          <em>Sin clasificación</em>
+                        </MenuItem>
+                        {clasificacionTipo?.valores.map((valor) => (
+                          <MenuItem key={valor.id} value={String(valor.id)}>
+                            {valor.clave || valor.descripcion}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  );
+                })()}
 
-                <TextField
-                  label="Origen de contacto"
-                  value={form.origen_contacto}
-                  onChange={handleTextChange('origen_contacto')}
-                  fullWidth
-                />
+                {(() => {
+                  const origenTipo = obtenerCatalogoTipo('origen', catalogoTipoIds.origen);
+                  const origenSeleccion = origenTipo
+                    ? comercialSeleccionados[origenTipo.id]?.[0] ?? ''
+                    : '';
+                  return (
+                    <FormControl fullWidth disabled={!origenTipo}>
+                      <InputLabel id="origen-contacto-label">Origen de contacto</InputLabel>
+                      <Select
+                        labelId="origen-contacto-label"
+                        label="Origen de contacto"
+                        value={origenSeleccion ? String(origenSeleccion) : ''}
+                        onChange={(event) => {
+                          if (!origenTipo) return;
+                          const value = event.target.value;
+                          handleComercialSingleChange(origenTipo.id, value ? Number(value) : '');
+                        }}
+                      >
+                        <MenuItem value="">
+                          <em>Sin origen</em>
+                        </MenuItem>
+                        {origenTipo?.valores.map((valor) => (
+                          <MenuItem key={valor.id} value={String(valor.id)}>
+                            {valor.clave || valor.descripcion}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  );
+                })()}
 
                 <Autocomplete
                   options={vendedores}
