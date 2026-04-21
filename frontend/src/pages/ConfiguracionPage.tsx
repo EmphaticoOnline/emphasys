@@ -11,6 +11,7 @@ import {
   ShieldRounded,
   TuneRounded,
   PercentRounded,
+  PictureAsPdfRounded,
 } from '@mui/icons-material';
 
 const opciones = [
@@ -73,6 +74,12 @@ const opciones = [
     descripcion: 'Define los impuestos predeterminados por empresa.',
     icono: PercentRounded,
     path: '/configuracion/empresa/impuestos-default',
+  },
+  {
+    titulo: 'Formatos de impresión',
+    descripcion: 'Configura los layouts de PDF por empresa o por serie.',
+    icono: PictureAsPdfRounded,
+    path: '/configuracion/formatos-impresion',
   },
 ];
 

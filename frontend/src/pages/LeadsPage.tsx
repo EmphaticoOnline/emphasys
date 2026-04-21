@@ -1,8 +1,13 @@
 import React from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   List,
@@ -11,8 +16,10 @@ import {
   Menu,
   MenuItem,
   Paper,
+  Snackbar,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -25,6 +32,10 @@ import ReplyIcon from '@mui/icons-material/Reply';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { apiFetch } from '../api/apiClient';
+import { useSession } from '../session/useSession';
+import { fetchContactos } from '../services/contactosService';
+import type { Contacto } from '../types/contactos.types';
+import { actualizarContacto } from '../services/contactos.api';
 
 type Priority = 'Alta' | 'Media' | 'Baja';
 type NextAction = 'Responder' | 'Llamar' | 'Enviar cotización' | 'Agendar demo' | 'Cerrar';
@@ -58,6 +69,8 @@ type ConversationMessage = {
   status: string | null;
 };
 
+type LeadStatusType = 'attention' | 'waiting' | 'neutral' | 'active';
+
 type Lead = {
   id: string;
   name: string;
@@ -66,6 +79,12 @@ type Lead = {
   lastMessageTimeMinutesAgo: number;
   idleMinutes: number;
   awaitingResponse: boolean;
+  statusLabel: string;
+  statusType: LeadStatusType;
+  within24hWindow: boolean;
+  windowExpiresInMinutes: number;
+  canSendFreeMessage: boolean;
+  requiresTemplate: boolean;
   conversation: Array<{ id: string; from: 'lead' | 'me'; text: string; minutesAgo: number; sentAt: string | null }>;
   contactoId: string | null;
   ultimoMensajeEn: string | null;
@@ -78,6 +97,8 @@ type Lead = {
 
 type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
 type QuickFilter = 'todos' | 'seguimiento' | 'alta' | 'activos';
+type LeadScope = 'mis' | 'todos';
+type UserRole = { id: number; nombre: string; descripcion?: string | null };
 const leadSelectMenuProps = {
   PaperProps: {
     sx: {
@@ -110,9 +131,26 @@ const getIdleSeverity = (min: number): { color: 'default' | 'warning' | 'error';
 
 function formatMinutesAgo(min: number): string {
   if (min < 60) return `${min}m`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  if (min < 1440) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  }
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  return `${d}d ${h}h`;
+}
+
+function formatMinutes(min: number): string {
+  if (min < 60) return `${min}m`;
+  if (min < 1440) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  }
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  return `${d}d ${h}h`;
 }
 
 function minutesSince(dateString: string | null): number {
@@ -127,56 +165,58 @@ function deriveNextAction(hasUnrepliedIncoming: boolean): NextAction {
   return hasUnrepliedIncoming ? 'Responder' : 'Responder';
 }
 
-function calcularPrioridad(lead: Lead): Priority {
-  const etapa = lead.etapa_oportunidad ?? 'nuevo';
-  const last = lead.conversation[lead.conversation.length - 1];
-  const minutos = minutesSince(last?.sentAt ?? lead.ultimoMensajeEn);
+function deriveLeadState(lead: Lead): {
+  awaitingResponse: boolean;
+  statusLabel: string;
+  statusType: LeadStatusType;
+  idleMinutes: number;
+  priority: Priority;
+  nextAction: NextAction;
+  within24hWindow: boolean;
+  windowExpiresInMinutes: number;
+  canSendFreeMessage: boolean;
+  requiresTemplate: boolean;
+} {
+  const lastMessage = lead.conversation[lead.conversation.length - 1];
+  const lastFrom = lastMessage?.from ?? null;
+  const idleMinutes = minutesSince(lastMessage?.sentAt ?? lead.ultimoMensajeEn);
 
-  // Regla A: etapas cerradas → baja
-  if (etapa === 'ganado' || etapa === 'perdido') {
-    console.log('[prioridad] calc', { id: lead.id, etapa, lastFrom: last?.from, minutos, prioridad: 'Baja', motivo: 'etapa cerrada' });
-    return 'Baja';
+  let awaitingResponse = lead.awaitingResponse;
+  if (lastFrom === 'lead') {
+    awaitingResponse = true;
+  } else if (lastFrom === 'me') {
+    awaitingResponse = false;
   }
 
-  let prioridad: Priority = 'Media';
+  const statusLabel = awaitingResponse ? 'Sin responder' : 'Esperando cliente';
+  const statusType: LeadStatusType = awaitingResponse ? 'attention' : 'waiting';
+  const priority: Priority = awaitingResponse
+    ? idleMinutes > 30
+      ? 'Alta'
+      : 'Media'
+    : 'Baja';
+  const nextAction = deriveNextAction(awaitingResponse);
+  const within24hWindow = lastFrom === 'lead'
+    ? idleMinutes <= 1440
+    : lastFrom === 'me'
+      ? true
+      : idleMinutes <= 1440;
+  const windowExpiresInMinutes = Math.max(0, 1440 - idleMinutes);
+  const canSendFreeMessage = within24hWindow;
+  const requiresTemplate = !within24hWindow;
 
-  // Regla B: último mensaje entrante → alta
-  if (last?.from === 'lead') {
-    prioridad = 'Alta';
-  } else {
-    // Regla C: último mensaje saliente → depende de etapa
-    switch (etapa) {
-      case 'nuevo':
-      case 'interesado':
-      case 'cotizado':
-      case 'negociacion':
-        prioridad = 'Alta';
-        break;
-      case 'contactado':
-        prioridad = 'Media';
-        break;
-      default:
-        prioridad = 'Media';
-        break;
-    }
-  }
-
-  // Regla D: ajuste por tiempo sin respuesta
-  if (minutos > 72 * 60) {
-    prioridad = 'Alta';
-  } else if (minutos > 24 * 60) {
-    prioridad = prioridad === 'Alta' ? 'Alta' : 'Media';
-  }
-
-  console.log('[prioridad] calc', {
-    id: lead.id,
-    etapa,
-    lastFrom: last?.from,
-    minutos,
-    prioridad,
-  });
-
-  return prioridad;
+  return {
+    awaitingResponse,
+    statusLabel,
+    statusType,
+    idleMinutes,
+    priority,
+    nextAction,
+    within24hWindow,
+    windowExpiresInMinutes,
+    canSendFreeMessage,
+    requiresTemplate,
+  };
 }
 
 function esSeguimientoPendiente(lead: Lead): boolean {
@@ -225,12 +265,27 @@ const ordenarLeads = (a: LeadConPrioridad, b: LeadConPrioridad): number => {
   return getLastTimestampMs(b) - getLastTimestampMs(a);
 };
 
-function aplicarPrioridad(lead: Lead): Lead {
-  const computedPriority = calcularPrioridad(lead);
+const buildLeadOwnerLabel = (
+  lead: Lead,
+  contactosMap: Record<number, Contacto>,
+  vendedoresMap: Record<number, Contacto>,
+  currentVendedorId: number | null
+): string => {
+  const contactoId = lead.contactoId ? Number(lead.contactoId) : null;
+  const contacto = contactoId ? contactosMap[contactoId] : undefined;
+  const vendedorId = contacto?.vendedor_id ?? null;
+  if (vendedorId && currentVendedorId && vendedorId === currentVendedorId) return 'Tú';
+  if (vendedorId && vendedoresMap[vendedorId]) return vendedoresMap[vendedorId].nombre;
+  return 'Sin asignar';
+};
+
+function applyDerivedLeadState(lead: Lead): Lead {
+  const derived = deriveLeadState(lead);
   return {
     ...lead,
-    priority: computedPriority,
-    hot: computedPriority === 'Alta',
+    ...derived,
+    lastMessageTimeMinutesAgo: derived.idleMinutes,
+    hot: derived.priority === 'Alta',
   };
 }
 
@@ -253,6 +308,7 @@ const mapMessages = (messages: ConversationMessage[]): ConversationView[] => mes
 });
 
 export default function LeadsPage() {
+  const { session } = useSession();
   const [conversations, setConversations] = React.useState<ConversationSummary[]>([]);
   const [leads, setLeads] = React.useState<Lead[]>([]);
   const [selectedLeadId, setSelectedLeadId] = React.useState<string>('');
@@ -262,24 +318,151 @@ export default function LeadsPage() {
   const [isSuggesting, setIsSuggesting] = React.useState(false);
   const [isTesting, setIsTesting] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
+  const [isSendingTemplate, setIsSendingTemplate] = React.useState(false);
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = React.useState(false);
   const [sendSuccess, setSendSuccess] = React.useState(false);
   const [testResults, setTestResults] = React.useState<Array<{ titulo: string; mensaje: string }>>([]);
   const [etapaMenu, setEtapaMenu] = React.useState<{ leadId: string; anchorEl: HTMLElement | null } | null>(null);
   const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
+  const [leadScope, setLeadScope] = React.useState<LeadScope>('todos');
+  const [scopeTouched, setScopeTouched] = React.useState(false);
+  const [isAdmin, setIsAdmin] = React.useState(Boolean(session.user?.es_superadmin));
+  const [vendedorContactoId, setVendedorContactoId] = React.useState<number | null>(
+    session.user?.vendedor_contacto_id ?? null
+  );
+  const [contactosById, setContactosById] = React.useState<Record<number, Contacto>>({});
+  const [vendedoresById, setVendedoresById] = React.useState<Record<number, Contacto>>({});
+  const contactosLoadedRef = React.useRef(false);
+  const [isUpdatingOwner, setIsUpdatingOwner] = React.useState(false);
+  const [vendedorFilterId, setVendedorFilterId] = React.useState<number | null>(null);
+  const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
+    { open: false, message: '', severity: 'success' }
+  );
   const quickReplyRef = React.useRef<HTMLInputElement | null>(null);
   const conversationEndRef = React.useRef<HTMLDivElement | null>(null);
   const conversationScrollRef = React.useRef<HTMLDivElement | null>(null);
   const lastConversationsFetchRef = React.useRef<string | null>(null);
+  const isFilterTransitionRef = React.useRef(false);
+  const lastConversationLengthRef = React.useRef(0);
+  const lastSelectedLeadIdRef = React.useRef<string | null>(null);
   const [isAtBottom, setIsAtBottom] = React.useState(true);
+  const renderCountRef = React.useRef(0);
+
+  renderCountRef.current += 1;
+  console.log('[LeadsPage] render', {
+    count: renderCountRef.current,
+    leads: leads.length,
+    conversations: conversations.length,
+    selectedLeadId,
+  });
+
+  React.useEffect(() => {
+    if (!session.token || !session.empresaActivaId) return undefined;
+
+    let active = true;
+
+    const loadProfile = async () => {
+      try {
+        const response = await apiFetch('/auth/me');
+        if (!response.ok) {
+          throw new Error('No se pudo cargar el perfil');
+        }
+
+        const data = await response.json();
+        if (!active) return;
+
+        const roles = Array.isArray(data?.roles) ? data.roles : [];
+        const roleNames = roles.map((r: UserRole) => String(r?.nombre ?? '').toLowerCase());
+        const admin = Boolean(data?.user?.es_superadmin)
+          || roleNames.includes('administrador')
+          || roleNames.includes('admin');
+
+        setIsAdmin(admin);
+        setVendedorContactoId(data?.user?.vendedor_contacto_id ?? session.user?.vendedor_contacto_id ?? null);
+      } catch (error) {
+        console.error('[LeadsPage] Error cargando perfil:', error);
+      }
+    };
+
+    void loadProfile();
+    return () => {
+      active = false;
+    };
+  }, [session.token, session.empresaActivaId, session.user?.vendedor_contacto_id]);
+
+  React.useEffect(() => {
+    if (scopeTouched) return;
+    if (!isAdmin) {
+      setLeadScope('mis');
+      return;
+    }
+    if (vendedorContactoId) {
+      setLeadScope('mis');
+    } else {
+      setLeadScope('todos');
+    }
+  }, [isAdmin, vendedorContactoId, scopeTouched]);
+
+  React.useEffect(() => {
+    if (!isAdmin) {
+      setLeadScope('mis');
+      return;
+    }
+
+    if (!vendedorContactoId && leadScope !== 'todos') {
+      setLeadScope('todos');
+    }
+  }, [isAdmin, leadScope, vendedorContactoId]);
+
+  React.useEffect(() => {
+    if (leadScope === 'mis') {
+      setVendedorFilterId(null);
+    }
+  }, [leadScope]);
+
+  React.useEffect(() => {
+    if (contactosLoadedRef.current) return;
+    if (!session.token || !session.empresaActivaId) return;
+
+    let active = true;
+
+    const loadContactos = async () => {
+      try {
+        const contactos = await fetchContactos();
+        if (!active) return;
+
+        const byId: Record<number, Contacto> = {};
+        const vendedores: Record<number, Contacto> = {};
+
+        contactos.forEach((c) => {
+          if (!Number.isFinite(c.id)) return;
+          byId[c.id] = c;
+          if ((c.tipo_contacto || '').toLowerCase() === 'vendedor') {
+            vendedores[c.id] = c;
+          }
+        });
+
+        setContactosById(byId);
+        setVendedoresById(vendedores);
+        contactosLoadedRef.current = true;
+      } catch (error) {
+        console.error('[LeadsPage] Error cargando contactos:', error);
+      }
+    };
+
+    void loadContactos();
+
+    return () => {
+      active = false;
+    };
+  }, [session.token, session.empresaActivaId]);
 
   const leadsConPrioridad = React.useMemo<LeadConPrioridad[]>(() => {
     const enriched = leads.map((lead) => {
-      const computedPriority = calcularPrioridad(lead);
+      const computedPriority = lead.priority;
       const seguimientoPendiente = esSeguimientoPendiente(lead);
       return {
         ...lead,
-        priority: computedPriority,
-        hot: computedPriority === 'Alta',
         computedPriority,
         seguimientoPendiente,
       };
@@ -311,8 +494,40 @@ export default function LeadsPage() {
     return sorted;
   }, [leadFilter, leadsConPrioridad]);
 
+  React.useEffect(() => {
+    console.log('[LeadsPage] leadsConPrioridad updated', {
+      total: leadsConPrioridad.length,
+      sample: leadsConPrioridad.slice(0, 3).map((l) => ({
+        id: l.id,
+        lastMessage: l.lastMessage,
+        awaitingResponse: l.awaitingResponse,
+        lastFrom: l.conversation[l.conversation.length - 1]?.from,
+        idleMinutes: l.idleMinutes,
+        computedPriority: l.computedPriority,
+      })),
+    });
+  }, [leadsConPrioridad]);
+
+  React.useEffect(() => {
+    console.log('[LeadsPage] leadsFiltradosOrdenados updated', {
+      total: leadsFiltradosOrdenados.length,
+      ids: leadsFiltradosOrdenados.map((l) => l.id),
+    });
+  }, [leadsFiltradosOrdenados]);
+
   const selectedLead = leadsConPrioridad.find((l) => l.id === selectedLeadId) ?? leadsConPrioridad[0];
   const selectedLeadPriority = selectedLead?.computedPriority ?? 'Media';
+  const selectedContactoId = selectedLead?.contactoId ? Number(selectedLead.contactoId) : null;
+  const selectedContacto = selectedContactoId ? contactosById[selectedContactoId] : undefined;
+  const selectedVendedorId = selectedContacto?.vendedor_id ?? null;
+  const vendorOptions = React.useMemo(
+    () => Object.values(vendedoresById).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '')),
+    [vendedoresById]
+  );
+  const canSelectMis = Boolean(vendedorContactoId);
+  const canToggleScope = isAdmin && canSelectMis;
+  const showMisChip = !isAdmin || canSelectMis;
+  const showTodosChip = isAdmin;
 
   const buildLeadFromConversation = React.useCallback((conv: ConversationSummary): Lead => {
     const idle = minutesSince(conv.ultimoMensajeEn);
@@ -324,6 +539,12 @@ export default function LeadsPage() {
       lastMessageTimeMinutesAgo: idle,
       idleMinutes: idle,
       awaitingResponse: true,
+      statusLabel: 'Sin responder',
+      statusType: 'attention',
+  within24hWindow: true,
+  windowExpiresInMinutes: 1440,
+  canSendFreeMessage: true,
+  requiresTemplate: false,
       conversation: [],
       contactoId: conv.contactoId,
       ultimoMensajeEn: conv.ultimoMensajeEn,
@@ -333,25 +554,48 @@ export default function LeadsPage() {
       hot: false,
       etapa_oportunidad: conv.etapa_oportunidad ?? 'nuevo',
     };
-    return aplicarPrioridad(baseLead);
+    return applyDerivedLeadState(baseLead);
   }, []);
 
   const loadConversations = React.useCallback(async (opts?: { incremental?: boolean }) => {
     const incremental = opts?.incremental ?? false;
+    if (incremental && isFilterTransitionRef.current) {
+      console.log('[LeadsPage] loadConversations skipped: filter transition in progress');
+      return;
+    }
+    console.log('[LeadsPage] loadConversations start', { incremental });
     if (!incremental) {
+      isFilterTransitionRef.current = true;
       setIsLoadingConversations(true);
     }
 
     try {
-      const sinceParam = incremental && lastConversationsFetchRef.current
-        ? `?since=${encodeURIComponent(lastConversationsFetchRef.current)}`
-        : '';
+      const vendedorFiltro = !isAdmin
+        ? vendedorContactoId
+        : leadScope === 'mis'
+          ? vendedorContactoId
+          : vendedorFilterId;
 
-      const response = await apiFetch(`/api/whatsapp/conversaciones${sinceParam}`);
+      const params = new URLSearchParams();
+      if (incremental && lastConversationsFetchRef.current) {
+        params.set('since', lastConversationsFetchRef.current);
+      }
+      if (vendedorFiltro) {
+        params.set('vendedor_id', String(vendedorFiltro));
+      }
+
+      const queryString = params.toString();
+      const response = await apiFetch(`/api/whatsapp/conversaciones${queryString ? `?${queryString}` : ''}`);
       if (!response.ok) {
         throw new Error('Error al obtener conversaciones');
       }
       const data: ConversationSummary[] = await response.json();
+      console.log('[LeadsPage] loadConversations response', {
+        incremental,
+        count: data.length,
+        queryString,
+        ids: data.map((c) => c.id),
+      });
 
       const nowIso = new Date().toISOString();
       lastConversationsFetchRef.current = nowIso;
@@ -360,6 +604,10 @@ export default function LeadsPage() {
         setConversations(data);
       } else if (data.length) {
         setConversations((prev) => {
+          console.log('[LeadsPage] setConversations merge', {
+            prevCount: prev.length,
+            incoming: data.length,
+          });
           const existingIds = new Set(prev.map((c) => c.id));
           const merged = [...prev];
           data.forEach((c) => {
@@ -375,8 +623,24 @@ export default function LeadsPage() {
       }
 
       setLeads((prev) => {
-        if (!prev.length) {
-          return data.map(buildLeadFromConversation);
+        console.log('[LeadsPage] setLeads start', { prevCount: prev.length, incoming: data.length, incremental });
+        if (!incremental) {
+          const isSame = prev.length === data.length && prev.every((lead) => {
+            const match = data.find((conv) => conv.id === lead.id);
+            return match && lead.ultimoMensajeEn === match.ultimoMensajeEn;
+          });
+
+          if (isSame) {
+            return prev;
+          }
+
+          const initialLeads = data.map(buildLeadFromConversation);
+          console.log('[LeadsPage] setLeads replace', { count: initialLeads.length });
+          const firstId = initialLeads[0]?.id;
+          if (firstId) {
+            setSelectedLeadId((current) => current || firstId);
+          }
+          return initialLeads;
         }
 
         const map = new Map(prev.map((l) => [l.id, l] as const));
@@ -391,22 +655,24 @@ export default function LeadsPage() {
               name: conv.nombre?.trim() || conv.telefono || existing.name,
               phone: conv.telefono || existing.phone,
               lastMessage: conv.ultimoMensaje ?? existing.lastMessage,
-              lastMessageTimeMinutesAgo: idle,
-              idleMinutes: idle,
               ultimoMensajeEn: conv.ultimoMensajeEn,
               etapa_oportunidad: conv.etapa_oportunidad ?? existing.etapa_oportunidad,
             };
-            map.set(conv.id, aplicarPrioridad(updatedLead));
+            map.set(conv.id, applyDerivedLeadState(updatedLead));
           } else {
             map.set(conv.id, buildLeadFromConversation(conv));
           }
         });
 
         const mergedLeads = Array.from(map.values());
+        console.log('[LeadsPage] setLeads merged', {
+          count: mergedLeads.length,
+          ids: mergedLeads.map((l) => l.id),
+        });
 
         const firstId = mergedLeads[0]?.id;
         if (!selectedLeadId && firstId) {
-          setSelectedLeadId((prev) => prev || firstId);
+          setSelectedLeadId((current) => current || firstId);
         }
 
         return mergedLeads;
@@ -419,9 +685,10 @@ export default function LeadsPage() {
     } finally {
       if (!incremental) {
         setIsLoadingConversations(false);
+        isFilterTransitionRef.current = false;
       }
     }
-  }, [buildLeadFromConversation, selectedLeadId]);
+  }, [buildLeadFromConversation, isAdmin, leadScope, selectedLeadId, vendedorContactoId, vendedorFilterId]);
 
   const loadMessages = React.useCallback(async (
     conversationId: string,
@@ -444,6 +711,14 @@ export default function LeadsPage() {
         throw new Error('Error al obtener mensajes');
       }
       const data: ConversationMessage[] = await response.json();
+      console.log('[LeadsPage] loadMessages response', {
+        conversationId,
+        append,
+        silent,
+        count: data.length,
+        sinceParam,
+        lastTipo: data[data.length - 1]?.tipo_mensaje,
+      });
 
       if (append && data.length === 0) {
         return;
@@ -476,7 +751,15 @@ export default function LeadsPage() {
           conversation: mergedConversation,
         };
 
-        return aplicarPrioridad(updatedLead);
+  const recalculated = applyDerivedLeadState(updatedLead);
+        console.log('[LeadsPage] setLeads from messages', {
+          id: recalculated.id,
+          awaitingResponse: recalculated.awaitingResponse,
+          lastMessage: recalculated.lastMessage,
+          lastFrom: recalculated.conversation[recalculated.conversation.length - 1]?.from,
+          idleMinutes: recalculated.idleMinutes,
+        });
+        return recalculated;
       }));
 
       setConversations((prev) => prev.map((c) => (c.id === conversationId && lastSentAt
@@ -511,20 +794,22 @@ export default function LeadsPage() {
   }, [leads]);
 
   const refreshIdleTimers = React.useCallback(() => {
+    console.log('[LeadsPage] refreshIdleTimers');
     setLeads((prev) => prev.map((l) => {
-      const idle = minutesSince(l.ultimoMensajeEn);
       const updatedLead = {
         ...l,
-        idleMinutes: idle,
-        lastMessageTimeMinutesAgo: idle,
       };
-      return aplicarPrioridad(updatedLead);
+      return applyDerivedLeadState(updatedLead);
     }));
   }, []);
 
   React.useEffect(() => {
+    console.log('[LeadsPage] useEffect(loadConversations) init');
+    lastConversationsFetchRef.current = null;
+    isFilterTransitionRef.current = true;
+    setSelectedLeadId('');
     loadConversations();
-  }, [loadConversations]);
+  }, [leadScope, vendedorContactoId, vendedorFilterId]);
 
   React.useEffect(() => {
     if (selectedLeadId) {
@@ -534,7 +819,10 @@ export default function LeadsPage() {
 
   React.useEffect(() => {
     const interval = setInterval(() => {
-      loadConversations({ incremental: true });
+      console.log('[LeadsPage] polling refresh: conversations/messages');
+      if (!isFilterTransitionRef.current) {
+        loadConversations({ incremental: leadScope !== 'todos' });
+      }
 
       if (selectedLeadId) {
         const since = getLastSentAtForLead(selectedLeadId);
@@ -547,11 +835,11 @@ export default function LeadsPage() {
     return () => clearInterval(interval);
   }, [getLastSentAtForLead, loadConversations, loadMessages, refreshIdleTimers, selectedLeadId]);
 
-  const scrollToBottomIfNeeded = React.useCallback(() => {
-    if (isAtBottom && conversationEndRef.current) {
+  const scrollToBottom = React.useCallback(() => {
+    if (conversationEndRef.current) {
       conversationEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [isAtBottom]);
+  }, []);
 
   React.useEffect(() => {
     const el = conversationScrollRef.current;
@@ -568,11 +856,44 @@ export default function LeadsPage() {
   }, [selectedLeadId]);
 
   React.useEffect(() => {
-    scrollToBottomIfNeeded();
-  }, [scrollToBottomIfNeeded, selectedLeadId, selectedLead?.conversation.length]);
+    const currentLeadId = selectedLeadId || null;
+    const currentLength = selectedLead?.conversation.length ?? 0;
+    const leadChanged = lastSelectedLeadIdRef.current !== currentLeadId;
+    const hasNewMessage = !leadChanged && currentLength > lastConversationLengthRef.current;
+
+    lastSelectedLeadIdRef.current = currentLeadId;
+    lastConversationLengthRef.current = currentLength;
+
+    if (isFilterTransitionRef.current) return;
+    if (!isAtBottom) return;
+    if (!hasNewMessage) return;
+
+    scrollToBottom();
+  }, [isAtBottom, scrollToBottom, selectedLeadId, selectedLead?.conversation.length]);
 
   const updateLead = (id: string, updates: Partial<Lead>) => {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
+    console.log('[LeadsPage] updateLead', { id, updates });
+    setLeads((prev) => prev.map((l) => (l.id === id ? applyDerivedLeadState({ ...l, ...updates }) : l)));
+  };
+
+  const handleOwnerChange = async (nextValue: string) => {
+    if (!selectedContactoId) return;
+    const vendedorId = nextValue ? Number(nextValue) : null;
+
+    setIsUpdatingOwner(true);
+    try {
+      const updated = await actualizarContacto(selectedContactoId, { vendedor_id: vendedorId } as Partial<Contacto>);
+      setContactosById((prev) => ({
+        ...prev,
+        [selectedContactoId]: { ...(prev[selectedContactoId] ?? {}), ...updated },
+      }));
+      setSnackbar({ open: true, message: 'Lead asignado correctamente', severity: 'success' });
+    } catch (error: any) {
+      console.error('Error asignando vendedor al lead:', error);
+      setSnackbar({ open: true, message: error?.message || 'No se pudo asignar el lead', severity: 'error' });
+    } finally {
+      setIsUpdatingOwner(false);
+    }
   };
 
   const handleOpenEtapaMenu = (leadId: string, anchorEl: HTMLElement) => {
@@ -678,37 +999,9 @@ export default function LeadsPage() {
         throw new Error('Error en la solicitud');
       }
 
-      const messageText = quickReply.trim();
-  const nowIso = new Date().toISOString();
-
       setQuickReply('');
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 2000);
-
-      setLeads((prev) => prev.map((l) => {
-        if (l.id !== selectedLead.id) return l;
-
-        const updatedLead: Lead = {
-          ...l,
-          lastMessage: messageText,
-          lastMessageTimeMinutesAgo: 0,
-          idleMinutes: 0,
-          nextAction: 'Responder',
-          awaitingResponse: false,
-          conversation: [
-            ...l.conversation,
-            {
-              id: `temp-${Date.now()}`,
-              from: 'me',
-              text: messageText,
-              minutesAgo: 0,
-              sentAt: nowIso,
-            },
-          ],
-        };
-
-        return aplicarPrioridad(updatedLead);
-      }));
 
       setIsAtBottom(true);
       await loadMessages(selectedLead.id, { since: lastSentAtBeforeSend, append: true, silent: true });
@@ -718,6 +1011,45 @@ export default function LeadsPage() {
       alert('No se pudo enviar por WhatsApp.');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleSendTemplate = () => {
+    if (!selectedLead) return;
+    setIsTemplateDialogOpen(true);
+  };
+
+  const handleConfirmTemplateSend = async () => {
+    if (!selectedLead) return;
+
+    setIsSendingTemplate(true);
+    try {
+      const response = await apiFetch('/api/whatsapp/enviar-plantilla', {
+        method: 'POST',
+        body: JSON.stringify({
+          telefono: selectedLead.phone,
+          tipo: 'reactivacion',
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || 'No se pudo enviar la plantilla');
+      }
+
+      const nowIso = new Date().toISOString();
+      updateLead(selectedLead.id, {
+        ultimoMensajeEn: nowIso,
+        lastMessage: 'Plantilla de reactivación enviada',
+      });
+      setSnackbar({ open: true, message: 'Conversación reactivada', severity: 'success' });
+      loadConversations({ incremental: true });
+      setIsTemplateDialogOpen(false);
+    } catch (error: any) {
+      console.error('Error enviando plantilla:', error);
+      setSnackbar({ open: true, message: error?.message || 'No se pudo enviar la plantilla', severity: 'error' });
+    } finally {
+      setIsSendingTemplate(false);
     }
   };
 
@@ -820,55 +1152,61 @@ export default function LeadsPage() {
 
   const attentionNow = leadsFiltradosOrdenados.filter((l) => l.awaitingResponse || l.idleMinutes >= 60);
   const otherLeads = leadsFiltradosOrdenados.filter((l) => !attentionNow.includes(l));
+  console.log('[LeadsPage] list sections', {
+    attentionNow: attentionNow.map((l) => l.id),
+    otherLeads: otherLeads.map((l) => l.id),
+  });
 
   const renderLeadCard = (lead: LeadConPrioridad) => {
     const { computedPriority } = lead;
-    console.log('[render lead]', { id: lead.id, etapa: lead.etapa_oportunidad, priority: computedPriority, lead });
+    const ownerLabel = buildLeadOwnerLabel(lead, contactosById, vendedoresById, vendedorContactoId);
+    console.log('[render lead]', {
+      id: lead.id,
+      etapa: lead.etapa_oportunidad,
+      priority: computedPriority,
+      awaitingResponse: lead.awaitingResponse,
+      lastMessage: lead.lastMessage,
+      ultimoMensajeEn: lead.ultimoMensajeEn,
+      conversationLastFrom: lead.conversation[lead.conversation.length - 1]?.from,
+    });
 
+    const idleSeverity = getIdleSeverity(lead.idleMinutes);
+    const requiresAttention = lead.statusType === 'attention';
     return (
-    <ListItem disablePadding key={lead.id} sx={{ mb: 1 }}>
-      <ListItemButton
-        selected={lead.id === selectedLead?.id}
-        onClick={() => setSelectedLeadId(lead.id)}
-        sx={{
-          alignItems: 'flex-start',
-          borderRadius: 1.5,
-          border: '1px solid',
-          borderColor: getIdleSeverity(lead.idleMinutes).color === 'error'
-            ? 'error.main'
-            : lead.id === selectedLead?.id
-              ? 'primary.main'
-              : getIdleSeverity(lead.idleMinutes).color === 'warning'
-                ? 'warning.light'
-                : 'grey.200',
-          borderLeftWidth: getIdleSeverity(lead.idleMinutes).color === 'error' ? 4 : 1,
-          backgroundColor: getIdleSeverity(lead.idleMinutes).color === 'error'
-            ? 'error.light + 16'
-            : getIdleSeverity(lead.idleMinutes).color === 'warning'
-              ? 'warning.light + 12'
-              : lead.id === selectedLead?.id
-                ? 'primary.main + 08'
+      <ListItem disablePadding key={lead.id}>
+        <ListItemButton
+          selected={lead.id === selectedLead?.id}
+          onClick={() => setSelectedLeadId(lead.id)}
+          sx={{
+            alignItems: 'center',
+            px: 1.5,
+            py: 0.75,
+            borderRadius: 0,
+            borderLeft: '3px solid',
+            borderLeftColor: requiresAttention
+              ? 'error.main'
+              : idleSeverity.color === 'warning'
+                ? 'warning.main'
+                : 'transparent',
+            borderBottom: '1px solid',
+            borderBottomColor: 'divider',
+            backgroundColor: lead.id === selectedLead?.id
+              ? 'primary.main + 08'
+              : requiresAttention
+                ? 'error.light + 12'
                 : 'background.paper',
-          py: 1.25,
-        }}
-      >
-        <Stack spacing={0.75} sx={{ width: '100%' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleReplyAction(lead.id);
-            }}
-            sx={{ alignSelf: 'flex-start', textTransform: 'none', fontWeight: 800 }}
-          >
-            {lead.nextAction}
-          </Button>
-
-          <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
-              <Typography variant="subtitle1" fontWeight={700} noWrap>
+            '&:hover': {
+              backgroundColor: lead.id === selectedLead?.id
+                ? 'primary.main + 12'
+                : requiresAttention
+                  ? 'error.light + 16'
+                  : 'action.hover',
+            },
+          }}
+        >
+          <Stack spacing={0.2} sx={{ width: '100%', minWidth: 0 }}>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+              <Typography variant="body2" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0 }}>
                 {lead.name?.trim() || `WhatsApp ${lead.phone}`}
               </Typography>
               {lead.etapa_oportunidad && (
@@ -876,121 +1214,84 @@ export default function LeadsPage() {
                   size="small"
                   label={lead.etapa_oportunidad}
                   color={etapaChipColor[lead.etapa_oportunidad]}
-                  sx={{ textTransform: 'capitalize' }}
+                  sx={{ textTransform: 'capitalize', fontWeight: 600 }}
                   onClick={(e) => handleOpenEtapaMenu(lead.id, e.currentTarget)}
                   clickable
                 />
               )}
-              {lead.seguimientoPendiente && (
-                <Chip
-                  size="small"
-                  label="Seguimiento pendiente"
-                  color="warning"
-                  variant="filled"
-                  sx={{ textTransform: 'none', fontWeight: 700 }}
-                />
-              )}
             </Stack>
-            {lead.hot && <WhatshotIcon color="error" fontSize="small" titleAccess="Lead caliente" />}
-          </Stack>
 
-          <Typography variant="body2" color="text.primary" noWrap>
-            {lead.lastMessage}
-          </Typography>
+            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: 'text.secondary' }}>
+              <PersonIcon fontSize="inherit" sx={{ fontSize: 14 }} />
+              <Typography variant="caption">{ownerLabel}</Typography>
+            </Stack>
 
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                {(() => {
-                  const idle = getIdleSeverity(lead.idleMinutes);
-                  const isCritical = idle.color === 'error';
-                  const chipIcon = idle.showIcon
-                    ? <WarningAmberIcon fontSize="small" />
-                    : idle.color === 'warning'
-                      ? <AccessTimeIcon fontSize="small" />
-                      : idle.color === 'default'
-                        ? <AccessTimeIcon fontSize="small" />
-                        : null;
-                  const chipProps = {
-                    size: 'small' as const,
-                    label: `Sin respuesta: ${formatMinutesAgo(lead.idleMinutes)}`,
-                    color: idle.color,
-                    sx: {
-                      fontWeight: idle.color !== 'default' ? 700 : 500,
-                      px: 1,
-                      '& .MuiChip-icon': {
-                        color: isCritical ? 'common.white' : undefined,
-                        opacity: isCritical ? 0.9 : undefined,
-                        textShadow: isCritical ? '0 0 1px rgba(0,0,0,0.35)' : undefined,
-                        ...(idle.color === 'default' ? { color: 'text.disabled' } : {}),
-                      },
-                    },
-                  };
-
-                  return chipIcon ? (
-                    <Chip {...chipProps} icon={chipIcon} />
-                  ) : (
-                    <Chip {...chipProps} />
-                  );
-                })()}
-              </Stack>
-
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }} flexWrap="wrap">
-            <AccessTimeIcon fontSize="small" />
-            <Typography variant="body2">{formatMinutesAgo(lead.lastMessageTimeMinutesAgo)} atrás</Typography>
-            <Typography variant="body2" color="text.disabled">
-              · {lead.owner}
+            <Typography variant="body2" color="text.secondary" noWrap>
+              {lead.lastMessage}
             </Typography>
-          </Stack>
 
-          <Stack direction="row" spacing={1} alignItems="flex-start" flexWrap="wrap" useFlexGap>
-            <TextField
-              select
-              size="small"
-              label="Acción recomendada"
-              value={lead.nextAction}
-              onChange={(e) => updateLead(lead.id, { nextAction: e.target.value as NextAction })}
-              SelectProps={{ MenuProps: leadSelectMenuProps }}
-              sx={{
-                flex: '1 1 200px',
-                minWidth: 0,
-                '& .MuiInputBase-input': { fontWeight: 700, fontSize: '0.85rem' },
-                '& .MuiInputLabel-root': { fontWeight: 700 },
-              }}
-            >
-              {nextActionOptions.map((a) => (
-                <MenuItem key={a} value={a}>
-                  {a}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              select
-              size="small"
-              label="Prioridad"
-              value={computedPriority}
-              onChange={(e) => updateLead(lead.id, { priority: e.target.value as Priority })}
-              SelectProps={{ MenuProps: leadSelectMenuProps }}
-              sx={{
-                flex: '0 1 140px',
-                minWidth: 0,
-                '& .MuiInputBase-input': { color: 'text.secondary', fontSize: '0.85rem' },
-                '& .MuiInputLabel-root': { color: 'text.secondary', fontSize: '0.85rem' },
-              }}
-            >
-              {priorityOptions.map((p) => (
-                <MenuItem key={p} value={p}>
-                  {p}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: 'text.secondary' }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  bgcolor: requiresAttention ? 'error.main' : 'grey.400',
+                }}
+              />
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: requiresAttention ? 700 : 500,
+                  color: requiresAttention ? 'error.main' : 'text.secondary',
+                }}
+              >
+                {lead.statusLabel}
+              </Typography>
+              <Typography variant="caption" color="text.disabled">·</Typography>
+              <Typography variant="caption">{lead.owner}</Typography>
+              <Typography variant="caption" color="text.disabled">·</Typography>
+              <Typography variant="caption">
+                {requiresAttention
+                  ? `${formatMinutesAgo(lead.lastMessageTimeMinutesAgo)} sin responder`
+                  : lead.statusLabel}
+              </Typography>
+              <Typography variant="caption" color="text.disabled">·</Typography>
+              <Chip
+                size="small"
+                label={computedPriority}
+                sx={{
+                  height: 20,
+                  fontWeight: 700,
+                  border: '1px solid',
+                  borderColor: computedPriority === 'Alta'
+                    ? 'error.light'
+                    : computedPriority === 'Media'
+                      ? 'warning.light'
+                      : 'grey.200',
+                  color: computedPriority === 'Alta'
+                    ? 'error.dark'
+                    : computedPriority === 'Media'
+                      ? '#7c5a00'
+                      : 'grey.700',
+                  bgcolor: computedPriority === 'Alta'
+                    ? 'error.light + 14'
+                    : computedPriority === 'Media'
+                      ? 'warning.light + 16'
+                      : 'grey.100',
+                }}
+              />
+            </Stack>
           </Stack>
-        </Stack>
-      </ListItemButton>
-    </ListItem>
-  ); };
+        </ListItemButton>
+      </ListItem>
+    );
+  };
 
   const etapaMenuLead = etapaMenu ? leads.find((l) => l.id === etapaMenu.leadId) : null;
 
   return (
+    <>
     <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Menu
         anchorEl={etapaMenu?.anchorEl ?? null}
@@ -1050,6 +1351,63 @@ export default function LeadsPage() {
             </Stack>
             <Chip label={`${leadsFiltradosOrdenados.length} visibles`} size="small" sx={{ ml: 1.5, flexShrink: 0 }} />
           </Box>
+
+          {isAdmin && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <TextField
+                select
+                size="small"
+                label="Vendedor"
+                value={vendedorFilterId ? String(vendedorFilterId) : ''}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setVendedorFilterId(value ? Number(value) : null);
+                }}
+                SelectProps={{ MenuProps: leadSelectMenuProps }}
+                sx={{ minWidth: 220 }}
+                disabled={leadScope === 'mis'}
+              >
+                <MenuItem value="">Todos los vendedores</MenuItem>
+                {vendorOptions.map((v) => (
+                  <MenuItem key={v.id} value={String(v.id)}>
+                    {v.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+              {leadScope === 'mis' && (
+                <Typography variant="caption" color="text.secondary">
+                  Cambia a “Todos” para filtrar por vendedor.
+                </Typography>
+              )}
+            </Box>
+          )}
+
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {showMisChip && (
+              <Chip
+                label="Mis leads"
+                color={leadScope === 'mis' ? 'primary' : 'default'}
+                variant={leadScope === 'mis' ? 'filled' : 'outlined'}
+                onClick={canToggleScope ? () => {
+                  setLeadScope('mis');
+                  setScopeTouched(true);
+                } : undefined}
+                sx={{ fontWeight: 700 }}
+              />
+            )}
+            {showTodosChip && (
+              <Chip
+                label="Todos"
+                color={leadScope === 'todos' ? 'primary' : 'default'}
+                variant={leadScope === 'todos' ? 'filled' : 'outlined'}
+                onClick={canToggleScope ? () => {
+                  setLeadScope('todos');
+                  setScopeTouched(true);
+                } : undefined}
+                sx={{ fontWeight: 700 }}
+              />
+            )}
+          </Stack>
 
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {(
@@ -1138,27 +1496,115 @@ export default function LeadsPage() {
                 <Typography variant="h6" fontWeight={700}>
                   {selectedLead.name}
                 </Typography>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }}>
-                  <PersonIcon fontSize="small" />
-                  <Typography variant="body2">{selectedLead.owner}</Typography>
-                  {selectedLead.seguimientoPendiente && (
+                <Stack spacing={0.35} sx={{ color: 'text.secondary' }}>
+                  {isAdmin ? (
+                    <TextField
+                      select
+                      size="small"
+                      label="Asignado a"
+                      value={selectedVendedorId ? String(selectedVendedorId) : ''}
+                      onChange={(e) => handleOwnerChange(e.target.value)}
+                      disabled={isUpdatingOwner || !selectedContactoId}
+                      SelectProps={{ MenuProps: leadSelectMenuProps }}
+                      sx={{ maxWidth: 240 }}
+                      helperText={isUpdatingOwner ? 'Actualizando…' : undefined}
+                    >
+                      <MenuItem value="">
+                        Sin asignar
+                      </MenuItem>
+                      {vendorOptions.map((v) => (
+                        <MenuItem key={v.id} value={String(v.id)}>
+                          {v.nombre}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      Asignado a: {buildLeadOwnerLabel(selectedLead, contactosById, vendedoresById, vendedorContactoId)}
+                    </Typography>
+                  )}
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <PersonIcon fontSize="small" />
+                    <Typography variant="body2">{selectedLead.owner}</Typography>
+                    {selectedLead.seguimientoPendiente && (
+                      <Chip
+                        size="small"
+                        label="Seguimiento pendiente"
+                        color="warning"
+                        variant="filled"
+                        sx={{ fontWeight: 700 }}
+                      />
+                    )}
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 1 }}>
+                    <Typography
+                      variant="subtitle1"
+                      fontWeight={700}
+                      sx={{
+                        color: selectedLead.statusType === 'attention'
+                          ? 'error.main'
+                          : selectedLead.statusType === 'waiting'
+                            ? 'text.secondary'
+                            : 'text.primary',
+                      }}
+                    >
+                      {selectedLead.statusLabel}
+                    </Typography>
+                    <Typography variant="subtitle1" color="text.secondary" fontWeight={600}>
+                      · {formatMinutesAgo(selectedLead.idleMinutes)}
+                    </Typography>
                     <Chip
                       size="small"
-                      label="Seguimiento pendiente"
-                      color="warning"
-                      variant="filled"
-                      sx={{ fontWeight: 700 }}
+                      label={selectedLead.priority}
+                      sx={{
+                        fontWeight: 700,
+                        border: '1px solid',
+                        borderColor: selectedLead.priority === 'Alta'
+                          ? 'error.light'
+                          : selectedLead.priority === 'Media'
+                            ? 'warning.light'
+                            : 'grey.200',
+                        color: selectedLead.priority === 'Alta'
+                          ? 'error.dark'
+                          : selectedLead.priority === 'Media'
+                            ? '#7c5a00'
+                            : 'grey.700',
+                        bgcolor: selectedLead.priority === 'Alta'
+                          ? 'error.light + 14'
+                          : selectedLead.priority === 'Media'
+                            ? 'warning.light + 16'
+                            : 'grey.100',
+                      }}
                     />
-                  )}
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <Typography variant="body2" fontWeight={600} color="text.primary">
+                      👉 {selectedLead.statusType === 'attention' ? 'Responder ahora' : 'Esperar respuesta del cliente'}
+                    </Typography>
+                  </Stack>
                   {(() => {
-                    const idle = getIdleSeverity(selectedLead.idleMinutes);
+                    const expiresIn = selectedLead.windowExpiresInMinutes;
+                    const windowState = selectedLead.within24hWindow
+                      ? expiresIn <= 120
+                        ? 'warning'
+                        : 'open'
+                      : 'closed';
+                    const windowLabel = windowState === 'closed'
+                      ? 'Ventana cerrada · requiere plantilla'
+                      : windowState === 'warning'
+                        ? `Expira pronto · ${formatMinutes(expiresIn)} restantes`
+                        : `Ventana abierta · expira en ${formatMinutes(expiresIn)}`;
+                    const windowColor = windowState === 'closed'
+                      ? 'error.main'
+                      : windowState === 'warning'
+                        ? 'warning.main'
+                        : 'success.main';
+                    const windowDot = windowState === 'closed' ? '🔴' : windowState === 'warning' ? '🟡' : '🟢';
+
                     return (
-                      <Stack direction="row" spacing={0.5} alignItems="center" color={idle.color === 'error' ? 'error.main' : idle.color === 'warning' ? 'warning.main' : 'text.disabled'}>
-                        {idle.showIcon && <WarningAmberIcon fontSize="small" />}
-                        <Typography variant="body2" fontWeight={idle.color === 'default' ? 400 : 700}>
-                          · Sin respuesta {formatMinutesAgo(selectedLead.idleMinutes)}
-                        </Typography>
-                      </Stack>
+                      <Typography variant="caption" sx={{ color: windowColor, fontWeight: 600 }}>
+                        {windowDot} {windowLabel}
+                      </Typography>
                     );
                   })()}
                 </Stack>
@@ -1213,16 +1659,36 @@ export default function LeadsPage() {
                     ))}
                   </TextField>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<ReplyIcon />}
-                      onClick={() => handleSendWhatsapp()}
-                      disabled={isSending}
-                      sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
+                    <Tooltip
+                      arrow
+                      disableHoverListener={!selectedLead.requiresTemplate}
+                      title={(
+                        <Box sx={{ maxWidth: 280 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>
+                            No puedes enviar mensajes libres porque han pasado más de 24 horas desde el último mensaje del cliente.
+                          </Typography>
+                          <Typography variant="body2" sx={{ mb: 0.75 }}>
+                            WhatsApp requiere que, fuera de esta ventana, solo se envíen mensajes mediante plantillas aprobadas.
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            👉 Para continuar la conversación, usa el botón “Enviar plantilla”.
+                          </Typography>
+                        </Box>
+                      )}
                     >
-                      {isSending ? 'Enviando…' : sendSuccess ? 'Enviado ✓' : 'Escribir en el chat'}
-                    </Button>
+                      <span>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={<ReplyIcon />}
+                          onClick={() => handleSendWhatsapp()}
+                          disabled={isSending || selectedLead.requiresTemplate}
+                          sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
+                        >
+                          {isSending ? 'Enviando…' : sendSuccess ? 'Enviado ✓' : 'Escribir en el chat'}
+                        </Button>
+                      </span>
+                    </Tooltip>
                     <Button
                       variant="outlined"
                       size="small"
@@ -1242,12 +1708,54 @@ export default function LeadsPage() {
                     >
                       {isTesting ? 'Probando…' : 'Probar escenarios'}
                     </Button>
-                    <Button variant="outlined" size="small" startIcon={<DescriptionIcon />}>Enviar plantilla</Button>
+                    <Button
+                      variant={selectedLead.requiresTemplate ? 'contained' : 'outlined'}
+                      color={selectedLead.requiresTemplate ? 'warning' : 'inherit'}
+                      size="small"
+                      startIcon={<DescriptionIcon />}
+                      onClick={handleSendTemplate}
+                      disabled={isSendingTemplate}
+                      sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
+                    >
+                      {isSendingTemplate ? 'Reactivando…' : 'Reactivar conversación'}
+                    </Button>
                     <Button variant="outlined" size="small" startIcon={<CheckCircleIcon />}>Marcar cotizado</Button>
                     <Button variant="outlined" size="small" color="error">Cerrar / Perdido</Button>
                   </Stack>
                 </Stack>
               </Paper>
+
+              <Dialog
+                open={isTemplateDialogOpen}
+                onClose={() => !isSendingTemplate && setIsTemplateDialogOpen(false)}
+                maxWidth="xs"
+                fullWidth
+              >
+                <DialogTitle>Reactivar conversación</DialogTitle>
+                <DialogContent>
+                  <Typography variant="body2" color="text.secondary">
+                    Se enviará un mensaje para reactivar la conversación con el cliente.
+                    Después podrás escribir normalmente.
+                  </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                  <Button
+                    onClick={() => setIsTemplateDialogOpen(false)}
+                    disabled={isSendingTemplate}
+                    variant="outlined"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleConfirmTemplateSend}
+                    disabled={isSendingTemplate}
+                    variant="contained"
+                    color="warning"
+                  >
+                    {isSendingTemplate ? 'Reactivando…' : 'Reactivar'}
+                  </Button>
+                </DialogActions>
+              </Dialog>
 
                 {testResults.length > 0 && (
                   <Paper variant="outlined" sx={{ p: 1.25, backgroundColor: '#f9fafb' }}>
@@ -1356,5 +1864,20 @@ export default function LeadsPage() {
         </Box>
       </Box>
     </Box>
+    <Snackbar
+      open={snackbar.open}
+      autoHideDuration={2500}
+      onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+    >
+      <Alert
+        severity={snackbar.severity}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        sx={{ width: '100%' }}
+      >
+        {snackbar.message}
+      </Alert>
+    </Snackbar>
+    </>
   );
 }

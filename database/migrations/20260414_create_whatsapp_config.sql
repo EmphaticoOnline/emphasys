@@ -1,4 +1,4 @@
-CREATE TABLE whatsapp.whatsapp_config (
+CREATE TABLE whatsapp.config (
   id bigserial PRIMARY KEY,
   empresa_id int NOT NULL,
   phone_number varchar(20) NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE whatsapp.whatsapp_config (
 );
 
 CREATE INDEX whatsapp_config_empresa_id_idx
-  ON whatsapp.whatsapp_config (empresa_id);
+  ON whatsapp.config (empresa_id);
 
-COMMENT ON TABLE whatsapp.whatsapp_config
+COMMENT ON TABLE whatsapp.config
   IS 'Configuración del canal WhatsApp por empresa (API key, número, app de Gupshup)';

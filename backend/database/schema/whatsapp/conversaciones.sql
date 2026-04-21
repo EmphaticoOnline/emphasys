@@ -1,5 +1,5 @@
 -- Schema: whatsapp
--- Table: whatsapp_conversaciones
+-- Table: conversaciones
 -- Generated automatically
 
 --
@@ -24,7 +24,7 @@ SET row_security = off;
 SET default_table_access_method = heap;
 
 --
--- Name: whatsapp_conversaciones; Type: TABLE; Schema: whatsapp; Owner: -
+-- Name: conversaciones; Type: TABLE; Schema: whatsapp; Owner: -
 --
 
 CREATE TABLE whatsapp.conversaciones (
@@ -40,33 +40,33 @@ CREATE TABLE whatsapp.conversaciones (
     siguiente_accion character varying(30) DEFAULT 'responder'::character varying NOT NULL,
     etapa_oportunidad character varying(30) DEFAULT 'nuevo'::character varying NOT NULL,
     CONSTRAINT chk_etapa_oportunidad CHECK (((etapa_oportunidad)::text = ANY ((ARRAY['nuevo'::character varying, 'contactado'::character varying, 'interesado'::character varying, 'cotizado'::character varying, 'negociacion'::character varying, 'ganado'::character varying, 'perdido'::character varying])::text[]))),
-    CONSTRAINT whatsapp_conversaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('abierta'::character varying)::text, ('cerrada'::character varying)::text])))
+    CONSTRAINT conversaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('abierta'::character varying)::text, ('cerrada'::character varying)::text])))
 );
 
 
 --
--- Name: TABLE whatsapp_conversaciones; Type: COMMENT; Schema: whatsapp; Owner: -
+-- Name: TABLE conversaciones; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
 COMMENT ON TABLE whatsapp.conversaciones IS 'Agrupa mensajes en ciclos comerciales por empresa.';
 
 
 --
--- Name: COLUMN whatsapp_conversaciones.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
+-- Name: COLUMN conversaciones.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
 COMMENT ON COLUMN whatsapp.conversaciones.empresa_id IS 'Empresa propietaria de la conversacion.';
 
 
 --
--- Name: COLUMN whatsapp_conversaciones.contacto_id; Type: COMMENT; Schema: whatsapp; Owner: -
+-- Name: COLUMN conversaciones.contacto_id; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
 COMMENT ON COLUMN whatsapp.conversaciones.contacto_id IS 'Contacto asociado a la conversacion.';
 
 
 --
--- Name: whatsapp_conversaciones_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
+-- Name: conversaciones_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE whatsapp.conversaciones ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
@@ -80,26 +80,26 @@ ALTER TABLE whatsapp.conversaciones ALTER COLUMN id ADD GENERATED ALWAYS AS IDEN
 
 
 --
--- Name: whatsapp_conversaciones whatsapp_conversaciones_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
+-- Name: conversaciones conversaciones_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE ONLY whatsapp.conversaciones
-    ADD CONSTRAINT whatsapp_conversaciones_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT conversaciones_pkey PRIMARY KEY (id);
 
 
 --
--- Name: ix_whatsapp_conv_empresa_estado; Type: INDEX; Schema: whatsapp; Owner: -
+-- Name: ix_conv_empresa_estado; Type: INDEX; Schema: whatsapp; Owner: -
 --
 
-CREATE INDEX ix_whatsapp_conv_empresa_estado ON whatsapp.conversaciones USING btree (empresa_id, estado);
+CREATE INDEX ix_conv_empresa_estado ON whatsapp.conversaciones USING btree (empresa_id, estado);
 
 
 --
--- Name: whatsapp_conversaciones whatsapp_conversaciones_contacto_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
+-- Name: conversaciones conversaciones_contacto_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE ONLY whatsapp.conversaciones
-    ADD CONSTRAINT whatsapp_conversaciones_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
+    ADD CONSTRAINT conversaciones_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
 
 
 --

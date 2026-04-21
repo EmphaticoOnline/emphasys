@@ -849,7 +849,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         total: form.total || 0,
         empresa_id: getEmpresaActivaId(),
         usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
-  tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : null,
+  tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : 'normal',
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
         regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,

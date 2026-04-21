@@ -74,6 +74,10 @@ const buildCrearHandler = (tipoPorDefecto: TipoDocumento) => async (req: Request
   const created = await crearDocumentoService(payload, Number(empresaId), tipoPorDefecto);
     res.status(201).json(created);
   } catch (error) {
+    const message = (error as Error)?.message ?? '';
+    if (message.startsWith('VALIDATION_ERROR')) {
+      return res.status(400).json({ ok: false, error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
+    }
     if ((error as any)?.code === 'DOCUMENTO_DUPLICADO') {
       return res.status(400).json({ message: (error as any)?.message || 'Documento duplicado' });
     }
@@ -93,6 +97,10 @@ const buildActualizarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = fals
     if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipoPorDefecto]} no encontrada` });
     res.json(updated);
   } catch (error) {
+    const message = (error as Error)?.message ?? '';
+    if (message.startsWith('VALIDATION_ERROR')) {
+      return res.status(400).json({ ok: false, error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
+    }
     console.error(`Error al actualizar ${tipoPorDefecto}`, error);
     res.status(500).json({ message: `Error al actualizar ${tipoPorDefecto}` });
   }

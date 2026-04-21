@@ -1,6 +1,7 @@
 import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import type { TipoDocumento } from '../../types/documentos';
+import type { TratamientoImpuestos } from '../impuestos/impuestos.types';
 
 export type Documento = {
   id: number;
@@ -96,8 +97,9 @@ async function ensureSeguimientoColumns(client?: PoolClient) {
   }
 }
 
-type DocumentoInput = Partial<Record<typeof CAMPOS_DOCUMENTO[number], any>> & {
+type DocumentoInput = Omit<Partial<Record<typeof CAMPOS_DOCUMENTO[number], any>>, 'tratamiento_impuestos'> & {
   tipo_documento?: TipoDocumento;
+  tratamiento_impuestos?: TratamientoImpuestos;
 };
 
 export type PartidaInput = {
@@ -264,9 +266,8 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
   const tipoDocumentoNormalizado = (dataConDefaults.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
   const tipoDocumentoDb = tipoDocumentoNormalizado;
 
-  // Asegurar tratamiento_impuestos por defecto
   if (dataConDefaults.tratamiento_impuestos === undefined || dataConDefaults.tratamiento_impuestos === null) {
-    dataConDefaults.tratamiento_impuestos = 'normal';
+    throw new Error('VALIDATION_ERROR: El tratamiento de impuestos es obligatorio');
   }
 
   // Prellenar datos fiscales del contacto en facturas si no vienen en la petición
@@ -371,6 +372,9 @@ export async function actualizarDocumentoRepository(
   empresaId: number,
   tipoDocumento?: TipoDocumento
 ) {
+  if (data.tratamiento_impuestos === undefined || data.tratamiento_impuestos === null) {
+    throw new Error('VALIDATION_ERROR: El tratamiento de impuestos es obligatorio');
+  }
   const hasSeguimiento = await ensureSeguimientoColumns();
 
   // Traer valores actuales para comparar serie/número

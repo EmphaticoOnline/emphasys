@@ -4,7 +4,7 @@ import fs from 'fs';
 import pool from '../../config/database';
 import { generarImagenQR, DatosQrCfdi } from '../../utils/generarCadenaQR';
 import { formatearFolioDocumento } from '../../utils/documentos';
-import { DOCUMENT_LAYOUTS } from '../../config/document-layouts';
+import { DOCUMENT_LAYOUTS, type DocumentLayout } from '../../config/document-layouts';
 import { obtenerPlantillaParaDocumento } from '../plantillas/plantillas.service';
 import { renderPlantillaHTML, type PlantillaData } from '../plantillas/plantillas.render.service';
 import puppeteer from 'puppeteer';
@@ -240,6 +240,72 @@ async function obtenerLogoEmpresaPath(empresaId?: number): Promise<string | null
   }
 }
 
+const obtenerLayoutFallback = (tipoDocumento?: string | null): DocumentLayout => {
+  const tipo = (tipoDocumento ?? '').toString().toLowerCase();
+  return (
+    DOCUMENT_LAYOUTS[tipo as keyof typeof DOCUMENT_LAYOUTS] ?? {
+      mostrarHeader: true,
+      mostrarCliente: true,
+      mostrarPartidas: true,
+      mostrarTotales: true,
+    }
+  );
+};
+
+async function getDocumentLayout(documento?: any, empresaIdFallback?: number): Promise<DocumentLayout> {
+  const tipoDocumento = (documento?.tipo_documento ?? '').toString().toLowerCase();
+  const baseLayout = obtenerLayoutFallback(tipoDocumento);
+  const serieTexto = (documento?.serie ?? null) as string | null;
+  const empresaId = (documento?.empresa_id ?? empresaIdFallback ?? null) as number | null;
+
+  try {
+    if (empresaId && tipoDocumento && serieTexto) {
+      const { rows } = await pool.query(
+        `SELECT sd.layout_id, pd.configuracion
+           FROM public.series_documento sd
+      LEFT JOIN public.plantillas_documento pd ON pd.id = sd.layout_id
+          WHERE sd.empresa_id = $1
+            AND sd.tipo_documento = $2
+            AND sd.serie = $3
+          LIMIT 1`,
+        [empresaId, tipoDocumento, serieTexto]
+      );
+
+      const serieRow = rows?.[0];
+      if (serieRow?.layout_id && serieRow?.configuracion && typeof serieRow.configuracion === 'object') {
+        return { ...baseLayout, ...serieRow.configuracion };
+      }
+    }
+
+    if (empresaId) {
+      const { rows } = await pool.query(
+        `SELECT configuracion
+           FROM public.plantillas_documento
+          WHERE empresa_id = $1
+            AND activo = true
+            AND (tipo_documento IS NULL OR tipo_documento = $2)
+       ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+          LIMIT 1`,
+        [empresaId, tipoDocumento || null]
+      );
+
+      const empresaRow = rows?.[0];
+      if (empresaRow?.configuracion && typeof empresaRow.configuracion === 'object') {
+        return { ...baseLayout, ...empresaRow.configuracion };
+      }
+    }
+  } catch (error) {
+    console.warn('[pdf] Error al obtener layout dinámico, usando fallback', {
+      documentoId: documento?.id ?? null,
+      serieTexto,
+      empresaId,
+      error: (error as Error)?.message ?? error,
+    });
+  }
+
+  return baseLayout;
+}
+
 async function generarPDFFromHTML(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
     headless: true,
@@ -374,6 +440,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const fontBoldPath = path.join(assetsFontsPath, 'Trebuchet-Bold.ttf');
   const fontItalicPath = path.join(assetsFontsPath, 'Trebuchet-Italic.ttf');
 
+  const layout = await getDocumentLayout(documento, empresaId);
+
   return await new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40, size: 'LETTER' });
 
@@ -440,18 +508,6 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       doc.y = y + 22;
       doc.fillColor(textColor);
     };
-
-    const obtenerLayout = (tipoDocumento?: string | null) => {
-      const tipo = (tipoDocumento ?? '').toString().toLowerCase();
-      return DOCUMENT_LAYOUTS[tipo as keyof typeof DOCUMENT_LAYOUTS] ?? {
-        mostrarHeader: true,
-        mostrarCliente: true,
-        mostrarPartidas: true,
-        mostrarTotales: true,
-      };
-    };
-
-    const layout = obtenerLayout(documento?.tipo_documento);
 
     const startX = doc.page.margins.left;
     const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;

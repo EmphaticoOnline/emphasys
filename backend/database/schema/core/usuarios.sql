@@ -35,7 +35,8 @@ CREATE TABLE core.usuarios (
     ultimo_login timestamp without time zone,
     activo boolean DEFAULT true,
     es_superadmin boolean DEFAULT false,
-    created_at timestamp without time zone DEFAULT now()
+    created_at timestamp without time zone DEFAULT now(),
+    vendedor_contacto_id integer
 );
 
 
@@ -149,6 +150,28 @@ CREATE UNIQUE INDEX idx_usuarios_email ON core.usuarios USING btree (email);
 --
 
 COMMENT ON INDEX core.idx_usuarios_email IS 'Garantiza unicidad del correo electrónico';
+
+
+--
+-- Name: idx_usuarios_vendedor_contacto_id; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_usuarios_vendedor_contacto_id ON core.usuarios USING btree (vendedor_contacto_id);
+
+
+--
+-- Name: usuarios trg_usuarios_vendedor_contacto; Type: TRIGGER; Schema: core; Owner: -
+--
+
+CREATE TRIGGER trg_usuarios_vendedor_contacto BEFORE INSERT OR UPDATE OF vendedor_contacto_id ON core.usuarios FOR EACH ROW EXECUTE FUNCTION core.validar_usuario_vendedor_contacto();
+
+
+--
+-- Name: usuarios fk_usuarios_vendedor_contacto; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.usuarios
+    ADD CONSTRAINT fk_usuarios_vendedor_contacto FOREIGN KEY (vendedor_contacto_id) REFERENCES public.contactos(id) ON DELETE SET NULL;
 
 
 --

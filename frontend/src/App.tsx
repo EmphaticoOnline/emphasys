@@ -23,6 +23,7 @@ import OpcionesParametrosPage from './pages/configuracion/OpcionesParametrosPage
 import DocumentosConfiguracionPage from './pages/configuracion/DocumentosConfiguracionPage';
 import ConceptosConfigPage from './pages/configuracion/ConceptosPage';
 import EmpresaImpuestosDefaultPage from './pages/configuracion/EmpresaImpuestosDefaultPage';
+import FormatosImpresionPage from './pages/configuracion/FormatosImpresionPage';
 import FinanzasPage from './pages/FinanzasPage';
 import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
@@ -67,6 +68,7 @@ export default function App() {
               <Route path="/configuracion/documentos" element={<DocumentosConfiguracionPage />} />
               <Route path="/configuracion/conceptos" element={<ConceptosConfigPage />} />
               <Route path="/configuracion/empresa/impuestos-default" element={<EmpresaImpuestosDefaultPage />} />
+              <Route path="/configuracion/formatos-impresion" element={<FormatosImpresionPage />} />
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />

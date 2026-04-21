@@ -1,5 +1,5 @@
 -- Schema: whatsapp
--- Table: whatsapp_estadisticas
+-- Table: estadisticas
 -- Generated automatically
 
 --
@@ -24,7 +24,7 @@ SET row_security = off;
 SET default_table_access_method = heap;
 
 --
--- Name: whatsapp_estadisticas; Type: TABLE; Schema: whatsapp; Owner: -
+-- Name: estadisticas; Type: TABLE; Schema: whatsapp; Owner: -
 --
 
 CREATE TABLE whatsapp.estadisticas (
@@ -38,25 +38,25 @@ CREATE TABLE whatsapp.estadisticas (
 
 
 --
--- Name: TABLE whatsapp_estadisticas; Type: COMMENT; Schema: whatsapp; Owner: -
+-- Name: TABLE estadisticas; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
 COMMENT ON TABLE whatsapp.estadisticas IS 'Estadisticas diarias de WhatsApp por empresa.';
 
 
 --
--- Name: COLUMN whatsapp_estadisticas.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
+-- Name: COLUMN estadisticas.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
 COMMENT ON COLUMN whatsapp.estadisticas.empresa_id IS 'Empresa a la que pertenecen las metricas.';
 
 
 --
--- Name: whatsapp_estadisticas whatsapp_estadisticas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
+-- Name: estadisticas estadisticas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE ONLY whatsapp.estadisticas
-    ADD CONSTRAINT whatsapp_estadisticas_pkey PRIMARY KEY (empresa_id, fecha);
+    ADD CONSTRAINT estadisticas_pkey PRIMARY KEY (empresa_id, fecha);
 
 
 --

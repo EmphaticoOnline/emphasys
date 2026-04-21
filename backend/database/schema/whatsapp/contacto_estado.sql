@@ -1,5 +1,5 @@
 -- Schema: whatsapp
--- Table: whatsapp_contacto_estado
+-- Table: contacto_estado
 -- Generated automatically
 
 --
@@ -24,7 +24,7 @@ SET row_security = off;
 SET default_table_access_method = heap;
 
 --
--- Name: whatsapp_contacto_estado; Type: TABLE; Schema: whatsapp; Owner: -
+-- Name: contacto_estado; Type: TABLE; Schema: whatsapp; Owner: -
 --
 
 CREATE TABLE whatsapp.contacto_estado (
@@ -35,30 +35,30 @@ CREATE TABLE whatsapp.contacto_estado (
     ultimo_in timestamp with time zone,
     ultimo_out timestamp with time zone,
     actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT whatsapp_contacto_estado_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text))
+    CONSTRAINT contacto_estado_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text))
 );
 
 
 --
--- Name: TABLE whatsapp_contacto_estado; Type: COMMENT; Schema: whatsapp; Owner: -
+-- Name: TABLE contacto_estado; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
 COMMENT ON TABLE whatsapp.contacto_estado IS 'Controla ventana 24h y consentimiento por empresa.';
 
 
 --
--- Name: COLUMN whatsapp_contacto_estado.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
+-- Name: COLUMN contacto_estado.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
 COMMENT ON COLUMN whatsapp.contacto_estado.empresa_id IS 'Empresa a la que pertenece el telefono.';
 
 
 --
--- Name: whatsapp_contacto_estado whatsapp_contacto_estado_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
+-- Name: contacto_estado contacto_estado_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE ONLY whatsapp.contacto_estado
-    ADD CONSTRAINT whatsapp_contacto_estado_pkey PRIMARY KEY (empresa_id, telefono);
+    ADD CONSTRAINT contacto_estado_pkey PRIMARY KEY (empresa_id, telefono);
 
 
 --

@@ -450,16 +450,16 @@ BEGIN
   -- WhatsApp
   ---------------------------------------------------------------------------
   RAISE NOTICE 'Eliminando WhatsApp...';
-  DELETE FROM whatsapp.whatsapp_mensajes
+  DELETE FROM whatsapp.mensajes
   WHERE empresa_id = p_empresa_id;
 
-  DELETE FROM whatsapp.whatsapp_estadisticas
+  DELETE FROM whatsapp.estadisticas
   WHERE empresa_id = p_empresa_id;
 
-  DELETE FROM whatsapp.whatsapp_conversaciones
+  DELETE FROM whatsapp.conversaciones
   WHERE empresa_id = p_empresa_id;
 
-  DELETE FROM whatsapp.whatsapp_contacto_estado
+  DELETE FROM whatsapp.contacto_estado
   WHERE empresa_id = p_empresa_id;
 
   ---------------------------------------------------------------------------
@@ -1242,10 +1242,10 @@ COMMENT ON COLUMN inventario.movimientos.es_reversion IS
 
 
 
-ALTER TABLE whatsapp.whatsapp_conversaciones
+ALTER TABLE whatsapp.conversaciones
 ADD COLUMN prioridad VARCHAR(10) DEFAULT 'media' NOT NULL;
 
-ALTER TABLE whatsapp.whatsapp_conversaciones
+ALTER TABLE whatsapp.conversaciones
 ADD COLUMN siguiente_accion VARCHAR(30) DEFAULT 'responder' NOT NULL;
 
 
@@ -1259,7 +1259,7 @@ BEGIN
           AND table_name = 'whatsapp_conversaciones'
           AND column_name = 'etapa_oportunidad'
     ) THEN
-        ALTER TABLE whatsapp.whatsapp_conversaciones
+        ALTER TABLE whatsapp.conversaciones
         ADD COLUMN etapa_oportunidad VARCHAR(30) NOT NULL DEFAULT 'nuevo';
     END IF;
 
@@ -1269,7 +1269,7 @@ BEGIN
         FROM pg_constraint
         WHERE conname = 'chk_etapa_oportunidad'
     ) THEN
-        ALTER TABLE whatsapp.whatsapp_conversaciones
+        ALTER TABLE whatsapp.conversaciones
         ADD CONSTRAINT chk_etapa_oportunidad
         CHECK (etapa_oportunidad IN (
             'nuevo',
@@ -1284,10 +1284,10 @@ BEGIN
 END$$;
 
 -- COMMENT (siempre seguro ejecutar)
-COMMENT ON COLUMN whatsapp.whatsapp_conversaciones.etapa_oportunidad
+COMMENT ON COLUMN whatsapp.conversaciones.etapa_oportunidad
 IS 'Etapa comercial de la oportunidad asociada a la conversación de WhatsApp.';
 
-UPDATE whatsapp.whatsapp_conversaciones
+UPDATE whatsapp.conversaciones
 SET etapa_oportunidad = 'nuevo'
 WHERE etapa_oportunidad IS NULL;
 

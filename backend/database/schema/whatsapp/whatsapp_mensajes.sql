@@ -27,7 +27,7 @@ SET default_table_access_method = heap;
 -- Name: whatsapp_mensajes; Type: TABLE; Schema: whatsapp; Owner: -
 --
 
-CREATE TABLE whatsapp.whatsapp_mensajes (
+CREATE TABLE whatsapp.mensajes (
     id bigint NOT NULL,
     empresa_id integer NOT NULL,
     contacto_id integer,
@@ -53,22 +53,22 @@ CREATE TABLE whatsapp.whatsapp_mensajes (
 -- Name: TABLE whatsapp_mensajes; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
-COMMENT ON TABLE whatsapp.whatsapp_mensajes IS 'Registro historico de mensajes por empresa.';
+COMMENT ON TABLE whatsapp.mensajes IS 'Registro historico de mensajes por empresa.';
 
 
 --
 -- Name: COLUMN whatsapp_mensajes.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
 --
 
-COMMENT ON COLUMN whatsapp.whatsapp_mensajes.empresa_id IS 'Empresa propietaria del mensaje.';
+COMMENT ON COLUMN whatsapp.mensajes.empresa_id IS 'Empresa propietaria del mensaje.';
 
 
 --
 -- Name: whatsapp_mensajes_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
 --
 
-ALTER TABLE whatsapp.whatsapp_mensajes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME whatsapp.whatsapp_mensajes_id_seq
+ALTER TABLE whatsapp.mensajes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME whatsapp.mensajes_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -81,7 +81,7 @@ ALTER TABLE whatsapp.whatsapp_mensajes ALTER COLUMN id ADD GENERATED ALWAYS AS I
 -- Name: whatsapp_mensajes whatsapp_mensajes_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
-ALTER TABLE ONLY whatsapp.whatsapp_mensajes
+ALTER TABLE ONLY whatsapp.mensajes
     ADD CONSTRAINT whatsapp_mensajes_pkey PRIMARY KEY (id);
 
 
@@ -89,21 +89,21 @@ ALTER TABLE ONLY whatsapp.whatsapp_mensajes
 -- Name: ix_whatsapp_mensajes_empresa_fecha; Type: INDEX; Schema: whatsapp; Owner: -
 --
 
-CREATE INDEX ix_whatsapp_mensajes_empresa_fecha ON whatsapp.whatsapp_mensajes USING btree (empresa_id, fecha_envio DESC);
+CREATE INDEX ix_whatsapp_mensajes_empresa_fecha ON whatsapp.mensajes USING btree (empresa_id, fecha_envio DESC);
 
 
 --
 -- Name: ux_whatsapp_mensaje_externo; Type: INDEX; Schema: whatsapp; Owner: -
 --
 
-CREATE UNIQUE INDEX ux_whatsapp_mensaje_externo ON whatsapp.whatsapp_mensajes USING btree (empresa_id, id_externo) WHERE (id_externo IS NOT NULL);
+CREATE UNIQUE INDEX ux_whatsapp_mensaje_externo ON whatsapp.mensajes USING btree (empresa_id, id_externo) WHERE (id_externo IS NOT NULL);
 
 
 --
 -- Name: whatsapp_mensajes whatsapp_mensajes_contacto_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
-ALTER TABLE ONLY whatsapp.whatsapp_mensajes
+ALTER TABLE ONLY whatsapp.mensajes
     ADD CONSTRAINT whatsapp_mensajes_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
 
 
@@ -111,8 +111,8 @@ ALTER TABLE ONLY whatsapp.whatsapp_mensajes
 -- Name: whatsapp_mensajes whatsapp_mensajes_conversacion_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
-ALTER TABLE ONLY whatsapp.whatsapp_mensajes
-    ADD CONSTRAINT whatsapp_mensajes_conversacion_id_fkey FOREIGN KEY (conversacion_id) REFERENCES whatsapp.whatsapp_conversaciones(id);
+ALTER TABLE ONLY whatsapp.mensajes
+    ADD CONSTRAINT whatsapp_mensajes_conversacion_id_fkey FOREIGN KEY (conversacion_id) REFERENCES whatsapp.conversaciones(id);
 
 
 --
