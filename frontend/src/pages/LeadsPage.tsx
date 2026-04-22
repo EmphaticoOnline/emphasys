@@ -31,6 +31,8 @@ import SendIcon from '@mui/icons-material/Send';
 import ReplyIcon from '@mui/icons-material/Reply';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DescriptionIcon from '@mui/icons-material/Description';
+import EditIcon from '@mui/icons-material/Edit';
+import AddIcon from '@mui/icons-material/Add';
 import { apiFetch } from '../api/apiClient';
 import { useSession } from '../session/useSession';
 import { fetchContactos } from '../services/contactosService';
@@ -55,6 +57,7 @@ type ConversationSummary = {
   ultimoMensaje: string | null;
   ultimoMensajeEn: string | null;
   nombre?: string | null;
+  vendedor_id?: number | null;
   etapa_oportunidad?: EtapaOportunidad | null;
 };
 
@@ -67,6 +70,12 @@ type ConversationMessage = {
   fecha_envio: string | null;
   creado_en?: string | null;
   status: string | null;
+};
+
+type WhatsappEtiqueta = {
+  id: number;
+  nombre: string;
+  color: string;
 };
 
 type LeadStatusType = 'attention' | 'waiting' | 'neutral' | 'active';
@@ -87,6 +96,7 @@ type Lead = {
   requiresTemplate: boolean;
   conversation: Array<{ id: string; from: 'lead' | 'me'; text: string; minutesAgo: number; sentAt: string | null }>;
   contactoId: string | null;
+  vendedor_id: number | null;
   ultimoMensajeEn: string | null;
   priority: Priority;
   nextAction: NextAction;
@@ -267,13 +277,10 @@ const ordenarLeads = (a: LeadConPrioridad, b: LeadConPrioridad): number => {
 
 const buildLeadOwnerLabel = (
   lead: Lead,
-  contactosMap: Record<number, Contacto>,
   vendedoresMap: Record<number, Contacto>,
   currentVendedorId: number | null
 ): string => {
-  const contactoId = lead.contactoId ? Number(lead.contactoId) : null;
-  const contacto = contactoId ? contactosMap[contactoId] : undefined;
-  const vendedorId = contacto?.vendedor_id ?? null;
+  const vendedorId = lead.vendedor_id ?? null;
   if (vendedorId && currentVendedorId && vendedorId === currentVendedorId) return 'Tú';
   if (vendedorId && vendedoresMap[vendedorId]) return vendedoresMap[vendedorId].nombre;
   return 'Sin asignar';
@@ -323,6 +330,12 @@ export default function LeadsPage() {
   const [sendSuccess, setSendSuccess] = React.useState(false);
   const [testResults, setTestResults] = React.useState<Array<{ titulo: string; mensaje: string }>>([]);
   const [etapaMenu, setEtapaMenu] = React.useState<{ leadId: string; anchorEl: HTMLElement | null } | null>(null);
+  const [availableTags, setAvailableTags] = React.useState<WhatsappEtiqueta[]>([]);
+  const [conversationTags, setConversationTags] = React.useState<WhatsappEtiqueta[]>([]);
+  const [tagsMenuAnchor, setTagsMenuAnchor] = React.useState<HTMLElement | null>(null);
+  const [isCreatingTag, setIsCreatingTag] = React.useState(false);
+  const [newTagName, setNewTagName] = React.useState('');
+  const [newTagColor, setNewTagColor] = React.useState('#25D366');
   const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
   const [leadScope, setLeadScope] = React.useState<LeadScope>('todos');
   const [scopeTouched, setScopeTouched] = React.useState(false);
@@ -335,6 +348,13 @@ export default function LeadsPage() {
   const contactosLoadedRef = React.useRef(false);
   const [isUpdatingOwner, setIsUpdatingOwner] = React.useState(false);
   const [vendedorFilterId, setVendedorFilterId] = React.useState<number | null>(null);
+  const [isCompleteContactOpen, setIsCompleteContactOpen] = React.useState(false);
+  const [completeContactForm, setCompleteContactForm] = React.useState({
+    nombre: '',
+    email: '',
+    empresa: '',
+    observaciones: '',
+  });
   const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
@@ -519,7 +539,7 @@ export default function LeadsPage() {
   const selectedLeadPriority = selectedLead?.computedPriority ?? 'Media';
   const selectedContactoId = selectedLead?.contactoId ? Number(selectedLead.contactoId) : null;
   const selectedContacto = selectedContactoId ? contactosById[selectedContactoId] : undefined;
-  const selectedVendedorId = selectedContacto?.vendedor_id ?? null;
+  const selectedVendedorId = selectedLead?.vendedor_id ?? null;
   const vendorOptions = React.useMemo(
     () => Object.values(vendedoresById).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '')),
     [vendedoresById]
@@ -547,6 +567,7 @@ export default function LeadsPage() {
   requiresTemplate: false,
       conversation: [],
       contactoId: conv.contactoId,
+      vendedor_id: conv.vendedor_id ?? null,
       ultimoMensajeEn: conv.ultimoMensajeEn,
       priority: 'Media',
       nextAction: deriveNextAction(true),
@@ -656,6 +677,7 @@ export default function LeadsPage() {
               phone: conv.telefono || existing.phone,
               lastMessage: conv.ultimoMensaje ?? existing.lastMessage,
               ultimoMensajeEn: conv.ultimoMensajeEn,
+              vendedor_id: conv.vendedor_id ?? existing.vendedor_id,
               etapa_oportunidad: conv.etapa_oportunidad ?? existing.etapa_oportunidad,
             };
             map.set(conv.id, applyDerivedLeadState(updatedLead));
@@ -786,6 +808,65 @@ export default function LeadsPage() {
     focusReplyInput();
   };
 
+  const loadAvailableTags = React.useCallback(async () => {
+    try {
+      const response = await apiFetch('/api/whatsapp/etiquetas');
+      if (!response.ok) {
+        throw new Error('Error al obtener etiquetas');
+      }
+      const data: WhatsappEtiqueta[] = await response.json();
+      setAvailableTags(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error cargando etiquetas:', error);
+    }
+  }, []);
+
+  const loadConversationTags = React.useCallback(async (conversationId: string) => {
+    try {
+      const response = await apiFetch(`/api/whatsapp/conversaciones/${conversationId}/etiquetas`);
+      if (!response.ok) {
+        throw new Error('Error al obtener etiquetas de conversación');
+      }
+      const data: WhatsappEtiqueta[] = await response.json();
+      setConversationTags(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error cargando etiquetas de conversación:', error);
+    }
+  }, []);
+
+  const toggleConversationTag = React.useCallback(async (tag: WhatsappEtiqueta) => {
+    if (!selectedLeadId) return;
+    const isAssigned = conversationTags.some((t) => t.id === tag.id);
+    const prev = conversationTags;
+    setConversationTags((prevState) => (
+      isAssigned
+        ? prevState.filter((t) => t.id !== tag.id)
+        : [...prevState, tag]
+    ));
+    handleCloseTagsMenu();
+
+    try {
+      const response = await apiFetch(
+        isAssigned
+          ? `/api/whatsapp/conversaciones/${selectedLeadId}/etiquetas/${tag.id}`
+          : `/api/whatsapp/conversaciones/${selectedLeadId}/etiquetas`,
+        isAssigned
+          ? { method: 'DELETE' }
+          : {
+            method: 'POST',
+            body: JSON.stringify({ etiqueta_id: tag.id }),
+          }
+      );
+
+      if (!response.ok) {
+        throw new Error('Error al actualizar etiqueta');
+      }
+    } catch (error) {
+      console.error('Error actualizando etiqueta:', error);
+      setConversationTags(prev);
+    }
+  }, [conversationTags, selectedLeadId]);
+
   const getLastSentAtForLead = React.useCallback((leadId: string): string | null => {
     const lead = leads.find((l) => l.id === leadId);
     if (!lead) return null;
@@ -810,6 +891,19 @@ export default function LeadsPage() {
     setSelectedLeadId('');
     loadConversations();
   }, [leadScope, vendedorContactoId, vendedorFilterId]);
+
+  React.useEffect(() => {
+    if (!session.token || !session.empresaActivaId) return;
+    loadAvailableTags();
+  }, [loadAvailableTags, session.empresaActivaId, session.token]);
+
+  React.useEffect(() => {
+    if (!selectedLeadId) {
+      setConversationTags([]);
+      return;
+    }
+    loadConversationTags(selectedLeadId);
+  }, [loadConversationTags, selectedLeadId]);
 
   React.useEffect(() => {
     if (selectedLeadId) {
@@ -876,6 +970,48 @@ export default function LeadsPage() {
     setLeads((prev) => prev.map((l) => (l.id === id ? applyDerivedLeadState({ ...l, ...updates }) : l)));
   };
 
+  const openCompleteContactDialog = () => {
+    if (!selectedLead || !selectedContactoId) return;
+    setCompleteContactForm({
+      nombre: selectedContacto?.nombre || selectedLead.name || '',
+      email: selectedContacto?.email || '',
+      empresa: selectedContacto?.zona || '',
+      observaciones: selectedContacto?.observaciones || '',
+    });
+    setIsCompleteContactOpen(true);
+  };
+
+  const closeCompleteContactDialog = () => {
+    setIsCompleteContactOpen(false);
+  };
+
+  const handleSaveCompleteContact = async () => {
+    if (!selectedContactoId) return;
+    const payload: Partial<Contacto> = {
+      nombre: completeContactForm.nombre.trim(),
+      email: completeContactForm.email.trim() || null,
+      zona: completeContactForm.empresa.trim() || null,
+      observaciones: completeContactForm.observaciones.trim() || null,
+    };
+
+    try {
+      const updated = await actualizarContacto(selectedContactoId, payload);
+      setContactosById((prev) => ({
+        ...prev,
+        [selectedContactoId]: { ...(prev[selectedContactoId] ?? {}), ...updated },
+      }));
+      if (selectedLeadId) {
+        const nextName = updated.nombre || payload.nombre || selectedLead?.name || '';
+        updateLead(selectedLeadId, { name: nextName });
+      }
+      setSnackbar({ open: true, message: 'Contacto actualizado correctamente', severity: 'success' });
+      setIsCompleteContactOpen(false);
+    } catch (error: any) {
+      console.error('Error actualizando contacto:', error);
+      setSnackbar({ open: true, message: error?.message || 'No se pudo actualizar el contacto', severity: 'error' });
+    }
+  };
+
   const handleOwnerChange = async (nextValue: string) => {
     if (!selectedContactoId) return;
     const vendedorId = nextValue ? Number(nextValue) : null;
@@ -887,6 +1023,9 @@ export default function LeadsPage() {
         ...prev,
         [selectedContactoId]: { ...(prev[selectedContactoId] ?? {}), ...updated },
       }));
+      if (selectedLeadId) {
+        updateLead(selectedLeadId, { vendedor_id: vendedorId });
+      }
       setSnackbar({ open: true, message: 'Lead asignado correctamente', severity: 'success' });
     } catch (error: any) {
       console.error('Error asignando vendedor al lead:', error);
@@ -903,6 +1042,56 @@ export default function LeadsPage() {
   };
 
   const handleCloseEtapaMenu = () => setEtapaMenu(null);
+
+  const handleOpenTagsMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setTagsMenuAnchor(event.currentTarget);
+  };
+
+  const handleCloseTagsMenu = () => {
+    setTagsMenuAnchor(null);
+    setIsCreatingTag(false);
+    setNewTagName('');
+    setNewTagColor('#25D366');
+  };
+
+  const handleStartCreateTag = () => {
+    setIsCreatingTag(true);
+  };
+
+  const handleCancelCreateTag = () => {
+    setIsCreatingTag(false);
+    setNewTagName('');
+    setNewTagColor('#25D366');
+  };
+
+  const handleSaveNewTag = async () => {
+    const nombre = newTagName.trim();
+    const color = newTagColor.trim();
+    const colorValido = /^#([0-9A-Fa-f]{6})$/.test(color);
+    if (!nombre || !colorValido) {
+      return;
+    }
+
+    try {
+      const response = await apiFetch('/api/whatsapp/etiquetas', {
+        method: 'POST',
+        body: JSON.stringify({ nombre, color }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al crear etiqueta');
+      }
+
+      const created: WhatsappEtiqueta = await response.json();
+      setAvailableTags((prev) => [created, ...prev]);
+      setIsCreatingTag(false);
+      setNewTagName('');
+      setNewTagColor('#25D366');
+      await toggleConversationTag(created);
+    } catch (error) {
+      console.error('Error creando etiqueta:', error);
+    }
+  };
 
   const handleSelectEtapa = async (etapa: EtapaOportunidad) => {
     if (!etapaMenu?.leadId) return;
@@ -1159,7 +1348,7 @@ export default function LeadsPage() {
 
   const renderLeadCard = (lead: LeadConPrioridad) => {
     const { computedPriority } = lead;
-    const ownerLabel = buildLeadOwnerLabel(lead, contactosById, vendedoresById, vendedorContactoId);
+  const ownerLabel = buildLeadOwnerLabel(lead, vendedoresById, vendedorContactoId);
     console.log('[render lead]', {
       id: lead.id,
       etapa: lead.etapa_oportunidad,
@@ -1309,6 +1498,70 @@ export default function LeadsPage() {
             {etapa}
           </MenuItem>
         ))}
+      </Menu>
+
+      <Menu
+        anchorEl={tagsMenuAnchor}
+        open={Boolean(tagsMenuAnchor)}
+        onClose={handleCloseTagsMenu}
+        MenuListProps={{ dense: true }}
+      >
+        {availableTags.length === 0 ? (
+          <MenuItem disabled>Sin etiquetas disponibles</MenuItem>
+        ) : availableTags.map((tag) => {
+          const isAssigned = conversationTags.some((t) => t.id === tag.id);
+          return (
+            <MenuItem
+              key={tag.id}
+              selected={isAssigned}
+              onClick={() => toggleConversationTag(tag)}
+              sx={{ gap: 1 }}
+            >
+              <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tag.color }} />
+              <Typography variant="body2" fontWeight={600}>
+                {tag.nombre}
+              </Typography>
+            </MenuItem>
+          );
+        })}
+        {isCreatingTag ? (
+          <Box sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 220 }}>
+            <TextField
+              size="small"
+              label="Nombre"
+              value={newTagName}
+              onChange={(event) => setNewTagName(event.target.value)}
+            />
+            <TextField
+              size="small"
+              label="Color"
+              type="color"
+              value={newTagColor}
+              onChange={(event) => setNewTagColor(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ maxWidth: 140 }}
+            />
+            <Stack direction="row" spacing={1} justifyContent="flex-end">
+              <Button size="small" variant="text" onClick={handleCancelCreateTag}>
+                Cancelar
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={handleSaveNewTag}
+                disabled={!newTagName.trim() || !/^#([0-9A-Fa-f]{6})$/.test(newTagColor.trim())}
+              >
+                Guardar
+              </Button>
+            </Stack>
+          </Box>
+        ) : (
+          <MenuItem onClick={handleStartCreateTag}>
+            <Typography variant="body2" fontWeight={600}>
+              ➕ Crear nueva etiqueta
+            </Typography>
+          </MenuItem>
+        )}
       </Menu>
 
       <Stack direction="row" alignItems="center" spacing={2}>
@@ -1493,9 +1746,21 @@ export default function LeadsPage() {
             <>
             <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
               <Box>
-                <Typography variant="h6" fontWeight={700}>
-                  {selectedLead.name}
-                </Typography>
+                <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                  <Typography variant="h6" fontWeight={700}>
+                    {selectedLead.name}
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="text"
+                    startIcon={<EditIcon fontSize="small" />}
+                    onClick={openCompleteContactDialog}
+                    disabled={!selectedContactoId}
+                    sx={{ textTransform: 'none', color: 'text.secondary', px: 0.5, minWidth: 'auto' }}
+                  >
+                    Editar datos
+                  </Button>
+                </Stack>
                 <Stack spacing={0.35} sx={{ color: 'text.secondary' }}>
                   {isAdmin ? (
                     <TextField
@@ -1520,9 +1785,35 @@ export default function LeadsPage() {
                     </TextField>
                   ) : (
                     <Typography variant="body2" color="text.secondary">
-                      Asignado a: {buildLeadOwnerLabel(selectedLead, contactosById, vendedoresById, vendedorContactoId)}
+                      Asignado a: {buildLeadOwnerLabel(selectedLead, vendedoresById, vendedorContactoId)}
                     </Typography>
                   )}
+                  <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
+                    {conversationTags.map((tag) => (
+                      <Chip
+                        key={tag.id}
+                        size="small"
+                        label={tag.nombre}
+                        onDelete={() => toggleConversationTag(tag)}
+                        sx={{
+                          bgcolor: tag.color,
+                          color: '#fff',
+                          fontWeight: 500,
+                          height: 24,
+                          mr: 0.5,
+                          '& .MuiChip-deleteIcon': { color: '#fff' },
+                        }}
+                      />
+                    ))}
+                    <IconButton
+                      size="small"
+                      onClick={handleOpenTagsMenu}
+                      aria-label="Agregar etiqueta"
+                      sx={{ border: '1px dashed', borderColor: 'divider' }}
+                    >
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                     <PersonIcon fontSize="small" />
                     <Typography variant="body2">{selectedLead.owner}</Typography>
@@ -1857,6 +2148,57 @@ export default function LeadsPage() {
                 </Box>
               </Paper>
               </Paper>
+              <Dialog
+                open={isCompleteContactOpen}
+                onClose={closeCompleteContactDialog}
+                fullWidth
+                maxWidth="sm"
+              >
+                <DialogTitle>Completar contacto</DialogTitle>
+                <DialogContent dividers>
+                  <Stack spacing={2} sx={{ pt: 0.5 }}>
+                    <TextField
+                      label="Nombre"
+                      value={completeContactForm.nombre}
+                      onChange={(e) => setCompleteContactForm((prev) => ({ ...prev, nombre: e.target.value }))}
+                      fullWidth
+                      required
+                    />
+                    <TextField
+                      label="Email"
+                      value={completeContactForm.email}
+                      onChange={(e) => setCompleteContactForm((prev) => ({ ...prev, email: e.target.value }))}
+                      fullWidth
+                    />
+                    <TextField
+                      label="Empresa"
+                      value={completeContactForm.empresa}
+                      onChange={(e) => setCompleteContactForm((prev) => ({ ...prev, empresa: e.target.value }))}
+                      fullWidth
+                    />
+                    <TextField
+                      label="Observaciones"
+                      value={completeContactForm.observaciones}
+                      onChange={(e) => setCompleteContactForm((prev) => ({ ...prev, observaciones: e.target.value }))}
+                      fullWidth
+                      multiline
+                      minRows={3}
+                    />
+                  </Stack>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={closeCompleteContactDialog} variant="text">
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSaveCompleteContact}
+                    variant="contained"
+                    disabled={!completeContactForm.nombre.trim() || !selectedContactoId}
+                  >
+                    Guardar
+                  </Button>
+                </DialogActions>
+              </Dialog>
               </>
             ) : (
               <Typography variant="body1">Selecciona un lead para ver el detalle.</Typography>

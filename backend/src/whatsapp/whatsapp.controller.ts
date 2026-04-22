@@ -5,6 +5,15 @@ import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
 import { getEmpresaActivaId } from "../shared/context/empresa";
 import { obtenerRolesDeUsuarioEnEmpresa, obtenerUsuarioPorId } from "../modules/auth/auth.service";
+import {
+  listarEtiquetasWhatsapp as listarEtiquetasWhatsappRepo,
+  crearEtiquetaWhatsapp,
+  actualizarEtiquetaWhatsapp,
+  listarEtiquetasConversacion,
+  asignarEtiquetaConversacion,
+  quitarEtiquetaConversacion,
+  obtenerEtiquetaWhatsapp,
+} from "./whatsapp-tags.repository";
 
 type EtapaOportunidad =
   | "nuevo"
@@ -32,6 +41,10 @@ async function resolverVendedorRoundRobin(
   empresaId: number,
   ultimoVendedorId: number | null
 ): Promise<number | null> {
+  console.log("[WhatsApp Ruteo] resolverVendedorRoundRobin: entrada", {
+    empresaId,
+    ultimoVendedorId,
+  });
   const { rows } = await client.query(
     `SELECT id
        FROM public.contactos
@@ -42,22 +55,53 @@ async function resolverVendedorRoundRobin(
     [empresaId]
   );
 
-  const vendedores = rows as Array<{ id: number }>;
+  console.log("[WhatsApp Ruteo] resolverVendedorRoundRobin: vendedores rows", {
+    empresaId,
+    rows,
+  });
 
-  if (!vendedores.length) return null;
+  const vendedores = rows as Array<{ id: number }>;
+  const candidatoIds = vendedores.map((row) => row.id);
+  console.log("[WhatsApp Ruteo] resolverVendedorRoundRobin: candidatos", {
+    empresaId,
+    candidatoIds,
+  });
+
+  if (!vendedores.length) {
+    console.log("[WhatsApp Ruteo] resolverVendedorRoundRobin: sin vendedores", {
+      empresaId,
+      ultimoVendedorId,
+    });
+    return null;
+  }
 
   if (!ultimoVendedorId) {
+    console.log("[WhatsApp Ruteo] resolverVendedorRoundRobin: seleccionado", {
+      empresaId,
+      ultimoVendedorId,
+      vendedorId: vendedores[0].id,
+    });
     return vendedores[0].id;
   }
 
   const next = vendedores.find((row) => row.id > ultimoVendedorId);
-  return next?.id ?? vendedores[0].id;
+  const seleccionado = next?.id ?? vendedores[0].id;
+  console.log("[WhatsApp Ruteo] resolverVendedorRoundRobin: seleccionado", {
+    empresaId,
+    ultimoVendedorId,
+    vendedorId: seleccionado ?? null,
+  });
+  return seleccionado;
 }
 
 async function asignarVendedorSiAplica(empresaId: number, contactoId: number): Promise<number | null> {
   const client = await pool.connect();
 
   try {
+    console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: entrada", {
+      empresaId,
+      contactoId,
+    });
     await client.query("BEGIN");
 
     const contactoRes = await client.query<{ vendedor_id: number | null }>(
@@ -70,6 +114,11 @@ async function asignarVendedorSiAplica(empresaId: number, contactoId: number): P
     );
 
     const vendedorActual = contactoRes.rows[0]?.vendedor_id ?? null;
+    console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: vendedor_actual", {
+      empresaId,
+      contactoId,
+      vendedorActual,
+    });
     if (vendedorActual) {
       await client.query("ROLLBACK");
       return vendedorActual;
@@ -90,12 +139,27 @@ async function asignarVendedorSiAplica(empresaId: number, contactoId: number): P
     );
 
     const ruteo = ruteoRes.rows[0];
+    console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: ruteo", {
+      empresaId,
+      contactoId,
+      ruteo,
+    });
     if (!ruteo || ruteo.modo_asignacion !== "round_robin") {
       await client.query("ROLLBACK");
       return null;
     }
 
+    console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: ultimo_vendedor_id", {
+      empresaId,
+      contactoId,
+      ultimoVendedorId: ruteo.ultimo_vendedor_id ?? null,
+    });
     const vendedorId = await resolverVendedorRoundRobin(client, empresaId, ruteo.ultimo_vendedor_id ?? null);
+    console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: vendedor_seleccionado", {
+      empresaId,
+      contactoId,
+      vendedorId: vendedorId ?? null,
+    });
     if (!vendedorId) {
       await client.query("ROLLBACK");
       return null;
@@ -109,6 +173,12 @@ async function asignarVendedorSiAplica(empresaId: number, contactoId: number): P
           AND vendedor_id IS NULL`,
       [vendedorId, contactoId, empresaId]
     );
+    console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: update_contacto", {
+      empresaId,
+      contactoId,
+      vendedorId,
+      rowCount: updateContacto.rowCount ?? 0,
+    });
 
     if ((updateContacto.rowCount ?? 0) > 0) {
       await client.query(
@@ -118,12 +188,28 @@ async function asignarVendedorSiAplica(empresaId: number, contactoId: number): P
           WHERE id = $2`,
         [vendedorId, ruteo.id]
       );
+      console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: ruteo_actualizado", {
+        empresaId,
+        contactoId,
+        vendedorId,
+        ruteoId: ruteo.id,
+      });
     }
 
     await client.query("COMMIT");
+    console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: commit", {
+      empresaId,
+      contactoId,
+      vendedorId,
+    });
     return vendedorId;
   } catch (error) {
     await client.query("ROLLBACK");
+    console.log("[WhatsApp Ruteo] asignarVendedorSiAplica: rollback", {
+      empresaId,
+      contactoId,
+      error: (error as Error)?.message,
+    });
     throw error;
   } finally {
     client.release();
@@ -153,6 +239,44 @@ async function resolverContextoVisibilidad(empresaId: number, userId?: number, e
     esVendedor: Boolean(esVendedorRole),
     vendedorContactoId: usuario?.vendedor_contacto_id ?? null,
   };
+}
+
+async function validarAccesoConversacion(
+  empresaId: number,
+  conversacionId: number,
+  authUserId?: number,
+  esSuperadmin?: boolean
+) {
+  const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoVisibilidad(
+    empresaId,
+    authUserId,
+    esSuperadmin
+  );
+
+  if (!esAdmin && !vendedorContactoId) {
+    return false;
+  }
+
+  const convParams: any[] = [conversacionId, empresaId];
+  let convExtra = "";
+
+  if (!esAdmin && (esVendedor || vendedorContactoId)) {
+    convParams.push(vendedorContactoId);
+    convExtra = ` AND ct.vendedor_id = $${convParams.length}`;
+  }
+
+  const convCheck = await pool.query(
+    `SELECT 1
+       FROM whatsapp.conversaciones c
+       LEFT JOIN public.contactos ct ON ct.id = c.contacto_id
+      WHERE c.id = $1
+        AND c.empresa_id = $2
+        ${convExtra}
+      LIMIT 1`,
+    convParams
+  );
+
+  return convCheck.rows.length > 0;
 }
 
 
@@ -438,6 +562,7 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
         c.contacto_id AS "contactoId",
         COALESCE(ct.telefono, lm.telefono) AS telefono,
         COALESCE(ct.nombre, NULL) AS nombre,
+        ct.vendedor_id AS "vendedor_id",
         c.etapa_oportunidad,
         lm.contenido AS "ultimoMensaje",
         lm.fecha_envio AS "ultimoMensajeEn"
@@ -645,6 +770,197 @@ export const actualizarEtapaConversacion = async (req: Request, res: Response) =
   } catch (error) {
     console.error("Error actualizando etapa de conversación:", error);
     return res.status(500).json({ message: "No se pudo actualizar la etapa" });
+  }
+};
+
+export const listarEtiquetasWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    const etiquetas = await listarEtiquetasWhatsappRepo(empresaId);
+    return res.status(200).json(etiquetas);
+  } catch (error) {
+    console.error("Error listando etiquetas de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudieron obtener las etiquetas" });
+  }
+};
+
+export const crearEtiquetaWhatsappController = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const { nombre, color } = req.body || {};
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!nombre || !color) {
+      return res.status(400).json({ message: "nombre y color son requeridos" });
+    }
+
+    const etiqueta = await crearEtiquetaWhatsapp(empresaId, { nombre, color });
+    return res.status(201).json(etiqueta);
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      return res.status(409).json({ message: "La etiqueta ya existe" });
+    }
+    console.error("Error creando etiqueta de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo crear la etiqueta" });
+  }
+};
+
+export const actualizarEtiquetaWhatsappController = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const etiquetaId = Number(req.params.id);
+    const { nombre, color, activo } = req.body || {};
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!Number.isFinite(etiquetaId)) {
+      return res.status(400).json({ message: "id de etiqueta inválido" });
+    }
+
+    if (nombre == null && color == null && activo == null) {
+      return res.status(400).json({ message: "Debe enviar al menos un campo para actualizar" });
+    }
+
+    const etiqueta = await actualizarEtiquetaWhatsapp(empresaId, etiquetaId, { nombre, color, activo });
+
+    if (!etiqueta) {
+      return res.status(404).json({ message: "Etiqueta no encontrada" });
+    }
+
+    return res.status(200).json(etiqueta);
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      return res.status(409).json({ message: "La etiqueta ya existe" });
+    }
+    console.error("Error actualizando etiqueta de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo actualizar la etiqueta" });
+  }
+};
+
+export const listarEtiquetasConversacionWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const conversacionId = Number(req.params.id);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!Number.isFinite(conversacionId)) {
+      return res.status(400).json({ message: "id de conversación inválido" });
+    }
+
+    const acceso = await validarAccesoConversacion(
+      empresaId,
+      conversacionId,
+      req.auth?.userId,
+      req.auth?.esSuperadmin
+    );
+
+    if (!acceso) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    const etiquetas = await listarEtiquetasConversacion(empresaId, conversacionId);
+    return res.status(200).json(etiquetas);
+  } catch (error) {
+    console.error("Error listando etiquetas de conversación:", error);
+    return res.status(500).json({ message: "No se pudieron obtener las etiquetas" });
+  }
+};
+
+export const agregarEtiquetaConversacionWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const conversacionId = Number(req.params.id);
+    const { etiqueta_id } = req.body || {};
+    const etiquetaId = Number(etiqueta_id);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!Number.isFinite(conversacionId)) {
+      return res.status(400).json({ message: "id de conversación inválido" });
+    }
+
+    if (!Number.isFinite(etiquetaId)) {
+      return res.status(400).json({ message: "etiqueta_id inválido" });
+    }
+
+    const acceso = await validarAccesoConversacion(
+      empresaId,
+      conversacionId,
+      req.auth?.userId,
+      req.auth?.esSuperadmin
+    );
+
+    if (!acceso) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    const etiqueta = await obtenerEtiquetaWhatsapp(empresaId, etiquetaId);
+    if (!etiqueta) {
+      return res.status(404).json({ message: "Etiqueta no encontrada" });
+    }
+
+    const asignacion = await asignarEtiquetaConversacion(empresaId, conversacionId, etiquetaId);
+    return res.status(200).json({ assigned: Boolean(asignacion) });
+  } catch (error) {
+    console.error("Error agregando etiqueta a conversación:", error);
+    return res.status(500).json({ message: "No se pudo agregar la etiqueta" });
+  }
+};
+
+export const quitarEtiquetaConversacionWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const conversacionId = Number(req.params.id);
+    const etiquetaId = Number(req.params.etiquetaId);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!Number.isFinite(conversacionId)) {
+      return res.status(400).json({ message: "id de conversación inválido" });
+    }
+
+    if (!Number.isFinite(etiquetaId)) {
+      return res.status(400).json({ message: "id de etiqueta inválido" });
+    }
+
+    const acceso = await validarAccesoConversacion(
+      empresaId,
+      conversacionId,
+      req.auth?.userId,
+      req.auth?.esSuperadmin
+    );
+
+    if (!acceso) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    const quitada = await quitarEtiquetaConversacion(empresaId, conversacionId, etiquetaId);
+
+    if (!quitada) {
+      return res.status(404).json({ message: "Etiqueta no asignada" });
+    }
+
+    return res.status(200).json({ removed: true });
+  } catch (error) {
+    console.error("Error quitando etiqueta de conversación:", error);
+    return res.status(500).json({ message: "No se pudo quitar la etiqueta" });
   }
 };
 
