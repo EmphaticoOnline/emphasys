@@ -28,12 +28,17 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import PersonIcon from '@mui/icons-material/Person';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import SendIcon from '@mui/icons-material/Send';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import DoneIcon from '@mui/icons-material/Done';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import ReplyIcon from '@mui/icons-material/Reply';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
-import { apiFetch } from '../api/apiClient';
+import { apiFetch, buildAuthHeaders } from '../api/apiClient';
 import { useSession } from '../session/useSession';
 import { fetchContactos } from '../services/contactosService';
 import type { Contacto } from '../types/contactos.types';
@@ -67,6 +72,9 @@ type ConversationMessage = {
   tipo_mensaje: 'entrante' | 'saliente';
   canal: string | null;
   contenido: string | null;
+  tipo_contenido?: 'text' | 'image' | 'audio' | 'document' | null;
+  media_url?: string | null;
+  caption?: string | null;
   fecha_envio: string | null;
   creado_en?: string | null;
   status: string | null;
@@ -94,7 +102,18 @@ type Lead = {
   windowExpiresInMinutes: number;
   canSendFreeMessage: boolean;
   requiresTemplate: boolean;
-  conversation: Array<{ id: string; from: 'lead' | 'me'; text: string; minutesAgo: number; sentAt: string | null }>;
+  conversation: Array<{
+    id: string;
+    from: 'lead' | 'me';
+    text: string;
+    minutesAgo: number;
+    sentAt: string | null;
+    tipoContenido?: 'text' | 'image' | 'audio' | 'document';
+    mediaUrl?: string | null;
+    caption?: string | null;
+    status?: 'sending' | 'sent' | 'failed';
+    tempId?: string;
+  }>;
   contactoId: string | null;
   vendedor_id: number | null;
   ultimoMensajeEn: string | null;
@@ -161,6 +180,31 @@ function formatMinutes(min: number): string {
   const d = Math.floor(min / 1440);
   const h = Math.floor((min % 1440) / 60);
   return `${d}d ${h}h`;
+}
+
+function renderStatusIcon(status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed') {
+  switch (status) {
+    case 'sending':
+      return <ScheduleIcon fontSize="small" />;
+    case 'sent':
+      return <DoneIcon fontSize="small" />;
+    case 'delivered':
+      return <DoneAllIcon fontSize="small" sx={{ color: '#9e9e9e' }} />;
+    case 'read':
+      return <DoneAllIcon fontSize="small" sx={{ color: '#4fc3f7' }} />;
+    case 'failed':
+      return <ErrorOutlineIcon fontSize="small" color="error" />;
+    default:
+      return null;
+  }
+}
+
+function buildApiUrl(path: string) {
+  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '';
+  const trimmedBase = baseUrl?.toString().replace(/\/$/, '') || '';
+  if (path.startsWith('http')) return path;
+  if (path.startsWith('/')) return `${trimmedBase}${path}`;
+  return `${trimmedBase}/${path}`;
 }
 
 function minutesSince(dateString: string | null): number {
@@ -305,12 +349,21 @@ type ConversationView = Lead['conversation'][number];
 
 const mapMessages = (messages: ConversationMessage[]): ConversationView[] => messages.map((msg) => {
   const sentAt = msg.fecha_envio || msg.creado_en || null;
+  const tipoContenido = msg.tipo_contenido ?? 'text';
+  const mediaUrl = tipoContenido === 'image'
+    ? (msg.media_url ?? msg.contenido ?? null)
+    : (msg.media_url ?? null);
+
   return {
     id: msg.id,
     from: msg.tipo_mensaje === 'entrante' ? 'lead' : 'me',
-    text: msg.contenido || '',
+    text: tipoContenido === 'image' ? '' : (msg.contenido || ''),
     minutesAgo: minutesSince(sentAt),
     sentAt,
+    tipoContenido,
+    mediaUrl,
+    caption: msg.caption ?? null,
+    status: ((msg.status || '').toLowerCase().trim() as 'sending' | 'sent' | 'delivered' | 'read' | 'failed') || 'sent',
   } as ConversationView;
 });
 
@@ -322,6 +375,9 @@ export default function LeadsPage() {
   const [isLoadingConversations, setIsLoadingConversations] = React.useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [quickReply, setQuickReply] = React.useState('');
+  const [uploadPreviewUrl, setUploadPreviewUrl] = React.useState<string | null>(null);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
   const [isTesting, setIsTesting] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
@@ -359,6 +415,7 @@ export default function LeadsPage() {
     { open: false, message: '', severity: 'success' }
   );
   const quickReplyRef = React.useRef<HTMLInputElement | null>(null);
+  const uploadInputRef = React.useRef<HTMLInputElement | null>(null);
   const conversationEndRef = React.useRef<HTMLDivElement | null>(null);
   const conversationScrollRef = React.useRef<HTMLDivElement | null>(null);
   const lastConversationsFetchRef = React.useRef<string | null>(null);
@@ -756,11 +813,17 @@ export default function LeadsPage() {
       setLeads((prev) => prev.map((l) => {
         if (l.id !== conversationId) return l;
 
-        const existingIds = new Set(l.conversation.map((m) => m.id));
-        const mappedNew = mapMessages(data).filter((m) => !existingIds.has(m.id));
+        const baseConversation = append
+          ? l.conversation.filter((m) => !(m.tempId && m.status === 'sent'))
+          : l.conversation;
+        const mappedNew = mapMessages(data);
         const mergedConversation = append
-          ? [...l.conversation, ...mappedNew]
-          : mapMessages(data);
+          ? Array.from(mappedNew.reduce((map, message) => {
+            const existing = map.get(message.id);
+            map.set(message.id, existing ? { ...existing, ...message } : message);
+            return map;
+          }, new Map(baseConversation.map((m) => [m.id, m]))).values())
+          : mappedNew;
 
         const updatedLead: Lead = {
           ...l,
@@ -970,6 +1033,16 @@ export default function LeadsPage() {
     setLeads((prev) => prev.map((l) => (l.id === id ? applyDerivedLeadState({ ...l, ...updates }) : l)));
   };
 
+  const updateMessageStatus = (leadId: string, tempId: string, status: 'sending' | 'sent' | 'failed') => {
+    setLeads((prev) => prev.map((lead) => {
+      if (lead.id !== leadId) return lead;
+      const updatedConversation = lead.conversation.map((msg) => (
+        msg.tempId === tempId ? { ...msg, status } : msg
+      ));
+      return applyDerivedLeadState({ ...lead, conversation: updatedConversation });
+    }));
+  };
+
   const openCompleteContactDialog = () => {
     if (!selectedLead || !selectedContactoId) return;
     setCompleteContactForm({
@@ -1168,19 +1241,48 @@ export default function LeadsPage() {
   const handleSendWhatsapp = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     if (!selectedLead) return;
-    if (!quickReply.trim()) {
+    const trimmedMessage = quickReply.trim();
+    const imageUrl = uploadPreviewUrl?.trim() || null;
+
+    if (!trimmedMessage && !imageUrl) {
       focusReplyInput();
       return;
     }
 
     setIsSending(true);
+    const tempId = `temp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     try {
       const lastSentAtBeforeSend = getLastSentAtForLead(selectedLead.id);
+      const isImageMessage = Boolean(imageUrl);
+      const nowIso = new Date().toISOString();
+
+      const optimisticMessage = {
+        id: tempId,
+        tempId,
+        from: 'me' as const,
+        text: trimmedMessage,
+        minutesAgo: 0,
+        sentAt: nowIso,
+        tipoContenido: isImageMessage ? ('image' as const) : ('text' as const),
+        mediaUrl: imageUrl,
+        caption: isImageMessage ? (trimmedMessage || null) : null,
+        status: 'sending' as const,
+      };
+
+      updateLead(selectedLead.id, {
+        conversation: [...selectedLead.conversation, optimisticMessage],
+        lastMessage: trimmedMessage || (isImageMessage ? 'Imagen enviada' : ''),
+        ultimoMensajeEn: nowIso,
+        lastMessageTimeMinutesAgo: 0,
+      });
+
       const response = await apiFetch('/api/whatsapp/enviar-mensaje', {
         method: 'POST',
         body: JSON.stringify({
           telefono: selectedLead.phone,
-          mensaje: quickReply.trim(),
+          ...(imageUrl
+            ? { tipo: 'image', media_url: imageUrl, mensaje: trimmedMessage || null }
+            : { mensaje: trimmedMessage }),
         }),
       });
 
@@ -1188,7 +1290,10 @@ export default function LeadsPage() {
         throw new Error('Error en la solicitud');
       }
 
+      updateMessageStatus(selectedLead.id, tempId, 'sent');
       setQuickReply('');
+      setUploadPreviewUrl(null);
+      setUploadError(null);
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 2000);
 
@@ -1197,9 +1302,68 @@ export default function LeadsPage() {
       await loadConversations({ incremental: true });
     } catch (error) {
       console.error('Error al enviar por WhatsApp:', error);
+      updateMessageStatus(selectedLead.id, tempId, 'failed');
       alert('No se pudo enviar por WhatsApp.');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleSelectUpload = () => {
+    uploadInputRef.current?.click();
+  };
+
+  const handleUploadImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Solo se permiten imágenes JPG, PNG o WEBP.');
+      setUploadPreviewUrl(null);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
+      return;
+    }
+
+    setUploadError(null);
+    setIsUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+  const headers = buildAuthHeaders();
+
+      const response = await fetch(buildApiUrl('/api/uploads'), {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let message = 'No se pudo subir la imagen.';
+        try {
+          const data = await response.json();
+          if (data?.message) message = String(data.message);
+        } catch {
+          // ignore parse errors
+        }
+        throw new Error(message);
+      }
+
+      const data = await response.json();
+      if (!data?.url) {
+        throw new Error('La respuesta del servidor no incluye la URL.' );
+      }
+
+      setUploadPreviewUrl(String(data.url));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error inesperado al subir imagen.';
+      setUploadError(message);
+      setUploadPreviewUrl(null);
+    } finally {
+      setIsUploadingImage(false);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
     }
   };
 
@@ -2114,10 +2278,46 @@ export default function LeadsPage() {
                           color: msg.from === 'me' ? 'primary.contrastText' : 'text.primary',
                         }}
                       >
-                        <Typography variant="body2">{msg.text}</Typography>
-                        <Typography variant="caption" sx={{ opacity: 0.75 }}>
-                          {formatMinutesAgo(msg.minutesAgo)}
-                        </Typography>
+                        {msg.tipoContenido === 'image' && msg.mediaUrl && (
+                          <Box
+                            component="img"
+                            src={msg.mediaUrl}
+                            alt="Imagen enviada"
+                            sx={{
+                              display: 'block',
+                              maxWidth: 250,
+                              maxHeight: 250,
+                              borderRadius: 1,
+                              mb: msg.text ? 0.5 : 0,
+                            }}
+                          />
+                        )}
+                        {msg.tipoContenido === 'image' && msg.caption && (
+                          <Typography variant="body2">{msg.caption}</Typography>
+                        )}
+                        {msg.text && <Typography variant="body2">{msg.text}</Typography>}
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, alignItems: 'center' }}>
+                          <Typography variant="caption" sx={{ opacity: 0.75 }}>
+                            {formatMinutesAgo(msg.minutesAgo)}
+                          </Typography>
+                          {msg.from === 'me' && msg.status && (
+                            <Typography variant="caption" sx={{ opacity: 0.75 }}>
+                              {(() => {
+                                console.log("STATUS FRONT:", msg.status);
+                                console.log("FROM + STATUS:", msg.from, msg.status);
+                                console.log("STATUS ICON DEBUG", {
+                                  id: msg.id,
+                                  from: msg.from,
+                                  tipoMensaje: msg.tipoMensaje,
+                                  status: msg.status,
+                                  normalizedStatus: String(msg.status ?? '').trim().toLowerCase(),
+                                });
+                                return null;
+                              })()}
+                              {renderStatusIcon(msg.status)}
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
                     </Box>
                   ))}
@@ -2128,6 +2328,21 @@ export default function LeadsPage() {
               <Paper variant="outlined" sx={{ p: 1.25 }}>
                 <Box component="form" onSubmit={handleSendWhatsapp}>
                   <Stack direction="row" spacing={1} alignItems="center">
+                    <input
+                      ref={uploadInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      hidden
+                      onChange={handleUploadImage}
+                    />
+                    <IconButton
+                      color="primary"
+                      aria-label="Adjuntar imagen"
+                      onClick={handleSelectUpload}
+                      disabled={isUploadingImage}
+                    >
+                      <AttachFileIcon />
+                    </IconButton>
                     <TextField
                       fullWidth
                       size="small"
@@ -2144,6 +2359,32 @@ export default function LeadsPage() {
                     >
                       <SendIcon />
                     </IconButton>
+                  </Stack>
+                  <Stack spacing={0.5} sx={{ mt: 1 }}>
+                    {isUploadingImage && (
+                      <Typography variant="caption" color="text.secondary">
+                        Subiendo imagen...
+                      </Typography>
+                    )}
+                    {uploadError && (
+                      <Typography variant="caption" color="error">
+                        {uploadError}
+                      </Typography>
+                    )}
+                    {uploadPreviewUrl && (
+                      <Box
+                        component="img"
+                        src={uploadPreviewUrl}
+                        alt="Vista previa"
+                        sx={{
+                          maxWidth: 200,
+                          maxHeight: 200,
+                          borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                        }}
+                      />
+                    )}
                   </Stack>
                 </Box>
               </Paper>

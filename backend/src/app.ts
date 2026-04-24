@@ -1,14 +1,24 @@
 
 import dotenv from "dotenv";
+import fs from "fs";
 import path from "path";
 
-// Carga .env explícitamente y loguea valores para diagnosticar
-dotenv.config({ path: ".env" });
+// Carga variables de entorno (.env.local tiene prioridad en desarrollo)
+const envLocalPath = path.resolve(process.cwd(), ".env.local");
+const envPath = path.resolve(process.cwd(), ".env");
+
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath, override: true });
+}
+
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
+
 console.log("SMTP_HOST runtime:", process.env.SMTP_HOST);
 console.log("CWD runtime:", process.cwd());
 
 import express from "express";
-import fs from "fs";
 import contactosRouter from "./modules/contactos/contactos.routes";
 import leadsRouter from "./modules/leads/leads.routes";
 import productosRouter from "./modules/productos/productos.routes";
@@ -39,6 +49,7 @@ import finanzasRouter from "./modules/finanzas/finanzas.routes";
 import conceptosRouter from "./modules/conceptos/conceptos.routes";
 import inventarioRouter from "./modules/inventario/inventario.routes";
 import almacenesRouter from "./modules/almacenes/almacenes.routes";
+import uploadsRouter from "./modules/uploads/uploads.routes";
 
 const app = express();
 
@@ -127,6 +138,7 @@ app.use("/api/finanzas", finanzasRouter);
 app.use("/api/conceptos", conceptosRouter);
 app.use("/api/inventario", inventarioRouter);
 app.use("/api/almacenes", almacenesRouter);
+app.use("/api/uploads", uploadsRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

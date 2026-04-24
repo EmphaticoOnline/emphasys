@@ -6,7 +6,8 @@ module.exports = {
       cwd: "/var/www/emphasys-backend",
       env_file: ".env",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        APP_BASE_URL: "https://erp.emphasys.cloud"
       }
     }
   ]

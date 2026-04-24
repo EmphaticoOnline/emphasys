@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { normalizeWhatsappPayload } from "./whatsapp.mapper";
-import { sendTemplateMessage, sendTextMessage } from "./whatsapp.service";
+import { sendImageMessage, sendTemplateMessage, sendTextMessage } from "./whatsapp.service";
 import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
 import { getEmpresaActivaId } from "../shared/context/empresa";
@@ -283,6 +283,7 @@ async function validarAccesoConversacion(
 
 
 export const whatsappWebhook = async (req: Request, res: Response) => {
+  console.log("WEBHOOK HIT", JSON.stringify(req.body, null, 2));
   console.log("[WhatsApp Webhook] RAW ENTRY", {
     headers: req.headers,
     body: req.body,
@@ -303,6 +304,93 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
   if (token !== process.env.WHATSAPP_WEBHOOK_TOKEN) {
     console.log("[WhatsApp Webhook] Token inválido o ausente", { token });
     return res.status(200).json({ ignored: true });
+  }
+
+  const value = req.body?.entry?.[0]?.changes?.[0]?.value;
+  if (!value?.messages && !value?.statuses) {
+    return res.sendStatus(200);
+  }
+  const statuses = value?.statuses || [];
+  if (Array.isArray(statuses) && statuses.length > 0) {
+    const STATUS_ORDER: Record<string, number> = {
+      sending: 0,
+      enqueued: 1,
+      sent: 2,
+      delivered: 3,
+      read: 4,
+      failed: 5,
+    };
+    const VALID_STATUS = ["sent", "delivered", "read", "failed"];
+
+    for (const statusObj of statuses) {
+      const estado = statusObj?.status;
+      const externalId = statusObj?.gs_id;
+
+      if (!estado || !externalId) {
+        continue;
+      }
+
+      if (!VALID_STATUS.includes(estado)) {
+        console.log("[WhatsApp Webhook] Status ignorado (no válido)", estado);
+        continue;
+      }
+
+      if (!(estado in STATUS_ORDER)) {
+        console.log("[WhatsApp Webhook] Estado ignorado", { estado, externalId });
+        continue;
+      }
+
+      console.log("STATUS UPDATE:", estado, externalId);
+
+      try {
+        const currentResult = await pool.query<{ status: string | null }>(
+          `
+          SELECT status
+          FROM whatsapp.mensajes
+          WHERE id_externo = $1
+          `,
+          [externalId]
+        );
+
+        const currentStatus = currentResult.rows[0]?.status ?? null;
+        const currentOrder = currentStatus && currentStatus in STATUS_ORDER
+          ? STATUS_ORDER[currentStatus]
+          : -1;
+        const nextOrder = STATUS_ORDER[estado];
+
+        if (nextOrder <= currentOrder) {
+          console.log("[WhatsApp Webhook] Status ignorado (no avanza)", {
+            externalId,
+            estado,
+            currentStatus,
+          });
+          continue;
+        }
+
+        const updateResult = await pool.query(
+          `
+          UPDATE whatsapp.mensajes
+          SET status = $1
+          WHERE id_externo = $2
+          `,
+          [estado, externalId]
+        );
+
+        console.log("[WhatsApp Webhook] Status actualizado", {
+          externalId,
+          status: estado,
+          rowCount: updateResult.rowCount ?? 0,
+        });
+      } catch (error) {
+        console.error("[WhatsApp Webhook] Error actualizando status", {
+          externalId,
+          status: estado,
+          message: (error as Error)?.message,
+        });
+      }
+    }
+
+    return res.status(200).json({ received: true });
   }
 
   const displayPhoneNumber = req.body?.entry?.[0]?.changes?.[0]?.value?.metadata?.display_phone_number as
@@ -493,19 +581,42 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
 export const enviarWhatsapp = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
-    const { telefono, mensaje } = req.body || {};
+  const { telefono, mensaje, tipo, media_url } = req.body || {};
 
     if (!empresaId) {
       return res.status(400).json({ message: "empresaId requerido" });
     }
 
-    if (!telefono || !mensaje) {
-      return res.status(400).json({ message: "telefono y mensaje son requeridos" });
+    if (!telefono) {
+      return res.status(400).json({ message: "telefono es requerido" });
     }
 
-  const respuesta = await sendTextMessage(Number(empresaId), String(telefono), String(mensaje));
+    const tipoMensaje = String(tipo || "text").toLowerCase();
 
-  return res.status(200).json(respuesta);
+    if (tipoMensaje === "text") {
+      if (!mensaje) {
+        return res.status(400).json({ message: "mensaje es requerido" });
+      }
+
+      const respuesta = await sendTextMessage(Number(empresaId), String(telefono), String(mensaje));
+      return res.status(200).json(respuesta);
+    }
+
+    if (tipoMensaje === "image") {
+      if (!media_url) {
+        return res.status(400).json({ message: "media_url es requerido" });
+      }
+
+      const respuesta = await sendImageMessage(
+        Number(empresaId),
+        String(telefono),
+        String(media_url),
+        mensaje ? String(mensaje) : null
+      );
+      return res.status(200).json(respuesta);
+    }
+
+    return res.status(400).json({ message: "tipo de mensaje no soportado" });
   } catch (error) {
     console.error("Error al enviar mensaje de WhatsApp:", error);
     return res.status(500).json({ message: "No se pudo enviar el mensaje" });
@@ -656,6 +767,9 @@ export const obtenerConversacionWhatsapp = async (req: Request, res: Response) =
         telefono,
         tipo_mensaje,
         canal,
+        tipo_contenido,
+        media_url,
+        caption,
         contenido,
         fecha_envio,
         status,
