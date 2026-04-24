@@ -128,6 +128,13 @@ type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendient
 type QuickFilter = 'todos' | 'seguimiento' | 'alta' | 'activos';
 type LeadScope = 'mis' | 'todos';
 type UserRole = { id: number; nombre: string; descripcion?: string | null };
+const AUDIO_MIME_PREFERENCES = [
+  'audio/ogg;codecs=opus',
+  'audio/ogg',
+  'audio/mpeg',
+  'audio/webm;codecs=opus',
+  'audio/webm',
+];
 const leadSelectMenuProps = {
   PaperProps: {
     sx: {
@@ -350,14 +357,18 @@ type ConversationView = Lead['conversation'][number];
 const mapMessages = (messages: ConversationMessage[]): ConversationView[] => messages.map((msg) => {
   const sentAt = msg.fecha_envio || msg.creado_en || null;
   const tipoContenido = msg.tipo_contenido ?? 'text';
-  const mediaUrl = tipoContenido === 'image'
-    ? (msg.media_url ?? msg.contenido ?? null)
-    : (msg.media_url ?? null);
+  let mediaUrl = msg.media_url ?? null;
+
+  if ((tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document') && !mediaUrl) {
+    mediaUrl = msg.contenido ?? null;
+  }
 
   return {
     id: msg.id,
     from: msg.tipo_mensaje === 'entrante' ? 'lead' : 'me',
-    text: tipoContenido === 'image' ? '' : (msg.contenido || ''),
+    text: (tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document')
+      ? ''
+      : (msg.contenido || ''),
     minutesAgo: minutesSince(sentAt),
     sentAt,
     tipoContenido,
@@ -376,8 +387,12 @@ export default function LeadsPage() {
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [quickReply, setQuickReply] = React.useState('');
   const [uploadPreviewUrl, setUploadPreviewUrl] = React.useState<string | null>(null);
-  const [uploadFileType, setUploadFileType] = React.useState<'image' | 'document' | null>(null);
+  const [uploadFileType, setUploadFileType] = React.useState<'image' | 'document' | 'audio' | null>(null);
   const [uploadFileName, setUploadFileName] = React.useState<string | null>(null);
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [recordedAudioUrl, setRecordedAudioUrl] = React.useState<string | null>(null);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const audioChunksRef = React.useRef<Blob[]>([]);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
@@ -1247,7 +1262,7 @@ export default function LeadsPage() {
     const fileUrl = uploadPreviewUrl?.trim() || null;
     const fileType = uploadFileType;
 
-    if (!trimmedMessage && !fileUrl) {
+    if (!trimmedMessage && !fileUrl && !recordedAudioUrl) {
       focusReplyInput();
       return;
     }
@@ -1258,7 +1273,19 @@ export default function LeadsPage() {
       const lastSentAtBeforeSend = getLastSentAtForLead(selectedLead.id);
       const isImageMessage = fileType === 'image';
       const isDocumentMessage = fileType === 'document';
+      const isAudioMessage = fileType === 'audio';
       const nowIso = new Date().toISOString();
+
+      console.log('[WhatsApp Send] Payload debug', {
+        telefono: selectedLead.phone,
+        message: trimmedMessage,
+        fileUrl,
+        fileType,
+        recordedAudioUrl,
+        isImageMessage,
+        isDocumentMessage,
+        isAudioMessage,
+      });
 
       const optimisticMessage = {
         id: tempId,
@@ -1271,7 +1298,9 @@ export default function LeadsPage() {
           ? ('image' as const)
           : isDocumentMessage
             ? ('document' as const)
-            : ('text' as const),
+            : isAudioMessage
+              ? ('audio' as const)
+              : ('text' as const),
         mediaUrl: fileUrl,
         caption: isImageMessage
           ? (trimmedMessage || null)
@@ -1283,7 +1312,14 @@ export default function LeadsPage() {
 
       updateLead(selectedLead.id, {
         conversation: [...selectedLead.conversation, optimisticMessage],
-        lastMessage: trimmedMessage || (isImageMessage ? 'Imagen enviada' : isDocumentMessage ? 'Documento enviado' : ''),
+        lastMessage: trimmedMessage
+          || (isImageMessage
+            ? 'Imagen enviada'
+            : isDocumentMessage
+              ? 'Documento enviado'
+              : isAudioMessage
+                ? 'Audio enviado'
+                : ''),
         ultimoMensajeEn: nowIso,
         lastMessageTimeMinutesAgo: 0,
       });
@@ -1301,9 +1337,28 @@ export default function LeadsPage() {
                 mensaje: uploadFileName || null,
                 contenido: trimmedMessage || null,
               }
-            : { mensaje: trimmedMessage }),
+              : fileUrl && isAudioMessage
+                ? {
+                  tipo: 'audio',
+                  media_url: fileUrl,
+                  contenido: trimmedMessage || '',
+                }
+                : { mensaje: trimmedMessage }),
         }),
       });
+
+            let responsePayload: any = null;
+            try {
+              responsePayload = await response.clone().json();
+            } catch {
+              responsePayload = null;
+            }
+
+            console.log('[WhatsApp Send] Respuesta', {
+              status: response.status,
+              ok: response.ok,
+              body: responsePayload,
+            });
 
       if (!response.ok) {
         throw new Error('Error en la solicitud');
@@ -1312,8 +1367,9 @@ export default function LeadsPage() {
       updateMessageStatus(selectedLead.id, tempId, 'sent');
       setQuickReply('');
       setUploadPreviewUrl(null);
-  setUploadFileType(null);
-  setUploadFileName(null);
+    setUploadFileType(null);
+    setUploadFileName(null);
+    setRecordedAudioUrl(null);
       setUploadError(null);
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 2000);
@@ -1332,6 +1388,115 @@ export default function LeadsPage() {
 
   const handleSelectUpload = () => {
     uploadInputRef.current?.click();
+  };
+
+  const handleToggleRecording = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const preferredMimeType = AUDIO_MIME_PREFERENCES.find((type) =>
+        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)
+      );
+
+      if (!preferredMimeType) {
+        setUploadError('Tu navegador no soporta grabación de audio en formatos compatibles.');
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType: preferredMimeType });
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: preferredMimeType });
+        const previewUrl = URL.createObjectURL(blob);
+        setRecordedAudioUrl(previewUrl);
+        setIsRecording(false);
+        stream.getTracks().forEach((track) => track.stop());
+
+        void (async () => {
+          setUploadError(null);
+          setUploadFileType('audio');
+          setIsUploadingImage(true);
+
+          try {
+            const formData = new FormData();
+            const extension = preferredMimeType.includes('ogg')
+              ? 'ogg'
+              : preferredMimeType.includes('mpeg')
+                ? 'mp3'
+                : 'webm';
+            const filename = `audio-${Date.now()}.${extension}`;
+            const audioFile = new File([blob], filename, { type: preferredMimeType });
+            formData.append('file', audioFile);
+
+            const headers = buildAuthHeaders();
+            const uploadUrl = buildApiUrl('/api/uploads');
+            console.log('[Audio Upload] Iniciando', {
+              uploadUrl,
+              filename,
+              type: audioFile.type,
+              size: audioFile.size,
+            });
+            const response = await fetch(buildApiUrl('/api/uploads'), {
+              method: 'POST',
+              headers,
+              body: formData,
+            });
+
+            console.log('[Audio Upload] Respuesta', {
+              status: response.status,
+              ok: response.ok,
+            });
+
+            if (!response.ok) {
+              let message = 'No se pudo subir el audio.';
+              try {
+                const data = await response.json();
+                if (data?.message) message = String(data.message);
+              } catch {
+                // ignore parse errors
+              }
+              throw new Error(message);
+            }
+
+            const data = await response.json();
+            if (!data?.url) {
+              throw new Error('La respuesta del servidor no incluye la URL.');
+            }
+
+            setUploadPreviewUrl(String(data.url));
+            setUploadFileType('audio');
+          } catch (error) {
+            console.error('[Audio Upload] Error', error);
+            const message = error instanceof Error ? error.message : 'Error inesperado al subir audio.';
+            setUploadError(message);
+            setUploadPreviewUrl(null);
+            setUploadFileType(null);
+          } finally {
+            setIsUploadingImage(false);
+          }
+        })();
+      };
+
+      recorder.start();
+      setRecordedAudioUrl(null);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error al iniciar grabación de audio:', error);
+      setIsRecording(false);
+    }
   };
 
   const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2341,6 +2506,14 @@ export default function LeadsPage() {
                             </Typography>
                           </Stack>
                         )}
+                        {msg.tipoContenido === 'audio' && msg.mediaUrl && (
+                          <Box
+                            component="audio"
+                            controls
+                            src={msg.mediaUrl}
+                            sx={{ maxWidth: 250 }}
+                          />
+                        )}
                         {msg.tipoContenido === 'image' && msg.caption && (
                           <Typography variant="body2">{msg.caption}</Typography>
                         )}
@@ -2392,6 +2565,13 @@ export default function LeadsPage() {
                     >
                       <AttachFileIcon />
                     </IconButton>
+                    <IconButton
+                      color={isRecording ? "error" : "primary"}
+                      aria-label="Grabar audio"
+                      onClick={handleToggleRecording}
+                    >
+                      🎤
+                    </IconButton>
                     <TextField
                       fullWidth
                       size="small"
@@ -2404,7 +2584,7 @@ export default function LeadsPage() {
                       color="primary"
                       aria-label="Enviar"
                       type="submit"
-                      disabled={isSending}
+                      disabled={isSending || isUploadingImage}
                     >
                       <SendIcon />
                     </IconButton>
@@ -2412,7 +2592,7 @@ export default function LeadsPage() {
                   <Stack spacing={0.5} sx={{ mt: 1 }}>
                     {isUploadingImage && (
                       <Typography variant="caption" color="text.secondary">
-                        Subiendo imagen...
+                        {uploadFileType === 'audio' ? 'Subiendo audio...' : 'Subiendo imagen...'}
                       </Typography>
                     )}
                     {uploadError && (
@@ -2449,6 +2629,9 @@ export default function LeadsPage() {
                           }}
                         />
                       )
+                    )}
+                    {recordedAudioUrl && (
+                      <Box component="audio" controls src={recordedAudioUrl} />
                     )}
                   </Stack>
                 </Box>

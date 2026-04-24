@@ -1,6 +1,12 @@
 import { Request, Response } from "express";
 import { normalizeWhatsappPayload } from "./whatsapp.mapper";
-import { sendDocumentMessage, sendImageMessage, sendTemplateMessage, sendTextMessage } from "./whatsapp.service";
+import {
+  sendAudioMessage,
+  sendDocumentMessage,
+  sendImageMessage,
+  sendTemplateMessage,
+  sendTextMessage,
+} from "./whatsapp.service";
 import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
 import { getEmpresaActivaId } from "../shared/context/empresa";
@@ -581,7 +587,15 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
 export const enviarWhatsapp = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
-  const { telefono, mensaje, tipo, media_url } = req.body || {};
+    const { telefono, mensaje, tipo, media_url } = req.body || {};
+
+    console.log("[WhatsApp Enviar] Solicitud recibida", {
+      empresaId,
+      telefono,
+      tipo,
+      media_url,
+      mensaje,
+    });
 
     if (!empresaId) {
       return res.status(400).json({ message: "empresaId requerido" });
@@ -626,6 +640,19 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
         String(telefono),
         String(media_url),
         mensaje ? String(mensaje) : null
+      );
+      return res.status(200).json(respuesta);
+    }
+
+    if (tipoMensaje === "audio") {
+      if (!media_url) {
+        return res.status(400).json({ message: "media_url es requerido" });
+      }
+
+      const respuesta = await sendAudioMessage(
+        Number(empresaId),
+        String(telefono),
+        String(media_url)
       );
       return res.status(200).json(respuesta);
     }

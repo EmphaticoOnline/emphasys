@@ -20,6 +20,46 @@ try {
   $skipRemoteInstall = if ($env:SKIP_REMOTE_INSTALL) { $env:SKIP_REMOTE_INSTALL } else { "false" }
   $skipHostKeyCheck = $env:SKIP_HOSTKEY_SCAN -eq "true"
 
+  function Get-HashLower {
+    param([string] $Path)
+    return (Get-FileHash $Path -Algorithm SHA256).Hash.ToLower()
+  }
+
+  function Get-LocalCachePath {
+    param([string] $NodeModulesPath)
+    return (Join-Path $NodeModulesPath ".deploy-lock.sha")
+  }
+
+  function Test-LocalInstallNeeded {
+    param(
+      [string] $LockPath,
+      [string] $NodeModulesPath
+    )
+
+    if (-not (Test-Path $NodeModulesPath)) { return $true }
+
+    $cacheFile = Get-LocalCachePath -NodeModulesPath $NodeModulesPath
+    if (-not (Test-Path $cacheFile)) { return $true }
+
+    $cached = (Get-Content $cacheFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if (-not $cached) { return $true }
+
+    $currentHash = Get-HashLower -Path $LockPath
+    return ($cached.Trim().ToLower() -ne $currentHash)
+  }
+
+  function Save-LocalCache {
+    param(
+      [string] $LockPath,
+      [string] $NodeModulesPath
+    )
+
+    if (-not (Test-Path $NodeModulesPath)) { return }
+    $cacheFile = Get-LocalCachePath -NodeModulesPath $NodeModulesPath
+    $hash = Get-HashLower -Path $LockPath
+    Set-Content -Path $cacheFile -Value $hash -Encoding ascii
+  }
+
   function ToPosixPath($path) {
     return ($path -replace '\\','/')
   }
@@ -171,10 +211,22 @@ try {
   if ($skipFrontend -ne "true") {
     Write-Host "Building frontend..."
     Push-Location $frontendLocal
-    if ($skipLocalInstall -ne "true") {
-      npm install
-    } else {
+    $frontendLock = (Resolve-Path "package-lock.json").Path
+    $frontendNodeModules = (Resolve-Path "node_modules" -ErrorAction SilentlyContinue)
+    $frontendNodeModulesPath = if ($frontendNodeModules) { $frontendNodeModules.Path } else { "node_modules" }
+    $frontendNeedsInstall = $true
+
+    if ($skipLocalInstall -eq "true") {
       Write-Host "Skipping frontend npm install (SKIP_LOCAL_INSTALL=true)..."
+      $frontendNeedsInstall = $false
+  } elseif (-not (Test-LocalInstallNeeded -LockPath $frontendLock -NodeModulesPath $frontendNodeModulesPath)) {
+      Write-Host "Frontend lockfile sin cambios: saltando npm install"
+      $frontendNeedsInstall = $false
+    }
+
+    if ($frontendNeedsInstall) {
+      npm install
+      Save-LocalCache -LockPath $frontendLock -NodeModulesPath $frontendNodeModulesPath
     }
     npm run build
     Pop-Location
@@ -187,10 +239,22 @@ try {
   # =============================
   Write-Host "Building backend..."
   Push-Location $backendLocal
-  if ($skipLocalInstall -ne "true") {
-    npm install
-  } else {
+  $backendLock = (Resolve-Path "package-lock.json").Path
+  $backendNodeModules = (Resolve-Path "node_modules" -ErrorAction SilentlyContinue)
+  $backendNodeModulesPath = if ($backendNodeModules) { $backendNodeModules.Path } else { "node_modules" }
+  $backendNeedsInstall = $true
+
+  if ($skipLocalInstall -eq "true") {
     Write-Host "Skipping backend npm install (SKIP_LOCAL_INSTALL=true)..."
+    $backendNeedsInstall = $false
+  } elseif (-not (Test-LocalInstallNeeded -LockPath $backendLock -NodeModulesPath $backendNodeModulesPath)) {
+    Write-Host "Backend lockfile sin cambios: saltando npm install"
+    $backendNeedsInstall = $false
+  }
+
+  if ($backendNeedsInstall) {
+    npm install
+    Save-LocalCache -LockPath $backendLock -NodeModulesPath $backendNodeModulesPath
   }
   npm run build
   Pop-Location
