@@ -5,7 +5,15 @@ import { createDiskUploader, resolveUploadsDir } from "./uploads.multer";
 
 const router = Router();
 
-const IMAGE_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
 
 const upload = createDiskUploader({
   allowedMimeTypes: IMAGE_MIME_TYPES,

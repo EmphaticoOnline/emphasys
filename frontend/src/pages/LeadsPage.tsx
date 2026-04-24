@@ -376,6 +376,8 @@ export default function LeadsPage() {
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [quickReply, setQuickReply] = React.useState('');
   const [uploadPreviewUrl, setUploadPreviewUrl] = React.useState<string | null>(null);
+  const [uploadFileType, setUploadFileType] = React.useState<'image' | 'document' | null>(null);
+  const [uploadFileName, setUploadFileName] = React.useState<string | null>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
@@ -1242,9 +1244,10 @@ export default function LeadsPage() {
     event?.preventDefault();
     if (!selectedLead) return;
     const trimmedMessage = quickReply.trim();
-    const imageUrl = uploadPreviewUrl?.trim() || null;
+    const fileUrl = uploadPreviewUrl?.trim() || null;
+    const fileType = uploadFileType;
 
-    if (!trimmedMessage && !imageUrl) {
+    if (!trimmedMessage && !fileUrl) {
       focusReplyInput();
       return;
     }
@@ -1253,7 +1256,8 @@ export default function LeadsPage() {
     const tempId = `temp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     try {
       const lastSentAtBeforeSend = getLastSentAtForLead(selectedLead.id);
-      const isImageMessage = Boolean(imageUrl);
+      const isImageMessage = fileType === 'image';
+      const isDocumentMessage = fileType === 'document';
       const nowIso = new Date().toISOString();
 
       const optimisticMessage = {
@@ -1263,15 +1267,23 @@ export default function LeadsPage() {
         text: trimmedMessage,
         minutesAgo: 0,
         sentAt: nowIso,
-        tipoContenido: isImageMessage ? ('image' as const) : ('text' as const),
-        mediaUrl: imageUrl,
-        caption: isImageMessage ? (trimmedMessage || null) : null,
+        tipoContenido: isImageMessage
+          ? ('image' as const)
+          : isDocumentMessage
+            ? ('document' as const)
+            : ('text' as const),
+        mediaUrl: fileUrl,
+        caption: isImageMessage
+          ? (trimmedMessage || null)
+          : isDocumentMessage
+            ? (uploadFileName || null)
+            : null,
         status: 'sending' as const,
       };
 
       updateLead(selectedLead.id, {
         conversation: [...selectedLead.conversation, optimisticMessage],
-        lastMessage: trimmedMessage || (isImageMessage ? 'Imagen enviada' : ''),
+        lastMessage: trimmedMessage || (isImageMessage ? 'Imagen enviada' : isDocumentMessage ? 'Documento enviado' : ''),
         ultimoMensajeEn: nowIso,
         lastMessageTimeMinutesAgo: 0,
       });
@@ -1280,8 +1292,15 @@ export default function LeadsPage() {
         method: 'POST',
         body: JSON.stringify({
           telefono: selectedLead.phone,
-          ...(imageUrl
-            ? { tipo: 'image', media_url: imageUrl, mensaje: trimmedMessage || null }
+          ...(fileUrl && isImageMessage
+            ? { tipo: 'image', media_url: fileUrl, mensaje: trimmedMessage || null }
+            : fileUrl && isDocumentMessage
+              ? {
+                tipo: 'document',
+                media_url: fileUrl,
+                mensaje: uploadFileName || null,
+                contenido: trimmedMessage || null,
+              }
             : { mensaje: trimmedMessage }),
         }),
       });
@@ -1293,6 +1312,8 @@ export default function LeadsPage() {
       updateMessageStatus(selectedLead.id, tempId, 'sent');
       setQuickReply('');
       setUploadPreviewUrl(null);
+  setUploadFileType(null);
+  setUploadFileName(null);
       setUploadError(null);
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 2000);
@@ -1313,20 +1334,31 @@ export default function LeadsPage() {
     uploadInputRef.current?.click();
   };
 
-  const handleUploadImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'application/pdf',
+    ];
     if (!allowedTypes.includes(file.type)) {
-      setUploadError('Solo se permiten imágenes JPG, PNG o WEBP.');
+      setUploadError('Solo se permiten imágenes o PDF.');
       setUploadPreviewUrl(null);
+      setUploadFileType(null);
+      setUploadFileName(null);
       if (uploadInputRef.current) uploadInputRef.current.value = '';
       return;
     }
 
     setUploadError(null);
     setIsUploadingImage(true);
+    const nextType = file.type.startsWith('image/') ? 'image' : 'document';
+    setUploadFileType(nextType);
+    setUploadFileName(file.name || null);
 
     try {
       const formData = new FormData();
@@ -1361,6 +1393,8 @@ export default function LeadsPage() {
       const message = error instanceof Error ? error.message : 'Error inesperado al subir imagen.';
       setUploadError(message);
       setUploadPreviewUrl(null);
+      setUploadFileType(null);
+      setUploadFileName(null);
     } finally {
       setIsUploadingImage(false);
       if (uploadInputRef.current) uploadInputRef.current.value = '';
@@ -2292,6 +2326,21 @@ export default function LeadsPage() {
                             }}
                           />
                         )}
+                        {msg.tipoContenido === 'document' && msg.mediaUrl && (
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <DescriptionIcon fontSize="small" />
+                            <Typography
+                              variant="body2"
+                              component="a"
+                              href={msg.mediaUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{ color: 'inherit', textDecoration: 'none' }}
+                            >
+                              {msg.caption || 'Documento adjunto'}
+                            </Typography>
+                          </Stack>
+                        )}
                         {msg.tipoContenido === 'image' && msg.caption && (
                           <Typography variant="body2">{msg.caption}</Typography>
                         )}
@@ -2308,7 +2357,7 @@ export default function LeadsPage() {
                                 console.log("STATUS ICON DEBUG", {
                                   id: msg.id,
                                   from: msg.from,
-                                  tipoMensaje: msg.tipoMensaje,
+                                  tipoMensaje: msg.tipoContenido,
                                   status: msg.status,
                                   normalizedStatus: String(msg.status ?? '').trim().toLowerCase(),
                                 });
@@ -2331,9 +2380,9 @@ export default function LeadsPage() {
                     <input
                       ref={uploadInputRef}
                       type="file"
-                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      accept="image/*,application/pdf"
                       hidden
-                      onChange={handleUploadImage}
+                      onChange={handleUploadFile}
                     />
                     <IconButton
                       color="primary"
@@ -2372,18 +2421,34 @@ export default function LeadsPage() {
                       </Typography>
                     )}
                     {uploadPreviewUrl && (
-                      <Box
-                        component="img"
-                        src={uploadPreviewUrl}
-                        alt="Vista previa"
-                        sx={{
-                          maxWidth: 200,
-                          maxHeight: 200,
-                          borderRadius: 1,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                        }}
-                      />
+                      uploadFileType === 'document' ? (
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <DescriptionIcon fontSize="small" />
+                          <Typography
+                            variant="caption"
+                            component="a"
+                            href={uploadPreviewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{ color: 'text.secondary', textDecoration: 'none' }}
+                          >
+                            {uploadFileName || 'Documento adjunto'}
+                          </Typography>
+                        </Stack>
+                      ) : (
+                        <Box
+                          component="img"
+                          src={uploadPreviewUrl}
+                          alt="Vista previa"
+                          sx={{
+                            maxWidth: 200,
+                            maxHeight: 200,
+                            borderRadius: 1,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                        />
+                      )
                     )}
                   </Stack>
                 </Box>

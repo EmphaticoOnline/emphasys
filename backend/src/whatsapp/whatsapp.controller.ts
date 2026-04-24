@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { normalizeWhatsappPayload } from "./whatsapp.mapper";
-import { sendImageMessage, sendTemplateMessage, sendTextMessage } from "./whatsapp.service";
+import { sendDocumentMessage, sendImageMessage, sendTemplateMessage, sendTextMessage } from "./whatsapp.service";
 import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
 import { getEmpresaActivaId } from "../shared/context/empresa";
@@ -608,6 +608,20 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
       }
 
       const respuesta = await sendImageMessage(
+        Number(empresaId),
+        String(telefono),
+        String(media_url),
+        mensaje ? String(mensaje) : null
+      );
+      return res.status(200).json(respuesta);
+    }
+
+    if (tipoMensaje === "document") {
+      if (!media_url) {
+        return res.status(400).json({ message: "media_url es requerido" });
+      }
+
+      const respuesta = await sendDocumentMessage(
         Number(empresaId),
         String(telefono),
         String(media_url),
