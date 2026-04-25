@@ -64,6 +64,7 @@ type ConversationSummary = {
   nombre?: string | null;
   vendedor_id?: number | null;
   etapa_oportunidad?: EtapaOportunidad | null;
+  tags?: WhatsappEtiqueta[];
 };
 
 type ConversationMessage = {
@@ -122,6 +123,7 @@ type Lead = {
   owner: string;
   hot: boolean;
   etapa_oportunidad: EtapaOportunidad;
+  tags?: WhatsappEtiqueta[];
 };
 
 type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
@@ -404,6 +406,7 @@ export default function LeadsPage() {
   const [testResults, setTestResults] = React.useState<Array<{ titulo: string; mensaje: string }>>([]);
   const [etapaMenu, setEtapaMenu] = React.useState<{ leadId: string; anchorEl: HTMLElement | null } | null>(null);
   const [availableTags, setAvailableTags] = React.useState<WhatsappEtiqueta[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = React.useState<number[]>([]);
   const [conversationTags, setConversationTags] = React.useState<WhatsappEtiqueta[]>([]);
   const [tagsMenuAnchor, setTagsMenuAnchor] = React.useState<HTMLElement | null>(null);
   const [isCreatingTag, setIsCreatingTag] = React.useState(false);
@@ -618,6 +621,10 @@ export default function LeadsPage() {
     () => Object.values(vendedoresById).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '')),
     [vendedoresById]
   );
+  const selectedTags = React.useMemo(
+    () => availableTags.filter((tag) => selectedTagIds.includes(tag.id)),
+    [availableTags, selectedTagIds]
+  );
   const canSelectMis = Boolean(vendedorContactoId);
   const canToggleScope = isAdmin && canSelectMis;
   const showMisChip = !isAdmin || canSelectMis;
@@ -648,6 +655,7 @@ export default function LeadsPage() {
       owner: 'WhatsApp',
       hot: false,
       etapa_oportunidad: conv.etapa_oportunidad ?? 'nuevo',
+      tags: conv.tags ?? [],
     };
     return applyDerivedLeadState(baseLead);
   }, []);
@@ -677,6 +685,9 @@ export default function LeadsPage() {
       }
       if (vendedorFiltro) {
         params.set('vendedor_id', String(vendedorFiltro));
+      }
+      if (selectedTagIds.length > 0) {
+        params.set('tag_ids', selectedTagIds.join(','));
       }
 
       const queryString = params.toString();
@@ -753,6 +764,7 @@ export default function LeadsPage() {
               ultimoMensajeEn: conv.ultimoMensajeEn,
               vendedor_id: conv.vendedor_id ?? existing.vendedor_id,
               etapa_oportunidad: conv.etapa_oportunidad ?? existing.etapa_oportunidad,
+              tags: conv.tags ?? existing.tags ?? [],
             };
             map.set(conv.id, applyDerivedLeadState(updatedLead));
           } else {
@@ -784,7 +796,7 @@ export default function LeadsPage() {
         isFilterTransitionRef.current = false;
       }
     }
-  }, [buildLeadFromConversation, isAdmin, leadScope, selectedLeadId, vendedorContactoId, vendedorFilterId]);
+  }, [buildLeadFromConversation, isAdmin, leadScope, selectedLeadId, selectedTagIds, vendedorContactoId, vendedorFilterId]);
 
   const loadMessages = React.useCallback(async (
     conversationId: string,
@@ -970,7 +982,7 @@ export default function LeadsPage() {
     isFilterTransitionRef.current = true;
     setSelectedLeadId('');
     loadConversations();
-  }, [leadScope, vendedorContactoId, vendedorFilterId]);
+  }, [leadScope, selectedTagIds, vendedorContactoId, vendedorFilterId]);
 
   React.useEffect(() => {
     if (!session.token || !session.empresaActivaId) return;
@@ -1968,8 +1980,8 @@ export default function LeadsPage() {
             <Chip label={`${leadsFiltradosOrdenados.length} visibles`} size="small" sx={{ ml: 1.5, flexShrink: 0 }} />
           </Box>
 
-          {isAdmin && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            {isAdmin && (
               <TextField
                 select
                 size="small"
@@ -1990,13 +2002,74 @@ export default function LeadsPage() {
                   </MenuItem>
                 ))}
               </TextField>
-              {leadScope === 'mis' && (
-                <Typography variant="caption" color="text.secondary">
-                  Cambia a “Todos” para filtrar por vendedor.
-                </Typography>
-              )}
-            </Box>
-          )}
+            )}
+            <TextField
+              select
+              size="small"
+              value={selectedTagIds}
+              onChange={(event) => {
+                const value = event.target.value;
+                const nextValues = Array.isArray(value)
+                  ? value.map((item) => Number(item))
+                  : typeof value === 'string'
+                    ? value.split(',').map((item) => Number(item)).filter((item) => Number.isFinite(item))
+                    : [];
+                setSelectedTagIds(nextValues);
+              }}
+              SelectProps={{
+                multiple: true,
+                displayEmpty: true,
+                renderValue: () => (
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {selectedTags.length ? selectedTags.map((tag) => (
+                      <Chip
+                        key={tag.id}
+                        size="small"
+                        label={tag.nombre}
+                        sx={{ bgcolor: `${tag.color}22`, color: 'text.primary' }}
+                      />
+                    )) : (
+                      <Typography variant="caption" color="text.secondary">
+                        Etiquetas
+                      </Typography>
+                    )}
+                  </Stack>
+                ),
+                MenuProps: leadSelectMenuProps,
+              }}
+              inputProps={{ 'aria-label': 'Etiquetas' }}
+              sx={{
+                minWidth: 240,
+                '& .MuiSelect-select': {
+                  display: 'flex',
+                  alignItems: 'center',
+                  paddingTop: '18px',
+                  paddingBottom: '6px',
+                },
+              }}
+              disabled={availableTags.length === 0}
+            >
+              {availableTags.length === 0 ? (
+                <MenuItem value="" disabled>
+                  Sin etiquetas disponibles
+                </MenuItem>
+              ) : availableTags.map((tag) => (
+                <MenuItem key={tag.id} value={tag.id}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color }} />
+                    <Typography variant="body2" fontWeight={600}>
+                      {tag.nombre}
+                    </Typography>
+                  </Stack>
+                </MenuItem>
+              ))}
+            </TextField>
+            {isAdmin && leadScope === 'mis' && (
+              <Typography variant="caption" color="text.secondary">
+                Cambia a “Todos” para filtrar por vendedor.
+              </Typography>
+            )}
+          </Box>
 
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {showMisChip && (

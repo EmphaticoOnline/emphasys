@@ -58,6 +58,7 @@ export interface CotizacionPartida {
   precio_unitario: number;
   subtotal_partida: number;
   total_partida: number;
+  archivo_imagen_1?: string | null;
   producto_descripcion?: string | null;
   producto_clave?: string | null;
   observaciones?: string | null;
@@ -121,6 +122,7 @@ export interface CotizacionPartidaPayload {
   precio_unitario: number;
   subtotal_partida: number;
   total_partida: number;
+  archivo_imagen_1?: string | null;
   observaciones?: string | null;
   impuestos?: ImpuestoPartida[];
 }

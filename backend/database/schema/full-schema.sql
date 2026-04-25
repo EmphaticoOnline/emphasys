@@ -1,6 +1,6 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-04-20T22:56:00.516Z
+-- Generated at: 2026-04-24T23:47:22.644Z
 --
 -- PostgreSQL database dump
 --
@@ -5027,6 +5027,74 @@ CREATE TABLE whatsapp.contacto_mapeo (
 
 
 --
+-- Name: conversacion_etiquetas; Type: TABLE; Schema: whatsapp; Owner: -
+--
+
+CREATE TABLE whatsapp.conversacion_etiquetas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    conversacion_id integer NOT NULL,
+    etiqueta_id integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE conversacion_etiquetas; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON TABLE whatsapp.conversacion_etiquetas IS 'Tabla puente que relaciona conversaciones con múltiples etiquetas';
+
+
+--
+-- Name: COLUMN conversacion_etiquetas.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.conversacion_etiquetas.empresa_id IS 'Empresa propietaria de la relación';
+
+
+--
+-- Name: COLUMN conversacion_etiquetas.conversacion_id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.conversacion_etiquetas.conversacion_id IS 'ID de la conversación de WhatsApp';
+
+
+--
+-- Name: COLUMN conversacion_etiquetas.etiqueta_id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.conversacion_etiquetas.etiqueta_id IS 'ID de la etiqueta asignada a la conversación';
+
+
+--
+-- Name: COLUMN conversacion_etiquetas.created_at; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.conversacion_etiquetas.created_at IS 'Fecha en que se asignó la etiqueta a la conversación';
+
+
+--
+-- Name: conversacion_etiquetas_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
+--
+
+CREATE SEQUENCE whatsapp.conversacion_etiquetas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: conversacion_etiquetas_id_seq; Type: SEQUENCE OWNED BY; Schema: whatsapp; Owner: -
+--
+
+ALTER SEQUENCE whatsapp.conversacion_etiquetas_id_seq OWNED BY whatsapp.conversacion_etiquetas.id;
+
+
+--
 -- Name: conversaciones; Type: TABLE; Schema: whatsapp; Owner: -
 --
 
@@ -5108,6 +5176,91 @@ COMMENT ON TABLE whatsapp.estadisticas IS 'Estadisticas diarias de WhatsApp por 
 --
 
 COMMENT ON COLUMN whatsapp.estadisticas.empresa_id IS 'Empresa a la que pertenecen las metricas.';
+
+
+--
+-- Name: etiquetas; Type: TABLE; Schema: whatsapp; Owner: -
+--
+
+CREATE TABLE whatsapp.etiquetas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    nombre text NOT NULL,
+    color text NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_whatsapp_etiquetas_color_hex CHECK ((color ~ '^#[0-9A-Fa-f]{6}$'::text))
+);
+
+
+--
+-- Name: TABLE etiquetas; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON TABLE whatsapp.etiquetas IS 'Catálogo de etiquetas para clasificar conversaciones de WhatsApp por empresa';
+
+
+--
+-- Name: COLUMN etiquetas.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.etiquetas.empresa_id IS 'Empresa a la que pertenece la etiqueta';
+
+
+--
+-- Name: COLUMN etiquetas.nombre; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.etiquetas.nombre IS 'Nombre de la etiqueta (ej: Cotizado, Urgente, Seguimiento)';
+
+
+--
+-- Name: COLUMN etiquetas.color; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.etiquetas.color IS 'Color en formato HEX (#RRGGBB), sin transparencia';
+
+
+--
+-- Name: COLUMN etiquetas.activo; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.etiquetas.activo IS 'Indica si la etiqueta está disponible para uso';
+
+
+--
+-- Name: COLUMN etiquetas.created_at; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.etiquetas.created_at IS 'Fecha de creación del registro';
+
+
+--
+-- Name: COLUMN etiquetas.updated_at; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.etiquetas.updated_at IS 'Fecha de última actualización';
+
+
+--
+-- Name: etiquetas_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
+--
+
+CREATE SEQUENCE whatsapp.etiquetas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: etiquetas_id_seq; Type: SEQUENCE OWNED BY; Schema: whatsapp; Owner: -
+--
+
+ALTER SEQUENCE whatsapp.etiquetas_id_seq OWNED BY whatsapp.etiquetas.id;
 
 
 --
@@ -5244,8 +5397,13 @@ CREATE TABLE whatsapp.mensajes (
     intentos_envio integer DEFAULT 0 NOT NULL,
     respuesta_json jsonb,
     creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    tipo_contenido character varying(20) DEFAULT 'text'::character varying NOT NULL,
+    media_url text,
+    mime_type character varying(100),
+    caption text,
     CONSTRAINT mensajes_status_check CHECK ((((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('sent'::character varying)::text, ('delivered'::character varying)::text, ('read'::character varying)::text, ('failed'::character varying)::text, ('received'::character varying)::text])) OR (status IS NULL))),
     CONSTRAINT mensajes_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text)),
+    CONSTRAINT mensajes_tipo_contenido_chk CHECK (((tipo_contenido)::text = ANY ((ARRAY['text'::character varying, 'image'::character varying, 'audio'::character varying, 'document'::character varying])::text[]))),
     CONSTRAINT mensajes_tipo_mensaje_check CHECK (((tipo_mensaje)::text = ANY (ARRAY[('saliente'::character varying)::text, ('entrante'::character varying)::text])))
 );
 
@@ -5265,6 +5423,34 @@ COMMENT ON COLUMN whatsapp.mensajes.empresa_id IS 'Empresa propietaria del mensa
 
 
 --
+-- Name: COLUMN mensajes.tipo_contenido; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.mensajes.tipo_contenido IS 'Tipo de contenido del mensaje: text, image, audio, document';
+
+
+--
+-- Name: COLUMN mensajes.media_url; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.mensajes.media_url IS 'URL del archivo multimedia asociado al mensaje (si aplica)';
+
+
+--
+-- Name: COLUMN mensajes.mime_type; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.mensajes.mime_type IS 'MIME type del archivo multimedia (si aplica)';
+
+
+--
+-- Name: COLUMN mensajes.caption; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.mensajes.caption IS 'Texto/caption asociado a mensajes multimedia (imagen, audio, documento)';
+
+
+--
 -- Name: mensajes_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
 --
 
@@ -5276,6 +5462,120 @@ ALTER TABLE whatsapp.mensajes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     NO MAXVALUE
     CACHE 1
 );
+
+
+--
+-- Name: plantillas; Type: TABLE; Schema: whatsapp; Owner: -
+--
+
+CREATE TABLE whatsapp.plantillas (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    nombre_interno character varying(120) NOT NULL,
+    tipo character varying(50) NOT NULL,
+    proveedor character varying(50) NOT NULL,
+    provider_template_id character varying(120) NOT NULL,
+    es_default boolean DEFAULT false NOT NULL,
+    activa boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: TABLE plantillas; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON TABLE whatsapp.plantillas IS 'Plantillas de WhatsApp definidas por empresa. Permiten desacoplar el ERP del proveedor (ej. Gupshup) y controlar el uso por tipo de mensaje (ej. reactivación).';
+
+
+--
+-- Name: COLUMN plantillas.id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.id IS 'Identificador único de la plantilla.';
+
+
+--
+-- Name: COLUMN plantillas.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.empresa_id IS 'Empresa a la que pertenece la plantilla.';
+
+
+--
+-- Name: COLUMN plantillas.nombre_interno; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.nombre_interno IS 'Nombre descriptivo interno para identificar la plantilla dentro del ERP.';
+
+
+--
+-- Name: COLUMN plantillas.tipo; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.tipo IS 'Tipo o propósito de la plantilla (ej. reactivacion, seguimiento, cierre).';
+
+
+--
+-- Name: COLUMN plantillas.proveedor; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.proveedor IS 'Proveedor de mensajería (ej. gupshup). Permite soportar múltiples integraciones en el futuro.';
+
+
+--
+-- Name: COLUMN plantillas.provider_template_id; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.provider_template_id IS 'Identificador de la plantilla en el proveedor (ej. template_id en Gupshup).';
+
+
+--
+-- Name: COLUMN plantillas.es_default; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.es_default IS 'Indica si esta plantilla es la predeterminada para su empresa y tipo. Solo puede existir una por empresa + tipo.';
+
+
+--
+-- Name: COLUMN plantillas.activa; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.activa IS 'Indica si la plantilla está disponible para uso.';
+
+
+--
+-- Name: COLUMN plantillas.creado_en; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.creado_en IS 'Fecha de creación del registro.';
+
+
+--
+-- Name: COLUMN plantillas.actualizado_en; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.actualizado_en IS 'Fecha de última actualización del registro.';
+
+
+--
+-- Name: plantillas_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
+--
+
+CREATE SEQUENCE whatsapp.plantillas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: plantillas_id_seq; Type: SEQUENCE OWNED BY; Schema: whatsapp; Owner: -
+--
+
+ALTER SEQUENCE whatsapp.plantillas_id_seq OWNED BY whatsapp.plantillas.id;
 
 
 --
@@ -5648,10 +5948,31 @@ ALTER TABLE ONLY whatsapp.config ALTER COLUMN id SET DEFAULT nextval('whatsapp.c
 
 
 --
+-- Name: conversacion_etiquetas id; Type: DEFAULT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.conversacion_etiquetas ALTER COLUMN id SET DEFAULT nextval('whatsapp.conversacion_etiquetas_id_seq'::regclass);
+
+
+--
+-- Name: etiquetas id; Type: DEFAULT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.etiquetas ALTER COLUMN id SET DEFAULT nextval('whatsapp.etiquetas_id_seq'::regclass);
+
+
+--
 -- Name: intentos_contacto id; Type: DEFAULT; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE ONLY whatsapp.intentos_contacto ALTER COLUMN id SET DEFAULT nextval('whatsapp.intentos_contacto_id_seq'::regclass);
+
+
+--
+-- Name: plantillas id; Type: DEFAULT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.plantillas ALTER COLUMN id SET DEFAULT nextval('whatsapp.plantillas_id_seq'::regclass);
 
 
 --
@@ -6526,6 +6847,14 @@ ALTER TABLE ONLY whatsapp.contacto_mapeo
 
 
 --
+-- Name: conversacion_etiquetas conversacion_etiquetas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.conversacion_etiquetas
+    ADD CONSTRAINT conversacion_etiquetas_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: conversaciones conversaciones_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
@@ -6542,6 +6871,14 @@ ALTER TABLE ONLY whatsapp.estadisticas
 
 
 --
+-- Name: etiquetas etiquetas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.etiquetas
+    ADD CONSTRAINT etiquetas_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: intentos_contacto intentos_contacto_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
@@ -6555,6 +6892,22 @@ ALTER TABLE ONLY whatsapp.intentos_contacto
 
 ALTER TABLE ONLY whatsapp.mensajes
     ADD CONSTRAINT mensajes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: plantillas plantillas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.plantillas
+    ADD CONSTRAINT plantillas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: conversacion_etiquetas uq_whatsapp_conversacion_etiquetas; Type: CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.conversacion_etiquetas
+    ADD CONSTRAINT uq_whatsapp_conversacion_etiquetas UNIQUE (conversacion_id, etiqueta_id);
 
 
 --
@@ -7776,6 +8129,48 @@ CREATE INDEX config_empresa_id_idx ON whatsapp.config USING btree (empresa_id);
 
 
 --
+-- Name: idx_whatsapp_conversacion_etiquetas_empresa_conversacion; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_conversacion_etiquetas_empresa_conversacion ON whatsapp.conversacion_etiquetas USING btree (empresa_id, conversacion_id);
+
+
+--
+-- Name: INDEX idx_whatsapp_conversacion_etiquetas_empresa_conversacion; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON INDEX whatsapp.idx_whatsapp_conversacion_etiquetas_empresa_conversacion IS 'Optimiza búsqueda de etiquetas por conversación y empresa';
+
+
+--
+-- Name: idx_whatsapp_conversacion_etiquetas_etiqueta; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_conversacion_etiquetas_etiqueta ON whatsapp.conversacion_etiquetas USING btree (etiqueta_id);
+
+
+--
+-- Name: INDEX idx_whatsapp_conversacion_etiquetas_etiqueta; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON INDEX whatsapp.idx_whatsapp_conversacion_etiquetas_etiqueta IS 'Optimiza consultas de conversaciones por etiqueta';
+
+
+--
+-- Name: idx_whatsapp_etiquetas_empresa_activo; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_etiquetas_empresa_activo ON whatsapp.etiquetas USING btree (empresa_id, activo);
+
+
+--
+-- Name: INDEX idx_whatsapp_etiquetas_empresa_activo; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON INDEX whatsapp.idx_whatsapp_etiquetas_empresa_activo IS 'Optimiza consultas de etiquetas activas por empresa';
+
+
+--
 -- Name: ix_conv_empresa_estado; Type: INDEX; Schema: whatsapp; Owner: -
 --
 
@@ -7794,6 +8189,41 @@ CREATE INDEX ix_mensajes_empresa_fecha ON whatsapp.mensajes USING btree (empresa
 --
 
 CREATE UNIQUE INDEX ux_mensaje_externo ON whatsapp.mensajes USING btree (empresa_id, id_externo) WHERE (id_externo IS NOT NULL);
+
+
+--
+-- Name: ux_whatsapp_etiquetas_empresa_nombre; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_whatsapp_etiquetas_empresa_nombre ON whatsapp.etiquetas USING btree (empresa_id, lower(nombre));
+
+
+--
+-- Name: INDEX ux_whatsapp_etiquetas_empresa_nombre; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON INDEX whatsapp.ux_whatsapp_etiquetas_empresa_nombre IS 'Evita duplicados de nombre de etiqueta por empresa (case-insensitive)';
+
+
+--
+-- Name: whatsapp_plantillas_default_uk; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE UNIQUE INDEX whatsapp_plantillas_default_uk ON whatsapp.plantillas USING btree (empresa_id, tipo) WHERE (es_default IS TRUE);
+
+
+--
+-- Name: whatsapp_plantillas_empresa_id_idx; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE INDEX whatsapp_plantillas_empresa_id_idx ON whatsapp.plantillas USING btree (empresa_id);
+
+
+--
+-- Name: whatsapp_plantillas_empresa_tipo_idx; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE INDEX whatsapp_plantillas_empresa_tipo_idx ON whatsapp.plantillas USING btree (empresa_id, tipo);
 
 
 --
@@ -8634,6 +9064,22 @@ ALTER TABLE ONLY whatsapp.conversaciones
 
 
 --
+-- Name: conversacion_etiquetas fk_whatsapp_conversacion_etiquetas_conversacion; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.conversacion_etiquetas
+    ADD CONSTRAINT fk_whatsapp_conversacion_etiquetas_conversacion FOREIGN KEY (conversacion_id) REFERENCES whatsapp.conversaciones(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversacion_etiquetas fk_whatsapp_conversacion_etiquetas_etiqueta; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.conversacion_etiquetas
+    ADD CONSTRAINT fk_whatsapp_conversacion_etiquetas_etiqueta FOREIGN KEY (etiqueta_id) REFERENCES whatsapp.etiquetas(id) ON DELETE CASCADE;
+
+
+--
 -- Name: intentos_contacto intentos_contacto_empresa_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
@@ -8655,6 +9101,14 @@ ALTER TABLE ONLY whatsapp.mensajes
 
 ALTER TABLE ONLY whatsapp.mensajes
     ADD CONSTRAINT mensajes_conversacion_id_fkey FOREIGN KEY (conversacion_id) REFERENCES whatsapp.conversaciones(id);
+
+
+--
+-- Name: plantillas whatsapp_plantillas_empresa_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
+--
+
+ALTER TABLE ONLY whatsapp.plantillas
+    ADD CONSTRAINT whatsapp_plantillas_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
 
 
 --

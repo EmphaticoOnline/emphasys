@@ -6,6 +6,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Tooltip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -33,6 +34,8 @@ import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
+import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import DynamicFieldControl from '../components/DynamicFieldControl';
 import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 
@@ -46,6 +49,7 @@ import type {
 } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
 import { getDocumento, createDocumento, updateDocumento, replacePartidas, downloadDocumentoPdf } from '../services/documentosService';
+import { uploadArchivo } from '../services/uploadsService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
 import { fetchProductos } from '../services/productosService';
 import type { Producto } from '../types/producto';
@@ -88,6 +92,7 @@ const emptyPartida = (): PartidaForm => ({
   precio_unitario: 0,
   subtotal_partida: 0,
   total_partida: 0,
+  archivo_imagen_1: null,
   producto: null,
   observaciones: '',
   impuestos: [],
@@ -170,6 +175,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const { session } = useSession();
   const sessionUserId = session.user?.id ?? null;
   const tipoDocumento = (propTipo ?? (codigo as TipoDocumento)) || 'cotizacion';
+  const isCotizacion = tipoDocumento === 'cotizacion';
   const isEdit = Boolean(id && id !== 'nuevo');
   const navigate = useNavigate();
   const basePath = `/ventas/${tipoDocumento}`;
@@ -210,6 +216,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [expandedObs, setExpandedObs] = useState<boolean[]>([false]);
   const [editingPrecio, setEditingPrecio] = useState<boolean[]>([false]);
   const [precioInputs, setPrecioInputs] = useState<string[]>(['']);
+  const [uploadingImagen, setUploadingImagen] = useState<boolean[]>([false]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -234,6 +241,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const precioRefs = useRef<(HTMLInputElement | null)[]>([]);
   const cantidadRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const imagenInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const prevContactoRef = useRef<number | null | undefined>(undefined);
   const skipFiscalFetchRef = useRef<boolean>(false);
   const previewTimersRef = useRef<Record<number, ReturnType<typeof setTimeout> | null>>({});
@@ -377,6 +385,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const isSinIva = (t: TratamientoImpuestos | null | undefined) => (t ?? '').toLowerCase() === 'sin_iva';
   const isOperacionEstandar = (t: TratamientoImpuestos | null | undefined) => ['normal', 'operacion_estandar'].includes((t ?? '').toLowerCase());
+
+  const partidasGridTemplate = useMemo(
+    () =>
+      (isCotizacion
+        ? '180px 1fr 80px 120px 120px 120px 120px 52px 40px 48px'
+        : '180px 1fr 80px 120px 120px 120px 120px 40px 48px'),
+    [isCotizacion]
+  );
 
   const calcularPartida = (partida: PartidaForm): PartidaForm => {
     const cantidad = Number(partida.cantidad) || 0;
@@ -547,6 +563,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     setExpandedObs((prev) => [...prev, false]);
     setEditingPrecio((prev) => [...prev, false]);
     setPrecioInputs((prev) => [...prev, '']);
+    setUploadingImagen((prev) => [...prev, false]);
     setValoresCamposPartidas((prev) => [...prev, {}]);
   };
 
@@ -573,6 +590,13 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         let aligned = filteredInputs;
         if (next.length > filteredInputs.length) aligned = [...filteredInputs, ''];
         if (aligned.length === 0) aligned = [''];
+        return aligned;
+      });
+      setUploadingImagen((uploadsPrev) => {
+        const filteredUploads = uploadsPrev.filter((_, i) => i !== index);
+        let aligned = filteredUploads;
+        if (next.length > filteredUploads.length) aligned = [...filteredUploads, false];
+        if (aligned.length === 0) aligned = [false];
         return aligned;
       });
       setValoresCamposPartidas((prevValores) => {
@@ -689,6 +713,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           precio_unitario: p.precio_unitario,
           subtotal_partida: p.subtotal_partida,
           total_partida: p.total_partida,
+          archivo_imagen_1: p.archivo_imagen_1 ?? null,
           observaciones: p.observaciones ?? '',
           producto: prod,
           impuestos: impuestosEntrada,
@@ -703,6 +728,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       setExpandedObs(nextPartidas.map((p) => Boolean(p.observaciones?.trim())) || [false]);
       setEditingPrecio(nextPartidas.map(() => false));
       setPrecioInputs(nextPartidas.map((p) => (p.precio_unitario ?? '').toString()));
+  setUploadingImagen(nextPartidas.map(() => false));
       recalcTotales(nextPartidas);
 
       // Carga valores dinámicos ya capturados
@@ -875,6 +901,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         precio_unitario: p.precio_unitario ?? 0,
         subtotal_partida: p.subtotal_partida ?? 0,
         total_partida: p.total_partida ?? 0,
+        ...(isCotizacion ? { archivo_imagen_1: p.archivo_imagen_1 ?? null } : {}),
         observaciones: p.observaciones ?? '',
         impuestos: (p.impuestos_calculados ?? p.impuestos ?? []).map((imp: any) => ({
           impuesto_id: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? imp.id,
@@ -944,6 +971,41 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         impuestos: prev.impuestos ?? [],
       };
     });
+  };
+
+  const handleImagenClick = (index: number) => {
+    const url = partidas[index]?.archivo_imagen_1?.trim();
+    if (url) {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    imagenInputRefs.current[index]?.click();
+  };
+
+  const handleImagenChange = async (index: number, files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+
+    setUploadingImagen((prev) => {
+      const next = [...prev];
+      next[index] = true;
+      return next;
+    });
+
+    try {
+      const resp = await uploadArchivo(file);
+      setPartidaAt(index, (prev) => ({ ...prev, archivo_imagen_1: resp.url }));
+      setSnackbar({ open: true, message: 'Imagen cargada', severity: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo subir la imagen';
+      setSnackbar({ open: true, message, severity: 'error' });
+    } finally {
+      setUploadingImagen((prev) => {
+        const next = [...prev];
+        next[index] = false;
+        return next;
+      });
+    }
   };
 
   const handleDescripcionChange = (index: number, value: string) => {
@@ -1268,7 +1330,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                 <Box
                   sx={{
                     display: { xs: 'none', md: 'grid' },
-                    gridTemplateColumns: '180px 1fr 80px 120px 120px 120px 120px 40px 48px',
+                    gridTemplateColumns: partidasGridTemplate,
                     gap: 1,
                     px: 1,
                     color: '#6b7280',
@@ -1283,6 +1345,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   <Box textAlign="right">Subtotal</Box>
                   <Box textAlign="right">IVA</Box>
                   <Box textAlign="right">Total</Box>
+                  {isCotizacion && <Box textAlign="center">Imagen</Box>}
                   <Box textAlign="center">Obs.</Box>
                   <Box textAlign="center">&nbsp;</Box>
                 </Box>
@@ -1298,7 +1361,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                         display: 'grid',
                         gridTemplateColumns: {
                           xs: '1fr',
-                          md: '180px 1fr 80px 120px 120px 120px 120px 40px 48px',
+                          md: partidasGridTemplate,
                         },
                         gap: { xs: 1, md: 1 },
                         alignItems: 'center',
@@ -1491,6 +1554,39 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                         size="small"
                       />
 
+                      {isCotizacion && (
+                        <Box display="flex" justifyContent="center">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            ref={(el) => {
+                              imagenInputRefs.current[index] = el;
+                            }}
+                            onChange={(e) => handleImagenChange(index, e.target.files)}
+                            style={{ display: 'none' }}
+                          />
+                          <Tooltip title={partida.archivo_imagen_1 ? 'Ver imagen' : 'Subir imagen'}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                aria-label="Imagen de partida"
+                                onClick={() => handleImagenClick(index)}
+                                disabled={Boolean(uploadingImagen[index])}
+                                color={partida.archivo_imagen_1 ? 'primary' : 'default'}
+                              >
+                                {uploadingImagen[index] ? (
+                                  <CircularProgress size={18} />
+                                ) : partida.archivo_imagen_1 ? (
+                                  <ImageOutlinedIcon fontSize="small" />
+                                ) : (
+                                  <PhotoCameraOutlinedIcon fontSize="small" />
+                                )}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </Box>
+                      )}
+
                       <IconButton
                         onClick={() => toggleObservaciones(index)}
                         aria-label="Observaciones"
@@ -1533,7 +1629,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     )}
 
                     {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
-                      <Box sx={{ gridColumn: { xs: '1', md: '2 / 9' }, mt: { xs: 0.5, md: 0.25 } }}>
+                      <Box sx={{ gridColumn: { xs: '1', md: '2 / -1' }, mt: { xs: 0.5, md: 0.25 } }}>
                         <TextField
                           label="Observaciones de la partida"
                           placeholder="Texto adicional para impresión"

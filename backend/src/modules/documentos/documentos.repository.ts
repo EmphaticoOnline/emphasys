@@ -32,6 +32,7 @@ export type Partida = {
   precio_unitario: number;
   subtotal_partida: number;
   total_partida: number;
+  archivo_imagen_1?: string | null;
   producto_descripcion?: string | null;
   producto_clave?: string | null;
   observaciones?: string | null;
@@ -109,6 +110,7 @@ export type PartidaInput = {
   precio_unitario?: number | null;
   subtotal_partida?: number | null;
   total_partida?: number | null;
+  archivo_imagen_1?: string | null;
   observaciones?: string | null;
 };
 
@@ -435,8 +437,13 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
   const ownedClient = !client;
   const executor = client ?? (await pool.connect());
   try {
-    const { rowCount: docExists } = await executor.query('SELECT 1 FROM documentos WHERE id = $1 AND empresa_id = $2', [documentoId, empresaId]);
-    if (!docExists) return null;
+    const { rows: docRows } = await executor.query(
+      'SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1',
+      [documentoId, empresaId]
+    );
+    const docRow = docRows[0];
+    if (!docRow) return null;
+    const permiteImagen = String(docRow.tipo_documento ?? '').toLowerCase() === 'cotizacion';
 
     const campos: string[] = ['documento_id'];
     const valores: any[] = [documentoId];
@@ -449,6 +456,7 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       'precio_unitario',
       'subtotal_partida',
       'total_partida',
+      ...(permiteImagen ? (['archivo_imagen_1'] as Array<keyof PartidaInput>) : []),
       'observaciones',
     ];
 
@@ -494,10 +502,15 @@ export async function reemplazarPartidasRepository(
   const ownedClient = !client;
   const executor = client ?? (await pool.connect());
   try {
-    const { rowCount: docExists } = await executor.query('SELECT 1 FROM documentos WHERE id = $1 AND empresa_id = $2', [documentoId, empresaId]);
-    if (!docExists) {
+    const { rows: docRows } = await executor.query(
+      'SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1',
+      [documentoId, empresaId]
+    );
+    const docRow = docRows[0];
+    if (!docRow) {
       return null;
     }
+    const permiteImagen = String(docRow.tipo_documento ?? '').toLowerCase() === 'cotizacion';
 
     if (ownedClient) {
       await executor.query('BEGIN');
@@ -515,8 +528,9 @@ export async function reemplazarPartidasRepository(
         precio_unitario,
         subtotal_partida,
         total_partida,
+        archivo_imagen_1,
         observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `;
 
@@ -531,6 +545,7 @@ export async function reemplazarPartidasRepository(
         partida.precio_unitario ?? 0,
         partida.subtotal_partida ?? 0,
         partida.total_partida ?? partida.subtotal_partida ?? 0,
+        permiteImagen ? partida.archivo_imagen_1 ?? null : null,
         partida.observaciones ?? null,
       ];
       console.log('[documentos] reemplazarPartidasRepository - insert partida', {

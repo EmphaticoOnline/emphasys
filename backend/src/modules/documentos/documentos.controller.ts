@@ -219,6 +219,14 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
 export const obtenerCotizacionPDF = buildPdfHandler('cotizacion');
 export const obtenerFacturaPDF = buildPdfHandler('factura', true);
 
+const permiteArchivoImagen = (req: Request) => (req.baseUrl || '').toLowerCase().includes('/documentos');
+
+const limpiarArchivoImagenPartida = (partida: any, permitir: boolean) => {
+  if (permitir || !partida || typeof partida !== 'object') return partida;
+  const { archivo_imagen_1, ...rest } = partida as Record<string, any>;
+  return rest;
+};
+
 export async function enviarFacturaPorCorreo(req: Request, res: Response) {
   try {
     const documentoId = Number(req.params.id);
@@ -279,7 +287,8 @@ export async function agregarPartida(req: Request, res: Response) {
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(documentoId) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
-  const partida = await agregarPartidaService(documentoId, req.body || {}, Number(empresaId));
+  const partidaPayload = limpiarArchivoImagenPartida(req.body || {}, permiteArchivoImagen(req));
+  const partida = await agregarPartidaService(documentoId, partidaPayload, Number(empresaId));
     if (!partida) return res.status(404).json({ message: 'Documento no encontrado' });
     res.status(201).json(partida);
   } catch (error) {
@@ -294,7 +303,8 @@ export async function reemplazarPartidas(req: Request, res: Response) {
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(documentoId) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
-  const partidas = Array.isArray(req.body?.partidas) ? req.body.partidas : [];
+  const permiteImagen = permiteArchivoImagen(req);
+  const partidas = Array.isArray(req.body?.partidas) ? req.body.partidas.map((p: any) => limpiarArchivoImagenPartida(p, permiteImagen)) : [];
   const inserted = await reemplazarPartidasService(documentoId, partidas, Number(empresaId));
     if (!inserted) return res.status(404).json({ message: 'Documento no encontrado' });
     res.json(inserted);

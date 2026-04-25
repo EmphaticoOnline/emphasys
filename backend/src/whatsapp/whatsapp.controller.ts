@@ -686,6 +686,15 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
     const vendedorParamRaw = (req.query.vendedor_id ?? req.query.vendedorId) as string | string[] | undefined;
     const vendedorParam = Array.isArray(vendedorParamRaw) ? vendedorParamRaw[0] : vendedorParamRaw;
     const vendedorFilter = vendedorParam ? Number(vendedorParam) : null;
+    const tagIdsRaw = req.query.tag_ids ?? req.query.tagIds;
+    const tagIdsValue = Array.isArray(tagIdsRaw) ? tagIdsRaw.join(',') : tagIdsRaw;
+    const tagIdsString = typeof tagIdsValue === 'string' ? tagIdsValue.trim() : '';
+    const tagIds = tagIdsString
+      ? tagIdsString
+        .split(',')
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0)
+      : [];
 
     if (!esAdmin && !vendedorContactoId) {
       return res.status(200).json([]);
@@ -705,6 +714,17 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
     } else if (!esAdmin && (esVendedor || vendedorContactoId)) {
       params.push(vendedorContactoId);
       filters.push(`ct.vendedor_id = $${params.length}`);
+    }
+
+    if (tagIds.length > 0) {
+      params.push(tagIds);
+      filters.push(`EXISTS (
+        SELECT 1
+        FROM whatsapp.conversacion_etiquetas ce
+        WHERE ce.empresa_id = c.empresa_id
+          AND ce.conversacion_id = c.id
+          AND ce.etiqueta_id = ANY($${params.length})
+      )`);
     }
 
     const result = await pool.query(

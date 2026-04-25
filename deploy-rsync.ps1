@@ -2,11 +2,12 @@ try {
   $ErrorActionPreference = "Stop"
 
   # Variables
+  $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
   $server = "ubuntu@api.emphasys.cloud"
   $remotePath = "/var/www/emphasys-backend"
-  $backendLocal = "backend"
-  $frontendLocal = "frontend"
-  $pm2Config = "ecosystem.config.js"
+  $backendLocal = (Join-Path $scriptRoot "backend")
+  $frontendLocal = (Join-Path $scriptRoot "frontend")
+  $pm2Config = (Join-Path $scriptRoot "ecosystem.config.js")
   $sshOpts = @(
     "-o","BatchMode=yes",
     "-o","StrictHostKeyChecking=accept-new",
@@ -58,6 +59,36 @@ try {
     $cacheFile = Get-LocalCachePath -NodeModulesPath $NodeModulesPath
     $hash = Get-HashLower -Path $LockPath
     Set-Content -Path $cacheFile -Value $hash -Encoding ascii
+  }
+
+  function Get-GitShortHash {
+    try {
+      $hash = (git rev-parse --short HEAD 2>$null)
+      if (-not $hash) { return "unknown" }
+      return $hash.Trim()
+    } catch {
+      return "unknown"
+    }
+  }
+
+  function Write-BuildInfo {
+    param(
+      [string] $TargetDir,
+      [string] $Label
+    )
+
+    if (-not (Test-Path $TargetDir)) { return }
+
+    $info = [ordered]@{
+      label = $Label
+      timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssK")
+      commit = Get-GitShortHash
+      machine = $env:COMPUTERNAME
+      user = $env:USERNAME
+    }
+
+    $infoPath = Join-Path $TargetDir "build-info.json"
+    $info | ConvertTo-Json | Set-Content -Path $infoPath -Encoding utf8
   }
 
   function ToPosixPath($path) {
@@ -229,6 +260,11 @@ try {
       Save-LocalCache -LockPath $frontendLock -NodeModulesPath $frontendNodeModulesPath
     }
     npm run build
+    $frontendDistLocal = Join-Path (Resolve-Path $frontendLocal).Path "dist"
+    Write-BuildInfo -TargetDir $frontendDistLocal -Label "frontend"
+    if (-not (Test-Path (Join-Path $frontendDistLocal "build-info.json"))) {
+      throw "No se pudo crear build-info.json para frontend"
+    }
     Pop-Location
   } else {
     Write-Host "Skipping frontend build (SKIP_FRONTEND=true)..."
@@ -257,6 +293,11 @@ try {
     Save-LocalCache -LockPath $backendLock -NodeModulesPath $backendNodeModulesPath
   }
   npm run build
+  $backendDistLocal = Join-Path (Resolve-Path $backendLocal).Path "dist"
+  Write-BuildInfo -TargetDir $backendDistLocal -Label "backend"
+  if (-not (Test-Path (Join-Path $backendDistLocal "build-info.json"))) {
+    throw "No se pudo crear build-info.json para backend"
+  }
   Pop-Location
 
   if ($usingRsync) {
@@ -289,6 +330,10 @@ try {
     Send-TarAndExtract -SourceDir $backendDist -RemoteTarget "$remotePath/dist" -Label "backend-dist"
   }
 
+  if (Test-Path (Join-Path $backendDistLocal "build-info.json")) {
+    scp @sshOpts (Join-Path $backendDistLocal "build-info.json") "${server}:$remotePath/dist/build-info.json"
+  }
+
   # =============================
   # Rsync frontend dist (con fallback)
   # =============================
@@ -297,6 +342,16 @@ try {
     Invoke-Rsync -az --delete -e "ssh $sshOptsString" "$frontendDist/" "${server}:$remotePath/frontend-dist/"
   } -FallbackBlock {
     Send-TarAndExtract -SourceDir $frontendDist -RemoteTarget "$remotePath/frontend-dist" -Label "frontend-dist"
+  }
+
+  if ($skipFrontend -ne "true" -and (Test-Path (Join-Path $frontendDistLocal "build-info.json"))) {
+    scp @sshOpts (Join-Path $frontendDistLocal "build-info.json") "${server}:$remotePath/frontend-dist/build-info.json"
+  }
+
+  Write-Host "Verificando build-info remoto..."
+  Invoke-SSH -Command "cat $remotePath/dist/build-info.json" -Label "verify-backend-info"
+  if ($skipFrontend -ne "true") {
+    Invoke-SSH -Command "cat $remotePath/frontend-dist/build-info.json" -Label "verify-frontend-info"
   }
 
   # =============================
