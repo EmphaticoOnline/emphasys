@@ -1,7 +1,7 @@
 import type { TipoDocumento } from './documentos.types';
 
 export type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
-export type EstadoSeguimiento = 'cotizado' | 'seguimiento' | 'cerrado' | 'perdido';
+export type EstadoSeguimiento = 'borrador' | 'enviado' | 'negociacion' | 'ganado' | 'perdido';
 
 export interface CotizacionListado {
   id: number;
@@ -9,6 +9,7 @@ export interface CotizacionListado {
   numero: number | null;
   fecha_documento: string;
   contacto_principal_id: number | null;
+  agente_id?: number | null;
   nombre_cliente: string | null;
   subtotal: number;
   iva: number;

@@ -3,10 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
+  Autocomplete,
+  Badge,
   Box,
   Button,
   Chip,
   CircularProgress,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -16,6 +19,7 @@ import {
   IconButton,
   Paper,
   Container,
+  Grid,
   InputAdornment,
   Stack,
   Toolbar,
@@ -50,22 +54,37 @@ import EmailIcon from '@mui/icons-material/Email';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import TableViewIcon from '@mui/icons-material/TableView';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import { Tooltip } from '@mui/material';
 import Snackbar from '@mui/material/Snackbar';
 import AlertSnackbar from '@mui/material/Alert';
-import type { CotizacionListado } from '../types/cotizacion';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
+import type { Contacto } from '../types/contactos.types';
+import type { CotizacionListado, EstadoSeguimiento } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
-import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, getDocumentos } from '../services/documentosService';
+import { fetchContactos, fetchVendedores } from '../services/contactosService';
+import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, getDocumentos, updateDocumento } from '../services/documentosService';
 import { timbrarFactura, enviarFactura } from '../services/facturasService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
 import { useSession } from '../session/useSession';
+import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
+import {
+  ESTADOS_SEGUIMIENTO,
+  getEstadoSeguimientoPresentation,
+  normalizeEstadoSeguimiento,
+} from '../modules/cotizaciones/estadoSeguimiento';
 import {
   getOpcionesGeneracion,
   prepararGeneracion,
@@ -79,6 +98,56 @@ type DocumentosPageProps = {
   tipoDocumento?: TipoDocumento;
 };
 
+const TIPOS_CONTACTO_COTIZACION = ['Cliente', 'Lead'];
+
+type QuickFilter = 'todos' | EstadoSeguimiento;
+
+const FILTROS_COTIZACION_INICIALES = {
+  fechaDesde: '',
+  fechaHasta: '',
+  clienteId: null,
+  agenteId: null,
+  montoMin: '',
+  montoMax: '',
+} satisfies {
+  fechaDesde: string;
+  fechaHasta: string;
+  clienteId: number | null;
+  agenteId: number | null;
+  montoMin: string;
+  montoMax: string;
+};
+
+const DOCUMENTO_ESTATUS_LABELS: Record<string, string> = {
+  borrador: 'Borrador',
+  emitido: 'Emitido',
+  cancelado: 'Cancelado',
+  cerrado: 'Cerrado',
+  timbrado: 'Timbrado',
+  pagado: 'Pagado',
+};
+
+const normalizeDocumentoEstatus = (value: unknown): string => {
+  const normalized = String(value ?? 'borrador').trim().toLowerCase();
+  if (!normalized) return 'borrador';
+  if (normalized === 'enviado') return 'emitido';
+  return normalized;
+};
+
+const formatDocumentoEstatusLabel = (value: unknown): string => {
+  const normalized = normalizeDocumentoEstatus(value);
+  return DOCUMENTO_ESTATUS_LABELS[normalized] ?? String(value ?? 'Borrador');
+};
+
+const getDocumentoEstatusColor = (value: unknown): 'default' | 'info' | 'success' | 'warning' | 'error' => {
+  const normalized = normalizeDocumentoEstatus(value);
+  if (normalized === 'borrador') return 'default';
+  if (normalized === 'emitido') return 'info';
+  if (normalized === 'cancelado') return 'error';
+  if (normalized === 'timbrado' || normalized === 'cerrado' || normalized === 'pagado') return 'success';
+  return 'default';
+};
+
 export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -88,6 +157,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const token = session.token;
   const empresaId = session.empresaActivaId;
   const modulo = location.pathname.startsWith('/compras') ? 'compras' : 'ventas';
+  const esCotizacion = tipoDocumento === 'cotizacion';
   const [tiposDocumento, setTiposDocumento] = useState<TipoDocumentoEmpresa[]>([]);
 
   useEffect(() => {
@@ -122,6 +192,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     };
   }, [tiposDocumento, tipoDocumento]);
   const [rows, setRows] = useState<CotizacionListado[]>([]);
+  const [contactos, setContactos] = useState<Contacto[]>([]);
+  const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -157,9 +229,38 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   }>({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false });
   const [search, setSearch] = useState('');
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const [actualizandoEstatusId, setActualizandoEstatusId] = useState<number | null>(null);
+  const [estatusMenu, setEstatusMenu] = useState<{ anchorEl: HTMLElement | null; rowId: number | null; currentValue: string }>({
+    anchorEl: null,
+    rowId: null,
+    currentValue: 'borrador',
+  });
+  const [seguimientoMenu, setSeguimientoMenu] = useState<{
+    anchorEl: HTMLElement | null;
+    rowId: number | null;
+    currentValue: EstadoSeguimiento | null;
+  }>({
+    anchorEl: null,
+    rowId: null,
+    currentValue: null,
+  });
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('todos');
+  const [filtrosCotizacion, setFiltrosCotizacion] = useState<{
+    fechaDesde: string;
+    fechaHasta: string;
+    clienteId: number | null;
+    agenteId: number | null;
+    montoMin: string;
+    montoMax: string;
+  }>(FILTROS_COTIZACION_INICIALES);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = `/ventas/${tipoDocumento}`;
+  const estatusDocumentoOptions = useMemo(
+    () => getDocumentoTypeConfig(tipoDocumento)?.estatusPermitidos ?? ['borrador', 'emitido', 'cancelado'],
+    [tipoDocumento]
+  );
 
   const currency = useMemo(
     () =>
@@ -174,6 +275,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const currencyFormatter = useCallback((value: number | string | null | undefined) => currency.format(Number(value ?? 0)), [currency]);
   const showSaldo = tipoDocumento === 'factura' || tipoDocumento === 'factura_compra';
   const isFacturaConSaldo = showSaldo;
+  const vendedoresPorId = useMemo(() => {
+    const map = new Map<number, string>();
+    vendedores.forEach((vendedor) => {
+      if (typeof vendedor.id === 'number') {
+        map.set(vendedor.id, vendedor.nombre || '');
+      }
+    });
+    return map;
+  }, [vendedores]);
+
   const calcularEstatusFinanciero = useCallback((saldo: number, total: number) => {
     const s = Number(saldo ?? 0);
     const t = Number(total ?? 0);
@@ -193,6 +304,32 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       console.warn('No se pudo leer preferencias de columnas', err);
     }
   }, []);
+
+  useEffect(() => {
+    if (!esCotizacion) {
+      setContactos([]);
+      setVendedores([]);
+      setQuickFilter('todos');
+      setFiltrosCotizacion(FILTROS_COTIZACION_INICIALES);
+      setFiltersOpen(false);
+      return;
+    }
+
+    const loadFilterData = async () => {
+      try {
+        const [contactosData, vendedoresData] = await Promise.all([
+          fetchContactos(TIPOS_CONTACTO_COTIZACION),
+          fetchVendedores(),
+        ]);
+        setContactos(contactosData);
+        setVendedores(vendedoresData);
+      } catch (err) {
+        console.error('No se pudieron cargar datos para filtros de cotizaciones', err);
+      }
+    };
+
+    void loadFilterData();
+  }, [esCotizacion]);
 
   const requireAuthData = () => {
     if (!token || !empresaId) {
@@ -240,6 +377,78 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const closeMenu = () => {
     setMenuAnchor(null);
     setMenuDocumentoId(null);
+  };
+
+  const closeEstatusMenu = () => {
+    setEstatusMenu({ anchorEl: null, rowId: null, currentValue: 'borrador' });
+  };
+
+  const closeSeguimientoMenu = () => {
+    setSeguimientoMenu({ anchorEl: null, rowId: null, currentValue: null });
+  };
+
+  const handleOpenEstatusMenu = (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setEstatusMenu({
+      anchorEl: event.currentTarget,
+      rowId: Number(row.id),
+      currentValue: normalizeDocumentoEstatus(row.estatus_documento),
+    });
+  };
+
+  const handleOpenSeguimientoMenu = (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSeguimientoMenu({
+      anchorEl: event.currentTarget,
+      rowId: Number(row.id),
+      currentValue: normalizeEstadoSeguimiento(row.estado_seguimiento),
+    });
+  };
+
+  const handleSeleccionarEstatus = async (nextValue: string) => {
+    const rowId = estatusMenu.rowId;
+    if (!rowId) return;
+
+    if (estatusMenu.currentValue === nextValue) {
+      closeEstatusMenu();
+      return;
+    }
+
+    try {
+      setActualizandoEstatusId(rowId);
+      const updated = await updateDocumento(rowId, tipoDocumento, { estatus_documento: formatDocumentoEstatusLabel(nextValue) });
+      setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...(updated as Partial<CotizacionListado>) } : row)));
+      setSnackbar({ open: true, message: 'Estatus actualizado', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'No se pudo actualizar el estatus', severity: 'error' });
+    } finally {
+      setActualizandoEstatusId(null);
+      closeEstatusMenu();
+    }
+  };
+
+  const handleSeleccionarSeguimiento = async (nextValue: EstadoSeguimiento) => {
+    const rowId = seguimientoMenu.rowId;
+    if (!rowId) return;
+
+    if (seguimientoMenu.currentValue === nextValue) {
+      closeSeguimientoMenu();
+      return;
+    }
+
+    try {
+      setActualizandoEstatusId(rowId);
+      const updated = await updateDocumento(rowId, tipoDocumento, { estado_seguimiento: nextValue });
+      setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...(updated as Partial<CotizacionListado>) } : row)));
+      setSnackbar({ open: true, message: 'Seguimiento actualizado', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'No se pudo actualizar el seguimiento', severity: 'error' });
+    } finally {
+      setActualizandoEstatusId(null);
+      closeSeguimientoMenu();
+    }
   };
 
   const handleSeleccionarOpcion = async (tipoDestino: string) => {
@@ -393,6 +602,23 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         },
       },
       { field: 'nombre_cliente', headerName: 'Cliente', flex: 1, minWidth: 220, headerClassName: 'finanzas-header' },
+      ...(esCotizacion
+        ? ([{
+            field: 'agente_id',
+            headerName: 'Agente',
+            width: 180,
+            headerClassName: 'finanzas-header',
+            valueGetter: (_value: any, row: CotizacionListado) => vendedoresPorId.get(Number(row.agente_id ?? 0)) || '',
+            renderCell: (params: any) => {
+              const agenteNombre = vendedoresPorId.get(Number(params.row?.agente_id ?? 0)) || '';
+              return (
+                <Typography variant="body2" noWrap sx={{ color: agenteNombre ? '#111827' : '#9ca3af', width: '100%' }}>
+                  {agenteNombre || 'Sin asignar'}
+                </Typography>
+              );
+            },
+          }] as GridColDef[])
+        : []),
       {
         field: 'subtotal',
         headerName: 'Subtotal',
@@ -420,6 +646,38 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         headerClassName: 'finanzas-header',
         renderCell: (params: any) => currency.format(Number(params.row.total ?? 0)),
       },
+      ...(esCotizacion
+        ? ([{
+            field: 'estado_seguimiento',
+            headerName: 'Seguimiento',
+            width: 150,
+            headerClassName: 'finanzas-header',
+            renderCell: (params: any) => {
+              const config = getEstadoSeguimientoPresentation(params.row?.estado_seguimiento);
+              return (
+                <Chip
+                  label={config.label}
+                  size="small"
+                  clickable
+                  disabled={actualizandoEstatusId === Number(params.row?.id)}
+                  onClick={(event) => handleOpenSeguimientoMenu(event, params.row as CotizacionListado)}
+                  deleteIcon={<ArrowDropDownIcon sx={{ fontSize: 16, color: config.textColor }} />}
+                  onDelete={(event) => handleOpenSeguimientoMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado)}
+                  sx={{
+                    bgcolor: config.color,
+                    color: config.textColor,
+                    borderRadius: 1,
+                    fontWeight: 700,
+                    fontSize: 11,
+                    height: 22,
+                    px: 0.5,
+                    cursor: 'pointer',
+                  }}
+                />
+              );
+            },
+          }] as GridColDef[])
+        : []),
       ...(showSaldo
         ? ([
             {
@@ -474,13 +732,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         headerClassName: 'finanzas-header',
         renderCell: (params: any) => {
           const estatus = params.row?.estatus_documento || 'Borrador';
-          const color = estatus === 'Borrador' ? 'default' : estatus === 'Enviado' ? 'info' : 'success';
           return (
             <Chip
-              label={estatus}
+              label={formatDocumentoEstatusLabel(estatus)}
               size="small"
-              color={color as any}
-              sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5 }}
+              color={getDocumentoEstatusColor(estatus) as any}
+              clickable
+              disabled={actualizandoEstatusId === Number(params.row?.id)}
+              onClick={(event) => handleOpenEstatusMenu(event, params.row as CotizacionListado)}
+              deleteIcon={<ArrowDropDownIcon sx={{ fontSize: 16 }} />}
+              onDelete={(event) => handleOpenEstatusMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado)}
+              sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5, cursor: 'pointer' }}
             />
           );
         },
@@ -606,12 +868,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     setError,
     setPendingDeleteId,
     setConfirmOpen,
+    actualizandoEstatusId,
     menuLoading,
     handleOpenMenuGenerar,
+    handleOpenEstatusMenu,
+    handleOpenSeguimientoMenu,
     showSaldo,
     currencyFormatter,
     calcularEstatusFinanciero,
     tieneOpcionesGeneracion,
+    vendedoresPorId,
+    esCotizacion,
   ]);
 
   const columns: GridColDef[] = useMemo(
@@ -629,6 +896,41 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       result = result.filter((row) => Number(row?.saldo ?? 0) > 0);
     }
 
+    if (esCotizacion) {
+      if (quickFilter !== 'todos') {
+        result = result.filter((row) => normalizeEstadoSeguimiento(row.estado_seguimiento) === quickFilter);
+      }
+
+      if (filtrosCotizacion.clienteId) {
+        result = result.filter((row) => row.contacto_principal_id === filtrosCotizacion.clienteId);
+      }
+
+      if (filtrosCotizacion.agenteId) {
+        result = result.filter((row) => Number(row.agente_id ?? 0) === filtrosCotizacion.agenteId);
+      }
+
+      if (filtrosCotizacion.fechaDesde) {
+        const desde = dayjs(filtrosCotizacion.fechaDesde).startOf('day');
+        result = result.filter((row) => dayjs(row.fecha_documento).startOf('day').isAfter(desde.subtract(1, 'millisecond')));
+      }
+
+      if (filtrosCotizacion.fechaHasta) {
+        const hasta = dayjs(filtrosCotizacion.fechaHasta).endOf('day');
+        result = result.filter((row) => dayjs(row.fecha_documento).endOf('day').isBefore(hasta.add(1, 'millisecond')));
+      }
+
+      const montoMin = filtrosCotizacion.montoMin === '' ? null : Number(filtrosCotizacion.montoMin);
+      const montoMax = filtrosCotizacion.montoMax === '' ? null : Number(filtrosCotizacion.montoMax);
+
+      if (montoMin !== null && !Number.isNaN(montoMin)) {
+        result = result.filter((row) => Number(row.total ?? 0) >= montoMin);
+      }
+
+      if (montoMax !== null && !Number.isNaN(montoMax)) {
+        result = result.filter((row) => Number(row.total ?? 0) <= montoMax);
+      }
+    }
+
     const q = search.trim().toLowerCase();
     if (!q) return result;
 
@@ -640,6 +942,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       const total = String(row?.total ?? '').toLowerCase();
       const saldo = String(row?.saldo ?? '').toLowerCase();
       const fecha = String(row?.fecha_documento ?? '').toLowerCase();
+      const seguimiento = String((row as any)?.estado_seguimiento ?? '').toLowerCase();
 
       return (
         folio.includes(q) ||
@@ -648,10 +951,52 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         subtotal.includes(q) ||
         total.includes(q) ||
         saldo.includes(q) ||
-        fecha.includes(q)
+        fecha.includes(q) ||
+        seguimiento.includes(q)
       );
     });
-  }, [rows, search, soloPendientes, isFacturaConSaldo]);
+  }, [rows, search, soloPendientes, isFacturaConSaldo, esCotizacion, quickFilter, filtrosCotizacion]);
+
+  const resumenTotalesCotizacion = useMemo(() => {
+    if (!esCotizacion) {
+      return null;
+    }
+
+    const sum = (items: CotizacionListado[]) => items.reduce((acc, row) => acc + Number(row.total ?? 0), 0);
+    const porEstado = (estado: EstadoSeguimiento) => sum(filteredRows.filter((row) => normalizeEstadoSeguimiento(row.estado_seguimiento) === estado));
+
+    return {
+      general: sum(filteredRows),
+      borrador: porEstado('borrador'),
+      enviado: porEstado('enviado'),
+      negociacion: porEstado('negociacion'),
+      ganado: porEstado('ganado'),
+      perdido: porEstado('perdido'),
+    };
+  }, [esCotizacion, filteredRows]);
+
+  const filtrosActivosCount = useMemo(() => {
+    if (!esCotizacion) return 0;
+
+    return [
+      filtrosCotizacion.fechaDesde,
+      filtrosCotizacion.fechaHasta,
+      filtrosCotizacion.clienteId,
+      filtrosCotizacion.agenteId,
+      filtrosCotizacion.montoMin,
+      filtrosCotizacion.montoMax,
+    ].filter((value) => value !== '' && value !== null).length;
+  }, [esCotizacion, filtrosCotizacion]);
+
+  const hayFiltrosActivos = filtrosActivosCount > 0;
+
+  const handleLimpiarFiltros = useCallback(() => {
+    setFiltrosCotizacion(FILTROS_COTIZACION_INICIALES);
+  }, []);
+
+  const handleAplicarFiltros = useCallback(() => {
+    setFiltersOpen(false);
+  }, []);
 
   return (
     <Container maxWidth={false} sx={{ py: 2 }}>
@@ -716,6 +1061,310 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         )}
       </Stack>
 
+      {esCotizacion && (
+        <Stack spacing={1.25}>
+          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ xs: 'stretch', lg: 'center' }} justifyContent="space-between">
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              {[{ value: 'todos', label: 'Todos' }, ...ESTADOS_SEGUIMIENTO.map((estado) => ({ value: estado.value, label: estado.label }))].map((item) => {
+                const selected = quickFilter === item.value;
+                return (
+                  <Chip
+                    key={item.value}
+                    label={item.label}
+                    clickable
+                    onClick={() => setQuickFilter(item.value as QuickFilter)}
+                    size="small"
+                    variant={selected ? 'filled' : 'outlined'}
+                    sx={{
+                      height: 28,
+                      borderRadius: 1.5,
+                      fontSize: 12,
+                      fontWeight: selected ? 700 : 600,
+                      px: 0.35,
+                      color: selected ? '#1d2f68' : '#4b5563',
+                      backgroundColor: selected ? '#e8eefc' : '#fff',
+                      borderColor: selected ? '#9db1ea' : '#d1d5db',
+                      '&:hover': {
+                        backgroundColor: selected ? '#dce6fb' : '#f8fafc',
+                      },
+                      '& .MuiChip-label': {
+                        px: 1.2,
+                      },
+                    }}
+                  />
+                );
+              })}
+            </Stack>
+
+            <Badge color="primary" badgeContent={hayFiltrosActivos ? filtrosActivosCount : 0} invisible={!hayFiltrosActivos}>
+              <Button
+                variant={filtersOpen || hayFiltrosActivos ? 'contained' : 'outlined'}
+                startIcon={<FilterAltOutlinedIcon />}
+                endIcon={filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                onClick={() => setFiltersOpen((prev) => !prev)}
+                sx={{
+                  alignSelf: { xs: 'flex-start', lg: 'center' },
+                  minWidth: 132,
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  backgroundColor: filtersOpen || hayFiltrosActivos ? '#1d2f68' : undefined,
+                  '&:hover': {
+                    backgroundColor: filtersOpen || hayFiltrosActivos ? '#162551' : undefined,
+                  },
+                }}
+              >
+                Filtrar
+              </Button>
+            </Badge>
+          </Stack>
+
+          <Collapse in={filtersOpen} timeout="auto" unmountOnExit={false}>
+            <Paper
+              variant="outlined"
+              sx={{
+                p: { xs: 1.25, sm: 1.5 },
+                borderRadius: 2,
+                borderColor: '#dbe3f4',
+                backgroundColor: '#f8fafc',
+              }}
+            >
+              <Stack spacing={1.25}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>
+                  Filtros avanzados
+                </Typography>
+
+                <Grid container spacing={1.25}>
+                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                      <DatePicker
+                        label="Fecha desde"
+                        value={filtrosCotizacion.fechaDesde ? dayjs(filtrosCotizacion.fechaDesde) : null}
+                        onChange={(value) => setFiltrosCotizacion((prev) => ({ ...prev, fechaDesde: value ? value.format('YYYY-MM-DD') : '' }))}
+                        slotProps={{
+                          textField: {
+                            size: 'small',
+                            fullWidth: true,
+                            sx: {
+                              '& .MuiInputLabel-root': { fontSize: 13 },
+                              '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
+                            },
+                            InputLabelProps: { shrink: true },
+                            InputProps: filtrosCotizacion.fechaDesde
+                              ? {
+                                  endAdornment: (
+                                    <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, fechaDesde: '' }))}>
+                                      <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                  ),
+                                }
+                              : {},
+                          },
+                        }}
+                      />
+                    </LocalizationProvider>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                      <DatePicker
+                        label="Fecha hasta"
+                        value={filtrosCotizacion.fechaHasta ? dayjs(filtrosCotizacion.fechaHasta) : null}
+                        onChange={(value) => setFiltrosCotizacion((prev) => ({ ...prev, fechaHasta: value ? value.format('YYYY-MM-DD') : '' }))}
+                        slotProps={{
+                          textField: {
+                            size: 'small',
+                            fullWidth: true,
+                            sx: {
+                              '& .MuiInputLabel-root': { fontSize: 13 },
+                              '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
+                            },
+                            InputLabelProps: { shrink: true },
+                            InputProps: filtrosCotizacion.fechaHasta
+                              ? {
+                                  endAdornment: (
+                                    <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, fechaHasta: '' }))}>
+                                      <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                  ),
+                                }
+                              : {},
+                          },
+                        }}
+                      />
+                    </LocalizationProvider>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
+                    <Autocomplete
+                      size="small"
+                      options={contactos}
+                      value={contactos.find((contacto) => contacto.id === filtrosCotizacion.clienteId) ?? null}
+                      onChange={(_, value) => setFiltrosCotizacion((prev) => ({ ...prev, clienteId: value?.id ?? null }))}
+                      getOptionLabel={(option) => option?.nombre || ''}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          size="small"
+                          label="Cliente"
+                          placeholder="Todos"
+                          InputLabelProps={{ ...(params.InputLabelProps as any), shrink: true }}
+                          sx={{
+                            '& .MuiInputLabel-root': { fontSize: 13 },
+                            '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
+                          }}
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {filtrosCotizacion.clienteId ? (
+                                  <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, clienteId: null }))}>
+                                    <CloseIcon fontSize="small" />
+                                  </IconButton>
+                                ) : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                      sx={{ width: '100%', '& .MuiAutocomplete-input': { fontSize: 13 } }}
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+                    <TextField
+                      size="small"
+                      label="Monto mínimo"
+                      type="number"
+                      value={filtrosCotizacion.montoMin}
+                      onChange={(e) => setFiltrosCotizacion((prev) => ({ ...prev, montoMin: e.target.value }))}
+                      fullWidth
+                      sx={{
+                        '& .MuiInputLabel-root': { fontSize: 13 },
+                        '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
+                      }}
+                      InputLabelProps={{ shrink: true }}
+                      inputProps={{ min: 0, step: 0.01, style: { fontSize: 13 } }}
+                      InputProps={filtrosCotizacion.montoMin ? {
+                        endAdornment: (
+                          <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, montoMin: '' }))}>
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        ),
+                      } : {}}
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+                    <TextField
+                      size="small"
+                      label="Monto máximo"
+                      type="number"
+                      value={filtrosCotizacion.montoMax}
+                      onChange={(e) => setFiltrosCotizacion((prev) => ({ ...prev, montoMax: e.target.value }))}
+                      fullWidth
+                      sx={{
+                        '& .MuiInputLabel-root': { fontSize: 13 },
+                        '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
+                      }}
+                      InputLabelProps={{ shrink: true }}
+                      inputProps={{ min: 0, step: 0.01, style: { fontSize: 13 } }}
+                      InputProps={filtrosCotizacion.montoMax ? {
+                        endAdornment: (
+                          <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, montoMax: '' }))}>
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        ),
+                      } : {}}
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
+                    <Autocomplete
+                      fullWidth
+                      options={vendedores}
+                      loading={loading && vendedores.length === 0}
+                      getOptionLabel={(option) => option.nombre || ''}
+                      value={vendedores.find((contacto) => contacto.id === filtrosCotizacion.agenteId) || null}
+                      onChange={(_, value) => setFiltrosCotizacion((prev) => ({ ...prev, agenteId: value?.id ?? null }))}
+                      renderOption={(props, option) => {
+                        const { key, ...rest } = props;
+                        return (
+                          <li {...rest} key={option.id ?? key}>
+                            {option.nombre || ''}
+                          </li>
+                        );
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...(params as any)}
+                          fullWidth
+                          label="Agente de ventas"
+                          size="small"
+                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                          inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
+                        />
+                      )}
+                    />
+                  </Grid>
+                </Grid>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
+                  <Button variant="text" onClick={handleLimpiarFiltros}>
+                    Limpiar
+                  </Button>
+                  <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}>
+                    Aplicar filtros
+                  </Button>
+                </Stack>
+              </Stack>
+            </Paper>
+          </Collapse>
+        </Stack>
+      )}
+
+      {esCotizacion && resumenTotalesCotizacion && (
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 1,
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              lg: 'repeat(6, minmax(0, 1fr))',
+            },
+          }}
+        >
+          {[
+            { label: 'Total general', value: resumenTotalesCotizacion.general, color: '#2563eb' },
+            ...ESTADOS_SEGUIMIENTO.map((estado) => ({
+              label: estado.label,
+              value: resumenTotalesCotizacion[estado.value],
+              color: estado.textColor,
+            })),
+          ].map((item) => (
+            <Paper
+              key={item.label}
+              variant="outlined"
+              sx={{
+                px: 1,
+                py: 0.8,
+                borderRadius: 1.5,
+                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+              }}
+            >
+              <Typography sx={{ color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
+                {item.label}
+              </Typography>
+              <Typography sx={{ color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
+                {currency.format(item.value)}
+              </Typography>
+            </Paper>
+          ))}
+        </Box>
+      )}
+
       <Dialog open={Boolean(error)} onClose={() => setError(null)} fullWidth maxWidth="xs">
         <DialogTitle>Error</DialogTitle>
         <DialogContent>
@@ -740,7 +1389,23 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           disableRowSelectionOnClick
           // @ts-expect-error Deshabilitamos el reordenamiento para mantener el orden fijo de columnas
           disableColumnReorder
-          onRowClick={(params: GridRowParams) => navigate(`${basePath}/${params.id}`)}
+          onCellClick={(params, event) => {
+            if (params.field !== 'estatus_documento' && params.field !== 'estado_seguimiento') return;
+            (event as any).defaultMuiPrevented = true;
+            event.preventDefault();
+            event.stopPropagation();
+            if (params.field === 'estatus_documento') {
+              handleOpenEstatusMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado);
+              return;
+            }
+            if (params.field === 'estado_seguimiento' && esCotizacion) {
+              handleOpenSeguimientoMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado);
+            }
+          }}
+          onRowClick={(params: GridRowParams, event) => {
+            if ((event as any).defaultMuiPrevented) return;
+            navigate(`${basePath}/${params.id}`);
+          }}
           columnVisibilityModel={columnVisibilityModel}
           onColumnVisibilityModelChange={(model) => {
             setColumnVisibilityModel(model);
@@ -820,6 +1485,46 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           }}
         />
       </Paper>
+
+      <Menu
+        anchorEl={estatusMenu.anchorEl}
+        open={Boolean(estatusMenu.anchorEl)}
+        onClose={closeEstatusMenu}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        {estatusDocumentoOptions.map((estatus) => (
+          <MenuItem
+            key={estatus}
+            selected={estatusMenu.currentValue === estatus}
+            disabled={actualizandoEstatusId !== null}
+            onClick={() => void handleSeleccionarEstatus(estatus)}
+          >
+            {formatDocumentoEstatusLabel(estatus)}
+          </MenuItem>
+        ))}
+      </Menu>
+
+      {esCotizacion && (
+        <Menu
+          anchorEl={seguimientoMenu.anchorEl}
+          open={Boolean(seguimientoMenu.anchorEl)}
+          onClose={closeSeguimientoMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        >
+          {ESTADOS_SEGUIMIENTO.map((estado) => (
+            <MenuItem
+              key={estado.value}
+              selected={seguimientoMenu.currentValue === estado.value}
+              disabled={actualizandoEstatusId !== null}
+              onClick={() => void handleSeleccionarSeguimiento(estado.value)}
+            >
+              {estado.label}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
         {menuLoading && (

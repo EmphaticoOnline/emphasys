@@ -11,6 +11,7 @@ export type Documento = {
   numero: number | null;
   fecha_documento: string;
   contacto_principal_id: number | null;
+  agente_id?: number | null;
   subtotal: number;
   iva: number;
   total: number;
@@ -135,6 +136,7 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
       d.numero,
       d.fecha_documento,
       d.contacto_principal_id,
+      d.agente_id,
       c.nombre AS nombre_cliente,
       c.email AS contacto_email,
       ${selectSeguimiento}
@@ -374,7 +376,10 @@ export async function actualizarDocumentoRepository(
   empresaId: number,
   tipoDocumento?: TipoDocumento
 ) {
-  if (data.tratamiento_impuestos === undefined || data.tratamiento_impuestos === null) {
+  if (
+    Object.prototype.hasOwnProperty.call(data, 'tratamiento_impuestos')
+    && (data.tratamiento_impuestos === undefined || data.tratamiento_impuestos === null)
+  ) {
     throw new Error('VALIDATION_ERROR: El tratamiento de impuestos es obligatorio');
   }
   const hasSeguimiento = await ensureSeguimientoColumns();

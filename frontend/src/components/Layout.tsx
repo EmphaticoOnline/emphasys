@@ -13,6 +13,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import Divider from '@mui/material/Divider';
+import Button from '@mui/material/Button';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import MainMenu, { MainMenuItems, MainMenuLogo } from './Menu.js';
@@ -256,18 +257,20 @@ export default function Layout({ children }: LayoutProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          px: 3,
+          px: { xs: 1.25, md: 3 },
           height: 72,
           boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 }, flex: 1, minWidth: 0 }}>
           {isMobile ? (
             <>
               <IconButton color="inherit" onClick={() => setDrawerOpen(true)} aria-label="Abrir menú">
                 <MenuIcon />
               </IconButton>
-              <MainMenuLogo />
+              <Box sx={{ minWidth: 0, '& img': { height: 34 } }}>
+                <MainMenuLogo />
+              </Box>
             </>
           ) : (
             <MainMenu selectedSection={selectedSection} onSelect={handleSectionChange} />
@@ -275,7 +278,7 @@ export default function Layout({ children }: LayoutProps) {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <EmpresaSelector />
+          {!isMobile ? <EmpresaSelector /> : null}
           <Tooltip title={userName}>
             <IconButton
               onClick={handleUserMenuOpen}
@@ -331,6 +334,53 @@ export default function Layout({ children }: LayoutProps) {
       <Drawer anchor="left" open={drawerOpen} onClose={handleDrawerClose}>
         <Box sx={{ width: 280, p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <MainMenuLogo />
+          {isMobile ? (
+            <>
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#f8fafc',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1.25,
+                }}
+              >
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, letterSpacing: 0.3 }}>
+                  EMPRESA ACTIVA
+                </Typography>
+                <EmpresaSelector variant="panel" fullWidth />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#0f172a' }}>
+                  <PersonIcon sx={{ fontSize: 20, color: '#1d2f68' }} />
+                  <Typography sx={{ fontWeight: 600, minWidth: 0 }} noWrap>
+                    {userName}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                  <Button variant="text" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={handleDrawerClose}>
+                    Perfil
+                  </Button>
+                  <Button variant="text" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={handleDrawerClose}>
+                    Cambiar contraseña
+                  </Button>
+                  <Button
+                    variant="text"
+                    color="error"
+                    startIcon={<LogoutIcon />}
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                    onClick={() => {
+                      handleDrawerClose();
+                      handleLogout();
+                    }}
+                  >
+                    Cerrar sesión
+                  </Button>
+                </Box>
+              </Box>
+              <Divider />
+            </>
+          ) : null}
           <MainMenuItems selectedSection={selectedSection} onSelect={handleDrawerSelect} variant="vertical" />
         </Box>
       </Drawer>

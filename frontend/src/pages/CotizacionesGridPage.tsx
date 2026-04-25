@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Autocomplete,
+  Badge,
   Box,
   Button,
   Chip,
+  Collapse,
   Container,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Grid,
   IconButton,
   MenuItem,
   Snackbar,
@@ -41,6 +44,9 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import CloseIcon from '@mui/icons-material/Close';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import type { CotizacionCrearPayload, CotizacionListado, EstadoSeguimiento } from '../types/cotizacion';
 import { createCotizacion, deleteCotizacion, getCotizaciones, updateCotizacion } from '../services/cotizacionesService';
 import { fetchContactos } from '../services/contactosService';
@@ -55,22 +61,30 @@ import {
   prepararGeneracion,
   type GenerarDocumentoPartidaInput,
 } from '../services/documentGenerationService';
-
-const ESTADOS: { value: EstadoSeguimiento; label: string; color: string; textColor: string }[] = [
-  { value: 'cotizado', label: 'Cotizado', color: '#fff4ce', textColor: '#8a6d1d' },
-  { value: 'seguimiento', label: 'Seguimiento', color: '#e6f0ff', textColor: '#1d4ed8' },
-  { value: 'cerrado', label: 'Cerrado', color: '#e7f8ed', textColor: '#166534' },
-  { value: 'perdido', label: 'Perdido', color: '#ffe5e5', textColor: '#b91c1c' },
-];
+import {
+  DEFAULT_ESTADO_SEGUIMIENTO,
+  ESTADOS_SEGUIMIENTO,
+  getEstadoSeguimientoPresentation,
+  getEstadoSeguimientoRowClassName,
+  normalizeEstadoSeguimiento,
+} from '../modules/cotizaciones/estadoSeguimiento';
 
 const defaultFecha = () => new Date().toISOString().slice(0, 10);
 
 const TIPOS_CONTACTO_COTIZACION = ['Cliente', 'Lead'];
+const FILTROS_INICIALES = {
+  fechaDesde: '',
+  fechaHasta: '',
+  clienteId: null,
+  montoMin: '',
+  montoMax: '',
+  estado: '' as EstadoSeguimiento | '',
+};
 
-type QuickFilter = 'todos' | 'pendientes' | 'cerrados' | 'perdidos';
+type QuickFilter = 'todos' | EstadoSeguimiento;
 
-type CotizacionGridRow = CotizacionListado & {
-  estado_seguimiento: EstadoSeguimiento | null;
+type CotizacionGridRow = Omit<CotizacionListado, 'estado_seguimiento'> & {
+  estado_seguimiento: string | null;
   comentario_seguimiento: string | null;
   producto_resumen: string | null;
 };
@@ -90,7 +104,7 @@ const nuevaCotizacionInicial = (): NuevaCotizacionForm => ({
   producto_resumen: '',
   total: '',
   comentario_seguimiento: '',
-  estado_seguimiento: 'cotizado',
+  estado_seguimiento: DEFAULT_ESTADO_SEGUIMIENTO,
 });
 
 export default function CotizacionesGridPage() {
@@ -116,6 +130,8 @@ export default function CotizacionesGridPage() {
   const [crearClienteRowId, setCrearClienteRowId] = useState<number | null>(null);
   const [crearClienteParaNuevo, setCrearClienteParaNuevo] = useState(false);
   const [crearClienteTipo, setCrearClienteTipo] = useState<'Lead' | 'Cliente'>('Lead');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [agenteVentaFiltro, setAgenteVentaFiltro] = useState('');
   const [filtros, setFiltros] = useState<{
     fechaDesde: string;
     fechaHasta: string;
@@ -123,7 +139,7 @@ export default function CotizacionesGridPage() {
     montoMin: string;
     montoMax: string;
     estado: EstadoSeguimiento | '';
-  }>({ fechaDesde: '', fechaHasta: '', clienteId: null, montoMin: '', montoMax: '', estado: '' });
+  }>({ ...FILTROS_INICIALES });
   const [productos, setProductos] = useState<Producto[]>([]);
   const editableFields = useMemo(
     () => new Set(['estado_seguimiento', 'comentario_seguimiento', 'nombre_cliente', 'fecha_documento', 'producto_resumen']),
@@ -142,7 +158,7 @@ export default function CotizacionesGridPage() {
 
   const normalizarRow = useCallback((row: CotizacionListado): CotizacionGridRow => ({
     ...row,
-    estado_seguimiento: row.estado_seguimiento ?? 'cotizado',
+    estado_seguimiento: row.estado_seguimiento ?? null,
     comentario_seguimiento: row.comentario_seguimiento ?? null,
     producto_resumen: row.producto_resumen ?? null,
   }), []);
@@ -203,8 +219,32 @@ export default function CotizacionesGridPage() {
     return map;
   }, [contactos]);
 
+  const filtrosActivosCount = useMemo(() => {
+    let count = 0;
+    if (filtros.fechaDesde) count += 1;
+    if (filtros.fechaHasta) count += 1;
+    if (filtros.clienteId) count += 1;
+    if (filtros.montoMin !== '') count += 1;
+    if (filtros.montoMax !== '') count += 1;
+    if (filtros.estado) count += 1;
+    return count;
+  }, [filtros]);
+
+  const hayFiltrosActivos = filtrosActivosCount > 0;
+
+  const handleLimpiarFiltros = useCallback(() => {
+    setFiltros({ ...FILTROS_INICIALES });
+    setAgenteVentaFiltro('');
+  }, []);
+
+  const handleAplicarFiltros = useCallback(() => {
+    setFiltersOpen(false);
+  }, []);
+
   const processRowUpdate = async (newRow: CotizacionGridRow, oldRow: CotizacionGridRow) => {
     const payload: Partial<CotizacionCrearPayload> = {};
+    const nextEstadoSeguimiento = normalizeEstadoSeguimiento(newRow.estado_seguimiento);
+    const previousEstadoSeguimiento = normalizeEstadoSeguimiento(oldRow.estado_seguimiento);
 
     if (newRow.contacto_principal_id !== oldRow.contacto_principal_id) {
       payload.contacto_principal_id = newRow.contacto_principal_id ?? null;
@@ -215,8 +255,8 @@ export default function CotizacionesGridPage() {
     if ((newRow.producto_resumen || '') !== (oldRow.producto_resumen || '')) {
       payload.producto_resumen = newRow.producto_resumen || null;
     }
-    if ((newRow.estado_seguimiento ?? 'cotizado') !== (oldRow.estado_seguimiento ?? 'cotizado')) {
-      payload.estado_seguimiento = newRow.estado_seguimiento ?? 'cotizado';
+    if (nextEstadoSeguimiento !== previousEstadoSeguimiento && nextEstadoSeguimiento) {
+      payload.estado_seguimiento = nextEstadoSeguimiento;
     }
     if ((newRow.comentario_seguimiento || '') !== (oldRow.comentario_seguimiento || '')) {
       payload.comentario_seguimiento = newRow.comentario_seguimiento || '';
@@ -362,24 +402,12 @@ export default function CotizacionesGridPage() {
   const filteredRows = useMemo(() => {
     let result = rows;
 
-    // Tabs rápidas
-    switch (quickFilter) {
-      case 'pendientes':
-        result = result.filter((r) => r.estado_seguimiento === 'cotizado' || r.estado_seguimiento === 'seguimiento');
-        break;
-      case 'cerrados':
-        result = result.filter((r) => r.estado_seguimiento === 'cerrado');
-        break;
-      case 'perdidos':
-        result = result.filter((r) => r.estado_seguimiento === 'perdido');
-        break;
-      default:
-        break;
+    if (quickFilter !== 'todos') {
+      result = result.filter((r) => normalizeEstadoSeguimiento(r.estado_seguimiento) === quickFilter);
     }
 
-    // Filtro extra por estado
     if (filtros.estado) {
-      result = result.filter((r) => (r.estado_seguimiento ?? 'cotizado') === filtros.estado);
+      result = result.filter((r) => normalizeEstadoSeguimiento(r.estado_seguimiento) === filtros.estado);
     }
 
     // Filtro cliente
@@ -412,12 +440,13 @@ export default function CotizacionesGridPage() {
 
   const resumenTotales = useMemo(() => {
     const sum = (arr: typeof filteredRows) => arr.reduce((acc, r) => acc + Number(r.total ?? 0), 0);
-    const porEstado = (estado: EstadoSeguimiento) => sum(filteredRows.filter((r) => (r.estado_seguimiento ?? 'cotizado') === estado));
+    const porEstado = (estado: EstadoSeguimiento) => sum(filteredRows.filter((r) => normalizeEstadoSeguimiento(r.estado_seguimiento) === estado));
     return {
       general: sum(filteredRows),
-      cotizado: porEstado('cotizado'),
-      seguimiento: porEstado('seguimiento'),
-      cerrado: porEstado('cerrado'),
+      borrador: porEstado('borrador'),
+      enviado: porEstado('enviado'),
+      negociacion: porEstado('negociacion'),
+      ganado: porEstado('ganado'),
       perdido: porEstado('perdido'),
     };
   }, [filteredRows]);
@@ -586,10 +615,9 @@ export default function CotizacionesGridPage() {
       width: 150,
       editable: true,
       type: 'singleSelect',
-      valueOptions: ESTADOS.map((e) => ({ value: e.value, label: e.label })),
-      renderCell: (params: GridRenderCellParams<CotizacionGridRow, EstadoSeguimiento>) => {
-        const config = ESTADOS.find((e) => e.value === params.value) ?? ESTADOS[0];
-        if (!config) return null;
+      valueOptions: ESTADOS_SEGUIMIENTO.map((e) => ({ value: e.value, label: e.label })),
+      renderCell: (params: GridRenderCellParams<CotizacionGridRow, string | null>) => {
+        const config = getEstadoSeguimientoPresentation(params.value);
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 1 }}>
             <Chip
@@ -732,148 +760,46 @@ export default function CotizacionesGridPage() {
 
         <PaperCard>
           <Stack spacing={1.5}>
-            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ xs: 'stretch', lg: 'center' }}>
+            <Stack
+              direction={{ xs: 'column', lg: 'row' }}
+              spacing={1}
+              alignItems={{ xs: 'stretch', lg: 'center' }}
+              justifyContent="space-between"
+            >
               <ToggleButtonGroup
                 color="primary"
                 size="small"
                 exclusive
                 value={quickFilter}
                 onChange={(_, val) => { if (val) setQuickFilter(val); }}
+                sx={{ flexWrap: 'wrap', gap: 0.75 }}
               >
                 <ToggleButton value="todos">Todos</ToggleButton>
-                <ToggleButton value="pendientes">Pendientes</ToggleButton>
-                <ToggleButton value="cerrados">Cerradas</ToggleButton>
-                <ToggleButton value="perdidos">Perdidas</ToggleButton>
+                {ESTADOS_SEGUIMIENTO.map((estado) => (
+                  <ToggleButton key={estado.value} value={estado.value}>{estado.label}</ToggleButton>
+                ))}
               </ToggleButtonGroup>
 
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flex={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                  <DatePicker
-                    label="Desde"
-                    value={filtros.fechaDesde ? dayjs(filtros.fechaDesde) : null}
-                    onChange={(val) => setFiltros((prev) => ({ ...prev, fechaDesde: val ? val.format('YYYY-MM-DD') : '' }))}
-                    slotProps={{
-                      textField: {
-                        size: 'small',
-                        InputProps: filtros.fechaDesde
-                          ? {
-                              endAdornment: (
-                                <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, fechaDesde: '' }))}>
-                                  <CloseIcon fontSize="small" />
-                                </IconButton>
-                              ),
-                            }
-                          : {},
-                      },
-                    }}
-                  />
-                  <DatePicker
-                    label="Hasta"
-                    value={filtros.fechaHasta ? dayjs(filtros.fechaHasta) : null}
-                    onChange={(val) => setFiltros((prev) => ({ ...prev, fechaHasta: val ? val.format('YYYY-MM-DD') : '' }))}
-                    slotProps={{
-                      textField: {
-                        size: 'small',
-                        InputProps: filtros.fechaHasta
-                          ? {
-                              endAdornment: (
-                                <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, fechaHasta: '' }))}>
-                                  <CloseIcon fontSize="small" />
-                                </IconButton>
-                              ),
-                            }
-                          : {},
-                      },
-                    }}
-                  />
-                </LocalizationProvider>
-
-                <Autocomplete
-                  size="small"
-                  options={contactos}
-                  value={contactos.find((c) => c.id === filtros.clienteId) ?? null}
-                  onChange={(_, val) => setFiltros((prev) => ({ ...prev, clienteId: val?.id ?? null }))}
-                  getOptionLabel={(option) => option?.nombre || ''}
-                  isOptionEqualToValue={(o, v) => o.id === v.id}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      label="Cliente"
-                      placeholder="Todos"
-                      InputLabelProps={params.InputLabelProps as any}
-                      InputProps={{
-                        ...params.InputProps,
-                        endAdornment: (
-                          <>
-                            {filtros.clienteId ? (
-                              <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, clienteId: null }))}>
-                                <CloseIcon fontSize="small" />
-                              </IconButton>
-                            ) : null}
-                            {params.InputProps.endAdornment}
-                          </>
-                        ),
-                      }}
-                    />
-                  )}
-                  sx={{ minWidth: 200 }}
-                />
-
-                <TextField
-                  size="small"
-                  label="Monto mín"
-                  type="number"
-                  value={filtros.montoMin}
-                  onChange={(e) => setFiltros((prev) => ({ ...prev, montoMin: e.target.value }))}
-                  sx={{ width: 130 }}
-                  inputProps={{ min: 0, step: 0.01 }}
-                  InputProps={filtros.montoMin ? {
-                    endAdornment: (
-                      <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, montoMin: '' }))}>
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    ),
-                  } : {}}
-                />
-                <TextField
-                  size="small"
-                  label="Monto máx"
-                  type="number"
-                  value={filtros.montoMax}
-                  onChange={(e) => setFiltros((prev) => ({ ...prev, montoMax: e.target.value }))}
-                  sx={{ width: 130 }}
-                  inputProps={{ min: 0, step: 0.01 }}
-                  InputProps={filtros.montoMax ? {
-                    endAdornment: (
-                      <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, montoMax: '' }))}>
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    ),
-                  } : {}}
-                />
-
-                <TextField
-                  select
-                  size="small"
-                  label="Estado"
-                  value={filtros.estado}
-                  onChange={(e) => setFiltros((prev) => ({ ...prev, estado: e.target.value as EstadoSeguimiento | '' }))}
-                  sx={{ width: 150 }}
-                  InputProps={filtros.estado ? {
-                    endAdornment: (
-                      <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, estado: '' }))}>
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    ),
-                  } : {}}
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {ESTADOS.map((estado) => (
-                    <MenuItem key={estado.value} value={estado.value}>{estado.label}</MenuItem>
-                  ))}
-                </TextField>
-              </Stack>
+              <Button
+                variant={filtersOpen || hayFiltrosActivos ? 'contained' : 'outlined'}
+                color={hayFiltrosActivos ? 'primary' : 'inherit'}
+                startIcon={
+                  <Badge color="info" badgeContent={filtrosActivosCount} invisible={!hayFiltrosActivos}>
+                    <FilterAltOutlinedIcon />
+                  </Badge>
+                }
+                endIcon={filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                onClick={() => setFiltersOpen((prev) => !prev)}
+                sx={{
+                  alignSelf: { xs: 'flex-start', lg: 'center' },
+                  minWidth: 132,
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  boxShadow: filtersOpen || hayFiltrosActivos ? '0 6px 16px rgba(29, 47, 104, 0.16)' : 'none',
+                }}
+              >
+                {hayFiltrosActivos ? `Filtrar (${filtrosActivosCount})` : 'Filtrar'}
+              </Button>
             </Stack>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
@@ -881,23 +807,11 @@ export default function CotizacionesGridPage() {
                 label: 'Total general',
                 value: resumenTotales.general,
                 color: '#0b5ed7',
-              }, {
-                label: 'Cotizado',
-                value: resumenTotales.cotizado,
-                color: '#8a6d1d',
-              }, {
-                label: 'Seguimiento',
-                value: resumenTotales.seguimiento,
-                color: '#1d4ed8',
-              }, {
-                label: 'Cerrado',
-                value: resumenTotales.cerrado,
-                color: '#166534',
-              }, {
-                label: 'Perdido',
-                value: resumenTotales.perdido,
-                color: '#b91c1c',
-              }].map((item) => (
+              }, ...ESTADOS_SEGUIMIENTO.map((estado) => ({
+                label: estado.label,
+                value: resumenTotales[estado.value],
+                color: estado.textColor,
+              }))].map((item) => (
                 <Box
                   key={item.label}
                   sx={{
@@ -905,7 +819,8 @@ export default function CotizacionesGridPage() {
                     minWidth: 160,
                     border: '1px solid #e5e7eb',
                     borderRadius: 1.5,
-                    p: 1,
+                    px: 1,
+                    py: 0.8,
                     background: 'linear-gradient(135deg, #f8fafc, #fff)',
                   }}
                 >
@@ -918,6 +833,200 @@ export default function CotizacionesGridPage() {
                 </Box>
               ))}
             </Stack>
+
+            <Collapse in={filtersOpen} timeout="auto" unmountOnExit={false}>
+              <Box
+                sx={{
+                  border: '1px solid #dbe2f0',
+                  borderRadius: 2,
+                  px: { xs: 1.25, sm: 1.5 },
+                  py: 1.25,
+                  background: 'linear-gradient(180deg, #fbfcff 0%, #f6f8fd 100%)',
+                }}
+              >
+                <Stack spacing={1.25}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between">
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1d2f68' }}>
+                      Filtros avanzados
+                    </Typography>
+                    {hayFiltrosActivos ? (
+                      <Chip size="small" color="primary" variant="filled" label={`${filtrosActivosCount} activos`} />
+                    ) : null}
+                  </Stack>
+
+                  <Grid container spacing={1.25}>
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                          label="Desde"
+                          value={filtros.fechaDesde ? dayjs(filtros.fechaDesde) : null}
+                          onChange={(val) => setFiltros((prev) => ({ ...prev, fechaDesde: val ? val.format('YYYY-MM-DD') : '' }))}
+                          slotProps={{
+                            textField: {
+                              size: 'small',
+                              fullWidth: true,
+                              InputProps: filtros.fechaDesde
+                                ? {
+                                    endAdornment: (
+                                      <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, fechaDesde: '' }))}>
+                                        <CloseIcon fontSize="small" />
+                                      </IconButton>
+                                    ),
+                                  }
+                                : {},
+                            },
+                          }}
+                        />
+                      </LocalizationProvider>
+                    </Grid>
+
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                          label="Hasta"
+                          value={filtros.fechaHasta ? dayjs(filtros.fechaHasta) : null}
+                          onChange={(val) => setFiltros((prev) => ({ ...prev, fechaHasta: val ? val.format('YYYY-MM-DD') : '' }))}
+                          slotProps={{
+                            textField: {
+                              size: 'small',
+                              fullWidth: true,
+                              InputProps: filtros.fechaHasta
+                                ? {
+                                    endAdornment: (
+                                      <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, fechaHasta: '' }))}>
+                                        <CloseIcon fontSize="small" />
+                                      </IconButton>
+                                    ),
+                                  }
+                                : {},
+                            },
+                          }}
+                        />
+                      </LocalizationProvider>
+                    </Grid>
+
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <Autocomplete
+                        size="small"
+                        options={contactos}
+                        value={contactos.find((c) => c.id === filtros.clienteId) ?? null}
+                        onChange={(_, val) => setFiltros((prev) => ({ ...prev, clienteId: val?.id ?? null }))}
+                        getOptionLabel={(option) => option?.nombre || ''}
+                        isOptionEqualToValue={(o, v) => o.id === v.id}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            size="small"
+                            fullWidth
+                            label="Cliente"
+                            placeholder="Todos"
+                            InputLabelProps={params.InputLabelProps as any}
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {filtros.clienteId ? (
+                                    <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, clienteId: null }))}>
+                                      <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                  ) : null}
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+                    </Grid>
+
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        label="Monto mín"
+                        type="number"
+                        value={filtros.montoMin}
+                        onChange={(e) => setFiltros((prev) => ({ ...prev, montoMin: e.target.value }))}
+                        inputProps={{ min: 0, step: 0.01 }}
+                        InputProps={filtros.montoMin ? {
+                          endAdornment: (
+                            <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, montoMin: '' }))}>
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          ),
+                        } : {}}
+                      />
+                    </Grid>
+
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        label="Monto máx"
+                        type="number"
+                        value={filtros.montoMax}
+                        onChange={(e) => setFiltros((prev) => ({ ...prev, montoMax: e.target.value }))}
+                        inputProps={{ min: 0, step: 0.01 }}
+                        InputProps={filtros.montoMax ? {
+                          endAdornment: (
+                            <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, montoMax: '' }))}>
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          ),
+                        } : {}}
+                      />
+                    </Grid>
+
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <TextField
+                        select
+                        size="small"
+                        fullWidth
+                        label="Estado"
+                        value={filtros.estado}
+                        onChange={(e) => setFiltros((prev) => ({ ...prev, estado: e.target.value as EstadoSeguimiento | '' }))}
+                        InputProps={filtros.estado ? {
+                          endAdornment: (
+                            <IconButton size="small" onClick={() => setFiltros((prev) => ({ ...prev, estado: '' }))}>
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          ),
+                        } : {}}
+                      >
+                        <MenuItem value="">Todos</MenuItem>
+                        {ESTADOS_SEGUIMIENTO.map((estado) => (
+                          <MenuItem key={estado.value} value={estado.value}>{estado.label}</MenuItem>
+                        ))}
+                      </TextField>
+                    </Grid>
+
+                    <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+                      <TextField
+                        select
+                        size="small"
+                        fullWidth
+                        label="Agente de ventas"
+                        value={agenteVentaFiltro}
+                        onChange={(e) => setAgenteVentaFiltro(e.target.value)}
+                        helperText="Disponible para la UI; no aplica filtro todavía"
+                      >
+                        <MenuItem value="">Todos</MenuItem>
+                      </TextField>
+                    </Grid>
+                  </Grid>
+
+                  <Stack direction={{ xs: 'column-reverse', sm: 'row' }} spacing={1} justifyContent="flex-end">
+                    <Button variant="outlined" onClick={handleLimpiarFiltros}>
+                      Limpiar
+                    </Button>
+                    <Button variant="contained" onClick={handleAplicarFiltros} sx={{ fontWeight: 700 }}>
+                      Aplicar filtros
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Box>
+            </Collapse>
+
             <DataGrid
               rows={filteredRows}
               columns={columns}
@@ -928,7 +1037,7 @@ export default function CotizacionesGridPage() {
               loading={loading || savingRowId !== null}
               disableRowSelectionOnClick
               editMode="cell"
-              getRowClassName={(params) => `row-estado-${params.row.estado_seguimiento ?? 'cotizado'}`}
+              getRowClassName={(params) => getEstadoSeguimientoRowClassName(params.row.estado_seguimiento)}
               processRowUpdate={processRowUpdate}
               onProcessRowUpdateError={handleProcessRowUpdateError}
               onCellClick={(params: GridCellParams, event: React.MouseEvent) => {
@@ -988,10 +1097,12 @@ export default function CotizacionesGridPage() {
                 '& .MuiDataGrid-row:hover': {
                   backgroundColor: 'rgba(0,0,0,0.03)',
                 },
-                '& .row-estado-cotizado': { backgroundColor: 'rgba(255, 244, 206, 0.35)' },
-                '& .row-estado-seguimiento': { backgroundColor: 'rgba(215, 230, 255, 0.35)' },
-                '& .row-estado-cerrado': { backgroundColor: 'rgba(217, 239, 225, 0.35)' },
-                '& .row-estado-perdido': { backgroundColor: 'rgba(238, 238, 238, 0.5)' },
+                '& .row-estado-borrador': { backgroundColor: 'rgba(243, 244, 246, 0.7)' },
+                '& .row-estado-enviado': { backgroundColor: 'rgba(219, 234, 254, 0.5)' },
+                '& .row-estado-negociacion': { backgroundColor: 'rgba(254, 243, 199, 0.55)' },
+                '& .row-estado-ganado': { backgroundColor: 'rgba(220, 252, 231, 0.6)' },
+                '& .row-estado-perdido': { backgroundColor: 'rgba(254, 226, 226, 0.55)' },
+                '& .row-estado-desconocido': { backgroundColor: 'rgba(248, 250, 252, 0.9)' },
               }}
             />
           </Stack>
@@ -1082,7 +1193,7 @@ export default function CotizacionesGridPage() {
             value={form.estado_seguimiento}
             onChange={(e) => setForm((prev) => ({ ...prev, estado_seguimiento: e.target.value as EstadoSeguimiento }))}
           >
-            {ESTADOS.map((estado) => (
+            {ESTADOS_SEGUIMIENTO.map((estado) => (
               <MenuItem key={estado.value} value={estado.value}>
                 {estado.label}
               </MenuItem>

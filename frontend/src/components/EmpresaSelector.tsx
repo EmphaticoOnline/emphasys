@@ -1,12 +1,18 @@
-import { FormControl, InputLabel, MenuItem, Select } from "@mui/material";
-import type { SelectChangeEvent } from "@mui/material";
-import { useSession } from "../session/useSession";
-import type { Empresa } from "../session/sessionTypes";
+import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+import type { SelectChangeEvent } from '@mui/material';
+import { useSession } from '../session/useSession';
+import type { Empresa } from '../session/sessionTypes';
 
-export default function EmpresaSelector() {
+interface EmpresaSelectorProps {
+  variant?: 'header' | 'panel';
+  fullWidth?: boolean;
+}
+
+export default function EmpresaSelector({ variant = 'header', fullWidth = false }: EmpresaSelectorProps) {
   const { session, setSession } = useSession();
   const empresas: Empresa[] = session.empresas ?? [];
-  const empresaActivaId = session.empresaActivaId ?? "";
+  const empresaActivaId = session.empresaActivaId ?? '';
+  const isPanel = variant === 'panel';
 
   if (!empresas || empresas.length <= 1) return null;
 
@@ -24,23 +30,28 @@ export default function EmpresaSelector() {
     <FormControl
       size="small"
       sx={{
-        minWidth: 220,
-        '& .MuiInputLabel-root': { color: '#e8f1ff' },
-        '& .MuiInputLabel-root.Mui-focused': { color: '#ffffff' },
-        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.5)' },
-        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#ffffff' },
+        minWidth: fullWidth ? '100%' : 220,
+        width: fullWidth ? '100%' : 'auto',
+        '& .MuiInputLabel-root': { color: isPanel ? '#475569' : '#e8f1ff' },
+        '& .MuiInputLabel-root.Mui-focused': { color: isPanel ? '#1d2f68' : '#ffffff' },
+        '& .MuiOutlinedInput-notchedOutline': {
+          borderColor: isPanel ? '#cbd5e1' : 'rgba(255,255,255,0.5)',
+        },
+        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isPanel ? '#94a3b8' : '#ffffff' },
         '& .MuiOutlinedInput-root': {
-          color: '#fff',
-          backgroundColor: 'rgba(255,255,255,0.1)',
-          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#ffffff' },
-          '& .MuiSelect-icon': { color: '#fff' },
+          color: isPanel ? '#0f172a' : '#fff',
+          backgroundColor: isPanel ? '#fff' : 'rgba(255,255,255,0.1)',
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            borderColor: isPanel ? '#1d2f68' : '#ffffff',
+          },
+          '& .MuiSelect-icon': { color: isPanel ? '#1d2f68' : '#fff' },
         },
       }}
     >
       <InputLabel id="empresa-selector-label">Empresa</InputLabel>
       <Select
         labelId="empresa-selector-label"
-        value={empresaActivaId ? String(empresaActivaId) : ""}
+        value={empresaActivaId ? String(empresaActivaId) : ''}
         label="Empresa"
         onChange={handleChange}
       >
