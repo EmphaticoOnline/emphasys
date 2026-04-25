@@ -15,6 +15,16 @@ SKIP_REMOTE_INSTALL="${SKIP_REMOTE_INSTALL:-false}"
 
 log() { echo "==> $*"; }
 
+sha256_file() {
+  local file="$1"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$file" | awk '{print $1}'
+  else
+    shasum -a 256 "$file" | awk '{print $1}'
+  fi
+}
+
 command -v rsync >/dev/null 2>&1 || { echo "rsync no está instalado. Instálalo (brew/apt/yum) o usa el deploy original."; exit 1; }
 
 if [[ "$SKIP_FRONTEND" != "true" ]]; then
@@ -44,7 +54,7 @@ log "Building backend..."
 )
 
 log "Preparando servidor remoto..."
-ssh "${RSYNC_SSH[@]}" "$SERVER" "mkdir -p $REMOTE_PATH $REMOTE_PATH/dist $REMOTE_PATH/frontend-dist"
+ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p $REMOTE_PATH $REMOTE_PATH/dist $REMOTE_PATH/frontend-dist"
 
 log "Sincronizando backend dist (rsync incremental)..."
 rsync -az --delete -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/dist/" "$SERVER:$REMOTE_PATH/dist/"
@@ -64,10 +74,10 @@ log "Sincronizando ecosystem.config.js..."
 rsync -az -e "${RSYNC_SSH[*]}" "$PM2_CONFIG" "$SERVER:$REMOTE_PATH/"
 
 log "Chequeando cambios de lockfile para decidir npm install..."
-local_lock=$(sha256sum "$BACKEND_DIR/package-lock.json" | awk '{print $1}')
-remote_lock=$(ssh "${RSYNC_SSH[@]}" "$SERVER" "cd $REMOTE_PATH && sha256sum package-lock.json 2>/dev/null | awk '{print $1}'" || true)
+local_lock=$(sha256_file "$BACKEND_DIR/package-lock.json")
+remote_lock=$(ssh "${SSH_OPTS[@]}" "$SERVER" "cd $REMOTE_PATH && sha256sum package-lock.json 2>/dev/null | awk '{print \$1}'" || true)
 
-ssh "${RSYNC_SSH[@]}" "$SERVER" <<REMOTE
+ssh "${SSH_OPTS[@]}" "$SERVER" <<REMOTE
 set -e
 cd $REMOTE_PATH
 if [ "$SKIP_REMOTE_INSTALL" != "true" ]; then

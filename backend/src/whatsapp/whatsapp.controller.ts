@@ -15,6 +15,7 @@ import {
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappRepo,
   crearEtiquetaWhatsapp,
   actualizarEtiquetaWhatsapp,
+  eliminarEtiquetaWhatsapp,
   listarEtiquetasConversacion,
   asignarEtiquetaConversacion,
   quitarEtiquetaConversacion,
@@ -951,12 +952,13 @@ export const actualizarEtapaConversacion = async (req: Request, res: Response) =
 export const listarEtiquetasWhatsapp = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const incluirInactivas = req.query.incluir_inactivas === "1" || req.query.incluir_inactivas === "true";
 
     if (!empresaId) {
       return res.status(400).json({ message: "empresaId requerido" });
     }
 
-    const etiquetas = await listarEtiquetasWhatsappRepo(empresaId);
+    const etiquetas = await listarEtiquetasWhatsappRepo(empresaId, incluirInactivas);
     return res.status(200).json(etiquetas);
   } catch (error) {
     console.error("Error listando etiquetas de WhatsApp:", error);
@@ -1019,6 +1021,38 @@ export const actualizarEtiquetaWhatsappController = async (req: Request, res: Re
     }
     console.error("Error actualizando etiqueta de WhatsApp:", error);
     return res.status(500).json({ message: "No se pudo actualizar la etiqueta" });
+  }
+};
+
+export const eliminarEtiquetaWhatsappController = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const etiquetaId = Number(req.params.id);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!Number.isFinite(etiquetaId)) {
+      return res.status(400).json({ message: "id de etiqueta inválido" });
+    }
+
+    const eliminada = await eliminarEtiquetaWhatsapp(empresaId, etiquetaId);
+
+    if (!eliminada) {
+      return res.status(404).json({ message: "Etiqueta no encontrada" });
+    }
+
+    return res.status(200).json({ deleted: true });
+  } catch (error: any) {
+    if (error?.code === "TAG_IN_USE") {
+      const usoCount = Number(error?.usoCount || 0);
+      return res.status(409).json({
+        message: `No se puede eliminar la etiqueta porque está asignada a ${usoCount} conversación${usoCount === 1 ? "" : "es"}.`,
+      });
+    }
+    console.error("Error eliminando etiqueta de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo eliminar la etiqueta" });
   }
 };
 

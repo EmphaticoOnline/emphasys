@@ -1,6 +1,7 @@
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
+import axios from 'axios';
 import pool from '../../config/database';
 import { generarImagenQR, DatosQrCfdi } from '../../utils/generarCadenaQR';
 import { formatearFolioDocumento } from '../../utils/documentos';
@@ -49,6 +50,7 @@ type DocumentoCotizacion = {
 type PartidaCotizacion = {
   producto_clave?: string | null;
   descripcion_alterna?: string | null;
+  archivo_imagen_1?: string | null;
   observaciones?: string | null;
   cantidad?: number | null;
   precio_unitario?: number | null;
@@ -690,10 +692,25 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       doc.moveDown(0.4);
     };
 
-    const renderPartidas = () => {
+    const renderPartidas = async () => {
       // Tabla de partidas (sin título "Partidas")
       const descripcionIndex = 1;
+      const layoutWithImageConfig = layout as DocumentLayout & { maxAnchoImagenPartida?: number | null };
       const showObservaciones = esCotizacion && layout.mostrarObservacionesPartida !== false;
+      const showImagenPartida = layout.mostrarImagenPartida === true;
+      const rawImagenPartidaHeight = Number(layout.altoImagenPartida ?? 60);
+      const imagenPartidaHeight = Number.isFinite(rawImagenPartidaHeight) && rawImagenPartidaHeight > 0
+        ? rawImagenPartidaHeight
+        : 60;
+      const rawMaxAnchoImagenPartida = Number(layoutWithImageConfig.maxAnchoImagenPartida);
+      const maxAnchoImagenPartida = Number.isFinite(rawMaxAnchoImagenPartida) && rawMaxAnchoImagenPartida > 0
+        ? rawMaxAnchoImagenPartida
+        : null;
+      console.log({
+        altoImagenPartida: layout.altoImagenPartida,
+        maxAnchoImagenPartida: layoutWithImageConfig.maxAnchoImagenPartida,
+      });
+      const imagenPartidaGap = 10;
       const observacionesFontSize = 8;
       const observacionesPadding = 3;
       const observacionesFontName = hasTrebuchetItalic
@@ -701,8 +718,30 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         : hasTrebuchet
           ? 'Trebuchet'
           : 'Helvetica-Oblique';
+      const imageCache = new Map<string, Buffer | null>();
 
-      const computeRowMetrics = (values: string[], observaciones?: string | null) => {
+      const getPartidaImageBuffer = async (imageUrl?: string | null) => {
+        const normalizedUrl = (imageUrl ?? '').trim();
+        if (!showImagenPartida || !normalizedUrl) return null;
+        if (imageCache.has(normalizedUrl)) return imageCache.get(normalizedUrl) ?? null;
+
+        try {
+          const response = await axios.get(normalizedUrl, { responseType: 'arraybuffer' });
+          const imageBuffer = Buffer.from(response.data);
+          imageCache.set(normalizedUrl, imageBuffer);
+          return imageBuffer;
+        } catch (error) {
+          console.warn('[pdf] No se pudo descargar imagen de partida', {
+            documentoId: documento?.id ?? null,
+            imageUrl: normalizedUrl,
+            error: (error as Error)?.message ?? error,
+          });
+          imageCache.set(normalizedUrl, null);
+          return null;
+        }
+      };
+
+      const computeRowMetrics = (values: string[], observaciones?: string | null, hasImage = false) => {
         const baseRowHeight = 17;
         const bodyPaddingY = 4;
         setFont(false, 9, mutedText);
@@ -724,12 +763,20 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           doc.restore();
         }
 
-        const rowHeight = Math.max(baseRowHeight, maxTextHeight + bodyPaddingY * 2) + (obsHeight ? obsHeight + observacionesPadding : 0);
+        const textBlockHeight = Math.max(baseRowHeight, maxTextHeight + bodyPaddingY * 2) + (obsHeight ? obsHeight + observacionesPadding : 0);
+        const imageBlockHeight = hasImage ? imagenPartidaHeight + imagenPartidaGap : 0;
+        const rowHeight = Math.max(textBlockHeight, descriptionHeight + bodyPaddingY * 2 + (obsHeight ? obsHeight + observacionesPadding : 0) + imageBlockHeight);
 
-        return { rowHeight, bodyPaddingY, descriptionHeight, obsHeight, obsText };
+        return { rowHeight, bodyPaddingY, descriptionHeight, obsHeight, obsText, imageBlockHeight };
       };
 
-      const drawRow = (values: string[], y: number, isHeader = false, observaciones?: string | null) => {
+      const drawRow = (
+        values: string[],
+        y: number,
+        isHeader = false,
+        observaciones?: string | null,
+        imageBuffer?: Buffer | null,
+      ) => {
         const baseRowHeight = isHeader ? 20 : 17;
         const bodyPaddingY = 4;
         let rowHeight = baseRowHeight;
@@ -738,9 +785,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         let descriptionHeight = 0;
         let obsHeight = 0;
         let obsText = '';
-
         if (!isHeader) {
-          const metrics = computeRowMetrics(values, observaciones);
+          const metrics = computeRowMetrics(values, observaciones, Boolean(imageBuffer));
           rowHeight = metrics.rowHeight;
           descriptionHeight = metrics.descriptionHeight;
           obsHeight = metrics.obsHeight;
@@ -774,6 +820,25 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           doc.fontSize(observacionesFontSize).fillColor(mutedText);
           doc.text(obsText, descX, obsY, { width: columnWidths[descripcionIndex] - 12, align: 'left' });
         }
+
+        if (!isHeader && imageBuffer) {
+          const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
+          const imageY = y + bodyPaddingY + descriptionHeight + (obsHeight > 0 && obsText ? obsHeight + observacionesPadding : 0) + imagenPartidaGap;
+          const imageWidth = columnWidths[descripcionIndex] - 12;
+          const imageFit: [number, number] = maxAnchoImagenPartida !== null
+            ? [maxAnchoImagenPartida, imagenPartidaHeight]
+            : [imageWidth, imagenPartidaHeight];
+          try {
+            doc.image(imageBuffer, descX, imageY, {
+              fit: imageFit,
+            });
+          } catch (error) {
+            console.warn('[pdf] No se pudo renderizar imagen de partida', {
+              documentoId: documento?.id ?? null,
+              error: (error as Error)?.message ?? error,
+            });
+          }
+        }
         doc.restore();
         return y + rowHeight;
       };
@@ -783,7 +848,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
       currentY = drawRow(headers, currentY, true);
 
-      partidas.forEach((p) => {
+      for (const p of partidas) {
         const values = [
           p.producto_clave || '',
           p.descripcion_alterna || '',
@@ -791,7 +856,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           formatCurrency(Number(p.precio_unitario ?? 0)),
           formatCurrency(Number(p.subtotal_partida ?? 0)),
         ];
-        const metrics = computeRowMetrics(values, (p as PartidaCotizacion).observaciones ?? null);
+        const imageBuffer = await getPartidaImageBuffer((p as PartidaCotizacion).archivo_imagen_1 ?? null);
+        const metrics = computeRowMetrics(values, (p as PartidaCotizacion).observaciones ?? null, Boolean(imageBuffer));
         const rowHeight = metrics.rowHeight;
 
         if (currentY + rowHeight > pageBottom) {
@@ -799,8 +865,14 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           currentY = doc.page.margins.top;
         }
 
-        currentY = drawRow(values, currentY, false, (p as PartidaCotizacion).observaciones ?? null);
-      });
+        currentY = drawRow(
+          values,
+          currentY,
+          false,
+          (p as PartidaCotizacion).observaciones ?? null,
+          imageBuffer,
+        );
+      }
 
       doc.y = currentY;
       doc.moveDown(0.5);
@@ -1078,23 +1150,25 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       }
     };
 
-    if (layout.mostrarHeader) {
-      renderHeader();
-    }
+    void (async () => {
+      if (layout.mostrarHeader) {
+        renderHeader();
+      }
 
-    if (layout.mostrarCliente) {
-      renderCliente();
-    }
+      if (layout.mostrarCliente) {
+        renderCliente();
+      }
 
-    if (layout.mostrarPartidas) {
-      renderPartidas();
-    }
+      if (layout.mostrarPartidas) {
+        await renderPartidas();
+      }
 
-    if (layout.mostrarTotales) {
-      renderTotales();
-    }
+      if (layout.mostrarTotales) {
+        renderTotales();
+      }
 
-    doc.end();
+      doc.end();
+    })().catch(reject);
   });
   } catch (error) {
     console.error('[pdf] Error al generar PDF', {

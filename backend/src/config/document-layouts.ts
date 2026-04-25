@@ -4,6 +4,8 @@ export type DocumentLayout = {
   mostrarPartidas: boolean;
   mostrarTotales: boolean;
   mostrarObservacionesPartida?: boolean;
+  mostrarImagenPartida?: boolean;
+  altoImagenPartida?: number;
   titulo?: string | null;
   colorPrimario?: string | null;
   colorTablaHeader?: string | null;
@@ -28,6 +30,8 @@ export const DOCUMENT_LAYOUTS: Record<string, DocumentLayout> = {
     mostrarPartidas: true,
     mostrarTotales: true,
     mostrarObservacionesPartida: true,
+    mostrarImagenPartida: true,
+    altoImagenPartida: 60,
     titulo: null,
     colorPrimario: null,
     colorTablaHeader: '#1d2f68',

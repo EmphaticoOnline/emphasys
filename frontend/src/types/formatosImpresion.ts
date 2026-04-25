@@ -4,6 +4,9 @@ export type LayoutConfig = {
   mostrarPartidas: boolean;
   mostrarTotales: boolean;
   mostrarObservacionesPartida?: boolean;
+  mostrarImagenPartida?: boolean;
+  altoImagenPartida?: number | null;
+  maxAnchoImagenPartida?: number | null;
   titulo?: string | null;
   colorPrimario?: string | null;
   colorTablaHeader?: string | null;

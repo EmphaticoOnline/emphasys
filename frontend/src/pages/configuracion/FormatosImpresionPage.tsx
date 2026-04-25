@@ -3,22 +3,20 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
   CircularProgress,
   FormControl,
-  FormControlLabel,
   Grid,
   InputLabel,
   MenuItem,
   Paper,
   Select,
   Stack,
-  TextField,
   Typography,
   Chip,
   Snackbar,
 } from '@mui/material';
 import { PictureAsPdfRounded, SaveRounded } from '@mui/icons-material';
+import DynamicFieldControl from '../../components/DynamicFieldControl';
 import type { LayoutConfig, LayoutSerie } from '../../types/formatosImpresion';
 import { fetchLayoutConfiguracion, guardarLayoutConfiguracion } from '../../services/formatosImpresionService';
 
@@ -28,6 +26,89 @@ const TIPOS_DOCUMENTO = [
   { value: 'pedido', label: 'Pedido' },
   { value: 'remision', label: 'Remisión' },
 ];
+
+type TipoCampoLayout = 'boolean' | 'text' | 'number' | 'color';
+
+type CampoLayout = {
+  key: keyof LayoutConfig;
+  label: string;
+  type: TipoCampoLayout;
+  section: string;
+};
+
+const CAMPOS_LAYOUT: CampoLayout[] = [
+  {
+    key: 'mostrarLogo',
+    label: 'Mostrar logo',
+    type: 'boolean',
+    section: 'Encabezado',
+  },
+  {
+    key: 'mostrarHeader',
+    label: 'Mostrar encabezado',
+    type: 'boolean',
+    section: 'Encabezado',
+  },
+  {
+    key: 'titulo',
+    label: 'Título',
+    type: 'text',
+    section: 'Encabezado',
+  },
+  {
+    key: 'colorPrimario',
+    label: 'Color primario',
+    type: 'color',
+    section: 'Colores',
+  },
+  {
+    key: 'colorTablaHeader',
+    label: 'Color encabezado tabla',
+    type: 'color',
+    section: 'Colores',
+  },
+  {
+    key: 'mostrarPartidas',
+    label: 'Mostrar partidas',
+    type: 'boolean',
+    section: 'Partidas',
+  },
+  {
+    key: 'mostrarImagenPartida',
+    label: 'Mostrar imagen de partida',
+    type: 'boolean',
+    section: 'Partidas',
+  },
+  {
+    key: 'altoImagenPartida',
+    label: 'Alto de imagen de partida',
+    type: 'number',
+    section: 'Partidas',
+  },
+  {
+    key: 'maxAnchoImagenPartida',
+    label: 'Ancho máximo de imagen de partida',
+    type: 'number',
+    section: 'Partidas',
+  },
+];
+
+const agruparCamposLayoutPorSeccion = (campos: CampoLayout[]) =>
+  campos.reduce<Record<string, CampoLayout[]>>((acc, campo) => {
+    if (!acc[campo.section]) {
+      acc[campo.section] = [];
+    }
+    acc[campo.section].push(campo);
+    return acc;
+  }, {});
+
+const esCampoLayoutDeshabilitado = (campo: CampoLayout, config: LayoutConfig) => {
+  if (campo.key === 'altoImagenPartida' || campo.key === 'maxAnchoImagenPartida') {
+    return !config.mostrarImagenPartida;
+  }
+
+  return false;
+};
 
 const emptyLayout = (): LayoutConfig => ({
   mostrarHeader: true,
@@ -81,8 +162,6 @@ const normalizeHexColor = (value: string): string | null => {
   return null;
 };
 
-const toColorPickerValue = (value: string | null | undefined) => normalizeHexColor(value ?? '') ?? '#1d2f68';
-
 export default function FormatosImpresionPage() {
   const [tipoDocumento, setTipoDocumento] = React.useState<string>('factura');
   const [serie, setSerie] = React.useState<string>('');
@@ -97,6 +176,10 @@ export default function FormatosImpresionPage() {
     message: '',
     severity: 'success',
   });
+
+  const config = layout;
+  const setConfig = setLayout;
+  const camposLayoutPorSeccion = React.useMemo(() => agruparCamposLayoutPorSeccion(CAMPOS_LAYOUT), []);
 
   const scopeLabel = serie ? 'Serie' : 'General';
 
@@ -161,10 +244,6 @@ export default function FormatosImpresionPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const updateLayoutField = (field: keyof LayoutConfig, value: any) => {
-    setLayout((prev) => ({ ...prev, [field]: value }));
   };
 
   return (
@@ -247,119 +326,33 @@ export default function FormatosImpresionPage() {
               <Typography color="text.secondary">Cargando configuración...</Typography>
             </Stack>
           ) : (
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
-                  <Stack spacing={1.5}>
-                    <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-                      Contenido y visibilidad
-                    </Typography>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={Boolean(layout.mostrarLogo)}
-                          onChange={(e) => updateLayoutField('mostrarLogo', e.target.checked)}
+            <Stack sx={{ pt: 1 }}>
+              {Object.entries(camposLayoutPorSeccion).map(([section, campos], index) => (
+                <Box key={section} sx={{ mt: index === 0 ? 0 : 4 }}>
+                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ mb: 1.5 }}>
+                    {section}
+                  </Typography>
+                  <Grid container columnSpacing={2} rowSpacing={2.5}>
+                    {campos.map((campo) => (
+                      <Grid key={campo.key} size={{ xs: 12, md: 6 }}>
+                        <DynamicFieldControl
+                          label={campo.label}
+                          type={campo.type}
+                          value={config[campo.key] ?? null}
+                          disabled={esCampoLayoutDeshabilitado(campo, config)}
+                          onChange={(nuevoValor) =>
+                            setConfig((prev) => ({
+                              ...prev,
+                              [campo.key]: nuevoValor,
+                            }))
+                          }
                         />
-                      }
-                      label="Mostrar logo"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={Boolean(layout.mostrarObservacionesPartida)}
-                          onChange={(e) => updateLayoutField('mostrarObservacionesPartida', e.target.checked)}
-                        />
-                      }
-                      label="Mostrar observaciones de partida"
-                    />
-                    <TextField
-                      label="Título (opcional)"
-                      value={layout.titulo ?? ''}
-                      onChange={(e) => updateLayoutField('titulo', e.target.value)}
-                      size="small"
-                      fullWidth
-                    />
-                  </Stack>
-                </Paper>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
-                  <Stack spacing={1.5}>
-                    <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-                      Colores
-                    </Typography>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                      <Box
-                        sx={{
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 1,
-                          p: 0.75,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: 70,
-                        }}
-                      >
-                        <input
-                          type="color"
-                          value={toColorPickerValue(layout.colorPrimario)}
-                          onChange={(e) => updateLayoutField('colorPrimario', e.target.value)}
-                          style={{ border: 'none', background: 'transparent', width: 36, height: 36, padding: 0 }}
-                        />
-                      </Box>
-                      <TextField
-                        label="Color primario"
-                        value={layout.colorPrimario ?? ''}
-                        onChange={(e) => updateLayoutField('colorPrimario', e.target.value)}
-                        size="small"
-                        placeholder="#1d2f68"
-                        fullWidth
-                        helperText={
-                          layout.colorPrimario && !normalizeHexColor(layout.colorPrimario ?? '')
-                            ? 'Color inválido'
-                            : 'Formato #RRGGBB'
-                        }
-                        error={Boolean(layout.colorPrimario) && !normalizeHexColor(layout.colorPrimario ?? '')}
-                      />
-                    </Stack>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                      <Box
-                        sx={{
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 1,
-                          p: 0.75,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: 70,
-                        }}
-                      >
-                        <input
-                          type="color"
-                          value={toColorPickerValue(layout.colorTablaHeader)}
-                          onChange={(e) => updateLayoutField('colorTablaHeader', e.target.value)}
-                          style={{ border: 'none', background: 'transparent', width: 36, height: 36, padding: 0 }}
-                        />
-                      </Box>
-                      <TextField
-                        label="Color encabezado tabla"
-                        value={layout.colorTablaHeader ?? ''}
-                        onChange={(e) => updateLayoutField('colorTablaHeader', e.target.value)}
-                        size="small"
-                        placeholder="#1d2f68"
-                        fullWidth
-                        helperText={
-                          layout.colorTablaHeader && !normalizeHexColor(layout.colorTablaHeader ?? '')
-                            ? 'Color inválido'
-                            : 'Formato #RRGGBB'
-                        }
-                        error={Boolean(layout.colorTablaHeader) && !normalizeHexColor(layout.colorTablaHeader ?? '')}
-                      />
-                    </Stack>
-                  </Stack>
-                </Paper>
-              </Grid>
-            </Grid>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              ))}
+            </Stack>
           )}
         </Stack>
       </Paper>

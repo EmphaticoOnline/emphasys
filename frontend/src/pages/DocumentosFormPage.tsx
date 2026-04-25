@@ -48,7 +48,7 @@ import type {
   TratamientoImpuestos,
 } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
-import { getDocumento, createDocumento, updateDocumento, replacePartidas, downloadDocumentoPdf } from '../services/documentosService';
+import { getDocumento, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana } from '../services/documentosService';
 import { uploadArchivo } from '../services/uploadsService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
 import { fetchProductos } from '../services/productosService';
@@ -1005,7 +1005,20 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         next[index] = false;
         return next;
       });
+      const input = imagenInputRefs.current[index];
+      if (input) input.value = '';
     }
+  };
+
+  const handleImagenRemove = (index: number) => {
+    const imagenUrl = partidas[index]?.archivo_imagen_1?.trim();
+    if (!imagenUrl) return;
+    if (!window.confirm('¿Eliminar la imagen de esta partida?')) return;
+
+    setPartidaAt(index, (prev) => ({ ...prev, archivo_imagen_1: null }));
+
+    const input = imagenInputRefs.current[index];
+    if (input) input.value = '';
   };
 
   const handleDescripcionChange = (index: number, value: string) => {
@@ -1128,10 +1141,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
               onClick={async () => {
                 try {
                   setDownloadingPdf(true);
-                  const blob = await downloadDocumentoPdf(Number(id), tipoDocumento);
-                  const url = URL.createObjectURL(blob);
-                  window.open(url, '_blank');
-                  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+                  await abrirDocumentoPdfEnNuevaVentana(Number(id), tipoDocumento);
                 } catch (err: any) {
                   setError(err?.message || 'No se pudo generar el PDF');
                 } finally {
@@ -1306,7 +1316,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                             options={options}
                             loading={Boolean(camposDocumento.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
                             disabled={disabled}
-                            onChange={(val) => handleValorCampoDocumentoChange({ ...val, campo_id: campo.id })}
+                            onChange={(val: CampoValorPayload) => handleValorCampoDocumentoChange({ ...val, campo_id: campo.id })}
                           />
                         </Grid>
                       );
@@ -1555,7 +1565,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       />
 
                       {isCotizacion && (
-                        <Box display="flex" justifyContent="center">
+                        <Box display="flex" justifyContent="center" alignItems="center" gap={0.5}>
                           <input
                             type="file"
                             accept="image/*"
@@ -1584,6 +1594,21 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                               </IconButton>
                             </span>
                           </Tooltip>
+                          {partida.archivo_imagen_1 && (
+                            <Tooltip title="Eliminar imagen">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  aria-label="Eliminar imagen de partida"
+                                  onClick={() => handleImagenRemove(index)}
+                                  disabled={Boolean(uploadingImagen[index])}
+                                  color="error"
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          )}
                         </Box>
                       )}
 
@@ -1619,7 +1644,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                                   options={options}
                                   loading={Boolean(camposPartida.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
                                   disabled={disabled}
-                                  onChange={(val) => handleValorCampoPartidaChange(index, { ...val, campo_id: campo.id })}
+                                  onChange={(val: CampoValorPayload) => handleValorCampoPartidaChange(index, { ...val, campo_id: campo.id })}
                                 />
                               </Grid>
                             );

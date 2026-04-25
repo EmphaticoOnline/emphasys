@@ -94,6 +94,24 @@ export async function downloadDocumentoPdf(id: number, tipo: TipoDocumento): Pro
   return response.blob();
 }
 
+export async function abrirDocumentoPdfEnNuevaVentana(id: number, tipo: TipoDocumento): Promise<void> {
+  const win = window.open('', '_blank');
+
+  if (!win) {
+    throw new Error('El navegador bloqueó la ventana emergente para el PDF');
+  }
+
+  try {
+    const blob = await downloadDocumentoPdf(id, tipo);
+    const url = URL.createObjectURL(blob);
+    win.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  } catch (error) {
+    win.close();
+    throw error;
+  }
+}
+
 // Preview de cálculo de impuestos (no persiste)
 export function calcularImpuestosPreview(payload: {
   producto_id?: number | null;

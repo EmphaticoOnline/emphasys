@@ -8,15 +8,30 @@ export type WhatsappEtiqueta = {
   activo: boolean;
   created_at: string;
   updated_at: string;
+  uso_count?: number;
 };
 
-export async function listarEtiquetasWhatsapp(empresaId: number) {
+export async function listarEtiquetasWhatsapp(empresaId: number, incluirInactivas = false) {
+  const filtroActiva = incluirInactivas ? "" : " AND e.activo = true";
   const { rows } = await pool.query<WhatsappEtiqueta>(
     `
-    SELECT id, empresa_id, nombre, color, activo, created_at, updated_at
-    FROM whatsapp.etiquetas
-    WHERE empresa_id = $1
-    ORDER BY nombre ASC
+    SELECT
+      e.id,
+      e.empresa_id,
+      e.nombre,
+      e.color,
+      e.activo,
+      e.created_at,
+      e.updated_at,
+      COUNT(ce.id)::int AS uso_count
+    FROM whatsapp.etiquetas e
+    LEFT JOIN whatsapp.conversacion_etiquetas ce
+      ON ce.etiqueta_id = e.id
+      AND ce.empresa_id = e.empresa_id
+    WHERE e.empresa_id = $1
+      ${filtroActiva}
+    GROUP BY e.id, e.empresa_id, e.nombre, e.color, e.activo, e.created_at, e.updated_at
+    ORDER BY e.activo DESC, e.nombre ASC
     `,
     [empresaId]
   );
@@ -71,6 +86,38 @@ export async function actualizarEtiquetaWhatsapp(
     RETURNING id, empresa_id, nombre, color, activo, created_at, updated_at
     `,
     [empresaId, etiquetaId, nombre?.trim() ?? null, color?.trim() ?? null, activo ?? null]
+  );
+
+  return rows[0] ?? null;
+}
+
+export async function eliminarEtiquetaWhatsapp(empresaId: number, etiquetaId: number) {
+  const usoResult = await pool.query<{ uso_count: number }>(
+    `
+    SELECT COUNT(*)::int AS uso_count
+    FROM whatsapp.conversacion_etiquetas
+    WHERE empresa_id = $1
+      AND etiqueta_id = $2
+    `,
+    [empresaId, etiquetaId]
+  );
+
+  const usoCount = usoResult.rows[0]?.uso_count ?? 0;
+  if (usoCount > 0) {
+    const error = new Error("La etiqueta tiene asignaciones activas");
+    (error as Error & { code?: string; usoCount?: number }).code = "TAG_IN_USE";
+    (error as Error & { code?: string; usoCount?: number }).usoCount = usoCount;
+    throw error;
+  }
+
+  const { rows } = await pool.query<WhatsappEtiqueta>(
+    `
+    DELETE FROM whatsapp.etiquetas
+    WHERE empresa_id = $1
+      AND id = $2
+    RETURNING id, empresa_id, nombre, color, activo, created_at, updated_at
+    `,
+    [empresaId, etiquetaId]
   );
 
   return rows[0] ?? null;

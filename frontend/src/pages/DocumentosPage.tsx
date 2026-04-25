@@ -61,7 +61,7 @@ import type { CotizacionListado } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
-import { deleteDocumento, downloadDocumentoPdf, getDocumentos } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, getDocumentos } from '../services/documentosService';
 import { timbrarFactura, enviarFactura } from '../services/facturasService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
@@ -533,12 +533,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               color="primary"
               onClick={(e) => {
                 e.stopPropagation();
-                downloadDocumentoPdf(Number(params.row.id), tipoDocumento)
-                  .then((blob) => {
-                    const url = URL.createObjectURL(blob);
-                    window.open(url, '_blank');
-                    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-                  })
+                abrirDocumentoPdfEnNuevaVentana(Number(params.row.id), tipoDocumento)
                   .catch((err) => {
                     setError(err?.message || 'No se pudo generar el PDF');
                   });

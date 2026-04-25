@@ -1900,7 +1900,11 @@ export default function LeadsPage() {
           );
         })}
         {isCreatingTag ? (
-          <Box sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 220 }}>
+          <Box
+            sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 220 }}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
             <TextField
               size="small"
               label="Nombre"

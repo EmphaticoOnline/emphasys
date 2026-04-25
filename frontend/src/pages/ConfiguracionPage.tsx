@@ -12,6 +12,7 @@ import {
   TuneRounded,
   PercentRounded,
   PictureAsPdfRounded,
+  LabelRounded,
 } from '@mui/icons-material';
 
 const opciones = [
@@ -80,6 +81,12 @@ const opciones = [
     descripcion: 'Configura los layouts de PDF por empresa o por serie.',
     icono: PictureAsPdfRounded,
     path: '/configuracion/formatos-impresion',
+  },
+  {
+    titulo: 'Etiquetas de WhatsApp',
+    descripcion: 'Administra el catálogo de etiquetas para conversaciones y leads.',
+    icono: LabelRounded,
+    path: '/configuracion/whatsapp-etiquetas',
   },
 ];
 

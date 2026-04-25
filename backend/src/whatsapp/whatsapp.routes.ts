@@ -9,6 +9,7 @@ import {
 	listarEtiquetasWhatsapp,
 	crearEtiquetaWhatsappController,
 	actualizarEtiquetaWhatsappController,
+	eliminarEtiquetaWhatsappController,
 	listarEtiquetasConversacionWhatsapp,
 	agregarEtiquetaConversacionWhatsapp,
 	quitarEtiquetaConversacionWhatsapp,
@@ -27,6 +28,7 @@ router.patch("/conversaciones/:id/etapa", requireAuth, requireEmpresaActiva, act
 router.get("/etiquetas", requireAuth, requireEmpresaActiva, listarEtiquetasWhatsapp);
 router.post("/etiquetas", requireAuth, requireEmpresaActiva, crearEtiquetaWhatsappController);
 router.patch("/etiquetas/:id", requireAuth, requireEmpresaActiva, actualizarEtiquetaWhatsappController);
+router.delete("/etiquetas/:id", requireAuth, requireEmpresaActiva, eliminarEtiquetaWhatsappController);
 router.get("/conversaciones/:id/etiquetas", requireAuth, requireEmpresaActiva, listarEtiquetasConversacionWhatsapp);
 router.post("/conversaciones/:id/etiquetas", requireAuth, requireEmpresaActiva, agregarEtiquetaConversacionWhatsapp);
 router.delete(
