@@ -1,4 +1,5 @@
 import nodemailer, { SentMessageInfo, Transporter } from 'nodemailer';
+import { getConfiguracionEmailPrivada, type ConfiguracionEmailPrivada } from '../modules/configuracion/email/email.service';
 
 // Tipado de adjuntos permitidos
 export interface EmailAttachment {
@@ -14,6 +15,12 @@ export interface EmailOptions {
   text?: string;
   html?: string;
   attachments?: EmailAttachment[];
+  from?: string;
+}
+
+export interface EmailDeliveryContext {
+  empresaId: number;
+  usuarioId?: number | null;
 }
 
 // Servicio reutilizable de correo
@@ -30,6 +37,24 @@ export class EmailService {
 
     // Envía el correo y devuelve el resultado
     return transporter.sendMail(mailOptions);
+  }
+
+  public static async sendMailForContext(
+    context: EmailDeliveryContext,
+    options: EmailOptions
+  ): Promise<SentMessageInfo> {
+    const config = await getConfiguracionEmailPrivada(context.empresaId, context.usuarioId ?? null);
+
+    if (!config) {
+      throw new Error('No hay configuración SMTP activa para esta empresa o usuario');
+    }
+
+    const transporter = EmailService.createTransporterFromConfig(config);
+
+    return transporter.sendMail({
+      from: options.from || EmailService.formatFrom(config),
+      ...options,
+    });
   }
 
   // Construye un transporter SMTP basado en variables de entorno
@@ -53,6 +78,29 @@ export class EmailService {
         pass: SMTP_PASS,
       },
     });
+  }
+
+  private static createTransporterFromConfig(config: ConfiguracionEmailPrivada): Transporter {
+    return nodemailer.createTransport({
+      host: config.smtp_host,
+      port: config.smtp_port,
+      secure: config.smtp_secure,
+      auth: config.smtp_user
+        ? {
+            user: config.smtp_user,
+            pass: config.smtp_password ?? '',
+          }
+        : undefined,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
+    });
+  }
+
+  private static formatFrom(config: ConfiguracionEmailPrivada): string | undefined {
+    const email = config.email_remitente || config.smtp_user;
+    if (!email) return undefined;
+    return config.nombre_remitente ? `${config.nombre_remitente} <${email}>` : email;
   }
 
   // Valida presencia de variables requeridas

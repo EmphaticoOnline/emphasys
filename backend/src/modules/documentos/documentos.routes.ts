@@ -3,6 +3,7 @@ import { requireAuth, requireEmpresaActiva } from "../auth/auth.middleware";
 import {
   agregarPartida,
   crearCotizacion,
+  enviarCotizacionPorCorreo,
   listarCotizaciones,
   obtenerCotizacion,
   actualizarCotizacion,
@@ -26,6 +27,9 @@ router.get('/:id/campos', requireAuth, requireEmpresaActiva, obtenerCamposDocume
 
 // GET /api/documentos/:id/pdf
 router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerCotizacionPDF);
+
+// POST /api/documentos/:id/enviar-email
+router.post('/:id/enviar-email', requireAuth, requireEmpresaActiva, enviarCotizacionPorCorreo);
 
 // POST /api/documentos
 router.post('/', requireAuth, requireEmpresaActiva, crearCotizacion);

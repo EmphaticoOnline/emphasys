@@ -249,6 +249,43 @@ export async function enviarFacturaPorCorreo(req: Request, res: Response) {
   }
 }
 
+export async function enviarCotizacionPorCorreo(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+
+    if (Number.isNaN(documentoId) || !empresaId) {
+      return res.status(400).json({ message: 'ID o empresaId inválido' });
+    }
+
+    const to = String(req.body?.to ?? '').trim();
+    const subject = String(req.body?.subject ?? '').trim();
+    const message = String(req.body?.message ?? '').trim();
+
+    if (!to) {
+      return res.status(400).json({ message: 'El correo destino es obligatorio' });
+    }
+
+    const { CotizacionEmailService } = await import('../../services/cotizacion-email.service');
+    const result = await CotizacionEmailService.enviarCotizacion({
+      documentoId,
+      empresaId: Number(empresaId),
+      usuarioId: req.auth?.userId ?? null,
+      to,
+      subject,
+      message,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    const message = (error as Error)?.message ?? 'Error al enviar la cotización';
+    const status = message.includes('obligatorio') || message.includes('no encontrada') || message.includes('No hay configuración SMTP')
+      ? 400
+      : 502;
+    return res.status(status).json({ message });
+  }
+}
+
 export async function obtenerFacturaXML(req: Request, res: Response) {
   try {
     const documentoId = Number(req.params.id);

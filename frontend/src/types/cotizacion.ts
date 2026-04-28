@@ -48,6 +48,7 @@ export interface CotizacionDocumento {
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
   tratamiento_impuestos?: TratamientoImpuestos | null;
+  saldo?: number | null;
 }
 
 export interface CotizacionPartida {

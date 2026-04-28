@@ -262,7 +262,7 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
 
 export async function crearDocumentoRepository(data: DocumentoInput, empresaId: number, tipoDocumento: TipoDocumento) {
   const dataConDefaults: DocumentoInput = {
-    estado_seguimiento: data.estado_seguimiento ?? 'cotizado',
+    estado_seguimiento: data.estado_seguimiento ?? 'borrador',
     ...data,
   };
 

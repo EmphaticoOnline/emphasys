@@ -1,0 +1,94 @@
+### Obtener configuracion SMTP actual
+GET http://localhost:3000/api/configuracion/email
+Authorization: Bearer {{token}}
+X-Empresa-Id: {{empresaId}}
+
+### Guardar configuracion SMTP por empresa
+POST http://localhost:3000/api/configuracion/email
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Empresa-Id: {{empresaId}}
+
+{
+  "smtp_host": "smtp.office365.com",
+  "smtp_port": 587,
+  "smtp_user": "notificaciones@miempresa.com",
+  "smtp_password": "super-secreto",
+  "smtp_secure": false,
+  "email_remitente": "notificaciones@miempresa.com",
+  "nombre_remitente": "Mi Empresa",
+  "activo": true
+}
+
+### Probar SMTP usando la configuracion ya guardada
+POST http://localhost:3000/api/configuracion/email/test
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Empresa-Id: {{empresaId}}
+
+{
+  "to": "destinatario@correo.com",
+  "subject": "Prueba SMTP",
+  "text": "Correo de prueba desde Emphasys"
+}
+
+### Obtener configuracion SMTP por usuario autenticado
+GET http://localhost:3000/api/configuracion/email/usuario
+Authorization: Bearer {{token}}
+X-Empresa-Id: {{empresaId}}
+
+### Guardar configuracion SMTP por usuario autenticado
+POST http://localhost:3000/api/configuracion/email/usuario
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Empresa-Id: {{empresaId}}
+
+{
+  "smtp_host": "smtp.gmail.com",
+  "smtp_port": 587,
+  "smtp_user": "usuario@miempresa.com",
+  "smtp_password": "super-secreto-usuario",
+  "smtp_secure": false,
+  "email_remitente": "usuario@miempresa.com",
+  "nombre_remitente": "Usuario Emisor",
+  "activo": true
+}
+
+### Probar la configuracion resuelta por prioridad usuario -> empresa
+POST http://localhost:3000/api/configuracion/email/test
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Empresa-Id: {{empresaId}}
+
+{
+  "scope": "usuario",
+  "to": "destinatario@correo.com"
+}
+
+### Probar forzando configuracion de empresa
+POST http://localhost:3000/api/configuracion/email/test
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Empresa-Id: {{empresaId}}
+
+{
+  "scope": "empresa",
+  "to": "destinatario@correo.com"
+}
+
+### Probar SMTP con credenciales enviadas en el request antes de guardar
+POST http://localhost:3000/api/configuracion/email/test
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Empresa-Id: {{empresaId}}
+
+{
+  "smtp_host": "smtp.office365.com",
+  "smtp_port": 587,
+  "smtp_user": "notificaciones@miempresa.com",
+  "smtp_password": "super-secreto",
+  "smtp_secure": false,
+  "email_remitente": "notificaciones@miempresa.com",
+  "nombre_remitente": "Mi Empresa",
+  "to": "destinatario@correo.com"
+}

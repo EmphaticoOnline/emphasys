@@ -439,7 +439,7 @@ export default function CotizacionesGridPage() {
   }, [rows, quickFilter, filtros]);
 
   const resumenTotales = useMemo(() => {
-    const sum = (arr: typeof filteredRows) => arr.reduce((acc, r) => acc + Number(r.total ?? 0), 0);
+    const sum = (arr: typeof filteredRows) => arr.reduce((acc, r) => acc + Number(r.subtotal ?? 0), 0);
     const porEstado = (estado: EstadoSeguimiento) => sum(filteredRows.filter((r) => normalizeEstadoSeguimiento(r.estado_seguimiento) === estado));
     return {
       general: sum(filteredRows),

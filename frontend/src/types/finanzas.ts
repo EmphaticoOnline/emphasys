@@ -71,6 +71,19 @@ export interface AplicacionOperacion {
   fecha_documento?: string | null;
   total_documento?: number | null;
   moneda_documento?: string | null;
+  tipo_documento_origen?: string | null;
+  tipo_documento_destino?: string | null;
+  tipo_movimiento?: string | null;
+}
+
+export interface DocumentoSaldo {
+  id: number;
+  empresa_id: number;
+  tipo_documento: string;
+  moneda: string;
+  tipo_cambio?: number | null;
+  total: number;
+  saldo: number;
 }
 
 export interface EstadoCuentaItem {

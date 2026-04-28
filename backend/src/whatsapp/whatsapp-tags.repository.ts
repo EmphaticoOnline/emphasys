@@ -24,8 +24,8 @@ export async function listarEtiquetasWhatsapp(empresaId: number, incluirInactiva
       e.created_at,
       e.updated_at,
       COUNT(ce.id)::int AS uso_count
-    FROM whatsapp.etiquetas e
-    LEFT JOIN whatsapp.conversacion_etiquetas ce
+    FROM crm.etiquetas e
+    LEFT JOIN crm.conversacion_etiquetas ce
       ON ce.etiqueta_id = e.id
       AND ce.empresa_id = e.empresa_id
     WHERE e.empresa_id = $1
@@ -44,7 +44,7 @@ export async function obtenerEtiquetaWhatsapp(empresaId: number, etiquetaId: num
   const { rows } = await pool.query<WhatsappEtiqueta>(
     `
     SELECT id, empresa_id, nombre, color, activo, created_at, updated_at
-    FROM whatsapp.etiquetas
+    FROM crm.etiquetas
     WHERE empresa_id = $1
       AND id = $2
       ${filtroActiva}
@@ -58,7 +58,7 @@ export async function crearEtiquetaWhatsapp(empresaId: number, data: { nombre: s
   const { nombre, color } = data;
   const { rows } = await pool.query<WhatsappEtiqueta>(
     `
-    INSERT INTO whatsapp.etiquetas (empresa_id, nombre, color)
+    INSERT INTO crm.etiquetas (empresa_id, nombre, color)
     VALUES ($1, $2, $3)
     RETURNING id, empresa_id, nombre, color, activo, created_at, updated_at
     `,
@@ -76,7 +76,7 @@ export async function actualizarEtiquetaWhatsapp(
   const { nombre, color, activo } = data;
   const { rows } = await pool.query<WhatsappEtiqueta>(
     `
-    UPDATE whatsapp.etiquetas
+    UPDATE crm.etiquetas
     SET nombre = COALESCE($3, nombre),
         color = COALESCE($4, color),
         activo = COALESCE($5, activo),
@@ -95,7 +95,7 @@ export async function eliminarEtiquetaWhatsapp(empresaId: number, etiquetaId: nu
   const usoResult = await pool.query<{ uso_count: number }>(
     `
     SELECT COUNT(*)::int AS uso_count
-    FROM whatsapp.conversacion_etiquetas
+    FROM crm.conversacion_etiquetas
     WHERE empresa_id = $1
       AND etiqueta_id = $2
     `,
@@ -112,7 +112,7 @@ export async function eliminarEtiquetaWhatsapp(empresaId: number, etiquetaId: nu
 
   const { rows } = await pool.query<WhatsappEtiqueta>(
     `
-    DELETE FROM whatsapp.etiquetas
+    DELETE FROM crm.etiquetas
     WHERE empresa_id = $1
       AND id = $2
     RETURNING id, empresa_id, nombre, color, activo, created_at, updated_at
@@ -127,8 +127,8 @@ export async function listarEtiquetasConversacion(empresaId: number, conversacio
   const { rows } = await pool.query<WhatsappEtiqueta>(
     `
     SELECT e.id, e.empresa_id, e.nombre, e.color, e.activo, e.created_at, e.updated_at
-    FROM whatsapp.conversacion_etiquetas ce
-    INNER JOIN whatsapp.etiquetas e ON e.id = ce.etiqueta_id
+    FROM crm.conversacion_etiquetas ce
+    INNER JOIN crm.etiquetas e ON e.id = ce.etiqueta_id
     WHERE ce.empresa_id = $1
       AND ce.conversacion_id = $2
     ORDER BY e.nombre ASC
@@ -145,7 +145,7 @@ export async function asignarEtiquetaConversacion(
 ) {
   const { rows } = await pool.query(
     `
-    INSERT INTO whatsapp.conversacion_etiquetas (empresa_id, conversacion_id, etiqueta_id)
+    INSERT INTO crm.conversacion_etiquetas (empresa_id, conversacion_id, etiqueta_id)
     VALUES ($1, $2, $3)
     ON CONFLICT (conversacion_id, etiqueta_id) DO NOTHING
     RETURNING id, conversacion_id, etiqueta_id
@@ -162,7 +162,7 @@ export async function quitarEtiquetaConversacion(
 ) {
   const { rows } = await pool.query(
     `
-    DELETE FROM whatsapp.conversacion_etiquetas
+    DELETE FROM crm.conversacion_etiquetas
     WHERE empresa_id = $1
       AND conversacion_id = $2
       AND etiqueta_id = $3

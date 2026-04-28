@@ -2,6 +2,7 @@ import { apiFetch } from './apiFetch';
 import type {
   AplicacionOperacion,
   ConciliacionPayload,
+  DocumentoSaldo,
   EstadoCuentaItem,
   FinanzasCuenta,
   FinanzasOperacion,
@@ -105,6 +106,14 @@ export async function fetchOperacionDisponible(id: number): Promise<OperacionDis
 
 export async function fetchAplicacionesPorOperacion(id: number): Promise<AplicacionOperacion[]> {
   return apiFetch(`${BASE}/finanzas_operaciones/${id}/aplicaciones`);
+}
+
+export async function fetchAplicacionesDocumento(id: number): Promise<AplicacionOperacion[]> {
+  return apiFetch(`${BASE}/documentos/${id}/aplicaciones`);
+}
+
+export async function fetchSaldoDocumento(id: number): Promise<DocumentoSaldo> {
+  return apiFetch(`${BASE}/documentos/${id}/saldo`);
 }
 
 export async function fetchEstadoCuenta(contactoId: number): Promise<EstadoCuentaItem[]> {

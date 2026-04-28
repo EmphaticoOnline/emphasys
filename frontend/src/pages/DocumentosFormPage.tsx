@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Autocomplete,
@@ -59,7 +59,10 @@ import { useSession } from '../session/useSession';
 import type { ImpuestoEntrada, ImpuestoCalculadoUI } from '../utils/impuestos';
 import { calcularImpuestosPreview } from '../services/documentosService';
 import { DocumentoDatosFiscalesTab } from '../modules/documentos';
+import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
+import { DEFAULT_ESTADO_SEGUIMIENTO } from '../modules/cotizaciones/estadoSeguimiento';
 import { crearContacto, getContacto } from '../services/contactos.api';
+import { fetchSaldoDocumento } from '../services/finanzasService';
 import {
   guardarCamposDocumento,
   guardarCamposPartida,
@@ -178,6 +181,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const isCotizacion = tipoDocumento === 'cotizacion';
   const isEdit = Boolean(id && id !== 'nuevo');
   const navigate = useNavigate();
+  const location = useLocation();
   const basePath = `/ventas/${tipoDocumento}`;
   const showFiscalTab = tipoDocumento === 'factura';
   const textos = TEXTOS[tipoDocumento] ?? {
@@ -202,6 +206,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     total: 0,
     usuario_creacion_id: sessionUserId ?? null,
     empresa_id: getEmpresaActivaId(),
+    estado_seguimiento: isCotizacion ? DEFAULT_ESTADO_SEGUIMIENTO : null,
     tratamiento_impuestos: 'normal',
     rfc_receptor: '',
     nombre_receptor: '',
@@ -223,6 +228,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [loading, setLoading] = useState<boolean>(isEdit);
   const [saving, setSaving] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [openPagos, setOpenPagos] = useState(false);
+  const [saldoDocumento, setSaldoDocumento] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
@@ -233,6 +240,11 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [crearClienteNombre, setCrearClienteNombre] = useState('');
   const [crearClienteTipo, setCrearClienteTipo] = useState<'Lead' | 'Cliente'>('Lead');
   const [crearClienteLoading, setCrearClienteLoading] = useState(false);
+
+  const shouldOpenPagos = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('abrirPagos') === '1';
+  }, [location.search]);
 
   const camposDocumento = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_DOCUMENTO, tipoDocumento });
   const camposPartida = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_PARTIDA, tipoDocumento });
@@ -646,8 +658,13 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       setLoading(true);
       setValoresCamposDocumento({});
       setValoresCamposPartidas([{}]);
-      const data: CotizacionDetalle = await getDocumento(Number(id), tipoDocumento);
+      const requests: [Promise<CotizacionDetalle>, Promise<{ saldo: number } | null>?] = [getDocumento(Number(id), tipoDocumento)];
+      if (tipoDocumento === 'factura') {
+        requests.push(fetchSaldoDocumento(Number(id)).catch(() => null));
+      }
+      const [data, saldoData] = await Promise.all(requests);
       const doc = data.documento;
+      setSaldoDocumento(Number((saldoData as any)?.saldo ?? doc.saldo ?? 0));
       setForm({
         tipo_documento: doc.tipo_documento ?? tipoDocumento,
   serie: (doc as any).serie || null,
@@ -661,6 +678,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         total: doc.total || 0,
         usuario_creacion_id: doc.usuario_creacion_id ?? sessionUserId ?? null,
         empresa_id: doc.empresa_id,
+          estado_seguimiento: doc.estado_seguimiento ?? (doc.tipo_documento === 'cotizacion' ? DEFAULT_ESTADO_SEGUIMIENTO : null),
   tratamiento_impuestos: (doc as any).tratamiento_impuestos || 'normal',
         rfc_receptor: (doc as any).rfc_receptor || (doc as any).cliente_rfc || '',
         nombre_receptor: (doc as any).nombre_receptor || (doc as any).cliente_nombre || '',
@@ -875,6 +893,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         total: form.total || 0,
         empresa_id: getEmpresaActivaId(),
         usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
+          estado_seguimiento: isCotizacion ? (form.estado_seguimiento ?? DEFAULT_ESTADO_SEGUIMIENTO) : null,
   tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : 'normal',
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
@@ -1117,6 +1136,30 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     codigo_postal_receptor: form.codigo_postal_receptor || '',
   };
 
+  useEffect(() => {
+    if (!shouldOpenPagos) return;
+    if (tipoDocumento !== 'factura' || !isEdit || !id) return;
+    if (!form.contacto_principal_id || saldoDocumento <= 0) return;
+    setOpenPagos(true);
+  }, [shouldOpenPagos, tipoDocumento, isEdit, id, form.contacto_principal_id, saldoDocumento]);
+
+  const handleClosePagosDrawer = useCallback(() => {
+    setOpenPagos(false);
+    const params = new URLSearchParams(location.search);
+    if (params.get('abrirPagos') === '1') {
+      params.delete('abrirPagos');
+      const nextSearch = params.toString();
+      navigate(
+        {
+          pathname: location.pathname,
+          search: nextSearch ? `?${nextSearch}` : '',
+        },
+        { replace: true }
+      );
+    }
+    void loadDocumento();
+  }, [location.pathname, location.search, navigate]);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
@@ -1134,6 +1177,15 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           </Box>
         </Stack>
         <Stack direction="row" spacing={1}>
+          {isEdit && id && (
+            <Button
+              variant="outlined"
+              onClick={() => setOpenPagos(true)}
+              disabled={tipoDocumento !== 'factura' || !form.contacto_principal_id || saldoDocumento <= 0}
+            >
+              Aplicar pago
+            </Button>
+          )}
           {isEdit && id && (
             <Button
               variant="outlined"
@@ -1781,6 +1833,16 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {tipoDocumento === 'factura' && isEdit && id && form.contacto_principal_id ? (
+        <FacturaPagosDrawer
+          open={openPagos}
+          onClose={handleClosePagosDrawer}
+          documentoId={Number(id)}
+          contactoId={Number(form.contacto_principal_id)}
+          saldo={saldoDocumento}
+        />
+      ) : null}
     </Box>
   );
 }

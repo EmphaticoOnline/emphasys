@@ -1,7 +1,16 @@
 import axios from "axios";
 import qs from "qs";
-import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
+import {
+  actualizarConversacionSalienteWhatsapp,
+  getOrCreateConversacionWhatsapp,
+  getOrCreateWhatsappContacto,
+  registrarMensajeAudioSalienteWhatsapp,
+  registrarMensajeDocumentoSalienteWhatsapp,
+  registrarMensajeImagenSalienteWhatsapp,
+  registrarMensajePlantillaSalienteWhatsapp,
+  registrarMensajeTextoSalienteWhatsapp,
+} from "../crm/conversaciones.service";
 import { getWhatsappConfig } from "./whatsapp-config.service";
 import { resolverPlantillaWhatsapp } from "./whatsapp-plantillas.service";
 
@@ -16,69 +25,9 @@ export const sendTextMessage = async (empresaId: number, to: string, text: strin
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    // 🔎 1️⃣ Resolver contacto para el número (crear si falta)
-    const contactoResult = await pool.query(
-      `
-      SELECT id
-      FROM public.contactos
-      WHERE empresa_id = $1
-        AND telefono = $2
-      LIMIT 1
-      `,
-      [empresaId, destinoNormalizado]
-    );
+    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
-    let contactoId: number;
-
-    if (contactoResult.rows.length > 0) {
-      contactoId = contactoResult.rows[0].id;
-    } else {
-      const newContacto = await pool.query(
-        `
-        INSERT INTO public.contactos
-  (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
-  VALUES ($1, 'Lead', $2, $3, true, false)
-        RETURNING id
-        `,
-        [empresaId, destinoNormalizado, destinoNormalizado]
-      );
-
-      contactoId = newContacto.rows[0].id;
-    }
-
-    // 🔎 2️⃣ Buscar conversación abierta para ese contacto
-    const convResult = await pool.query(
-      `
-      SELECT id
-      FROM whatsapp.conversaciones
-      WHERE empresa_id = $1
-        AND contacto_id = $2
-        AND estado = 'abierta'
-      ORDER BY creada_en DESC
-      LIMIT 1
-      `,
-      [empresaId, contactoId]
-    );
-
-    let conversacionId: number;
-
-    if (convResult.rows.length > 0) {
-      conversacionId = convResult.rows[0].id;
-    } else {
-      const newConv = await pool.query(
-        `
-        INSERT INTO whatsapp.conversaciones
-        (empresa_id, contacto_id, estado, creada_en, ultimo_mensaje_en)
-        VALUES ($1, $2, 'abierta', NOW(), NOW())
-        RETURNING id
-        `,
-        [empresaId, contactoId]
-      );
-
-      conversacionId = newConv.rows[0].id;
-    }
-
-    // 📤 3️⃣ Enviar mensaje a Gupshup
     const payload = qs.stringify({
       channel: "whatsapp",
       source: config.phone_number,
@@ -102,52 +51,15 @@ export const sendTextMessage = async (empresaId: number, to: string, text: strin
 
     console.log("📤 Mensaje enviado:", response.data);
 
-    // 💾 4️⃣ Guardar mensaje saliente
-    await pool.query(
-      `
-      INSERT INTO whatsapp.mensajes
-      (
-        empresa_id,
-        conversacion_id,
-        telefono,
-        tipo_mensaje,
-        canal,
-        tipo_contenido,
-        contenido,
-        fecha_envio,
-        id_externo,
-        status,
-        creado_en
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,NOW())
-      `,
-      [
-        empresaId,
-        conversacionId,
-        destinoNormalizado,
-        'saliente',
-        'whatsapp',
-        'text',
-        text,
-        response.data?.messageId || null,
-        'sent'
-      ]
+    await registrarMensajeTextoSalienteWhatsapp(
+      empresaId,
+      conversacionId,
+      destinoNormalizado,
+      text,
+      response.data?.messageId || null
     );
 
-    await pool.query(
-      `
-      UPDATE whatsapp.conversaciones
-      SET
-        ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW()),
-        etapa_oportunidad = CASE
-          WHEN etapa_oportunidad = 'nuevo' THEN 'contactado'
-          ELSE etapa_oportunidad
-        END
-      WHERE id = $1
-        AND empresa_id = $2
-      `,
-      [conversacionId, empresaId]
-    );
+    await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
 
     return response.data;
 
@@ -171,65 +83,8 @@ export const sendImageMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoResult = await pool.query(
-      `
-      SELECT id
-      FROM public.contactos
-      WHERE empresa_id = $1
-        AND telefono = $2
-      LIMIT 1
-      `,
-      [empresaId, destinoNormalizado]
-    );
-
-    let contactoId: number;
-
-    if (contactoResult.rows.length > 0) {
-      contactoId = contactoResult.rows[0].id;
-    } else {
-      const newContacto = await pool.query(
-        `
-        INSERT INTO public.contactos
-  (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
-  VALUES ($1, 'Lead', $2, $3, true, false)
-        RETURNING id
-        `,
-        [empresaId, destinoNormalizado, destinoNormalizado]
-      );
-
-      contactoId = newContacto.rows[0].id;
-    }
-
-    const convResult = await pool.query(
-      `
-      SELECT id
-      FROM whatsapp.conversaciones
-      WHERE empresa_id = $1
-        AND contacto_id = $2
-        AND estado = 'abierta'
-      ORDER BY creada_en DESC
-      LIMIT 1
-      `,
-      [empresaId, contactoId]
-    );
-
-    let conversacionId: number;
-
-    if (convResult.rows.length > 0) {
-      conversacionId = convResult.rows[0].id;
-    } else {
-      const newConv = await pool.query(
-        `
-        INSERT INTO whatsapp.conversaciones
-        (empresa_id, contacto_id, estado, creada_en, ultimo_mensaje_en)
-        VALUES ($1, $2, 'abierta', NOW(), NOW())
-        RETURNING id
-        `,
-        [empresaId, contactoId]
-      );
-
-      conversacionId = newConv.rows[0].id;
-    }
+    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     const payload = qs.stringify({
       channel: "whatsapp",
@@ -256,53 +111,16 @@ export const sendImageMessage = async (
 
     console.log("📤 Imagen enviada:", response.data);
 
-    await pool.query(
-      `
-      INSERT INTO whatsapp.mensajes
-      (
-        empresa_id,
-        conversacion_id,
-        telefono,
-        tipo_mensaje,
-        canal,
-        tipo_contenido,
-        caption,
-        contenido,
-        fecha_envio,
-        id_externo,
-        status,
-        creado_en
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,NOW())
-      `,
-      [
-        empresaId,
-        conversacionId,
-        destinoNormalizado,
-        'saliente',
-        'whatsapp',
-        'image',
-        caption ?? null,
-        mediaUrl,
-        response.data?.messageId || null,
-        'sent'
-      ]
+    await registrarMensajeImagenSalienteWhatsapp(
+      empresaId,
+      conversacionId,
+      destinoNormalizado,
+      mediaUrl,
+      caption ?? null,
+      response.data?.messageId || null
     );
 
-    await pool.query(
-      `
-      UPDATE whatsapp.conversaciones
-      SET
-        ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW()),
-        etapa_oportunidad = CASE
-          WHEN etapa_oportunidad = 'nuevo' THEN 'contactado'
-          ELSE etapa_oportunidad
-        END
-      WHERE id = $1
-        AND empresa_id = $2
-      `,
-      [conversacionId, empresaId]
-    );
+    await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
 
     return response.data;
   } catch (error: any) {
@@ -325,65 +143,8 @@ export const sendDocumentMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoResult = await pool.query(
-      `
-      SELECT id
-      FROM public.contactos
-      WHERE empresa_id = $1
-        AND telefono = $2
-      LIMIT 1
-      `,
-      [empresaId, destinoNormalizado]
-    );
-
-    let contactoId: number;
-
-    if (contactoResult.rows.length > 0) {
-      contactoId = contactoResult.rows[0].id;
-    } else {
-      const newContacto = await pool.query(
-        `
-        INSERT INTO public.contactos
-  (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
-  VALUES ($1, 'Lead', $2, $3, true, false)
-        RETURNING id
-        `,
-        [empresaId, destinoNormalizado, destinoNormalizado]
-      );
-
-      contactoId = newContacto.rows[0].id;
-    }
-
-    const convResult = await pool.query(
-      `
-      SELECT id
-      FROM whatsapp.conversaciones
-      WHERE empresa_id = $1
-        AND contacto_id = $2
-        AND estado = 'abierta'
-      ORDER BY creada_en DESC
-      LIMIT 1
-      `,
-      [empresaId, contactoId]
-    );
-
-    let conversacionId: number;
-
-    if (convResult.rows.length > 0) {
-      conversacionId = convResult.rows[0].id;
-    } else {
-      const newConv = await pool.query(
-        `
-        INSERT INTO whatsapp.conversaciones
-        (empresa_id, contacto_id, estado, creada_en, ultimo_mensaje_en)
-        VALUES ($1, $2, 'abierta', NOW(), NOW())
-        RETURNING id
-        `,
-        [empresaId, contactoId]
-      );
-
-      conversacionId = newConv.rows[0].id;
-    }
+    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     const payload = qs.stringify({
       channel: "whatsapp",
@@ -409,53 +170,16 @@ export const sendDocumentMessage = async (
 
     console.log("📤 Documento enviado:", response.data);
 
-    await pool.query(
-      `
-      INSERT INTO whatsapp.mensajes
-      (
-        empresa_id,
-        conversacion_id,
-        telefono,
-        tipo_mensaje,
-        canal,
-        tipo_contenido,
-        caption,
-        contenido,
-        fecha_envio,
-        id_externo,
-        status,
-        creado_en
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,NOW())
-      `,
-      [
-        empresaId,
-        conversacionId,
-        destinoNormalizado,
-        'saliente',
-        'whatsapp',
-        'document',
-        filename ?? null,
-        mediaUrl,
-        response.data?.messageId || null,
-        'sent'
-      ]
+    await registrarMensajeDocumentoSalienteWhatsapp(
+      empresaId,
+      conversacionId,
+      destinoNormalizado,
+      mediaUrl,
+      filename ?? null,
+      response.data?.messageId || null
     );
 
-    await pool.query(
-      `
-      UPDATE whatsapp.conversaciones
-      SET
-        ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW()),
-        etapa_oportunidad = CASE
-          WHEN etapa_oportunidad = 'nuevo' THEN 'contactado'
-          ELSE etapa_oportunidad
-        END
-      WHERE id = $1
-        AND empresa_id = $2
-      `,
-      [conversacionId, empresaId]
-    );
+    await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
 
     return response.data;
   } catch (error: any) {
@@ -477,65 +201,8 @@ export const sendAudioMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoResult = await pool.query(
-      `
-      SELECT id
-      FROM public.contactos
-      WHERE empresa_id = $1
-        AND telefono = $2
-      LIMIT 1
-      `,
-      [empresaId, destinoNormalizado]
-    );
-
-    let contactoId: number;
-
-    if (contactoResult.rows.length > 0) {
-      contactoId = contactoResult.rows[0].id;
-    } else {
-      const newContacto = await pool.query(
-        `
-        INSERT INTO public.contactos
-  (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
-  VALUES ($1, 'Lead', $2, $3, true, false)
-        RETURNING id
-        `,
-        [empresaId, destinoNormalizado, destinoNormalizado]
-      );
-
-      contactoId = newContacto.rows[0].id;
-    }
-
-    const convResult = await pool.query(
-      `
-      SELECT id
-      FROM whatsapp.conversaciones
-      WHERE empresa_id = $1
-        AND contacto_id = $2
-        AND estado = 'abierta'
-      ORDER BY creada_en DESC
-      LIMIT 1
-      `,
-      [empresaId, contactoId]
-    );
-
-    let conversacionId: number;
-
-    if (convResult.rows.length > 0) {
-      conversacionId = convResult.rows[0].id;
-    } else {
-      const newConv = await pool.query(
-        `
-        INSERT INTO whatsapp.conversaciones
-        (empresa_id, contacto_id, estado, creada_en, ultimo_mensaje_en)
-        VALUES ($1, $2, 'abierta', NOW(), NOW())
-        RETURNING id
-        `,
-        [empresaId, contactoId]
-      );
-
-      conversacionId = newConv.rows[0].id;
-    }
+    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     const payload = qs.stringify({
       channel: "whatsapp",
@@ -560,51 +227,15 @@ export const sendAudioMessage = async (
 
     console.log("📤 Audio enviado:", response.data);
 
-    await pool.query(
-      `
-      INSERT INTO whatsapp.mensajes
-      (
-        empresa_id,
-        conversacion_id,
-        telefono,
-        tipo_mensaje,
-        canal,
-        tipo_contenido,
-        contenido,
-        fecha_envio,
-        id_externo,
-        status,
-        creado_en
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,NOW())
-      `,
-      [
-        empresaId,
-        conversacionId,
-        destinoNormalizado,
-        'saliente',
-        'whatsapp',
-        'audio',
-        mediaUrl,
-        response.data?.messageId || null,
-        'sent'
-      ]
+    await registrarMensajeAudioSalienteWhatsapp(
+      empresaId,
+      conversacionId,
+      destinoNormalizado,
+      mediaUrl,
+      response.data?.messageId || null
     );
 
-    await pool.query(
-      `
-      UPDATE whatsapp.conversaciones
-      SET
-        ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW()),
-        etapa_oportunidad = CASE
-          WHEN etapa_oportunidad = 'nuevo' THEN 'contactado'
-          ELSE etapa_oportunidad
-        END
-      WHERE id = $1
-        AND empresa_id = $2
-      `,
-      [conversacionId, empresaId]
-    );
+    await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
 
     return response.data;
   } catch (error: any) {
@@ -639,65 +270,8 @@ export const sendTemplateMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoResult = await pool.query(
-      `
-      SELECT id
-      FROM public.contactos
-      WHERE empresa_id = $1
-        AND telefono = $2
-      LIMIT 1
-      `,
-      [empresaId, destinoNormalizado]
-    );
-
-    let contactoId: number;
-
-    if (contactoResult.rows.length > 0) {
-      contactoId = contactoResult.rows[0].id;
-    } else {
-      const newContacto = await pool.query(
-        `
-        INSERT INTO public.contactos
-  (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
-  VALUES ($1, 'Lead', $2, $3, true, false)
-        RETURNING id
-        `,
-        [empresaId, destinoNormalizado, destinoNormalizado]
-      );
-
-      contactoId = newContacto.rows[0].id;
-    }
-
-    const convResult = await pool.query(
-      `
-      SELECT id
-      FROM whatsapp.conversaciones
-      WHERE empresa_id = $1
-        AND contacto_id = $2
-        AND estado = 'abierta'
-      ORDER BY creada_en DESC
-      LIMIT 1
-      `,
-      [empresaId, contactoId]
-    );
-
-    let conversacionId: number;
-
-    if (convResult.rows.length > 0) {
-      conversacionId = convResult.rows[0].id;
-    } else {
-      const newConv = await pool.query(
-        `
-        INSERT INTO whatsapp.conversaciones
-        (empresa_id, contacto_id, estado, creada_en, ultimo_mensaje_en)
-        VALUES ($1, $2, 'abierta', NOW(), NOW())
-        RETURNING id
-        `,
-        [empresaId, contactoId]
-      );
-
-      conversacionId = newConv.rows[0].id;
-    }
+    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     const proveedorNormalized = plantilla.proveedor?.toLowerCase();
     let payload: string;
@@ -723,7 +297,6 @@ export const sendTemplateMessage = async (
 
     console.log("[WhatsApp Template] Payload", payload);
 
-    // TEMP: log de API key en uso para diagnóstico
     console.log('[WhatsApp] API KEY EN USO:', config.api_key);
     const response = await axios.post(
       GUPSHUP_API_URL,
@@ -738,49 +311,15 @@ export const sendTemplateMessage = async (
 
     console.log("[WhatsApp Template] API Response", response.status, response.data);
 
-    await pool.query(
-      `
-      INSERT INTO whatsapp.mensajes
-      (
-        empresa_id,
-        conversacion_id,
-        telefono,
-        tipo_mensaje,
-        canal,
-        contenido,
-        fecha_envio,
-        id_externo,
-        status,
-        creado_en
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,$8,NOW())
-      `,
-      [
-        empresaId,
-        conversacionId,
-        destinoNormalizado,
-        'saliente',
-        'whatsapp',
-  `Plantilla: ${plantilla.nombre_interno}`,
-        response.data?.messageId || null,
-        'sent'
-      ]
+    await registrarMensajePlantillaSalienteWhatsapp(
+      empresaId,
+      conversacionId,
+      destinoNormalizado,
+      `Plantilla: ${plantilla.nombre_interno}`,
+      response.data?.messageId || null
     );
 
-    await pool.query(
-      `
-      UPDATE whatsapp.conversaciones
-      SET
-        ultimo_mensaje_en = GREATEST(ultimo_mensaje_en, NOW()),
-        etapa_oportunidad = CASE
-          WHEN etapa_oportunidad = 'nuevo' THEN 'contactado'
-          ELSE etapa_oportunidad
-        END
-      WHERE id = $1
-        AND empresa_id = $2
-      `,
-      [conversacionId, empresaId]
-    );
+    await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
 
     return { ...response.data, plantilla_usada: plantilla.provider_template_id };
   } catch (error: any) {

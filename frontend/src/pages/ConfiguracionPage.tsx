@@ -13,6 +13,7 @@ import {
   PercentRounded,
   PictureAsPdfRounded,
   LabelRounded,
+  AlternateEmailRounded,
 } from '@mui/icons-material';
 
 const opciones = [
@@ -81,6 +82,12 @@ const opciones = [
     descripcion: 'Configura los layouts de PDF por empresa o por serie.',
     icono: PictureAsPdfRounded,
     path: '/configuracion/formatos-impresion',
+  },
+  {
+    titulo: 'Correo SMTP',
+    descripcion: 'Configura envío de correos por empresa y por usuario, y prueba la conexión SMTP.',
+    icono: AlternateEmailRounded,
+    path: '/configuracion/correo',
   },
   {
     titulo: 'Etiquetas de WhatsApp',

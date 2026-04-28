@@ -75,7 +75,7 @@ CREATE TABLE public.documentos (
     metodo_pago text,
     codigo_postal_receptor character varying(10),
     tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL,
-    estado_seguimiento text DEFAULT 'cotizado'::text,
+    estado_seguimiento text DEFAULT 'borrador'::text,
     comentario_seguimiento text,
     producto_resumen text
 );

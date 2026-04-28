@@ -51,6 +51,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EmailIcon from '@mui/icons-material/Email';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
@@ -74,7 +75,7 @@ import type { TipoDocumento } from '../types/documentos.types';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, getDocumentos, updateDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, enviarCotizacionPorCorreo, getDocumentos, updateDocumento } from '../services/documentosService';
 import { timbrarFactura, enviarFactura } from '../services/facturasService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
@@ -100,7 +101,14 @@ type DocumentosPageProps = {
 
 const TIPOS_CONTACTO_COTIZACION = ['Cliente', 'Lead'];
 
-type QuickFilter = 'todos' | EstadoSeguimiento;
+type QuickFilter = 'todos' | string;
+
+type StatusOption = {
+  value: string;
+  label: string;
+  color?: string;
+  textColor?: string;
+};
 
 const FILTROS_COTIZACION_INICIALES = {
   fechaDesde: '',
@@ -213,6 +221,19 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     enviando: boolean;
     error?: string | null;
   }>({ open: false, id: null, email: '', enviando: false, error: null });
+  const [enviarCotizacionMenu, setEnviarCotizacionMenu] = useState<{
+    anchorEl: HTMLElement | null;
+    row: CotizacionListado | null;
+  }>({ anchorEl: null, row: null });
+  const [enviarCotizacionDialog, setEnviarCotizacionDialog] = useState<{
+    open: boolean;
+    id: number | null;
+    email: string;
+    subject: string;
+    message: string;
+    enviando: boolean;
+    error?: string | null;
+  }>({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null });
   const [opcionesGeneracion, setOpcionesGeneracion] = useState<Record<number, OpcionGeneracionResponse[]>>({});
   const [tieneOpcionesGeneracion, setTieneOpcionesGeneracion] = useState<boolean | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
@@ -257,10 +278,26 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = `/ventas/${tipoDocumento}`;
-  const estatusDocumentoOptions = useMemo(
-    () => getDocumentoTypeConfig(tipoDocumento)?.estatusPermitidos ?? ['borrador', 'emitido', 'cancelado'],
-    [tipoDocumento]
+  const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
+  const statusField = tipoDocumento === 'cotizacion' ? 'estado_seguimiento' : 'estatus_documento';
+  const sumField = 'subtotal';
+  const statusOptions = useMemo<StatusOption[]>(
+    () =>
+      tipoDocumento === 'cotizacion'
+        ? ESTADOS_SEGUIMIENTO.map((estado) => ({
+            value: estado.value,
+            label: estado.label,
+            color: estado.color,
+            textColor: estado.textColor,
+          }))
+        : (documentoTypeConfig?.estatusPermitidos ?? ['borrador', 'emitido', 'cancelado']).map((estatus) => ({
+            value: normalizeDocumentoEstatus(estatus),
+            label: formatDocumentoEstatusLabel(estatus),
+          })),
+    [documentoTypeConfig, tipoDocumento]
   );
+  const enableFilters = statusOptions.length > 0;
+  const showAgentFilter = tipoDocumento === 'cotizacion';
 
   const currency = useMemo(
     () =>
@@ -306,7 +343,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   }, []);
 
   useEffect(() => {
-    if (!esCotizacion) {
+    if (!enableFilters) {
       setContactos([]);
       setVendedores([]);
       setQuickFilter('todos');
@@ -319,17 +356,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       try {
         const [contactosData, vendedoresData] = await Promise.all([
           fetchContactos(TIPOS_CONTACTO_COTIZACION),
-          fetchVendedores(),
+          showAgentFilter ? fetchVendedores() : Promise.resolve([]),
         ]);
         setContactos(contactosData);
         setVendedores(vendedoresData);
       } catch (err) {
-        console.error('No se pudieron cargar datos para filtros de cotizaciones', err);
+        console.error('No se pudieron cargar datos para filtros de documentos', err);
       }
     };
 
     void loadFilterData();
-  }, [esCotizacion]);
+  }, [enableFilters, showAgentFilter]);
 
   const requireAuthData = () => {
     if (!token || !empresaId) {
@@ -578,8 +615,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     load();
   }, [tipoDocumento]);
 
-  const obtenerEmailFactura = (row: any) =>
+  const obtenerEmailDocumento = (row: any) =>
     row?.contacto_email ?? row?.email_contacto ?? row?.cliente_email ?? row?.email_cliente ?? row?.email ?? '';
+
+  const abrirDialogoEnviarCotizacion = (row: CotizacionListado) => {
+    const folio = formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0));
+    const emailInicial = obtenerEmailDocumento(row);
+    setEnviarCotizacionDialog({
+      open: true,
+      id: Number(row.id),
+      email: emailInicial,
+      subject: `Cotizacion ${folio}`,
+      message: `Se adjunta la cotizacion ${folio}.`,
+      enviando: false,
+      error: emailInicial ? null : 'El cliente no tiene correo registrado. Captura uno para continuar.',
+    });
+  };
 
   const baseColumns: GridColDef[] = useMemo(() => {
     const columns: GridColDef[] = [
@@ -752,7 +803,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     columns.push({
       field: 'actions',
       headerName: 'Acciones',
-  width: 230,
+  width: esCotizacion ? 340 : 270,
       sortable: false,
       filterable: false,
       headerAlign: 'center',
@@ -804,6 +855,39 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               <PictureAsPdfIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          {tipoDocumento === 'cotizacion' && (
+            <>
+              <Button
+                size="small"
+                color="primary"
+                endIcon={<ArrowDropDownIcon />}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setEnviarCotizacionMenu({ anchorEl: event.currentTarget, row: params.row as CotizacionListado });
+                }}
+                sx={{ minWidth: 92, textTransform: 'none', fontWeight: 700 }}
+              >
+                Enviar
+              </Button>
+            </>
+          )}
+          {tipoDocumento === 'factura' && (
+            <Tooltip title={Number(params.row?.saldo ?? 0) > 0 ? 'Aplicar pago' : 'Factura sin saldo pendiente'}>
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading || Number(params.row?.saldo ?? 0) <= 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`${basePath}/${params.id}?abrirPagos=1`);
+                  }}
+                >
+                  <AccountBalanceWalletIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
           {tipoDocumento === 'factura' && (
             <Tooltip title="Timbrar CFDI">
               <span>
@@ -817,7 +901,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                       setTimbrandoId(params.row.id as number);
                       await timbrarFactura(Number(params.row.id));
                       await load();
-                      const emailInicial = obtenerEmailFactura(params.row);
+                      const emailInicial = obtenerEmailDocumento(params.row);
                       setEnviarDialog({ open: true, id: Number(params.row.id), email: emailInicial, enviando: false, error: null });
                     } catch (err: any) {
                       setError(err?.message || 'No se pudo timbrar la factura');
@@ -840,7 +924,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   disabled={loading}
                   onClick={(e) => {
                     e.stopPropagation();
-                    const emailInicial = obtenerEmailFactura(params.row);
+                    const emailInicial = obtenerEmailDocumento(params.row);
                     setEnviarDialog({ open: true, id: Number(params.row.id), email: emailInicial, enviando: false, error: null });
                   }}
                 >
@@ -862,7 +946,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     timbrandoId,
     navigate,
     basePath,
-    obtenerEmailFactura,
+    obtenerEmailDocumento,
     deletingId,
     load,
     setError,
@@ -896,16 +980,24 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       result = result.filter((row) => Number(row?.saldo ?? 0) > 0);
     }
 
-    if (esCotizacion) {
+    if (enableFilters) {
       if (quickFilter !== 'todos') {
-        result = result.filter((row) => normalizeEstadoSeguimiento(row.estado_seguimiento) === quickFilter);
+        result = result.filter((row) => {
+          const rawStatus = row[statusField];
+          const normalizedStatus =
+            statusField === 'estado_seguimiento'
+              ? normalizeEstadoSeguimiento(rawStatus)
+              : normalizeDocumentoEstatus(rawStatus);
+
+          return normalizedStatus === quickFilter;
+        });
       }
 
       if (filtrosCotizacion.clienteId) {
         result = result.filter((row) => row.contacto_principal_id === filtrosCotizacion.clienteId);
       }
 
-      if (filtrosCotizacion.agenteId) {
+      if (showAgentFilter && filtrosCotizacion.agenteId) {
         result = result.filter((row) => Number(row.agente_id ?? 0) === filtrosCotizacion.agenteId);
       }
 
@@ -942,7 +1034,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       const total = String(row?.total ?? '').toLowerCase();
       const saldo = String(row?.saldo ?? '').toLowerCase();
       const fecha = String(row?.fecha_documento ?? '').toLowerCase();
-      const seguimiento = String((row as any)?.estado_seguimiento ?? '').toLowerCase();
+      const status = String(row?.[statusField] ?? '').toLowerCase();
 
       return (
         folio.includes(q) ||
@@ -952,41 +1044,51 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         total.includes(q) ||
         saldo.includes(q) ||
         fecha.includes(q) ||
-        seguimiento.includes(q)
+        status.includes(q)
       );
     });
-  }, [rows, search, soloPendientes, isFacturaConSaldo, esCotizacion, quickFilter, filtrosCotizacion]);
+  }, [rows, search, soloPendientes, isFacturaConSaldo, enableFilters, quickFilter, filtrosCotizacion, showAgentFilter, statusField]);
 
-  const resumenTotalesCotizacion = useMemo(() => {
-    if (!esCotizacion) {
+  const resumenTotales = useMemo(() => {
+    if (!enableFilters) {
       return null;
     }
 
-    const sum = (items: CotizacionListado[]) => items.reduce((acc, row) => acc + Number(row.total ?? 0), 0);
-    const porEstado = (estado: EstadoSeguimiento) => sum(filteredRows.filter((row) => normalizeEstadoSeguimiento(row.estado_seguimiento) === estado));
+    const sum = (items: CotizacionListado[]) => items.reduce((acc, row) => acc + Number(row[sumField] ?? 0), 0);
+    const porEstado = Object.fromEntries(
+      statusOptions.map((status) => {
+        const rowsPorEstado = filteredRows.filter((row) => {
+          const rawStatus = row[statusField];
+          const normalizedStatus =
+            statusField === 'estado_seguimiento'
+              ? normalizeEstadoSeguimiento(rawStatus)
+              : normalizeDocumentoEstatus(rawStatus);
+
+          return normalizedStatus === status.value;
+        });
+
+        return [status.value, sum(rowsPorEstado)];
+      })
+    );
 
     return {
       general: sum(filteredRows),
-      borrador: porEstado('borrador'),
-      enviado: porEstado('enviado'),
-      negociacion: porEstado('negociacion'),
-      ganado: porEstado('ganado'),
-      perdido: porEstado('perdido'),
+      porEstado,
     };
-  }, [esCotizacion, filteredRows]);
+  }, [enableFilters, filteredRows, statusField, statusOptions, sumField]);
 
   const filtrosActivosCount = useMemo(() => {
-    if (!esCotizacion) return 0;
+    if (!enableFilters) return 0;
 
     return [
       filtrosCotizacion.fechaDesde,
       filtrosCotizacion.fechaHasta,
       filtrosCotizacion.clienteId,
-      filtrosCotizacion.agenteId,
+      showAgentFilter ? filtrosCotizacion.agenteId : null,
       filtrosCotizacion.montoMin,
       filtrosCotizacion.montoMax,
     ].filter((value) => value !== '' && value !== null).length;
-  }, [esCotizacion, filtrosCotizacion]);
+  }, [enableFilters, filtrosCotizacion, showAgentFilter]);
 
   const hayFiltrosActivos = filtrosActivosCount > 0;
 
@@ -1011,7 +1113,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           </Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
-          {tipoDocumento === 'cotizacion' && (
+          {false && tipoDocumento === 'cotizacion' && (
             <Button variant="outlined" startIcon={<TableViewIcon />} onClick={() => navigate('/ventas/cotizaciones-grid')}>
               Vista Excel
             </Button>
@@ -1061,18 +1163,18 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         )}
       </Stack>
 
-      {esCotizacion && (
+      {enableFilters && (
         <Stack spacing={1.25}>
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ xs: 'stretch', lg: 'center' }} justifyContent="space-between">
             <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-              {[{ value: 'todos', label: 'Todos' }, ...ESTADOS_SEGUIMIENTO.map((estado) => ({ value: estado.value, label: estado.label }))].map((item) => {
+              {[{ value: 'todos', label: 'Todos' }, ...statusOptions].map((item) => {
                 const selected = quickFilter === item.value;
                 return (
                   <Chip
                     key={item.value}
                     label={item.label}
                     clickable
-                    onClick={() => setQuickFilter(item.value as QuickFilter)}
+                    onClick={() => setQuickFilter(item.value)}
                     size="small"
                     variant={selected ? 'filled' : 'outlined'}
                     sx={{
@@ -1280,34 +1382,36 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                     />
                   </Grid>
 
-                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
-                    <Autocomplete
-                      fullWidth
-                      options={vendedores}
-                      loading={loading && vendedores.length === 0}
-                      getOptionLabel={(option) => option.nombre || ''}
-                      value={vendedores.find((contacto) => contacto.id === filtrosCotizacion.agenteId) || null}
-                      onChange={(_, value) => setFiltrosCotizacion((prev) => ({ ...prev, agenteId: value?.id ?? null }))}
-                      renderOption={(props, option) => {
-                        const { key, ...rest } = props;
-                        return (
-                          <li {...rest} key={option.id ?? key}>
-                            {option.nombre || ''}
-                          </li>
-                        );
-                      }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...(params as any)}
-                          fullWidth
-                          label="Agente de ventas"
-                          size="small"
-                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                          inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
-                        />
-                      )}
-                    />
-                  </Grid>
+                  {showAgentFilter && (
+                    <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
+                      <Autocomplete
+                        fullWidth
+                        options={vendedores}
+                        loading={loading && vendedores.length === 0}
+                        getOptionLabel={(option) => option.nombre || ''}
+                        value={vendedores.find((contacto) => contacto.id === filtrosCotizacion.agenteId) || null}
+                        onChange={(_, value) => setFiltrosCotizacion((prev) => ({ ...prev, agenteId: value?.id ?? null }))}
+                        renderOption={(props, option) => {
+                          const { key, ...rest } = props;
+                          return (
+                            <li {...rest} key={option.id ?? key}>
+                              {option.nombre || ''}
+                            </li>
+                          );
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...(params as any)}
+                            fullWidth
+                            label="Agente de ventas"
+                            size="small"
+                            InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                            inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
+                          />
+                        )}
+                      />
+                    </Grid>
+                  )}
                 </Grid>
 
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
@@ -1324,7 +1428,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </Stack>
       )}
 
-      {esCotizacion && resumenTotalesCotizacion && (
+      {enableFilters && resumenTotales && (
         <Box
           sx={{
             display: 'grid',
@@ -1337,11 +1441,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           }}
         >
           {[
-            { label: 'Total general', value: resumenTotalesCotizacion.general, color: '#2563eb' },
-            ...ESTADOS_SEGUIMIENTO.map((estado) => ({
-              label: estado.label,
-              value: resumenTotalesCotizacion[estado.value],
-              color: estado.textColor,
+            { label: 'Total general', value: resumenTotales.general, color: '#2563eb' },
+            ...statusOptions.map((status) => ({
+              label: status.label,
+              value: Number(resumenTotales.porEstado[status.value] ?? 0),
+              color: status.textColor || '#374151',
             })),
           ].map((item) => (
             <Paper
@@ -1493,16 +1597,37 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
-        {estatusDocumentoOptions.map((estatus) => (
+        {statusOptions.map((status) => (
           <MenuItem
-            key={estatus}
-            selected={estatusMenu.currentValue === estatus}
+            key={status.value}
+            selected={estatusMenu.currentValue === status.value}
             disabled={actualizandoEstatusId !== null}
-            onClick={() => void handleSeleccionarEstatus(estatus)}
+            onClick={() => void handleSeleccionarEstatus(status.value)}
           >
-            {formatDocumentoEstatusLabel(estatus)}
+            {status.label}
           </MenuItem>
         ))}
+      </Menu>
+
+      <Menu
+        anchorEl={enviarCotizacionMenu.anchorEl}
+        open={Boolean(enviarCotizacionMenu.anchorEl)}
+        onClose={() => setEnviarCotizacionMenu({ anchorEl: null, row: null })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        <MenuItem
+          onClick={() => {
+            const row = enviarCotizacionMenu.row;
+            setEnviarCotizacionMenu({ anchorEl: null, row: null });
+            if (row) abrirDialogoEnviarCotizacion(row);
+          }}
+        >
+          <ListItemIcon>
+            <EmailIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Enviar por correo" />
+        </MenuItem>
       </Menu>
 
       {esCotizacion && (
@@ -1677,6 +1802,83 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             startIcon={enviarDialog.enviando ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
             {enviarDialog.enviando ? 'Enviando...' : 'Enviar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={enviarCotizacionDialog.open}
+        onClose={() => !enviarCotizacionDialog.enviando && setEnviarCotizacionDialog({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null })}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Enviar cotización por correo</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              Confirma el correo del cliente y ajusta el mensaje antes de enviar la cotización en PDF.
+            </DialogContentText>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Correo electrónico"
+              type="email"
+              value={enviarCotizacionDialog.email}
+              onChange={(e) => setEnviarCotizacionDialog((prev) => ({ ...prev, email: e.target.value, error: null }))}
+              error={Boolean(enviarCotizacionDialog.error)}
+              helperText={enviarCotizacionDialog.error || ' '}
+            />
+            <TextField
+              fullWidth
+              label="Asunto"
+              value={enviarCotizacionDialog.subject}
+              onChange={(e) => setEnviarCotizacionDialog((prev) => ({ ...prev, subject: e.target.value }))}
+            />
+            <TextField
+              fullWidth
+              label="Mensaje"
+              multiline
+              minRows={4}
+              value={enviarCotizacionDialog.message}
+              onChange={(e) => setEnviarCotizacionDialog((prev) => ({ ...prev, message: e.target.value }))}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button
+            onClick={() => setEnviarCotizacionDialog({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null })}
+            disabled={enviarCotizacionDialog.enviando}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              const email = enviarCotizacionDialog.email.trim();
+              if (!email) {
+                setEnviarCotizacionDialog((prev) => ({ ...prev, error: 'El correo es obligatorio' }));
+                return;
+              }
+              try {
+                setEnviarCotizacionDialog((prev) => ({ ...prev, enviando: true, error: null }));
+                await enviarCotizacionPorCorreo(Number(enviarCotizacionDialog.id), {
+                  to: email,
+                  subject: enviarCotizacionDialog.subject.trim(),
+                  message: enviarCotizacionDialog.message.trim(),
+                });
+                await load();
+                setSnackbar({ open: true, message: 'Cotización enviada correctamente', severity: 'success' });
+                setEnviarCotizacionDialog({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null });
+              } catch (err: any) {
+                const msg = err?.message || 'No se pudo enviar la cotización';
+                setEnviarCotizacionDialog((prev) => ({ ...prev, enviando: false, error: msg }));
+                setSnackbar({ open: true, message: msg, severity: 'error' });
+              }
+            }}
+            disabled={enviarCotizacionDialog.enviando}
+            startIcon={enviarCotizacionDialog.enviando ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {enviarCotizacionDialog.enviando ? 'Enviando...' : 'Enviar'}
           </Button>
         </DialogActions>
       </Dialog>

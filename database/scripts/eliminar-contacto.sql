@@ -14,16 +14,16 @@ WHERE empresa_id = 1
 
 CREATE TEMP TABLE tmp_conv ON COMMIT DROP AS
 SELECT id
-FROM whatsapp.conversaciones
+FROM crm.conversaciones
 WHERE contacto_id IN (SELECT id FROM tmp_contactos);
 
 -- 1) Mensajes
-DELETE FROM whatsapp.mensajes
+DELETE FROM crm.mensajes
  WHERE conversacion_id IN (SELECT id FROM tmp_conv)
     OR contacto_id    IN (SELECT id FROM tmp_contactos);
 
 -- 2) Conversaciones
-DELETE FROM whatsapp.conversaciones
+DELETE FROM crm.conversaciones
  WHERE id IN (SELECT id FROM tmp_conv);
 
 -- 3) Mapeo y estado por teléfono

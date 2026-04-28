@@ -112,6 +112,17 @@ export async function abrirDocumentoPdfEnNuevaVentana(id: number, tipo: TipoDocu
   }
 }
 
+export function enviarCotizacionPorCorreo(id: number, payload: {
+  to: string;
+  subject?: string;
+  message?: string;
+}) {
+  return apiFetch(`/api/documentos/${id}/enviar-email`, {
+    method: 'POST',
+    body: payload as any,
+  });
+}
+
 // Preview de cálculo de impuestos (no persiste)
 export function calcularImpuestosPreview(payload: {
   producto_id?: number | null;

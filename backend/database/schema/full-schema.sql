@@ -117,258 +117,510 @@ CREATE TYPE public.tipo_contacto_enum AS ENUM (
 
 CREATE PROCEDURE core.bootstrap_empresa(IN p_empresa_id integer, IN p_usuario_id integer)
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  ---------------------------------------------------------------------------
-  -- Validaciones
-  ---------------------------------------------------------------------------
-  PERFORM 1 FROM core.empresas WHERE id = p_empresa_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'La empresa % no existe', p_empresa_id;
-  END IF;
-
-  PERFORM 1 FROM core.usuarios WHERE id = p_usuario_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'El usuario % no existe', p_usuario_id;
-  END IF;
-
-  ---------------------------------------------------------------------------
-  -- Roles base
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Creando roles base...';
-  INSERT INTO core.roles (empresa_id, nombre, descripcion, activo)
-  VALUES
-    (p_empresa_id, 'Administrador', 'Rol base administrador', true),
-    (p_empresa_id, 'Supervisor',    'Rol base supervisor',    true),
-    (p_empresa_id, 'Operador',      'Rol base operador',      true),
-    (p_empresa_id, 'Consulta',      'Rol base consulta',      true)
-  ON CONFLICT (empresa_id, nombre) DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Asociación usuario-empresa
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Registrando usuario en la empresa...';
-  INSERT INTO core.usuarios_empresas (usuario_id, empresa_id)
-  VALUES (p_usuario_id, p_empresa_id)
-  ON CONFLICT (usuario_id, empresa_id) DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Asignar rol Administrador al usuario
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Asignando rol Administrador al usuario...';
-  INSERT INTO core.usuarios_roles (usuario_id, empresa_id, rol_id)
-  SELECT
-    p_usuario_id,
-    p_empresa_id,
-    r.id
-  FROM core.roles r
-  WHERE r.empresa_id = p_empresa_id
-    AND r.nombre = 'Administrador'
-  ON CONFLICT (usuario_id, empresa_id, rol_id) DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Parámetros por empresa (copiando core.parametros)
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Inicializando parametros_empresa...';
-  INSERT INTO core.parametros_empresa (empresa_id, parametro_id, valor)
-  SELECT p_empresa_id, p.parametro_id, COALESCE(p.valor_default, NULL)
-  FROM core.parametros p
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM core.parametros_empresa pe
-    WHERE pe.empresa_id = p_empresa_id
-      AND pe.parametro_id = p.parametro_id
-  );
-
----------------------------------------------------------------------------
--- Valores críticos de parámetros (hardcoded)
----------------------------------------------------------------------------
-RAISE NOTICE 'Aplicando valores críticos de configuración...';
-
-UPDATE core.parametros_empresa pe
-SET valor = v.valor
-FROM (
-  VALUES
-    ('decimales_costos','2'),
-    ('decimales_cantidades','2'),
-    ('decimales_precios','2'),
-    ('variacion_maxima_costos','0.20'),
-    ('porcentaje_iva_predeterminado','0.16'),
-
-    ('usar_series','true'),
-    ('permitir_afectacion_ajustes','true'),
-    ('usar_ultimo_costo_precios','true'),
-
-    ('serie_facturas','F'),
-    ('serie_notas','N'),
-    ('serie_notas_credito','NC'),
-    ('serie_pedidos','P'),
-    ('serie_ordenes_entrega','OE'),
-
-    ('serie_ordenes_compra','OC'),
-    ('serie_pagos_proveedores','PGP'),
-
-    ('serie_transacciones_inventario','INV'),
-    ('serie_ajustes','AJ'),
-    ('serie_entradas','EN'),
-
-    ('serie_nota_venta','N'),
-
-    ('oc_requiere_autorizacion','true'),
-    ('aprobacion_automatica_pagos','false'),
-    ('utilizar_limite_credito','true'),
-    ('restringir_segun_vencimiento','false'),
-    ('tipo_cliente_obligatorio','true')
-) AS v(clave,valor)
-JOIN core.parametros p
-  ON p.clave = v.clave
-WHERE pe.parametro_id = p.parametro_id
-AND pe.empresa_id = p_empresa_id;
-
-  ---------------------------------------------------------------------------
-  -- Impuestos por default
-  ---------------------------------------------------------------------------
-
-RAISE NOTICE 'Creando impuestos por defecto...';
-
-INSERT INTO core.empresas_impuestos_default
-(empresa_id, impuesto_id, orden)
-VALUES
-(p_empresa_id, 'iva_16', 1)
-ON CONFLICT DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Tipos de documento por empresa (copiando core.tipos_documento)
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Inicializando empresas_tipos_documento...';
-  INSERT INTO core.empresas_tipos_documento
-    (empresa_id, tipo_documento_id, activo, orden, usuario_creacion_id)
-  SELECT
-    p_empresa_id,
-    td.id,
-    td.activo,
-    td.orden,
-    p_usuario_id
-  FROM core.tipos_documento td
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM core.empresas_tipos_documento etd
-    WHERE etd.empresa_id = p_empresa_id
-      AND etd.tipo_documento_id = td.id
-  );
-
-  ---------------------------------------------------------------------------
-  -- Transiciones base de tipos de documento
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Inicializando transiciones de documentos...';
-  WITH t(cod_origen, cod_destino) AS (
-    VALUES
-      ('cotizacion',    'pedido'),
-      ('pedido',        'orden_entrega'),
-      ('orden_entrega', 'remision'),
-      ('remision',      'factura'),
-      ('requisicion',   'orden_compra'),
-      ('orden_compra',  'recepcion'),
-      ('recepcion',     'factura_compra')
-  )
-  INSERT INTO core.empresas_tipos_documento_transiciones
-    (empresa_id, tipo_documento_origen_id, tipo_documento_destino_id, activo, orden, usuario_creacion_id)
-  SELECT
-    p_empresa_id,
-    etd_origen.tipo_documento_id,
-    etd_destino.tipo_documento_id,
-    true,
-    ROW_NUMBER() OVER (ORDER BY t.cod_origen, t.cod_destino) - 1,
-    p_usuario_id
-  FROM t
-  JOIN core.tipos_documento td_origen   ON td_origen.codigo  = t.cod_origen
-  JOIN core.tipos_documento td_destino  ON td_destino.codigo = t.cod_destino
-  JOIN core.empresas_tipos_documento etd_origen
-       ON etd_origen.empresa_id = p_empresa_id
-      AND etd_origen.tipo_documento_id = td_origen.id
-  JOIN core.empresas_tipos_documento etd_destino
-       ON etd_destino.empresa_id = p_empresa_id
-      AND etd_destino.tipo_documento_id = td_destino.id
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM core.empresas_tipos_documento_transiciones x
-    WHERE x.empresa_id = p_empresa_id
-      AND x.tipo_documento_origen_id  = etd_origen.tipo_documento_id
-      AND x.tipo_documento_destino_id = etd_destino.tipo_documento_id
-  );
-
-  ---------------------------------------------------------------------------
-  -- Cuenta financiera inicial
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Creando cuenta financiera inicial...';
-  INSERT INTO public.finanzas_cuentas
-    (empresa_id, identificador, numero_cuenta, tipo_cuenta, moneda,
-     saldo, saldo_inicial, saldo_conciliado, es_cuenta_efectivo, afecta_total_disponible)
-  SELECT p_empresa_id, 'Caja', NULL, 'Disponibilidad', 'MXN',
-         0, 0, 0, true, true
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM public.finanzas_cuentas fc
-    WHERE fc.empresa_id = p_empresa_id
-      AND fc.identificador = 'Caja'
-  );
-
-  ---------------------------------------------------------------------------
-  -- Conceptos base
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Creando conceptos base...';
-  INSERT INTO public.conceptos
-    (empresa_id, nombre_concepto, es_gasto, activo, orden, color)
-  VALUES
-    (p_empresa_id, 'Ingreso', false, true, 0, '#2E7D32'),
-    (p_empresa_id, 'Venta',   false, true, 1, '#1565C0'),
-    (p_empresa_id, 'Gasto',   true,  true, 2, '#C62828'),
-    (p_empresa_id, 'Compra',  true,  true, 3, '#6A1B9A'),
-    (p_empresa_id, 'Ajuste',  true,  true, 4, '#F9A825')
-  ON CONFLICT (empresa_id, nombre_concepto) DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Unidades
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Creando unidades base...';
-  INSERT INTO public.unidades
-	(clave, descripcion, unidad_sat_id, empresa_id, activo)
-  VALUES
-    ('SERVICIO', 'Servicio', 1, p_empresa_id, true),
-    ('MES',   'Mes', 3, p_empresa_id, true),
-    ('HORA',   'Hora',  4, p_empresa_id, true),
-    ('PIEZA',  'Pieza', 2, p_empresa_id, true)
-  ON CONFLICT (empresa_id, clave) DO NOTHING;
-
-	---------------------------------------------------------------------------
-	-- Catálogos configurables (tipos) por empresa
-	---------------------------------------------------------------------------
-	RAISE NOTICE 'Inicializando catalogos_tipos...';
-	
-	INSERT INTO core.catalogos_tipos
-	  (empresa_id, entidad_tipo_id, nombre, permite_multiple, activo)
-	SELECT
-	  p_empresa_id,
-	  ct.entidad_tipo_id,
-	  ct.nombre,
-	  ct.permite_multiple,
-	  ct.activo
-	FROM core.catalogos_tipos ct
-	WHERE ct.empresa_id = 1
-	AND NOT EXISTS (
-	  SELECT 1
-	  FROM core.catalogos_tipos ct2
-	  WHERE ct2.empresa_id = p_empresa_id
-	    AND ct2.entidad_tipo_id = ct.entidad_tipo_id
-	    AND ct2.nombre = ct.nombre
-	);
-
-  ---------------------------------------------------------------------------
-  -- Aviso final
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Bootstrap completado para la empresa %.', p_empresa_id;
-
-END;
+    AS $$
+
+BEGIN
+
+  ---------------------------------------------------------------------------
+
+  -- Validaciones
+
+  ---------------------------------------------------------------------------
+
+  PERFORM 1 FROM core.empresas WHERE id = p_empresa_id;
+
+  IF NOT FOUND THEN
+
+    RAISE EXCEPTION 'La empresa % no existe', p_empresa_id;
+
+  END IF;
+
+
+
+  PERFORM 1 FROM core.usuarios WHERE id = p_usuario_id;
+
+  IF NOT FOUND THEN
+
+    RAISE EXCEPTION 'El usuario % no existe', p_usuario_id;
+
+  END IF;
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Roles base
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Creando roles base...';
+
+  INSERT INTO core.roles (empresa_id, nombre, descripcion, activo)
+
+  VALUES
+
+    (p_empresa_id, 'Administrador', 'Rol base administrador', true),
+
+    (p_empresa_id, 'Supervisor',    'Rol base supervisor',    true),
+
+    (p_empresa_id, 'Operador',      'Rol base operador',      true),
+
+    (p_empresa_id, 'Consulta',      'Rol base consulta',      true)
+
+  ON CONFLICT (empresa_id, nombre) DO NOTHING;
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Asociación usuario-empresa
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Registrando usuario en la empresa...';
+
+  INSERT INTO core.usuarios_empresas (usuario_id, empresa_id)
+
+  VALUES (p_usuario_id, p_empresa_id)
+
+  ON CONFLICT (usuario_id, empresa_id) DO NOTHING;
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Asignar rol Administrador al usuario
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Asignando rol Administrador al usuario...';
+
+  INSERT INTO core.usuarios_roles (usuario_id, empresa_id, rol_id)
+
+  SELECT
+
+    p_usuario_id,
+
+    p_empresa_id,
+
+    r.id
+
+  FROM core.roles r
+
+  WHERE r.empresa_id = p_empresa_id
+
+    AND r.nombre = 'Administrador'
+
+  ON CONFLICT (usuario_id, empresa_id, rol_id) DO NOTHING;
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Parámetros por empresa (copiando core.parametros)
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Inicializando parametros_empresa...';
+
+  INSERT INTO core.parametros_empresa (empresa_id, parametro_id, valor)
+
+  SELECT p_empresa_id, p.parametro_id, COALESCE(p.valor_default, NULL)
+
+  FROM core.parametros p
+
+  WHERE NOT EXISTS (
+
+    SELECT 1
+
+    FROM core.parametros_empresa pe
+
+    WHERE pe.empresa_id = p_empresa_id
+
+      AND pe.parametro_id = p.parametro_id
+
+  );
+
+
+
+---------------------------------------------------------------------------
+
+-- Valores críticos de parámetros (hardcoded)
+
+---------------------------------------------------------------------------
+
+RAISE NOTICE 'Aplicando valores críticos de configuración...';
+
+
+
+UPDATE core.parametros_empresa pe
+
+SET valor = v.valor
+
+FROM (
+
+  VALUES
+
+    ('decimales_costos','2'),
+
+    ('decimales_cantidades','2'),
+
+    ('decimales_precios','2'),
+
+    ('variacion_maxima_costos','0.20'),
+
+    ('porcentaje_iva_predeterminado','0.16'),
+
+
+
+    ('usar_series','true'),
+
+    ('permitir_afectacion_ajustes','true'),
+
+    ('usar_ultimo_costo_precios','true'),
+
+
+
+    ('serie_facturas','F'),
+
+    ('serie_notas','N'),
+
+    ('serie_notas_credito','NC'),
+
+    ('serie_pedidos','P'),
+
+    ('serie_ordenes_entrega','OE'),
+
+
+
+    ('serie_ordenes_compra','OC'),
+
+    ('serie_pagos_proveedores','PGP'),
+
+
+
+    ('serie_transacciones_inventario','INV'),
+
+    ('serie_ajustes','AJ'),
+
+    ('serie_entradas','EN'),
+
+
+
+    ('serie_nota_venta','N'),
+
+
+
+    ('oc_requiere_autorizacion','true'),
+
+    ('aprobacion_automatica_pagos','false'),
+
+    ('utilizar_limite_credito','true'),
+
+    ('restringir_segun_vencimiento','false'),
+
+    ('tipo_cliente_obligatorio','true')
+
+) AS v(clave,valor)
+
+JOIN core.parametros p
+
+  ON p.clave = v.clave
+
+WHERE pe.parametro_id = p.parametro_id
+
+AND pe.empresa_id = p_empresa_id;
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Impuestos por default
+
+  ---------------------------------------------------------------------------
+
+
+
+RAISE NOTICE 'Creando impuestos por defecto...';
+
+
+
+INSERT INTO core.empresas_impuestos_default
+
+(empresa_id, impuesto_id, orden)
+
+VALUES
+
+(p_empresa_id, 'iva_16', 1)
+
+ON CONFLICT DO NOTHING;
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Tipos de documento por empresa (copiando core.tipos_documento)
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Inicializando empresas_tipos_documento...';
+
+  INSERT INTO core.empresas_tipos_documento
+
+    (empresa_id, tipo_documento_id, activo, orden, usuario_creacion_id)
+
+  SELECT
+
+    p_empresa_id,
+
+    td.id,
+
+    td.activo,
+
+    td.orden,
+
+    p_usuario_id
+
+  FROM core.tipos_documento td
+
+  WHERE NOT EXISTS (
+
+    SELECT 1
+
+    FROM core.empresas_tipos_documento etd
+
+    WHERE etd.empresa_id = p_empresa_id
+
+      AND etd.tipo_documento_id = td.id
+
+  );
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Transiciones base de tipos de documento
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Inicializando transiciones de documentos...';
+
+  WITH t(cod_origen, cod_destino) AS (
+
+    VALUES
+
+      ('cotizacion',    'pedido'),
+
+      ('pedido',        'orden_entrega'),
+
+      ('orden_entrega', 'remision'),
+
+      ('remision',      'factura'),
+
+      ('requisicion',   'orden_compra'),
+
+      ('orden_compra',  'recepcion'),
+
+      ('recepcion',     'factura_compra')
+
+  )
+
+  INSERT INTO core.empresas_tipos_documento_transiciones
+
+    (empresa_id, tipo_documento_origen_id, tipo_documento_destino_id, activo, orden, usuario_creacion_id)
+
+  SELECT
+
+    p_empresa_id,
+
+    etd_origen.tipo_documento_id,
+
+    etd_destino.tipo_documento_id,
+
+    true,
+
+    ROW_NUMBER() OVER (ORDER BY t.cod_origen, t.cod_destino) - 1,
+
+    p_usuario_id
+
+  FROM t
+
+  JOIN core.tipos_documento td_origen   ON td_origen.codigo  = t.cod_origen
+
+  JOIN core.tipos_documento td_destino  ON td_destino.codigo = t.cod_destino
+
+  JOIN core.empresas_tipos_documento etd_origen
+
+       ON etd_origen.empresa_id = p_empresa_id
+
+      AND etd_origen.tipo_documento_id = td_origen.id
+
+  JOIN core.empresas_tipos_documento etd_destino
+
+       ON etd_destino.empresa_id = p_empresa_id
+
+      AND etd_destino.tipo_documento_id = td_destino.id
+
+  WHERE NOT EXISTS (
+
+    SELECT 1
+
+    FROM core.empresas_tipos_documento_transiciones x
+
+    WHERE x.empresa_id = p_empresa_id
+
+      AND x.tipo_documento_origen_id  = etd_origen.tipo_documento_id
+
+      AND x.tipo_documento_destino_id = etd_destino.tipo_documento_id
+
+  );
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Cuenta financiera inicial
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Creando cuenta financiera inicial...';
+
+  INSERT INTO public.finanzas_cuentas
+
+    (empresa_id, identificador, numero_cuenta, tipo_cuenta, moneda,
+
+     saldo, saldo_inicial, saldo_conciliado, es_cuenta_efectivo, afecta_total_disponible)
+
+  SELECT p_empresa_id, 'Caja', NULL, 'Disponibilidad', 'MXN',
+
+         0, 0, 0, true, true
+
+  WHERE NOT EXISTS (
+
+    SELECT 1
+
+    FROM public.finanzas_cuentas fc
+
+    WHERE fc.empresa_id = p_empresa_id
+
+      AND fc.identificador = 'Caja'
+
+  );
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Conceptos base
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Creando conceptos base...';
+
+  INSERT INTO public.conceptos
+
+    (empresa_id, nombre_concepto, es_gasto, activo, orden, color)
+
+  VALUES
+
+    (p_empresa_id, 'Ingreso', false, true, 0, '#2E7D32'),
+
+    (p_empresa_id, 'Venta',   false, true, 1, '#1565C0'),
+
+    (p_empresa_id, 'Gasto',   true,  true, 2, '#C62828'),
+
+    (p_empresa_id, 'Compra',  true,  true, 3, '#6A1B9A'),
+
+    (p_empresa_id, 'Ajuste',  true,  true, 4, '#F9A825')
+
+  ON CONFLICT (empresa_id, nombre_concepto) DO NOTHING;
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Unidades
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Creando unidades base...';
+
+  INSERT INTO public.unidades
+
+	(clave, descripcion, unidad_sat_id, empresa_id, activo)
+
+  VALUES
+
+    ('SERVICIO', 'Servicio', 1, p_empresa_id, true),
+
+    ('MES',   'Mes', 3, p_empresa_id, true),
+
+    ('HORA',   'Hora',  4, p_empresa_id, true),
+
+    ('PIEZA',  'Pieza', 2, p_empresa_id, true)
+
+  ON CONFLICT (empresa_id, clave) DO NOTHING;
+
+
+
+	---------------------------------------------------------------------------
+
+	-- Catálogos configurables (tipos) por empresa
+
+	---------------------------------------------------------------------------
+
+	RAISE NOTICE 'Inicializando catalogos_tipos...';
+
+	
+
+	INSERT INTO core.catalogos_tipos
+
+	  (empresa_id, entidad_tipo_id, nombre, permite_multiple, activo)
+
+	SELECT
+
+	  p_empresa_id,
+
+	  ct.entidad_tipo_id,
+
+	  ct.nombre,
+
+	  ct.permite_multiple,
+
+	  ct.activo
+
+	FROM core.catalogos_tipos ct
+
+	WHERE ct.empresa_id = 1
+
+	AND NOT EXISTS (
+
+	  SELECT 1
+
+	  FROM core.catalogos_tipos ct2
+
+	  WHERE ct2.empresa_id = p_empresa_id
+
+	    AND ct2.entidad_tipo_id = ct.entidad_tipo_id
+
+	    AND ct2.nombre = ct.nombre
+
+	);
+
+
+
+  ---------------------------------------------------------------------------
+
+  -- Aviso final
+
+  ---------------------------------------------------------------------------
+
+  RAISE NOTICE 'Bootstrap completado para la empresa %.', p_empresa_id;
+
+
+
+END;
+
 $$;
 
 
@@ -378,24 +630,42 @@ $$;
 
 CREATE FUNCTION core.validar_usuario_vendedor_contacto() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  IF NEW.vendedor_contacto_id IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  PERFORM 1
-    FROM public.contactos c
-   WHERE c.id = NEW.vendedor_contacto_id
-     AND c.tipo_contacto = 'Vendedor';
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'vendedor_contacto_id % no es un Vendedor válido', NEW.vendedor_contacto_id
-      USING ERRCODE = '23514';
-  END IF;
-
-  RETURN NEW;
-END;
+    AS $$
+
+BEGIN
+
+  IF NEW.vendedor_contacto_id IS NULL THEN
+
+    RETURN NEW;
+
+  END IF;
+
+
+
+  PERFORM 1
+
+    FROM public.contactos c
+
+   WHERE c.id = NEW.vendedor_contacto_id
+
+     AND c.tipo_contacto = 'Vendedor';
+
+
+
+  IF NOT FOUND THEN
+
+    RAISE EXCEPTION 'vendedor_contacto_id % no es un Vendedor válido', NEW.vendedor_contacto_id
+
+      USING ERRCODE = '23514';
+
+  END IF;
+
+
+
+  RETURN NEW;
+
+END;
+
 $$;
 
 
@@ -405,11 +675,16 @@ $$;
 
 CREATE FUNCTION public.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
+    AS $$
+
+BEGIN
+
+  NEW.updated_at = now();
+
+  RETURN NEW;
+
+END;
+
 $$;
 
 
@@ -419,40 +694,74 @@ $$;
 
 CREATE FUNCTION whatsapp.fn_actualizar_estadisticas_whatsapp() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    f date;
-BEGIN
-    IF NEW.fecha_envio IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    f := NEW.fecha_envio::date;
-
-    INSERT INTO whatsapp.whatsapp_estadisticas (
-        fecha,
-        mensajes_enviados,
-        mensajes_recibidos,
-        plantillas_usadas
-    )
-    VALUES (
-        f,
-        CASE WHEN NEW.tipo_mensaje = 'saliente' THEN 1 ELSE 0 END,
-        CASE WHEN NEW.tipo_mensaje = 'entrante' THEN 1 ELSE 0 END,
-        CASE WHEN NEW.tipo_mensaje = 'saliente'
-             AND NEW.plantilla_nombre IS NOT NULL THEN 1 ELSE 0 END
-    )
-    ON CONFLICT (fecha)
-    DO UPDATE SET
-        mensajes_enviados =
-            whatsapp.whatsapp_estadisticas.mensajes_enviados + EXCLUDED.mensajes_enviados,
-        mensajes_recibidos =
-            whatsapp.whatsapp_estadisticas.mensajes_recibidos + EXCLUDED.mensajes_recibidos,
-        plantillas_usadas =
-            whatsapp.whatsapp_estadisticas.plantillas_usadas + EXCLUDED.plantillas_usadas;
-
-    RETURN NEW;
-END;
+    AS $$
+
+DECLARE
+
+    f date;
+
+BEGIN
+
+    IF NEW.fecha_envio IS NULL THEN
+
+        RETURN NEW;
+
+    END IF;
+
+
+
+    f := NEW.fecha_envio::date;
+
+
+
+    INSERT INTO whatsapp.whatsapp_estadisticas (
+
+        fecha,
+
+        mensajes_enviados,
+
+        mensajes_recibidos,
+
+        plantillas_usadas
+
+    )
+
+    VALUES (
+
+        f,
+
+        CASE WHEN NEW.tipo_mensaje = 'saliente' THEN 1 ELSE 0 END,
+
+        CASE WHEN NEW.tipo_mensaje = 'entrante' THEN 1 ELSE 0 END,
+
+        CASE WHEN NEW.tipo_mensaje = 'saliente'
+
+             AND NEW.plantilla_nombre IS NOT NULL THEN 1 ELSE 0 END
+
+    )
+
+    ON CONFLICT (fecha)
+
+    DO UPDATE SET
+
+        mensajes_enviados =
+
+            whatsapp.whatsapp_estadisticas.mensajes_enviados + EXCLUDED.mensajes_enviados,
+
+        mensajes_recibidos =
+
+            whatsapp.whatsapp_estadisticas.mensajes_recibidos + EXCLUDED.mensajes_recibidos,
+
+        plantillas_usadas =
+
+            whatsapp.whatsapp_estadisticas.plantillas_usadas + EXCLUDED.plantillas_usadas;
+
+
+
+    RETURN NEW;
+
+END;
+
 $$;
 
 
@@ -462,23 +771,40 @@ $$;
 
 CREATE FUNCTION whatsapp.fn_normaliza_telefono_e164(tel text) RETURNS text
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    s text;
-BEGIN
-    IF tel IS NULL THEN
-        RETURN NULL;
-    END IF;
-
-    s := regexp_replace(tel, '[\s\-\(\)\.\t]', '', 'g');
-    s := regexp_replace(s, '[^+0-9]', '', 'g');
-
-    IF left(s,1) <> '+' THEN
-        s := '+52' || s;
-    END IF;
-
-    RETURN s;
-END;
+    AS $$
+
+DECLARE
+
+    s text;
+
+BEGIN
+
+    IF tel IS NULL THEN
+
+        RETURN NULL;
+
+    END IF;
+
+
+
+    s := regexp_replace(tel, '[\s\-\(\)\.\t]', '', 'g');
+
+    s := regexp_replace(s, '[^+0-9]', '', 'g');
+
+
+
+    IF left(s,1) <> '+' THEN
+
+        s := '+52' || s;
+
+    END IF;
+
+
+
+    RETURN s;
+
+END;
+
 $$;
 
 
@@ -495,11 +821,16 @@ COMMENT ON FUNCTION whatsapp.fn_normaliza_telefono_e164(tel text) IS 'Normaliza 
 
 CREATE FUNCTION whatsapp.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
+    AS $$
+
+BEGIN
+
+  NEW.updated_at = NOW();
+
+  RETURN NEW;
+
+END;
+
 $$;
 
 
@@ -509,83 +840,160 @@ $$;
 
 CREATE FUNCTION whatsapp.sp_whatsapp_log_mensaje_contactado(numero_telefono_raw text, tipo_mensaje text, canal text DEFAULT NULL::text, contenido text DEFAULT NULL::text, plantilla_nombre text DEFAULT NULL::text, fecha_envio timestamp with time zone DEFAULT NULL::timestamp with time zone, status text DEFAULT NULL::text, id_externo text DEFAULT NULL::text, respuesta_json jsonb DEFAULT NULL::jsonb) RETURNS void
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    tel text;
-    cid integer;
-    conv_id bigint;
-BEGIN
-    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
-
-    IF fecha_envio IS NULL THEN
-        fecha_envio := now();
-    END IF;
-
-    SELECT id INTO cid
-    FROM whatsapp.vcontactos_telefonos
-    WHERE telefonoe164 = tel
-    LIMIT 1;
-
-    SELECT id INTO conv_id
-    FROM whatsapp.whatsapp_conversaciones
-    WHERE contacto_id = cid
-      AND estado = 'abierta'
-    ORDER BY creada_en DESC
-    LIMIT 1;
-
-    IF conv_id IS NULL THEN
-        INSERT INTO whatsapp.whatsapp_conversaciones (
-            contacto_id,
-            creada_en,
-            ultimo_mensaje_en
-        )
-        VALUES (
-            cid,
-            fecha_envio,
-            fecha_envio
-        )
-        RETURNING id INTO conv_id;
-    ELSE
-        UPDATE whatsapp.whatsapp_conversaciones
-        SET ultimo_mensaje_en = fecha_envio
-        WHERE id = conv_id;
-    END IF;
-
-    INSERT INTO whatsapp.whatsapp_mensajes (
-        contacto_id,
-        conversacion_id,
-        numero_telefono,
-        tipo_mensaje,
-        canal,
-        contenido,
-        plantilla_nombre,
-        fecha_envio,
-        status,
-        id_externo,
-        respuesta_json
-    )
-    VALUES (
-        cid,
-        conv_id,
-        tel,
-        tipo_mensaje,
-        canal,
-        contenido,
-        plantilla_nombre,
-        fecha_envio,
-        status,
-        id_externo,
-        respuesta_json
-    );
-
-    PERFORM whatsapp.sp_whatsapp_touch_estado(
-        tel,
-        CASE WHEN tipo_mensaje = 'entrante'
-             THEN 'in'
-             ELSE 'out'
-        END
-    );
-END;
+    AS $$
+
+DECLARE
+
+    tel text;
+
+    cid integer;
+
+    conv_id bigint;
+
+BEGIN
+
+    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
+
+
+
+    IF fecha_envio IS NULL THEN
+
+        fecha_envio := now();
+
+    END IF;
+
+
+
+    SELECT id INTO cid
+
+    FROM whatsapp.vcontactos_telefonos
+
+    WHERE telefonoe164 = tel
+
+    LIMIT 1;
+
+
+
+    SELECT id INTO conv_id
+
+    FROM whatsapp.whatsapp_conversaciones
+
+    WHERE contacto_id = cid
+
+      AND estado = 'abierta'
+
+    ORDER BY creada_en DESC
+
+    LIMIT 1;
+
+
+
+    IF conv_id IS NULL THEN
+
+        INSERT INTO whatsapp.whatsapp_conversaciones (
+
+            contacto_id,
+
+            creada_en,
+
+            ultimo_mensaje_en
+
+        )
+
+        VALUES (
+
+            cid,
+
+            fecha_envio,
+
+            fecha_envio
+
+        )
+
+        RETURNING id INTO conv_id;
+
+    ELSE
+
+        UPDATE whatsapp.whatsapp_conversaciones
+
+        SET ultimo_mensaje_en = fecha_envio
+
+        WHERE id = conv_id;
+
+    END IF;
+
+
+
+    INSERT INTO whatsapp.whatsapp_mensajes (
+
+        contacto_id,
+
+        conversacion_id,
+
+        numero_telefono,
+
+        tipo_mensaje,
+
+        canal,
+
+        contenido,
+
+        plantilla_nombre,
+
+        fecha_envio,
+
+        status,
+
+        id_externo,
+
+        respuesta_json
+
+    )
+
+    VALUES (
+
+        cid,
+
+        conv_id,
+
+        tel,
+
+        tipo_mensaje,
+
+        canal,
+
+        contenido,
+
+        plantilla_nombre,
+
+        fecha_envio,
+
+        status,
+
+        id_externo,
+
+        respuesta_json
+
+    );
+
+
+
+    PERFORM whatsapp.sp_whatsapp_touch_estado(
+
+        tel,
+
+        CASE WHEN tipo_mensaje = 'entrante'
+
+             THEN 'in'
+
+             ELSE 'out'
+
+        END
+
+    );
+
+END;
+
 $$;
 
 
@@ -595,42 +1003,78 @@ $$;
 
 CREATE FUNCTION whatsapp.sp_whatsapp_touch_estado(numero_telefono_raw text, tipo_evento text) RETURNS void
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    tel text;
-BEGIN
-    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
-
-    INSERT INTO whatsapp.whatsapp_contacto_estado (
-        numero_telefono,
-        opt_in,
-        opt_out,
-        ultimo_in,
-        ultimo_out
-    )
-    VALUES (
-        tel,
-        (tipo_evento = 'optin'),
-        (tipo_evento = 'optout'),
-        CASE WHEN tipo_evento = 'in' THEN now() ELSE NULL END,
-        CASE WHEN tipo_evento = 'out' THEN now() ELSE NULL END
-    )
-    ON CONFLICT (numero_telefono)
-    DO UPDATE SET
-        ultimo_in  = CASE WHEN tipo_evento = 'in'
-                          THEN now()
-                          ELSE whatsapp_contacto_estado.ultimo_in END,
-        ultimo_out = CASE WHEN tipo_evento = 'out'
-                          THEN now()
-                          ELSE whatsapp_contacto_estado.ultimo_out END,
-        opt_in  = CASE WHEN tipo_evento = 'optin'
-                       THEN true
-                       ELSE whatsapp_contacto_estado.opt_in END,
-        opt_out = CASE WHEN tipo_evento = 'optout'
-                       THEN true
-                       ELSE whatsapp_contacto_estado.opt_out END,
-        actualizado_en = now();
-END;
+    AS $$
+
+DECLARE
+
+    tel text;
+
+BEGIN
+
+    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
+
+
+
+    INSERT INTO whatsapp.whatsapp_contacto_estado (
+
+        numero_telefono,
+
+        opt_in,
+
+        opt_out,
+
+        ultimo_in,
+
+        ultimo_out
+
+    )
+
+    VALUES (
+
+        tel,
+
+        (tipo_evento = 'optin'),
+
+        (tipo_evento = 'optout'),
+
+        CASE WHEN tipo_evento = 'in' THEN now() ELSE NULL END,
+
+        CASE WHEN tipo_evento = 'out' THEN now() ELSE NULL END
+
+    )
+
+    ON CONFLICT (numero_telefono)
+
+    DO UPDATE SET
+
+        ultimo_in  = CASE WHEN tipo_evento = 'in'
+
+                          THEN now()
+
+                          ELSE whatsapp_contacto_estado.ultimo_in END,
+
+        ultimo_out = CASE WHEN tipo_evento = 'out'
+
+                          THEN now()
+
+                          ELSE whatsapp_contacto_estado.ultimo_out END,
+
+        opt_in  = CASE WHEN tipo_evento = 'optin'
+
+                       THEN true
+
+                       ELSE whatsapp_contacto_estado.opt_in END,
+
+        opt_out = CASE WHEN tipo_evento = 'optout'
+
+                       THEN true
+
+                       ELSE whatsapp_contacto_estado.opt_out END,
+
+        actualizado_en = now();
+
+END;
+
 $$;
 
 
@@ -3091,7 +3535,7 @@ CREATE TABLE public.documentos (
     metodo_pago text,
     codigo_postal_receptor character varying(10),
     tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL,
-    estado_seguimiento text DEFAULT 'cotizado'::text,
+    estado_seguimiento text DEFAULT 'borrador'::text,
     comentario_seguimiento text,
     producto_resumen text
 );
