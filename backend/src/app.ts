@@ -51,6 +51,7 @@ import conceptosRouter from "./modules/conceptos/conceptos.routes";
 import inventarioRouter from "./modules/inventario/inventario.routes";
 import almacenesRouter from "./modules/almacenes/almacenes.routes";
 import uploadsRouter from "./modules/uploads/uploads.routes";
+import crmOportunidadesRouter from "./crm/oportunidades.routes";
 
 const app = express();
 
@@ -141,6 +142,7 @@ app.use("/api/conceptos", conceptosRouter);
 app.use("/api/inventario", inventarioRouter);
 app.use("/api/almacenes", almacenesRouter);
 app.use("/api/uploads", uploadsRouter);
+app.use("/api/crm", crmOportunidadesRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

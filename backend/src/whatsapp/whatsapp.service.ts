@@ -1,5 +1,6 @@
 import axios from "axios";
 import qs from "qs";
+import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
 import {
   actualizarConversacionSalienteWhatsapp,
@@ -15,6 +16,117 @@ import { getWhatsappConfig } from "./whatsapp-config.service";
 import { resolverPlantillaWhatsapp } from "./whatsapp-plantillas.service";
 
 const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
+const WHATSAPP_WINDOW_MINUTES = 1440;
+
+export class WhatsappWindowExpiredError extends Error {
+  status: number;
+  code: string;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "WhatsappWindowExpiredError";
+    this.status = 400;
+    this.code = "WHATSAPP_WINDOW_EXPIRED";
+  }
+}
+
+async function validateWhatsapp24hWindow(empresaId: number, conversacionId: number) {
+  const { rows } = await pool.query<{
+    id: number;
+    tipo_mensaje: string | null;
+    fecha_referencia: string | null;
+  }>(
+    `
+      SELECT
+        id,
+        tipo_mensaje,
+        COALESCE(fecha_envio, creado_en) AS fecha_referencia
+      FROM crm.mensajes
+      WHERE empresa_id = $1
+        AND conversacion_id = $2
+        AND canal = 'whatsapp'
+        AND tipo_mensaje = 'entrante'
+      ORDER BY COALESCE(fecha_envio, creado_en) DESC NULLS LAST, id DESC
+      LIMIT 1
+    `,
+    [empresaId, conversacionId]
+  );
+
+  const lastIncoming = rows[0] ?? null;
+
+  console.log("[WhatsApp Window] Último mensaje entrante", {
+    empresaId,
+    conversacionId,
+    lastIncoming,
+  });
+
+  if (!lastIncoming) {
+    console.warn("[WhatsApp Window] Ventana cerrada: no existe mensaje entrante previo", {
+      empresaId,
+      conversacionId,
+    });
+    throw new WhatsappWindowExpiredError(
+      "Este cliente no ha iniciado conversación. Debes usar una plantilla para iniciar contacto."
+    );
+  }
+
+  if (!lastIncoming.fecha_referencia) {
+    console.warn("[WhatsApp Window] Ventana cerrada: fecha inválida en último mensaje entrante", {
+      empresaId,
+      conversacionId,
+      fecha_referencia: lastIncoming.fecha_referencia,
+    });
+    throw new WhatsappWindowExpiredError(
+      "La ventana de 24 horas ha expirado. Debes usar una plantilla para reactivar la conversación."
+    );
+  }
+
+  const referenceDate = new Date(lastIncoming.fecha_referencia);
+  const referenceMs = referenceDate.getTime();
+
+  if (Number.isNaN(referenceMs)) {
+    console.warn("[WhatsApp Window] Ventana cerrada: fecha inválida en último mensaje entrante", {
+      empresaId,
+      conversacionId,
+      fecha_referencia: lastIncoming.fecha_referencia,
+    });
+    throw new WhatsappWindowExpiredError(
+      "La ventana de 24 horas ha expirado. Debes usar una plantilla para reactivar la conversación."
+    );
+  }
+
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - referenceMs) / 60000));
+  const withinWindow = elapsedMinutes <= WHATSAPP_WINDOW_MINUTES;
+
+  console.log("[WhatsApp Window] Resultado validación", {
+    empresaId,
+    conversacionId,
+    lastIncomingId: lastIncoming.id,
+    elapsedMinutes,
+    thresholdMinutes: WHATSAPP_WINDOW_MINUTES,
+    withinWindow,
+  });
+
+  if (!withinWindow) {
+    throw new WhatsappWindowExpiredError(
+      "La ventana de 24 horas ha expirado. Debes usar una plantilla para reactivar la conversación."
+    );
+  }
+}
+
+function logWhatsappSendError(context: string, error: unknown) {
+  if (error instanceof WhatsappWindowExpiredError) {
+    console.warn(`[WhatsApp Send] ${context}: ventana expirada`, {
+      code: error.code,
+      message: error.message,
+      status: error.status,
+    });
+    return;
+  }
+
+  const typedError = error as any;
+  console.error(`[WhatsApp Send] ${context}: error`, typedError?.response?.data || typedError?.message || error);
+}
 
 export const sendTextMessage = async (empresaId: number, to: string, text: string) => {
   try {
@@ -27,6 +139,8 @@ export const sendTextMessage = async (empresaId: number, to: string, text: strin
 
     const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
+
+    await validateWhatsapp24hWindow(empresaId, conversacionId);
 
     const payload = qs.stringify({
       channel: "whatsapp",
@@ -64,7 +178,7 @@ export const sendTextMessage = async (empresaId: number, to: string, text: strin
     return response.data;
 
   } catch (error: any) {
-    console.error("❌ Error enviando mensaje:", error.response?.data || error.message);
+    logWhatsappSendError("text", error);
     throw error;
   }
 };
@@ -85,6 +199,8 @@ export const sendImageMessage = async (
 
     const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
+
+    await validateWhatsapp24hWindow(empresaId, conversacionId);
 
     const payload = qs.stringify({
       channel: "whatsapp",
@@ -124,7 +240,7 @@ export const sendImageMessage = async (
 
     return response.data;
   } catch (error: any) {
-    console.error("❌ Error enviando imagen:", error.response?.data || error.message);
+    logWhatsappSendError("image", error);
     throw error;
   }
 };
@@ -145,6 +261,8 @@ export const sendDocumentMessage = async (
 
     const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
+
+    await validateWhatsapp24hWindow(empresaId, conversacionId);
 
     const payload = qs.stringify({
       channel: "whatsapp",
@@ -183,7 +301,7 @@ export const sendDocumentMessage = async (
 
     return response.data;
   } catch (error: any) {
-    console.error("❌ Error enviando documento:", error.response?.data || error.message);
+    logWhatsappSendError("document", error);
     throw error;
   }
 };
@@ -203,6 +321,8 @@ export const sendAudioMessage = async (
 
     const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
+
+    await validateWhatsapp24hWindow(empresaId, conversacionId);
 
     const payload = qs.stringify({
       channel: "whatsapp",
@@ -239,7 +359,7 @@ export const sendAudioMessage = async (
 
     return response.data;
   } catch (error: any) {
-    console.error("❌ Error enviando audio:", error.response?.data || error.message);
+    logWhatsappSendError("audio", error);
     throw error;
   }
 };

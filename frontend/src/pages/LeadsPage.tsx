@@ -19,6 +19,7 @@ import {
   Snackbar,
   Stack,
   TextField,
+  InputAdornment,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -35,9 +36,11 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import ReplyIcon from '@mui/icons-material/Reply';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch, buildAuthHeaders } from '../api/apiClient';
 import { useSession } from '../session/useSession';
 import { fetchContactos } from '../services/contactosService';
@@ -60,6 +63,7 @@ type ConversationSummary = {
   contactoId: string | null;
   telefono: string | null;
   ultimoMensaje: string | null;
+  ultimoMensajeTipo?: 'entrante' | 'saliente' | null;
   ultimoMensajeEn: string | null;
   nombre?: string | null;
   vendedor_id?: number | null;
@@ -79,6 +83,20 @@ type ConversationMessage = {
   fecha_envio: string | null;
   creado_en?: string | null;
   status: string | null;
+};
+
+type OportunidadVenta = {
+  id: number;
+  serie: string | null;
+  numero: number | null;
+  estatus: string;
+  monto_estimado: number | null;
+};
+
+type ReglasSeguimiento = {
+  tiempo_tolerancia_respuesta_a_cliente: number;
+  tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: number;
+  tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente: number;
 };
 
 type WhatsappEtiqueta = {
@@ -151,6 +169,11 @@ const nextActionOptions: NextAction[] = ['Responder', 'Llamar', 'Enviar cotizaci
 const priorityOptions: Priority[] = ['Alta', 'Media', 'Baja'];
 const etapaOptions: EtapaOportunidad[] = ['nuevo', 'contactado', 'interesado', 'cotizado', 'negociacion', 'ganado', 'perdido'];
 const REFRESH_INTERVAL_MS = 5000;
+const DEFAULT_REGLAS_SEGUIMIENTO: ReglasSeguimiento = {
+  tiempo_tolerancia_respuesta_a_cliente: 30,
+  tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: 4,
+  tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente: 24,
+};
 const etapaChipColor: Record<EtapaOportunidad, 'default' | 'info' | 'primary' | 'warning' | 'secondary' | 'success' | 'error'> = {
   nuevo: 'default',
   contactado: 'info',
@@ -191,6 +214,14 @@ function formatMinutes(min: number): string {
   return `${d}d ${h}h`;
 }
 
+function normalizeLeadSearchValue(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizeLeadPhoneValue(value: string): string {
+  return normalizeLeadSearchValue(value).replace(/[^\d+]/g, '');
+}
+
 function renderStatusIcon(status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed') {
   switch (status) {
     case 'sending':
@@ -228,7 +259,7 @@ function deriveNextAction(hasUnrepliedIncoming: boolean): NextAction {
   return hasUnrepliedIncoming ? 'Responder' : 'Responder';
 }
 
-function deriveLeadState(lead: Lead): {
+function deriveLeadState(lead: Lead, reglasSeguimiento: ReglasSeguimiento = DEFAULT_REGLAS_SEGUIMIENTO): {
   awaitingResponse: boolean;
   statusLabel: string;
   statusType: LeadStatusType;
@@ -253,20 +284,28 @@ function deriveLeadState(lead: Lead): {
 
   const statusLabel = awaitingResponse ? 'Sin responder' : 'Esperando cliente';
   const statusType: LeadStatusType = awaitingResponse ? 'attention' : 'waiting';
+  const toleranciaRespuestaMin = reglasSeguimiento.tiempo_tolerancia_respuesta_a_cliente;
+  const seguimientoDespuesRespuestaMin = reglasSeguimiento.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente * 60;
+  const maxSinRespuestaMin = reglasSeguimiento.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente * 60;
   const priority: Priority = awaitingResponse
-    ? idleMinutes > 30
+    ? idleMinutes > toleranciaRespuestaMin
       ? 'Alta'
       : 'Media'
-    : 'Baja';
+    : idleMinutes > maxSinRespuestaMin
+      ? 'Alta'
+      : idleMinutes > seguimientoDespuesRespuestaMin
+        ? 'Media'
+        : 'Baja';
   const nextAction = deriveNextAction(awaitingResponse);
-  const within24hWindow = lastFrom === 'lead'
+  const baseWithin24hWindow = lastFrom === 'lead'
     ? idleMinutes <= 1440
     : lastFrom === 'me'
       ? true
       : idleMinutes <= 1440;
   const windowExpiresInMinutes = Math.max(0, 1440 - idleMinutes);
+  const within24hWindow = baseWithin24hWindow && windowExpiresInMinutes > 0;
   const canSendFreeMessage = within24hWindow;
-  const requiresTemplate = !within24hWindow;
+  const requiresTemplate = !within24hWindow || windowExpiresInMinutes <= 0;
 
   return {
     awaitingResponse,
@@ -339,8 +378,8 @@ const buildLeadOwnerLabel = (
   return 'Sin asignar';
 };
 
-function applyDerivedLeadState(lead: Lead): Lead {
-  const derived = deriveLeadState(lead);
+function applyDerivedLeadState(lead: Lead, reglasSeguimiento: ReglasSeguimiento = DEFAULT_REGLAS_SEGUIMIENTO): Lead {
+  const derived = deriveLeadState(lead, reglasSeguimiento);
   return {
     ...lead,
     ...derived,
@@ -355,6 +394,20 @@ const getLatestTimestamp = (messages: ConversationMessage[]): string | null => {
 };
 
 type ConversationView = Lead['conversation'][number];
+
+const filterWhatsappMessages = (messages: ConversationMessage[]): ConversationMessage[] => (
+  messages.filter((msg) => msg.canal === 'whatsapp')
+);
+
+const getLastWhatsappPreview = (conversation: ConversationView[]): { text: string; sentAt: string | null } | null => {
+  const last = conversation[conversation.length - 1];
+  if (!last) return null;
+
+  return {
+    text: last.text || '',
+    sentAt: last.sentAt ?? null,
+  };
+};
 
 const mapMessages = (messages: ConversationMessage[]): ConversationView[] => messages.map((msg) => {
   const sentAt = msg.fecha_envio || msg.creado_en || null;
@@ -382,6 +435,7 @@ const mapMessages = (messages: ConversationMessage[]): ConversationView[] => mes
 
 export default function LeadsPage() {
   const { session } = useSession();
+  const navigate = useNavigate();
   const [conversations, setConversations] = React.useState<ConversationSummary[]>([]);
   const [leads, setLeads] = React.useState<Lead[]>([]);
   const [selectedLeadId, setSelectedLeadId] = React.useState<string>('');
@@ -403,6 +457,11 @@ export default function LeadsPage() {
   const [isSendingTemplate, setIsSendingTemplate] = React.useState(false);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = React.useState(false);
   const [sendSuccess, setSendSuccess] = React.useState(false);
+  const [reglasSeguimiento, setReglasSeguimiento] = React.useState<ReglasSeguimiento>(DEFAULT_REGLAS_SEGUIMIENTO);
+  const [oportunidades, setOportunidades] = React.useState<OportunidadVenta[]>([]);
+  const [isLoadingOportunidades, setIsLoadingOportunidades] = React.useState(false);
+  const [oportunidadesError, setOportunidadesError] = React.useState<string | null>(null);
+  const [oportunidadesOpen, setOportunidadesOpen] = React.useState(true);
   const [testResults, setTestResults] = React.useState<Array<{ titulo: string; mensaje: string }>>([]);
   const [etapaMenu, setEtapaMenu] = React.useState<{ leadId: string; anchorEl: HTMLElement | null } | null>(null);
   const [availableTags, setAvailableTags] = React.useState<WhatsappEtiqueta[]>([]);
@@ -413,6 +472,7 @@ export default function LeadsPage() {
   const [newTagName, setNewTagName] = React.useState('');
   const [newTagColor, setNewTagColor] = React.useState('#25D366');
   const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
+  const [searchTerm, setSearchTerm] = React.useState('');
   const [leadScope, setLeadScope] = React.useState<LeadScope>('todos');
   const [scopeTouched, setScopeTouched] = React.useState(false);
   const [isAdmin, setIsAdmin] = React.useState(Boolean(session.user?.es_superadmin));
@@ -444,6 +504,27 @@ export default function LeadsPage() {
   const lastSelectedLeadIdRef = React.useRef<string | null>(null);
   const [isAtBottom, setIsAtBottom] = React.useState(true);
   const renderCountRef = React.useRef(0);
+  const leadFilterSelectSx = {
+    flex: 1,
+    minWidth: 220,
+    '& .MuiInputLabel-root': {
+      fontSize: 16,
+    },
+    '& .MuiOutlinedInput-root': {
+      minHeight: 40,
+      fontSize: 16,
+    },
+    '& .MuiSelect-select': {
+      display: 'flex',
+      alignItems: 'center',
+      fontSize: 16,
+      paddingTop: '8.5px',
+      paddingBottom: '8.5px',
+      paddingLeft: '14px',
+      paddingRight: '32px',
+      boxSizing: 'border-box',
+    },
+  } as const;
 
   renderCountRef.current += 1;
   console.log('[LeadsPage] render', {
@@ -586,10 +667,26 @@ export default function LeadsPage() {
       }
     });
 
-    const sorted = [...filtered].sort(ordenarLeads);
-    console.log('[leads filtrados/ordenados]', { filtro: leadFilter, total: sorted.length, ids: sorted.map((l) => l.id) });
+    const normalizedSearchTerm = normalizeLeadSearchValue(searchTerm);
+    const normalizedPhoneSearchTerm = normalizeLeadPhoneValue(searchTerm);
+    const filteredBySearch = normalizedSearchTerm
+      ? filtered.filter((lead) => {
+          const nombre = normalizeLeadSearchValue(lead.name || '');
+          const telefono = normalizeLeadPhoneValue(lead.phone || '');
+          return nombre.includes(normalizedSearchTerm)
+            || (normalizedPhoneSearchTerm ? telefono.includes(normalizedPhoneSearchTerm) : false);
+        })
+      : filtered;
+
+    const sorted = [...filteredBySearch].sort(ordenarLeads);
+    console.log('[leads filtrados/ordenados]', {
+      filtro: leadFilter,
+      searchTerm: normalizedSearchTerm,
+      total: sorted.length,
+      ids: sorted.map((l) => l.id),
+    });
     return sorted;
-  }, [leadFilter, leadsConPrioridad]);
+  }, [leadFilter, leadsConPrioridad, searchTerm]);
 
   React.useEffect(() => {
     console.log('[LeadsPage] leadsConPrioridad updated', {
@@ -632,33 +729,38 @@ export default function LeadsPage() {
 
   const buildLeadFromConversation = React.useCallback((conv: ConversationSummary): Lead => {
     const idle = minutesSince(conv.ultimoMensajeEn);
+    const awaitingResponse = conv.ultimoMensajeTipo === 'saliente'
+      ? false
+      : conv.ultimoMensajeTipo === 'entrante'
+        ? true
+        : true;
     const baseLead: Lead = {
       id: conv.id,
       name: conv.nombre?.trim() || conv.telefono || 'WhatsApp',
       phone: conv.telefono || '',
-      lastMessage: conv.ultimoMensaje || '',
+      lastMessage: '',
       lastMessageTimeMinutesAgo: idle,
       idleMinutes: idle,
-      awaitingResponse: true,
-      statusLabel: 'Sin responder',
-      statusType: 'attention',
-  within24hWindow: true,
-  windowExpiresInMinutes: 1440,
-  canSendFreeMessage: true,
-  requiresTemplate: false,
+      awaitingResponse,
+      statusLabel: awaitingResponse ? 'Sin responder' : 'Esperando cliente',
+      statusType: awaitingResponse ? 'attention' : 'waiting',
+      within24hWindow: true,
+      windowExpiresInMinutes: 1440,
+      canSendFreeMessage: true,
+      requiresTemplate: false,
       conversation: [],
       contactoId: conv.contactoId,
       vendedor_id: conv.vendedor_id ?? null,
       ultimoMensajeEn: conv.ultimoMensajeEn,
-      priority: 'Media',
-      nextAction: deriveNextAction(true),
+      priority: awaitingResponse ? 'Media' : 'Baja',
+      nextAction: deriveNextAction(awaitingResponse),
       owner: 'WhatsApp',
       hot: false,
       etapa_oportunidad: conv.etapa_oportunidad ?? 'nuevo',
       tags: conv.tags ?? [],
     };
-    return applyDerivedLeadState(baseLead);
-  }, []);
+    return applyDerivedLeadState(baseLead, reglasSeguimiento);
+  }, [reglasSeguimiento]);
 
   const loadConversations = React.useCallback(async (opts?: { incremental?: boolean }) => {
     const incremental = opts?.incremental ?? false;
@@ -740,8 +842,32 @@ export default function LeadsPage() {
             return prev;
           }
 
-          const initialLeads = data.map(buildLeadFromConversation);
-          console.log('[LeadsPage] setLeads replace', { count: initialLeads.length });
+          const previousById = new Map(prev.map((lead) => [lead.id, lead] as const));
+          const initialLeads = data.map((conv) => {
+            const existing = previousById.get(conv.id);
+            const baseLead = buildLeadFromConversation(conv);
+
+            if (!existing) {
+              return baseLead;
+            }
+
+            const whatsappPreview = getLastWhatsappPreview(existing.conversation);
+
+            return applyDerivedLeadState({
+              ...existing,
+              ...baseLead,
+              lastMessage: whatsappPreview?.text ?? '',
+              lastMessageTimeMinutesAgo: whatsappPreview?.sentAt
+                ? minutesSince(whatsappPreview.sentAt)
+                : baseLead.lastMessageTimeMinutesAgo,
+              ultimoMensajeEn: whatsappPreview?.sentAt ?? baseLead.ultimoMensajeEn,
+              conversation: existing.conversation,
+            }, reglasSeguimiento);
+          });
+          console.log('[LeadsPage] setLeads replace', {
+            count: initialLeads.length,
+            preservedConversations: initialLeads.filter((lead) => lead.conversation.length > 0).length,
+          });
           const firstId = initialLeads[0]?.id;
           if (firstId) {
             setSelectedLeadId((current) => current || firstId);
@@ -753,20 +879,23 @@ export default function LeadsPage() {
 
         data.forEach((conv) => {
           const existing = map.get(conv.id);
-          const idle = minutesSince(conv.ultimoMensajeEn);
 
           if (existing) {
+            const whatsappPreview = getLastWhatsappPreview(existing.conversation);
             const updatedLead = {
               ...existing,
               name: conv.nombre?.trim() || conv.telefono || existing.name,
               phone: conv.telefono || existing.phone,
-              lastMessage: conv.ultimoMensaje ?? existing.lastMessage,
-              ultimoMensajeEn: conv.ultimoMensajeEn,
+              lastMessage: whatsappPreview?.text ?? '',
+              lastMessageTimeMinutesAgo: whatsappPreview?.sentAt
+                ? minutesSince(whatsappPreview.sentAt)
+                : existing.lastMessageTimeMinutesAgo,
+              ultimoMensajeEn: whatsappPreview?.sentAt ?? existing.ultimoMensajeEn,
               vendedor_id: conv.vendedor_id ?? existing.vendedor_id,
               etapa_oportunidad: conv.etapa_oportunidad ?? existing.etapa_oportunidad,
               tags: conv.tags ?? existing.tags ?? [],
             };
-            map.set(conv.id, applyDerivedLeadState(updatedLead));
+            map.set(conv.id, applyDerivedLeadState(updatedLead, reglasSeguimiento));
           } else {
             map.set(conv.id, buildLeadFromConversation(conv));
           }
@@ -796,7 +925,7 @@ export default function LeadsPage() {
         isFilterTransitionRef.current = false;
       }
     }
-  }, [buildLeadFromConversation, isAdmin, leadScope, selectedLeadId, selectedTagIds, vendedorContactoId, vendedorFilterId]);
+  }, [buildLeadFromConversation, isAdmin, leadScope, reglasSeguimiento, selectedLeadId, selectedTagIds, vendedorContactoId, vendedorFilterId]);
 
   const loadMessages = React.useCallback(async (
     conversationId: string,
@@ -819,20 +948,22 @@ export default function LeadsPage() {
         throw new Error('Error al obtener mensajes');
       }
       const data: ConversationMessage[] = await response.json();
+      const whatsappMessages = filterWhatsappMessages(data);
       console.log('[LeadsPage] loadMessages response', {
         conversationId,
         append,
         silent,
         count: data.length,
+        whatsappCount: whatsappMessages.length,
         sinceParam,
         lastTipo: data[data.length - 1]?.tipo_mensaje,
       });
 
-      if (append && data.length === 0) {
+      if (append && whatsappMessages.length === 0) {
         return;
       }
 
-      const lastMsg = data[data.length - 1];
+      const lastMsg = whatsappMessages[whatsappMessages.length - 1];
       const lastSentAt = lastMsg?.fecha_envio ?? lastMsg?.creado_en ?? null;
       const idleMinutes = minutesSince(lastSentAt);
       const awaitingResponse = lastMsg?.tipo_mensaje === 'entrante';
@@ -842,11 +973,12 @@ export default function LeadsPage() {
       setLeads((prev) => prev.map((l) => {
         if (l.id !== conversationId) return l;
 
+        const shouldMergeConversation = append || l.conversation.length > 0;
         const baseConversation = append
           ? l.conversation.filter((m) => !(m.tempId && m.status === 'sent'))
           : l.conversation;
-        const mappedNew = mapMessages(data);
-        const mergedConversation = append
+        const mappedNew = mapMessages(whatsappMessages);
+        const mergedConversation = shouldMergeConversation
           ? Array.from(mappedNew.reduce((map, message) => {
             const existing = map.get(message.id);
             map.set(message.id, existing ? { ...existing, ...message } : message);
@@ -865,7 +997,7 @@ export default function LeadsPage() {
           conversation: mergedConversation,
         };
 
-  const recalculated = applyDerivedLeadState(updatedLead);
+      const recalculated = applyDerivedLeadState(updatedLead, reglasSeguimiento);
         console.log('[LeadsPage] setLeads from messages', {
           id: recalculated.id,
           awaitingResponse: recalculated.awaitingResponse,
@@ -889,7 +1021,7 @@ export default function LeadsPage() {
         setIsLoadingMessages(false);
       }
     }
-  }, []);
+  }, [reglasSeguimiento]);
 
   const focusReplyInput = () => {
     requestAnimationFrame(() => quickReplyRef.current?.focus());
@@ -898,6 +1030,11 @@ export default function LeadsPage() {
   const handleReplyAction = (leadId: string) => {
     setSelectedLeadId(leadId);
     focusReplyInput();
+  };
+
+  const handleGenerarCotizacion = () => {
+    if (!selectedContactoId) return;
+    navigate(`/ventas/cotizacion/nuevo?contactoId=${selectedContactoId}&conversacionId=${selectedLead.id}`);
   };
 
   const loadAvailableTags = React.useCallback(async () => {
@@ -910,6 +1047,25 @@ export default function LeadsPage() {
       setAvailableTags(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error cargando etiquetas:', error);
+    }
+  }, []);
+
+  const loadReglasSeguimiento = React.useCallback(async () => {
+    try {
+      const response = await apiFetch('/api/whatsapp/reglas-seguimiento');
+      if (!response.ok) {
+        throw new Error('Error al obtener reglas de seguimiento');
+      }
+
+      const data = await response.json();
+      setReglasSeguimiento({
+        tiempo_tolerancia_respuesta_a_cliente: Number(data?.tiempo_tolerancia_respuesta_a_cliente) || DEFAULT_REGLAS_SEGUIMIENTO.tiempo_tolerancia_respuesta_a_cliente,
+        tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: Number(data?.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente) || DEFAULT_REGLAS_SEGUIMIENTO.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente,
+        tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente: Number(data?.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente) || DEFAULT_REGLAS_SEGUIMIENTO.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente,
+      });
+    } catch (error) {
+      console.error('Error cargando reglas de seguimiento:', error);
+      setReglasSeguimiento(DEFAULT_REGLAS_SEGUIMIENTO);
     }
   }, []);
 
@@ -972,9 +1128,9 @@ export default function LeadsPage() {
       const updatedLead = {
         ...l,
       };
-      return applyDerivedLeadState(updatedLead);
+      return applyDerivedLeadState(updatedLead, reglasSeguimiento);
     }));
-  }, []);
+  }, [reglasSeguimiento]);
 
   React.useEffect(() => {
     console.log('[LeadsPage] useEffect(loadConversations) init');
@@ -987,7 +1143,12 @@ export default function LeadsPage() {
   React.useEffect(() => {
     if (!session.token || !session.empresaActivaId) return;
     loadAvailableTags();
-  }, [loadAvailableTags, session.empresaActivaId, session.token]);
+    loadReglasSeguimiento();
+  }, [loadAvailableTags, loadReglasSeguimiento, session.empresaActivaId, session.token]);
+
+  React.useEffect(() => {
+    setLeads((prev) => prev.map((lead) => applyDerivedLeadState(lead, reglasSeguimiento)));
+  }, [reglasSeguimiento]);
 
   React.useEffect(() => {
     if (!selectedLeadId) {
@@ -1002,6 +1163,46 @@ export default function LeadsPage() {
       loadMessages(selectedLeadId);
     }
   }, [loadMessages, selectedLeadId]);
+
+  React.useEffect(() => {
+    if (!selectedLead?.id) {
+      setOportunidades([]);
+      setOportunidadesError(null);
+      return;
+    }
+
+    let active = true;
+
+    const loadOportunidades = async () => {
+      try {
+        setIsLoadingOportunidades(true);
+        setOportunidadesError(null);
+        const response = await apiFetch(`/api/crm/oportunidades?conversacionId=${encodeURIComponent(selectedLead.id)}`);
+        if (!response.ok) {
+          throw new Error('No se pudieron cargar las oportunidades');
+        }
+
+        const data: OportunidadVenta[] = await response.json();
+        if (!active) return;
+        setOportunidades(Array.isArray(data) ? data : []);
+      } catch (error) {
+        if (!active) return;
+        console.error('Error cargando oportunidades:', error);
+        setOportunidades([]);
+        setOportunidadesError(error instanceof Error ? error.message : 'No se pudieron cargar las oportunidades');
+      } finally {
+        if (active) {
+          setIsLoadingOportunidades(false);
+        }
+      }
+    };
+
+    void loadOportunidades();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedLead?.id]);
 
   React.useEffect(() => {
     const interval = setInterval(() => {
@@ -1059,7 +1260,7 @@ export default function LeadsPage() {
 
   const updateLead = (id: string, updates: Partial<Lead>) => {
     console.log('[LeadsPage] updateLead', { id, updates });
-    setLeads((prev) => prev.map((l) => (l.id === id ? applyDerivedLeadState({ ...l, ...updates }) : l)));
+    setLeads((prev) => prev.map((l) => (l.id === id ? applyDerivedLeadState({ ...l, ...updates }, reglasSeguimiento) : l)));
   };
 
   const updateMessageStatus = (leadId: string, tempId: string, status: 'sending' | 'sent' | 'failed') => {
@@ -1068,7 +1269,7 @@ export default function LeadsPage() {
       const updatedConversation = lead.conversation.map((msg) => (
         msg.tempId === tempId ? { ...msg, status } : msg
       ));
-      return applyDerivedLeadState({ ...lead, conversation: updatedConversation });
+      return applyDerivedLeadState({ ...lead, conversation: updatedConversation }, reglasSeguimiento);
     }));
   };
 
@@ -1714,11 +1915,31 @@ export default function LeadsPage() {
   const followUpLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes >= 60 && l.idleMinutes <= 180);
   const newLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes < 60);
 
-  const attentionNow = leadsFiltradosOrdenados.filter((l) => l.awaitingResponse || l.idleMinutes >= 60);
-  const otherLeads = leadsFiltradosOrdenados.filter((l) => !attentionNow.includes(l));
+  const leadsRiesgo = leadsFiltradosOrdenados.filter((l) => l.computedPriority === 'Alta');
+  const leadsSeguimiento = leadsFiltradosOrdenados.filter((l) => l.computedPriority === 'Media');
+  const leadsActividad = leadsFiltradosOrdenados.filter((l) => l.computedPriority === 'Baja');
+  const toleranciaRespuestaMin = reglasSeguimiento.tiempo_tolerancia_respuesta_a_cliente;
+  const seguimientoDespuesRespuestaHoras = reglasSeguimiento.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente;
+  const maxSinRespuestaHoras = reglasSeguimiento.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente;
+  const riesgoTooltip = (
+    <>
+      <Typography variant="body2">Si cliente escribió: Más de {toleranciaRespuestaMin} minutos sin responder</Typography>
+      <Typography variant="body2">Si vendedor escribió: Más de {maxSinRespuestaHoras} horas sin respuesta del cliente</Typography>
+    </>
+  );
+  const seguimientoTooltip = (
+    <>
+      <Typography variant="body2">Si cliente escribió: Menos de {toleranciaRespuestaMin} minutos sin responder</Typography>
+      <Typography variant="body2">Si vendedor escribió: Entre {seguimientoDespuesRespuestaHoras} y {maxSinRespuestaHoras} horas sin respuesta</Typography>
+    </>
+  );
+  const actividadTooltip = (
+    <Typography variant="body2">Menos de {seguimientoDespuesRespuestaHoras} horas desde el último mensaje</Typography>
+  );
   console.log('[LeadsPage] list sections', {
-    attentionNow: attentionNow.map((l) => l.id),
-    otherLeads: otherLeads.map((l) => l.id),
+    riesgo: leadsRiesgo.map((l) => l.id),
+    seguimiento: leadsSeguimiento.map((l) => l.id),
+    actividad: leadsActividad.map((l) => l.id),
   });
 
   const renderLeadCard = (lead: LeadConPrioridad) => {
@@ -1816,9 +2037,9 @@ export default function LeadsPage() {
               <Typography variant="caption">{lead.owner}</Typography>
               <Typography variant="caption" color="text.disabled">·</Typography>
               <Typography variant="caption">
-                {requiresAttention
+                {lead.awaitingResponse
                   ? `${formatMinutesAgo(lead.lastMessageTimeMinutesAgo)} sin responder`
-                  : lead.statusLabel}
+                  : `${formatMinutesAgo(lead.lastMessageTimeMinutesAgo)} esperando respuesta`}
               </Typography>
               <Typography variant="caption" color="text.disabled">·</Typography>
               <Chip
@@ -1984,6 +2205,28 @@ export default function LeadsPage() {
             <Chip label={`${leadsFiltradosOrdenados.length} visibles`} size="small" sx={{ ml: 1.5, flexShrink: 0 }} />
           </Box>
 
+          <TextField
+            size="small"
+            placeholder="Buscar nombre o teléfono"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            fullWidth
+            InputProps={{
+              endAdornment: searchTerm ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    edge="end"
+                    aria-label="Limpiar búsqueda"
+                    onClick={() => setSearchTerm('')}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : undefined,
+            }}
+          />
+
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             {isAdmin && (
               <TextField
@@ -1996,7 +2239,7 @@ export default function LeadsPage() {
                   setVendedorFilterId(value ? Number(value) : null);
                 }}
                 SelectProps={{ MenuProps: leadSelectMenuProps }}
-                sx={{ minWidth: 220 }}
+                sx={leadFilterSelectSx}
                 disabled={leadScope === 'mis'}
               >
                 <MenuItem value="">Todos los vendedores</MenuItem>
@@ -2042,15 +2285,7 @@ export default function LeadsPage() {
                 MenuProps: leadSelectMenuProps,
               }}
               inputProps={{ 'aria-label': 'Etiquetas' }}
-              sx={{
-                minWidth: 240,
-                '& .MuiSelect-select': {
-                  display: 'flex',
-                  alignItems: 'center',
-                  paddingTop: '18px',
-                  paddingBottom: '6px',
-                },
-              }}
+              sx={leadFilterSelectSx}
               disabled={availableTags.length === 0}
             >
               {availableTags.length === 0 ? (
@@ -2128,7 +2363,9 @@ export default function LeadsPage() {
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }}>
               <AccessTimeIcon fontSize="small" />
-              <Typography variant="body2">Requieren atención: {attentionNow.length}</Typography>
+              <Typography variant="body2">Riesgo: {leadsRiesgo.length}</Typography>
+              <Typography variant="body2" color="text.disabled">· Seguimiento: {leadsSeguimiento.length}</Typography>
+              <Typography variant="body2" color="text.disabled">· Actividad reciente: {leadsActividad.length}</Typography>
               <Typography variant="body2" color="text.disabled">· Visibles: {leadsFiltradosOrdenados.length}</Typography>
             </Stack>
           </Box>
@@ -2136,27 +2373,56 @@ export default function LeadsPage() {
           {/* Columna central: lista de leads */}
           <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, flex: 1 }}>
             <Stack spacing={1.5} sx={{ overflow: 'auto', pr: 0.5 }}>
-              <Stack spacing={0.5}>
-                <List disablePadding>
-                  {attentionNow.length > 0 ? attentionNow.map(renderLeadCard) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ px: 1 }}>
-                      Sin leads urgentes.
-                    </Typography>
+              {leadsFiltradosOrdenados.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ px: 1 }}>
+                  No hay más leads en cola.
+                </Typography>
+              ) : (
+                <>
+                  {leadsRiesgo.length > 0 && (
+                    <Stack spacing={0.5}>
+                      <Tooltip title={riesgoTooltip} arrow>
+                        <Typography variant="subtitle2" fontWeight={700} color="error.main" sx={{ px: 1 }}>
+                          🔴 Riesgo de perder
+                        </Typography>
+                      </Tooltip>
+                      <List disablePadding>
+                        {leadsRiesgo.map(renderLeadCard)}
+                      </List>
+                    </Stack>
                   )}
-                </List>
-              </Stack>
 
-              <Divider />
+                  {leadsRiesgo.length > 0 && (leadsSeguimiento.length > 0 || leadsActividad.length > 0) && <Divider />}
 
-              <Stack spacing={0.5}>
-                <List disablePadding>
-                  {otherLeads.length > 0 ? otherLeads.map(renderLeadCard) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ px: 1 }}>
-                      No hay más leads en cola.
-                    </Typography>
+                  {leadsSeguimiento.length > 0 && (
+                    <Stack spacing={0.5}>
+                      <Tooltip title={seguimientoTooltip} arrow>
+                        <Typography variant="subtitle2" fontWeight={700} color="warning.main" sx={{ px: 1 }}>
+                          🟡 Requiere seguimiento
+                        </Typography>
+                      </Tooltip>
+                      <List disablePadding>
+                        {leadsSeguimiento.map(renderLeadCard)}
+                      </List>
+                    </Stack>
                   )}
-                </List>
-              </Stack>
+
+                  {leadsSeguimiento.length > 0 && leadsActividad.length > 0 && <Divider />}
+
+                  {leadsActividad.length > 0 && (
+                    <Stack spacing={0.5}>
+                      <Tooltip title={actividadTooltip} arrow>
+                        <Typography variant="subtitle2" fontWeight={700} color="success.main" sx={{ px: 1 }}>
+                          🟢 Actividad reciente
+                        </Typography>
+                      </Tooltip>
+                      <List disablePadding>
+                        {leadsActividad.map(renderLeadCard)}
+                      </List>
+                    </Stack>
+                  )}
+                </>
+              )}
             </Stack>
           </Paper>
         </Box>
@@ -2186,7 +2452,7 @@ export default function LeadsPage() {
             <>
             <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
               <Box>
-                <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" sx={{ mb: 1.5 }}>
                   <Typography variant="h6" fontWeight={700}>
                     {selectedLead.name}
                   </Typography>
@@ -2315,7 +2581,9 @@ export default function LeadsPage() {
                   </Stack>
                   {(() => {
                     const expiresIn = selectedLead.windowExpiresInMinutes;
-                    const windowState = selectedLead.within24hWindow
+                    const windowState = selectedLead.requiresTemplate || expiresIn <= 0
+                      ? 'closed'
+                      : selectedLead.within24hWindow
                       ? expiresIn <= 120
                         ? 'warning'
                         : 'open'
@@ -2450,10 +2718,84 @@ export default function LeadsPage() {
                     >
                       {isSendingTemplate ? 'Reactivando…' : 'Reactivar conversación'}
                     </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<DescriptionIcon />}
+                      onClick={handleGenerarCotizacion}
+                      disabled={!selectedContactoId}
+                      sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
+                    >
+                      Generar cotización
+                    </Button>
                     <Button variant="outlined" size="small" startIcon={<CheckCircleIcon />}>Marcar cotizado</Button>
                     <Button variant="outlined" size="small" color="error">Cerrar / Perdido</Button>
                   </Stack>
                 </Stack>
+              </Paper>
+
+              <Paper variant="outlined" sx={{ p: 1.5 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    Oportunidades
+                  </Typography>
+                  <Button size="small" variant="text" onClick={() => setOportunidadesOpen((prev) => !prev)}>
+                    {oportunidadesOpen ? 'Ocultar' : 'Mostrar'}
+                  </Button>
+                </Stack>
+
+                {oportunidadesOpen && (
+                  <Stack spacing={1} sx={{ mt: 1.25 }}>
+                    {isLoadingOportunidades && (
+                      <Typography variant="body2" color="text.secondary">
+                        Cargando oportunidades...
+                      </Typography>
+                    )}
+
+                    {!isLoadingOportunidades && oportunidadesError && (
+                      <Alert severity="error">{oportunidadesError}</Alert>
+                    )}
+
+                    {!isLoadingOportunidades && !oportunidadesError && oportunidades.length === 0 && (
+                      <Typography variant="body2" color="text.secondary">
+                        Sin oportunidades asociadas.
+                      </Typography>
+                    )}
+
+                    {!isLoadingOportunidades && !oportunidadesError && oportunidades.map((oportunidad) => {
+                      const folio = oportunidad.serie && oportunidad.numero !== null
+                        ? `${oportunidad.serie}-${oportunidad.numero}`
+                        : oportunidad.serie
+                          ? oportunidad.serie
+                          : oportunidad.numero !== null
+                            ? String(oportunidad.numero)
+                            : 'Sin folio';
+
+                      return (
+                        <Box
+                          key={oportunidad.id}
+                          sx={{
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                            px: 1.25,
+                            py: 1,
+                          }}
+                        >
+                          <Typography variant="body2" fontWeight={700}>
+                            Folio: {folio}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Estatus: {oportunidad.estatus}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Monto estimado: {Number(oportunidad.monto_estimado ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                )}
               </Paper>
 
               <Dialog

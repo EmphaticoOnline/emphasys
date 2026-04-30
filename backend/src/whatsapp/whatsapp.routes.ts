@@ -3,6 +3,7 @@ import {
 	enviarWhatsapp,
 	whatsappWebhook,
 	listarConversacionesWhatsapp,
+	obtenerReglasSeguimientoWhatsapp,
 	obtenerConversacionWhatsapp,
 	actualizarEtapaConversacion,
 	enviarWhatsappPlantilla,
@@ -23,6 +24,7 @@ router.post("/webhook", whatsappWebhook);
 router.post("/enviar-mensaje", requireAuth, requireEmpresaActiva, enviarWhatsapp);
 router.post("/enviar-plantilla", requireAuth, requireEmpresaActiva, enviarWhatsappPlantilla);
 router.get("/conversaciones", requireAuth, requireEmpresaActiva, listarConversacionesWhatsapp);
+router.get("/reglas-seguimiento", requireAuth, requireEmpresaActiva, obtenerReglasSeguimientoWhatsapp);
 router.get("/conversacion/:id", requireAuth, requireEmpresaActiva, obtenerConversacionWhatsapp);
 router.patch("/conversaciones/:id/etapa", requireAuth, requireEmpresaActiva, actualizarEtapaConversacion);
 router.get("/etiquetas", requireAuth, requireEmpresaActiva, listarEtiquetasWhatsapp);

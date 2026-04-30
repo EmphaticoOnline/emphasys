@@ -8,6 +8,7 @@ import {
   enviarWhatsapp as enviarWhatsappHandler,
   enviarWhatsappPlantilla as enviarWhatsappPlantillaHandler,
   listarConversacionesWhatsapp as listarConversacionesWhatsappHandler,
+  obtenerReglasSeguimientoWhatsapp as obtenerReglasSeguimientoWhatsappHandler,
   listarEtiquetasConversacionWhatsapp as listarEtiquetasConversacionWhatsappHandler,
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappHandler,
   obtenerConversacionWhatsapp as obtenerConversacionWhatsappHandler,
@@ -20,6 +21,8 @@ export const whatsappWebhook = async (req: Request, res: Response) => whatsappWe
 export const enviarWhatsapp = async (req: Request, res: Response) => enviarWhatsappHandler(req, res);
 
 export const listarConversacionesWhatsapp = async (req: Request, res: Response) => listarConversacionesWhatsappHandler(req, res);
+
+export const obtenerReglasSeguimientoWhatsapp = async (req: Request, res: Response) => obtenerReglasSeguimientoWhatsappHandler(req, res);
 
 export const obtenerConversacionWhatsapp = async (req: Request, res: Response) => obtenerConversacionWhatsappHandler(req, res);
 

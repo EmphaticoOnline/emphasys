@@ -6,6 +6,7 @@ import {
   sendImageMessage,
   sendTemplateMessage,
   sendTextMessage,
+  WhatsappWindowExpiredError,
 } from "../whatsapp/whatsapp.service";
 import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
@@ -23,6 +24,7 @@ import {
 } from "../whatsapp/whatsapp-tags.repository";
 import {
   actualizarConversacionEntranteWhatsapp,
+  getReglasSeguimiento,
   getOrCreateConversacionWhatsapp,
   getOrCreateWhatsappContacto,
   registrarMensajeEntranteWhatsapp,
@@ -569,6 +571,11 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "tipo de mensaje no soportado" });
   } catch (error) {
     console.error("Error al enviar mensaje de WhatsApp:", error);
+
+    if (error instanceof WhatsappWindowExpiredError) {
+      return res.status(error.status).json({ message: error.message });
+    }
+
     return res.status(500).json({ message: "No se pudo enviar el mensaje" });
   }
 };
@@ -646,11 +653,12 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
         ct.vendedor_id AS "vendedor_id",
         c.etapa_oportunidad,
         lm.contenido AS "ultimoMensaje",
+        lm.tipo_mensaje AS "ultimoMensajeTipo",
         lm.fecha_envio AS "ultimoMensajeEn"
       FROM crm.conversaciones c
       LEFT JOIN public.contactos ct ON ct.id = c.contacto_id
       LEFT JOIN LATERAL (
-        SELECT m.telefono, m.contenido, m.fecha_envio
+        SELECT m.telefono, m.contenido, m.fecha_envio, m.tipo_mensaje
         FROM crm.mensajes m
         WHERE m.conversacion_id = c.id
         ORDER BY m.fecha_envio DESC NULLS LAST, m.creado_en DESC NULLS LAST
@@ -666,6 +674,22 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
   } catch (error) {
     console.error("Error listando conversaciones de WhatsApp:", error);
     return res.status(500).json({ message: "No se pudieron obtener las conversaciones" });
+  }
+};
+
+export const obtenerReglasSeguimientoWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    const reglas = await getReglasSeguimiento(Number(empresaId));
+    return res.status(200).json(reglas);
+  } catch (error) {
+    console.error("Error obteniendo reglas de seguimiento de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudieron obtener las reglas de seguimiento" });
   }
 };
 

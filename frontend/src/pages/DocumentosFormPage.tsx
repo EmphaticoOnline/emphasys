@@ -245,6 +245,16 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     const params = new URLSearchParams(location.search);
     return params.get('abrirPagos') === '1';
   }, [location.search]);
+  const prefillContactoId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const rawContactoId = params.get('contactoId');
+    const parsedContactoId = rawContactoId ? Number(rawContactoId) : NaN;
+    return Number.isFinite(parsedContactoId) ? parsedContactoId : null;
+  }, [location.search]);
+  const conversacionId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('conversacionId');
+  }, [location.search]);
 
   const camposDocumento = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_DOCUMENTO, tipoDocumento });
   const camposPartida = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_PARTIDA, tipoDocumento });
@@ -884,7 +894,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     }
     try {
       setSaving(true);
-      const payload: CotizacionCrearPayload = {
+      const payload: CotizacionCrearPayload & { conversacion_id: number | null } = {
         ...form,
         tipo_documento: tipoDocumento,
         serie: form.serie?.trim() || null,
@@ -892,6 +902,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         iva: form.iva || 0,
         total: form.total || 0,
         empresa_id: getEmpresaActivaId(),
+        conversacion_id: conversacionId ? Number(conversacionId) : null,
         usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
           estado_seguimiento: isCotizacion ? (form.estado_seguimiento ?? DEFAULT_ESTADO_SEGUIMIENTO) : null,
   tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : 'normal',
@@ -1069,6 +1080,18 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       agente_id: prev.agente_id ?? value?.vendedor_id ?? null,
     }));
   };
+
+  useEffect(() => {
+    if (isEdit) return;
+    if (!prefillContactoId) return;
+    if (form.contacto_principal_id) return;
+    if (!contactos.length) return;
+
+    const contacto = contactos.find((item) => item.id === prefillContactoId) ?? null;
+    if (!contacto) return;
+
+    handleClienteSelect(contacto);
+  }, [contactos, form.contacto_principal_id, handleClienteSelect, isEdit, prefillContactoId]);
 
   const cargarDatosFiscalesContacto = async (contactoId: number) => {
     try {

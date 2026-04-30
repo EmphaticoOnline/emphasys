@@ -5,6 +5,7 @@ import { crearDocumentoRepository } from './documentos.repository';
 
 type DocumentoCrearPayload = Record<string, any> & {
   agente_id?: number | null;
+  conversacion_id?: number | null;
   documento_origen_id?: number | null;
   contacto_principal_id?: number | null;
   usuario_creacion_id?: number | null;
@@ -71,7 +72,8 @@ export async function crearDocumentoService(
   empresaId: number,
   tipoDocumento: TipoDocumento
 ) {
-  const data = { ...payload };
+  const data = { ...payload, conversacion_id: payload.conversacion_id ?? null };
+  console.log('DEBUG DATA EN SERVICE:', data);
   if (data.agente_id === undefined) {
     const agenteId = await resolverAgenteId(data, empresaId);
     if (agenteId !== undefined) {
@@ -79,7 +81,54 @@ export async function crearDocumentoService(
     }
   }
 
-  return crearDocumentoRepository(data, empresaId, tipoDocumento);
+  const created = await crearDocumentoRepository(data, empresaId, tipoDocumento);
+
+  // Crear oportunidad solo para cotización
+  if (
+    tipoDocumento === 'cotizacion' &&
+    data.contacto_principal_id &&
+    created?.id
+  ) {
+    try {
+      const exists = await pool.query(
+        `SELECT 1 FROM crm.oportunidades_venta
+               WHERE cotizacion_principal_id = $1
+               LIMIT 1`,
+        [created.id]
+      );
+
+      if (exists.rowCount === 0) {
+        await pool.query(
+          `INSERT INTO crm.oportunidades_venta (
+            empresa_id,
+            contacto_id,
+            vendedor_id,
+            conversacion_id,
+            cotizacion_principal_id,
+            estatus,
+            monto_estimado
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            empresaId,
+            data.contacto_principal_id,
+            data.agente_id ?? created.agente_id ?? null,
+            data.conversacion_id ?? null,
+            created.id,
+            'abierta',
+            created.subtotal,
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Error creando oportunidad de venta:', {
+        error: err,
+        documento_id: created.id,
+        contacto_id: data.contacto_principal_id,
+      });
+    }
+  }
+
+  return created;
 }
 
 /**

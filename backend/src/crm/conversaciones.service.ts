@@ -1,5 +1,54 @@
 import pool from "../config/database";
 
+export type ReglasSeguimiento = {
+  tiempo_tolerancia_respuesta_a_cliente: number;
+  tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: number;
+  tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente: number;
+};
+
+const DEFAULT_REGLAS_SEGUIMIENTO: ReglasSeguimiento = {
+  tiempo_tolerancia_respuesta_a_cliente: 30,
+  tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: 4,
+  tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente: 24,
+};
+
+export async function getReglasSeguimiento(empresaId: number): Promise<ReglasSeguimiento> {
+  try {
+    const { rows } = await pool.query<Partial<ReglasSeguimiento>>(
+      `
+        SELECT
+          tiempo_tolerancia_respuesta_a_cliente,
+          tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente,
+          tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente
+        FROM crm.reglas_seguimiento
+        WHERE empresa_id = $1
+        LIMIT 1
+      `,
+      [empresaId]
+    );
+
+    const row = rows[0];
+    if (!row) {
+      return { ...DEFAULT_REGLAS_SEGUIMIENTO };
+    }
+
+    return {
+      tiempo_tolerancia_respuesta_a_cliente: Number.isFinite(Number(row.tiempo_tolerancia_respuesta_a_cliente))
+        ? Number(row.tiempo_tolerancia_respuesta_a_cliente)
+        : DEFAULT_REGLAS_SEGUIMIENTO.tiempo_tolerancia_respuesta_a_cliente,
+      tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: Number.isFinite(Number(row.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente))
+        ? Number(row.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente)
+        : DEFAULT_REGLAS_SEGUIMIENTO.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente,
+      tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente: Number.isFinite(Number(row.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente))
+        ? Number(row.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente)
+        : DEFAULT_REGLAS_SEGUIMIENTO.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente,
+    };
+  } catch (error) {
+    console.error("Error obteniendo reglas de seguimiento:", error);
+    return { ...DEFAULT_REGLAS_SEGUIMIENTO };
+  }
+}
+
 export const getOrCreateWhatsappContacto = async (empresaId: number, telefono: string) => {
   const contactoResult = await pool.query(
     `

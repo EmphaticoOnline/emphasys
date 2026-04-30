@@ -1,12 +1,14 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-04-24T23:47:22.644Z
+-- Generated at: 2026-04-30T02:11:02.071Z
 --
 -- PostgreSQL database dump
 --
 
+\restrict 0heKaVcvGe8WGybd6ptZnHjdxySXftsaS3YyOLViCgmfXaeKXPpF12VrbDPi4Li
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -25,6 +27,13 @@ SET row_security = off;
 --
 
 CREATE SCHEMA core;
+
+
+--
+-- Name: crm; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA crm;
 
 
 --
@@ -118,509 +127,257 @@ CREATE TYPE public.tipo_contacto_enum AS ENUM (
 CREATE PROCEDURE core.bootstrap_empresa(IN p_empresa_id integer, IN p_usuario_id integer)
     LANGUAGE plpgsql
     AS $$
-
 BEGIN
-
   ---------------------------------------------------------------------------
-
   -- Validaciones
-
   ---------------------------------------------------------------------------
-
   PERFORM 1 FROM core.empresas WHERE id = p_empresa_id;
-
   IF NOT FOUND THEN
-
     RAISE EXCEPTION 'La empresa % no existe', p_empresa_id;
-
   END IF;
-
-
 
   PERFORM 1 FROM core.usuarios WHERE id = p_usuario_id;
-
   IF NOT FOUND THEN
-
     RAISE EXCEPTION 'El usuario % no existe', p_usuario_id;
-
   END IF;
 
-
-
   ---------------------------------------------------------------------------
-
   -- Roles base
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Creando roles base...';
-
   INSERT INTO core.roles (empresa_id, nombre, descripcion, activo)
-
   VALUES
-
     (p_empresa_id, 'Administrador', 'Rol base administrador', true),
-
     (p_empresa_id, 'Supervisor',    'Rol base supervisor',    true),
-
     (p_empresa_id, 'Operador',      'Rol base operador',      true),
-
     (p_empresa_id, 'Consulta',      'Rol base consulta',      true)
-
   ON CONFLICT (empresa_id, nombre) DO NOTHING;
 
-
-
   ---------------------------------------------------------------------------
-
   -- Asociación usuario-empresa
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Registrando usuario en la empresa...';
-
   INSERT INTO core.usuarios_empresas (usuario_id, empresa_id)
-
   VALUES (p_usuario_id, p_empresa_id)
-
   ON CONFLICT (usuario_id, empresa_id) DO NOTHING;
 
-
-
   ---------------------------------------------------------------------------
-
   -- Asignar rol Administrador al usuario
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Asignando rol Administrador al usuario...';
-
   INSERT INTO core.usuarios_roles (usuario_id, empresa_id, rol_id)
-
   SELECT
-
     p_usuario_id,
-
     p_empresa_id,
-
     r.id
-
   FROM core.roles r
-
   WHERE r.empresa_id = p_empresa_id
-
     AND r.nombre = 'Administrador'
-
   ON CONFLICT (usuario_id, empresa_id, rol_id) DO NOTHING;
 
-
-
   ---------------------------------------------------------------------------
-
   -- Parámetros por empresa (copiando core.parametros)
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Inicializando parametros_empresa...';
-
   INSERT INTO core.parametros_empresa (empresa_id, parametro_id, valor)
-
   SELECT p_empresa_id, p.parametro_id, COALESCE(p.valor_default, NULL)
-
   FROM core.parametros p
-
   WHERE NOT EXISTS (
-
     SELECT 1
-
     FROM core.parametros_empresa pe
-
     WHERE pe.empresa_id = p_empresa_id
-
       AND pe.parametro_id = p.parametro_id
-
   );
 
-
-
 ---------------------------------------------------------------------------
-
 -- Valores críticos de parámetros (hardcoded)
-
 ---------------------------------------------------------------------------
-
 RAISE NOTICE 'Aplicando valores críticos de configuración...';
 
-
-
 UPDATE core.parametros_empresa pe
-
 SET valor = v.valor
-
 FROM (
-
   VALUES
-
     ('decimales_costos','2'),
-
     ('decimales_cantidades','2'),
-
     ('decimales_precios','2'),
-
     ('variacion_maxima_costos','0.20'),
-
     ('porcentaje_iva_predeterminado','0.16'),
 
-
-
     ('usar_series','true'),
-
     ('permitir_afectacion_ajustes','true'),
-
     ('usar_ultimo_costo_precios','true'),
 
-
-
     ('serie_facturas','F'),
-
     ('serie_notas','N'),
-
     ('serie_notas_credito','NC'),
-
     ('serie_pedidos','P'),
-
     ('serie_ordenes_entrega','OE'),
 
-
-
     ('serie_ordenes_compra','OC'),
-
     ('serie_pagos_proveedores','PGP'),
 
-
-
     ('serie_transacciones_inventario','INV'),
-
     ('serie_ajustes','AJ'),
-
     ('serie_entradas','EN'),
-
-
 
     ('serie_nota_venta','N'),
 
-
-
     ('oc_requiere_autorizacion','true'),
-
     ('aprobacion_automatica_pagos','false'),
-
     ('utilizar_limite_credito','true'),
-
     ('restringir_segun_vencimiento','false'),
-
     ('tipo_cliente_obligatorio','true')
-
 ) AS v(clave,valor)
-
 JOIN core.parametros p
-
   ON p.clave = v.clave
-
 WHERE pe.parametro_id = p.parametro_id
-
 AND pe.empresa_id = p_empresa_id;
 
-
-
   ---------------------------------------------------------------------------
-
   -- Impuestos por default
-
   ---------------------------------------------------------------------------
-
-
 
 RAISE NOTICE 'Creando impuestos por defecto...';
 
-
-
 INSERT INTO core.empresas_impuestos_default
-
 (empresa_id, impuesto_id, orden)
-
 VALUES
-
 (p_empresa_id, 'iva_16', 1)
-
 ON CONFLICT DO NOTHING;
 
-
-
   ---------------------------------------------------------------------------
-
   -- Tipos de documento por empresa (copiando core.tipos_documento)
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Inicializando empresas_tipos_documento...';
-
   INSERT INTO core.empresas_tipos_documento
-
     (empresa_id, tipo_documento_id, activo, orden, usuario_creacion_id)
-
   SELECT
-
     p_empresa_id,
-
     td.id,
-
     td.activo,
-
     td.orden,
-
     p_usuario_id
-
   FROM core.tipos_documento td
-
   WHERE NOT EXISTS (
-
     SELECT 1
-
     FROM core.empresas_tipos_documento etd
-
     WHERE etd.empresa_id = p_empresa_id
-
       AND etd.tipo_documento_id = td.id
-
   );
 
-
-
   ---------------------------------------------------------------------------
-
   -- Transiciones base de tipos de documento
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Inicializando transiciones de documentos...';
-
   WITH t(cod_origen, cod_destino) AS (
-
     VALUES
-
       ('cotizacion',    'pedido'),
-
       ('pedido',        'orden_entrega'),
-
       ('orden_entrega', 'remision'),
-
       ('remision',      'factura'),
-
       ('requisicion',   'orden_compra'),
-
       ('orden_compra',  'recepcion'),
-
       ('recepcion',     'factura_compra')
-
   )
-
   INSERT INTO core.empresas_tipos_documento_transiciones
-
     (empresa_id, tipo_documento_origen_id, tipo_documento_destino_id, activo, orden, usuario_creacion_id)
-
   SELECT
-
     p_empresa_id,
-
     etd_origen.tipo_documento_id,
-
     etd_destino.tipo_documento_id,
-
     true,
-
     ROW_NUMBER() OVER (ORDER BY t.cod_origen, t.cod_destino) - 1,
-
     p_usuario_id
-
   FROM t
-
   JOIN core.tipos_documento td_origen   ON td_origen.codigo  = t.cod_origen
-
   JOIN core.tipos_documento td_destino  ON td_destino.codigo = t.cod_destino
-
   JOIN core.empresas_tipos_documento etd_origen
-
        ON etd_origen.empresa_id = p_empresa_id
-
       AND etd_origen.tipo_documento_id = td_origen.id
-
   JOIN core.empresas_tipos_documento etd_destino
-
        ON etd_destino.empresa_id = p_empresa_id
-
       AND etd_destino.tipo_documento_id = td_destino.id
-
   WHERE NOT EXISTS (
-
     SELECT 1
-
     FROM core.empresas_tipos_documento_transiciones x
-
     WHERE x.empresa_id = p_empresa_id
-
       AND x.tipo_documento_origen_id  = etd_origen.tipo_documento_id
-
       AND x.tipo_documento_destino_id = etd_destino.tipo_documento_id
-
   );
 
-
-
   ---------------------------------------------------------------------------
-
   -- Cuenta financiera inicial
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Creando cuenta financiera inicial...';
-
   INSERT INTO public.finanzas_cuentas
-
     (empresa_id, identificador, numero_cuenta, tipo_cuenta, moneda,
-
      saldo, saldo_inicial, saldo_conciliado, es_cuenta_efectivo, afecta_total_disponible)
-
   SELECT p_empresa_id, 'Caja', NULL, 'Disponibilidad', 'MXN',
-
          0, 0, 0, true, true
-
   WHERE NOT EXISTS (
-
     SELECT 1
-
     FROM public.finanzas_cuentas fc
-
     WHERE fc.empresa_id = p_empresa_id
-
       AND fc.identificador = 'Caja'
-
   );
 
-
-
   ---------------------------------------------------------------------------
-
   -- Conceptos base
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Creando conceptos base...';
-
   INSERT INTO public.conceptos
-
     (empresa_id, nombre_concepto, es_gasto, activo, orden, color)
-
   VALUES
-
     (p_empresa_id, 'Ingreso', false, true, 0, '#2E7D32'),
-
     (p_empresa_id, 'Venta',   false, true, 1, '#1565C0'),
-
     (p_empresa_id, 'Gasto',   true,  true, 2, '#C62828'),
-
     (p_empresa_id, 'Compra',  true,  true, 3, '#6A1B9A'),
-
     (p_empresa_id, 'Ajuste',  true,  true, 4, '#F9A825')
-
   ON CONFLICT (empresa_id, nombre_concepto) DO NOTHING;
 
-
-
   ---------------------------------------------------------------------------
-
   -- Unidades
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Creando unidades base...';
-
   INSERT INTO public.unidades
-
 	(clave, descripcion, unidad_sat_id, empresa_id, activo)
-
   VALUES
-
     ('SERVICIO', 'Servicio', 1, p_empresa_id, true),
-
     ('MES',   'Mes', 3, p_empresa_id, true),
-
     ('HORA',   'Hora',  4, p_empresa_id, true),
-
     ('PIEZA',  'Pieza', 2, p_empresa_id, true)
-
   ON CONFLICT (empresa_id, clave) DO NOTHING;
 
-
-
 	---------------------------------------------------------------------------
-
 	-- Catálogos configurables (tipos) por empresa
-
 	---------------------------------------------------------------------------
-
 	RAISE NOTICE 'Inicializando catalogos_tipos...';
-
 	
-
 	INSERT INTO core.catalogos_tipos
-
 	  (empresa_id, entidad_tipo_id, nombre, permite_multiple, activo)
-
 	SELECT
-
 	  p_empresa_id,
-
 	  ct.entidad_tipo_id,
-
 	  ct.nombre,
-
 	  ct.permite_multiple,
-
 	  ct.activo
-
 	FROM core.catalogos_tipos ct
-
 	WHERE ct.empresa_id = 1
-
 	AND NOT EXISTS (
-
 	  SELECT 1
-
 	  FROM core.catalogos_tipos ct2
-
 	  WHERE ct2.empresa_id = p_empresa_id
-
 	    AND ct2.entidad_tipo_id = ct.entidad_tipo_id
-
 	    AND ct2.nombre = ct.nombre
-
 	);
 
-
-
   ---------------------------------------------------------------------------
-
   -- Aviso final
-
   ---------------------------------------------------------------------------
-
   RAISE NOTICE 'Bootstrap completado para la empresa %.', p_empresa_id;
 
-
-
 END;
-
 $$;
 
 
@@ -631,41 +388,23 @@ $$;
 CREATE FUNCTION core.validar_usuario_vendedor_contacto() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
 BEGIN
-
   IF NEW.vendedor_contacto_id IS NULL THEN
-
     RETURN NEW;
-
   END IF;
-
-
 
   PERFORM 1
-
     FROM public.contactos c
-
    WHERE c.id = NEW.vendedor_contacto_id
-
      AND c.tipo_contacto = 'Vendedor';
 
-
-
   IF NOT FOUND THEN
-
     RAISE EXCEPTION 'vendedor_contacto_id % no es un Vendedor válido', NEW.vendedor_contacto_id
-
       USING ERRCODE = '23514';
-
   END IF;
 
-
-
   RETURN NEW;
-
 END;
-
 $$;
 
 
@@ -676,15 +415,10 @@ $$;
 CREATE FUNCTION public.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
 BEGIN
-
   NEW.updated_at = now();
-
   RETURN NEW;
-
 END;
-
 $$;
 
 
@@ -695,73 +429,39 @@ $$;
 CREATE FUNCTION whatsapp.fn_actualizar_estadisticas_whatsapp() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
 DECLARE
-
     f date;
-
 BEGIN
-
     IF NEW.fecha_envio IS NULL THEN
-
         RETURN NEW;
-
     END IF;
-
-
 
     f := NEW.fecha_envio::date;
 
-
-
     INSERT INTO whatsapp.whatsapp_estadisticas (
-
         fecha,
-
         mensajes_enviados,
-
         mensajes_recibidos,
-
         plantillas_usadas
-
     )
-
     VALUES (
-
         f,
-
         CASE WHEN NEW.tipo_mensaje = 'saliente' THEN 1 ELSE 0 END,
-
         CASE WHEN NEW.tipo_mensaje = 'entrante' THEN 1 ELSE 0 END,
-
         CASE WHEN NEW.tipo_mensaje = 'saliente'
-
              AND NEW.plantilla_nombre IS NOT NULL THEN 1 ELSE 0 END
-
     )
-
     ON CONFLICT (fecha)
-
     DO UPDATE SET
-
         mensajes_enviados =
-
             whatsapp.whatsapp_estadisticas.mensajes_enviados + EXCLUDED.mensajes_enviados,
-
         mensajes_recibidos =
-
             whatsapp.whatsapp_estadisticas.mensajes_recibidos + EXCLUDED.mensajes_recibidos,
-
         plantillas_usadas =
-
             whatsapp.whatsapp_estadisticas.plantillas_usadas + EXCLUDED.plantillas_usadas;
 
-
-
     RETURN NEW;
-
 END;
-
 $$;
 
 
@@ -772,39 +472,22 @@ $$;
 CREATE FUNCTION whatsapp.fn_normaliza_telefono_e164(tel text) RETURNS text
     LANGUAGE plpgsql
     AS $$
-
 DECLARE
-
     s text;
-
 BEGIN
-
     IF tel IS NULL THEN
-
         RETURN NULL;
-
     END IF;
-
-
 
     s := regexp_replace(tel, '[\s\-\(\)\.\t]', '', 'g');
-
     s := regexp_replace(s, '[^+0-9]', '', 'g');
 
-
-
     IF left(s,1) <> '+' THEN
-
         s := '+52' || s;
-
     END IF;
 
-
-
     RETURN s;
-
 END;
-
 $$;
 
 
@@ -822,15 +505,10 @@ COMMENT ON FUNCTION whatsapp.fn_normaliza_telefono_e164(tel text) IS 'Normaliza 
 CREATE FUNCTION whatsapp.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
 BEGIN
-
   NEW.updated_at = NOW();
-
   RETURN NEW;
-
 END;
-
 $$;
 
 
@@ -841,159 +519,82 @@ $$;
 CREATE FUNCTION whatsapp.sp_whatsapp_log_mensaje_contactado(numero_telefono_raw text, tipo_mensaje text, canal text DEFAULT NULL::text, contenido text DEFAULT NULL::text, plantilla_nombre text DEFAULT NULL::text, fecha_envio timestamp with time zone DEFAULT NULL::timestamp with time zone, status text DEFAULT NULL::text, id_externo text DEFAULT NULL::text, respuesta_json jsonb DEFAULT NULL::jsonb) RETURNS void
     LANGUAGE plpgsql
     AS $$
-
 DECLARE
-
     tel text;
-
     cid integer;
-
     conv_id bigint;
-
 BEGIN
-
     tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
 
-
-
     IF fecha_envio IS NULL THEN
-
         fecha_envio := now();
-
     END IF;
-
-
 
     SELECT id INTO cid
-
     FROM whatsapp.vcontactos_telefonos
-
     WHERE telefonoe164 = tel
-
     LIMIT 1;
-
-
 
     SELECT id INTO conv_id
-
     FROM whatsapp.whatsapp_conversaciones
-
     WHERE contacto_id = cid
-
       AND estado = 'abierta'
-
     ORDER BY creada_en DESC
-
     LIMIT 1;
 
-
-
     IF conv_id IS NULL THEN
-
         INSERT INTO whatsapp.whatsapp_conversaciones (
-
             contacto_id,
-
             creada_en,
-
             ultimo_mensaje_en
-
         )
-
         VALUES (
-
             cid,
-
             fecha_envio,
-
             fecha_envio
-
         )
-
         RETURNING id INTO conv_id;
-
     ELSE
-
         UPDATE whatsapp.whatsapp_conversaciones
-
         SET ultimo_mensaje_en = fecha_envio
-
         WHERE id = conv_id;
-
     END IF;
 
-
-
     INSERT INTO whatsapp.whatsapp_mensajes (
-
         contacto_id,
-
         conversacion_id,
-
         numero_telefono,
-
         tipo_mensaje,
-
         canal,
-
         contenido,
-
         plantilla_nombre,
-
         fecha_envio,
-
         status,
-
         id_externo,
-
         respuesta_json
-
     )
-
     VALUES (
-
         cid,
-
         conv_id,
-
         tel,
-
         tipo_mensaje,
-
         canal,
-
         contenido,
-
         plantilla_nombre,
-
         fecha_envio,
-
         status,
-
         id_externo,
-
         respuesta_json
-
     );
-
-
 
     PERFORM whatsapp.sp_whatsapp_touch_estado(
-
         tel,
-
         CASE WHEN tipo_mensaje = 'entrante'
-
              THEN 'in'
-
              ELSE 'out'
-
         END
-
     );
-
 END;
-
 $$;
 
 
@@ -1004,77 +605,41 @@ $$;
 CREATE FUNCTION whatsapp.sp_whatsapp_touch_estado(numero_telefono_raw text, tipo_evento text) RETURNS void
     LANGUAGE plpgsql
     AS $$
-
 DECLARE
-
     tel text;
-
 BEGIN
-
     tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
 
-
-
     INSERT INTO whatsapp.whatsapp_contacto_estado (
-
         numero_telefono,
-
         opt_in,
-
         opt_out,
-
         ultimo_in,
-
         ultimo_out
-
     )
-
     VALUES (
-
         tel,
-
         (tipo_evento = 'optin'),
-
         (tipo_evento = 'optout'),
-
         CASE WHEN tipo_evento = 'in' THEN now() ELSE NULL END,
-
         CASE WHEN tipo_evento = 'out' THEN now() ELSE NULL END
-
     )
-
     ON CONFLICT (numero_telefono)
-
     DO UPDATE SET
-
         ultimo_in  = CASE WHEN tipo_evento = 'in'
-
                           THEN now()
-
                           ELSE whatsapp_contacto_estado.ultimo_in END,
-
         ultimo_out = CASE WHEN tipo_evento = 'out'
-
                           THEN now()
-
                           ELSE whatsapp_contacto_estado.ultimo_out END,
-
         opt_in  = CASE WHEN tipo_evento = 'optin'
-
                        THEN true
-
                        ELSE whatsapp_contacto_estado.opt_in END,
-
         opt_out = CASE WHEN tipo_evento = 'optout'
-
                        THEN true
-
                        ELSE whatsapp_contacto_estado.opt_out END,
-
         actualizado_en = now();
-
 END;
-
 $$;
 
 
@@ -2641,6 +2206,693 @@ COMMENT ON COLUMN core.usuarios_roles.rol_id IS 'Rol asignado al usuario';
 --
 
 COMMENT ON COLUMN core.usuarios_roles.created_at IS 'Fecha de creación de la asignación';
+
+
+--
+-- Name: configuracion_email_empresa; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.configuracion_email_empresa (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    smtp_host character varying(255) NOT NULL,
+    smtp_port integer NOT NULL,
+    smtp_user character varying(255) NOT NULL,
+    smtp_password text,
+    smtp_secure boolean DEFAULT false NOT NULL,
+    email_remitente character varying(255),
+    nombre_remitente character varying(255),
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT configuracion_email_empresa_smtp_port_chk CHECK (((smtp_port >= 1) AND (smtp_port <= 65535)))
+);
+
+
+--
+-- Name: configuracion_email_empresa_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+CREATE SEQUENCE crm.configuracion_email_empresa_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: configuracion_email_empresa_id_seq; Type: SEQUENCE OWNED BY; Schema: crm; Owner: -
+--
+
+ALTER SEQUENCE crm.configuracion_email_empresa_id_seq OWNED BY crm.configuracion_email_empresa.id;
+
+
+--
+-- Name: configuracion_email_usuario; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.configuracion_email_usuario (
+    id bigint NOT NULL,
+    usuario_id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    smtp_host character varying(255) NOT NULL,
+    smtp_port integer NOT NULL,
+    smtp_user character varying(255) NOT NULL,
+    smtp_password text,
+    smtp_secure boolean DEFAULT false NOT NULL,
+    email_remitente character varying(255),
+    nombre_remitente character varying(255),
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT configuracion_email_usuario_smtp_port_chk CHECK (((smtp_port >= 1) AND (smtp_port <= 65535)))
+);
+
+
+--
+-- Name: configuracion_email_usuario_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+CREATE SEQUENCE crm.configuracion_email_usuario_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: configuracion_email_usuario_id_seq; Type: SEQUENCE OWNED BY; Schema: crm; Owner: -
+--
+
+ALTER SEQUENCE crm.configuracion_email_usuario_id_seq OWNED BY crm.configuracion_email_usuario.id;
+
+
+--
+-- Name: conversacion_etiquetas; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.conversacion_etiquetas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    conversacion_id integer NOT NULL,
+    etiqueta_id integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE conversacion_etiquetas; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.conversacion_etiquetas IS 'Tabla puente que relaciona conversaciones con múltiples etiquetas';
+
+
+--
+-- Name: COLUMN conversacion_etiquetas.empresa_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversacion_etiquetas.empresa_id IS 'Empresa propietaria de la relación';
+
+
+--
+-- Name: COLUMN conversacion_etiquetas.conversacion_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversacion_etiquetas.conversacion_id IS 'ID de la conversación de WhatsApp';
+
+
+--
+-- Name: COLUMN conversacion_etiquetas.etiqueta_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversacion_etiquetas.etiqueta_id IS 'ID de la etiqueta asignada a la conversación';
+
+
+--
+-- Name: COLUMN conversacion_etiquetas.created_at; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversacion_etiquetas.created_at IS 'Fecha en que se asignó la etiqueta a la conversación';
+
+
+--
+-- Name: conversacion_etiquetas_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+CREATE SEQUENCE crm.conversacion_etiquetas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: conversacion_etiquetas_id_seq; Type: SEQUENCE OWNED BY; Schema: crm; Owner: -
+--
+
+ALTER SEQUENCE crm.conversacion_etiquetas_id_seq OWNED BY crm.conversacion_etiquetas.id;
+
+
+--
+-- Name: conversaciones; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.conversaciones (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    contacto_id integer NOT NULL,
+    estado character varying(20) DEFAULT 'abierta'::character varying NOT NULL,
+    asignado_a integer,
+    creada_en timestamp with time zone DEFAULT now() NOT NULL,
+    ultimo_mensaje_en timestamp with time zone DEFAULT now() NOT NULL,
+    cerrada_en timestamp with time zone,
+    prioridad character varying(10) DEFAULT 'media'::character varying NOT NULL,
+    siguiente_accion character varying(30) DEFAULT 'responder'::character varying NOT NULL,
+    etapa_oportunidad character varying(30) DEFAULT 'nuevo'::character varying NOT NULL,
+    CONSTRAINT chk_etapa_oportunidad CHECK (((etapa_oportunidad)::text = ANY ((ARRAY['nuevo'::character varying, 'contactado'::character varying, 'interesado'::character varying, 'cotizado'::character varying, 'negociacion'::character varying, 'ganado'::character varying, 'perdido'::character varying])::text[]))),
+    CONSTRAINT conversaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('abierta'::character varying)::text, ('cerrada'::character varying)::text])))
+);
+
+
+--
+-- Name: TABLE conversaciones; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.conversaciones IS 'Agrupa mensajes en ciclos comerciales por empresa.';
+
+
+--
+-- Name: COLUMN conversaciones.empresa_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.empresa_id IS 'Empresa propietaria de la conversacion.';
+
+
+--
+-- Name: COLUMN conversaciones.contacto_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.contacto_id IS 'Contacto asociado a la conversacion.';
+
+
+--
+-- Name: conversaciones_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+ALTER TABLE crm.conversaciones ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME crm.conversaciones_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: email_plantillas; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.email_plantillas (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    tipo character varying(100) NOT NULL,
+    asunto text NOT NULL,
+    html text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: email_plantillas_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+CREATE SEQUENCE crm.email_plantillas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: email_plantillas_id_seq; Type: SEQUENCE OWNED BY; Schema: crm; Owner: -
+--
+
+ALTER SEQUENCE crm.email_plantillas_id_seq OWNED BY crm.email_plantillas.id;
+
+
+--
+-- Name: etiquetas; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.etiquetas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    nombre text NOT NULL,
+    color text NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_whatsapp_etiquetas_color_hex CHECK ((color ~ '^#[0-9A-Fa-f]{6}$'::text))
+);
+
+
+--
+-- Name: TABLE etiquetas; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.etiquetas IS 'Catálogo de etiquetas para clasificar conversaciones de WhatsApp por empresa';
+
+
+--
+-- Name: COLUMN etiquetas.empresa_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.etiquetas.empresa_id IS 'Empresa a la que pertenece la etiqueta';
+
+
+--
+-- Name: COLUMN etiquetas.nombre; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.etiquetas.nombre IS 'Nombre de la etiqueta (ej: Cotizado, Urgente, Seguimiento)';
+
+
+--
+-- Name: COLUMN etiquetas.color; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.etiquetas.color IS 'Color en formato HEX (#RRGGBB), sin transparencia';
+
+
+--
+-- Name: COLUMN etiquetas.activo; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.etiquetas.activo IS 'Indica si la etiqueta está disponible para uso';
+
+
+--
+-- Name: COLUMN etiquetas.created_at; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.etiquetas.created_at IS 'Fecha de creación del registro';
+
+
+--
+-- Name: COLUMN etiquetas.updated_at; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.etiquetas.updated_at IS 'Fecha de última actualización';
+
+
+--
+-- Name: etiquetas_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+CREATE SEQUENCE crm.etiquetas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: etiquetas_id_seq; Type: SEQUENCE OWNED BY; Schema: crm; Owner: -
+--
+
+ALTER SEQUENCE crm.etiquetas_id_seq OWNED BY crm.etiquetas.id;
+
+
+--
+-- Name: mensajes; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.mensajes (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    contacto_id integer,
+    conversacion_id bigint,
+    telefono character varying(20),
+    tipo_mensaje character varying(20),
+    canal character varying(50),
+    contenido text,
+    plantilla_nombre character varying(100),
+    fecha_envio timestamp with time zone,
+    status character varying(20),
+    id_externo character varying(100),
+    intentos_envio integer DEFAULT 0 NOT NULL,
+    respuesta_json jsonb,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    tipo_contenido character varying(20) DEFAULT 'text'::character varying NOT NULL,
+    media_url text,
+    mime_type character varying(100),
+    caption text,
+    email_from character varying(150),
+    email_to character varying(150),
+    email_subject character varying(200),
+    email_cc character varying(200),
+    email_bcc character varying(200),
+    in_reply_to character varying(150),
+    CONSTRAINT mensajes_status_check CHECK ((((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('sent'::character varying)::text, ('delivered'::character varying)::text, ('read'::character varying)::text, ('failed'::character varying)::text, ('received'::character varying)::text])) OR (status IS NULL))),
+    CONSTRAINT mensajes_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text)),
+    CONSTRAINT mensajes_tipo_contenido_chk CHECK (((tipo_contenido)::text = ANY ((ARRAY['text'::character varying, 'image'::character varying, 'audio'::character varying, 'document'::character varying])::text[]))),
+    CONSTRAINT mensajes_tipo_mensaje_check CHECK (((tipo_mensaje)::text = ANY (ARRAY[('saliente'::character varying)::text, ('entrante'::character varying)::text])))
+);
+
+
+--
+-- Name: TABLE mensajes; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.mensajes IS 'Registro historico de mensajes por empresa.';
+
+
+--
+-- Name: COLUMN mensajes.empresa_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.empresa_id IS 'Empresa propietaria del mensaje.';
+
+
+--
+-- Name: COLUMN mensajes.tipo_contenido; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.tipo_contenido IS 'Tipo de contenido del mensaje: text, image, audio, document';
+
+
+--
+-- Name: COLUMN mensajes.media_url; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.media_url IS 'URL del archivo multimedia asociado al mensaje (si aplica)';
+
+
+--
+-- Name: COLUMN mensajes.mime_type; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.mime_type IS 'MIME type del archivo multimedia (si aplica)';
+
+
+--
+-- Name: COLUMN mensajes.caption; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.caption IS 'Texto/caption asociado a mensajes multimedia (imagen, audio, documento)';
+
+
+--
+-- Name: COLUMN mensajes.email_from; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.email_from IS 'Remitente para mensajes de correo dentro del canal CRM.';
+
+
+--
+-- Name: COLUMN mensajes.email_to; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.email_to IS 'Destinatario principal para mensajes de correo dentro del canal CRM.';
+
+
+--
+-- Name: COLUMN mensajes.email_subject; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.email_subject IS 'Asunto del correo asociado al mensaje CRM.';
+
+
+--
+-- Name: COLUMN mensajes.email_cc; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.email_cc IS 'Destinatarios en copia para mensajes de correo del CRM.';
+
+
+--
+-- Name: COLUMN mensajes.email_bcc; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.email_bcc IS 'Destinatarios en copia oculta para mensajes de correo del CRM.';
+
+
+--
+-- Name: COLUMN mensajes.in_reply_to; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.in_reply_to IS 'Identificador externo del mensaje al que responde un correo.';
+
+
+--
+-- Name: mensajes_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+ALTER TABLE crm.mensajes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME crm.mensajes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: oportunidades_venta; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.oportunidades_venta (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    conversacion_id integer,
+    contacto_id integer NOT NULL,
+    vendedor_id integer,
+    estatus character varying(20) DEFAULT 'abierta'::character varying NOT NULL,
+    etapa character varying(50),
+    cotizacion_principal_id integer,
+    fecha_estimada_decision date,
+    fecha_reactivacion_estimada date,
+    dolor_validado boolean,
+    presupuesto_validado boolean,
+    contacto_es_decisor boolean,
+    comentarios_no_cierre text,
+    observaciones text,
+    monto_estimado numeric(14,2),
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: TABLE oportunidades_venta; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.oportunidades_venta IS 'Oportunidades comerciales del CRM. Una oportunidad representa un proceso de venta asociado a un contacto y puede originarse desde una conversación, pero no es la conversación.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.id IS 'Identificador interno de la oportunidad de venta.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.empresa_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.empresa_id IS 'Empresa a la que pertenece la oportunidad.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.conversacion_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.conversacion_id IS 'Conversación de origen asociada a la oportunidad.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.contacto_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.contacto_id IS 'Contacto o cliente asociado a la oportunidad.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.vendedor_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.vendedor_id IS 'Vendedor responsable de la oportunidad.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.estatus; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.estatus IS 'Estatus: abierta, pausada, ganada, perdida o cancelada.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.etapa; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.etapa IS 'Etapa comercial.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.cotizacion_principal_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.cotizacion_principal_id IS 'Cotización principal de la oportunidad.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.fecha_estimada_decision; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.fecha_estimada_decision IS 'Fecha tentativa de decisión del cliente.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.fecha_reactivacion_estimada; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.fecha_reactivacion_estimada IS 'Fecha para retomar una oportunidad pausada.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.dolor_validado; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.dolor_validado IS 'Indica si la necesidad del cliente es real.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.presupuesto_validado; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.presupuesto_validado IS 'Indica si el cliente tiene presupuesto.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.contacto_es_decisor; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.contacto_es_decisor IS 'Indica si el contacto decide.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.comentarios_no_cierre; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.comentarios_no_cierre IS 'Explicación de por qué no se concretó.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.observaciones; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.observaciones IS 'Notas operativas del vendedor.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.monto_estimado; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.monto_estimado IS 'Monto estimado.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.created_at; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.created_at IS 'Fecha de creación.';
+
+
+--
+-- Name: COLUMN oportunidades_venta.updated_at; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.oportunidades_venta.updated_at IS 'Fecha de actualización.';
+
+
+--
+-- Name: oportunidades_venta_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+CREATE SEQUENCE crm.oportunidades_venta_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: oportunidades_venta_id_seq; Type: SEQUENCE OWNED BY; Schema: crm; Owner: -
+--
+
+ALTER SEQUENCE crm.oportunidades_venta_id_seq OWNED BY crm.oportunidades_venta.id;
+
+
+--
+-- Name: reglas_seguimiento; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.reglas_seguimiento (
+    empresa_id integer NOT NULL,
+    tiempo_tolerancia_respuesta_a_cliente integer DEFAULT 30 NOT NULL,
+    tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente integer DEFAULT 4 NOT NULL,
+    tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente integer DEFAULT 24 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE reglas_seguimiento; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.reglas_seguimiento IS 'Configuración por empresa de umbrales operativos para seguimiento comercial de leads.';
+
+
+--
+-- Name: COLUMN reglas_seguimiento.empresa_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.reglas_seguimiento.empresa_id IS 'Empresa propietaria de la configuración de seguimiento.';
+
+
+--
+-- Name: COLUMN reglas_seguimiento.tiempo_tolerancia_respuesta_a_cliente; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.reglas_seguimiento.tiempo_tolerancia_respuesta_a_cliente IS 'Minutos tolerados para responder a un mensaje entrante antes de escalar a riesgo.';
+
+
+--
+-- Name: COLUMN reglas_seguimiento.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.reglas_seguimiento.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente IS 'Horas después de un mensaje saliente a partir de las cuales el lead se considera activo sin requerir seguimiento.';
+
+
+--
+-- Name: COLUMN reglas_seguimiento.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.reglas_seguimiento.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente IS 'Horas máximas sin respuesta del cliente tras un mensaje saliente antes de considerar riesgo de pérdida.';
 
 
 --
@@ -4319,6 +4571,7 @@ CREATE TABLE public.finanzas_operaciones (
     saldo numeric(15,2),
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     concepto_id integer,
+    naturaleza_operacion character varying(30) DEFAULT 'movimiento_general'::character varying NOT NULL,
     CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('cotejado'::character varying)::text, ('conciliado'::character varying)::text]))),
     CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY (ARRAY[('Deposito'::character varying)::text, ('Retiro'::character varying)::text])))
 );
@@ -5471,127 +5724,35 @@ CREATE TABLE whatsapp.contacto_mapeo (
 
 
 --
--- Name: conversacion_etiquetas; Type: TABLE; Schema: whatsapp; Owner: -
+-- Name: conversacion_etiquetas; Type: VIEW; Schema: whatsapp; Owner: -
 --
 
-CREATE TABLE whatsapp.conversacion_etiquetas (
-    id integer NOT NULL,
-    empresa_id integer NOT NULL,
-    conversacion_id integer NOT NULL,
-    etiqueta_id integer NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: TABLE conversacion_etiquetas; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON TABLE whatsapp.conversacion_etiquetas IS 'Tabla puente que relaciona conversaciones con múltiples etiquetas';
+CREATE VIEW whatsapp.conversacion_etiquetas AS
+ SELECT conversacion_etiquetas.id,
+    conversacion_etiquetas.empresa_id,
+    conversacion_etiquetas.conversacion_id,
+    conversacion_etiquetas.etiqueta_id,
+    conversacion_etiquetas.created_at
+   FROM crm.conversacion_etiquetas;
 
 
 --
--- Name: COLUMN conversacion_etiquetas.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
+-- Name: conversaciones; Type: VIEW; Schema: whatsapp; Owner: -
 --
 
-COMMENT ON COLUMN whatsapp.conversacion_etiquetas.empresa_id IS 'Empresa propietaria de la relación';
-
-
---
--- Name: COLUMN conversacion_etiquetas.conversacion_id; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.conversacion_etiquetas.conversacion_id IS 'ID de la conversación de WhatsApp';
-
-
---
--- Name: COLUMN conversacion_etiquetas.etiqueta_id; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.conversacion_etiquetas.etiqueta_id IS 'ID de la etiqueta asignada a la conversación';
-
-
---
--- Name: COLUMN conversacion_etiquetas.created_at; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.conversacion_etiquetas.created_at IS 'Fecha en que se asignó la etiqueta a la conversación';
-
-
---
--- Name: conversacion_etiquetas_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
---
-
-CREATE SEQUENCE whatsapp.conversacion_etiquetas_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: conversacion_etiquetas_id_seq; Type: SEQUENCE OWNED BY; Schema: whatsapp; Owner: -
---
-
-ALTER SEQUENCE whatsapp.conversacion_etiquetas_id_seq OWNED BY whatsapp.conversacion_etiquetas.id;
-
-
---
--- Name: conversaciones; Type: TABLE; Schema: whatsapp; Owner: -
---
-
-CREATE TABLE whatsapp.conversaciones (
-    id bigint NOT NULL,
-    empresa_id integer NOT NULL,
-    contacto_id integer NOT NULL,
-    estado character varying(20) DEFAULT 'abierta'::character varying NOT NULL,
-    asignado_a integer,
-    creada_en timestamp with time zone DEFAULT now() NOT NULL,
-    ultimo_mensaje_en timestamp with time zone DEFAULT now() NOT NULL,
-    cerrada_en timestamp with time zone,
-    prioridad character varying(10) DEFAULT 'media'::character varying NOT NULL,
-    siguiente_accion character varying(30) DEFAULT 'responder'::character varying NOT NULL,
-    etapa_oportunidad character varying(30) DEFAULT 'nuevo'::character varying NOT NULL,
-    CONSTRAINT chk_etapa_oportunidad CHECK (((etapa_oportunidad)::text = ANY ((ARRAY['nuevo'::character varying, 'contactado'::character varying, 'interesado'::character varying, 'cotizado'::character varying, 'negociacion'::character varying, 'ganado'::character varying, 'perdido'::character varying])::text[]))),
-    CONSTRAINT conversaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('abierta'::character varying)::text, ('cerrada'::character varying)::text])))
-);
-
-
---
--- Name: TABLE conversaciones; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON TABLE whatsapp.conversaciones IS 'Agrupa mensajes en ciclos comerciales por empresa.';
-
-
---
--- Name: COLUMN conversaciones.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.conversaciones.empresa_id IS 'Empresa propietaria de la conversacion.';
-
-
---
--- Name: COLUMN conversaciones.contacto_id; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.conversaciones.contacto_id IS 'Contacto asociado a la conversacion.';
-
-
---
--- Name: conversaciones_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE whatsapp.conversaciones ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME whatsapp.conversaciones_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
+CREATE VIEW whatsapp.conversaciones AS
+ SELECT conversaciones.id,
+    conversaciones.empresa_id,
+    conversaciones.contacto_id,
+    conversaciones.estado,
+    conversaciones.asignado_a,
+    conversaciones.creada_en,
+    conversaciones.ultimo_mensaje_en,
+    conversaciones.cerrada_en,
+    conversaciones.prioridad,
+    conversaciones.siguiente_accion,
+    conversaciones.etapa_oportunidad
+   FROM crm.conversaciones;
 
 
 --
@@ -5623,88 +5784,18 @@ COMMENT ON COLUMN whatsapp.estadisticas.empresa_id IS 'Empresa a la que pertenec
 
 
 --
--- Name: etiquetas; Type: TABLE; Schema: whatsapp; Owner: -
+-- Name: etiquetas; Type: VIEW; Schema: whatsapp; Owner: -
 --
 
-CREATE TABLE whatsapp.etiquetas (
-    id integer NOT NULL,
-    empresa_id integer NOT NULL,
-    nombre text NOT NULL,
-    color text NOT NULL,
-    activo boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_whatsapp_etiquetas_color_hex CHECK ((color ~ '^#[0-9A-Fa-f]{6}$'::text))
-);
-
-
---
--- Name: TABLE etiquetas; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON TABLE whatsapp.etiquetas IS 'Catálogo de etiquetas para clasificar conversaciones de WhatsApp por empresa';
-
-
---
--- Name: COLUMN etiquetas.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.etiquetas.empresa_id IS 'Empresa a la que pertenece la etiqueta';
-
-
---
--- Name: COLUMN etiquetas.nombre; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.etiquetas.nombre IS 'Nombre de la etiqueta (ej: Cotizado, Urgente, Seguimiento)';
-
-
---
--- Name: COLUMN etiquetas.color; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.etiquetas.color IS 'Color en formato HEX (#RRGGBB), sin transparencia';
-
-
---
--- Name: COLUMN etiquetas.activo; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.etiquetas.activo IS 'Indica si la etiqueta está disponible para uso';
-
-
---
--- Name: COLUMN etiquetas.created_at; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.etiquetas.created_at IS 'Fecha de creación del registro';
-
-
---
--- Name: COLUMN etiquetas.updated_at; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.etiquetas.updated_at IS 'Fecha de última actualización';
-
-
---
--- Name: etiquetas_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
---
-
-CREATE SEQUENCE whatsapp.etiquetas_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: etiquetas_id_seq; Type: SEQUENCE OWNED BY; Schema: whatsapp; Owner: -
---
-
-ALTER SEQUENCE whatsapp.etiquetas_id_seq OWNED BY whatsapp.etiquetas.id;
+CREATE VIEW whatsapp.etiquetas AS
+ SELECT etiquetas.id,
+    etiquetas.empresa_id,
+    etiquetas.nombre,
+    etiquetas.color,
+    etiquetas.activo,
+    etiquetas.created_at,
+    etiquetas.updated_at
+   FROM crm.etiquetas;
 
 
 --
@@ -5822,90 +5913,36 @@ ALTER SEQUENCE whatsapp.intentos_contacto_id_seq OWNED BY whatsapp.intentos_cont
 
 
 --
--- Name: mensajes; Type: TABLE; Schema: whatsapp; Owner: -
+-- Name: mensajes; Type: VIEW; Schema: whatsapp; Owner: -
 --
 
-CREATE TABLE whatsapp.mensajes (
-    id bigint NOT NULL,
-    empresa_id integer NOT NULL,
-    contacto_id integer,
-    conversacion_id bigint,
-    telefono character varying(20) NOT NULL,
-    tipo_mensaje character varying(20),
-    canal character varying(50),
-    contenido text,
-    plantilla_nombre character varying(100),
-    fecha_envio timestamp with time zone,
-    status character varying(20),
-    id_externo character varying(100),
-    intentos_envio integer DEFAULT 0 NOT NULL,
-    respuesta_json jsonb,
-    creado_en timestamp with time zone DEFAULT now() NOT NULL,
-    tipo_contenido character varying(20) DEFAULT 'text'::character varying NOT NULL,
-    media_url text,
-    mime_type character varying(100),
-    caption text,
-    CONSTRAINT mensajes_status_check CHECK ((((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('sent'::character varying)::text, ('delivered'::character varying)::text, ('read'::character varying)::text, ('failed'::character varying)::text, ('received'::character varying)::text])) OR (status IS NULL))),
-    CONSTRAINT mensajes_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text)),
-    CONSTRAINT mensajes_tipo_contenido_chk CHECK (((tipo_contenido)::text = ANY ((ARRAY['text'::character varying, 'image'::character varying, 'audio'::character varying, 'document'::character varying])::text[]))),
-    CONSTRAINT mensajes_tipo_mensaje_check CHECK (((tipo_mensaje)::text = ANY (ARRAY[('saliente'::character varying)::text, ('entrante'::character varying)::text])))
-);
-
-
---
--- Name: TABLE mensajes; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON TABLE whatsapp.mensajes IS 'Registro historico de mensajes por empresa.';
-
-
---
--- Name: COLUMN mensajes.empresa_id; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.mensajes.empresa_id IS 'Empresa propietaria del mensaje.';
-
-
---
--- Name: COLUMN mensajes.tipo_contenido; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.mensajes.tipo_contenido IS 'Tipo de contenido del mensaje: text, image, audio, document';
-
-
---
--- Name: COLUMN mensajes.media_url; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.mensajes.media_url IS 'URL del archivo multimedia asociado al mensaje (si aplica)';
-
-
---
--- Name: COLUMN mensajes.mime_type; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.mensajes.mime_type IS 'MIME type del archivo multimedia (si aplica)';
-
-
---
--- Name: COLUMN mensajes.caption; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON COLUMN whatsapp.mensajes.caption IS 'Texto/caption asociado a mensajes multimedia (imagen, audio, documento)';
-
-
---
--- Name: mensajes_id_seq; Type: SEQUENCE; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE whatsapp.mensajes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME whatsapp.mensajes_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
+CREATE VIEW whatsapp.mensajes AS
+ SELECT mensajes.id,
+    mensajes.empresa_id,
+    mensajes.contacto_id,
+    mensajes.conversacion_id,
+    mensajes.telefono,
+    mensajes.tipo_mensaje,
+    mensajes.canal,
+    mensajes.contenido,
+    mensajes.plantilla_nombre,
+    mensajes.fecha_envio,
+    mensajes.status,
+    mensajes.id_externo,
+    mensajes.intentos_envio,
+    mensajes.respuesta_json,
+    mensajes.creado_en,
+    mensajes.tipo_contenido,
+    mensajes.media_url,
+    mensajes.mime_type,
+    mensajes.caption,
+    mensajes.email_from,
+    mensajes.email_to,
+    mensajes.email_subject,
+    mensajes.email_cc,
+    mensajes.email_bcc,
+    mensajes.in_reply_to
+   FROM crm.mensajes;
 
 
 --
@@ -6161,6 +6198,48 @@ ALTER TABLE ONLY core.usuarios ALTER COLUMN id SET DEFAULT nextval('core.usuario
 
 
 --
+-- Name: configuracion_email_empresa id; Type: DEFAULT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_empresa ALTER COLUMN id SET DEFAULT nextval('crm.configuracion_email_empresa_id_seq'::regclass);
+
+
+--
+-- Name: configuracion_email_usuario id; Type: DEFAULT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_usuario ALTER COLUMN id SET DEFAULT nextval('crm.configuracion_email_usuario_id_seq'::regclass);
+
+
+--
+-- Name: conversacion_etiquetas id; Type: DEFAULT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_etiquetas ALTER COLUMN id SET DEFAULT nextval('crm.conversacion_etiquetas_id_seq'::regclass);
+
+
+--
+-- Name: email_plantillas id; Type: DEFAULT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.email_plantillas ALTER COLUMN id SET DEFAULT nextval('crm.email_plantillas_id_seq'::regclass);
+
+
+--
+-- Name: etiquetas id; Type: DEFAULT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.etiquetas ALTER COLUMN id SET DEFAULT nextval('crm.etiquetas_id_seq'::regclass);
+
+
+--
+-- Name: oportunidades_venta id; Type: DEFAULT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.oportunidades_venta ALTER COLUMN id SET DEFAULT nextval('crm.oportunidades_venta_id_seq'::regclass);
+
+
+--
 -- Name: existencias id; Type: DEFAULT; Schema: inventario; Owner: -
 --
 
@@ -6389,20 +6468,6 @@ ALTER TABLE ONLY sat.unidades ALTER COLUMN id SET DEFAULT nextval('sat.unidades_
 --
 
 ALTER TABLE ONLY whatsapp.config ALTER COLUMN id SET DEFAULT nextval('whatsapp.config_id_seq'::regclass);
-
-
---
--- Name: conversacion_etiquetas id; Type: DEFAULT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.conversacion_etiquetas ALTER COLUMN id SET DEFAULT nextval('whatsapp.conversacion_etiquetas_id_seq'::regclass);
-
-
---
--- Name: etiquetas id; Type: DEFAULT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.etiquetas ALTER COLUMN id SET DEFAULT nextval('whatsapp.etiquetas_id_seq'::regclass);
 
 
 --
@@ -6649,6 +6714,110 @@ ALTER TABLE ONLY core.usuarios
 
 ALTER TABLE ONLY core.usuarios_roles
     ADD CONSTRAINT usuarios_roles_pkey PRIMARY KEY (usuario_id, empresa_id, rol_id);
+
+
+--
+-- Name: configuracion_email_empresa configuracion_email_empresa_empresa_uk; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_empresa
+    ADD CONSTRAINT configuracion_email_empresa_empresa_uk UNIQUE (empresa_id);
+
+
+--
+-- Name: configuracion_email_empresa configuracion_email_empresa_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_empresa
+    ADD CONSTRAINT configuracion_email_empresa_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: configuracion_email_usuario configuracion_email_usuario_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_usuario
+    ADD CONSTRAINT configuracion_email_usuario_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: configuracion_email_usuario configuracion_email_usuario_usuario_empresa_uk; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_usuario
+    ADD CONSTRAINT configuracion_email_usuario_usuario_empresa_uk UNIQUE (usuario_id, empresa_id);
+
+
+--
+-- Name: conversacion_etiquetas conversacion_etiquetas_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_etiquetas
+    ADD CONSTRAINT conversacion_etiquetas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: conversaciones conversaciones_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversaciones
+    ADD CONSTRAINT conversaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_plantillas email_plantillas_empresa_tipo_uk; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.email_plantillas
+    ADD CONSTRAINT email_plantillas_empresa_tipo_uk UNIQUE (empresa_id, tipo);
+
+
+--
+-- Name: email_plantillas email_plantillas_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.email_plantillas
+    ADD CONSTRAINT email_plantillas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: etiquetas etiquetas_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.etiquetas
+    ADD CONSTRAINT etiquetas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mensajes mensajes_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensajes
+    ADD CONSTRAINT mensajes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: oportunidades_venta oportunidades_venta_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.oportunidades_venta
+    ADD CONSTRAINT oportunidades_venta_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reglas_seguimiento pk_crm_reglas_seguimiento; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.reglas_seguimiento
+    ADD CONSTRAINT pk_crm_reglas_seguimiento PRIMARY KEY (empresa_id);
+
+
+--
+-- Name: conversacion_etiquetas uq_whatsapp_conversacion_etiquetas; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_etiquetas
+    ADD CONSTRAINT uq_whatsapp_conversacion_etiquetas UNIQUE (conversacion_id, etiqueta_id);
 
 
 --
@@ -7291,35 +7460,11 @@ ALTER TABLE ONLY whatsapp.contacto_mapeo
 
 
 --
--- Name: conversacion_etiquetas conversacion_etiquetas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.conversacion_etiquetas
-    ADD CONSTRAINT conversacion_etiquetas_pkey PRIMARY KEY (id);
-
-
---
--- Name: conversaciones conversaciones_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.conversaciones
-    ADD CONSTRAINT conversaciones_pkey PRIMARY KEY (id);
-
-
---
 -- Name: estadisticas estadisticas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE ONLY whatsapp.estadisticas
     ADD CONSTRAINT estadisticas_pkey PRIMARY KEY (empresa_id, fecha);
-
-
---
--- Name: etiquetas etiquetas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.etiquetas
-    ADD CONSTRAINT etiquetas_pkey PRIMARY KEY (id);
 
 
 --
@@ -7331,27 +7476,11 @@ ALTER TABLE ONLY whatsapp.intentos_contacto
 
 
 --
--- Name: mensajes mensajes_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.mensajes
-    ADD CONSTRAINT mensajes_pkey PRIMARY KEY (id);
-
-
---
 -- Name: plantillas plantillas_pkey; Type: CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE ONLY whatsapp.plantillas
     ADD CONSTRAINT plantillas_pkey PRIMARY KEY (id);
-
-
---
--- Name: conversacion_etiquetas uq_whatsapp_conversacion_etiquetas; Type: CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.conversacion_etiquetas
-    ADD CONSTRAINT uq_whatsapp_conversacion_etiquetas UNIQUE (conversacion_id, etiqueta_id);
 
 
 --
@@ -7765,6 +7894,90 @@ CREATE UNIQUE INDEX ux_catalogos_tipos_empresa_nombre ON core.catalogos_tipos US
 --
 
 COMMENT ON INDEX core.ux_catalogos_tipos_empresa_nombre IS 'Evita duplicar nombres de catálogo dentro de una empresa';
+
+
+--
+-- Name: idx_whatsapp_conversacion_etiquetas_empresa_conversacion; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_conversacion_etiquetas_empresa_conversacion ON crm.conversacion_etiquetas USING btree (empresa_id, conversacion_id);
+
+
+--
+-- Name: INDEX idx_whatsapp_conversacion_etiquetas_empresa_conversacion; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON INDEX crm.idx_whatsapp_conversacion_etiquetas_empresa_conversacion IS 'Optimiza búsqueda de etiquetas por conversación y empresa';
+
+
+--
+-- Name: idx_whatsapp_conversacion_etiquetas_etiqueta; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_conversacion_etiquetas_etiqueta ON crm.conversacion_etiquetas USING btree (etiqueta_id);
+
+
+--
+-- Name: INDEX idx_whatsapp_conversacion_etiquetas_etiqueta; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON INDEX crm.idx_whatsapp_conversacion_etiquetas_etiqueta IS 'Optimiza consultas de conversaciones por etiqueta';
+
+
+--
+-- Name: idx_whatsapp_etiquetas_empresa_activo; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_whatsapp_etiquetas_empresa_activo ON crm.etiquetas USING btree (empresa_id, activo);
+
+
+--
+-- Name: INDEX idx_whatsapp_etiquetas_empresa_activo; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON INDEX crm.idx_whatsapp_etiquetas_empresa_activo IS 'Optimiza consultas de etiquetas activas por empresa';
+
+
+--
+-- Name: ix_conv_empresa_estado; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_conv_empresa_estado ON crm.conversaciones USING btree (empresa_id, estado);
+
+
+--
+-- Name: ix_mensajes_empresa_fecha; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_mensajes_empresa_fecha ON crm.mensajes USING btree (empresa_id, fecha_envio DESC);
+
+
+--
+-- Name: ux_crm_reglas_seguimiento_empresa_id; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_crm_reglas_seguimiento_empresa_id ON crm.reglas_seguimiento USING btree (empresa_id);
+
+
+--
+-- Name: ux_mensaje_externo; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_mensaje_externo ON crm.mensajes USING btree (empresa_id, id_externo) WHERE (id_externo IS NOT NULL);
+
+
+--
+-- Name: ux_whatsapp_etiquetas_empresa_nombre; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_whatsapp_etiquetas_empresa_nombre ON crm.etiquetas USING btree (empresa_id, lower(nombre));
+
+
+--
+-- Name: INDEX ux_whatsapp_etiquetas_empresa_nombre; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON INDEX crm.ux_whatsapp_etiquetas_empresa_nombre IS 'Evita duplicados de nombre de etiqueta por empresa (case-insensitive)';
 
 
 --
@@ -8258,6 +8471,13 @@ COMMENT ON INDEX public.idx_fa_operacion IS 'Permite localizar rápidamente las 
 
 
 --
+-- Name: idx_finanzas_operaciones_empresa_naturaleza; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_operaciones_empresa_naturaleza ON public.finanzas_operaciones USING btree (empresa_id, naturaleza_operacion);
+
+
+--
 -- Name: idx_fo_concepto; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8573,83 +8793,6 @@ CREATE INDEX config_empresa_id_idx ON whatsapp.config USING btree (empresa_id);
 
 
 --
--- Name: idx_whatsapp_conversacion_etiquetas_empresa_conversacion; Type: INDEX; Schema: whatsapp; Owner: -
---
-
-CREATE INDEX idx_whatsapp_conversacion_etiquetas_empresa_conversacion ON whatsapp.conversacion_etiquetas USING btree (empresa_id, conversacion_id);
-
-
---
--- Name: INDEX idx_whatsapp_conversacion_etiquetas_empresa_conversacion; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON INDEX whatsapp.idx_whatsapp_conversacion_etiquetas_empresa_conversacion IS 'Optimiza búsqueda de etiquetas por conversación y empresa';
-
-
---
--- Name: idx_whatsapp_conversacion_etiquetas_etiqueta; Type: INDEX; Schema: whatsapp; Owner: -
---
-
-CREATE INDEX idx_whatsapp_conversacion_etiquetas_etiqueta ON whatsapp.conversacion_etiquetas USING btree (etiqueta_id);
-
-
---
--- Name: INDEX idx_whatsapp_conversacion_etiquetas_etiqueta; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON INDEX whatsapp.idx_whatsapp_conversacion_etiquetas_etiqueta IS 'Optimiza consultas de conversaciones por etiqueta';
-
-
---
--- Name: idx_whatsapp_etiquetas_empresa_activo; Type: INDEX; Schema: whatsapp; Owner: -
---
-
-CREATE INDEX idx_whatsapp_etiquetas_empresa_activo ON whatsapp.etiquetas USING btree (empresa_id, activo);
-
-
---
--- Name: INDEX idx_whatsapp_etiquetas_empresa_activo; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON INDEX whatsapp.idx_whatsapp_etiquetas_empresa_activo IS 'Optimiza consultas de etiquetas activas por empresa';
-
-
---
--- Name: ix_conv_empresa_estado; Type: INDEX; Schema: whatsapp; Owner: -
---
-
-CREATE INDEX ix_conv_empresa_estado ON whatsapp.conversaciones USING btree (empresa_id, estado);
-
-
---
--- Name: ix_mensajes_empresa_fecha; Type: INDEX; Schema: whatsapp; Owner: -
---
-
-CREATE INDEX ix_mensajes_empresa_fecha ON whatsapp.mensajes USING btree (empresa_id, fecha_envio DESC);
-
-
---
--- Name: ux_mensaje_externo; Type: INDEX; Schema: whatsapp; Owner: -
---
-
-CREATE UNIQUE INDEX ux_mensaje_externo ON whatsapp.mensajes USING btree (empresa_id, id_externo) WHERE (id_externo IS NOT NULL);
-
-
---
--- Name: ux_whatsapp_etiquetas_empresa_nombre; Type: INDEX; Schema: whatsapp; Owner: -
---
-
-CREATE UNIQUE INDEX ux_whatsapp_etiquetas_empresa_nombre ON whatsapp.etiquetas USING btree (empresa_id, lower(nombre));
-
-
---
--- Name: INDEX ux_whatsapp_etiquetas_empresa_nombre; Type: COMMENT; Schema: whatsapp; Owner: -
---
-
-COMMENT ON INDEX whatsapp.ux_whatsapp_etiquetas_empresa_nombre IS 'Evita duplicados de nombre de etiqueta por empresa (case-insensitive)';
-
-
---
 -- Name: whatsapp_plantillas_default_uk; Type: INDEX; Schema: whatsapp; Owner: -
 --
 
@@ -8961,6 +9104,78 @@ ALTER TABLE ONLY core.usuarios_roles
 
 ALTER TABLE ONLY core.usuarios_roles
     ADD CONSTRAINT usuarios_roles_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: configuracion_email_empresa configuracion_email_empresa_empresa_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_empresa
+    ADD CONSTRAINT configuracion_email_empresa_empresa_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: configuracion_email_usuario configuracion_email_usuario_empresa_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_usuario
+    ADD CONSTRAINT configuracion_email_usuario_empresa_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: configuracion_email_usuario configuracion_email_usuario_usuario_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.configuracion_email_usuario
+    ADD CONSTRAINT configuracion_email_usuario_usuario_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: email_plantillas email_plantillas_empresa_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.email_plantillas
+    ADD CONSTRAINT email_plantillas_empresa_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: conversacion_etiquetas fk_conversacion_etiquetas_conversaciones; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_etiquetas
+    ADD CONSTRAINT fk_conversacion_etiquetas_conversaciones FOREIGN KEY (conversacion_id) REFERENCES crm.conversaciones(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversacion_etiquetas fk_conversacion_etiquetas_etiquetas; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_etiquetas
+    ADD CONSTRAINT fk_conversacion_etiquetas_etiquetas FOREIGN KEY (etiqueta_id) REFERENCES crm.etiquetas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversaciones fk_conversaciones_contactos; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversaciones
+    ADD CONSTRAINT fk_conversaciones_contactos FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
+
+
+--
+-- Name: mensajes fk_mensajes_contactos; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensajes
+    ADD CONSTRAINT fk_mensajes_contactos FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
+
+
+--
+-- Name: mensajes fk_mensajes_conversaciones; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensajes
+    ADD CONSTRAINT fk_mensajes_conversaciones FOREIGN KEY (conversacion_id) REFERENCES crm.conversaciones(id);
 
 
 --
@@ -9500,51 +9715,11 @@ ALTER TABLE ONLY whatsapp.contacto_mapeo
 
 
 --
--- Name: conversaciones conversaciones_contacto_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.conversaciones
-    ADD CONSTRAINT conversaciones_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
-
-
---
--- Name: conversacion_etiquetas fk_whatsapp_conversacion_etiquetas_conversacion; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.conversacion_etiquetas
-    ADD CONSTRAINT fk_whatsapp_conversacion_etiquetas_conversacion FOREIGN KEY (conversacion_id) REFERENCES whatsapp.conversaciones(id) ON DELETE CASCADE;
-
-
---
--- Name: conversacion_etiquetas fk_whatsapp_conversacion_etiquetas_etiqueta; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.conversacion_etiquetas
-    ADD CONSTRAINT fk_whatsapp_conversacion_etiquetas_etiqueta FOREIGN KEY (etiqueta_id) REFERENCES whatsapp.etiquetas(id) ON DELETE CASCADE;
-
-
---
 -- Name: intentos_contacto intentos_contacto_empresa_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
 ALTER TABLE ONLY whatsapp.intentos_contacto
     ADD CONSTRAINT intentos_contacto_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
-
-
---
--- Name: mensajes mensajes_contacto_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.mensajes
-    ADD CONSTRAINT mensajes_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
-
-
---
--- Name: mensajes mensajes_conversacion_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
---
-
-ALTER TABLE ONLY whatsapp.mensajes
-    ADD CONSTRAINT mensajes_conversacion_id_fkey FOREIGN KEY (conversacion_id) REFERENCES whatsapp.conversaciones(id);
 
 
 --
@@ -9558,4 +9733,6 @@ ALTER TABLE ONLY whatsapp.plantillas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 0heKaVcvGe8WGybd6ptZnHjdxySXftsaS3YyOLViCgmfXaeKXPpF12VrbDPi4Li
 
