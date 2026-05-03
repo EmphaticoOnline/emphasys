@@ -1,6 +1,6 @@
 export const MAIN_MENUS = [
   { label: 'Catálogos' },
-  { label: 'Leads' },
+  { label: 'CRM' },
   { label: 'Ventas' },
   { label: 'Compras' },
   { label: 'Finanzas' },
@@ -11,7 +11,7 @@ export const MAIN_MENUS = [
 
 export const MODULE_TABS: Record<string, string[]> = {
   Catálogos: ['Contactos', 'Productos'],
-  Leads: [],
+  CRM: [],
   Ventas: [],
   Compras: ['Requisiciones', 'Órdenes de compra', 'Recepciones', 'Facturas'],
   Finanzas: ['Finanzas'],
@@ -22,6 +22,7 @@ export const MODULE_TABS: Record<string, string[]> = {
 
 export const MODULE_DESCRIPTIONS: Record<string, string> = {
   Catálogos: 'Administra los catálogos maestros como contactos y productos.',
+  CRM: 'Gestiona conversaciones y oportunidades comerciales desde un solo módulo.',
   Ventas: 'Gestiona el ciclo comercial desde cotizaciones hasta facturación.',
   Compras: 'Controla proveedores, solicitudes y órdenes de compra.',
   Finanzas: 'Supervisa cuentas, movimientos y conciliaciones bancarias.',

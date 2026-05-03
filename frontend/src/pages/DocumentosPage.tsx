@@ -110,6 +110,8 @@ type StatusOption = {
   textColor?: string;
 };
 
+type CotizacionEstatusDocumento = 'borrador' | 'enviado' | 'en negociacion';
+
 const FILTROS_COTIZACION_INICIALES = {
   fechaDesde: '',
   fechaHasta: '',
@@ -135,6 +137,16 @@ const DOCUMENTO_ESTATUS_LABELS: Record<string, string> = {
   pagado: 'Pagado',
 };
 
+const COTIZACION_ESTATUS_LABELS: Record<CotizacionEstatusDocumento, string> = {
+  borrador: 'Borrador',
+  enviado: 'Enviado',
+  'en negociacion': 'En negociación',
+};
+
+const COTIZACION_ESTATUS_EDITABLE_OPTIONS: StatusOption[] = [
+  { value: 'en negociacion', label: 'En negociación' },
+];
+
 const normalizeDocumentoEstatus = (value: unknown): string => {
   const normalized = String(value ?? 'borrador').trim().toLowerCase();
   if (!normalized) return 'borrador';
@@ -154,6 +166,40 @@ const getDocumentoEstatusColor = (value: unknown): 'default' | 'info' | 'success
   if (normalized === 'cancelado') return 'error';
   if (normalized === 'timbrado' || normalized === 'cerrado' || normalized === 'pagado') return 'success';
   return 'default';
+};
+
+const normalizeCotizacionEstatusDocumento = (value: unknown): CotizacionEstatusDocumento => {
+  const normalized = String(value ?? 'borrador')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+
+  if (normalized === 'enviado') return 'enviado';
+  if (normalized === 'en negociacion' || normalized === 'negociacion') return 'en negociacion';
+  return 'borrador';
+};
+
+const formatCotizacionEstatusLabel = (value: unknown): string => {
+  return COTIZACION_ESTATUS_LABELS[normalizeCotizacionEstatusDocumento(value)];
+};
+
+const getCotizacionEstatusPresentation = (value: unknown) => {
+  const normalized = normalizeCotizacionEstatusDocumento(value);
+
+  if (normalized === 'enviado') {
+    return { value: normalized, label: COTIZACION_ESTATUS_LABELS.enviado, color: '#dbeafe', textColor: '#1d4ed8' };
+  }
+  if (normalized === 'en negociacion') {
+    return { value: normalized, label: COTIZACION_ESTATUS_LABELS['en negociacion'], color: '#fef3c7', textColor: '#92400e' };
+  }
+
+  return { value: normalized, label: COTIZACION_ESTATUS_LABELS.borrador, color: '#f3f4f6', textColor: '#374151' };
+};
+
+const getCotizacionEstatusEditableOptions = (value: unknown): StatusOption[] => {
+  return normalizeCotizacionEstatusDocumento(value) === 'enviado' ? COTIZACION_ESTATUS_EDITABLE_OPTIONS : [];
 };
 
 export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPageProps) {
@@ -221,10 +267,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     enviando: boolean;
     error?: string | null;
   }>({ open: false, id: null, email: '', enviando: false, error: null });
-  const [enviarCotizacionMenu, setEnviarCotizacionMenu] = useState<{
-    anchorEl: HTMLElement | null;
-    row: CotizacionListado | null;
-  }>({ anchorEl: null, row: null });
   const [enviarCotizacionDialog, setEnviarCotizacionDialog] = useState<{
     open: boolean;
     id: number | null;
@@ -312,6 +354,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const currencyFormatter = useCallback((value: number | string | null | undefined) => currency.format(Number(value ?? 0)), [currency]);
   const showSaldo = tipoDocumento === 'factura' || tipoDocumento === 'factura_compra';
   const isFacturaConSaldo = showSaldo;
+  const estatusDocumentoOptions = useMemo<StatusOption[]>(
+    () => (esCotizacion ? COTIZACION_ESTATUS_EDITABLE_OPTIONS : statusOptions),
+    [esCotizacion, statusOptions]
+  );
+  const effectiveColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
+    () => (esCotizacion ? { ...columnVisibilityModel, estatus_documento: true } : columnVisibilityModel),
+    [columnVisibilityModel, esCotizacion]
+  );
   const vendedoresPorId = useMemo(() => {
     const map = new Map<number, string>();
     vendedores.forEach((vendedor) => {
@@ -427,10 +477,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const handleOpenEstatusMenu = (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => {
     event.preventDefault();
     event.stopPropagation();
+    if (esCotizacion && getCotizacionEstatusEditableOptions(row.estatus_documento).length === 0) {
+      return;
+    }
     setEstatusMenu({
       anchorEl: event.currentTarget,
       rowId: Number(row.id),
-      currentValue: normalizeDocumentoEstatus(row.estatus_documento),
+      currentValue: esCotizacion
+        ? normalizeCotizacionEstatusDocumento(row.estatus_documento)
+        : normalizeDocumentoEstatus(row.estatus_documento),
     });
   };
 
@@ -455,7 +510,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
     try {
       setActualizandoEstatusId(rowId);
-      const updated = await updateDocumento(rowId, tipoDocumento, { estatus_documento: formatDocumentoEstatusLabel(nextValue) });
+      const updated = await updateDocumento(rowId, tipoDocumento, {
+        estatus_documento: esCotizacion ? formatCotizacionEstatusLabel(nextValue) : formatDocumentoEstatusLabel(nextValue),
+      });
       setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...(updated as Partial<CotizacionListado>) } : row)));
       setSnackbar({ open: true, message: 'Estatus actualizado', severity: 'success' });
     } catch (err: any) {
@@ -783,17 +840,31 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         headerClassName: 'finanzas-header',
         renderCell: (params: any) => {
           const estatus = params.row?.estatus_documento || 'Borrador';
+          const cotizacionConfig = esCotizacion ? getCotizacionEstatusPresentation(estatus) : null;
+          const canEdit = esCotizacion ? getCotizacionEstatusEditableOptions(estatus).length > 0 : true;
           return (
             <Chip
-              label={formatDocumentoEstatusLabel(estatus)}
+              label={esCotizacion ? cotizacionConfig?.label : formatDocumentoEstatusLabel(estatus)}
               size="small"
-              color={getDocumentoEstatusColor(estatus) as any}
-              clickable
+              color={esCotizacion ? undefined : (getDocumentoEstatusColor(estatus) as any)}
+              clickable={canEdit}
               disabled={actualizandoEstatusId === Number(params.row?.id)}
-              onClick={(event) => handleOpenEstatusMenu(event, params.row as CotizacionListado)}
-              deleteIcon={<ArrowDropDownIcon sx={{ fontSize: 16 }} />}
-              onDelete={(event) => handleOpenEstatusMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado)}
-              sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5, cursor: 'pointer' }}
+              onClick={canEdit ? (event) => handleOpenEstatusMenu(event, params.row as CotizacionListado) : undefined}
+              deleteIcon={canEdit ? <ArrowDropDownIcon sx={{ fontSize: 16, color: esCotizacion ? cotizacionConfig?.textColor : undefined }} /> : undefined}
+              onDelete={canEdit ? (event) => handleOpenEstatusMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado) : undefined}
+              sx={{
+                height: 22,
+                fontSize: '0.72rem',
+                px: 0.75,
+                borderRadius: 1.5,
+                cursor: canEdit ? 'pointer' : 'default',
+                ...(esCotizacion
+                  ? {
+                      bgcolor: cotizacionConfig?.color,
+                      color: cotizacionConfig?.textColor,
+                    }
+                  : {}),
+              }}
             />
           );
         },
@@ -856,20 +927,21 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             </IconButton>
           </Tooltip>
           {tipoDocumento === 'cotizacion' && (
-            <>
-              <Button
-                size="small"
-                color="primary"
-                endIcon={<ArrowDropDownIcon />}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setEnviarCotizacionMenu({ anchorEl: event.currentTarget, row: params.row as CotizacionListado });
-                }}
-                sx={{ minWidth: 92, textTransform: 'none', fontWeight: 700 }}
-              >
-                Enviar
-              </Button>
-            </>
+            <Tooltip title="Enviar por correo">
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    abrirDialogoEnviarCotizacion(params.row as CotizacionListado);
+                  }}
+                >
+                  <EmailIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
           )}
           {tipoDocumento === 'factura' && (
             <Tooltip title={Number(params.row?.saldo ?? 0) > 0 ? 'Aplicar pago' : 'Factura sin saldo pendiente'}>
@@ -1510,11 +1582,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             if ((event as any).defaultMuiPrevented) return;
             navigate(`${basePath}/${params.id}`);
           }}
-          columnVisibilityModel={columnVisibilityModel}
+          columnVisibilityModel={effectiveColumnVisibilityModel}
           onColumnVisibilityModelChange={(model) => {
-            setColumnVisibilityModel(model);
+            const nextModel = esCotizacion ? { ...model, estatus_documento: true } : model;
+            setColumnVisibilityModel(nextModel);
             const current = {
-              columnVisibilityModel: model,
+              columnVisibilityModel: nextModel,
               columnWidths,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
@@ -1597,7 +1670,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
-        {statusOptions.map((status) => (
+        {estatusDocumentoOptions.map((status) => (
           <MenuItem
             key={status.value}
             selected={estatusMenu.currentValue === status.value}
@@ -1607,27 +1680,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             {status.label}
           </MenuItem>
         ))}
-      </Menu>
-
-      <Menu
-        anchorEl={enviarCotizacionMenu.anchorEl}
-        open={Boolean(enviarCotizacionMenu.anchorEl)}
-        onClose={() => setEnviarCotizacionMenu({ anchorEl: null, row: null })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-      >
-        <MenuItem
-          onClick={() => {
-            const row = enviarCotizacionMenu.row;
-            setEnviarCotizacionMenu({ anchorEl: null, row: null });
-            if (row) abrirDialogoEnviarCotizacion(row);
-          }}
-        >
-          <ListItemIcon>
-            <EmailIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="Enviar por correo" />
-        </MenuItem>
       </Menu>
 
       {esCotizacion && (

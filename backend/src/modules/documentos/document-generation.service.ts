@@ -9,6 +9,7 @@ import type {
 } from "./document-generation.types.js";
 import { calcularImpuestosPartida } from "../impuestos/impuestos.service";
 import { actualizarTotales } from "./documentos.service";
+import { sanitizarCamposCotizacion } from "./cotizacion-status";
 
 class ServiceError extends Error {
   code: string;
@@ -244,6 +245,9 @@ export class DocumentGenerationService {
 
       // Determinar serie y número secuencial del documento destino usando la misma lógica que creación estándar
       const serieDestino = datos_encabezado?.serie ?? SERIE_DEFAULTS[tipo_documento_destino] ?? "DOC";
+      const camposCotizacion: { estado_seguimiento: string } | null = tipo_documento_destino === "cotizacion"
+        ? sanitizarCamposCotizacion({ estado_seguimiento: undefined as string | undefined }, { applyDefaults: true }) as { estado_seguimiento: string }
+        : null;
       const { rows: numeroRows } = await client.query(
         `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
            FROM documentos
@@ -254,6 +258,8 @@ export class DocumentGenerationService {
       );
       const nextNumero = numeroRows[0]?.next_numero ?? 1;
       const fechaDocumento = datos_encabezado?.fecha ?? new Date();
+      const columnasCotizacion = camposCotizacion ? ",\n            estado_seguimiento" : "";
+      const valoresCotizacion = camposCotizacion ? ",\n            $15" : "";
 
       const { rows: insertDocRows } = await client.query(
         `INSERT INTO documentos (
@@ -274,7 +280,7 @@ export class DocumentGenerationService {
             total,
             observaciones,
             documento_origen_id,
-            usuario_creacion_id
+            usuario_creacion_id${columnasCotizacion}
           ) VALUES (
             $1, $2, 'Borrador', $3, $4, $5,
             $6, $7, $8, $9,
@@ -282,7 +288,7 @@ export class DocumentGenerationService {
             0, 0, 0,
             $12,
             $13,
-            $14
+            $14${valoresCotizacion}
           )
           RETURNING *`,
         [
@@ -300,6 +306,7 @@ export class DocumentGenerationService {
           datos_encabezado?.comentarios ?? documentoOrigen.observaciones ?? null,
           documento_origen_id,
           usuarioId ?? null,
+          ...(camposCotizacion ? [camposCotizacion.estado_seguimiento] : []),
         ]
       );
 
@@ -404,6 +411,27 @@ export class DocumentGenerationService {
         iva: Number(totales.iva),
         total: Number(totales.total),
       });
+
+      if (tipo_documento_destino === "factura") {
+        const { rows: oportunidadRows } = await client.query(
+          `SELECT id
+             FROM crm.oportunidades_venta
+            WHERE cotizacion_principal_id = $1
+            LIMIT 1`,
+          [documento_origen_id]
+        );
+
+        const oportunidadId = oportunidadRows[0]?.id;
+        if (oportunidadId) {
+          await client.query(
+            `UPDATE crm.oportunidades_venta
+                SET estatus = 'ganada',
+                    updated_at = NOW()
+              WHERE id = $1`,
+            [oportunidadId]
+          );
+        }
+      }
 
       await client.query("COMMIT");
 

@@ -1187,7 +1187,17 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <Button variant="text" startIcon={<ArrowBackIcon />} onClick={() => navigate(basePath)}>
+          <Button
+            variant="text"
+            startIcon={<ArrowBackIcon />}
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+                return;
+              }
+              navigate('/ventas/cotizaciones');
+            }}
+          >
             Volver
           </Button>
           <Box>

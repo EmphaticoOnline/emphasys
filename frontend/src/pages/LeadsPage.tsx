@@ -35,7 +35,6 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import ReplyIcon from '@mui/icons-material/Reply';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
@@ -87,6 +86,7 @@ type ConversationMessage = {
 
 type OportunidadVenta = {
   id: number;
+  cotizacion_principal_id: number | null;
   serie: string | null;
   numero: number | null;
   estatus: string;
@@ -452,7 +452,6 @@ export default function LeadsPage() {
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
-  const [isTesting, setIsTesting] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
   const [isSendingTemplate, setIsSendingTemplate] = React.useState(false);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = React.useState(false);
@@ -462,7 +461,6 @@ export default function LeadsPage() {
   const [isLoadingOportunidades, setIsLoadingOportunidades] = React.useState(false);
   const [oportunidadesError, setOportunidadesError] = React.useState<string | null>(null);
   const [oportunidadesOpen, setOportunidadesOpen] = React.useState(true);
-  const [testResults, setTestResults] = React.useState<Array<{ titulo: string; mensaje: string }>>([]);
   const [etapaMenu, setEtapaMenu] = React.useState<{ leadId: string; anchorEl: HTMLElement | null } | null>(null);
   const [availableTags, setAvailableTags] = React.useState<WhatsappEtiqueta[]>([]);
   const [selectedTagIds, setSelectedTagIds] = React.useState<number[]>([]);
@@ -1818,99 +1816,6 @@ export default function LeadsPage() {
     }
   };
 
-  const handleTestScenarios = async () => {
-    setIsTesting(true);
-    const escenarios = [
-      {
-        titulo: 'Urgente - ¿Cuánto cuesta?',
-        payload: {
-          nombre: 'Ana Cliente',
-          ultimoMensaje: '¿Cuánto cuesta?',
-          tiempoSinRespuesta: '2h',
-          prioridad: 'Alta',
-          tipoLead: 'Urgente',
-          canal: 'WhatsApp',
-          siguienteAccion: 'Responder',
-        },
-      },
-      {
-        titulo: 'Frío - Luego te aviso',
-        payload: {
-          nombre: 'Carlos',
-          ultimoMensaje: 'Luego te aviso',
-          tiempoSinRespuesta: '1d',
-          prioridad: 'Baja',
-          tipoLead: 'Seguimiento',
-          canal: 'WhatsApp',
-          siguienteAccion: 'Responder',
-        },
-      },
-      {
-        titulo: 'Molesto - No me han respondido',
-        payload: {
-          nombre: 'Lucía',
-          ultimoMensaje: 'No me han respondido',
-          tiempoSinRespuesta: '3h 20m',
-          prioridad: 'Alta',
-          tipoLead: 'Urgente',
-          canal: 'WhatsApp',
-          siguienteAccion: 'Responder',
-        },
-      },
-      {
-        titulo: 'Seguimiento - Gracias por la demo',
-        payload: {
-          nombre: 'Mario',
-          ultimoMensaje: 'Gracias por la demo',
-          tiempoSinRespuesta: '5h',
-          prioridad: 'Media',
-          tipoLead: 'Seguimiento',
-          canal: 'WhatsApp',
-          siguienteAccion: 'Agendar demo',
-        },
-      },
-      {
-        titulo: 'Nuevo - Hola, quiero info',
-        payload: {
-          nombre: 'Paula',
-          ultimoMensaje: 'Hola, quiero info',
-          tiempoSinRespuesta: '30m',
-          prioridad: 'Media',
-          tipoLead: 'Nuevo',
-          canal: 'WhatsApp',
-          siguienteAccion: 'Responder',
-        },
-      },
-    ];
-
-    const resultados: Array<{ titulo: string; mensaje: string }> = [];
-
-    try {
-      for (const escenario of escenarios) {
-        const response = await apiFetch('/api/leads/sugerir-mensaje', {
-          method: 'POST',
-          body: JSON.stringify(escenario.payload),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Error en escenario: ${escenario.titulo}`);
-        }
-
-        const data = await response.json();
-        const mensaje = data?.mensaje ?? '[sin respuesta]';
-        resultados.push({ titulo: escenario.titulo, mensaje });
-        console.log(`[Scenario] ${escenario.titulo}:`, mensaje);
-      }
-
-      setTestResults(resultados);
-    } catch (error) {
-      console.error('Error en pruebas de escenarios:', error);
-      alert('No se pudieron probar los escenarios.');
-    } finally {
-      setIsTesting(false);
-    }
-  };
-
   const urgentLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes > 180);
   const followUpLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes >= 60 && l.idleMinutes <= 180);
   const newLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes < 60);
@@ -2699,15 +2604,6 @@ export default function LeadsPage() {
                       {isSuggesting ? 'Generando…' : '✨ Sugerir mensaje'}
                     </Button>
                     <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={handleTestScenarios}
-                      disabled={isTesting}
-                      sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
-                    >
-                      {isTesting ? 'Probando…' : 'Probar escenarios'}
-                    </Button>
-                    <Button
                       variant={selectedLead.requiresTemplate ? 'contained' : 'outlined'}
                       color={selectedLead.requiresTemplate ? 'warning' : 'inherit'}
                       size="small"
@@ -2728,8 +2624,6 @@ export default function LeadsPage() {
                     >
                       Generar cotización
                     </Button>
-                    <Button variant="outlined" size="small" startIcon={<CheckCircleIcon />}>Marcar cotizado</Button>
-                    <Button variant="outlined" size="small" color="error">Cerrar / Perdido</Button>
                   </Stack>
                 </Stack>
               </Paper>
@@ -2763,6 +2657,7 @@ export default function LeadsPage() {
                     )}
 
                     {!isLoadingOportunidades && !oportunidadesError && oportunidades.map((oportunidad) => {
+                      const cotizacionPrincipalId = oportunidad.cotizacion_principal_id;
                       const folio = oportunidad.serie && oportunidad.numero !== null
                         ? `${oportunidad.serie}-${oportunidad.numero}`
                         : oportunidad.serie
@@ -2774,12 +2669,24 @@ export default function LeadsPage() {
                       return (
                         <Box
                           key={oportunidad.id}
+                          onClick={() => {
+                            if (!cotizacionPrincipalId) return;
+                            navigate(`/ventas/cotizacion/${cotizacionPrincipalId}`);
+                          }}
                           sx={{
                             border: '1px solid',
                             borderColor: 'divider',
                             borderRadius: 1,
                             px: 1.25,
                             py: 1,
+                            cursor: cotizacionPrincipalId ? 'pointer' : 'default',
+                            transition: 'background-color 0.15s ease, border-color 0.15s ease',
+                            '&:hover': cotizacionPrincipalId
+                              ? {
+                                  backgroundColor: 'action.hover',
+                                  borderColor: 'primary.main',
+                                }
+                              : undefined,
                           }}
                         >
                           <Typography variant="body2" fontWeight={700}>
@@ -2829,22 +2736,6 @@ export default function LeadsPage() {
                   </Button>
                 </DialogActions>
               </Dialog>
-
-                {testResults.length > 0 && (
-                  <Paper variant="outlined" sx={{ p: 1.25, backgroundColor: '#f9fafb' }}>
-                    <Stack spacing={1}>
-                      <Typography variant="subtitle2" color="text.secondary">Resultados de escenarios</Typography>
-                      <Stack spacing={0.75}>
-                        {testResults.map((r) => (
-                          <Box key={r.titulo}>
-                            <Typography variant="body2" fontWeight={700}>{r.titulo}</Typography>
-                            <Typography variant="body2" color="text.secondary">{r.mensaje}</Typography>
-                          </Box>
-                        ))}
-                      </Stack>
-                    </Stack>
-                  </Paper>
-                )}
 
               <Stack spacing={1}>
                 <Typography variant="subtitle2" color="text.secondary">

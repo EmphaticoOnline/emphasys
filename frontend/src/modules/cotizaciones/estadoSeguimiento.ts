@@ -8,14 +8,14 @@ export type EstadoSeguimientoOption = {
   rowClassName: string;
 };
 
-export const DEFAULT_ESTADO_SEGUIMIENTO: EstadoSeguimiento = 'borrador';
+export const DEFAULT_ESTADO_SEGUIMIENTO: EstadoSeguimiento = 'abierta';
 
 export const ESTADOS_SEGUIMIENTO: EstadoSeguimientoOption[] = [
-  { value: 'borrador', label: 'Borrador', color: '#f3f4f6', textColor: '#374151', rowClassName: 'row-estado-borrador' },
-  { value: 'enviado', label: 'Enviado', color: '#dbeafe', textColor: '#1d4ed8', rowClassName: 'row-estado-enviado' },
-  { value: 'negociacion', label: 'En negociación', color: '#fef3c7', textColor: '#92400e', rowClassName: 'row-estado-negociacion' },
-  { value: 'ganado', label: 'Ganado', color: '#dcfce7', textColor: '#166534', rowClassName: 'row-estado-ganado' },
-  { value: 'perdido', label: 'Perdido', color: '#fee2e2', textColor: '#b91c1c', rowClassName: 'row-estado-perdido' },
+  { value: 'abierta', label: 'Abierta', color: '#e0f2fe', textColor: '#075985', rowClassName: 'row-estado-abierta' },
+  { value: 'pausada', label: 'Pausada', color: '#ffedd5', textColor: '#9a3412', rowClassName: 'row-estado-pausada' },
+  { value: 'ganada', label: 'Ganada', color: '#dcfce7', textColor: '#166534', rowClassName: 'row-estado-ganada' },
+  { value: 'perdida', label: 'Perdida', color: '#fee2e2', textColor: '#b91c1c', rowClassName: 'row-estado-perdida' },
+  { value: 'cancelada', label: 'Cancelada', color: '#e5e7eb', textColor: '#4b5563', rowClassName: 'row-estado-cancelada' },
 ];
 
 const ESTADOS_SEGUIMIENTO_MAP = new Map(ESTADOS_SEGUIMIENTO.map((estado) => [estado.value, estado]));

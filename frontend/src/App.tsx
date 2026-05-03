@@ -31,6 +31,7 @@ import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 import LeadsPage from './pages/LeadsPage';
+import OportunidadesPage from './pages/OportunidadesPage';
 import CotizacionesGridPage from './pages/CotizacionesGridPage';
 import AIReportesPage from './pages/AIReportesPage';
 
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="/productos/nuevo" element={<ProductoFormPage />} />
               <Route path="/productos/:id" element={<ProductoFormPage />} />
               <Route path="/leads" element={<LeadsPage />} />
+              <Route path="/oportunidades" element={<OportunidadesPage />} />
               <Route path="/ventas/:codigo" element={<DocumentosPage />} />
               <Route path="/ventas/:codigo/nuevo" element={<DocumentosFormPage />} />
               <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />

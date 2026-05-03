@@ -2,6 +2,9 @@ import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import type { TipoDocumento } from '../../types/documentos';
 import type { TratamientoImpuestos } from '../impuestos/impuestos.types';
+import {
+  sanitizarCamposCotizacion,
+} from './cotizacion-status';
 
 export type Documento = {
   id: number;
@@ -261,13 +264,12 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
 };
 
 export async function crearDocumentoRepository(data: DocumentoInput, empresaId: number, tipoDocumento: TipoDocumento) {
-  const dataConDefaults: DocumentoInput = {
-    estado_seguimiento: data.estado_seguimiento ?? 'borrador',
-    ...data,
-  };
+  const tipoDocumentoNormalizado = (data.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
+  const dataConDefaults: DocumentoInput = tipoDocumentoNormalizado === 'cotizacion'
+    ? sanitizarCamposCotizacion({ ...data }, { applyDefaults: true })
+    : { ...data };
 
   const estatus = dataConDefaults.estatus_documento || 'Borrador';
-  const tipoDocumentoNormalizado = (dataConDefaults.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
   const tipoDocumentoDb = tipoDocumentoNormalizado;
 
   if (dataConDefaults.tratamiento_impuestos === undefined || dataConDefaults.tratamiento_impuestos === null) {
@@ -386,7 +388,7 @@ export async function actualizarDocumentoRepository(
 
   // Traer valores actuales para comparar serie/número
   const { rows: currentRows } = await pool.query(
-    `SELECT id, serie, numero, tipo_documento
+    `SELECT id, serie, numero, tipo_documento, estado_seguimiento
        FROM documentos
       WHERE id = $1 AND empresa_id = $2 ${tipoDocumento ? 'AND LOWER(tipo_documento) = LOWER($3)' : ''}
       LIMIT 1`,
@@ -395,10 +397,15 @@ export async function actualizarDocumentoRepository(
   const current = currentRows[0];
   if (!current) return null;
 
-  const dataToUpdate: DocumentoInput = { ...data };
+  let dataToUpdate: DocumentoInput = { ...data };
   const serieActual = current.serie ?? null;
   const serieNueva = dataToUpdate.serie ?? serieActual;
   const tipoDestino = (dataToUpdate.tipo_documento ?? current.tipo_documento) as TipoDocumento;
+  const tipoDestinoNormalizado = String(tipoDestino ?? '').toLowerCase() as TipoDocumento;
+
+  if (tipoDestinoNormalizado === 'cotizacion') {
+    dataToUpdate = sanitizarCamposCotizacion(dataToUpdate);
+  }
 
   // Si cambió la serie, reasignar número secuencial para esa serie
   if (serieNueva !== serieActual) {
@@ -435,7 +442,25 @@ export async function actualizarDocumentoRepository(
 
   const params = tipoDocumento ? [...valores, id, empresaId, tipoDocumento] : [...valores, id, empresaId];
   const { rows } = await pool.query(query, params);
-  return rows[0] || null;
+  const updated = rows[0] || null;
+
+  if (
+    updated
+    && tipoDestinoNormalizado === 'cotizacion'
+    && Object.prototype.hasOwnProperty.call(dataToUpdate, 'estado_seguimiento')
+    && current.estado_seguimiento !== updated.estado_seguimiento
+  ) {
+    await pool.query(
+      `UPDATE crm.oportunidades_venta
+          SET estatus = $1,
+              updated_at = NOW()
+        WHERE cotizacion_principal_id = $2
+          AND empresa_id = $3`,
+      [updated.estado_seguimiento, id, empresaId]
+    );
+  }
+
+  return updated;
 }
 
 export async function agregarPartidaRepository(documentoId: number, data: PartidaInput, empresaId: number, client?: PoolClient) {

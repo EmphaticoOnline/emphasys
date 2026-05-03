@@ -112,7 +112,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const sectionPathMap: Record<string, string> = {
     Configuración: '/configuracion',
-    Leads: '/leads',
+    CRM: '/leads',
     Informes: '/informes/ia',
   };
 
@@ -129,7 +129,7 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith('/ventas/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/compras/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/informes/')) return "Pregúntale a tu negocio";
-    if (pathname.startsWith('/leads')) return '';
+    if (pathname.startsWith('/leads') || pathname.startsWith('/oportunidades')) return '';
     if (pathname.startsWith('/finanzas')) return 'Finanzas';
     if (pathname.startsWith('/inventario/')) return 'Movimientos';
     if (pathname.startsWith('/productos')) return 'Productos';
@@ -144,7 +144,7 @@ export default function Layout({ children }: LayoutProps) {
   if (pathname.startsWith('/finanzas')) return 'Finanzas';
   if (pathname.startsWith('/inventario/')) return 'Inventarios';
   if (pathname.startsWith('/informes/')) return 'Informes';
-  if (pathname.startsWith('/leads')) return 'Leads';
+  if (pathname.startsWith('/leads') || pathname.startsWith('/oportunidades')) return 'CRM';
     const tab = getTabFromPath(pathname);
     return getSectionForTab(tab);
   };
@@ -162,7 +162,7 @@ export default function Layout({ children }: LayoutProps) {
       ? ventasTabs.map((t) => t.value)
       : selectedSection === 'Compras'
       ? comprasTabs.map((t) => t.value)
-      : selectedSection === 'Leads'
+      : selectedSection === 'CRM'
       ? []
       : MODULE_TABS[selectedSection] || [];
 
@@ -226,7 +226,7 @@ export default function Layout({ children }: LayoutProps) {
       navigate('/informes/ia');
       return;
     }
-    if (selectedSection === 'Leads') {
+    if (selectedSection === 'CRM') {
       navigate('/leads');
       return;
     }
@@ -397,7 +397,8 @@ export default function Layout({ children }: LayoutProps) {
             background: '#fff',
             boxShadow: '0px 12px 30px rgba(0,0,0,0.05)',
             borderRadius: 2,
-            overflow: 'hidden',
+            overflow: 'visible',
+            position: 'relative',
             border: '1px solid #e5e7eb',
             p: 0,
             display: 'flex',

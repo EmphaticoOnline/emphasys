@@ -11,6 +11,7 @@ import {
   getOrCreateConversacionContacto,
   registrarMensajeEmailSaliente,
 } from '../crm/conversaciones.service';
+import { COTIZACION_ESTATUS_DOCUMENTO_ENVIADO } from '../modules/documentos/cotizacion-status';
 
 type EnviarCotizacionEmailInput = {
   documentoId: number;
@@ -123,7 +124,7 @@ export class CotizacionEmailService {
         await actualizarConversacionSaliente(conversacionId, documento.empresa_id);
       }
 
-      await CotizacionEmailService.actualizarEstadoSeguimiento(documento.id, documento.empresa_id, 'enviado');
+      await CotizacionEmailService.actualizarEstatusDocumento(documento.id, documento.empresa_id, COTIZACION_ESTATUS_DOCUMENTO_ENVIADO);
 
       return {
         ok: true,
@@ -191,13 +192,14 @@ export class CotizacionEmailService {
     return generarDocumentoPDF(data, empresaId);
   }
 
-  private static async actualizarEstadoSeguimiento(documentoId: number, empresaId: number, estado: string) {
+  private static async actualizarEstatusDocumento(documentoId: number, empresaId: number, estatus: string) {
     await pool.query(
       `UPDATE documentos
-          SET estado_seguimiento = $1
+          SET estatus_documento = $1
         WHERE id = $2
-          AND empresa_id = $3`,
-      [estado, documentoId, empresaId]
+          AND empresa_id = $3
+          AND LOWER(tipo_documento) = 'cotizacion'`,
+      [estatus, documentoId, empresaId]
     );
   }
 
