@@ -8,7 +8,7 @@ import type {
   GenerarDocumentoPartidaInput,
 } from "./document-generation.types.js";
 import { calcularImpuestosPartida } from "../impuestos/impuestos.service";
-import { actualizarTotales } from "./documentos.service";
+import { actualizarTotales, asegurarOportunidadParaCotizacion } from "./documentos.service";
 import { sanitizarCamposCotizacion } from "./cotizacion-status";
 
 class ServiceError extends Error {
@@ -312,6 +312,25 @@ export class DocumentGenerationService {
 
       const documentoDestino = insertDocRows[0];
 
+      if (tipo_documento_destino === "cotizacion") {
+        await asegurarOportunidadParaCotizacion(
+          {
+            id: Number(documentoDestino.id),
+            tipo_documento: tipo_documento_destino,
+            agente_id: documentoDestino.agente_id ?? documentoOrigen.agente_id ?? null,
+          },
+          {
+            contacto_principal_id: (datos_encabezado?.contacto_principal_id as number | null | undefined)
+              ?? documentoOrigen.contacto_principal_id
+              ?? null,
+            agente_id: documentoDestino.agente_id ?? documentoOrigen.agente_id ?? null,
+            conversacion_id: (datos_encabezado?.conversacion_id as number | null | undefined) ?? null,
+          },
+          empresaId,
+          client
+        );
+      }
+
   const partidasGeneradas: { partida_destino_id: number; partida_origen_id: number; cantidad: number }[] = [];
 
       for (const [idx, partidaPayload] of partidas.entries()) {
@@ -447,6 +466,13 @@ export class DocumentGenerationService {
     } catch (error) {
       await client.query("ROLLBACK");
       if (error instanceof ServiceError) throw error;
+      if ((error as Error)?.message?.startsWith("VALIDATION_ERROR:")) {
+        throw new ServiceError(
+          "VALIDATION_ERROR",
+          (error as Error).message.replace("VALIDATION_ERROR:", "").trim() || "Error de validación",
+          400
+        );
+      }
       throw new ServiceError("ERROR_GENERICO", (error as Error)?.message ?? "Error al generar documento", 500);
     } finally {
       client.release();

@@ -90,7 +90,7 @@ type OportunidadVenta = {
   serie: string | null;
   numero: number | null;
   estatus: string;
-  monto_estimado: number | null;
+  monto_oportunidad: number | null;
 };
 
 type ReglasSeguimiento = {
@@ -2696,7 +2696,7 @@ export default function LeadsPage() {
                             Estatus: {oportunidad.estatus}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Monto estimado: {Number(oportunidad.monto_estimado ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                            Monto oportunidad: {Number(oportunidad.monto_oportunidad ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
                           </Typography>
                         </Box>
                       );

@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-04-30T02:11:02.071Z
+-- Generated at: 2026-05-04T20:09:31.780Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict 0heKaVcvGe8WGybd6ptZnHjdxySXftsaS3YyOLViCgmfXaeKXPpF12VrbDPi4Li
+\restrict liSWL3M0PNWyOhawovHSaFWBvHGb4FgiFDLMPJKcaKjQkyl4Zv7R50sgTDivIxS
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -404,6 +404,20 @@ BEGIN
   END IF;
 
   RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: set_actividades_updated_at(); Type: FUNCTION; Schema: crm; Owner: -
+--
+
+CREATE FUNCTION crm.set_actividades_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
 END;
 $$;
 
@@ -2209,6 +2223,161 @@ COMMENT ON COLUMN core.usuarios_roles.created_at IS 'Fecha de creación de la as
 
 
 --
+-- Name: actividades; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.actividades (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_asignado_id integer NOT NULL,
+    usuario_creador_id integer NOT NULL,
+    oportunidad_id integer,
+    tipo_actividad character varying(30) NOT NULL,
+    fecha_programada timestamp without time zone NOT NULL,
+    notas text,
+    estatus character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    fecha_realizacion timestamp without time zone,
+    resultado text,
+    recordatorio boolean DEFAULT false,
+    recordatorio_minutos integer,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now()
+);
+
+
+--
+-- Name: TABLE actividades; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.actividades IS 'Tabla de actividades programadas de seguimiento comercial en el ERP multiempresa.';
+
+
+--
+-- Name: COLUMN actividades.id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.id IS 'Identificador unico de la actividad.';
+
+
+--
+-- Name: COLUMN actividades.empresa_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.empresa_id IS 'Empresa a la que pertenece la actividad dentro del modelo multiempresa.';
+
+
+--
+-- Name: COLUMN actividades.usuario_asignado_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.usuario_asignado_id IS 'Usuario responsable de ejecutar la actividad.';
+
+
+--
+-- Name: COLUMN actividades.usuario_creador_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.usuario_creador_id IS 'Usuario que creo o asigno la actividad.';
+
+
+--
+-- Name: COLUMN actividades.oportunidad_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.oportunidad_id IS 'Oportunidad de venta relacionada. Es opcional y puede ser NULL para actividades generales.';
+
+
+--
+-- Name: COLUMN actividades.tipo_actividad; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.tipo_actividad IS 'Tipo de actividad. No usa catalogo por ahora; los valores se controlan desde aplicacion.';
+
+
+--
+-- Name: COLUMN actividades.fecha_programada; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.fecha_programada IS 'Fecha y hora en que debe ejecutarse la actividad.';
+
+
+--
+-- Name: COLUMN actividades.notas; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.notas IS 'Notas o instrucciones capturadas para el seguimiento.';
+
+
+--
+-- Name: COLUMN actividades.estatus; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.estatus IS 'Estatus de la actividad. Los valores se controlan desde aplicacion.';
+
+
+--
+-- Name: COLUMN actividades.fecha_realizacion; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.fecha_realizacion IS 'Fecha y hora en que se realizo la actividad. A nivel aplicacion es obligatoria cuando el estatus sea realizada.';
+
+
+--
+-- Name: COLUMN actividades.resultado; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.resultado IS 'Resultado de la actividad. A nivel aplicacion es obligatorio cuando el estatus sea realizada.';
+
+
+--
+-- Name: COLUMN actividades.recordatorio; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.recordatorio IS 'Indica si la actividad debe generar un recordatorio antes de su ejecucion.';
+
+
+--
+-- Name: COLUMN actividades.recordatorio_minutos; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.recordatorio_minutos IS 'Cantidad de minutos antes de la actividad en que se debe avisar.';
+
+
+--
+-- Name: COLUMN actividades.created_at; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.created_at IS 'Fecha y hora de creacion del registro.';
+
+
+--
+-- Name: COLUMN actividades.updated_at; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.updated_at IS 'Fecha y hora de la ultima actualizacion del registro.';
+
+
+--
+-- Name: actividades_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+CREATE SEQUENCE crm.actividades_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: actividades_id_seq; Type: SEQUENCE OWNED BY; Schema: crm; Owner: -
+--
+
+ALTER SEQUENCE crm.actividades_id_seq OWNED BY crm.actividades.id;
+
+
+--
 -- Name: configuracion_email_empresa; Type: TABLE; Schema: crm; Owner: -
 --
 
@@ -2687,7 +2856,6 @@ CREATE TABLE crm.oportunidades_venta (
     contacto_es_decisor boolean,
     comentarios_no_cierre text,
     observaciones text,
-    monto_estimado numeric(14,2),
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now()
 );
@@ -2803,13 +2971,6 @@ COMMENT ON COLUMN crm.oportunidades_venta.comentarios_no_cierre IS 'Explicación
 --
 
 COMMENT ON COLUMN crm.oportunidades_venta.observaciones IS 'Notas operativas del vendedor.';
-
-
---
--- Name: COLUMN oportunidades_venta.monto_estimado; Type: COMMENT; Schema: crm; Owner: -
---
-
-COMMENT ON COLUMN crm.oportunidades_venta.monto_estimado IS 'Monto estimado.';
 
 
 --
@@ -4017,8 +4178,16 @@ CREATE TABLE public.documentos_partidas (
     observaciones text,
     comentarios_internos text,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    fecha_modificacion timestamp with time zone
+    fecha_modificacion timestamp with time zone,
+    es_parte_oportunidad boolean DEFAULT true
 );
+
+
+--
+-- Name: COLUMN documentos_partidas.es_parte_oportunidad; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.es_parte_oportunidad IS 'Indica si la partida de la cotizacion debe considerarse dentro del monto real de la oportunidad comercial. Permite distinguir entre el total completo cotizado y las partidas que efectivamente cuentan para pipeline, forecast y valor comercial de la oportunidad.';
 
 
 --
@@ -6198,6 +6367,13 @@ ALTER TABLE ONLY core.usuarios ALTER COLUMN id SET DEFAULT nextval('core.usuario
 
 
 --
+-- Name: actividades id; Type: DEFAULT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.actividades ALTER COLUMN id SET DEFAULT nextval('crm.actividades_id_seq'::regclass);
+
+
+--
 -- Name: configuracion_email_empresa id; Type: DEFAULT; Schema: crm; Owner: -
 --
 
@@ -6714,6 +6890,14 @@ ALTER TABLE ONLY core.usuarios
 
 ALTER TABLE ONLY core.usuarios_roles
     ADD CONSTRAINT usuarios_roles_pkey PRIMARY KEY (usuario_id, empresa_id, rol_id);
+
+
+--
+-- Name: actividades actividades_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.actividades
+    ADD CONSTRAINT actividades_pkey PRIMARY KEY (id);
 
 
 --
@@ -7897,6 +8081,27 @@ COMMENT ON INDEX core.ux_catalogos_tipos_empresa_nombre IS 'Evita duplicar nombr
 
 
 --
+-- Name: idx_actividades_estatus; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_actividades_estatus ON crm.actividades USING btree (estatus);
+
+
+--
+-- Name: idx_actividades_oportunidad; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_actividades_oportunidad ON crm.actividades USING btree (oportunidad_id);
+
+
+--
+-- Name: idx_actividades_usuario_asignado_fecha; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_actividades_usuario_asignado_fecha ON crm.actividades USING btree (usuario_asignado_id, fecha_programada);
+
+
+--
 -- Name: idx_whatsapp_conversacion_etiquetas_empresa_conversacion; Type: INDEX; Schema: crm; Owner: -
 --
 
@@ -8821,6 +9026,13 @@ CREATE TRIGGER trg_usuarios_vendedor_contacto BEFORE INSERT OR UPDATE OF vendedo
 
 
 --
+-- Name: actividades trg_actividades_updated_at; Type: TRIGGER; Schema: crm; Owner: -
+--
+
+CREATE TRIGGER trg_actividades_updated_at BEFORE UPDATE ON crm.actividades FOR EACH ROW EXECUTE FUNCTION crm.set_actividades_updated_at();
+
+
+--
 -- Name: contactos trg_contactos_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -9136,6 +9348,38 @@ ALTER TABLE ONLY crm.configuracion_email_usuario
 
 ALTER TABLE ONLY crm.email_plantillas
     ADD CONSTRAINT email_plantillas_empresa_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: actividades fk_actividades_empresa; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.actividades
+    ADD CONSTRAINT fk_actividades_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: actividades fk_actividades_oportunidad; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.actividades
+    ADD CONSTRAINT fk_actividades_oportunidad FOREIGN KEY (oportunidad_id) REFERENCES crm.oportunidades_venta(id) ON DELETE SET NULL;
+
+
+--
+-- Name: actividades fk_actividades_usuario_asignado; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.actividades
+    ADD CONSTRAINT fk_actividades_usuario_asignado FOREIGN KEY (usuario_asignado_id) REFERENCES core.usuarios(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: actividades fk_actividades_usuario_creador; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.actividades
+    ADD CONSTRAINT fk_actividades_usuario_creador FOREIGN KEY (usuario_creador_id) REFERENCES core.usuarios(id) ON DELETE RESTRICT;
 
 
 --
@@ -9734,5 +9978,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 0heKaVcvGe8WGybd6ptZnHjdxySXftsaS3YyOLViCgmfXaeKXPpF12VrbDPi4Li
+\unrestrict liSWL3M0PNWyOhawovHSaFWBvHGb4FgiFDLMPJKcaKjQkyl4Zv7R50sgTDivIxS
 

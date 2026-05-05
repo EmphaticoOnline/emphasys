@@ -112,7 +112,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const sectionPathMap: Record<string, string> = {
     Configuración: '/configuracion',
-    CRM: '/leads',
+    CRM: '/crm',
     Informes: '/informes/ia',
   };
 
@@ -129,7 +129,7 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith('/ventas/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/compras/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/informes/')) return "Pregúntale a tu negocio";
-    if (pathname.startsWith('/leads') || pathname.startsWith('/oportunidades')) return '';
+    if (pathname.startsWith('/crm') || pathname.startsWith('/leads') || pathname.startsWith('/oportunidades')) return '';
     if (pathname.startsWith('/finanzas')) return 'Finanzas';
     if (pathname.startsWith('/inventario/')) return 'Movimientos';
     if (pathname.startsWith('/productos')) return 'Productos';
@@ -144,7 +144,7 @@ export default function Layout({ children }: LayoutProps) {
   if (pathname.startsWith('/finanzas')) return 'Finanzas';
   if (pathname.startsWith('/inventario/')) return 'Inventarios';
   if (pathname.startsWith('/informes/')) return 'Informes';
-  if (pathname.startsWith('/leads') || pathname.startsWith('/oportunidades')) return 'CRM';
+  if (pathname.startsWith('/crm') || pathname.startsWith('/leads') || pathname.startsWith('/oportunidades')) return 'CRM';
     const tab = getTabFromPath(pathname);
     return getSectionForTab(tab);
   };
@@ -227,7 +227,7 @@ export default function Layout({ children }: LayoutProps) {
       return;
     }
     if (selectedSection === 'CRM') {
-      navigate('/leads');
+      navigate('/crm');
       return;
     }
 

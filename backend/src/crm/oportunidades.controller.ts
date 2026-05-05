@@ -6,12 +6,14 @@ import {
   normalizarEstadoSeguimientoCotizacion,
   COTIZACION_ESTATUS_DOCUMENTO_EN_NEGOCIACION,
 } from '../modules/documentos/cotizacion-status';
+import { DocumentoDeleteValidationError, eliminarOportunidadConValidacion } from '../modules/documentos/documentos-delete.service';
 
 type OportunidadVentaRow = {
   id: number;
   estatus: string | null;
   comentarios_no_cierre?: string | null;
   created_at: string | Date | null;
+  fecha_cotizacion: string | Date | null;
   fecha_estimada_decision: string | Date | null;
   contacto_id: number | null;
   contacto_nombre: string | null;
@@ -21,7 +23,7 @@ type OportunidadVentaRow = {
   numero: number | null;
   tipo_documento: string | null;
   serie: string | null;
-  monto_estimado: number | null;
+  monto_oportunidad: number | string | null;
 };
 
 const ESTATUS_VALIDOS = new Set(COTIZACION_ESTADOS_SEGUIMIENTO);
@@ -40,7 +42,8 @@ function serializarOportunidad(row: OportunidadVentaRow) {
     vendedor_nombre: row.vendedor_nombre,
     estatus: row.estatus,
     comentarios_no_cierre: row.comentarios_no_cierre ?? '',
-    monto_estimado: row.monto_estimado,
+    monto_oportunidad: row.monto_oportunidad,
+    fecha_cotizacion: row.fecha_cotizacion,
     fecha_creacion: row.created_at,
     fecha_estimada_cierre: row.fecha_estimada_decision,
   };
@@ -75,6 +78,7 @@ export const listarOportunidadesPorConversacion = async (req: Request, res: Resp
          o.id,
          o.estatus,
          o.created_at,
+         COALESCE(d.fecha_documento, o.created_at) AS fecha_cotizacion,
          o.fecha_estimada_decision,
 
          c.id AS contacto_id,
@@ -87,15 +91,37 @@ export const listarOportunidadesPorConversacion = async (req: Request, res: Resp
          d.numero,
          d.tipo_documento,
          d.serie,
-         d.subtotal AS monto_estimado
+         COALESCE(SUM(
+           CASE
+             WHEN dp.es_parte_oportunidad IS TRUE THEN dp.subtotal_partida
+             ELSE 0
+           END
+         ), 0) AS monto_oportunidad
        FROM crm.oportunidades_venta o
-       JOIN documentos d
+       LEFT JOIN documentos d
          ON d.id = o.cotizacion_principal_id
+       LEFT JOIN documentos_partidas dp
+         ON dp.documento_id = d.id
        JOIN contactos c
          ON c.id = o.contacto_id
        LEFT JOIN contactos v
          ON v.id = o.vendedor_id
        WHERE o.empresa_id = $1${conversacionFilter}
+       GROUP BY
+         o.id,
+         o.estatus,
+         o.created_at,
+         d.fecha_documento,
+         o.fecha_estimada_decision,
+         c.id,
+         c.nombre,
+         v.id,
+         v.nombre,
+         d.id,
+         d.numero,
+         d.tipo_documento,
+         d.serie,
+         d.subtotal
        ORDER BY o.created_at DESC, o.id DESC`,
       params
     );
@@ -104,6 +130,82 @@ export const listarOportunidadesPorConversacion = async (req: Request, res: Resp
   } catch (error) {
     console.error('Error al listar oportunidades por conversación:', error);
     return res.status(500).json({ message: 'Error al listar oportunidades' });
+  }
+};
+
+export const obtenerOportunidadPorId = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId;
+    const oportunidadId = Number(req.params.id);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+    }
+
+    if (!Number.isFinite(oportunidadId) || oportunidadId <= 0) {
+      return res.status(400).json({ message: 'id de oportunidad inválido' });
+    }
+
+    const { rows } = await pool.query<OportunidadVentaRow>(
+      `SELECT
+         o.id,
+         o.estatus,
+         o.comentarios_no_cierre,
+         o.created_at,
+         COALESCE(d.fecha_documento, o.created_at) AS fecha_cotizacion,
+         o.fecha_estimada_decision,
+         c.id AS contacto_id,
+         c.nombre AS contacto_nombre,
+         v.id AS vendedor_id,
+         v.nombre AS vendedor_nombre,
+         d.id AS cotizacion_principal_id,
+         d.numero,
+         d.tipo_documento,
+         d.serie,
+         COALESCE(SUM(
+           CASE
+             WHEN dp.es_parte_oportunidad IS TRUE THEN dp.subtotal_partida
+             ELSE 0
+           END
+         ), 0) AS monto_oportunidad
+       FROM crm.oportunidades_venta o
+       LEFT JOIN documentos d
+         ON d.id = o.cotizacion_principal_id
+       LEFT JOIN documentos_partidas dp
+         ON dp.documento_id = d.id
+       JOIN contactos c
+         ON c.id = o.contacto_id
+       LEFT JOIN contactos v
+         ON v.id = o.vendedor_id
+       WHERE o.empresa_id = $1
+         AND o.id = $2
+       GROUP BY
+         o.id,
+         o.estatus,
+         o.comentarios_no_cierre,
+         o.created_at,
+         d.fecha_documento,
+         o.fecha_estimada_decision,
+         c.id,
+         c.nombre,
+         v.id,
+         v.nombre,
+         d.id,
+         d.numero,
+         d.tipo_documento,
+         d.serie
+       LIMIT 1`,
+      [Number(empresaId), oportunidadId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: 'Oportunidad no encontrada' });
+    }
+
+    return res.json(serializarOportunidad(rows[0]));
+  } catch (error) {
+    console.error('Error al obtener oportunidad:', error);
+    return res.status(500).json({ message: 'Error al obtener la oportunidad' });
   }
 };
 
@@ -185,14 +287,14 @@ export const actualizarEstatusOportunidad = async (req: Request, res: Response) 
            estatus,
            comentarios_no_cierre,
            created_at,
-           fecha_estimada_decision,
-           monto_estimado
+           fecha_estimada_decision
        )
        SELECT
          o.id,
          o.estatus,
          o.comentarios_no_cierre,
          o.created_at,
+         COALESCE(d.fecha_documento, o.created_at) AS fecha_cotizacion,
          o.fecha_estimada_decision,
          c.id AS contacto_id,
          c.nombre AS contacto_nombre,
@@ -202,14 +304,36 @@ export const actualizarEstatusOportunidad = async (req: Request, res: Response) 
          d.numero,
          d.tipo_documento,
          d.serie,
-         COALESCE(d.subtotal, o.monto_estimado) AS monto_estimado
+         COALESCE(SUM(
+           CASE
+             WHEN dp.es_parte_oportunidad IS TRUE THEN dp.subtotal_partida
+             ELSE 0
+           END
+         ), 0) AS monto_oportunidad
        FROM updated o
-       JOIN documentos d
+       LEFT JOIN documentos d
          ON d.id = o.cotizacion_principal_id
+       LEFT JOIN documentos_partidas dp
+         ON dp.documento_id = d.id
        JOIN contactos c
          ON c.id = o.contacto_id
        LEFT JOIN contactos v
-         ON v.id = o.vendedor_id`,
+         ON v.id = o.vendedor_id
+       GROUP BY
+         o.id,
+         o.estatus,
+         o.comentarios_no_cierre,
+         o.created_at,
+         d.fecha_documento,
+         o.fecha_estimada_decision,
+         c.id,
+         c.nombre,
+         v.id,
+         v.nombre,
+         d.id,
+         d.numero,
+         d.tipo_documento,
+         d.serie`,
       [estatus, estatus === 'cancelada' ? comentariosNoCierre : null, oportunidadId, Number(empresaId)]
     );
 
@@ -240,5 +364,34 @@ export const actualizarEstatusOportunidad = async (req: Request, res: Response) 
   } catch (error) {
     console.error('Error al actualizar estatus de oportunidad:', error);
     return res.status(500).json({ message: 'Error al actualizar la oportunidad' });
+  }
+};
+
+export const eliminarOportunidad = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId;
+    const oportunidadId = Number(req.params.id);
+
+    if (!empresaId) {
+      return res.status(400).json({ error: 'empresaId no disponible en contexto' });
+    }
+
+    if (!Number.isFinite(oportunidadId) || oportunidadId <= 0) {
+      return res.status(400).json({ error: 'id de oportunidad inválido' });
+    }
+
+    const deleted = await eliminarOportunidadConValidacion(oportunidadId, Number(empresaId));
+    if (!deleted) {
+      return res.status(404).json({ error: 'Oportunidad no encontrada' });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    if (error instanceof DocumentoDeleteValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    console.error('Error al eliminar oportunidad:', error);
+    return res.status(500).json({ error: 'Error al eliminar la oportunidad' });
   }
 };

@@ -32,6 +32,9 @@ import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 import LeadsPage from './pages/LeadsPage';
 import OportunidadesPage from './pages/OportunidadesPage';
+import CRMPage from './pages/CRMPage';
+import ActividadFormPage from './pages/ActividadFormPage';
+import OportunidadDetallePage from './pages/OportunidadDetallePage';
 import CotizacionesGridPage from './pages/CotizacionesGridPage';
 import AIReportesPage from './pages/AIReportesPage';
 
@@ -52,8 +55,14 @@ export default function App() {
               <Route path="/productos" element={<ProductosPage />} />
               <Route path="/productos/nuevo" element={<ProductoFormPage />} />
               <Route path="/productos/:id" element={<ProductoFormPage />} />
-              <Route path="/leads" element={<LeadsPage />} />
-              <Route path="/oportunidades" element={<OportunidadesPage />} />
+              <Route path="/crm" element={<CRMPage />} />
+              <Route path="/crm/actividades" element={<CRMPage />} />
+              <Route path="/crm/actividades/:id" element={<ActividadFormPage />} />
+              <Route path="/crm/oportunidades" element={<CRMPage />} />
+              <Route path="/crm/oportunidades/:id" element={<OportunidadDetallePage />} />
+              <Route path="/crm/conversaciones" element={<CRMPage />} />
+              <Route path="/leads" element={<Navigate to="/crm/conversaciones" replace />} />
+              <Route path="/oportunidades" element={<Navigate to="/crm/oportunidades" replace />} />
               <Route path="/ventas/:codigo" element={<DocumentosPage />} />
               <Route path="/ventas/:codigo/nuevo" element={<DocumentosFormPage />} />
               <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />

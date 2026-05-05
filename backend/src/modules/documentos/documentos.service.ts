@@ -14,12 +14,17 @@ type DocumentoCrearPayload = Record<string, any> & {
 /**
  * Asigna agente_id (si no viene en el payload) con las reglas definidas.
  */
-async function resolverAgenteId(payload: DocumentoCrearPayload, empresaId: number): Promise<number | null | undefined> {
+async function resolverAgenteId(
+  payload: DocumentoCrearPayload,
+  empresaId: number,
+  client?: PoolClient
+): Promise<number | null | undefined> {
+  const executor = client ?? pool;
   let resolved = false;
   let agenteId: number | null | undefined = undefined;
 
   if (payload.documento_origen_id) {
-    const { rows } = await pool.query(
+    const { rows } = await executor.query(
       `SELECT agente_id
          FROM documentos
         WHERE id = $1 AND empresa_id = $2
@@ -33,7 +38,7 @@ async function resolverAgenteId(payload: DocumentoCrearPayload, empresaId: numbe
   }
 
   if (!resolved && payload.contacto_principal_id) {
-    const { rows } = await pool.query(
+    const { rows } = await executor.query(
       `SELECT vendedor_id
          FROM contactos
         WHERE id = $1 AND empresa_id = $2
@@ -48,7 +53,7 @@ async function resolverAgenteId(payload: DocumentoCrearPayload, empresaId: numbe
   }
 
   if (!resolved && payload.usuario_creacion_id) {
-    const { rows } = await pool.query(
+    const { rows } = await executor.query(
       `SELECT vendedor_contacto_id
          FROM core.usuarios
         WHERE id = $1
@@ -64,6 +69,64 @@ async function resolverAgenteId(payload: DocumentoCrearPayload, empresaId: numbe
   return resolved ? agenteId ?? null : undefined;
 }
 
+type DocumentoOportunidadInput = {
+  contacto_principal_id?: number | null;
+  agente_id?: number | null;
+  conversacion_id?: number | null;
+};
+
+export async function asegurarOportunidadParaCotizacion(
+  documento: { id: number; tipo_documento?: TipoDocumento | string | null; agente_id?: number | null },
+  data: DocumentoOportunidadInput,
+  empresaId: number,
+  client: PoolClient
+) {
+  const tipoDocumento = String(documento.tipo_documento ?? '').toLowerCase();
+  if (tipoDocumento !== 'cotizacion') {
+    return null;
+  }
+
+  const contactoId = data.contacto_principal_id ?? null;
+  if (!contactoId) {
+    throw new Error('VALIDATION_ERROR: No se puede crear una cotización sin cliente.');
+  }
+
+  const { rows: existingRows } = await client.query<{ id: number }>(
+    `SELECT id
+       FROM crm.oportunidades_venta
+      WHERE cotizacion_principal_id = $1
+      LIMIT 1`,
+    [documento.id]
+  );
+
+  if (existingRows[0]?.id) {
+    return existingRows[0];
+  }
+
+  const vendedorId = data.agente_id ?? documento.agente_id ?? null;
+  const { rows } = await client.query<{ id: number }>(
+    `INSERT INTO crm.oportunidades_venta (
+        empresa_id,
+        contacto_id,
+        vendedor_id,
+        conversacion_id,
+        cotizacion_principal_id,
+        estatus
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id`,
+    [
+      empresaId,
+      contactoId,
+      vendedorId,
+      data.conversacion_id ?? null,
+      documento.id,
+      'abierta',
+    ]
+  );
+
+  return rows[0] ?? null;
+}
+
 /**
  * Crea documentos aplicando reglas de agente_id antes de persistir.
  */
@@ -72,63 +135,43 @@ export async function crearDocumentoService(
   empresaId: number,
   tipoDocumento: TipoDocumento
 ) {
+  const client = await pool.connect();
   const data = { ...payload, conversacion_id: payload.conversacion_id ?? null };
-  console.log('DEBUG DATA EN SERVICE:', data);
-  if (data.agente_id === undefined) {
-    const agenteId = await resolverAgenteId(data, empresaId);
-    if (agenteId !== undefined) {
-      data.agente_id = agenteId;
-    }
-  }
+  try {
+    await client.query('BEGIN');
 
-  const created = await crearDocumentoRepository(data, empresaId, tipoDocumento);
-
-  // Crear oportunidad solo para cotización
-  if (
-    tipoDocumento === 'cotizacion' &&
-    data.contacto_principal_id &&
-    created?.id
-  ) {
-    try {
-      const exists = await pool.query(
-        `SELECT 1 FROM crm.oportunidades_venta
-               WHERE cotizacion_principal_id = $1
-               LIMIT 1`,
-        [created.id]
-      );
-
-      if (exists.rowCount === 0) {
-        await pool.query(
-          `INSERT INTO crm.oportunidades_venta (
-            empresa_id,
-            contacto_id,
-            vendedor_id,
-            conversacion_id,
-            cotizacion_principal_id,
-            estatus,
-            monto_estimado
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [
-            empresaId,
-            data.contacto_principal_id,
-            data.agente_id ?? created.agente_id ?? null,
-            data.conversacion_id ?? null,
-            created.id,
-            'abierta',
-            created.subtotal,
-          ]
-        );
+    console.log('DEBUG DATA EN SERVICE:', data);
+    if (data.agente_id === undefined) {
+      const agenteId = await resolverAgenteId(data, empresaId, client);
+      if (agenteId !== undefined) {
+        data.agente_id = agenteId;
       }
-    } catch (err) {
-      console.error('Error creando oportunidad de venta:', {
-        error: err,
-        documento_id: created.id,
-        contacto_id: data.contacto_principal_id,
-      });
     }
-  }
 
-  return created;
+    const created = await crearDocumentoRepository(data, empresaId, tipoDocumento, client);
+
+    if (tipoDocumento === 'cotizacion' && created?.id) {
+      await asegurarOportunidadParaCotizacion(
+        {
+          id: created.id,
+          tipo_documento: tipoDocumento,
+          agente_id: created.agente_id ?? data.agente_id ?? null,
+        },
+        data,
+        empresaId,
+        client
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return created;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**

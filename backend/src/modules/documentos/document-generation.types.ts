@@ -32,6 +32,7 @@ export interface DatosEncabezadoGeneracion {
   serie?: string | null;
   fecha?: string | Date;
   contacto_principal_id?: number | null;
+  conversacion_id?: number | null;
   comentarios?: string | null;
 }
 

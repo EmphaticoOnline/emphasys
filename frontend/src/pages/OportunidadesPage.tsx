@@ -12,9 +12,12 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import Drawer from '@mui/material/Drawer';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import AddTaskOutlinedIcon from '@mui/icons-material/AddTaskOutlined';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditCalendarOutlinedIcon from '@mui/icons-material/EditCalendarOutlined';
 import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -28,13 +31,19 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import { LocalizationProvider, DatePicker, DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import { DataGrid, type GridColDef, type GridColumnResizeParams, type GridColumnVisibilityModel, type GridRenderCellParams } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
+import { useParams } from 'react-router-dom';
 import { apiFetch } from '../services/apiFetch';
+import { eliminarOportunidad as eliminarOportunidadService } from '../services/oportunidadesService';
+import { loadSession } from '../session/sessionStorage';
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'oportunidades_column_visibility';
 const COLUMN_WIDTHS_STORAGE_KEY = 'oportunidades_column_widths';
@@ -44,7 +53,8 @@ const DEFAULT_COLUMN_WIDTHS = {
   contacto_nombre: 220,
   vendedor_nombre: 180,
   estatus: 185,
-  monto_estimado: 150,
+  monto_oportunidad: 170,
+  fecha_cotizacion: 160,
   fecha_estimada_cierre: 190,
   fecha_reactivacion_estimada: 165,
   fecha_creacion: 150,
@@ -64,7 +74,8 @@ type Oportunidad = {
   comentarios_no_cierre: string;
   fecha_reactivacion_estimada: string;
   observaciones: string;
-  monto_estimado: number;
+  monto_oportunidad: number;
+  fecha_cotizacion: string;
   fecha_estimada_cierre: string;
   fecha_creacion: string;
 };
@@ -95,7 +106,8 @@ type OportunidadApiResponse = {
   comentarios_no_cierre?: string | null;
   fecha_reactivacion_estimada?: string | null;
   observaciones?: string | null;
-  monto_estimado: number | string | null;
+  monto_oportunidad?: number | string | null;
+  fecha_cotizacion?: string | null;
   fecha_estimada_cierre: string | null;
   fecha_creacion: string | null;
 };
@@ -134,10 +146,63 @@ type ObservacionesDialogState = {
   value: string;
 };
 
+type DeleteDialogState = {
+  open: boolean;
+  row: Oportunidad | null;
+};
+
 type OportunidadUpdatePayload = {
   fecha_estimada_cierre?: string | null;
   fecha_reactivacion_estimada?: string | null;
   observaciones?: string;
+};
+
+type TipoActividad = 'llamada' | 'whatsapp' | 'visita' | 'tarea';
+
+type Actividad = {
+  id: number;
+  tipo_actividad: TipoActividad;
+  fecha_programada: string;
+  estatus: 'pendiente' | 'realizada' | 'cancelada' | string;
+  notas: string | null;
+  oportunidad_id: number | null;
+  resultado?: string | null;
+  fecha_realizacion?: string | null;
+};
+
+type ActividadesPendientesAgrupadas = {
+  vencidas: Actividad[];
+  hoy: Actividad[];
+  futuras: Actividad[];
+};
+
+type SeguimientoResumen = {
+  pendingCount: number;
+  overdueCount: number;
+  todayCount: number;
+};
+
+type CrearActividadPayload = {
+  usuario_asignado_id: number;
+  tipo_actividad: TipoActividad;
+  fecha_programada: string;
+  notas: string | null;
+  oportunidad_id: number;
+};
+
+type CreateActividadDialogState = {
+  open: boolean;
+  oportunidad: Oportunidad | null;
+  tipo_actividad: TipoActividad;
+  fecha_programada: string;
+  notas: string;
+};
+
+type RealizarActividadDialogState = {
+  open: boolean;
+  actividad: Actividad | null;
+  resultado: string;
+  error: string | null;
 };
 
 const INITIAL_ADVANCED_FILTERS: AdvancedFilters = {
@@ -149,6 +214,28 @@ const INITIAL_ADVANCED_FILTERS: AdvancedFilters = {
   cliente: '',
   monto_min: '',
   monto_max: '',
+};
+
+const ACTIVIDAD_OPTIONS: Array<{ value: TipoActividad; label: string }> = [
+  { value: 'llamada', label: 'Llamada' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'visita', label: 'Visita' },
+  { value: 'tarea', label: 'Tarea' },
+];
+
+const EMPTY_CREATE_ACTIVIDAD_DIALOG: CreateActividadDialogState = {
+  open: false,
+  oportunidad: null,
+  tipo_actividad: 'llamada',
+  fecha_programada: '',
+  notas: '',
+};
+
+const EMPTY_REALIZAR_ACTIVIDAD_DIALOG: RealizarActividadDialogState = {
+  open: false,
+  actividad: null,
+  resultado: '',
+  error: null,
 };
 
 const currencyFormatter = new Intl.NumberFormat('es-MX', {
@@ -210,6 +297,86 @@ function formatDate(value: string): string {
   }).format(parsedDate);
 }
 
+function formatDateTime(value: string): string {
+  const rawValue = value?.trim();
+  if (!rawValue) return 'Sin fecha';
+
+  const parsedDate = new Date(rawValue);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return 'Sin fecha';
+  }
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsedDate);
+}
+
+function toDateTimeLocalValue(value: Date): string {
+  const offset = value.getTimezoneOffset();
+  const localDate = new Date(value.getTime() - offset * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function defaultProgrammedDateTime(): string {
+  const nextHour = new Date();
+  nextHour.setMinutes(0, 0, 0);
+  nextHour.setHours(nextHour.getHours() + 1);
+  return toDateTimeLocalValue(nextHour);
+}
+
+function formatTipoActividadLabel(tipo: string): string {
+  const found = ACTIVIDAD_OPTIONS.find((option) => option.value === tipo);
+  return found?.label ?? tipo;
+}
+
+function getActividadDuePresentation(fechaProgramada: string) {
+  const fecha = dayjs(fechaProgramada);
+  const ahora = dayjs();
+
+  if (!fecha.isValid()) {
+    return {
+      label: 'Programada',
+      color: '#475569',
+      backgroundColor: '#f8fafc',
+      borderColor: '#cbd5e1',
+      accentColor: '#cbd5e1',
+    };
+  }
+
+  if (fecha.isBefore(ahora)) {
+    return {
+      label: 'Vencida',
+      color: '#b91c1c',
+      backgroundColor: '#fef2f2',
+      borderColor: '#fecaca',
+      accentColor: '#ef4444',
+    };
+  }
+
+  if (fecha.isSame(ahora, 'day')) {
+    return {
+      label: 'Hoy',
+      color: '#b45309',
+      backgroundColor: '#fff7ed',
+      borderColor: '#fdba74',
+      accentColor: '#f59e0b',
+    };
+  }
+
+  return {
+    label: 'Programada',
+    color: '#1d4ed8',
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+    accentColor: '#60a5fa',
+  };
+}
+
 function formatMetric(monto: number, cantidad: number): string {
   return `${currencyFormatter.format(monto)} • ${cantidad} oportunidades`;
 }
@@ -228,7 +395,8 @@ function normalizeOportunidad(item: OportunidadApiResponse): Oportunidad {
     comentarios_no_cierre: item.comentarios_no_cierre?.trim() || '',
     fecha_reactivacion_estimada: item.fecha_reactivacion_estimada || '',
     observaciones: item.observaciones?.trim() || '',
-    monto_estimado: Number(item.monto_estimado ?? 0),
+    monto_oportunidad: Number(item.monto_oportunidad ?? 0),
+    fecha_cotizacion: item.fecha_cotizacion || item.fecha_creacion || '',
     fecha_estimada_cierre: item.fecha_estimada_cierre || '',
     fecha_creacion: item.fecha_creacion || '',
   };
@@ -308,7 +476,55 @@ async function persistOportunidadStatusChange(payload: {
   });
 }
 
+async function fetchOportunidadesList() {
+  return apiFetch<OportunidadApiResponse[]>('/api/crm/oportunidades');
+}
+
+async function fetchActividades(oportunidadId: number) {
+  return apiFetch<Actividad[]>(`/api/crm/actividades?oportunidad_id=${oportunidadId}`);
+}
+
+async function fetchActividadesPendientesUsuario() {
+  return apiFetch<ActividadesPendientesAgrupadas>('/api/crm/actividades');
+}
+
+async function createActividad(payload: CrearActividadPayload) {
+  return apiFetch<Actividad>('/api/crm/actividades', {
+    method: 'POST',
+    body: payload as any,
+  });
+}
+
+async function realizarActividad(actividadId: number, resultado: string) {
+  return apiFetch<Actividad>(`/api/crm/actividades/${actividadId}`, {
+    method: 'PATCH',
+    body: {
+      estatus: 'realizada',
+      resultado,
+    } as any,
+  });
+}
+
+function getDeleteOportunidadErrorMessage(error: unknown) {
+  const fallbackMessage = 'No se pudo eliminar la oportunidad.';
+
+  if (!(error instanceof Error)) {
+    return fallbackMessage;
+  }
+
+  const normalizedMessage = normalizeText(error.message);
+
+  if (normalizedMessage.includes('documentos posteriores') || normalizedMessage.includes('documentos derivados')) {
+    return 'No se puede eliminar porque ya existen documentos derivados (facturas u otros).';
+  }
+
+  return error.message || fallbackMessage;
+}
+
 export default function OportunidadesPage() {
+  const { id: oportunidadIdParam } = useParams();
+  const session = useMemo(() => loadSession(), []);
+  const sessionUserId = session.user?.id ?? null;
   const [oportunidades, setOportunidades] = useState<Oportunidad[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -317,6 +533,7 @@ export default function OportunidadesPage() {
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [savingOperacionId, setSavingOperacionId] = useState<number | null>(null);
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'info' });
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({ open: false, row: null });
   const [dateDialog, setDateDialog] = useState<DateDialogState>({
     open: false,
     rowId: null,
@@ -332,6 +549,15 @@ export default function OportunidadesPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(INITIAL_ADVANCED_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<AdvancedFilters>(INITIAL_ADVANCED_FILTERS);
+  const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
+  const [seguimientoOportunidadId, setSeguimientoOportunidadId] = useState<number | null>(null);
+  const [actividadesByOportunidad, setActividadesByOportunidad] = useState<Record<number, Actividad[]>>({});
+  const [seguimientoResumenByOportunidad, setSeguimientoResumenByOportunidad] = useState<Record<number, SeguimientoResumen>>({});
+  const [loadingSeguimientoResumen, setLoadingSeguimientoResumen] = useState(false);
+  const [loadingActividadesOportunidadId, setLoadingActividadesOportunidadId] = useState<number | null>(null);
+  const [savingActividad, setSavingActividad] = useState(false);
+  const [createActividadDialog, setCreateActividadDialog] = useState<CreateActividadDialogState>(EMPTY_CREATE_ACTIVIDAD_DIALOG);
+  const [realizarActividadDialog, setRealizarActividadDialog] = useState<RealizarActividadDialogState>(EMPTY_REALIZAR_ACTIVIDAD_DIALOG);
 
   useEffect(() => {
     let isMounted = true;
@@ -339,7 +565,7 @@ export default function OportunidadesPage() {
     const loadOportunidades = async () => {
       try {
         setLoading(true);
-        const data = await apiFetch<OportunidadApiResponse[]>('/api/crm/oportunidades');
+        const data = await fetchOportunidadesList();
         if (!isMounted) return;
         setOportunidades(Array.isArray(data) ? data.map(normalizeOportunidad) : []);
         setError(null);
@@ -383,6 +609,61 @@ export default function OportunidadesPage() {
       console.warn('No se pudo restaurar el ancho de columnas de oportunidades', err);
     }
   }, []);
+
+  const loadSeguimientoResumen = useCallback(async () => {
+    setLoadingSeguimientoResumen(true);
+
+    try {
+      const data = await fetchActividadesPendientesUsuario();
+      const nextSummary: Record<number, SeguimientoResumen> = {};
+
+      const register = (items: Actividad[], kind: 'vencidas' | 'hoy' | 'futuras') => {
+        for (const actividad of items) {
+          const oportunidadId = actividad.oportunidad_id;
+
+          if (!oportunidadId || actividad.estatus !== 'pendiente') {
+            continue;
+          }
+
+          const current = nextSummary[oportunidadId] ?? {
+            pendingCount: 0,
+            overdueCount: 0,
+            todayCount: 0,
+          };
+
+          current.pendingCount += 1;
+
+          if (kind === 'vencidas') {
+            current.overdueCount += 1;
+          }
+
+          if (kind === 'hoy') {
+            current.todayCount += 1;
+          }
+
+          nextSummary[oportunidadId] = current;
+        }
+      };
+
+      register(Array.isArray(data?.vencidas) ? data.vencidas : [], 'vencidas');
+      register(Array.isArray(data?.hoy) ? data.hoy : [], 'hoy');
+      register(Array.isArray(data?.futuras) ? data.futuras : [], 'futuras');
+
+      setSeguimientoResumenByOportunidad(nextSummary);
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'No se pudo cargar el resumen de seguimiento.',
+        severity: 'error',
+      });
+    } finally {
+      setLoadingSeguimientoResumen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSeguimientoResumen();
+  }, [loadSeguimientoResumen]);
 
   const vendedoresOptions = useMemo(
     () => Array.from(new Set(oportunidades.map((item) => item.vendedor_nombre))).sort((a, b) => a.localeCompare(b)),
@@ -467,13 +748,13 @@ export default function OportunidadesPage() {
 
     if (appliedFilters.monto_min !== '') {
       if (!Number.isNaN(montoMin as number) && montoMin !== null) {
-        result = result.filter((item) => item.monto_estimado >= montoMin);
+        result = result.filter((item) => item.monto_oportunidad >= montoMin);
       }
     }
 
     if (appliedFilters.monto_max !== '') {
       if (!Number.isNaN(montoMax as number) && montoMax !== null) {
-        result = result.filter((item) => item.monto_estimado <= montoMax);
+        result = result.filter((item) => item.monto_oportunidad <= montoMax);
       }
     }
 
@@ -481,7 +762,7 @@ export default function OportunidadesPage() {
   }, [oportunidades, searchTerm, filtroEstatus, appliedFilters]);
 
   const totals = useMemo(() => {
-    const sumMonto = (items: Oportunidad[]) => items.reduce((acc, item) => acc + item.monto_estimado, 0);
+    const sumMonto = (items: Oportunidad[]) => items.reduce((acc, item) => acc + item.monto_oportunidad, 0);
     const abiertas = filteredOportunidades.filter((item) => normalizeText(item.estatus) === 'abierta');
     const pausadas = filteredOportunidades.filter((item) => normalizeText(item.estatus) === 'pausada');
     const ganadas = filteredOportunidades.filter((item) => normalizeText(item.estatus) === 'ganada');
@@ -517,6 +798,93 @@ export default function OportunidadesPage() {
   }, [filteredOportunidades]);
 
   const activeAdvancedFiltersCount = Object.values(appliedFilters).filter((value) => value !== '').length;
+
+  const selectedOportunidad = useMemo(
+    () => oportunidades.find((item) => item.id === seguimientoOportunidadId) ?? null,
+    [oportunidades, seguimientoOportunidadId]
+  );
+
+  const selectedActividades = useMemo(
+    () => (seguimientoOportunidadId ? actividadesByOportunidad[seguimientoOportunidadId] ?? [] : []),
+    [actividadesByOportunidad, seguimientoOportunidadId]
+  );
+
+  const actividadesPendientes = useMemo(
+    () => selectedActividades.filter((actividad) => actividad.estatus === 'pendiente'),
+    [selectedActividades]
+  );
+
+  const actividadesRealizadas = useMemo(
+    () => selectedActividades.filter((actividad) => actividad.estatus === 'realizada'),
+    [selectedActividades]
+  );
+
+  const loadActividadesOportunidad = useCallback(async (oportunidadId: number) => {
+    setLoadingActividadesOportunidadId(oportunidadId);
+
+    try {
+      const data = await fetchActividades(oportunidadId);
+      setActividadesByOportunidad((prev) => ({ ...prev, [oportunidadId]: Array.isArray(data) ? data : [] }));
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'No se pudieron cargar las actividades.',
+        severity: 'error',
+      });
+    } finally {
+      setLoadingActividadesOportunidadId((current) => (current === oportunidadId ? null : current));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!oportunidadIdParam || loading || !oportunidades.length) {
+      return;
+    }
+
+    const oportunidadId = Number(oportunidadIdParam);
+    if (!Number.isInteger(oportunidadId) || oportunidadId <= 0) {
+      return;
+    }
+
+    const oportunidad = oportunidades.find((item) => item.id === oportunidadId);
+    if (!oportunidad) {
+      return;
+    }
+
+    setSeguimientoOportunidadId(oportunidad.id);
+    setSeguimientoDrawerOpen(true);
+    void loadActividadesOportunidad(oportunidad.id);
+  }, [loadActividadesOportunidad, loading, oportunidadIdParam, oportunidades]);
+
+  const openSeguimientoDrawer = useCallback((oportunidad: Oportunidad) => {
+    setSeguimientoOportunidadId(oportunidad.id);
+    setSeguimientoDrawerOpen(true);
+    void loadActividadesOportunidad(oportunidad.id);
+  }, [loadActividadesOportunidad]);
+
+  const closeSeguimientoDrawer = useCallback(() => {
+    setSeguimientoDrawerOpen(false);
+  }, []);
+
+  const openCreateActividadDialog = useCallback((oportunidad: Oportunidad) => {
+    setSeguimientoOportunidadId(oportunidad.id);
+    setSeguimientoDrawerOpen(true);
+    setCreateActividadDialog({
+      open: true,
+      oportunidad,
+      tipo_actividad: 'llamada',
+      fecha_programada: defaultProgrammedDateTime(),
+      notas: '',
+    });
+  }, []);
+
+  const closeCreateActividadDialog = useCallback(() => {
+    setCreateActividadDialog(EMPTY_CREATE_ACTIVIDAD_DIALOG);
+  }, []);
+
+  const closeRealizarActividadDialog = useCallback(() => {
+    setRealizarActividadDialog(EMPTY_REALIZAR_ACTIVIDAD_DIALOG);
+  }, []);
 
   const closeStatusMenu = useCallback(() => {
     setStatusMenu({ anchorEl: null, row: null });
@@ -704,6 +1072,62 @@ export default function OportunidadesPage() {
     [columnWidths]
   );
 
+  const handleOpenRealizarActividadDialog = useCallback((actividad: Actividad) => {
+    setRealizarActividadDialog({
+      open: true,
+      actividad,
+      resultado: '',
+      error: null,
+    });
+  }, []);
+
+  const getSeguimientoChipPresentation = useCallback((oportunidadId: number) => {
+    if (loadingSeguimientoResumen) {
+      return {
+        label: '...',
+        backgroundColor: '#f8fafc',
+        textColor: '#64748b',
+        borderColor: '#cbd5e1',
+      };
+    }
+
+    const summary = seguimientoResumenByOportunidad[oportunidadId];
+
+    if (!summary || summary.pendingCount === 0) {
+      return {
+        label: 'Al dia',
+        backgroundColor: '#ecfdf5',
+        textColor: '#047857',
+        borderColor: '#a7f3d0',
+      };
+    }
+
+    if (summary.overdueCount > 0) {
+      return {
+        label: `Vencida (${summary.overdueCount})`,
+        backgroundColor: '#fef2f2',
+        textColor: '#b91c1c',
+        borderColor: '#fecaca',
+      };
+    }
+
+    if (summary.todayCount > 0) {
+      return {
+        label: 'Hoy',
+        backgroundColor: '#fff7ed',
+        textColor: '#b45309',
+        borderColor: '#fdba74',
+      };
+    }
+
+    return {
+      label: `Pendiente (${summary.pendingCount})`,
+      backgroundColor: '#eff6ff',
+      textColor: '#1d4ed8',
+      borderColor: '#bfdbfe',
+    };
+  }, [loadingSeguimientoResumen, seguimientoResumenByOportunidad]);
+
   const columns = useMemo<GridColDef<Oportunidad>[]>(() => [
     {
       field: 'folio',
@@ -760,6 +1184,85 @@ export default function OportunidadesPage() {
       ),
     },
     {
+      field: 'seguimiento',
+      headerName: 'Seguimiento',
+      width: 120,
+      minWidth: 110,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<Oportunidad>) => {
+        const presentation = getSeguimientoChipPresentation(params.row.id);
+
+        return (
+          <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="center" sx={{ width: '100%' }}>
+            <Chip
+              size="small"
+              label={presentation.label}
+              sx={{
+                maxWidth: 110,
+                fontWeight: 700,
+                bgcolor: presentation.backgroundColor,
+                color: presentation.textColor,
+                border: '1px solid',
+                borderColor: presentation.borderColor,
+                '& .MuiChip-label': {
+                  px: 1,
+                },
+              }}
+            />
+            <Tooltip title="Ver seguimiento">
+              <IconButton
+                size="small"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openSeguimientoDrawer(params.row);
+                }}
+                sx={{ color: '#1d2f68' }}
+              >
+                <AssignmentOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        );
+      },
+    },
+    {
+      field: 'acciones',
+      headerName: 'Acciones',
+      width: 90,
+      minWidth: 84,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<Oportunidad>) => {
+        const deletingThisRow = savingOperacionId === params.row.id;
+
+        return (
+          <Tooltip title="Eliminar oportunidad">
+            <span>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleOpenDeleteDialog(params.row);
+                }}
+                disabled={deletingThisRow}
+                aria-label={`Eliminar oportunidad ${params.row.folio}`}
+              >
+                {deletingThisRow ? <CircularProgress size={18} color="inherit" /> : <DeleteOutlineIcon fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        );
+      },
+    },
+    {
       field: 'estatus',
       headerName: 'Estatus',
       width: getColumnWidth('estatus'),
@@ -801,20 +1304,33 @@ export default function OportunidadesPage() {
       },
     },
     {
-      field: 'monto_estimado',
-      headerName: 'Monto estimado',
-      width: getColumnWidth('monto_estimado'),
-      minWidth: 120,
+      field: 'monto_oportunidad',
+      headerName: 'Monto oportunidad',
+      width: getColumnWidth('monto_oportunidad'),
+      minWidth: 140,
       resizable: true,
       sortable: true,
       align: 'right',
       headerAlign: 'right',
       renderCell: (params: GridRenderCellParams<Oportunidad, number>) => (
         <Box sx={{ width: '100%', textAlign: 'right' }}>
-          <Typography variant="body2" fontWeight={700} sx={{ fontSize: 14.5 }}>
+          <Typography variant="body2" fontWeight={700} sx={{ fontSize: 14.5, color: '#0f766e' }}>
             {currencyFormatter.format(Number(params.value ?? 0))}
           </Typography>
         </Box>
+      ),
+    },
+    {
+      field: 'fecha_cotizacion',
+      headerName: 'Fecha cotización',
+      width: getColumnWidth('fecha_cotizacion'),
+      minWidth: 140,
+      resizable: true,
+      sortable: true,
+      renderCell: (params: GridRenderCellParams<Oportunidad, string>) => (
+        <Typography variant="body2" sx={{ fontSize: 14.5 }}>
+          {formatDate(params.value || '')}
+        </Typography>
       ),
     },
     {
@@ -908,7 +1424,84 @@ export default function OportunidadesPage() {
         </ButtonBase>
       ),
     },
-  ], [getColumnWidth, handleOpenDateDialog, handleOpenObservacionesDialog, handleOpenStatusMenu, savingOperacionId, updatingStatusId]);
+  ], [getColumnWidth, getSeguimientoChipPresentation, handleOpenDateDialog, handleOpenObservacionesDialog, handleOpenStatusMenu, openSeguimientoDrawer, savingOperacionId, updatingStatusId]);
+
+  const handleGuardarActividad = useCallback(async () => {
+    const oportunidad = createActividadDialog.oportunidad;
+
+    if (!oportunidad) {
+      return;
+    }
+
+    if (!sessionUserId) {
+      setSnackbar({ open: true, message: 'No se pudo identificar al usuario actual.', severity: 'error' });
+      return;
+    }
+
+    if (!createActividadDialog.fecha_programada) {
+      setSnackbar({ open: true, message: 'Debes capturar la fecha programada.', severity: 'error' });
+      return;
+    }
+
+    setSavingActividad(true);
+
+    try {
+      await createActividad({
+        usuario_asignado_id: sessionUserId,
+        tipo_actividad: createActividadDialog.tipo_actividad,
+        fecha_programada: new Date(createActividadDialog.fecha_programada).toISOString(),
+        notas: createActividadDialog.notas.trim() || null,
+        oportunidad_id: oportunidad.id,
+      });
+
+      closeCreateActividadDialog();
+      setSeguimientoOportunidadId(oportunidad.id);
+      setSeguimientoDrawerOpen(true);
+      await loadActividadesOportunidad(oportunidad.id);
+      await loadSeguimientoResumen();
+      setSnackbar({ open: true, message: 'Actividad programada.', severity: 'success' });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'No se pudo programar la actividad.',
+        severity: 'error',
+      });
+    } finally {
+      setSavingActividad(false);
+    }
+  }, [closeCreateActividadDialog, createActividadDialog, loadActividadesOportunidad, loadSeguimientoResumen, sessionUserId]);
+
+  const handleConfirmRealizarActividad = useCallback(async () => {
+    const actividad = realizarActividadDialog.actividad;
+    const resultado = realizarActividadDialog.resultado.trim();
+
+    if (!actividad || !actividad.oportunidad_id) {
+      return;
+    }
+
+    if (!resultado) {
+      setRealizarActividadDialog((prev) => ({ ...prev, error: 'El resultado es obligatorio.' }));
+      return;
+    }
+
+    setSavingActividad(true);
+
+    try {
+      await realizarActividad(actividad.id, resultado);
+      closeRealizarActividadDialog();
+      await loadActividadesOportunidad(actividad.oportunidad_id);
+      await loadSeguimientoResumen();
+      setSnackbar({ open: true, message: 'Actividad marcada como realizada.', severity: 'success' });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'No se pudo actualizar la actividad.',
+        severity: 'error',
+      });
+    } finally {
+      setSavingActividad(false);
+    }
+  }, [closeRealizarActividadDialog, loadActividadesOportunidad, loadSeguimientoResumen, realizarActividadDialog]);
 
   const handleAplicarFiltros = () => {
     setAppliedFilters(draftFilters);
@@ -919,6 +1512,58 @@ export default function OportunidadesPage() {
     setFiltroEstatus('todas');
     setDraftFilters(INITIAL_ADVANCED_FILTERS);
     setAppliedFilters(INITIAL_ADVANCED_FILTERS);
+  };
+
+  const handleOpenDeleteDialog = (row: Oportunidad) => {
+    setDeleteDialog({ open: true, row });
+  };
+
+  const handleCloseDeleteDialog = () => {
+    if (savingOperacionId !== null) {
+      return;
+    }
+
+    setDeleteDialog({ open: false, row: null });
+  };
+
+  const handleConfirmDelete = async () => {
+    const row = deleteDialog.row;
+
+    if (!row) {
+      return;
+    }
+
+    setSavingOperacionId(row.id);
+
+    try {
+      await eliminarOportunidadService(row.id);
+      setOportunidades((prev) => prev.filter((item) => item.id !== row.id));
+      setError(null);
+      setDeleteDialog({ open: false, row: null });
+
+      try {
+        const data = await fetchOportunidadesList();
+        setOportunidades(Array.isArray(data) ? data.map(normalizeOportunidad) : []);
+      } catch (refreshError) {
+        console.error('Error al refrescar oportunidades despues de eliminar:', refreshError);
+      }
+
+      try {
+        await loadSeguimientoResumen();
+      } catch (summaryError) {
+        console.error('Error al refrescar seguimiento despues de eliminar:', summaryError);
+      }
+
+      setSnackbar({ open: true, message: 'Oportunidad eliminada correctamente', severity: 'success' });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: getDeleteOportunidadErrorMessage(err),
+        severity: 'error',
+      });
+    } finally {
+      setSavingOperacionId(null);
+    }
   };
 
   return (
@@ -1430,6 +2075,228 @@ export default function OportunidadesPage() {
               </Box>
             </PaperCard>
 
+            <Drawer
+              anchor="right"
+              open={seguimientoDrawerOpen}
+              onClose={closeSeguimientoDrawer}
+              PaperProps={{
+                sx: {
+                  width: { xs: '100%', sm: 420, md: 460 },
+                  maxWidth: '100vw',
+                },
+              }}
+            >
+              <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
+                <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5} sx={{ p: 2.5, borderBottom: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700 }}>
+                      Seguimiento
+                    </Typography>
+                    <Typography variant="h6" sx={{ color: '#0f172a', fontWeight: 800, lineHeight: 1.15 }}>
+                      {selectedOportunidad?.folio || 'Sin folio'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
+                      {selectedOportunidad?.contacto_nombre || 'Sin cliente'}
+                    </Typography>
+                    {selectedOportunidad ? (
+                      <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                        <Box>
+                          <Typography variant="caption" sx={{ display: 'block', color: '#0f766e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                            Monto oportunidad
+                          </Typography>
+                          <Typography variant="body1" sx={{ color: '#0f766e', fontWeight: 700 }}>
+                            {currencyFormatter.format(Number(selectedOportunidad.monto_oportunidad ?? 0))}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          size="small"
+                          label={getStatusLabel(selectedOportunidad.estatus)}
+                          sx={{
+                            fontWeight: 700,
+                            bgcolor: getStatusPresentation(selectedOportunidad.estatus).backgroundColor,
+                            color: getStatusPresentation(selectedOportunidad.estatus).textColor,
+                            border: '1px solid',
+                            borderColor: getStatusPresentation(selectedOportunidad.estatus).borderColor,
+                          }}
+                        />
+                      </Stack>
+                    ) : null}
+                  </Box>
+
+                  <IconButton onClick={closeSeguimientoDrawer} size="small">
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+
+                <Box sx={{ p: 2.5, overflowY: 'auto', flex: 1 }}>
+                  <Stack spacing={2.5}>
+                    {selectedOportunidad && loadingActividadesOportunidadId === selectedOportunidad.id ? (
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#64748b' }}>
+                        <CircularProgress size={18} />
+                        <Typography variant="body2">Cargando actividades...</Typography>
+                      </Stack>
+                    ) : null}
+
+                    {!selectedOportunidad ? (
+                      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
+                        <Typography variant="body2" sx={{ color: '#64748b' }}>
+                          Selecciona una oportunidad para ver su seguimiento.
+                        </Typography>
+                      </Paper>
+                    ) : null}
+
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f172a', mb: 1 }}>
+                        Actividades pendientes
+                      </Typography>
+                      <Stack spacing={2}>
+                        {actividadesPendientes.length === 0 && selectedOportunidad && loadingActividadesOportunidadId !== selectedOportunidad.id ? (
+                          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
+                            <Stack spacing={1.5}>
+                              <Typography variant="body2" sx={{ color: '#475569' }}>
+                                Sin actividades pendientes. Programa la siguiente acción.
+                              </Typography>
+                              <Button
+                                fullWidth
+                                variant="contained"
+                                startIcon={<AddTaskOutlinedIcon />}
+                                onClick={() => openCreateActividadDialog(selectedOportunidad)}
+                                sx={{
+                                  fontWeight: 700,
+                                  textTransform: 'none',
+                                  backgroundColor: '#1d2f68',
+                                  '&:hover': { backgroundColor: '#162551' },
+                                }}
+                              >
+                                Programar siguiente actividad
+                              </Button>
+                            </Stack>
+                          </Paper>
+                        ) : null}
+
+                        {actividadesPendientes.map((actividad) => {
+                          const duePresentation = getActividadDuePresentation(actividad.fecha_programada);
+
+                          return (
+                            <Paper
+                              key={actividad.id}
+                              variant="outlined"
+                              sx={{
+                                p: 2,
+                                borderRadius: 2,
+                                borderColor: duePresentation.borderColor,
+                                borderLeft: `4px solid ${duePresentation.accentColor}`,
+                                backgroundColor: '#ffffff',
+                              }}
+                            >
+                              <Stack spacing={1.5}>
+                                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" useFlexGap flexWrap="wrap">
+                                  <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                                    <Chip size="small" label={formatTipoActividadLabel(actividad.tipo_actividad)} sx={{ fontWeight: 700, bgcolor: '#eef2ff', color: '#3730a3' }} />
+                                    <Chip
+                                      size="small"
+                                      label={duePresentation.label}
+                                      sx={{
+                                        fontWeight: 700,
+                                        bgcolor: duePresentation.backgroundColor,
+                                        color: duePresentation.color,
+                                        border: '1px solid',
+                                        borderColor: duePresentation.borderColor,
+                                      }}
+                                    />
+                                  </Stack>
+                                  <Typography variant="body2" sx={{ color: '#475569', fontWeight: 600 }}>
+                                    {formatDateTime(actividad.fecha_programada)}
+                                  </Typography>
+                                </Stack>
+                                <Typography variant="body2" sx={{ color: '#334155' }}>
+                                  {actividad.notas || 'Sin notas'}
+                                </Typography>
+                                <Box>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<CheckCircleOutlineIcon />}
+                                    onClick={() => handleOpenRealizarActividadDialog(actividad)}
+                                    sx={{ textTransform: 'none', fontWeight: 700 }}
+                                  >
+                                    Completar
+                                  </Button>
+                                </Box>
+                              </Stack>
+                            </Paper>
+                          );
+                        })}
+                      </Stack>
+                    </Box>
+
+                    {selectedOportunidad && actividadesPendientes.length > 0 && loadingActividadesOportunidadId !== selectedOportunidad.id ? (
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<AddTaskOutlinedIcon />}
+                        onClick={() => openCreateActividadDialog(selectedOportunidad)}
+                        sx={{
+                          fontWeight: 700,
+                          textTransform: 'none',
+                          backgroundColor: '#1d2f68',
+                          '&:hover': { backgroundColor: '#162551' },
+                        }}
+                      >
+                        Programar siguiente actividad
+                      </Button>
+                    ) : null}
+
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f172a', mb: 1 }}>
+                        Historial
+                      </Typography>
+                      <Stack spacing={2}>
+                        {actividadesRealizadas.length === 0 && selectedOportunidad && loadingActividadesOportunidadId !== selectedOportunidad.id ? (
+                          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
+                            <Typography variant="body2" sx={{ color: '#64748b' }}>
+                              Sin actividades realizadas.
+                            </Typography>
+                          </Paper>
+                        ) : null}
+
+                        {actividadesRealizadas.map((actividad) => (
+                          <Paper key={actividad.id} variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#bbf7d0', backgroundColor: '#ffffff' }}>
+                            <Stack spacing={1.5}>
+                              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" useFlexGap flexWrap="wrap">
+                                <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                                  <Chip size="small" label={formatTipoActividadLabel(actividad.tipo_actividad)} sx={{ fontWeight: 700, bgcolor: '#ecfdf5', color: '#047857' }} />
+                                  <Chip
+                                    size="small"
+                                    icon={<CheckCircleOutlineIcon />}
+                                    label="Realizada"
+                                    sx={{
+                                      fontWeight: 700,
+                                      bgcolor: '#f0fdf4',
+                                      color: '#15803d',
+                                      border: '1px solid',
+                                      borderColor: '#86efac',
+                                      '& .MuiChip-icon': { color: '#16a34a' },
+                                    }}
+                                  />
+                                </Stack>
+                                <Typography variant="body2" sx={{ color: '#475569', fontWeight: 600 }}>
+                                  {formatDateTime(actividad.fecha_realizacion || actividad.fecha_programada)}
+                                </Typography>
+                              </Stack>
+                              <Typography variant="body2" sx={{ color: '#0f172a' }}>
+                                {actividad.resultado || 'Sin resultado'}
+                              </Typography>
+                            </Stack>
+                          </Paper>
+                        ))}
+                      </Stack>
+                    </Box>
+                  </Stack>
+                </Box>
+              </Box>
+            </Drawer>
+
             <Menu
               anchorEl={statusMenu.anchorEl}
               open={Boolean(statusMenu.anchorEl && statusMenu.row)}
@@ -1474,6 +2341,114 @@ export default function OportunidadesPage() {
                 <Button onClick={() => setCancelDialog({ open: false, row: null, motivo: '', error: null })}>Cancelar</Button>
                 <Button variant="contained" color="error" onClick={() => { void handleConfirmCancelacion(); }} disabled={updatingStatusId === cancelDialog.row?.id}>
                   Confirmar
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            <Dialog
+              open={createActividadDialog.open}
+              onClose={closeCreateActividadDialog}
+              fullWidth
+              maxWidth="sm"
+            >
+              <DialogTitle>Programar actividad</DialogTitle>
+              <DialogContent>
+                <Stack spacing={1.5} sx={{ pt: 1 }}>
+                  {createActividadDialog.oportunidad ? (
+                    <Typography variant="body2" sx={{ color: '#64748b' }}>
+                      {createActividadDialog.oportunidad.folio} · {createActividadDialog.oportunidad.contacto_nombre}
+                    </Typography>
+                  ) : null}
+
+                  <TextField
+                    select
+                    label="Tipo de actividad"
+                    value={createActividadDialog.tipo_actividad}
+                    onChange={(event) => {
+                      const nextValue = event.target.value as TipoActividad;
+                      setCreateActividadDialog((prev) => ({ ...prev, tipo_actividad: nextValue }));
+                    }}
+                    fullWidth
+                    size="small"
+                  >
+                    {ACTIVIDAD_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+
+                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+                    <DateTimePicker
+                      label="Fecha programada"
+                      value={createActividadDialog.fecha_programada ? dayjs(createActividadDialog.fecha_programada) : null}
+                      onChange={(value) => setCreateActividadDialog((prev) => ({
+                        ...prev,
+                        fecha_programada: value ? value.format('YYYY-MM-DDTHH:mm') : '',
+                      }))}
+                      ampm
+                      slotProps={{
+                        textField: {
+                          fullWidth: true,
+                          size: 'small',
+                        },
+                        popper: {
+                          placement: 'bottom-start',
+                        },
+                      }}
+                    />
+                  </LocalizationProvider>
+
+                  <TextField
+                    label="Notas"
+                    multiline
+                    minRows={4}
+                    value={createActividadDialog.notas}
+                    onChange={(event) => setCreateActividadDialog((prev) => ({ ...prev, notas: event.target.value }))}
+                    fullWidth
+                  />
+                </Stack>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={closeCreateActividadDialog}>Cancelar</Button>
+                <Button variant="contained" onClick={() => { void handleGuardarActividad(); }} disabled={savingActividad}>
+                  {savingActividad ? 'Guardando...' : 'Guardar'}
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            <Dialog
+              open={realizarActividadDialog.open}
+              onClose={closeRealizarActividadDialog}
+              fullWidth
+              maxWidth="sm"
+            >
+              <DialogTitle>Marcar actividad como realizada</DialogTitle>
+              <DialogContent>
+                <Stack spacing={1.5} sx={{ pt: 1 }}>
+                  {realizarActividadDialog.actividad ? (
+                    <Typography variant="body2" sx={{ color: '#64748b' }}>
+                      {formatTipoActividadLabel(realizarActividadDialog.actividad.tipo_actividad)} · {formatDateTime(realizarActividadDialog.actividad.fecha_programada)}
+                    </Typography>
+                  ) : null}
+
+                  <TextField
+                    autoFocus
+                    label="Resultado"
+                    multiline
+                    minRows={4}
+                    value={realizarActividadDialog.resultado}
+                    onChange={(event) => setRealizarActividadDialog((prev) => ({ ...prev, resultado: event.target.value, error: null }))}
+                    error={Boolean(realizarActividadDialog.error)}
+                    helperText={realizarActividadDialog.error || undefined}
+                    fullWidth
+                  />
+                </Stack>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={closeRealizarActividadDialog}>Cancelar</Button>
+                <Button variant="contained" onClick={() => { void handleConfirmRealizarActividad(); }} disabled={savingActividad}>
+                  {savingActividad ? 'Guardando...' : 'Completar'}
                 </Button>
               </DialogActions>
             </Dialog>
@@ -1534,6 +2509,34 @@ export default function OportunidadesPage() {
                 <Button onClick={() => setObservacionesDialog({ open: false, rowId: null, value: '' })}>Cancelar</Button>
                 <Button variant="contained" onClick={() => { void handleSaveObservaciones(); }} disabled={savingOperacionId === observacionesDialog.rowId}>
                   Guardar
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            <Dialog
+              open={deleteDialog.open}
+              onClose={handleCloseDeleteDialog}
+              fullWidth
+              maxWidth="xs"
+            >
+              <DialogTitle>Eliminar oportunidad</DialogTitle>
+              <DialogContent>
+                <Stack spacing={1.5} sx={{ pt: 1 }}>
+                  <Typography>¿Deseas eliminar esta oportunidad?</Typography>
+                  {deleteDialog.row?.cotizacion_principal_id ? (
+                    <Alert severity="warning" variant="outlined">
+                      Si tiene cotización asociada, también será eliminada.
+                    </Alert>
+                  ) : null}
+                  <Typography sx={{ color: '#b91c1c', fontWeight: 600 }}>
+                    Esta acción no se puede deshacer.
+                  </Typography>
+                </Stack>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={handleCloseDeleteDialog} disabled={savingOperacionId !== null}>Cancelar</Button>
+                <Button variant="contained" color="error" onClick={() => { void handleConfirmDelete(); }} disabled={savingOperacionId !== null}>
+                  {savingOperacionId !== null ? 'Eliminando...' : 'Eliminar'}
                 </Button>
               </DialogActions>
             </Dialog>

@@ -8,6 +8,7 @@ import {
   addPartida as addPartidaBase,
   replacePartidas as replacePartidasBase,
   deleteDocumento,
+  abrirDocumentoPdfEnNuevaVentana,
   downloadDocumentoPdf,
 } from './documentosService';
 
@@ -22,3 +23,4 @@ export const replacePartidas = (documentoId: number, partidas: CotizacionPartida
   replacePartidasBase(documentoId, TIPO, partidas);
 export const deleteCotizacion = (id: number) => deleteDocumento(id, TIPO);
 export const downloadCotizacionPdf = (id: number) => downloadDocumentoPdf(id, TIPO);
+export const abrirCotizacionPdfEnNuevaVentana = (id: number) => abrirDocumentoPdfEnNuevaVentana(id, TIPO);

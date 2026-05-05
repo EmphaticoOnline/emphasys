@@ -12,6 +12,7 @@ import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
 import { crearDocumentoService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
+import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion } from './documentos-delete.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -126,7 +127,23 @@ export const listarCotizaciones = buildListarHandler('cotizacion');
 export const obtenerCotizacion = buildObtenerHandler('cotizacion');
 export const crearCotizacion = buildCrearHandler('cotizacion');
 export const actualizarCotizacion = buildActualizarHandler('cotizacion');
-export const eliminarCotizacion = buildEliminarHandler('cotizacion');
+export const eliminarCotizacion = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    if (Number.isNaN(id) || !empresaId) return res.status(400).json({ error: 'ID o empresaId inválido' });
+
+    const deleted = await eliminarCotizacionConValidacion(id, Number(empresaId));
+    if (!deleted) return res.status(404).json({ error: 'Cotización no encontrada' });
+    return res.status(204).send();
+  } catch (error) {
+    if (error instanceof DocumentoDeleteValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Error al eliminar cotización', error);
+    return res.status(500).json({ error: 'Error al eliminar la cotización' });
+  }
+};
 
 export const listarFacturas = buildListarHandler('factura', true);
 export const obtenerFactura = buildObtenerHandler('factura', true);

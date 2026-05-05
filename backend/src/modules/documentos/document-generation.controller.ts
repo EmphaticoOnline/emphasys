@@ -7,6 +7,9 @@ const parseTipo = (valor: any): TipoDocumento => (valor ?? "").toString().toLowe
 
 const handleError = (res: Response, error: unknown) => {
   if (error instanceof ServiceError) {
+    if (error.code === "VALIDATION_ERROR") {
+      return res.status(error.status).json({ error: error.message, message: error.message, code: error.code, details: error.details });
+    }
     return res.status(error.status).json({ message: error.message, code: error.code, details: error.details });
   }
   console.error("Error inesperado en generación de documentos", error);

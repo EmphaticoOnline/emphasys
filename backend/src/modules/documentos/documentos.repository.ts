@@ -36,6 +36,7 @@ export type Partida = {
   precio_unitario: number;
   subtotal_partida: number;
   total_partida: number;
+  es_parte_oportunidad?: boolean;
   archivo_imagen_1?: string | null;
   producto_descripcion?: string | null;
   producto_clave?: string | null;
@@ -114,6 +115,7 @@ export type PartidaInput = {
   precio_unitario?: number | null;
   subtotal_partida?: number | null;
   total_partida?: number | null;
+  es_parte_oportunidad?: boolean;
   archivo_imagen_1?: string | null;
   observaciones?: string | null;
 };
@@ -263,7 +265,13 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   factura_compra: 'FCO',
 };
 
-export async function crearDocumentoRepository(data: DocumentoInput, empresaId: number, tipoDocumento: TipoDocumento) {
+export async function crearDocumentoRepository(
+  data: DocumentoInput,
+  empresaId: number,
+  tipoDocumento: TipoDocumento,
+  client?: PoolClient
+) {
+  const executor = client ?? pool;
   const tipoDocumentoNormalizado = (data.tipo_documento || tipoDocumento).toLowerCase() as TipoDocumento;
   const dataConDefaults: DocumentoInput = tipoDocumentoNormalizado === 'cotizacion'
     ? sanitizarCamposCotizacion({ ...data }, { applyDefaults: true })
@@ -279,13 +287,13 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
   // Prellenar datos fiscales del contacto en facturas si no vienen en la petición
   if (tipoDocumentoDb === 'factura' && dataConDefaults.contacto_principal_id) {
     try {
-      const { rows: contactoRows } = await pool.query(
+      const { rows: contactoRows } = await executor.query(
         `SELECT nombre FROM contactos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
         [dataConDefaults.contacto_principal_id, empresaId]
       );
       const nombreContacto = contactoRows[0]?.nombre || null;
 
-      const { rows: fiscalesRows } = await pool.query(
+      const { rows: fiscalesRows } = await executor.query(
         `SELECT rfc, regimen_fiscal, uso_cfdi, forma_pago, metodo_pago
            FROM contactos_datos_fiscales
           WHERE contacto_id = $1
@@ -295,7 +303,7 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
       const fiscales = fiscalesRows[0] || {};
 
       // CP fiscal ahora proviene del domicilio principal (cp_sat)
-      const { rows: domicilioRows } = await pool.query(
+      const { rows: domicilioRows } = await executor.query(
         `SELECT cp_sat
            FROM contactos_domicilios
           WHERE contacto_id = $1
@@ -320,7 +328,7 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
   // Asigna número secuencial si no viene en la petición
   let numero = dataConDefaults.numero;
   if (numero === undefined || numero === null) {
-    const { rows } = await pool.query(
+    const { rows } = await executor.query(
       `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
        FROM documentos
        WHERE empresa_id = $1
@@ -353,7 +361,7 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
   const query = `INSERT INTO documentos (${columnas.join(', ')}) VALUES (${params}) RETURNING *`;
 
   // Validar duplicado serie + número + tipo + empresa
-  const { rowCount: dupCount } = await pool.query(
+  const { rowCount: dupCount } = await executor.query(
     `SELECT 1 FROM documentos
      WHERE empresa_id = $1
        AND LOWER(tipo_documento) = LOWER($2)
@@ -368,7 +376,7 @@ export async function crearDocumentoRepository(data: DocumentoInput, empresaId: 
     throw err;
   }
 
-  const { rows } = await pool.query(query, valores);
+  const { rows } = await executor.query(query, valores);
   return rows[0];
 }
 
@@ -486,12 +494,19 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       'precio_unitario',
       'subtotal_partida',
       'total_partida',
+      'es_parte_oportunidad',
       ...(permiteImagen ? (['archivo_imagen_1'] as Array<keyof PartidaInput>) : []),
       'observaciones',
     ];
 
     camposPermitidos.forEach((campo) => {
-      if (data[campo] !== undefined) {    
+      if (campo === 'es_parte_oportunidad') {
+        campos.push(campo);
+        valores.push(data.es_parte_oportunidad ?? true);
+        return;
+      }
+
+      if (data[campo] !== undefined) {
         campos.push(campo);
         valores.push(data[campo]);
       }
@@ -558,9 +573,10 @@ export async function reemplazarPartidasRepository(
         precio_unitario,
         subtotal_partida,
         total_partida,
+        es_parte_oportunidad,
         archivo_imagen_1,
         observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
 
@@ -575,6 +591,7 @@ export async function reemplazarPartidasRepository(
         partida.precio_unitario ?? 0,
         partida.subtotal_partida ?? 0,
         partida.total_partida ?? partida.subtotal_partida ?? 0,
+        partida.es_parte_oportunidad ?? true,
         permiteImagen ? partida.archivo_imagen_1 ?? null : null,
         partida.observaciones ?? null,
       ];

@@ -6,6 +6,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   Tooltip,
   Dialog,
   DialogActions,
@@ -95,6 +96,7 @@ const emptyPartida = (): PartidaForm => ({
   precio_unitario: 0,
   subtotal_partida: 0,
   total_partida: 0,
+  es_parte_oportunidad: true,
   archivo_imagen_1: null,
   producto: null,
   observaciones: '',
@@ -405,13 +407,20 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     setForm((prev) => ({ ...prev, subtotal, iva: impuestosTotales, total }));
   };
 
+  const montoOportunidad = useMemo(
+    () => partidas.reduce((acc, partida) => (
+      partida.es_parte_oportunidad === false ? acc : acc + Number(partida.subtotal_partida ?? 0)
+    ), 0),
+    [partidas]
+  );
+
   const isSinIva = (t: TratamientoImpuestos | null | undefined) => (t ?? '').toLowerCase() === 'sin_iva';
   const isOperacionEstandar = (t: TratamientoImpuestos | null | undefined) => ['normal', 'operacion_estandar'].includes((t ?? '').toLowerCase());
 
   const partidasGridTemplate = useMemo(
     () =>
       (isCotizacion
-        ? '180px 1fr 80px 120px 120px 120px 120px 52px 40px 48px'
+        ? '180px 1fr 80px 120px 120px 120px 120px 120px 52px 40px 48px'
         : '180px 1fr 80px 120px 120px 120px 120px 40px 48px'),
     [isCotizacion]
   );
@@ -741,6 +750,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           precio_unitario: p.precio_unitario,
           subtotal_partida: p.subtotal_partida,
           total_partida: p.total_partida,
+          es_parte_oportunidad: p.es_parte_oportunidad ?? true,
           archivo_imagen_1: p.archivo_imagen_1 ?? null,
           observaciones: p.observaciones ?? '',
           producto: prod,
@@ -904,8 +914,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         empresa_id: getEmpresaActivaId(),
         conversacion_id: conversacionId ? Number(conversacionId) : null,
         usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
-          estado_seguimiento: isCotizacion ? (form.estado_seguimiento ?? DEFAULT_ESTADO_SEGUIMIENTO) : null,
-  tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : 'normal',
+        estado_seguimiento: isCotizacion ? (form.estado_seguimiento ?? DEFAULT_ESTADO_SEGUIMIENTO) : null,
+        tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : 'normal',
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
         regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
@@ -931,6 +941,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         precio_unitario: p.precio_unitario ?? 0,
         subtotal_partida: p.subtotal_partida ?? 0,
         total_partida: p.total_partida ?? 0,
+        es_parte_oportunidad: p.es_parte_oportunidad ?? true,
         ...(isCotizacion ? { archivo_imagen_1: p.archivo_imagen_1 ?? null } : {}),
         observaciones: p.observaciones ?? '',
         impuestos: (p.impuestos_calculados ?? p.impuestos ?? []).map((imp: any) => ({
@@ -1440,6 +1451,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   <Box textAlign="right">Subtotal</Box>
                   <Box textAlign="right">IVA</Box>
                   <Box textAlign="right">Total</Box>
+                  {isCotizacion && <Box textAlign="center">Cuenta para oportunidad</Box>}
                   {isCotizacion && <Box textAlign="center">Imagen</Box>}
                   <Box textAlign="center">Obs.</Box>
                   <Box textAlign="center">&nbsp;</Box>
@@ -1650,6 +1662,23 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       />
 
                       {isCotizacion && (
+                        <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 40 }}>
+                          <Tooltip title="Cuenta para oportunidad">
+                            <Checkbox
+                              checked={partida.es_parte_oportunidad !== false}
+                              onChange={(event) => {
+                                setPartidaAt(index, (prev) => ({
+                                  ...prev,
+                                  es_parte_oportunidad: event.target.checked,
+                                }));
+                              }}
+                              inputProps={{ 'aria-label': 'Cuenta para oportunidad' }}
+                            />
+                          </Tooltip>
+                        </Box>
+                      )}
+
+                      {isCotizacion && (
                         <Box display="flex" justifyContent="center" alignItems="center" gap={0.5}>
                           <input
                             type="file"
@@ -1776,12 +1805,21 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   sx={{ width: { xs: '100%', sm: 160 } }}
                 />
                 <TextField
-                  label="Total"
+                  label="Total cotización"
                   value={formatter.format(form.total || 0)}
                   InputProps={{ readOnly: true, sx: { fontSize: 13, fontWeight: 700 }, style: { textAlign: 'right' } }}
                   size="small"
                   sx={{ width: { xs: '100%', sm: 180 } }}
                 />
+                {isCotizacion && (
+                  <TextField
+                    label="Monto oportunidad"
+                    value={formatter.format(montoOportunidad)}
+                    InputProps={{ readOnly: true, sx: { fontSize: 13, fontWeight: 700 }, style: { textAlign: 'right' } }}
+                    size="small"
+                    sx={{ width: { xs: '100%', sm: 190 } }}
+                  />
+                )}
               </Stack>
             </>
           )}
