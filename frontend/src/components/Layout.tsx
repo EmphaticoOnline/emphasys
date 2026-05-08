@@ -7,6 +7,8 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Drawer from '@mui/material/Drawer';
 import Tooltip from '@mui/material/Tooltip';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -30,9 +32,37 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
+import { apiFetch } from '../services/apiFetch';
 
 interface LayoutProps {
   children: React.ReactNode;
+}
+
+type ActividadRecordatorio = {
+  id: number;
+  tipo_actividad: string;
+  notas: string | null;
+  fecha_programada: string;
+  oportunidad_id: number | null;
+};
+
+async function fetchRecordatoriosActividades() {
+  return apiFetch<ActividadRecordatorio[]>('/api/crm/actividades/recordatorios');
+}
+
+async function marcarRecordatorioDisparado(actividadId: number) {
+  return apiFetch(`/api/crm/actividades/${actividadId}/recordatorio-disparado`, {
+    method: 'PATCH',
+  });
+}
+
+function getRecordatorioTexto(actividad: ActividadRecordatorio) {
+  const notas = actividad.notas?.trim();
+  if (notas) {
+    return notas;
+  }
+
+  return `Actividad de ${actividad.tipo_actividad}`;
 }
 
 export default function Layout({ children }: LayoutProps) {
@@ -47,6 +77,9 @@ export default function Layout({ children }: LayoutProps) {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [recordatoriosQueue, setRecordatoriosQueue] = React.useState<ActividadRecordatorio[]>([]);
+  const [recordatorioActual, setRecordatorioActual] = React.useState<ActividadRecordatorio | null>(null);
+  const recordatoriosProcesadosRef = React.useRef<Set<number>>(new Set());
 
   const [ventasTabs, setVentasTabs] = React.useState<{ label: string; value: string; icon?: string | null }[]>([]);
   const [comprasTabs, setComprasTabs] = React.useState<{ label: string; value: string; icon?: string | null }[]>([]);
@@ -101,6 +134,65 @@ export default function Layout({ children }: LayoutProps) {
     };
     void loadTabs();
   }, [empresaId]);
+
+  React.useEffect(() => {
+    if (!session.user || !empresaId) {
+      return;
+    }
+
+    let active = true;
+
+    const pollRecordatorios = async () => {
+      try {
+        const actividades = await fetchRecordatoriosActividades();
+
+        if (!active || !actividades.length) {
+          return;
+        }
+
+        const nuevas = actividades.filter((actividad) => !recordatoriosProcesadosRef.current.has(actividad.id));
+
+        if (!nuevas.length) {
+          return;
+        }
+
+        setRecordatoriosQueue((prev) => [...prev, ...nuevas]);
+
+        await Promise.allSettled(
+          nuevas.map(async (actividad) => {
+            try {
+              await marcarRecordatorioDisparado(actividad.id);
+              recordatoriosProcesadosRef.current.add(actividad.id);
+            } catch (error) {
+              console.error('No se pudo marcar el recordatorio como disparado:', error);
+            }
+          })
+        );
+      } catch (error) {
+        console.error('No se pudieron consultar recordatorios de actividades:', error);
+      }
+    };
+
+    void pollRecordatorios();
+    const intervalId = window.setInterval(() => {
+      void pollRecordatorios();
+    }, 60_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [empresaId, session.user]);
+
+  React.useEffect(() => {
+    if (recordatorioActual || recordatoriosQueue.length === 0) {
+      return;
+    }
+
+    const [siguiente, ...resto] = recordatoriosQueue;
+    setRecordatorioActual(siguiente);
+    setRecordatoriosQueue(resto);
+  }, [recordatorioActual, recordatoriosQueue]);
 
   const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -248,6 +340,10 @@ export default function Layout({ children }: LayoutProps) {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleCloseRecordatorio = () => {
+    setRecordatorioActual(null);
   };
 
   return (
@@ -495,6 +591,35 @@ export default function Layout({ children }: LayoutProps) {
           <Box sx={{ flex: 1, minHeight: 0, p: 0 }}>{children}</Box>
         </Box>
       </Box>
+
+      <Snackbar
+        open={Boolean(recordatorioActual)}
+        autoHideDuration={8000}
+        onClose={handleCloseRecordatorio}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleCloseRecordatorio}
+          severity="info"
+          variant="filled"
+          sx={{ width: '100%' }}
+          action={recordatorioActual ? (
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => {
+                navigate(`/crm/actividades/${recordatorioActual.id}`);
+                handleCloseRecordatorio();
+              }}
+            >
+              Ver actividad
+            </Button>
+          ) : null}
+        >
+          <Typography sx={{ fontWeight: 700 }}>Recordatorio</Typography>
+          <Typography variant="body2">{recordatorioActual ? getRecordatorioTexto(recordatorioActual) : ''}</Typography>
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

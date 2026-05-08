@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-04T20:09:31.780Z
+-- Generated at: 2026-05-08T16:45:03.336Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict liSWL3M0PNWyOhawovHSaFWBvHGb4FgiFDLMPJKcaKjQkyl4Zv7R50sgTDivIxS
+\restrict IxArJGGN2x9KhsCkayR2xA5IJqebmwcIwTrlEKLL1JQ4Avueh99E9e9ZDgZvPLi
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -2241,7 +2241,8 @@ CREATE TABLE crm.actividades (
     recordatorio boolean DEFAULT false,
     recordatorio_minutos integer,
     created_at timestamp without time zone DEFAULT now(),
-    updated_at timestamp without time zone DEFAULT now()
+    updated_at timestamp without time zone DEFAULT now(),
+    recordatorio_disparado_at timestamp without time zone
 );
 
 
@@ -3603,6 +3604,47 @@ CREATE SEQUENCE public.aplicaciones_id_seq
 --
 
 ALTER SEQUENCE public.aplicaciones_id_seq OWNED BY public.aplicaciones.id;
+
+
+--
+-- Name: audit_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audit_log (
+    id bigint NOT NULL,
+    empresa_id bigint,
+    usuario_id bigint NOT NULL,
+    modulo character varying(100) NOT NULL,
+    entidad character varying(100) NOT NULL,
+    entidad_id character varying(100),
+    accion character varying(50) NOT NULL,
+    descripcion text,
+    datos_anteriores jsonb,
+    datos_nuevos jsonb,
+    ip_address inet,
+    user_agent text,
+    origen character varying(50) NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: audit_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.audit_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: audit_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.audit_log_id_seq OWNED BY public.audit_log.id;
 
 
 --
@@ -5981,7 +6023,8 @@ CREATE TABLE whatsapp.intentos_contacto (
     session_id text,
     ip_address inet,
     user_agent text,
-    creado_en timestamp with time zone DEFAULT now() NOT NULL
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    tipo_intento text
 );
 
 
@@ -6441,6 +6484,13 @@ ALTER TABLE ONLY inventario.movimientos_partidas ALTER COLUMN id SET DEFAULT nex
 --
 
 ALTER TABLE ONLY public.aplicaciones ALTER COLUMN id SET DEFAULT nextval('public.aplicaciones_id_seq'::regclass);
+
+
+--
+-- Name: audit_log id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_log ALTER COLUMN id SET DEFAULT nextval('public.audit_log_id_seq'::regclass);
 
 
 --
@@ -7050,6 +7100,14 @@ ALTER TABLE ONLY inventario.existencias
 
 ALTER TABLE ONLY public.aplicaciones
     ADD CONSTRAINT aplicaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audit_log audit_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audit_log
+    ADD CONSTRAINT audit_log_pkey PRIMARY KEY (id);
 
 
 --
@@ -8998,6 +9056,13 @@ CREATE INDEX config_empresa_id_idx ON whatsapp.config USING btree (empresa_id);
 
 
 --
+-- Name: intentos_contacto_dedupe_idx; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE INDEX intentos_contacto_dedupe_idx ON whatsapp.intentos_contacto USING btree (session_id, pagina_origen, tipo_intento, creado_en DESC);
+
+
+--
 -- Name: whatsapp_plantillas_default_uk; Type: INDEX; Schema: whatsapp; Owner: -
 --
 
@@ -9978,5 +10043,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict liSWL3M0PNWyOhawovHSaFWBvHGb4FgiFDLMPJKcaKjQkyl4Zv7R50sgTDivIxS
+\unrestrict IxArJGGN2x9KhsCkayR2xA5IJqebmwcIwTrlEKLL1JQ4Avueh99E9e9ZDgZvPLi
 

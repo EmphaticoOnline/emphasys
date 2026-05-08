@@ -19,6 +19,8 @@ type ActualizarActividadBody = {
   fecha_programada?: unknown;
   notas?: unknown;
   oportunidad_id?: unknown;
+  recordatorio?: unknown;
+  recordatorio_minutos?: unknown;
   estatus?: unknown;
   resultado?: unknown;
 };
@@ -51,7 +53,7 @@ type ActividadListadoRow = {
   oportunidad_id: number | null;
   cliente_nombre: string | null;
   oportunidad_nombre: string | null;
-  grupo: 'vencidas' | 'hoy' | 'futuras';
+  grupo: 'vencidas' | 'hoy' | 'futuras' | 'completadas';
 };
 
 type ActividadListadoItem = {
@@ -69,6 +71,7 @@ type ActividadesAgrupadasResponse = {
   vencidas: ActividadListadoItem[];
   hoy: ActividadListadoItem[];
   futuras: ActividadListadoItem[];
+  completadas: ActividadListadoItem[];
 };
 
 type ActividadOportunidadRow = {
@@ -80,6 +83,14 @@ type ActividadOportunidadRow = {
   oportunidad_id: number | null;
   resultado: string | null;
   fecha_realizacion: Date | string | null;
+};
+
+type ActividadRecordatorioRow = {
+  id: number;
+  tipo_actividad: string;
+  notas: string | null;
+  fecha_programada: Date | string;
+  oportunidad_id: number | null;
 };
 
 const TIPOS_ACTIVIDAD_VALIDOS = new Set(['llamada', 'whatsapp', 'visita', 'tarea']);
@@ -181,6 +192,104 @@ function serializeActividadOportunidad(row: ActividadOportunidadRow) {
   };
 }
 
+function serializeActividadRecordatorio(row: ActividadRecordatorioRow) {
+  return {
+    id: row.id,
+    tipo_actividad: row.tipo_actividad,
+    notas: row.notas,
+    fecha_programada: row.fecha_programada,
+    oportunidad_id: row.oportunidad_id,
+  };
+}
+
+export async function listarRecordatoriosActividades(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const usuarioId = req.auth?.userId;
+
+    if (!empresaId) {
+      return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+    }
+
+    if (!usuarioId) {
+      return res.status(401).json({ message: 'Usuario no autenticado' });
+    }
+
+    const { rows } = await pool.query<ActividadRecordatorioRow>(
+      `SELECT
+         a.id,
+         a.tipo_actividad,
+         a.notas,
+         a.fecha_programada,
+         a.oportunidad_id
+       FROM crm.actividades a
+       WHERE a.empresa_id = $1
+         AND a.usuario_asignado_id = $2
+         AND a.estatus = 'pendiente'
+         AND a.recordatorio = TRUE
+         AND a.recordatorio_disparado_at IS NULL
+         AND (a.fecha_programada - make_interval(mins => COALESCE(a.recordatorio_minutos, 0))) <= NOW()
+       ORDER BY a.fecha_programada ASC, a.id ASC`,
+      [Number(empresaId), Number(usuarioId)]
+    );
+
+    return res.json(rows.map(serializeActividadRecordatorio));
+  } catch (error) {
+    console.error('Error al listar recordatorios de actividades:', {
+      empresaId: req.context?.empresaId,
+      usuarioId: req.auth?.userId,
+      error,
+    });
+    return res.status(500).json({ message: 'Error al listar recordatorios de actividades' });
+  }
+}
+
+export async function marcarRecordatorioActividadDisparado(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const usuarioId = req.auth?.userId;
+    const actividadId = Number(req.params.id);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+    }
+
+    if (!usuarioId) {
+      return res.status(401).json({ message: 'Usuario no autenticado' });
+    }
+
+    if (!Number.isInteger(actividadId) || actividadId <= 0) {
+      return res.status(400).json({ message: 'id de actividad inválido' });
+    }
+
+    const { rows } = await pool.query<{ id: number }>(
+      `UPDATE crm.actividades
+       SET
+         recordatorio_disparado_at = NOW(),
+         updated_at = NOW()
+       WHERE id = $1
+         AND empresa_id = $2
+         AND usuario_asignado_id = $3
+       RETURNING id`,
+      [actividadId, Number(empresaId), Number(usuarioId)]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: 'Actividad no encontrada' });
+    }
+
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('Error al marcar recordatorio como disparado:', {
+      empresaId: req.context?.empresaId,
+      usuarioId: req.auth?.userId,
+      actividadId: req.params.id,
+      error,
+    });
+    return res.status(500).json({ message: 'Error al marcar recordatorio como disparado' });
+  }
+}
+
 export async function listarActividadesUsuario(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId;
@@ -233,8 +342,9 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
          c.nombre AS cliente_nombre,
          NULL::text AS oportunidad_nombre,
          CASE
+           WHEN a.estatus = 'realizada' THEN 'completadas'
            WHEN a.fecha_programada < NOW() THEN 'vencidas'
-           WHEN DATE(a.fecha_programada) = CURRENT_DATE THEN 'hoy'
+           WHEN a.fecha_programada >= NOW() AND DATE(a.fecha_programada) = CURRENT_DATE THEN 'hoy'
            ELSE 'futuras'
          END AS grupo
        FROM crm.actividades a
@@ -246,7 +356,7 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
         AND c.empresa_id = a.empresa_id
        WHERE a.empresa_id = $1
          AND a.usuario_asignado_id = $2
-         AND a.estatus = 'pendiente'
+         AND a.estatus IN ('pendiente', 'realizada')
        ORDER BY a.fecha_programada ASC`,
       [Number(empresaId), Number(usuarioId)]
     );
@@ -255,6 +365,7 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
       vencidas: [],
       hoy: [],
       futuras: [],
+      completadas: [],
     };
 
     for (const row of rows) {
@@ -503,6 +614,20 @@ export async function actualizarActividad(req: Request, res: Response) {
       return res.status(400).json({ message: 'oportunidad_id debe ser un entero positivo' });
     }
 
+    const recordatorioProvided = Object.prototype.hasOwnProperty.call(body, 'recordatorio');
+    const recordatorio = parseOptionalBoolean(body.recordatorio);
+
+    if (recordatorioProvided && recordatorio === null) {
+      return res.status(400).json({ message: 'recordatorio debe ser booleano' });
+    }
+
+    const recordatorioMinutosProvided = Object.prototype.hasOwnProperty.call(body, 'recordatorio_minutos');
+    const recordatorioMinutos = parseOptionalPositiveInt(body.recordatorio_minutos);
+
+    if (recordatorioMinutos === null) {
+      return res.status(400).json({ message: 'recordatorio_minutos debe ser un entero positivo' });
+    }
+
     const notas = typeof body.notas === 'string'
       ? body.notas.trim() || null
       : body.notas == null
@@ -516,9 +641,18 @@ export async function actualizarActividad(req: Request, res: Response) {
          fecha_programada = $2,
          notas = $3,
          oportunidad_id = $4,
+         recordatorio = CASE
+           WHEN $5::boolean THEN COALESCE($6, FALSE)
+           ELSE recordatorio
+         END,
+         recordatorio_minutos = CASE
+           WHEN $5::boolean AND COALESCE($6, FALSE) = FALSE THEN NULL
+           WHEN $7::boolean THEN $8
+           ELSE recordatorio_minutos
+         END,
          updated_at = NOW()
-       WHERE id = $5
-         AND empresa_id = $6
+       WHERE id = $9
+         AND empresa_id = $10
        RETURNING
          id,
          empresa_id,
@@ -535,7 +669,18 @@ export async function actualizarActividad(req: Request, res: Response) {
          recordatorio_minutos,
          created_at,
          updated_at`,
-      [tipoActividad, fechaProgramada, notas, oportunidadId ?? null, actividadId, Number(empresaId)]
+      [
+        tipoActividad,
+        fechaProgramada,
+        notas,
+        oportunidadId ?? null,
+        recordatorioProvided,
+        recordatorio,
+        recordatorioMinutosProvided,
+        recordatorioMinutos ?? null,
+        actividadId,
+        Number(empresaId),
+      ]
     );
 
     if (!rows.length) {

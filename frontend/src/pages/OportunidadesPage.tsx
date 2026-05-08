@@ -5,6 +5,7 @@ import Badge from '@mui/material/Badge';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
 import Container from '@mui/material/Container';
@@ -13,6 +14,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Drawer from '@mui/material/Drawer';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import AddTaskOutlinedIcon from '@mui/icons-material/AddTaskOutlined';
@@ -188,6 +190,8 @@ type CrearActividadPayload = {
   fecha_programada: string;
   notas: string | null;
   oportunidad_id: number;
+  recordatorio: boolean;
+  recordatorio_minutos: number | null;
 };
 
 type CreateActividadDialogState = {
@@ -196,6 +200,8 @@ type CreateActividadDialogState = {
   tipo_actividad: TipoActividad;
   fecha_programada: string;
   notas: string;
+  recordatorio: boolean;
+  recordatorio_minutos: string;
 };
 
 type RealizarActividadDialogState = {
@@ -229,6 +235,8 @@ const EMPTY_CREATE_ACTIVIDAD_DIALOG: CreateActividadDialogState = {
   tipo_actividad: 'llamada',
   fecha_programada: '',
   notas: '',
+  recordatorio: false,
+  recordatorio_minutos: '',
 };
 
 const EMPTY_REALIZAR_ACTIVIDAD_DIALOG: RealizarActividadDialogState = {
@@ -875,6 +883,8 @@ export default function OportunidadesPage() {
       tipo_actividad: 'llamada',
       fecha_programada: defaultProgrammedDateTime(),
       notas: '',
+      recordatorio: false,
+      recordatorio_minutos: '',
     });
   }, []);
 
@@ -1443,6 +1453,17 @@ export default function OportunidadesPage() {
       return;
     }
 
+    const recordatorioMinutos = createActividadDialog.recordatorio_minutos.trim();
+
+    if (createActividadDialog.recordatorio) {
+      const minutos = Number(recordatorioMinutos);
+
+      if (!recordatorioMinutos || !Number.isInteger(minutos) || minutos <= 0) {
+        setSnackbar({ open: true, message: 'Debes capturar minutos antes con un entero positivo.', severity: 'error' });
+        return;
+      }
+    }
+
     setSavingActividad(true);
 
     try {
@@ -1452,6 +1473,8 @@ export default function OportunidadesPage() {
         fecha_programada: new Date(createActividadDialog.fecha_programada).toISOString(),
         notas: createActividadDialog.notas.trim() || null,
         oportunidad_id: oportunidad.id,
+        recordatorio: createActividadDialog.recordatorio,
+        recordatorio_minutos: createActividadDialog.recordatorio ? Number(recordatorioMinutos) : null,
       });
 
       closeCreateActividadDialog();
@@ -2398,6 +2421,36 @@ export default function OportunidadesPage() {
                       }}
                     />
                   </LocalizationProvider>
+
+                  <FormControlLabel
+                    control={(
+                      <Checkbox
+                        checked={createActividadDialog.recordatorio}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setCreateActividadDialog((prev) => ({
+                            ...prev,
+                            recordatorio: checked,
+                            recordatorio_minutos: checked ? prev.recordatorio_minutos : '',
+                          }));
+                        }}
+                        size="small"
+                      />
+                    )}
+                    label="Generar recordatorio"
+                  />
+
+                  {createActividadDialog.recordatorio ? (
+                    <TextField
+                      label="Minutos antes"
+                      value={createActividadDialog.recordatorio_minutos}
+                      onChange={(event) => setCreateActividadDialog((prev) => ({ ...prev, recordatorio_minutos: event.target.value }))}
+                      fullWidth
+                      size="small"
+                      type="number"
+                      inputProps={{ min: 1 }}
+                    />
+                  ) : null}
 
                   <TextField
                     label="Notas"

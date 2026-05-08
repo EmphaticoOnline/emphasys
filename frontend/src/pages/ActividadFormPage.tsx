@@ -5,8 +5,10 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Link,
   CircularProgress,
+  FormControlLabel,
   Grid,
   MenuItem,
   Paper,
@@ -34,6 +36,8 @@ type ActividadDetalle = {
   fecha_programada: string;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
+  recordatorio: boolean | null;
+  recordatorio_minutos: number | null;
 };
 
 type ActividadFormState = {
@@ -41,6 +45,8 @@ type ActividadFormState = {
   notas: string;
   fecha_programada: string;
   oportunidad_id: string;
+  recordatorio: boolean;
+  recordatorio_minutos: string;
 };
 
 type OportunidadDetalle = {
@@ -91,6 +97,10 @@ async function guardarActividad(id: string, form: ActividadFormState) {
       notas: form.notas,
       fecha_programada: new Date(form.fecha_programada).toISOString(),
       oportunidad_id: form.oportunidad_id ? Number(form.oportunidad_id) : null,
+      recordatorio: form.recordatorio,
+      recordatorio_minutos: form.recordatorio && form.recordatorio_minutos.trim()
+        ? Number(form.recordatorio_minutos)
+        : null,
     },
   });
 }
@@ -142,6 +152,8 @@ export default function ActividadFormPage() {
     notas: '',
     fecha_programada: '',
     oportunidad_id: '',
+    recordatorio: false,
+    recordatorio_minutos: '',
   });
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -172,6 +184,8 @@ export default function ActividadFormPage() {
           notas: data.notas ?? '',
           fecha_programada: toDateTimeLocal(data.fecha_programada),
           oportunidad_id: data.oportunidad_id ? String(data.oportunidad_id) : '',
+          recordatorio: Boolean(data.recordatorio),
+          recordatorio_minutos: data.recordatorio_minutos ? String(data.recordatorio_minutos) : '',
         });
         setError(null);
       } catch (err) {
@@ -321,6 +335,34 @@ export default function ActividadFormPage() {
                       }}
                     />
                   </LocalizationProvider>
+
+                  <FormControlLabel
+                    control={(
+                      <Checkbox
+                        checked={form.recordatorio}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setForm((prev) => ({
+                            ...prev,
+                            recordatorio: checked,
+                            recordatorio_minutos: checked ? prev.recordatorio_minutos : '',
+                          }));
+                        }}
+                      />
+                    )}
+                    label="Activar recordatorio"
+                  />
+
+                  {form.recordatorio ? (
+                    <TextField
+                      label="Minutos antes"
+                      value={form.recordatorio_minutos}
+                      onChange={handleChange('recordatorio_minutos')}
+                      fullWidth
+                      type="number"
+                      inputProps={{ min: 1 }}
+                    />
+                  ) : null}
 
                   <Stack direction="row" spacing={1.5} justifyContent="flex-end">
                     <Button color="inherit" onClick={() => navigate('/crm/actividades')}>

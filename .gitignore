@@ -9,7 +9,17 @@ build/
 
 # Env
 .env
+.env.*
 
 # OS
 .DS_Store
 Thumbs.db
+
+*.key
+*.cer
+*.pfx
+*.p12
+*.txt
+csd-pruebas/
+.local-deploy/
+.vscode/

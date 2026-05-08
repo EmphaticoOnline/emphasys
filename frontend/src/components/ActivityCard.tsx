@@ -22,6 +22,7 @@ export type ActividadResumen = {
   id: number;
   oportunidad_id?: number | null;
   tipo: 'llamada' | 'whatsapp' | 'visita' | 'otro';
+  estatus?: string;
   titulo: string;
   cliente_nombre: string;
   fecha_programada: string;
@@ -118,6 +119,7 @@ function obtenerColorIcono(tipo: ActividadResumen['tipo']) {
 export default function ActivityCard({ actividad, onCompletar, onReprogramar, onAbrir }: ActivityCardProps) {
   const [anclaPopover, setAnclaPopover] = useState<HTMLElement | null>(null);
   const [fechaReprogramada, setFechaReprogramada] = useState(obtenerFechaLocalParaInput(actividad.fecha_programada));
+  const estaCompletada = actividad.estatus === 'realizada';
 
   const colorBorde = useMemo(() => obtenerColorBorde(actividad), [actividad]);
   const colorIcono = useMemo(() => obtenerColorIcono(actividad.tipo), [actividad.tipo]);
@@ -209,17 +211,21 @@ export default function ActivityCard({ actividad, onCompletar, onReprogramar, on
         </Box>
 
         <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>
-          <Tooltip title="Completar">
-            <IconButton size="small" color="success" onClick={() => onCompletar(actividad)} aria-label="Completar actividad">
-              <CheckCircleOutlineOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          {!estaCompletada ? (
+            <>
+              <Tooltip title="Completar">
+                <IconButton size="small" color="success" onClick={() => onCompletar(actividad)} aria-label="Completar actividad">
+                  <CheckCircleOutlineOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
 
-          <Tooltip title="Reprogramar">
-            <IconButton size="small" color="warning" onClick={abrirPopover} aria-label="Reprogramar actividad">
-              <AccessTimeOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+              <Tooltip title="Reprogramar">
+                <IconButton size="small" color="warning" onClick={abrirPopover} aria-label="Reprogramar actividad">
+                  <AccessTimeOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          ) : null}
 
           <Tooltip title="Abrir">
             <IconButton size="small" color="primary" onClick={() => onAbrir(actividad)} aria-label="Abrir actividad">
@@ -230,7 +236,7 @@ export default function ActivityCard({ actividad, onCompletar, onReprogramar, on
       </Paper>
 
       <Popover
-        open={Boolean(anclaPopover)}
+        open={!estaCompletada && Boolean(anclaPopover)}
         anchorEl={anclaPopover}
         onClose={cerrarPopover}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
