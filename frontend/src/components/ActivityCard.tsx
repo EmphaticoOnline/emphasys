@@ -26,6 +26,9 @@ export type ActividadResumen = {
   titulo: string;
   cliente_nombre: string;
   fecha_programada: string;
+  oportunidad_folio?: string | null;
+  monto_oportunidad?: number | string | null;
+  oportunidad_fecha?: string | null;
   atrasada: boolean;
 };
 
@@ -62,6 +65,29 @@ function formatearFechaLegible(valor: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(fecha);
+}
+
+function formatearFechaCorta(valor: string | null | undefined) {
+  if (!valor) return 'Sin fecha';
+
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return 'Sin fecha';
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+  }).format(fecha);
+}
+
+function formatearMontoCompacto(valor: number | string | null | undefined) {
+  const amount = Number(valor ?? 0);
+  if (Number.isNaN(amount)) return '$0';
+
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function esFechaDeHoy(valor: string) {
@@ -114,6 +140,11 @@ function obtenerColorIcono(tipo: ActividadResumen['tipo']) {
     default:
       return '#475569';
   }
+}
+
+function formatearTipoActividad(tipo: ActividadResumen['tipo']) {
+  const texto = tipo === 'otro' ? 'actividad' : tipo;
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 export default function ActivityCard({ actividad, onCompletar, onReprogramar, onAbrir }: ActivityCardProps) {
@@ -175,25 +206,30 @@ export default function ActivityCard({ actividad, onCompletar, onReprogramar, on
 
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography
-            variant="body2"
+            variant="caption"
             sx={{
+              display: 'block',
+              color: '#64748b',
               fontWeight: 800,
-              color: '#0f172a',
-              lineHeight: 1.2,
+              letterSpacing: 0.25,
+              textTransform: 'uppercase',
+              lineHeight: 1,
+              mb: 0.15,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
             }}
           >
-            {actividad.cliente_nombre}
+            {formatearTipoActividad(actividad.tipo)}
           </Typography>
 
           <Typography
-            variant="body2"
+            variant="body1"
             sx={{
-              color: '#334155',
-              lineHeight: 1.25,
-              mt: 0.25,
+              fontWeight: 900,
+              color: '#0f172a',
+              lineHeight: 1.05,
+              mt: 0,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -208,6 +244,68 @@ export default function ActivityCard({ actividad, onCompletar, onReprogramar, on
               {etiquetaFecha}
             </Typography>
           </Stack>
+        </Box>
+
+        <Box
+          sx={{
+            display: { xs: 'none', sm: 'flex' },
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            gap: 0.35,
+            minWidth: 132,
+            maxWidth: 170,
+            pl: 1.5,
+            borderLeft: '1px solid #e2e8f0',
+            flexShrink: 0,
+          }}
+        >
+          <Typography
+            variant="body1"
+            sx={{
+              color: '#0f172a',
+              fontWeight: 900,
+              lineHeight: 1.05,
+              textAlign: 'right',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              width: '100%',
+            }}
+          >
+            {actividad.cliente_nombre}
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#64748b',
+              fontWeight: 700,
+              lineHeight: 1.05,
+              textAlign: 'right',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              width: '100%',
+            }}
+          >
+            {actividad.oportunidad_folio || 'Sin folio'}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              color: '#0f172a',
+              fontWeight: 800,
+              fontSize: 12.5,
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              width: '100%',
+              textAlign: 'right',
+            }}
+          >
+            {formatearMontoCompacto(actividad.monto_oportunidad)} · {formatearFechaCorta(actividad.oportunidad_fecha)}
+          </Typography>
         </Box>
 
         <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>

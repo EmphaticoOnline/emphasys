@@ -38,6 +38,7 @@ export type Partida = {
   total_partida: number;
   es_parte_oportunidad?: boolean;
   archivo_imagen_1?: string | null;
+  producto_archivo_id?: number | null;
   producto_descripcion?: string | null;
   producto_clave?: string | null;
   observaciones?: string | null;
@@ -117,7 +118,37 @@ export type PartidaInput = {
   total_partida?: number | null;
   es_parte_oportunidad?: boolean;
   archivo_imagen_1?: string | null;
+  producto_archivo_id?: number | null;
   observaciones?: string | null;
+};
+
+const normalizarImagenPartida = (data: PartidaInput, permiteImagen: boolean) => {
+  if (!permiteImagen) {
+    return {
+      archivo_imagen_1: null as string | null,
+      producto_archivo_id: null as number | null,
+    };
+  }
+
+  const archivoImagen = typeof data.archivo_imagen_1 === 'string' && data.archivo_imagen_1.trim()
+    ? data.archivo_imagen_1.trim()
+    : null;
+
+  const productoArchivoId = Number.isFinite(Number(data.producto_archivo_id))
+    ? Number(data.producto_archivo_id)
+    : null;
+
+  if (archivoImagen) {
+    return {
+      archivo_imagen_1: archivoImagen,
+      producto_archivo_id: null,
+    };
+  }
+
+  return {
+    archivo_imagen_1: null,
+    producto_archivo_id: productoArchivoId,
+  };
 };
 
 export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number) {
@@ -482,6 +513,7 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
     const docRow = docRows[0];
     if (!docRow) return null;
     const permiteImagen = String(docRow.tipo_documento ?? '').toLowerCase() === 'cotizacion';
+    const imagen = normalizarImagenPartida(data, permiteImagen);
 
     const campos: string[] = ['documento_id'];
     const valores: any[] = [documentoId];
@@ -495,7 +527,8 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       'subtotal_partida',
       'total_partida',
       'es_parte_oportunidad',
-      ...(permiteImagen ? (['archivo_imagen_1'] as Array<keyof PartidaInput>) : []),
+      'archivo_imagen_1',
+      'producto_archivo_id',
       'observaciones',
     ];
 
@@ -503,6 +536,18 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       if (campo === 'es_parte_oportunidad') {
         campos.push(campo);
         valores.push(data.es_parte_oportunidad ?? true);
+        return;
+      }
+
+      if (campo === 'archivo_imagen_1') {
+        campos.push(campo);
+        valores.push(imagen.archivo_imagen_1);
+        return;
+      }
+
+      if (campo === 'producto_archivo_id') {
+        campos.push(campo);
+        valores.push(imagen.producto_archivo_id);
         return;
       }
 
@@ -575,13 +620,15 @@ export async function reemplazarPartidasRepository(
         total_partida,
         es_parte_oportunidad,
         archivo_imagen_1,
+        producto_archivo_id,
         observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `;
 
     const insertedRows: any[] = [];
     for (const [idx, partida] of partidas.entries()) {
+      const imagen = normalizarImagenPartida(partida, permiteImagen);
       const values = [
         documentoId,
         idx + 1, // numero_partida secuencial por documento
@@ -592,13 +639,14 @@ export async function reemplazarPartidasRepository(
         partida.subtotal_partida ?? 0,
         partida.total_partida ?? partida.subtotal_partida ?? 0,
         partida.es_parte_oportunidad ?? true,
-        permiteImagen ? partida.archivo_imagen_1 ?? null : null,
+        imagen.archivo_imagen_1,
+        imagen.producto_archivo_id,
         partida.observaciones ?? null,
       ];
       console.log('[documentos] reemplazarPartidasRepository - insert partida', {
         documentoId,
         numero_partida: idx + 1,
-        total_partida: values[8],
+        total_partida: values[7],
       });
       const { rows } = await executor.query(insertQuery, values);
       console.log('[documentos] partida insertada id', rows[0]?.id);

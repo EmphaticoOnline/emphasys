@@ -1,6 +1,7 @@
 import * as React from 'react';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import dayjs from 'dayjs';
+import 'dayjs/locale/es';
 import {
   Alert,
   Box,
@@ -28,6 +29,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { abrirCotizacionPdfEnNuevaVentana, getCotizacion } from '../services/cotizacionesService';
 import { apiFetch } from '../services/apiFetch';
 import type { CotizacionPartida } from '../types/cotizacion';
+
+dayjs.locale('es');
 
 type ActividadDetalle = {
   id: number;
@@ -314,7 +317,7 @@ export default function ActividadFormPage() {
                     minRows={3}
                   />
 
-                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
                     <DateTimePicker
                       label="Fecha programada"
                       value={form.fecha_programada ? dayjs(form.fecha_programada) : null}
@@ -324,6 +327,7 @@ export default function ActividadFormPage() {
                           fecha_programada: value ? value.format('YYYY-MM-DDTHH:mm') : '',
                         }));
                       }}
+                      format="DD/MM/YYYY HH:mm"
                       ampm
                       slotProps={{
                         textField: {

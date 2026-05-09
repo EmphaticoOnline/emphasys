@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-08T16:45:03.336Z
+-- Generated at: 2026-05-09T02:56:41.519Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict IxArJGGN2x9KhsCkayR2xA5IJqebmwcIwTrlEKLL1JQ4Avueh99E9e9ZDgZvPLi
+\restrict TYV6utbCX8uhG1dvAsh5scyBbsgYDq242dmwBKY15WSey61VBV0au1HlVAGPVEY
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -4221,7 +4221,8 @@ CREATE TABLE public.documentos_partidas (
     comentarios_internos text,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     fecha_modificacion timestamp with time zone,
-    es_parte_oportunidad boolean DEFAULT true
+    es_parte_oportunidad boolean DEFAULT true,
+    producto_archivo_id integer
 );
 
 
@@ -5130,6 +5131,42 @@ CREATE TABLE public.productos (
     unidad_inventario_id integer,
     clave_unidad_sat character varying(10)
 );
+
+
+--
+-- Name: productos_archivos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.productos_archivos (
+    id integer NOT NULL,
+    producto_id integer NOT NULL,
+    tipo_archivo character varying(30) NOT NULL,
+    archivo character varying(255) NOT NULL,
+    descripcion character varying(150),
+    orden_visual integer DEFAULT 1 NOT NULL,
+    principal boolean DEFAULT false NOT NULL,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: productos_archivos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.productos_archivos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: productos_archivos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.productos_archivos_id_seq OWNED BY public.productos_archivos.id;
 
 
 --
@@ -6648,6 +6685,13 @@ ALTER TABLE ONLY public.productos ALTER COLUMN id SET DEFAULT nextval('public.pr
 
 
 --
+-- Name: productos_archivos id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos_archivos ALTER COLUMN id SET DEFAULT nextval('public.productos_archivos_id_seq'::regclass);
+
+
+--
 -- Name: productos_impuestos id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -7300,6 +7344,14 @@ ALTER TABLE ONLY public.credito_operaciones_items
 
 ALTER TABLE ONLY public.plantillas_documento
     ADD CONSTRAINT plantillas_documento_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: productos_archivos productos_archivos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos_archivos
+    ADD CONSTRAINT productos_archivos_pkey PRIMARY KEY (id);
 
 
 --
@@ -9968,6 +10020,14 @@ ALTER TABLE ONLY public.productos
 
 
 --
+-- Name: productos_archivos fk_productos_archivos_producto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos_archivos
+    ADD CONSTRAINT fk_productos_archivos_producto FOREIGN KEY (producto_id) REFERENCES public.productos(id) ON DELETE CASCADE;
+
+
+--
 -- Name: productos_impuestos fk_productos_impuestos_impuesto; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10043,5 +10103,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict IxArJGGN2x9KhsCkayR2xA5IJqebmwcIwTrlEKLL1JQ4Avueh99E9e9ZDgZvPLi
+\unrestrict TYV6utbCX8uhG1dvAsh5scyBbsgYDq242dmwBKY15WSey61VBV0au1HlVAGPVEY
 

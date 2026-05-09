@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import pool from '../config/database';
+import { formatearFolioDocumento } from '../utils/documentos';
 
 type CrearActividadBody = {
   usuario_asignado_id?: unknown;
@@ -53,6 +54,11 @@ type ActividadListadoRow = {
   oportunidad_id: number | null;
   cliente_nombre: string | null;
   oportunidad_nombre: string | null;
+  cotizacion_principal_id: number | null;
+  serie: string | null;
+  numero: number | null;
+  monto_oportunidad: number | string | null;
+  oportunidad_fecha: Date | string | null;
   grupo: 'vencidas' | 'hoy' | 'futuras' | 'completadas';
 };
 
@@ -65,6 +71,9 @@ type ActividadListadoItem = {
   oportunidad_id: number | null;
   cliente_nombre: string | null;
   oportunidad_nombre: string | null;
+  oportunidad_folio: string | null;
+  monto_oportunidad: number | string | null;
+  oportunidad_fecha: Date | string | null;
 };
 
 type ActividadesAgrupadasResponse = {
@@ -167,6 +176,10 @@ function serializeActividad(row: ActividadRow) {
 }
 
 function serializeActividadListado(row: ActividadListadoRow): ActividadListadoItem {
+  const oportunidadFolio = row.cotizacion_principal_id
+    ? formatearFolioDocumento(row.serie ?? '', Number(row.numero ?? row.cotizacion_principal_id ?? row.id))
+    : `Op. #${row.id}`;
+
   return {
     id: row.id,
     tipo_actividad: row.tipo_actividad,
@@ -176,6 +189,9 @@ function serializeActividadListado(row: ActividadListadoRow): ActividadListadoIt
     oportunidad_id: row.oportunidad_id,
     cliente_nombre: row.cliente_nombre,
     oportunidad_nombre: row.oportunidad_nombre,
+    oportunidad_folio: oportunidadFolio,
+    monto_oportunidad: row.monto_oportunidad,
+    oportunidad_fecha: row.oportunidad_fecha,
   };
 }
 
@@ -341,6 +357,16 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
          a.oportunidad_id,
          c.nombre AS cliente_nombre,
          NULL::text AS oportunidad_nombre,
+         d.id AS cotizacion_principal_id,
+         d.serie,
+         d.numero,
+         COALESCE(SUM(
+           CASE
+             WHEN dp.es_parte_oportunidad IS TRUE THEN dp.subtotal_partida
+             ELSE 0
+           END
+         ), 0) AS monto_oportunidad,
+         o.created_at AS oportunidad_fecha,
          CASE
            WHEN a.estatus = 'realizada' THEN 'completadas'
            WHEN a.fecha_programada < NOW() THEN 'vencidas'
@@ -351,12 +377,28 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
        LEFT JOIN crm.oportunidades_venta o
          ON o.id = a.oportunidad_id
         AND o.empresa_id = a.empresa_id
+       LEFT JOIN documentos d
+         ON d.id = o.cotizacion_principal_id
+       LEFT JOIN documentos_partidas dp
+         ON dp.documento_id = d.id
        LEFT JOIN contactos c
          ON c.id = o.contacto_id
         AND c.empresa_id = a.empresa_id
        WHERE a.empresa_id = $1
          AND a.usuario_asignado_id = $2
          AND a.estatus IN ('pendiente', 'realizada')
+       GROUP BY
+         a.id,
+         a.tipo_actividad,
+         a.fecha_programada,
+         a.estatus,
+         a.notas,
+         a.oportunidad_id,
+         c.nombre,
+         d.id,
+         d.serie,
+         d.numero,
+         o.created_at
        ORDER BY a.fecha_programada ASC`,
       [Number(empresaId), Number(usuarioId)]
     );
@@ -369,7 +411,9 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
     };
 
     for (const row of rows) {
-      response[row.grupo].push(serializeActividadListado(row));
+      const serializada = serializeActividadListado(row);
+
+      response[row.grupo].push(serializada);
     }
 
     return res.json(response);
@@ -396,12 +440,6 @@ export async function crearActividad(req: Request, res: Response) {
 
     if (!usuarioCreadorId) {
       return res.status(401).json({ message: 'Usuario no autenticado' });
-    }
-
-    for (const campo of CAMPOS_PROHIBIDOS_EN_CREACION) {
-      if (Object.prototype.hasOwnProperty.call(body, campo)) {
-        return res.status(400).json({ message: `No se permite enviar ${campo} al crear una actividad` });
-      }
     }
 
     const usuarioAsignadoId = parseRequiredPositiveInt(body.usuario_asignado_id, 'usuario_asignado_id');

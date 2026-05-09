@@ -6,6 +6,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  ButtonBase,
   Checkbox,
   Tooltip,
   Dialog,
@@ -36,7 +37,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
-import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import DynamicFieldControl from '../components/DynamicFieldControl';
 import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 
@@ -52,7 +52,7 @@ import type { TipoDocumento } from '../types/documentos.types';
 import { getDocumento, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana } from '../services/documentosService';
 import { uploadArchivo } from '../services/uploadsService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { fetchProductos } from '../services/productosService';
+import { fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
 import type { Producto } from '../types/producto';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
@@ -64,6 +64,7 @@ import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
 import { DEFAULT_ESTADO_SEGUIMIENTO } from '../modules/cotizaciones/estadoSeguimiento';
 import { crearContacto, getContacto } from '../services/contactos.api';
 import { fetchSaldoDocumento } from '../services/finanzasService';
+import { buildAssetUrl } from '../services/empresasAssetsService';
 import {
   guardarCamposDocumento,
   guardarCamposPartida,
@@ -98,6 +99,7 @@ const emptyPartida = (): PartidaForm => ({
   total_partida: 0,
   es_parte_oportunidad: true,
   archivo_imagen_1: null,
+  producto_archivo_id: null,
   producto: null,
   observaciones: '',
   impuestos: [],
@@ -224,6 +226,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [editingPrecio, setEditingPrecio] = useState<boolean[]>([false]);
   const [precioInputs, setPrecioInputs] = useState<string[]>(['']);
   const [uploadingImagen, setUploadingImagen] = useState<boolean[]>([false]);
+  const [partidaImagenDialog, setPartidaImagenDialog] = useState<{ open: boolean; index: number | null; view: 'menu' | 'producto' }>({
+    open: false,
+    index: null,
+    view: 'menu',
+  });
+  const [partidaImagenesProductoById, setPartidaImagenesProductoById] = useState<Record<number, ProductoArchivo[]>>({});
+  const [partidaImagenesProductoLoadingId, setPartidaImagenesProductoLoadingId] = useState<number | null>(null);
+  const [partidaImagenesProductoError, setPartidaImagenesProductoError] = useState<string | null>(null);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -265,7 +275,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const precioRefs = useRef<(HTMLInputElement | null)[]>([]);
   const cantidadRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const imagenInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const partidaImagenInputRef = useRef<HTMLInputElement | null>(null);
   const prevContactoRef = useRef<number | null | undefined>(undefined);
   const skipFiscalFetchRef = useRef<boolean>(false);
   const previewTimersRef = useRef<Record<number, ReturnType<typeof setTimeout> | null>>({});
@@ -371,6 +381,46 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       }),
     [form.moneda]
   );
+
+  const partidaImagenActual = partidaImagenDialog.index !== null ? partidas[partidaImagenDialog.index] ?? null : null;
+  const partidaImagenProductoId = partidaImagenActual?.producto_id ?? null;
+  const partidaImagenesProducto = partidaImagenProductoId ? partidaImagenesProductoById[partidaImagenProductoId] ?? [] : [];
+  const partidaImagenSeleccionada = partidaImagenActual?.producto_archivo_id
+    ? partidaImagenesProducto.find((archivo) => archivo.id === partidaImagenActual.producto_archivo_id) ?? null
+    : null;
+  const partidaImagenPreviewUrl = partidaImagenActual?.archivo_imagen_1?.trim()
+    ? partidaImagenActual.archivo_imagen_1.trim()
+    : partidaImagenSeleccionada
+      ? buildAssetUrl(partidaImagenSeleccionada.archivo)
+      : null;
+
+  useEffect(() => {
+    if (!partidaImagenDialog.open || partidaImagenDialog.view !== 'producto' || !partidaImagenProductoId) return;
+    if (partidaImagenesProductoById[partidaImagenProductoId]) return;
+
+    let cancelled = false;
+    setPartidaImagenesProductoLoadingId(partidaImagenProductoId);
+    setPartidaImagenesProductoError(null);
+
+    void fetchProductoArchivos(partidaImagenProductoId)
+      .then((archivos) => {
+        if (cancelled) return;
+        setPartidaImagenesProductoById((prev) => ({ ...prev, [partidaImagenProductoId]: archivos }));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : 'No se pudieron cargar las imágenes del producto';
+        setPartidaImagenesProductoError(message);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setPartidaImagenesProductoLoadingId((current) => (current === partidaImagenProductoId ? null : current));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [partidaImagenDialog.open, partidaImagenDialog.view, partidaImagenProductoId, partidaImagenesProductoById]);
 
   const clearDependientes = useCallback(
     (bucket: Record<number, CampoValorPayload>, dependenciasMap: Record<number, number[]>, parentId: number) => {
@@ -942,7 +992,12 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         subtotal_partida: p.subtotal_partida ?? 0,
         total_partida: p.total_partida ?? 0,
         es_parte_oportunidad: p.es_parte_oportunidad ?? true,
-        ...(isCotizacion ? { archivo_imagen_1: p.archivo_imagen_1 ?? null } : {}),
+        ...(isCotizacion
+          ? {
+              archivo_imagen_1: p.archivo_imagen_1 ?? null,
+              producto_archivo_id: p.archivo_imagen_1 ? null : p.producto_archivo_id ?? null,
+            }
+          : {}),
         observaciones: p.observaciones ?? '',
         impuestos: (p.impuestos_calculados ?? p.impuestos ?? []).map((imp: any) => ({
           impuesto_id: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? imp.id,
@@ -997,6 +1052,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         descripcion_alterna: producto?.descripcion || prev.descripcion_alterna,
         precio_unitario: producto?.precio_publico ?? producto?.precio_menudeo ?? prev.precio_unitario ?? 0,
         producto: producto ?? null,
+        producto_archivo_id: null,
         impuestos: [],
         impuestos_calculados: [],
       };
@@ -1014,13 +1070,39 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     });
   };
 
-  const handleImagenClick = (index: number) => {
-    const url = partidas[index]?.archivo_imagen_1?.trim();
-    if (url) {
-      window.open(url, '_blank', 'noopener');
-      return;
-    }
-    imagenInputRefs.current[index]?.click();
+  const abrirImagenDialog = (index: number) => {
+    setPartidaImagenDialog({ open: true, index, view: 'menu' });
+    setPartidaImagenesProductoError(null);
+  };
+
+  const cerrarImagenDialog = () => {
+    setPartidaImagenDialog({ open: false, index: null, view: 'menu' });
+    setPartidaImagenesProductoError(null);
+  };
+
+  const handleImagenCustomClick = () => {
+    partidaImagenInputRef.current?.click();
+  };
+
+  const handleImagenProductoSelect = (archivo: ProductoArchivo) => {
+    if (partidaImagenDialog.index === null) return;
+    setPartidaAt(partidaImagenDialog.index, (prev) => ({
+      ...prev,
+      archivo_imagen_1: null,
+      producto_archivo_id: archivo.id,
+    }));
+    setSnackbar({ open: true, message: 'Imagen del producto seleccionada', severity: 'success' });
+    cerrarImagenDialog();
+  };
+
+  const handleImagenSinSeleccion = () => {
+    if (partidaImagenDialog.index === null) return;
+    setPartidaAt(partidaImagenDialog.index, (prev) => ({
+      ...prev,
+      archivo_imagen_1: null,
+      producto_archivo_id: null,
+    }));
+    cerrarImagenDialog();
   };
 
   const handleImagenChange = async (index: number, files: FileList | null) => {
@@ -1035,8 +1117,11 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
     try {
       const resp = await uploadArchivo(file);
-      setPartidaAt(index, (prev) => ({ ...prev, archivo_imagen_1: resp.url }));
+      setPartidaAt(index, (prev) => ({ ...prev, archivo_imagen_1: resp.url, producto_archivo_id: null }));
       setSnackbar({ open: true, message: 'Imagen cargada', severity: 'success' });
+      if (partidaImagenDialog.open && partidaImagenDialog.index === index) {
+        cerrarImagenDialog();
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo subir la imagen';
       setSnackbar({ open: true, message, severity: 'error' });
@@ -1046,19 +1131,20 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         next[index] = false;
         return next;
       });
-      const input = imagenInputRefs.current[index];
+      const input = partidaImagenInputRef.current;
       if (input) input.value = '';
     }
   };
 
   const handleImagenRemove = (index: number) => {
     const imagenUrl = partidas[index]?.archivo_imagen_1?.trim();
-    if (!imagenUrl) return;
+    const productoArchivoId = partidas[index]?.producto_archivo_id ?? null;
+    if (!imagenUrl && !productoArchivoId) return;
     if (!window.confirm('¿Eliminar la imagen de esta partida?')) return;
 
-    setPartidaAt(index, (prev) => ({ ...prev, archivo_imagen_1: null }));
+    setPartidaAt(index, (prev) => ({ ...prev, archivo_imagen_1: null, producto_archivo_id: null }));
 
-    const input = imagenInputRefs.current[index];
+    const input = partidaImagenInputRef.current;
     if (input) input.value = '';
   };
 
@@ -1680,28 +1766,31 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
                       {isCotizacion && (
                         <Box display="flex" justifyContent="center" alignItems="center" gap={0.5}>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            ref={(el) => {
-                              imagenInputRefs.current[index] = el;
-                            }}
-                            onChange={(e) => handleImagenChange(index, e.target.files)}
-                            style={{ display: 'none' }}
-                          />
-                          <Tooltip title={partida.archivo_imagen_1 ? 'Ver imagen' : 'Subir imagen'}>
+                          <Tooltip
+                            title={
+                              partida.archivo_imagen_1
+                                ? 'Imagen personalizada'
+                                : partida.producto_archivo_id
+                                  ? 'Imagen del producto'
+                                  : 'Agregar imagen'
+                            }
+                          >
                             <span>
                               <IconButton
                                 size="small"
                                 aria-label="Imagen de partida"
-                                onClick={() => handleImagenClick(index)}
+                                onClick={() => abrirImagenDialog(index)}
                                 disabled={Boolean(uploadingImagen[index])}
-                                color={partida.archivo_imagen_1 ? 'primary' : 'default'}
+                                sx={{
+                                  color: partida.archivo_imagen_1
+                                    ? '#2e7d32'
+                                    : partida.producto_archivo_id
+                                      ? '#1565c0'
+                                      : '#6b7280',
+                                }}
                               >
                                 {uploadingImagen[index] ? (
                                   <CircularProgress size={18} />
-                                ) : partida.archivo_imagen_1 ? (
-                                  <ImageOutlinedIcon fontSize="small" />
                                 ) : (
                                   <PhotoCameraOutlinedIcon fontSize="small" />
                                 )}
@@ -1891,6 +1980,126 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           <Button variant="contained" onClick={() => void handleCrearClienteSubmit()} disabled={crearClienteLoading}>
             {crearClienteLoading ? 'Creando…' : 'Crear y asignar'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={partidaImagenDialog.open} onClose={cerrarImagenDialog} fullWidth maxWidth="sm">
+        <DialogTitle fontWeight={700}>Imagen de la partida</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
+          <input
+            ref={partidaImagenInputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              if (partidaImagenDialog.index === null) return;
+              void handleImagenChange(partidaImagenDialog.index, e.target.files);
+            }}
+            style={{ display: 'none' }}
+          />
+
+          {partidaImagenPreviewUrl && (
+            <Box
+              sx={{
+                border: '1px solid #e5e7eb',
+                borderRadius: 1.5,
+                p: 1,
+                bgcolor: '#fafafa',
+              }}
+            >
+              <Box
+                component="img"
+                src={partidaImagenPreviewUrl}
+                alt="Vista previa de la partida"
+                sx={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block' }}
+              />
+            </Box>
+          )}
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Button variant="outlined" color="inherit" onClick={handleImagenSinSeleccion} fullWidth>
+              Sin imagen
+            </Button>
+            <Button variant="outlined" onClick={handleImagenCustomClick} fullWidth>
+              Subir imagen personalizada
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => setPartidaImagenDialog((prev) => ({ ...prev, view: 'producto' }))}
+              disabled={!partidaImagenProductoId}
+              fullWidth
+            >
+              Elegir imagen del producto
+            </Button>
+          </Stack>
+
+          {partidaImagenDialog.view === 'producto' && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                  Imágenes del producto
+                </Typography>
+                <Button size="small" onClick={() => setPartidaImagenDialog((prev) => ({ ...prev, view: 'menu' }))}>
+                  Volver
+                </Button>
+              </Stack>
+
+              {!partidaImagenProductoId && <Alert severity="info">Selecciona un producto en la partida antes de elegir una imagen.</Alert>}
+
+              {partidaImagenProductoId && partidaImagenesProductoLoadingId === partidaImagenProductoId && (
+                <Box display="flex" justifyContent="center" py={2}>
+                  <CircularProgress size={24} />
+                </Box>
+              )}
+
+              {partidaImagenProductoId && partidaImagenesProductoError && (
+                <Alert severity="warning">{partidaImagenesProductoError}</Alert>
+              )}
+
+              {partidaImagenProductoId && !partidaImagenesProductoLoadingId && !partidaImagenesProductoError && (
+                <>
+                  {partidaImagenesProducto.length === 0 ? (
+                    <Alert severity="info">Este producto no tiene imágenes registradas.</Alert>
+                  ) : (
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
+                        gap: 1,
+                      }}
+                    >
+                      {partidaImagenesProducto.map((archivo) => {
+                        const selected = archivo.id === partidaImagenActual?.producto_archivo_id;
+                        return (
+                          <ButtonBase
+                            key={archivo.id}
+                            onClick={() => handleImagenProductoSelect(archivo)}
+                            sx={{
+                              position: 'relative',
+                              borderRadius: 1.5,
+                              overflow: 'hidden',
+                              border: selected ? '2px solid #1565c0' : '1px solid #e5e7eb',
+                              bgcolor: '#fafafa',
+                              aspectRatio: '1 / 1',
+                            }}
+                          >
+                            <Box
+                              component="img"
+                              src={buildAssetUrl(archivo.archivo)}
+                              alt={archivo.descripcion || `Imagen ${archivo.id}`}
+                              sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          </ButtonBase>
+                        );
+                      })}
+                    </Box>
+                  )}
+                </>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={cerrarImagenDialog}>Cerrar</Button>
         </DialogActions>
       </Dialog>
 

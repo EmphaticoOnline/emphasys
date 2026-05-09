@@ -11,20 +11,40 @@ import {
   Tabs,
   Tab,
   MenuItem,
+  IconButton,
   Paper,
   Snackbar,
   Stack,
   Switch,
   TextField,
   Toolbar,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
+import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
 import SaveIcon from '@mui/icons-material/Save';
+import StarBorderOutlinedIcon from '@mui/icons-material/StarBorderOutlined';
+import StarIcon from '@mui/icons-material/Star';
 
 import type { ProductoBasico, Producto } from '../types/producto';
-import { createProducto, fetchProducto, updateProducto, obtenerCatalogosConfigurablesProducto, guardarCatalogosConfigurablesProducto, type CatalogoConfigurablesProductoRespuesta } from '../services/productosService';
+import {
+  createProducto,
+  fetchProducto,
+  updateProducto,
+  obtenerCatalogosConfigurablesProducto,
+  guardarCatalogosConfigurablesProducto,
+  fetchProductoArchivos,
+  uploadProductoImagen,
+  deleteProductoArchivo,
+  marcarProductoArchivoPrincipal,
+  type CatalogoConfigurablesProductoRespuesta,
+  type ProductoArchivo,
+} from '../services/productosService';
 import { fetchUnidades, type Unidad } from '../services/unidadesService';
+import { buildAssetUrl } from '../services/empresasAssetsService';
 
 const tipoProductoOptions = ['Inventariable', 'No inventariable', 'Kit'] as const;
 
@@ -73,6 +93,12 @@ export default function ProductoFormPage() {
   const [comercialSeleccionados, setComercialSeleccionados] = useState<Record<number, number[]>>({});
   const [comercialLoading, setComercialLoading] = useState<boolean>(false);
   const [comercialError, setComercialError] = useState<string | null>(null);
+  const [archivos, setArchivos] = useState<ProductoArchivo[]>([]);
+  const [archivosLoading, setArchivosLoading] = useState(false);
+  const [archivosError, setArchivosError] = useState<string | null>(null);
+  const [uploadingImagenes, setUploadingImagenes] = useState(false);
+  const [archivoActionId, setArchivoActionId] = useState<number | null>(null);
+  const imagenesInputRef = React.useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const loadUnidades = async () => {
@@ -155,6 +181,34 @@ export default function ProductoFormPage() {
     };
   }, [id, isEdit]);
 
+  const loadArchivos = React.useCallback(async () => {
+    if (!isEdit || !id) {
+      setArchivos([]);
+      setArchivosError(null);
+      return;
+    }
+
+    try {
+      setArchivosLoading(true);
+      const data = await fetchProductoArchivos(Number(id));
+      setArchivos(Array.isArray(data) ? data : []);
+      setArchivosError(null);
+    } catch (err) {
+      setArchivos([]);
+      setArchivosError(err instanceof Error ? err.message : 'No se pudieron cargar las imágenes del producto');
+    } finally {
+      setArchivosLoading(false);
+    }
+  }, [id, isEdit]);
+
+  useEffect(() => {
+    if (activeTab !== 2) {
+      return;
+    }
+
+    void loadArchivos();
+  }, [activeTab, loadArchivos]);
+
   const handleChange = (field: keyof ProductoBasico, value: unknown) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -214,7 +268,73 @@ export default function ProductoFormPage() {
     setActiveTab(newValue);
   };
 
+  const handleAgregarImagenesClick = () => {
+    if (!isEdit) {
+      return;
+    }
+
+    imagenesInputRef.current?.click();
+  };
+
+  const handleImagenesChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+
+    if (!isEdit || !id || files.length === 0) {
+      if (event.target) {
+        event.target.value = '';
+      }
+      return;
+    }
+
+    try {
+      setUploadingImagenes(true);
+
+      for (const file of files) {
+        await uploadProductoImagen(Number(id), file);
+      }
+
+      await loadArchivos();
+      setSnackbar({ open: true, message: files.length > 1 ? 'Imágenes cargadas' : 'Imagen cargada', severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudieron cargar las imágenes', severity: 'error' });
+    } finally {
+      setUploadingImagenes(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleEliminarArchivo = async (archivo: ProductoArchivo) => {
+    if (!window.confirm('¿Eliminar esta imagen del producto?')) {
+      return;
+    }
+
+    try {
+      setArchivoActionId(archivo.id);
+      await deleteProductoArchivo(archivo.id);
+      await loadArchivos();
+      setSnackbar({ open: true, message: 'Imagen eliminada', severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudo eliminar la imagen', severity: 'error' });
+    } finally {
+      setArchivoActionId(null);
+    }
+  };
+
+  const handleMarcarPrincipal = async (archivo: ProductoArchivo) => {
+    try {
+      setArchivoActionId(archivo.id);
+      await marcarProductoArchivoPrincipal(archivo.id);
+      await loadArchivos();
+      setSnackbar({ open: true, message: 'Imagen principal actualizada', severity: 'success' });
+    } catch (err) {
+      setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudo actualizar la imagen principal', severity: 'error' });
+    } finally {
+      setArchivoActionId(null);
+    }
+  };
+
   const title = isEdit ? 'Editar producto' : 'Nuevo producto';
+  const imagenPrincipal = archivos.find((archivo) => archivo.principal) ?? archivos[0] ?? null;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -259,6 +379,7 @@ export default function ProductoFormPage() {
             <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" allowScrollButtonsMobile>
               <Tab label="General" />
               <Tab label="Comercial" />
+              <Tab label="Archivos" />
             </Tabs>
 
             {activeTab === 0 && (
@@ -410,6 +531,170 @@ export default function ProductoFormPage() {
                       </Stack>
                     );
                   })
+                )}
+              </Stack>
+            )}
+
+            {activeTab === 2 && (
+              <Stack spacing={2.5}>
+                {!isEdit ? (
+                  <Paper variant="outlined" sx={{ borderRadius: 2, p: 3, borderColor: '#dbe3ee', backgroundColor: '#f8fafc' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Guarda primero el producto para poder administrar imágenes y archivos.
+                    </Typography>
+                  </Paper>
+                ) : (
+                  <>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
+                      <Box>
+                        <Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
+                          Imágenes del producto
+                        </Typography>
+                        <Typography variant="body2" color="#4b5563">
+                          Agrega imágenes y define cuál se mostrará como principal.
+                        </Typography>
+                      </Box>
+
+                      <>
+                        <input
+                          ref={imagenesInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          hidden
+                          onChange={handleImagenesChange}
+                        />
+                        <Button
+                          variant="contained"
+                          startIcon={<PhotoLibraryOutlinedIcon />}
+                          onClick={handleAgregarImagenesClick}
+                          disabled={uploadingImagenes}
+                        >
+                          {uploadingImagenes ? 'Cargando...' : 'Agregar imágenes'}
+                        </Button>
+                      </>
+                    </Stack>
+
+                    {archivosError ? (
+                      <Alert severity="error" onClose={() => setArchivosError(null)}>
+                        {archivosError}
+                      </Alert>
+                    ) : null}
+
+                    {archivosLoading ? (
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <CircularProgress size={20} />
+                        <Typography color="text.secondary">Cargando imágenes...</Typography>
+                      </Stack>
+                    ) : imagenPrincipal ? (
+                      <Stack spacing={2}>
+                        <Paper variant="outlined" sx={{ borderRadius: 2, p: 2, borderColor: '#dbe3ee' }}>
+                          <Stack spacing={1.5}>
+                            <Typography variant="body2" fontWeight={600} color="#1d2f68">
+                              Imagen principal
+                            </Typography>
+                            <Box
+                              component="img"
+                              src={buildAssetUrl(imagenPrincipal.archivo)}
+                              alt={imagenPrincipal.descripcion || form.descripcion || 'Imagen del producto'}
+                              sx={{
+                                width: '100%',
+                                maxHeight: 340,
+                                objectFit: 'contain',
+                                borderRadius: 1.5,
+                                border: '1px solid #e5e7eb',
+                                backgroundColor: '#ffffff',
+                                p: 1,
+                              }}
+                            />
+                          </Stack>
+                        </Paper>
+
+                        <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap">
+                          {archivos.map((archivo) => {
+                            const isPrincipal = archivo.principal;
+                            const isProcessing = archivoActionId === archivo.id;
+
+                            return (
+                              <Paper
+                                key={archivo.id}
+                                variant="outlined"
+                                sx={{
+                                  width: { xs: '100%', sm: 170 },
+                                  borderRadius: 2,
+                                  p: 1.25,
+                                  borderColor: isPrincipal ? '#93c5fd' : '#dbe3ee',
+                                }}
+                              >
+                                <Stack spacing={1}>
+                                  <Box
+                                    component="img"
+                                    src={buildAssetUrl(archivo.archivo)}
+                                    alt={archivo.descripcion || form.descripcion || 'Imagen del producto'}
+                                    sx={{
+                                      width: '100%',
+                                      height: 120,
+                                      objectFit: 'cover',
+                                      borderRadius: 1.25,
+                                      border: '1px solid #e5e7eb',
+                                      backgroundColor: '#ffffff',
+                                    }}
+                                  />
+
+                                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                    <Tooltip title={isPrincipal ? 'Imagen principal' : 'Marcar como principal'}>
+                                      <span>
+                                        <IconButton
+                                          size="small"
+                                          color={isPrincipal ? 'warning' : 'default'}
+                                          onClick={() => handleMarcarPrincipal(archivo)}
+                                          disabled={isPrincipal || isProcessing}
+                                          sx={{
+                                            border: '1px solid',
+                                            borderColor: isPrincipal ? '#fcd34d' : '#dbe3ee',
+                                            backgroundColor: isPrincipal ? '#fef3c7' : '#ffffff',
+                                          }}
+                                        >
+                                          {isPrincipal ? <StarIcon fontSize="small" /> : <StarBorderOutlinedIcon fontSize="small" />}
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+
+                                    <Tooltip title="Eliminar imagen">
+                                      <span>
+                                        <IconButton
+                                          size="small"
+                                          color="error"
+                                          onClick={() => handleEliminarArchivo(archivo)}
+                                          disabled={isProcessing}
+                                          sx={{
+                                            border: '1px solid',
+                                            borderColor: '#fecaca',
+                                            backgroundColor: '#ffffff',
+                                          }}
+                                        >
+                                          <DeleteOutlineIcon fontSize="small" />
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                  </Stack>
+                                </Stack>
+                              </Paper>
+                            );
+                          })}
+                        </Stack>
+                      </Stack>
+                    ) : (
+                      <Paper variant="outlined" sx={{ borderRadius: 2, p: 3, borderColor: '#dbe3ee', backgroundColor: '#f8fafc' }}>
+                        <Stack spacing={1} alignItems="center" textAlign="center">
+                          <ImageOutlinedIcon sx={{ fontSize: 32, color: '#94a3b8' }} />
+                          <Typography variant="body2" color="text.secondary">
+                            Aún no hay imágenes cargadas para este producto.
+                          </Typography>
+                        </Stack>
+                      </Paper>
+                    )}
+                  </>
                 )}
               </Stack>
             )}

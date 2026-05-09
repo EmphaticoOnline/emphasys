@@ -67,6 +67,7 @@ type ConversationSummary = {
   nombre?: string | null;
   vendedor_id?: number | null;
   etapa_oportunidad?: EtapaOportunidad | null;
+  tiene_oportunidad?: boolean;
   tags?: WhatsappEtiqueta[];
 };
 
@@ -86,6 +87,7 @@ type ConversationMessage = {
 
 type OportunidadVenta = {
   id: number;
+  folio?: string | null;
   cotizacion_principal_id: number | null;
   serie: string | null;
   numero: number | null;
@@ -141,11 +143,13 @@ type Lead = {
   owner: string;
   hot: boolean;
   etapa_oportunidad: EtapaOportunidad;
+  tiene_oportunidad: boolean;
   tags?: WhatsappEtiqueta[];
 };
 
 type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
 type QuickFilter = 'todos' | 'seguimiento' | 'alta' | 'activos';
+type OpportunityFilter = 'todos' | 'con' | 'sin';
 type LeadScope = 'mis' | 'todos';
 type UserRole = { id: number; nombre: string; descripcion?: string | null };
 const AUDIO_MIME_PREFERENCES = [
@@ -470,6 +474,7 @@ export default function LeadsPage() {
   const [newTagName, setNewTagName] = React.useState('');
   const [newTagColor, setNewTagColor] = React.useState('#25D366');
   const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
+  const [opportunityFilter, setOpportunityFilter] = React.useState<OpportunityFilter>('todos');
   const [searchTerm, setSearchTerm] = React.useState('');
   const [leadScope, setLeadScope] = React.useState<LeadScope>('todos');
   const [scopeTouched, setScopeTouched] = React.useState(false);
@@ -651,7 +656,7 @@ export default function LeadsPage() {
   }, [leads]);
 
   const leadsFiltradosOrdenados = React.useMemo<LeadConPrioridad[]>(() => {
-    const filtered = leadsConPrioridad.filter((lead) => {
+    const filteredByQuickFilter = leadsConPrioridad.filter((lead) => {
       switch (leadFilter) {
         case 'seguimiento':
           return lead.seguimientoPendiente;
@@ -659,6 +664,18 @@ export default function LeadsPage() {
           return lead.computedPriority === 'Alta';
         case 'activos':
           return lead.etapa_oportunidad !== 'ganado' && lead.etapa_oportunidad !== 'perdido';
+        case 'todos':
+        default:
+          return true;
+      }
+    });
+
+    const filtered = filteredByQuickFilter.filter((lead) => {
+      switch (opportunityFilter) {
+        case 'con':
+          return lead.tiene_oportunidad;
+        case 'sin':
+          return !lead.tiene_oportunidad;
         case 'todos':
         default:
           return true;
@@ -679,12 +696,13 @@ export default function LeadsPage() {
     const sorted = [...filteredBySearch].sort(ordenarLeads);
     console.log('[leads filtrados/ordenados]', {
       filtro: leadFilter,
+      filtroOportunidad: opportunityFilter,
       searchTerm: normalizedSearchTerm,
       total: sorted.length,
       ids: sorted.map((l) => l.id),
     });
     return sorted;
-  }, [leadFilter, leadsConPrioridad, searchTerm]);
+  }, [leadFilter, leadsConPrioridad, opportunityFilter, searchTerm]);
 
   React.useEffect(() => {
     console.log('[LeadsPage] leadsConPrioridad updated', {
@@ -724,6 +742,8 @@ export default function LeadsPage() {
   const canToggleScope = isAdmin && canSelectMis;
   const showMisChip = !isAdmin || canSelectMis;
   const showTodosChip = isAdmin;
+  const shouldShowScopeChipGroup = showMisChip || (showTodosChip && canToggleScope);
+  const showQuickFilterChips = false;
 
   const buildLeadFromConversation = React.useCallback((conv: ConversationSummary): Lead => {
     const idle = minutesSince(conv.ultimoMensajeEn);
@@ -755,6 +775,7 @@ export default function LeadsPage() {
       owner: 'WhatsApp',
       hot: false,
       etapa_oportunidad: conv.etapa_oportunidad ?? 'nuevo',
+      tiene_oportunidad: Boolean(conv.tiene_oportunidad),
       tags: conv.tags ?? [],
     };
     return applyDerivedLeadState(baseLead, reglasSeguimiento);
@@ -891,6 +912,7 @@ export default function LeadsPage() {
               ultimoMensajeEn: whatsappPreview?.sentAt ?? existing.ultimoMensajeEn,
               vendedor_id: conv.vendedor_id ?? existing.vendedor_id,
               etapa_oportunidad: conv.etapa_oportunidad ?? existing.etapa_oportunidad,
+              tiene_oportunidad: conv.tiene_oportunidad ?? existing.tiene_oportunidad,
               tags: conv.tags ?? existing.tags ?? [],
             };
             map.set(conv.id, applyDerivedLeadState(updatedLead, reglasSeguimiento));
@@ -2215,49 +2237,89 @@ export default function LeadsPage() {
             )}
           </Box>
 
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {showMisChip && (
-              <Chip
-                label="Mis leads"
-                color={leadScope === 'mis' ? 'primary' : 'default'}
-                variant={leadScope === 'mis' ? 'filled' : 'outlined'}
-                onClick={canToggleScope ? () => {
-                  setLeadScope('mis');
-                  setScopeTouched(true);
-                } : undefined}
-                sx={{ fontWeight: 700 }}
-              />
-            )}
-            {showTodosChip && (
-              <Chip
-                label="Todos"
-                color={leadScope === 'todos' ? 'primary' : 'default'}
-                variant={leadScope === 'todos' ? 'filled' : 'outlined'}
-                onClick={canToggleScope ? () => {
-                  setLeadScope('todos');
-                  setScopeTouched(true);
-                } : undefined}
-                sx={{ fontWeight: 700 }}
-              />
-            )}
-          </Stack>
+          {shouldShowScopeChipGroup && (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {showMisChip && (
+                <Chip
+                  label="Mis leads"
+                  color={leadScope === 'mis' ? 'primary' : 'default'}
+                  variant={leadScope === 'mis' ? 'filled' : 'outlined'}
+                  onClick={canToggleScope ? () => {
+                    setLeadScope('mis');
+                    setScopeTouched(true);
+                  } : undefined}
+                  sx={{ fontWeight: 700 }}
+                />
+              )}
+              {showTodosChip && (
+                <Chip
+                  label="Todos"
+                  color={leadScope === 'todos' ? 'primary' : 'default'}
+                  variant={leadScope === 'todos' ? 'filled' : 'outlined'}
+                  onClick={canToggleScope ? () => {
+                    setLeadScope('todos');
+                    setScopeTouched(true);
+                  } : undefined}
+                  sx={{ fontWeight: 700 }}
+                />
+              )}
+            </Stack>
+          )}
+
+          {showQuickFilterChips && (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {(
+                [
+                  { key: 'todos', label: 'Todos' },
+                  { key: 'seguimiento', label: 'Seguimiento pendiente' },
+                  { key: 'alta', label: 'Alta prioridad' },
+                  { key: 'activos', label: 'Activos' },
+                ] as const
+              ).map((opt) => (
+                <Chip
+                  key={opt.key}
+                  label={opt.label}
+                  color={leadFilter === opt.key ? 'primary' : 'default'}
+                  variant={leadFilter === opt.key ? 'filled' : 'outlined'}
+                  onClick={() => setLeadFilter(opt.key)}
+                  sx={{ fontWeight: 700 }}
+                />
+              ))}
+            </Stack>
+          )}
 
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {(
               [
                 { key: 'todos', label: 'Todos' },
-                { key: 'seguimiento', label: 'Seguimiento pendiente' },
-                { key: 'alta', label: 'Alta prioridad' },
-                { key: 'activos', label: 'Activos' },
+                { key: 'con', label: 'Con oportunidad' },
+                { key: 'sin', label: 'Sin oportunidad' },
               ] as const
             ).map((opt) => (
               <Chip
                 key={opt.key}
                 label={opt.label}
-                color={leadFilter === opt.key ? 'primary' : 'default'}
-                variant={leadFilter === opt.key ? 'filled' : 'outlined'}
-                onClick={() => setLeadFilter(opt.key)}
-                sx={{ fontWeight: 700 }}
+                color="default"
+                variant={opportunityFilter === opt.key ? 'filled' : 'outlined'}
+                onClick={() => setOpportunityFilter(opt.key)}
+                sx={{
+                  fontWeight: 700,
+                  color: opportunityFilter === opt.key ? '#ffffff' : '#0f766e',
+                  backgroundColor: opportunityFilter === opt.key ? '#0f766e' : '#f0fdfa',
+                  borderColor: '#99f6e4',
+                  '&.MuiChip-filled': {
+                    backgroundColor: '#0f766e',
+                    color: '#ffffff',
+                  },
+                  '&.MuiChip-outlined': {
+                    backgroundColor: '#f0fdfa',
+                    color: '#0f766e',
+                    borderColor: '#99f6e4',
+                  },
+                  '&:hover': {
+                    backgroundColor: opportunityFilter === opt.key ? '#115e59' : '#ccfbf1',
+                  },
+                }}
               />
             ))}
           </Stack>
@@ -2658,13 +2720,14 @@ export default function LeadsPage() {
 
                     {!isLoadingOportunidades && !oportunidadesError && oportunidades.map((oportunidad) => {
                       const cotizacionPrincipalId = oportunidad.cotizacion_principal_id;
-                      const folio = oportunidad.serie && oportunidad.numero !== null
-                        ? `${oportunidad.serie}-${oportunidad.numero}`
-                        : oportunidad.serie
-                          ? oportunidad.serie
-                          : oportunidad.numero !== null
-                            ? String(oportunidad.numero)
-                            : 'Sin folio';
+                      const folio = oportunidad.folio
+                        ?? (oportunidad.serie && oportunidad.numero != null
+                          ? `${oportunidad.serie}-${oportunidad.numero}`
+                          : oportunidad.serie
+                            ? oportunidad.serie
+                            : oportunidad.numero != null
+                              ? String(oportunidad.numero)
+                              : 'Sin folio');
 
                       return (
                         <Box

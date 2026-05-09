@@ -1,4 +1,18 @@
+import path from 'path';
 import pool from '../../config/database';
+import { removeFileIfExists } from '../../services/fileStorage.service';
+import { resolveUploadsDir } from '../uploads/uploads.multer';
+
+export type ProductoArchivoRecord = {
+  id: number;
+  producto_id: number;
+  tipo_archivo: string;
+  archivo: string;
+  descripcion: string | null;
+  orden_visual: number;
+  principal: boolean;
+  fecha_creacion: string;
+};
 
 type CatalogoTipo = {
   id: number;
@@ -220,6 +234,242 @@ export async function guardarCatalogosConfigurablesDeProducto(
     }
 
     await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function getProductoOwner(
+  client: { query: <T = any>(text: string, params?: any[]) => Promise<{ rows: T[] }> },
+  productoId: number,
+  empresaId: number
+) {
+  const { rows } = await client.query<{ id: number }>(
+    `SELECT id
+       FROM productos
+      WHERE id = $1
+        AND empresa_id = $2
+      LIMIT 1`,
+    [productoId, empresaId]
+  );
+
+  return rows[0] ?? null;
+}
+
+function resolveProductoArchivoAbsolutePath(relativePath: string) {
+  const normalized = relativePath.replace(/^\/uploads\/?/, '');
+  return path.join(resolveUploadsDir(), normalized);
+}
+
+export async function listarProductoArchivosRepository(productoId: number, empresaId: number): Promise<ProductoArchivoRecord[]> {
+  const producto = await getProductoOwner(pool, productoId, empresaId);
+  if (!producto) {
+    return [];
+  }
+
+  const { rows } = await pool.query<ProductoArchivoRecord>(
+    `SELECT
+        id,
+        producto_id,
+        tipo_archivo,
+        archivo,
+        descripcion,
+        orden_visual,
+        principal,
+        fecha_creacion::text
+      FROM public.productos_archivos
+      WHERE producto_id = $1
+        AND tipo_archivo = 'imagen'
+      ORDER BY principal DESC, orden_visual ASC, id ASC`,
+    [productoId]
+  );
+
+  return rows;
+}
+
+export async function crearProductoArchivoRepository(
+  productoId: number,
+  empresaId: number,
+  payload: { archivo: string; descripcion?: string | null; tipo_archivo: 'imagen' }
+): Promise<ProductoArchivoRecord> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const producto = await getProductoOwner(client, productoId, empresaId);
+    if (!producto) {
+      throw new Error('PRODUCTO_NOT_FOUND');
+    }
+
+    const { rows: currentRows } = await client.query<{ next_orden: number; has_principal: boolean }>(
+      `SELECT
+         COALESCE(MAX(orden_visual), 0) + 1 AS next_orden,
+         COALESCE(BOOL_OR(principal), false) AS has_principal
+       FROM public.productos_archivos
+       WHERE producto_id = $1
+         AND tipo_archivo = 'imagen'`,
+      [productoId]
+    );
+
+    const nextOrden = Number(currentRows[0]?.next_orden ?? 1);
+    const hasPrincipal = Boolean(currentRows[0]?.has_principal);
+
+    const { rows } = await client.query<ProductoArchivoRecord>(
+      `INSERT INTO public.productos_archivos (
+         producto_id,
+         tipo_archivo,
+         archivo,
+         descripcion,
+         orden_visual,
+         principal
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING
+         id,
+         producto_id,
+         tipo_archivo,
+         archivo,
+         descripcion,
+         orden_visual,
+         principal,
+         fecha_creacion::text`,
+      [productoId, payload.tipo_archivo, payload.archivo, payload.descripcion ?? null, nextOrden, !hasPrincipal]
+    );
+
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function eliminarProductoArchivoRepository(archivoId: number, empresaId: number): Promise<ProductoArchivoRecord | null> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query<ProductoArchivoRecord>(
+      `SELECT
+         pa.id,
+         pa.producto_id,
+         pa.tipo_archivo,
+         pa.archivo,
+         pa.descripcion,
+         pa.orden_visual,
+         pa.principal,
+         pa.fecha_creacion::text
+       FROM public.productos_archivos pa
+       JOIN public.productos p
+         ON p.id = pa.producto_id
+      WHERE pa.id = $1
+        AND p.empresa_id = $2
+      LIMIT 1`,
+      [archivoId, empresaId]
+    );
+
+    const archivo = rows[0] ?? null;
+    if (!archivo) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query('DELETE FROM public.productos_archivos WHERE id = $1', [archivoId]);
+
+    if (archivo.principal) {
+      await client.query(
+        `WITH siguiente AS (
+           SELECT id
+             FROM public.productos_archivos
+            WHERE producto_id = $1
+              AND tipo_archivo = 'imagen'
+            ORDER BY orden_visual ASC, id ASC
+            LIMIT 1
+         )
+         UPDATE public.productos_archivos pa
+            SET principal = true
+           FROM siguiente
+          WHERE pa.id = siguiente.id`,
+        [archivo.producto_id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    await removeFileIfExists(resolveProductoArchivoAbsolutePath(archivo.archivo));
+    return archivo;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function marcarProductoArchivoPrincipalRepository(archivoId: number, empresaId: number): Promise<ProductoArchivoRecord | null> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query<ProductoArchivoRecord>(
+      `SELECT
+         pa.id,
+         pa.producto_id,
+         pa.tipo_archivo,
+         pa.archivo,
+         pa.descripcion,
+         pa.orden_visual,
+         pa.principal,
+         pa.fecha_creacion::text
+       FROM public.productos_archivos pa
+       JOIN public.productos p
+         ON p.id = pa.producto_id
+      WHERE pa.id = $1
+        AND p.empresa_id = $2
+      LIMIT 1`,
+      [archivoId, empresaId]
+    );
+
+    const archivo = rows[0] ?? null;
+    if (!archivo) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query(
+      `UPDATE public.productos_archivos
+          SET principal = false
+        WHERE producto_id = $1
+          AND tipo_archivo = 'imagen'`,
+      [archivo.producto_id]
+    );
+
+    const { rows: updatedRows } = await client.query<ProductoArchivoRecord>(
+      `UPDATE public.productos_archivos
+          SET principal = true
+        WHERE id = $1
+        RETURNING
+          id,
+          producto_id,
+          tipo_archivo,
+          archivo,
+          descripcion,
+          orden_visual,
+          principal,
+          fecha_creacion::text`,
+      [archivoId]
+    );
+
+    await client.query('COMMIT');
+    return updatedRows[0] ?? null;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

@@ -20,6 +20,17 @@ export type CatalogoConfigurablesProductoRespuesta = {
   seleccionados: number[];
 };
 
+export type ProductoArchivo = {
+  id: number;
+  producto_id: number;
+  tipo_archivo: string;
+  archivo: string;
+  descripcion: string | null;
+  orden_visual: number;
+  principal: boolean;
+  fecha_creacion: string;
+};
+
 export async function fetchProductos(): Promise<Producto[]> {
   return apiFetch(BASE_URL);
 }
@@ -55,5 +66,35 @@ export async function guardarCatalogosConfigurablesProducto(productoId: number, 
   return apiFetch(`${BASE_URL}/${productoId}/catalogos-configurables`, {
     method: 'PUT',
     body: { catalogoIds } as any,
+  });
+}
+
+export async function fetchProductoArchivos(productoId: number): Promise<ProductoArchivo[]> {
+  return apiFetch(`${BASE_URL}/${productoId}/archivos`);
+}
+
+export async function uploadProductoImagen(productoId: number, file: File, descripcion?: string): Promise<ProductoArchivo> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  if (descripcion?.trim()) {
+    formData.append('descripcion', descripcion.trim());
+  }
+
+  return apiFetch(`${BASE_URL}/${productoId}/archivos`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export async function deleteProductoArchivo(archivoId: number): Promise<{ ok: boolean }> {
+  return apiFetch(`${BASE_URL}/archivos/${archivoId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function marcarProductoArchivoPrincipal(archivoId: number): Promise<ProductoArchivo> {
+  return apiFetch(`${BASE_URL}/archivos/${archivoId}/principal`, {
+    method: 'PATCH',
   });
 }

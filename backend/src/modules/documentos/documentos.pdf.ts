@@ -51,6 +51,7 @@ type PartidaCotizacion = {
   producto_clave?: string | null;
   descripcion_alterna?: string | null;
   archivo_imagen_1?: string | null;
+  producto_archivo_id?: number | null;
   observaciones?: string | null;
   cantidad?: number | null;
   precio_unitario?: number | null;
@@ -90,6 +91,38 @@ const formatDateTime = (value?: string | Date | null) => {
   const minutes = pad(date.getMinutes());
   const seconds = pad(date.getSeconds());
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+};
+
+const getAppBaseUrl = () => {
+  const rawBaseUrl = process.env.APP_BASE_URL?.trim();
+  if (rawBaseUrl) return rawBaseUrl.replace(/\/$/, '');
+  if (process.env.NODE_ENV !== 'production') return 'http://localhost:3001';
+  return null;
+};
+
+const resolvePublicUrl = (value?: string | null) => {
+  const rawValue = (value ?? '').trim();
+  if (!rawValue) return null;
+  if (/^https?:\/\//i.test(rawValue)) return rawValue;
+  const baseUrl = getAppBaseUrl();
+  if (!baseUrl) return null;
+  return `${baseUrl}${rawValue.startsWith('/') ? '' : '/'}${rawValue}`;
+};
+
+async function getProductoArchivoUrl(productoArchivoId?: number | null, empresaId?: number) {
+  if (!productoArchivoId || !empresaId) return null;
+
+  const { rows } = await pool.query<{ archivo: string | null }>(
+    `SELECT pa.archivo
+       FROM productos_archivos pa
+       INNER JOIN productos p ON p.id = pa.producto_id
+      WHERE pa.id = $1
+        AND p.empresa_id = $2
+      LIMIT 1`,
+    [productoArchivoId, empresaId]
+  );
+
+  return resolvePublicUrl(rows?.[0]?.archivo ?? null);
 };
 
 const mapRegimen = (code: string | null | undefined) => {
@@ -721,7 +754,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       const imageCache = new Map<string, Buffer | null>();
 
       const getPartidaImageBuffer = async (imageUrl?: string | null) => {
-        const normalizedUrl = (imageUrl ?? '').trim();
+        const normalizedUrl = resolvePublicUrl(imageUrl);
         if (!showImagenPartida || !normalizedUrl) return null;
         if (imageCache.has(normalizedUrl)) return imageCache.get(normalizedUrl) ?? null;
 
@@ -739,6 +772,15 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           imageCache.set(normalizedUrl, null);
           return null;
         }
+      };
+
+      const getPartidaImageBufferFromPartida = async (partida: PartidaCotizacion) => {
+        if (partida.archivo_imagen_1?.trim()) {
+          return getPartidaImageBuffer(partida.archivo_imagen_1);
+        }
+
+        const productoArchivoUrl = await getProductoArchivoUrl(partida.producto_archivo_id ?? null, empresaId);
+        return getPartidaImageBuffer(productoArchivoUrl);
       };
 
       const computeRowMetrics = (values: string[], observaciones?: string | null, hasImage = false) => {
@@ -856,7 +898,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           formatCurrency(Number(p.precio_unitario ?? 0)),
           formatCurrency(Number(p.subtotal_partida ?? 0)),
         ];
-        const imageBuffer = await getPartidaImageBuffer((p as PartidaCotizacion).archivo_imagen_1 ?? null);
+        const imageBuffer = await getPartidaImageBufferFromPartida(p as PartidaCotizacion);
         const metrics = computeRowMetrics(values, (p as PartidaCotizacion).observaciones ?? null, Boolean(imageBuffer));
         const rowHeight = metrics.rowHeight;
 

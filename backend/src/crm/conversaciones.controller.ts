@@ -652,6 +652,12 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
         COALESCE(ct.nombre, NULL) AS nombre,
         ct.vendedor_id AS "vendedor_id",
         c.etapa_oportunidad,
+        EXISTS (
+          SELECT 1
+          FROM crm.oportunidades_venta o
+          WHERE o.empresa_id = c.empresa_id
+            AND o.conversacion_id = c.id
+        ) AS "tiene_oportunidad",
         lm.contenido AS "ultimoMensaje",
         lm.tipo_mensaje AS "ultimoMensajeTipo",
         lm.fecha_envio AS "ultimoMensajeEn"

@@ -7,6 +7,10 @@ import {
   getProductoByIdRepository,
   obtenerCatalogosConfigurablesDeProducto,
   guardarCatalogosConfigurablesDeProducto,
+  listarProductoArchivosRepository,
+  crearProductoArchivoRepository,
+  eliminarProductoArchivoRepository,
+  marcarProductoArchivoPrincipalRepository,
 } from './productos.repository';
 // POST /api/productos
 export async function crearProducto(req: Request, res: Response) {
@@ -137,5 +141,111 @@ export async function guardarCatalogosConfigurablesProducto(req: Request, res: R
   } catch (error) {
     console.error('Error al guardar catálogos configurables de producto:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
+  }
+}
+
+export async function listarProductoArchivos(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const productoId = Number(req.params.productoId);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+    }
+
+    if (!Number.isFinite(productoId)) {
+      return res.status(400).json({ message: 'productoId inválido' });
+    }
+
+    const archivos = await listarProductoArchivosRepository(productoId, Number(empresaId));
+    return res.json(archivos);
+  } catch (error) {
+    console.error('Error al listar archivos de producto:', error);
+    return res.status(500).json({ message: 'Error al listar archivos del producto' });
+  }
+}
+
+export async function crearProductoArchivo(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const productoId = Number(req.params.productoId);
+    const descripcion = typeof req.body?.descripcion === 'string' ? req.body.descripcion.trim() : null;
+
+    if (!empresaId) {
+      return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+    }
+
+    if (!Number.isFinite(productoId)) {
+      return res.status(400).json({ message: 'productoId inválido' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'Archivo no enviado' });
+    }
+
+    const archivo = await crearProductoArchivoRepository(productoId, Number(empresaId), {
+      archivo: `/uploads/productos/${req.file.filename}`,
+      descripcion,
+      tipo_archivo: 'imagen',
+    });
+
+    return res.status(201).json(archivo);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PRODUCTO_NOT_FOUND') {
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+
+    console.error('Error al crear archivo de producto:', error);
+    return res.status(500).json({ message: 'Error al crear archivo del producto' });
+  }
+}
+
+export async function eliminarProductoArchivo(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const archivoId = Number(req.params.archivoId);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+    }
+
+    if (!Number.isFinite(archivoId)) {
+      return res.status(400).json({ message: 'archivoId inválido' });
+    }
+
+    const archivo = await eliminarProductoArchivoRepository(archivoId, Number(empresaId));
+    if (!archivo) {
+      return res.status(404).json({ message: 'Archivo no encontrado' });
+    }
+
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('Error al eliminar archivo de producto:', error);
+    return res.status(500).json({ message: 'Error al eliminar archivo del producto' });
+  }
+}
+
+export async function marcarProductoArchivoPrincipal(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const archivoId = Number(req.params.archivoId);
+
+    if (!empresaId) {
+      return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+    }
+
+    if (!Number.isFinite(archivoId)) {
+      return res.status(400).json({ message: 'archivoId inválido' });
+    }
+
+    const archivo = await marcarProductoArchivoPrincipalRepository(archivoId, Number(empresaId));
+    if (!archivo) {
+      return res.status(404).json({ message: 'Archivo no encontrado' });
+    }
+
+    return res.json(archivo);
+  } catch (error) {
+    console.error('Error al marcar archivo principal de producto:', error);
+    return res.status(500).json({ message: 'Error al actualizar archivo principal del producto' });
   }
 }

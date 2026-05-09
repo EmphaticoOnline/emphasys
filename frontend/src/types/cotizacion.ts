@@ -62,6 +62,7 @@ export interface CotizacionPartida {
   total_partida: number;
   es_parte_oportunidad?: boolean;
   archivo_imagen_1?: string | null;
+  producto_archivo_id?: number | null;
   producto_descripcion?: string | null;
   producto_clave?: string | null;
   observaciones?: string | null;
@@ -127,6 +128,7 @@ export interface CotizacionPartidaPayload {
   total_partida: number;
   es_parte_oportunidad?: boolean;
   archivo_imagen_1?: string | null;
+  producto_archivo_id?: number | null;
   observaciones?: string | null;
   impuestos?: ImpuestoPartida[];
 }

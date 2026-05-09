@@ -24,7 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import ActivityCard, { type ActividadResumen } from '../components/ActivityCard';
 import { apiFetch } from '../services/apiFetch';
 
-type GrupoActividadKey = 'atrasadas' | 'hoy' | 'pendientes' | 'futuro' | 'completadas';
+type GrupoActividadKey = 'atrasadas' | 'hoy' | 'futuro' | 'completadas';
 
 type GrupoActividad = {
   key: GrupoActividadKey;
@@ -42,6 +42,9 @@ type ActividadApiItem = {
   notas: string | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
+  oportunidad_folio: string | null;
+  monto_oportunidad: number | string | null;
+  oportunidad_fecha: string | null;
 };
 
 type ActividadesApiResponse = {
@@ -64,7 +67,6 @@ type ActividadDetalle = {
 const GRUPOS_BASE: Omit<GrupoActividad, 'actividades'>[] = [
   { key: 'atrasadas', titulo: 'Atrasadas', contadorColor: '#dc2626', defaultOpen: true },
   { key: 'hoy', titulo: 'Hoy', contadorColor: '#16a34a', defaultOpen: true },
-  { key: 'pendientes', titulo: 'Pendientes', contadorColor: '#2563eb', defaultOpen: false },
   { key: 'futuro', titulo: 'Futuro', contadorColor: '#7c3aed', defaultOpen: false },
   { key: 'completadas', titulo: 'Completadas', contadorColor: '#64748b', defaultOpen: false },
 ];
@@ -103,6 +105,9 @@ function mapActividadApiToResumen(item: ActividadApiItem): ActividadResumen {
     titulo: item.notas?.trim() || `Actividad #${item.id}`,
     cliente_nombre: item.cliente_nombre ?? 'Sin cliente',
     fecha_programada: item.fecha_programada,
+    oportunidad_folio: item.oportunidad_folio,
+    monto_oportunidad: item.monto_oportunidad,
+    oportunidad_fecha: item.oportunidad_fecha,
     atrasada: false,
   };
 }
@@ -122,10 +127,6 @@ function groupHoy(actividades: ActividadResumen[]) {
     const fecha = new Date(actividad.fecha_programada);
     return actividad.estatus === 'pendiente' && !Number.isNaN(fecha.getTime()) && fecha >= ahora && fecha <= finHoy;
   });
-}
-
-function groupPendientes(actividades: ActividadResumen[]) {
-  return [];
 }
 
 function groupFuturo(actividades: ActividadResumen[]) {
@@ -221,14 +222,12 @@ export default function ActividadesPage() {
   const grupos = React.useMemo<GrupoActividad[]>(() => {
     const actividadesAtrasadas = groupAtrasadas(actividades);
     const actividadesHoy = groupHoy(actividades);
-    const actividadesPendientes = groupPendientes(actividades);
     const actividadesFuturo = groupFuturo(actividades);
     const actividadesCompletadas = groupCompletadas(actividades);
 
     const groupedActividades: Record<GrupoActividadKey, ActividadResumen[]> = {
       atrasadas: actividadesAtrasadas,
       hoy: actividadesHoy,
-      pendientes: actividadesPendientes,
       futuro: actividadesFuturo,
       completadas: actividadesCompletadas,
     };

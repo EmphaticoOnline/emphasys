@@ -26,6 +26,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
@@ -37,15 +38,19 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import { LocalizationProvider, DatePicker, DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import 'dayjs/locale/es';
 import { DataGrid, type GridColDef, type GridColumnResizeParams, type GridColumnVisibilityModel, type GridRenderCellParams } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import { useParams } from 'react-router-dom';
 import { apiFetch } from '../services/apiFetch';
 import { eliminarOportunidad as eliminarOportunidadService } from '../services/oportunidadesService';
 import { loadSession } from '../session/sessionStorage';
+
+dayjs.locale('es');
 
 const COLUMN_VISIBILITY_STORAGE_KEY = 'oportunidades_column_visibility';
 const COLUMN_WIDTHS_STORAGE_KEY = 'oportunidades_column_widths';
@@ -168,6 +173,8 @@ type Actividad = {
   estatus: 'pendiente' | 'realizada' | 'cancelada' | string;
   notas: string | null;
   oportunidad_id: number | null;
+  descripcion?: string | null;
+  observaciones?: string | null;
   resultado?: string | null;
   fecha_realizacion?: string | null;
 };
@@ -513,6 +520,23 @@ async function realizarActividad(actividadId: number, resultado: string) {
   });
 }
 
+function normalizeActividadSearchValue(value: string | null | undefined) {
+  return (value ?? '').trim().toLocaleLowerCase();
+}
+
+function matchesActividadSearch(actividad: Actividad, normalizedSearchTerm: string) {
+  if (!normalizedSearchTerm) {
+    return true;
+  }
+
+  return [
+    actividad.descripcion,
+    actividad.notas,
+    actividad.resultado,
+    actividad.observaciones,
+  ].some((value) => normalizeActividadSearchValue(value).includes(normalizedSearchTerm));
+}
+
 function getDeleteOportunidadErrorMessage(error: unknown) {
   const fallbackMessage = 'No se pudo eliminar la oportunidad.';
 
@@ -558,6 +582,7 @@ export default function OportunidadesPage() {
   const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(INITIAL_ADVANCED_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<AdvancedFilters>(INITIAL_ADVANCED_FILTERS);
   const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
+  const [seguimientoSearchTerm, setSeguimientoSearchTerm] = useState('');
   const [seguimientoOportunidadId, setSeguimientoOportunidadId] = useState<number | null>(null);
   const [actividadesByOportunidad, setActividadesByOportunidad] = useState<Record<number, Actividad[]>>({});
   const [seguimientoResumenByOportunidad, setSeguimientoResumenByOportunidad] = useState<Record<number, SeguimientoResumen>>({});
@@ -817,14 +842,33 @@ export default function OportunidadesPage() {
     [actividadesByOportunidad, seguimientoOportunidadId]
   );
 
+  const normalizedSeguimientoSearchTerm = useMemo(
+    () => normalizeActividadSearchValue(seguimientoSearchTerm),
+    [seguimientoSearchTerm]
+  );
+
+  const filteredSelectedActividades = useMemo(
+    () => selectedActividades.filter((actividad) => matchesActividadSearch(actividad, normalizedSeguimientoSearchTerm)),
+    [normalizedSeguimientoSearchTerm, selectedActividades]
+  );
+
   const actividadesPendientes = useMemo(
-    () => selectedActividades.filter((actividad) => actividad.estatus === 'pendiente'),
-    [selectedActividades]
+    () => filteredSelectedActividades.filter((actividad) => actividad.estatus === 'pendiente'),
+    [filteredSelectedActividades]
   );
 
   const actividadesRealizadas = useMemo(
-    () => selectedActividades.filter((actividad) => actividad.estatus === 'realizada'),
-    [selectedActividades]
+    () => filteredSelectedActividades.filter((actividad) => actividad.estatus === 'realizada'),
+    [filteredSelectedActividades]
+  );
+
+  const hasSeguimientoSearchTerm = normalizedSeguimientoSearchTerm.length > 0;
+
+  const showNoSearchMatches = Boolean(
+    selectedOportunidad
+    && hasSeguimientoSearchTerm
+    && filteredSelectedActividades.length === 0
+    && loadingActividadesOportunidadId !== selectedOportunidad.id
   );
 
   const loadActividadesOportunidad = useCallback(async (oportunidadId: number) => {
@@ -860,18 +904,21 @@ export default function OportunidadesPage() {
     }
 
     setSeguimientoOportunidadId(oportunidad.id);
+    setSeguimientoSearchTerm('');
     setSeguimientoDrawerOpen(true);
     void loadActividadesOportunidad(oportunidad.id);
   }, [loadActividadesOportunidad, loading, oportunidadIdParam, oportunidades]);
 
   const openSeguimientoDrawer = useCallback((oportunidad: Oportunidad) => {
     setSeguimientoOportunidadId(oportunidad.id);
+    setSeguimientoSearchTerm('');
     setSeguimientoDrawerOpen(true);
     void loadActividadesOportunidad(oportunidad.id);
   }, [loadActividadesOportunidad]);
 
   const closeSeguimientoDrawer = useCallback(() => {
     setSeguimientoDrawerOpen(false);
+    setSeguimientoSearchTerm('');
   }, []);
 
   const openCreateActividadDialog = useCallback((oportunidad: Oportunidad) => {
@@ -2168,12 +2215,65 @@ export default function OportunidadesPage() {
                       </Paper>
                     ) : null}
 
+                    {selectedOportunidad ? (
+                      <Box
+                        sx={{
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 1,
+                          pt: 0.25,
+                          pb: 1.25,
+                          backgroundColor: '#f8fafc',
+                        }}
+                      >
+                        <TextField
+                          value={seguimientoSearchTerm}
+                          onChange={(event) => setSeguimientoSearchTerm(event.target.value)}
+                          placeholder="Buscar en actividades"
+                          size="small"
+                          fullWidth
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <SearchOutlinedIcon sx={{ fontSize: 18, color: '#64748b' }} />
+                              </InputAdornment>
+                            ),
+                            endAdornment: seguimientoSearchTerm ? (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  size="small"
+                                  edge="end"
+                                  aria-label="Limpiar búsqueda"
+                                  onClick={() => setSeguimientoSearchTerm('')}
+                                >
+                                  <CloseIcon sx={{ fontSize: 18 }} />
+                                </IconButton>
+                              </InputAdornment>
+                            ) : undefined,
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              backgroundColor: '#ffffff',
+                            },
+                          }}
+                        />
+                      </Box>
+                    ) : null}
+
+                    {showNoSearchMatches ? (
+                      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
+                        <Typography variant="body2" sx={{ color: '#475569' }}>
+                          No se encontraron actividades.
+                        </Typography>
+                      </Paper>
+                    ) : null}
+
                     <Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f172a', mb: 1 }}>
                         Actividades pendientes
                       </Typography>
                       <Stack spacing={2}>
-                        {actividadesPendientes.length === 0 && selectedOportunidad && loadingActividadesOportunidadId !== selectedOportunidad.id ? (
+                        {actividadesPendientes.length === 0 && selectedOportunidad && !hasSeguimientoSearchTerm && loadingActividadesOportunidadId !== selectedOportunidad.id ? (
                           <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
                             <Stack spacing={1.5}>
                               <Typography variant="body2" sx={{ color: '#475569' }}>
@@ -2275,7 +2375,7 @@ export default function OportunidadesPage() {
                         Historial
                       </Typography>
                       <Stack spacing={2}>
-                        {actividadesRealizadas.length === 0 && selectedOportunidad && loadingActividadesOportunidadId !== selectedOportunidad.id ? (
+                        {actividadesRealizadas.length === 0 && selectedOportunidad && !hasSeguimientoSearchTerm && loadingActividadesOportunidadId !== selectedOportunidad.id ? (
                           <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
                             <Typography variant="body2" sx={{ color: '#64748b' }}>
                               Sin actividades realizadas.
@@ -2401,7 +2501,7 @@ export default function OportunidadesPage() {
                     ))}
                   </TextField>
 
-                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
                     <DateTimePicker
                       label="Fecha programada"
                       value={createActividadDialog.fecha_programada ? dayjs(createActividadDialog.fecha_programada) : null}
@@ -2409,6 +2509,7 @@ export default function OportunidadesPage() {
                         ...prev,
                         fecha_programada: value ? value.format('YYYY-MM-DDTHH:mm') : '',
                       }))}
+                      format="DD/MM/YYYY HH:mm"
                       ampm
                       slotProps={{
                         textField: {
