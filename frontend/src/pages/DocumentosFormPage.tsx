@@ -24,6 +24,7 @@ import {
   Typography,
   Divider,
   Snackbar,
+  Chip,
   Tabs,
   Tab,
 } from '@mui/material';
@@ -37,6 +38,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
+import { resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
 import DynamicFieldControl from '../components/DynamicFieldControl';
 import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 
@@ -186,7 +188,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const isEdit = Boolean(id && id !== 'nuevo');
   const navigate = useNavigate();
   const location = useLocation();
-  const basePath = `/ventas/${tipoDocumento}`;
+  const basePath = resolveDocumentosListPath(tipoDocumento, resolveDocumentoModulo(location.pathname));
   const showFiscalTab = tipoDocumento === 'factura';
   const textos = TEXTOS[tipoDocumento] ?? {
     nuevo: 'Nuevo documento',
@@ -737,6 +739,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       setForm({
         tipo_documento: doc.tipo_documento ?? tipoDocumento,
   serie: (doc as any).serie || null,
+        documento_origen_id: (doc as any).documento_origen_id ?? null,
+        oportunidad_id: (doc as any).oportunidad_id ?? null,
         contacto_principal_id: doc.contacto_principal_id,
         agente_id: (doc as any).agente_id ?? null,
         fecha_documento: doc.fecha_documento?.substring(0, 10) || defaultFecha(),
@@ -802,6 +806,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           total_partida: p.total_partida,
           es_parte_oportunidad: p.es_parte_oportunidad ?? true,
           archivo_imagen_1: p.archivo_imagen_1 ?? null,
+          producto_archivo_id: p.archivo_imagen_1 ? null : p.producto_archivo_id ?? null,
           observaciones: p.observaciones ?? '',
           producto: prod,
           impuestos: impuestosEntrada,
@@ -1346,6 +1351,16 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           {error}
         </Alert>
       )}
+
+      {isCotizacion && isEdit && form.documento_origen_id ? (
+        <Box>
+          <Chip
+            variant="outlined"
+            label={`Basada en cotización #${form.documento_origen_id}`}
+            sx={{ fontWeight: 600 }}
+          />
+        </Box>
+      ) : null}
 
       {showFiscalTab && (
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>

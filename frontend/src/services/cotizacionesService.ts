@@ -4,7 +4,9 @@ import {
   getDocumentos,
   getDocumento,
   createDocumento,
+  duplicateDocumento,
   updateDocumento,
+  validateDeleteDocumento,
   addPartida as addPartidaBase,
   replacePartidas as replacePartidasBase,
   deleteDocumento,
@@ -17,7 +19,9 @@ const TIPO: TipoDocumento = 'cotizacion';
 export const getCotizaciones = () => getDocumentos(TIPO);
 export const getCotizacion = (id: number) => getDocumento(id, TIPO);
 export const createCotizacion = (data: CotizacionCrearPayload) => createDocumento(TIPO, data);
+export const duplicateCotizacion = (id: number) => duplicateDocumento(id, TIPO);
 export const updateCotizacion = (id: number, data: Partial<CotizacionCrearPayload>) => updateDocumento(id, TIPO, data);
+export const validateDeleteCotizacion = (id: number) => validateDeleteDocumento(id, TIPO);
 export const addPartida = (documentoId: number, partida: CotizacionPartidaPayload) => addPartidaBase(documentoId, TIPO, partida);
 export const replacePartidas = (documentoId: number, partidas: CotizacionPartidaPayload[]) =>
   replacePartidasBase(documentoId, TIPO, partidas);

@@ -48,6 +48,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EmailIcon from '@mui/icons-material/Email';
@@ -75,12 +76,18 @@ import type { TipoDocumento } from '../types/documentos.types';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, enviarCotizacionPorCorreo, getDocumentos, updateDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, duplicateDocumento, enviarCotizacionPorCorreo, getDocumentos, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
 import { timbrarFactura, enviarFactura } from '../services/facturasService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
 import { useSession } from '../session/useSession';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
+import {
+  navigateToGeneratedDocument,
+  parseGeneratedDocumentFocus,
+  resolveDocumentoFormPath,
+  resolveDocumentosListPath,
+} from '../modules/documentos/documentoNavigation';
 import {
   ESTADOS_SEGUIMIENTO,
   getEstadoSeguimientoPresentation,
@@ -253,6 +260,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [timbrandoId, setTimbrandoId] = useState<number | null>(null);
   const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>({});
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -317,10 +325,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     montoMax: string;
   }>(FILTROS_COTIZACION_INICIALES);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [focusedDocumentId, setFocusedDocumentId] = useState<number | null>(null);
+  const [highlightedDocumentId, setHighlightedDocumentId] = useState<number | null>(null);
+  const gridContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const consumedFocusNonceRef = React.useRef<string | null>(null);
 
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
-  const basePath = `/ventas/${tipoDocumento}`;
+  const basePath = resolveDocumentosListPath(tipoDocumento, modulo);
   const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
+  const generatedDocumentFocus = useMemo(() => parseGeneratedDocumentFocus(location.state), [location.state]);
   const statusField = tipoDocumento === 'cotizacion' ? 'estado_seguimiento' : 'estatus_documento';
   const sumField = 'subtotal';
   const statusOptions = useMemo<StatusOption[]>(
@@ -620,7 +633,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       const result = await generarDocumentoDesdeOrigen(payload, token!, empresaId!);
       setGeneracionDialog({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false });
       setSnackbar({ open: true, message: 'Documento generado correctamente', severity: 'success' });
-      navigate(`/documentos/${result.documento_destino_id}`);
+      navigateToGeneratedDocument(navigate, {
+        documentoId: result.documento_destino_id,
+        tipoDocumento: result.tipo_documento_destino,
+        pathname: location.pathname,
+      });
     } catch (err: any) {
       setGeneracionDialog((prev) => ({ ...prev, enviando: false }));
       setSnackbar({ open: true, message: err?.message || 'No se pudo generar el documento', severity: 'error' });
@@ -687,6 +704,49 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       enviando: false,
       error: emailInicial ? null : 'El cliente no tiene correo registrado. Captura uno para continuar.',
     });
+  };
+
+  const pendingDeleteRow = pendingDeleteId
+    ? rows.find((row) => Number(row.id) === Number(pendingDeleteId)) ?? null
+    : null;
+
+  const handleRequestDelete = useCallback(async (rowId: number) => {
+    if (tipoDocumento !== 'cotizacion') {
+      setPendingDeleteId(rowId);
+      setConfirmOpen(true);
+      return;
+    }
+
+    try {
+      const validation = await validateDeleteDocumento(rowId, 'cotizacion');
+      if (!validation.canDelete) {
+        setDeleteBlockedDialog({
+          open: true,
+          message: validation.message || 'No se puede eliminar la cotización porque ya generó documentos posteriores.',
+        });
+        return;
+      }
+
+      setPendingDeleteId(rowId);
+      setConfirmOpen(true);
+    } catch (err: any) {
+      setDeleteBlockedDialog({
+        open: true,
+        message: err?.message || 'No se pudo validar la eliminación de la cotización.',
+      });
+    }
+  }, [tipoDocumento]);
+
+  const handleDuplicarCotizacion = async (rowId: number) => {
+    try {
+      setLoading(true);
+      const duplicated = await duplicateDocumento(rowId, 'cotizacion');
+      navigate(`/ventas/cotizacion/${duplicated.id}`);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo duplicar la cotización');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const baseColumns: GridColDef[] = useMemo(() => {
@@ -891,12 +951,28 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             disabled={deletingId === params.row.id || loading}
             onClick={async (e) => {
               e.stopPropagation();
-              setPendingDeleteId(params.row.id as number);
-              setConfirmOpen(true);
+              await handleRequestDelete(params.row.id as number);
             }}
           >
             <DeleteIcon fontSize="small" />
           </IconButton>
+          {tipoDocumento === 'cotizacion' && (
+            <Tooltip title="Duplicar cotización">
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDuplicarCotizacion(Number(params.row.id));
+                  }}
+                >
+                  <ContentCopyIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
           {tieneOpcionesGeneracion && (
             <Tooltip title="Generar">
               <span>
@@ -1171,6 +1247,56 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const handleAplicarFiltros = useCallback(() => {
     setFiltersOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (!generatedDocumentFocus) return;
+
+    const expectedPath = resolveDocumentosListPath(generatedDocumentFocus.tipoDocumento, generatedDocumentFocus.modulo);
+    if (location.pathname !== expectedPath) {
+      navigate(expectedPath, { replace: true, state: location.state });
+      return;
+    }
+
+    if (generatedDocumentFocus.tipoDocumento !== tipoDocumento) {
+      return;
+    }
+
+    if (consumedFocusNonceRef.current === generatedDocumentFocus.nonce) {
+      return;
+    }
+
+    consumedFocusNonceRef.current = generatedDocumentFocus.nonce;
+    setSearch('');
+    setQuickFilter('todos');
+    setSoloPendientes(false);
+    setFiltrosCotizacion(FILTROS_COTIZACION_INICIALES);
+    setFiltersOpen(false);
+    setFocusedDocumentId(generatedDocumentFocus.documentoId);
+    setHighlightedDocumentId(generatedDocumentFocus.documentoId);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [generatedDocumentFocus, location.pathname, location.search, location.state, navigate, tipoDocumento]);
+
+  useEffect(() => {
+    if (!highlightedDocumentId) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedDocumentId((current) => (current === highlightedDocumentId ? null : current));
+    }, 3600);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [highlightedDocumentId]);
+
+  useEffect(() => {
+    if (loading || !focusedDocumentId) return;
+    if (!filteredRows.some((row) => Number(row.id) === focusedDocumentId)) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const rowElement = gridContainerRef.current?.querySelector(`[data-id="${focusedDocumentId}"]`) as HTMLElement | null;
+      rowElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [filteredRows, focusedDocumentId, loading]);
 
   return (
     <Container maxWidth={false} sx={{ py: 2 }}>
@@ -1554,6 +1680,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       </Dialog>
 
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
+        <Box ref={gridContainerRef}>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -1580,7 +1707,23 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           }}
           onRowClick={(params: GridRowParams, event) => {
             if ((event as any).defaultMuiPrevented) return;
-            navigate(`${basePath}/${params.id}`);
+            setFocusedDocumentId(Number(params.id));
+            setHighlightedDocumentId(null);
+            navigate(resolveDocumentoFormPath(tipoDocumento, params.id, modulo));
+          }}
+          getRowClassName={(params) => {
+            const rowId = Number(params.id);
+            const classNames = [];
+
+            if (rowId === focusedDocumentId) {
+              classNames.push('documento-focus-row');
+            }
+
+            if (rowId === highlightedDocumentId) {
+              classNames.push('documento-focus-row--recent');
+            }
+
+            return classNames.join(' ');
           }}
           columnVisibilityModel={effectiveColumnVisibilityModel}
           onColumnVisibilityModelChange={(model) => {
@@ -1615,6 +1758,27 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             },
             '& .MuiDataGrid-row:nth-of-type(even)': {
               backgroundColor: 'rgba(0, 120, 70, 0.05)',
+            },
+            '& .documento-focus-row': {
+              backgroundColor: 'rgba(29, 47, 104, 0.10) !important',
+            },
+            '& .documento-focus-row .MuiDataGrid-cell': {
+              borderTop: '1px solid rgba(29, 47, 104, 0.24)',
+              borderBottom: '1px solid rgba(29, 47, 104, 0.24)',
+            },
+            '& .documento-focus-row .MuiDataGrid-cell:first-of-type': {
+              borderLeft: '3px solid #1d2f68',
+            },
+            '& .documento-focus-row--recent': {
+              animation: 'documentoFocusPulse 2.4s ease-out 1',
+            },
+            '@keyframes documentoFocusPulse': {
+              '0%': {
+                backgroundColor: 'rgba(56, 189, 248, 0.24)',
+              },
+              '100%': {
+                backgroundColor: 'rgba(29, 47, 104, 0.10)',
+              },
             },
             '& .finanzas-header': {
               backgroundColor: '#1d2f68 !important',
@@ -1661,6 +1825,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             ),
           }}
         />
+        </Box>
       </Paper>
 
       <Menu
@@ -1947,6 +2112,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           <DialogContentText sx={{ color: '#374151' }}>
             ¿Eliminar {textos.singular.toLowerCase()}? Esta acción no se puede deshacer.
           </DialogContentText>
+          {tipoDocumento === 'cotizacion' && pendingDeleteRow?.eliminara_oportunidad ? (
+            <Alert severity="warning" variant="outlined" sx={{ mt: 2 }}>
+              Esta es la última cotización de la oportunidad; también se eliminará la oportunidad.
+            </Alert>
+          ) : null}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
           <Button
@@ -1978,6 +2148,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             disabled={deletingId !== null}
           >
             Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={deleteBlockedDialog.open}
+        onClose={() => setDeleteBlockedDialog({ open: false, message: '' })}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>No se puede eliminar la cotización</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ pt: 1, color: '#475569' }}>
+            {deleteBlockedDialog.message}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setDeleteBlockedDialog({ open: false, message: '' })}>
+            Entendido
           </Button>
         </DialogActions>
       </Dialog>

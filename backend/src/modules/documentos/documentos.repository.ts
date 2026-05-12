@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import type { TipoDocumento } from '../../types/documentos';
 import type { TratamientoImpuestos } from '../impuestos/impuestos.types';
 import {
+  normalizarEstadoSeguimientoCotizacion,
   sanitizarCamposCotizacion,
 } from './cotizacion-status';
 
@@ -12,6 +13,8 @@ export type Documento = {
   tipo_documento: TipoDocumento;
   serie: string | null;
   numero: number | null;
+  documento_origen_id?: number | null;
+  oportunidad_id?: number | null;
   fecha_documento: string;
   contacto_principal_id: number | null;
   agente_id?: number | null;
@@ -56,6 +59,8 @@ const CAMPOS_DOCUMENTO = [
   'serie',
   'numero',
   'fecha_documento',
+  'documento_origen_id',
+  'oportunidad_id',
   'contacto_principal_id',
   'rfc_receptor',
   'nombre_receptor',
@@ -82,6 +87,169 @@ const SEGUIMIENTO_CAMPOS = ['producto_resumen', 'estado_seguimiento', 'comentari
 
 let seguimientoColumnsPresent: boolean | null = null;
 
+const ESTADOS_BLOQUEADOS_REVERSION_DESDE_CONVERTIDA = new Set([
+  'abierta',
+  'pausada',
+  'perdida',
+  'cancelada',
+  'no seleccionada',
+]);
+
+type ReversionEstadoConvertidaScope = 'cotizacion' | 'oportunidad';
+
+type ValidarReversionEstadoConvertidaOptions = {
+  scope: ReversionEstadoConvertidaScope;
+  entityId: number;
+  empresaId: number;
+  estadoActual: unknown;
+  estadoNuevo: unknown;
+  client?: PoolClient;
+};
+
+function debeBloquearReversionDesdeConvertida(estadoActual: unknown, estadoNuevo: unknown) {
+  const actualNormalizado = normalizarEstadoSeguimientoCotizacion(estadoActual);
+  const nuevoNormalizado = normalizarEstadoSeguimientoCotizacion(estadoNuevo);
+
+  return actualNormalizado === 'convertida'
+    && !!nuevoNormalizado
+    && nuevoNormalizado !== 'convertida'
+    && ESTADOS_BLOQUEADOS_REVERSION_DESDE_CONVERTIDA.has(nuevoNormalizado);
+}
+
+function estatusDocumentoEsInactivo(estatusDocumento: unknown) {
+  const estatusNormalizado = String(estatusDocumento ?? '').trim().toLowerCase();
+  return estatusNormalizado === 'cancelado' || estatusNormalizado === 'cancelada';
+}
+
+async function cotizacionTieneFacturaActivaDerivada(
+  cotizacionId: number,
+  empresaId: number,
+  client?: PoolClient
+) {
+  const executor = client ?? pool;
+  const { rows } = await executor.query<{ has_active_invoice: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM documentos d
+        WHERE d.empresa_id = $1
+          AND d.documento_origen_id = $2
+          AND LOWER(COALESCE(d.tipo_documento, '')) = 'factura'
+          AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+     ) AS has_active_invoice`,
+    [empresaId, cotizacionId]
+  );
+
+  return Boolean(rows[0]?.has_active_invoice);
+}
+
+async function oportunidadTieneFacturaActivaDerivada(
+  oportunidadId: number,
+  empresaId: number,
+  client?: PoolClient
+) {
+  const executor = client ?? pool;
+  const { rows } = await executor.query<{ has_active_invoice: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM documentos factura
+         JOIN documentos cotizacion
+           ON cotizacion.id = factura.documento_origen_id
+          AND cotizacion.empresa_id = factura.empresa_id
+        WHERE factura.empresa_id = $1
+          AND cotizacion.oportunidad_id = $2
+          AND LOWER(COALESCE(factura.tipo_documento, '')) = 'factura'
+          AND LOWER(COALESCE(cotizacion.tipo_documento, '')) = 'cotizacion'
+          AND LOWER(TRIM(COALESCE(factura.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+     ) AS has_active_invoice`,
+    [empresaId, oportunidadId]
+  );
+
+  return Boolean(rows[0]?.has_active_invoice);
+}
+
+async function revertirConversionComercialSiYaNoHayFacturasActivas(
+  cotizacionId: number | null | undefined,
+  empresaId: number,
+  client?: PoolClient
+) {
+  if (!cotizacionId) {
+    return;
+  }
+
+  const executor = client ?? pool;
+  const { rows } = await executor.query<{ id: number; oportunidad_id: number | null }>(
+    `SELECT id, oportunidad_id
+       FROM documentos
+      WHERE id = $1
+        AND empresa_id = $2
+        AND LOWER(COALESCE(tipo_documento, '')) = 'cotizacion'
+      LIMIT 1`,
+    [cotizacionId, empresaId]
+  );
+
+  const cotizacion = rows[0];
+  if (!cotizacion) {
+    return;
+  }
+
+  const cotizacionSigueConvertida = await cotizacionTieneFacturaActivaDerivada(cotizacion.id, empresaId, client);
+  if (!cotizacionSigueConvertida) {
+    await executor.query(
+      `UPDATE documentos
+          SET estado_seguimiento = 'abierta'
+        WHERE id = $1
+          AND empresa_id = $2
+          AND LOWER(COALESCE(tipo_documento, '')) = 'cotizacion'
+          AND LOWER(COALESCE(estado_seguimiento, '')) = 'convertida'`,
+      [cotizacion.id, empresaId]
+    );
+  }
+
+  if (!cotizacion.oportunidad_id) {
+    return;
+  }
+
+  const oportunidadSigueConvertida = await oportunidadTieneFacturaActivaDerivada(cotizacion.oportunidad_id, empresaId, client);
+  if (!oportunidadSigueConvertida) {
+    await executor.query(
+      `UPDATE crm.oportunidades_venta
+          SET estatus = 'abierta',
+              updated_at = NOW()
+        WHERE id = $1
+          AND empresa_id = $2
+          AND LOWER(COALESCE(estatus, '')) = 'convertida'`,
+      [cotizacion.oportunidad_id, empresaId]
+    );
+  }
+}
+
+export async function validarReversionEstadoConvertidaConFacturacion(
+  options: ValidarReversionEstadoConvertidaOptions
+) {
+  if (!debeBloquearReversionDesdeConvertida(options.estadoActual, options.estadoNuevo)) {
+    return;
+  }
+
+  const estadoDestino = normalizarEstadoSeguimientoCotizacion(options.estadoNuevo) ?? String(options.estadoNuevo ?? '').trim();
+  const tieneFacturaActiva = options.scope === 'cotizacion'
+    ? await cotizacionTieneFacturaActivaDerivada(options.entityId, options.empresaId, options.client)
+    : await oportunidadTieneFacturaActivaDerivada(options.entityId, options.empresaId, options.client);
+
+  if (!tieneFacturaActiva) {
+    return;
+  }
+
+  if (options.scope === 'cotizacion') {
+    throw new Error(
+      `VALIDATION_ERROR: No se puede cambiar la cotización a "${estadoDestino}" porque ya tiene una factura activa generada.`
+    );
+  }
+
+  throw new Error(
+    `VALIDATION_ERROR: No se puede cambiar la oportunidad a "${estadoDestino}" porque ya existe una factura activa generada desde una cotización de esta oportunidad.`
+  );
+}
+
 async function ensureSeguimientoColumns(client?: PoolClient) {
   if (seguimientoColumnsPresent !== null) return seguimientoColumnsPresent;
   const executor = client ?? (await pool.connect());
@@ -107,6 +275,10 @@ async function ensureSeguimientoColumns(client?: PoolClient) {
 type DocumentoInput = Omit<Partial<Record<typeof CAMPOS_DOCUMENTO[number], any>>, 'tratamiento_impuestos'> & {
   tipo_documento?: TipoDocumento;
   tratamiento_impuestos?: TratamientoImpuestos;
+};
+
+type ActualizarDocumentoOptions = {
+  skipOportunidadStatusSync?: boolean;
 };
 
 export type PartidaInput = {
@@ -153,8 +325,30 @@ const normalizarImagenPartida = (data: PartidaInput, permiteImagen: boolean) => 
 
 export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number) {
   const esFactura = ['factura', 'factura_compra'].includes((tipoDocumento || '').toLowerCase());
+  const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
   const selectSaldo = esFactura ? 'COALESCE(ds.saldo, 0) AS saldo' : 'NULL::numeric AS saldo';
   const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
+  const selectDeleteWarning = esCotizacion
+    ? `CASE
+         WHEN o.id IS NOT NULL
+          AND o.cotizacion_principal_id = d.id
+          AND COALESCE(oc.total_cotizaciones, 0) = 1
+         THEN true
+         ELSE false
+       END AS eliminara_oportunidad,`
+    : 'false AS eliminara_oportunidad,';
+  const joinDeleteWarning = esCotizacion
+    ? `LEFT JOIN crm.oportunidades_venta o
+         ON o.id = d.oportunidad_id
+        AND o.empresa_id = d.empresa_id
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS total_cotizaciones
+           FROM documentos dc
+          WHERE dc.empresa_id = d.empresa_id
+            AND LOWER(dc.tipo_documento) = 'cotizacion'
+            AND dc.oportunidad_id = d.oportunidad_id
+       ) oc ON TRUE`
+    : '';
   const hasSeguimiento = await ensureSeguimientoColumns();
 
   const selectSeguimiento = hasSeguimiento
@@ -179,10 +373,12 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
       d.subtotal,
       d.iva,
       d.total,
+      ${selectDeleteWarning}
       d.estatus_documento,
       ${selectSaldo}
     FROM documentos d
     ${joinSaldo}
+    ${joinDeleteWarning}
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     WHERE d.empresa_id = $1 AND LOWER(d.tipo_documento) = $2
     ORDER BY d.fecha_documento DESC, d.id DESC
@@ -192,6 +388,7 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
 }
 
 export async function obtenerDocumentoRepository(id: number, empresaId: number, tipoDocumento?: TipoDocumento) {
+  const executor = pool;
   const docQuery = `
     SELECT
       d.*,
@@ -215,7 +412,7 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
   const params = tipoDocumento ? [empresaId, id, tipoDocumento] : [empresaId, id];
   console.log('[BACK SQL DEBUG] obtenerDocumento docQuery', docQuery);
   console.log('[BACK SQL DEBUG] obtenerDocumento params', params);
-  const { rows: docRows } = await pool.query(docQuery, params);
+  const { rows: docRows } = await executor.query(docQuery, params);
   const documento = docRows[0];
   if (!documento) return null;
 
@@ -228,7 +425,7 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
   `;
   console.log('[BACK SQL DEBUG] obtenerDocumento partidasQuery', partidasQuery);
   console.log('[BACK SQL DEBUG] obtenerDocumento partidas params', [id]);
-  const { rows: partidas } = await pool.query(partidasQuery, [id]);
+  const { rows: partidas } = await executor.query(partidasQuery, [id]);
 
   console.log('[BACK IVA DEBUG] obtenerDocumentoRepository partidas raw', partidas.map((p) => ({
     id: p.id,
@@ -255,7 +452,7 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
     `;
     console.log('[BACK SQL DEBUG] obtenerDocumento impuestosQuery', impuestosQuery);
     console.log('[BACK SQL DEBUG] obtenerDocumento impuestos params', [partidaIds]);
-    const { rows: impuestosRows } = await pool.query(impuestosQuery, [partidaIds]);
+    const { rows: impuestosRows } = await executor.query(impuestosQuery, [partidaIds]);
   console.log('[BACK IVA DEBUG] obtenerDocumentoRepository impuestosRows', impuestosRows);
     const impuestosPorPartida = impuestosRows.reduce<Record<number, any[]>>((acc, row) => {
       if (!acc[row.partida_id]) acc[row.partida_id] = [];
@@ -415,8 +612,12 @@ export async function actualizarDocumentoRepository(
   id: number,
   data: DocumentoInput,
   empresaId: number,
-  tipoDocumento?: TipoDocumento
+  tipoDocumento?: TipoDocumento,
+  client?: PoolClient,
+  options?: ActualizarDocumentoOptions
 ) {
+  const executor = client ?? pool;
+
   if (
     Object.prototype.hasOwnProperty.call(data, 'tratamiento_impuestos')
     && (data.tratamiento_impuestos === undefined || data.tratamiento_impuestos === null)
@@ -426,8 +627,8 @@ export async function actualizarDocumentoRepository(
   const hasSeguimiento = await ensureSeguimientoColumns();
 
   // Traer valores actuales para comparar serie/número
-  const { rows: currentRows } = await pool.query(
-    `SELECT id, serie, numero, tipo_documento, estado_seguimiento
+  const { rows: currentRows } = await executor.query(
+    `SELECT id, serie, numero, tipo_documento, estado_seguimiento, estatus_documento, documento_origen_id
        FROM documentos
       WHERE id = $1 AND empresa_id = $2 ${tipoDocumento ? 'AND LOWER(tipo_documento) = LOWER($3)' : ''}
       LIMIT 1`,
@@ -444,11 +645,22 @@ export async function actualizarDocumentoRepository(
 
   if (tipoDestinoNormalizado === 'cotizacion') {
     dataToUpdate = sanitizarCamposCotizacion(dataToUpdate);
+
+    if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'estado_seguimiento')) {
+      await validarReversionEstadoConvertidaConFacturacion({
+        scope: 'cotizacion',
+        entityId: id,
+        empresaId,
+        estadoActual: current.estado_seguimiento,
+        estadoNuevo: dataToUpdate.estado_seguimiento,
+        client,
+      });
+    }
   }
 
   // Si cambió la serie, reasignar número secuencial para esa serie
   if (serieNueva !== serieActual) {
-    const { rows: nextRows } = await pool.query(
+    const { rows: nextRows } = await executor.query(
       `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
          FROM documentos
         WHERE empresa_id = $1
@@ -467,7 +679,7 @@ export async function actualizarDocumentoRepository(
   const valores = entries.map((campo) => dataToUpdate[campo]);
   if (!sets) {
     const query = `SELECT * FROM documentos WHERE id = $1 AND empresa_id = $2 ${tipoDocumento ? 'AND LOWER(tipo_documento) = LOWER($3)' : ''}`;
-    const { rows } = await pool.query(query, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
+    const { rows } = await executor.query(query, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
     return rows[0] || null;
   }
 
@@ -480,23 +692,38 @@ export async function actualizarDocumentoRepository(
   `;
 
   const params = tipoDocumento ? [...valores, id, empresaId, tipoDocumento] : [...valores, id, empresaId];
-  const { rows } = await pool.query(query, params);
+  const { rows } = await executor.query(query, params);
   const updated = rows[0] || null;
 
   if (
     updated
     && tipoDestinoNormalizado === 'cotizacion'
+    && !options?.skipOportunidadStatusSync
     && Object.prototype.hasOwnProperty.call(dataToUpdate, 'estado_seguimiento')
     && current.estado_seguimiento !== updated.estado_seguimiento
   ) {
-    await pool.query(
-      `UPDATE crm.oportunidades_venta
+    await executor.query(
+      `UPDATE crm.oportunidades_venta o
           SET estatus = $1,
               updated_at = NOW()
-        WHERE cotizacion_principal_id = $2
-          AND empresa_id = $3`,
+         FROM documentos d
+        WHERE d.id = $2
+          AND d.empresa_id = $3
+          AND LOWER(COALESCE($1, '')) IN ('abierta', 'pausada', 'convertida', 'perdida', 'cancelada')
+          AND o.empresa_id = $3
+          AND o.id = d.oportunidad_id`,
       [updated.estado_seguimiento, id, empresaId]
     );
+  }
+
+  if (
+    updated
+    && tipoDestinoNormalizado === 'factura'
+    && Object.prototype.hasOwnProperty.call(dataToUpdate, 'estatus_documento')
+    && current.estatus_documento !== updated.estatus_documento
+    && estatusDocumentoEsInactivo(updated.estatus_documento)
+  ) {
+    await revertirConversionComercialSiYaNoHayFacturasActivas(updated.documento_origen_id, empresaId, client);
   }
 
   return updated;
@@ -675,6 +902,21 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
   try {
     await client.query('BEGIN');
 
+    const { rows: documentoRows } = await client.query<{
+      tipo_documento: string | null;
+      documento_origen_id: number | null;
+    }>(
+      `SELECT tipo_documento, documento_origen_id
+         FROM documentos
+        WHERE id = $1
+          AND empresa_id = $2
+          ${tipoDocumento ? 'AND LOWER(tipo_documento) = LOWER($3)' : ''}
+        LIMIT 1`,
+      tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]
+    );
+
+    const documentoActual = documentoRows[0] ?? null;
+
     const deletePartidasSql = tipoDocumento
       ? 'DELETE FROM documentos_partidas dp WHERE dp.documento_id = $1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2 AND LOWER(d.tipo_documento) = LOWER($3))'
       : 'DELETE FROM documentos_partidas dp WHERE dp.documento_id = $1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2)';
@@ -686,6 +928,14 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
       : 'DELETE FROM documentos WHERE id = $1 AND empresa_id = $2';
 
     const result = await client.query(deleteDocumentoSql, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
+
+    if (
+      (result.rowCount ?? 0) > 0
+      && String(documentoActual?.tipo_documento ?? '').trim().toLowerCase() === 'factura'
+    ) {
+      await revertirConversionComercialSiYaNoHayFacturasActivas(documentoActual?.documento_origen_id, empresaId, client);
+    }
+
     await client.query('COMMIT');
     return (result.rowCount ?? 0) > 0;
   } catch (error) {

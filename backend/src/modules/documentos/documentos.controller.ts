@@ -10,9 +10,9 @@ import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
-import { crearDocumentoService } from './documentos.service';
+import { actualizarCotizacionService, crearDocumentoService, duplicarCotizacionService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
-import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion } from './documentos-delete.service';
+import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeEliminarCotizacion } from './documentos-delete.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -126,7 +126,52 @@ const buildEliminarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false)
 export const listarCotizaciones = buildListarHandler('cotizacion');
 export const obtenerCotizacion = buildObtenerHandler('cotizacion');
 export const crearCotizacion = buildCrearHandler('cotizacion');
-export const actualizarCotizacion = buildActualizarHandler('cotizacion');
+export const validarEliminacionCotizacion = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
+
+    const result = await puedeEliminarCotizacion(id, Number(empresaId));
+    if (!result.exists) {
+      return res.status(404).json({ message: 'Cotización no encontrada' });
+    }
+
+    return res.json({
+      exists: result.exists,
+      canDelete: result.canDelete,
+      message: result.canDelete ? null : 'No se puede eliminar la cotización porque ya generó documentos posteriores.',
+    });
+  } catch (error) {
+    console.error('Error al validar eliminación de cotización', error);
+    return res.status(500).json({ message: 'Error al validar la eliminación de la cotización' });
+  }
+};
+
+export const actualizarCotizacion = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
+
+    const body = req.body || {};
+    const requiereReconciliarOportunidad = Object.prototype.hasOwnProperty.call(body, 'contacto_principal_id');
+
+    const updated = requiereReconciliarOportunidad
+      ? await actualizarCotizacionService(id, body, Number(empresaId))
+      : await actualizarDocumentoRepository(id, body, Number(empresaId), 'cotizacion');
+
+    if (!updated) return res.status(404).json({ message: 'cotización no encontrada' });
+    return res.json(updated);
+  } catch (error) {
+    const message = (error as Error)?.message ?? '';
+    if (message.startsWith('VALIDATION_ERROR')) {
+      return res.status(400).json({ ok: false, error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
+    }
+    console.error('Error al actualizar cotización', error);
+    return res.status(500).json({ message: 'Error al actualizar cotización' });
+  }
+};
 export const eliminarCotizacion = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -142,6 +187,26 @@ export const eliminarCotizacion = async (req: Request, res: Response) => {
     }
     console.error('Error al eliminar cotización', error);
     return res.status(500).json({ error: 'Error al eliminar la cotización' });
+  }
+};
+
+export const duplicarCotizacion = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    if (Number.isNaN(id) || !empresaId) return res.status(400).json({ error: 'ID o empresaId inválido' });
+
+    const duplicated = await duplicarCotizacionService(id, Number(empresaId));
+    if (!duplicated) return res.status(404).json({ error: 'Cotización no encontrada' });
+    return res.status(201).json(duplicated);
+  } catch (error) {
+    const message = (error as Error)?.message ?? '';
+    if (message.startsWith('VALIDATION_ERROR')) {
+      return res.status(400).json({ error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
+    }
+
+    console.error('Error al duplicar cotización', error);
+    return res.status(500).json({ error: 'Error al duplicar la cotización' });
   }
 };
 

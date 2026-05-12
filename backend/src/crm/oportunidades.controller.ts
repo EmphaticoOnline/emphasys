@@ -1,16 +1,17 @@
 import type { Request, Response } from 'express';
 import pool from '../config/database';
+import { validarReversionEstadoConvertidaConFacturacion } from '../modules/documentos/documentos.repository';
 import { formatearFolioDocumento } from '../utils/documentos';
 import {
-  COTIZACION_ESTADOS_SEGUIMIENTO,
+  OPORTUNIDAD_ESTADOS_SEGUIMIENTO,
   normalizarEstadoSeguimientoCotizacion,
-  COTIZACION_ESTATUS_DOCUMENTO_EN_NEGOCIACION,
 } from '../modules/documentos/cotizacion-status';
 import { DocumentoDeleteValidationError, eliminarOportunidadConValidacion } from '../modules/documentos/documentos-delete.service';
 
 type OportunidadVentaRow = {
   id: number;
   estatus: string | null;
+  has_factura_activa?: boolean | null;
   comentarios_no_cierre?: string | null;
   created_at: string | Date | null;
   fecha_cotizacion: string | Date | null;
@@ -26,7 +27,7 @@ type OportunidadVentaRow = {
   monto_oportunidad: number | string | null;
 };
 
-const ESTATUS_VALIDOS = new Set(COTIZACION_ESTADOS_SEGUIMIENTO);
+const ESTATUS_VALIDOS = new Set<string>(OPORTUNIDAD_ESTADOS_SEGUIMIENTO);
 
 function serializarOportunidad(row: OportunidadVentaRow) {
   const cotizacionPrincipalId = row.cotizacion_principal_id ?? null;
@@ -41,6 +42,7 @@ function serializarOportunidad(row: OportunidadVentaRow) {
     vendedor_id: row.vendedor_id,
     vendedor_nombre: row.vendedor_nombre,
     estatus: row.estatus,
+    has_factura_activa: Boolean(row.has_factura_activa ?? false),
     comentarios_no_cierre: row.comentarios_no_cierre ?? '',
     monto_oportunidad: row.monto_oportunidad,
     fecha_cotizacion: row.fecha_cotizacion,
@@ -77,6 +79,18 @@ export const listarOportunidadesPorConversacion = async (req: Request, res: Resp
       `SELECT
          o.id,
          o.estatus,
+         EXISTS (
+           SELECT 1
+             FROM documentos factura
+             JOIN documentos cotizacion
+               ON cotizacion.id = factura.documento_origen_id
+              AND cotizacion.empresa_id = factura.empresa_id
+            WHERE factura.empresa_id = o.empresa_id
+              AND cotizacion.oportunidad_id = o.id
+              AND LOWER(COALESCE(factura.tipo_documento, '')) = 'factura'
+              AND LOWER(COALESCE(cotizacion.tipo_documento, '')) = 'cotizacion'
+              AND LOWER(TRIM(COALESCE(factura.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+         ) AS has_factura_activa,
          o.created_at,
          COALESCE(d.fecha_documento, o.created_at) AS fecha_cotizacion,
          o.fecha_estimada_decision,
@@ -150,6 +164,18 @@ export const obtenerOportunidadPorId = async (req: Request, res: Response) => {
       `SELECT
          o.id,
          o.estatus,
+         EXISTS (
+           SELECT 1
+             FROM documentos factura
+             JOIN documentos cotizacion
+               ON cotizacion.id = factura.documento_origen_id
+              AND cotizacion.empresa_id = factura.empresa_id
+            WHERE factura.empresa_id = o.empresa_id
+              AND cotizacion.oportunidad_id = o.id
+              AND LOWER(COALESCE(factura.tipo_documento, '')) = 'factura'
+              AND LOWER(COALESCE(cotizacion.tipo_documento, '')) = 'cotizacion'
+              AND LOWER(TRIM(COALESCE(factura.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+         ) AS has_factura_activa,
          o.comentarios_no_cierre,
          o.created_at,
          COALESCE(d.fecha_documento, o.created_at) AS fecha_cotizacion,
@@ -231,10 +257,6 @@ export const actualizarEstatusOportunidad = async (req: Request, res: Response) 
       return res.status(400).json({ message: 'estatus inválido' });
     }
 
-    if (estatus === 'cancelada' && !comentariosNoCierre) {
-      return res.status(400).json({ message: 'comentarios_no_cierre es obligatorio para cancelar una oportunidad' });
-    }
-
     const { rows: oportunidadRows } = await pool.query<{ cotizacion_principal_id: number | null; estatus: string | null }>(
       `SELECT cotizacion_principal_id,
               estatus
@@ -251,6 +273,18 @@ export const actualizarEstatusOportunidad = async (req: Request, res: Response) 
 
     const cotizacionPrincipalId = oportunidadRows[0].cotizacion_principal_id;
     const estatusAnterior = String(oportunidadRows[0].estatus ?? '').trim().toLowerCase();
+
+    await validarReversionEstadoConvertidaConFacturacion({
+      scope: 'oportunidad',
+      entityId: oportunidadId,
+      empresaId: Number(empresaId),
+      estadoActual: estatusAnterior,
+      estadoNuevo: estatus,
+    });
+
+    if (estatus === 'cancelada' && !comentariosNoCierre) {
+      return res.status(400).json({ message: 'comentarios_no_cierre es obligatorio para cancelar una oportunidad' });
+    }
 
     if (estatus === 'cancelada' && cotizacionPrincipalId) {
       const { rows: descendientesRows } = await pool.query<{ tiene_descendientes: boolean }>(
@@ -338,30 +372,25 @@ export const actualizarEstatusOportunidad = async (req: Request, res: Response) 
     );
 
     if (cotizacionPrincipalId) {
-      if (estatus === 'abierta' && (estatusAnterior === 'perdida' || estatusAnterior === 'cancelada')) {
-        await pool.query(
-          `UPDATE documentos
-              SET estado_seguimiento = $1,
-                  estatus_documento = $2
-            WHERE id = $3
-              AND empresa_id = $4
-              AND LOWER(tipo_documento) = 'cotizacion'`,
-          [estatus, COTIZACION_ESTATUS_DOCUMENTO_EN_NEGOCIACION, cotizacionPrincipalId, Number(empresaId)]
-        );
-      } else {
-        await pool.query(
-          `UPDATE documentos
-              SET estado_seguimiento = $1
-            WHERE id = $2
-              AND empresa_id = $3
-              AND LOWER(tipo_documento) = 'cotizacion'`,
-          [estatus, cotizacionPrincipalId, Number(empresaId)]
-        );
-      }
+      await pool.query(
+        `UPDATE documentos
+            SET estado_seguimiento = $1
+          WHERE id = $2
+            AND empresa_id = $3
+            AND LOWER(tipo_documento) = 'cotizacion'`,
+        [estatus, cotizacionPrincipalId, Number(empresaId)]
+      );
     }
 
     return res.json(serializarOportunidad(rows[0]));
   } catch (error) {
+    const message = (error as Error)?.message ?? '';
+    if (message.startsWith('VALIDATION_ERROR')) {
+      return res.status(400).json({
+        message: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación',
+      });
+    }
+
     console.error('Error al actualizar estatus de oportunidad:', error);
     return res.status(500).json({ message: 'Error al actualizar la oportunidad' });
   }

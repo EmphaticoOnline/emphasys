@@ -6,7 +6,9 @@ import {
   enviarCotizacionPorCorreo,
   listarCotizaciones,
   obtenerCotizacion,
+  validarEliminacionCotizacion,
   actualizarCotizacion,
+  duplicarCotizacion,
   reemplazarPartidas,
   eliminarCotizacion,
   obtenerCotizacionPDF,
@@ -22,6 +24,9 @@ router.get('/', requireAuth, requireEmpresaActiva, listarCotizaciones);
 // GET /api/documentos/:id
 router.get('/:id', requireAuth, requireEmpresaActiva, obtenerCotizacion);
 
+// GET /api/documentos/:id/validar-eliminacion
+router.get('/:id/validar-eliminacion', requireAuth, requireEmpresaActiva, validarEliminacionCotizacion);
+
 // GET /api/documentos/:id/campos (valores dinámicos)
 router.get('/:id/campos', requireAuth, requireEmpresaActiva, obtenerCamposDocumento);
 
@@ -36,6 +41,9 @@ router.post('/', requireAuth, requireEmpresaActiva, crearCotizacion);
 
 // PUT /api/documentos/:id
 router.put('/:id', requireAuth, requireEmpresaActiva, actualizarCotizacion);
+
+// POST /api/documentos/:id/duplicar
+router.post('/:id/duplicar', requireAuth, requireEmpresaActiva, duplicarCotizacion);
 
 // DELETE /api/documentos/:id
 router.delete('/:id', requireAuth, requireEmpresaActiva, eliminarCotizacion);

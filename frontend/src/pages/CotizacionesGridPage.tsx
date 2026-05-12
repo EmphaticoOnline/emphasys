@@ -48,7 +48,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import type { CotizacionCrearPayload, CotizacionListado, EstadoSeguimiento } from '../types/cotizacion';
-import { createCotizacion, deleteCotizacion, getCotizaciones, updateCotizacion } from '../services/cotizacionesService';
+import { createCotizacion, deleteCotizacion, duplicateCotizacion, getCotizaciones, updateCotizacion, validateDeleteCotizacion } from '../services/cotizacionesService';
 import { fetchContactos } from '../services/contactosService';
 import { crearContacto } from '../services/contactos.api';
 import { fetchProductos } from '../services/productosService';
@@ -68,6 +68,7 @@ import {
   getEstadoSeguimientoRowClassName,
   normalizeEstadoSeguimiento,
 } from '../modules/cotizaciones/estadoSeguimiento';
+import { navigateToGeneratedDocument } from '../modules/documentos/documentoNavigation';
 
 const defaultFecha = () => new Date().toISOString().slice(0, 10);
 
@@ -123,6 +124,7 @@ export default function CotizacionesGridPage() {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>(
     { open: false, message: '', severity: 'success' }
   );
+  const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [convirtiendoId, setConvirtiendoId] = useState<number | null>(null);
   const [crearClienteOpen, setCrearClienteOpen] = useState(false);
   const [crearClienteNombre, setCrearClienteNombre] = useState('');
@@ -162,6 +164,10 @@ export default function CotizacionesGridPage() {
     comentario_seguimiento: row.comentario_seguimiento ?? null,
     producto_resumen: row.producto_resumen ?? null,
   }), []);
+
+  const deleteTargetRow = deleteTarget
+    ? rows.find((row) => Number(row.id) === Number(deleteTarget)) ?? null
+    : null;
 
   const cargarContactos = useCallback(async () => {
     try {
@@ -310,6 +316,39 @@ export default function CotizacionesGridPage() {
     }
   };
 
+  const handleRequestDelete = async (row: CotizacionGridRow) => {
+    try {
+      const validation = await validateDeleteCotizacion(Number(row.id));
+      if (!validation.canDelete) {
+        setDeleteBlockedDialog({
+          open: true,
+          message: validation.message || 'No se puede eliminar la cotización porque ya generó documentos posteriores.',
+        });
+        return;
+      }
+
+      setDeleteTarget(Number(row.id));
+    } catch (err: any) {
+      setDeleteBlockedDialog({
+        open: true,
+        message: err?.message || 'No se pudo validar la eliminación de la cotización.',
+      });
+    }
+  };
+
+  const handleDuplicate = async (row: CotizacionGridRow) => {
+    try {
+      setSavingRowId(row.id);
+      const duplicated = await duplicateCotizacion(row.id);
+      setSnackbar({ open: true, message: 'Cotización duplicada', severity: 'success' });
+      navigate(`/ventas/cotizacion/${duplicated.id}`);
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'No se pudo duplicar la cotización', severity: 'error' });
+    } finally {
+      setSavingRowId(null);
+    }
+  };
+
   const handleCrearCotizacion = async () => {
     if (!form.contacto || form.total === '' || Number.isNaN(Number(form.total))) {
       setSnackbar({ open: true, message: 'Completa cliente y total', severity: 'warning' });
@@ -391,7 +430,11 @@ export default function CotizacionesGridPage() {
       );
 
       setSnackbar({ open: true, message: 'Factura generada', severity: 'success' });
-      navigate(`/ventas/factura/${resultado.documento_destino_id}`);
+      navigateToGeneratedDocument(navigate, {
+        documentoId: resultado.documento_destino_id,
+        tipoDocumento: resultado.tipo_documento_destino,
+        pathname: '/ventas/cotizaciones-grid',
+      });
     } catch (err: any) {
       setSnackbar({ open: true, message: err?.message || 'No se pudo convertir a factura', severity: 'error' });
     } finally {
@@ -443,11 +486,7 @@ export default function CotizacionesGridPage() {
     const porEstado = (estado: EstadoSeguimiento) => sum(filteredRows.filter((r) => normalizeEstadoSeguimiento(r.estado_seguimiento) === estado));
     return {
       general: sum(filteredRows),
-      borrador: porEstado('borrador'),
-      enviado: porEstado('enviado'),
-      negociacion: porEstado('negociacion'),
-      ganado: porEstado('ganado'),
-      perdido: porEstado('perdido'),
+      ...Object.fromEntries(ESTADOS_SEGUIMIENTO.map((estado) => [estado.value, porEstado(estado.value)])),
     };
   }, [filteredRows]);
 
@@ -655,7 +694,7 @@ export default function CotizacionesGridPage() {
     {
       field: 'acciones',
       headerName: 'Acciones',
-      width: 160,
+      width: 200,
       sortable: false,
       filterable: false,
       renderCell: (params: GridRenderCellParams<CotizacionGridRow>) => (
@@ -666,9 +705,20 @@ export default function CotizacionesGridPage() {
             </IconButton>
           </Tooltip>
           <Tooltip title="Eliminar">
-            <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); setDeleteTarget(params.row.id); }}>
+            <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); void handleRequestDelete(params.row as CotizacionGridRow); }}>
               <DeleteIcon fontSize="small" />
             </IconButton>
+          </Tooltip>
+          <Tooltip title="Duplicar">
+            <span>
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); void handleDuplicate(params.row as CotizacionGridRow); }}
+                disabled={savingRowId === params.row.id}
+              >
+                <AssignmentTurnedInIcon fontSize="small" />
+              </IconButton>
+            </span>
           </Tooltip>
           <Tooltip title="Convertir a factura">
             <span>
@@ -689,7 +739,7 @@ export default function CotizacionesGridPage() {
         </Stack>
       ),
     },
-  ], [contactos, currency, navigate, convirtiendoId]);
+  ], [contactos, currency, navigate, convirtiendoId, savingRowId]);
 
   const handleCrearClienteSubmit = async () => {
     const nombre = crearClienteNombre.trim();
@@ -1097,11 +1147,9 @@ export default function CotizacionesGridPage() {
                 '& .MuiDataGrid-row:hover': {
                   backgroundColor: 'rgba(0,0,0,0.03)',
                 },
-                '& .row-estado-borrador': { backgroundColor: 'rgba(243, 244, 246, 0.7)' },
-                '& .row-estado-enviado': { backgroundColor: 'rgba(219, 234, 254, 0.5)' },
-                '& .row-estado-negociacion': { backgroundColor: 'rgba(254, 243, 199, 0.55)' },
-                '& .row-estado-ganado': { backgroundColor: 'rgba(220, 252, 231, 0.6)' },
-                '& .row-estado-perdido': { backgroundColor: 'rgba(254, 226, 226, 0.55)' },
+                '& .row-estado-convertida': { backgroundColor: 'rgba(220, 252, 231, 0.6)' },
+                '& .row-estado-perdida': { backgroundColor: 'rgba(254, 226, 226, 0.55)' },
+                '& .row-estado-no-seleccionada': { backgroundColor: 'rgba(254, 243, 199, 0.55)' },
                 '& .row-estado-desconocido': { backgroundColor: 'rgba(248, 250, 252, 0.9)' },
               }}
             />
@@ -1212,12 +1260,31 @@ export default function CotizacionesGridPage() {
 
       <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)}>
         <DialogTitle>Eliminar cotización</DialogTitle>
-        <DialogContent>¿Seguro que quieres eliminar esta cotización?</DialogContent>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 1 }}>
+            <Typography>¿Seguro que quieres eliminar esta cotización?</Typography>
+            {deleteTargetRow?.eliminara_oportunidad ? (
+              <Alert severity="warning" variant="outlined">
+                Esta es la última cotización de la oportunidad; también se eliminará la oportunidad.
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteTarget(null)}>Cancelar</Button>
           <Button color="error" variant="contained" onClick={() => void handleDelete()}>
             Eliminar
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteBlockedDialog.open} onClose={() => setDeleteBlockedDialog({ open: false, message: '' })} fullWidth maxWidth="sm">
+        <DialogTitle>No se puede eliminar la cotización</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ pt: 1, color: '#475569' }}>{deleteBlockedDialog.message}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setDeleteBlockedDialog({ open: false, message: '' })}>Entendido</Button>
         </DialogActions>
       </Dialog>
 

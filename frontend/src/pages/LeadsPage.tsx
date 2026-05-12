@@ -54,8 +54,8 @@ type EtapaOportunidad =
   | 'interesado'
   | 'cotizado'
   | 'negociacion'
-  | 'ganado'
-  | 'perdido';
+  | 'convertida'
+  | 'perdida';
 
 type ConversationSummary = {
   id: string;
@@ -171,7 +171,7 @@ const leadSelectMenuProps = {
 
 const nextActionOptions: NextAction[] = ['Responder', 'Llamar', 'Enviar cotización', 'Agendar demo', 'Cerrar'];
 const priorityOptions: Priority[] = ['Alta', 'Media', 'Baja'];
-const etapaOptions: EtapaOportunidad[] = ['nuevo', 'contactado', 'interesado', 'cotizado', 'negociacion', 'ganado', 'perdido'];
+const etapaOptions: EtapaOportunidad[] = ['nuevo', 'contactado', 'interesado', 'cotizado', 'negociacion', 'convertida', 'perdida'];
 const REFRESH_INTERVAL_MS = 5000;
 const DEFAULT_REGLAS_SEGUIMIENTO: ReglasSeguimiento = {
   tiempo_tolerancia_respuesta_a_cliente: 30,
@@ -184,9 +184,31 @@ const etapaChipColor: Record<EtapaOportunidad, 'default' | 'info' | 'primary' | 
   interesado: 'primary',
   cotizado: 'warning',
   negociacion: 'secondary',
-  ganado: 'success',
-  perdido: 'error',
+  convertida: 'success',
+  perdida: 'error',
 };
+
+function normalizeEtapaOportunidad(value: unknown): EtapaOportunidad {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  switch (normalized) {
+    case 'contactado':
+    case 'interesado':
+    case 'cotizado':
+    case 'negociacion':
+      return normalized;
+    case 'convertida':
+    case 'ganado':
+    case 'ganada':
+      return 'convertida';
+    case 'perdida':
+    case 'perdido':
+      return 'perdida';
+    case 'nuevo':
+    default:
+      return 'nuevo';
+  }
+}
 
 const getIdleSeverity = (min: number): { color: 'default' | 'warning' | 'error'; showIcon: boolean } => {
   if (min > 180) return { color: 'error', showIcon: true };
@@ -327,7 +349,7 @@ function deriveLeadState(lead: Lead, reglasSeguimiento: ReglasSeguimiento = DEFA
 
 function esSeguimientoPendiente(lead: Lead): boolean {
   const etapa = lead.etapa_oportunidad ?? 'nuevo';
-  if (etapa === 'ganado' || etapa === 'perdido') return false;
+  if (etapa === 'convertida' || etapa === 'perdida') return false;
 
   const last = lead.conversation[lead.conversation.length - 1];
   const lastFrom = last?.from;
@@ -340,8 +362,8 @@ function esSeguimientoPendiente(lead: Lead): boolean {
     interesado: 120,
     cotizado: 360,
     negociacion: 360,
-    ganado: Infinity,
-    perdido: Infinity,
+    convertida: Infinity,
+    perdida: Infinity,
   };
 
   const limite = limites[etapa] ?? 120;
@@ -663,7 +685,7 @@ export default function LeadsPage() {
         case 'alta':
           return lead.computedPriority === 'Alta';
         case 'activos':
-          return lead.etapa_oportunidad !== 'ganado' && lead.etapa_oportunidad !== 'perdido';
+          return lead.etapa_oportunidad !== 'convertida' && lead.etapa_oportunidad !== 'perdida';
         case 'todos':
         default:
           return true;
@@ -774,7 +796,7 @@ export default function LeadsPage() {
       nextAction: deriveNextAction(awaitingResponse),
       owner: 'WhatsApp',
       hot: false,
-      etapa_oportunidad: conv.etapa_oportunidad ?? 'nuevo',
+      etapa_oportunidad: normalizeEtapaOportunidad(conv.etapa_oportunidad),
       tiene_oportunidad: Boolean(conv.tiene_oportunidad),
       tags: conv.tags ?? [],
     };
@@ -911,7 +933,7 @@ export default function LeadsPage() {
                 : existing.lastMessageTimeMinutesAgo,
               ultimoMensajeEn: whatsappPreview?.sentAt ?? existing.ultimoMensajeEn,
               vendedor_id: conv.vendedor_id ?? existing.vendedor_id,
-              etapa_oportunidad: conv.etapa_oportunidad ?? existing.etapa_oportunidad,
+              etapa_oportunidad: conv.etapa_oportunidad ? normalizeEtapaOportunidad(conv.etapa_oportunidad) : existing.etapa_oportunidad,
               tiene_oportunidad: conv.tiene_oportunidad ?? existing.tiene_oportunidad,
               tags: conv.tags ?? existing.tags ?? [],
             };

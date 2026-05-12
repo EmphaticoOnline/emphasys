@@ -1,7 +1,16 @@
 export const COTIZACION_ESTADOS_SEGUIMIENTO = [
   'abierta',
   'pausada',
-  'ganada',
+  'convertida',
+  'perdida',
+  'no seleccionada',
+  'cancelada',
+] as const;
+
+export const OPORTUNIDAD_ESTADOS_SEGUIMIENTO = [
+  'abierta',
+  'pausada',
+  'convertida',
   'perdida',
   'cancelada',
 ] as const;
@@ -34,11 +43,27 @@ export function normalizarEstadoSeguimientoCotizacion(valor: unknown): Cotizacio
 
   switch (texto) {
     case 'abierta':
+    case 'borrador':
+    case 'enviado':
+    case 'en negociacion':
+    case 'negociacion':
+    case 'cotizado':
+      return 'abierta';
     case 'pausada':
-    case 'ganada':
-    case 'perdida':
-    case 'cancelada':
       return texto;
+    case 'convertida':
+    case 'ganada':
+    case 'ganado':
+      return 'convertida';
+    case 'perdida':
+    case 'perdido':
+      return 'perdida';
+    case 'no seleccionada':
+    case 'no_seleccionada':
+    case 'no-seleccionada':
+      return 'no seleccionada';
+    case 'cancelada':
+      return 'cancelada';
     default:
       return null;
   }

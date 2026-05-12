@@ -13,8 +13,9 @@ export const DEFAULT_ESTADO_SEGUIMIENTO: EstadoSeguimiento = 'abierta';
 export const ESTADOS_SEGUIMIENTO: EstadoSeguimientoOption[] = [
   { value: 'abierta', label: 'Abierta', color: '#e0f2fe', textColor: '#075985', rowClassName: 'row-estado-abierta' },
   { value: 'pausada', label: 'Pausada', color: '#ffedd5', textColor: '#9a3412', rowClassName: 'row-estado-pausada' },
-  { value: 'ganada', label: 'Ganada', color: '#dcfce7', textColor: '#166534', rowClassName: 'row-estado-ganada' },
+  { value: 'convertida', label: 'Convertida', color: '#dcfce7', textColor: '#166534', rowClassName: 'row-estado-convertida' },
   { value: 'perdida', label: 'Perdida', color: '#fee2e2', textColor: '#b91c1c', rowClassName: 'row-estado-perdida' },
+  { value: 'no seleccionada', label: 'No seleccionada', color: '#fef3c7', textColor: '#92400e', rowClassName: 'row-estado-no-seleccionada' },
   { value: 'cancelada', label: 'Cancelada', color: '#e5e7eb', textColor: '#4b5563', rowClassName: 'row-estado-cancelada' },
 ];
 
@@ -37,8 +38,31 @@ export const isEstadoSeguimiento = (value: unknown): value is EstadoSeguimiento 
   ESTADOS_SEGUIMIENTO_MAP.has(toComparableValue(value) as EstadoSeguimiento);
 
 export const normalizeEstadoSeguimiento = (value: unknown): EstadoSeguimiento | null => {
-  const normalized = toComparableValue(value);
+  const normalized = toComparableValue(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   if (!normalized) return null;
+
+  if (normalized === 'ganada' || normalized === 'ganado' || normalized === 'convertida') {
+    return 'convertida';
+  }
+
+  if (normalized === 'perdido' || normalized === 'perdida') {
+    return 'perdida';
+  }
+
+  if (normalized === 'no seleccionada') {
+    return 'no seleccionada';
+  }
+
+  if (normalized === 'borrador' || normalized === 'enviado' || normalized === 'en negociacion' || normalized === 'negociacion' || normalized === 'cotizado') {
+    return 'abierta';
+  }
+
   return isEstadoSeguimiento(normalized) ? normalized : null;
 };
 

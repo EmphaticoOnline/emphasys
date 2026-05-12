@@ -1,4 +1,5 @@
 import pool from "../../config/database";
+import type { PoolClient } from "pg";
 import type { TipoDocumento } from "../../types/documentos";
 import type {
   GenerarDocumentoPayload,
@@ -40,6 +41,45 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   recepcion: "REC",
   factura_compra: "FCO",
 };
+
+async function aplicarConversionComercialDesdeCotizacion(
+  documentoOrigenId: number,
+  oportunidadId: number,
+  client: PoolClient
+) {
+  await client.query(
+    `UPDATE crm.oportunidades_venta
+        SET estatus = 'convertida',
+            updated_at = NOW()
+      WHERE id = $1`,
+    [oportunidadId]
+  );
+
+  await client.query(
+    `UPDATE documentos
+        SET estado_seguimiento = 'convertida'
+      WHERE id = $1
+        AND LOWER(tipo_documento) = 'cotizacion'`,
+    [documentoOrigenId]
+  );
+
+  await client.query(
+    `UPDATE documentos
+        SET estado_seguimiento = 'no seleccionada'
+      WHERE oportunidad_id = $1
+        AND id <> $2
+        AND LOWER(tipo_documento) = 'cotizacion'
+        AND LOWER(TRIM(COALESCE(estado_seguimiento, ''))) IN (
+          'abierta',
+          'borrador',
+          'enviado',
+          'en negociacion',
+          'negociacion',
+          'cotizado'
+        )`,
+    [oportunidadId, documentoOrigenId]
+  );
+}
 
 export class DocumentGenerationService {
   static async getOpcionesGeneracion(documentoId: number, empresaId: number): Promise<OpcionGeneracion[]> {
@@ -433,22 +473,23 @@ export class DocumentGenerationService {
 
       if (tipo_documento_destino === "factura") {
         const { rows: oportunidadRows } = await client.query(
-          `SELECT id
-             FROM crm.oportunidades_venta
-            WHERE cotizacion_principal_id = $1
+          `SELECT o.id
+             FROM documentos d
+             JOIN crm.oportunidades_venta o
+               ON o.empresa_id = d.empresa_id
+              AND (
+                o.id = d.oportunidad_id
+                OR o.cotizacion_principal_id = d.id
+              )
+            WHERE d.id = $1
+            ORDER BY CASE WHEN o.id = d.oportunidad_id THEN 0 ELSE 1 END
             LIMIT 1`,
           [documento_origen_id]
         );
 
         const oportunidadId = oportunidadRows[0]?.id;
         if (oportunidadId) {
-          await client.query(
-            `UPDATE crm.oportunidades_venta
-                SET estatus = 'ganada',
-                    updated_at = NOW()
-              WHERE id = $1`,
-            [oportunidadId]
-          );
+          await aplicarConversionComercialDesdeCotizacion(documento_origen_id, oportunidadId, client);
         }
       }
 

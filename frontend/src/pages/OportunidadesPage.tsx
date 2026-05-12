@@ -87,9 +87,9 @@ type Oportunidad = {
   fecha_creacion: string;
 };
 
-type OportunidadStatus = 'abierta' | 'pausada' | 'ganada' | 'perdida' | 'cancelada';
+type OportunidadStatus = 'abierta' | 'pausada' | 'convertida' | 'perdida' | 'cancelada';
 
-type StatusFilter = 'todas' | 'abiertas' | 'pausadas' | 'ganadas' | 'perdidas' | 'canceladas';
+type StatusFilter = 'todas' | 'abiertas' | 'pausadas' | 'convertidas' | 'perdidas' | 'canceladas';
 
 type AdvancedFilters = {
   fecha_creacion_desde: string;
@@ -129,6 +129,12 @@ type CancelDialogState = {
   row: Oportunidad | null;
   motivo: string;
   error: string | null;
+};
+
+type ConversionLockDialogState = {
+  open: boolean;
+  title: string;
+  message: string;
 };
 
 type SnackbarState = {
@@ -253,16 +259,27 @@ const EMPTY_REALIZAR_ACTIVIDAD_DIALOG: RealizarActividadDialogState = {
   error: null,
 };
 
+const EMPTY_CONVERSION_LOCK_DIALOG: ConversionLockDialogState = {
+  open: false,
+  title: 'No se puede cambiar el estatus',
+  message: '',
+};
+
 const currencyFormatter = new Intl.NumberFormat('es-MX', {
   style: 'currency',
   currency: 'MXN',
   maximumFractionDigits: 2,
 });
 
+const percentFormatter = new Intl.NumberFormat('es-MX', {
+  style: 'percent',
+  maximumFractionDigits: 1,
+});
+
 const OPORTUNIDAD_STATUS_LABELS: Record<OportunidadStatus, string> = {
   abierta: 'Abierta',
   pausada: 'Pausada',
-  ganada: 'Ganada',
+  convertida: 'Convertida',
   perdida: 'Perdida',
   cancelada: 'Cancelada',
 };
@@ -274,20 +291,24 @@ function normalizeText(value: string): string {
 function normalizeStatus(value: string): OportunidadStatus {
   const normalized = normalizeText(value);
   if (normalized === 'pausada') return 'pausada';
-  if (normalized === 'ganada') return 'ganada';
-  if (normalized === 'perdida') return 'perdida';
+  if (normalized === 'convertida' || normalized === 'ganada' || normalized === 'ganado') return 'convertida';
+  if (normalized === 'perdida' || normalized === 'perdido') return 'perdida';
   if (normalized === 'cancelada') return 'cancelada';
   return 'abierta';
 }
 
 function isOpenStatus(estatus: string): boolean {
-  const normalized = normalizeText(estatus);
+  return normalizeStatus(estatus) === 'abierta';
+}
+
+function isExtendedPipelineStatus(estatus: string): boolean {
+  const normalized = normalizeStatus(estatus);
   return normalized === 'abierta' || normalized === 'pausada';
 }
 
 function getQuickBucket(estatus: string): Exclude<StatusFilter, 'todas' | 'canceladas'> | 'otras' {
-  const normalized = normalizeText(estatus);
-  if (normalized === 'ganada') return 'ganadas';
+  const normalized = normalizeStatus(estatus);
+  if (normalized === 'convertida') return 'convertidas';
   if (normalized === 'perdida') return 'perdidas';
   if (normalized === 'pausada') return 'pausadas';
   if (normalized === 'abierta') return 'abiertas';
@@ -396,6 +417,14 @@ function formatMetric(monto: number, cantidad: number): string {
   return `${currencyFormatter.format(monto)} • ${cantidad} oportunidades`;
 }
 
+function formatRatioAsPercent(value: number | null): string {
+  if (value === null) {
+    return 'Aun sin cierres';
+  }
+
+  return percentFormatter.format(value);
+}
+
 function normalizeOportunidad(item: OportunidadApiResponse): Oportunidad {
   const estatus = normalizeStatus(item.estatus?.trim().toLowerCase() || 'abierta');
 
@@ -429,8 +458,8 @@ function getStatusLabel(estatus: string): string {
 function getStatusPresentation(estatus: string) {
   const normalized = normalizeStatus(estatus);
 
-  if (normalized === 'ganada') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.ganada, backgroundColor: '#dcfce7', textColor: '#166534', borderColor: '#86efac' };
+  if (normalized === 'convertida') {
+    return { label: OPORTUNIDAD_STATUS_LABELS.convertida, backgroundColor: '#dcfce7', textColor: '#166534', borderColor: '#86efac' };
   }
   if (normalized === 'perdida') {
     return { label: OPORTUNIDAD_STATUS_LABELS.perdida, backgroundColor: '#fee2e2', textColor: '#b91c1c', borderColor: '#fecaca' };
@@ -447,7 +476,7 @@ function getStatusPresentation(estatus: string) {
 
 function getStatusChipColor(estatus: string): 'primary' | 'warning' | 'success' | 'error' | 'default' {
   const bucket = getQuickBucket(estatus);
-  if (bucket === 'ganadas') return 'success';
+  if (bucket === 'convertidas') return 'success';
   if (bucket === 'perdidas') return 'error';
   if (bucket === 'pausadas') return 'warning';
   if (bucket === 'abiertas') return 'primary';
@@ -456,7 +485,7 @@ function getStatusChipColor(estatus: string): 'primary' | 'warning' | 'success' 
 
 function getStatusIndicatorColor(estatus: string): string {
   const bucket = getQuickBucket(estatus);
-  if (bucket === 'ganadas') return '#2e7d32';
+  if (bucket === 'convertidas') return '#2e7d32';
   if (bucket === 'perdidas') return '#d32f2f';
   if (bucket === 'pausadas') return '#ed6c02';
   if (bucket === 'abiertas') return '#1976d2';
@@ -468,11 +497,35 @@ function getAllowedTransitions(currentStatus: string, row: Oportunidad): Oportun
 
   if (normalized === 'abierta') return ['pausada', 'perdida', 'cancelada'];
   if (normalized === 'pausada') return ['abierta', 'perdida', 'cancelada'];
-  if (normalized === 'ganada') return row.has_factura_activa ? [] : ['perdida', 'cancelada'];
+  if (normalized === 'convertida') return ['perdida', 'cancelada'];
   if (normalized === 'perdida') return ['abierta', 'cancelada'];
   if (normalized === 'cancelada') return ['abierta', 'perdida'];
 
   return [];
+}
+
+function isConvertedStatusChangeLocked(row: Oportunidad, nextStatus: OportunidadStatus): boolean {
+  return normalizeStatus(row.estatus) === 'convertida'
+    && row.has_factura_activa
+    && nextStatus !== 'convertida';
+}
+
+function getConvertedStatusLockMessage(nextStatus: OportunidadStatus): string {
+  const destino = nextStatus === 'cancelada' ? 'cancelada' : 'perdida';
+  return `Esta oportunidad ya fue convertida porque existe una factura activa generada desde una de sus cotizaciones. Por integridad comercial, no es posible cambiarla a ${destino} mientras esa factura siga vigente.`;
+}
+
+function isConvertedStatusLockError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const normalized = message.trim().toLowerCase();
+
+  return normalized.includes('no se puede cambiar la oportunidad a')
+    && normalized.includes('factura activa');
+}
+
+function getConvertedStatusLockErrorMessage(error: unknown, nextStatus: OportunidadStatus): string {
+  const message = error instanceof Error ? error.message.trim() : String(error ?? '').trim();
+  return message || getConvertedStatusLockMessage(nextStatus);
 }
 
 async function persistOportunidadStatusChange(payload: {
@@ -562,6 +615,7 @@ export default function OportunidadesPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusMenu, setStatusMenu] = useState<StatusMenuState>({ anchorEl: null, row: null });
   const [cancelDialog, setCancelDialog] = useState<CancelDialogState>({ open: false, row: null, motivo: '', error: null });
+  const [conversionLockDialog, setConversionLockDialog] = useState<ConversionLockDialogState>(EMPTY_CONVERSION_LOCK_DIALOG);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [savingOperacionId, setSavingOperacionId] = useState<number | null>(null);
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'info' });
@@ -724,7 +778,7 @@ export default function OportunidadesPage() {
       result = result.filter((item) => {
         if (filtroEstatus === 'abiertas') return isOpenStatus(item.estatus);
         if (filtroEstatus === 'pausadas') return normalizeText(item.estatus) === 'pausada';
-        if (filtroEstatus === 'ganadas') return normalizeText(item.estatus) === 'ganada';
+        if (filtroEstatus === 'convertidas') return normalizeStatus(item.estatus) === 'convertida';
         if (filtroEstatus === 'perdidas') return normalizeText(item.estatus) === 'perdida';
         if (filtroEstatus === 'canceladas') return normalizeText(item.estatus) === 'cancelada';
         return true;
@@ -798,14 +852,19 @@ export default function OportunidadesPage() {
     const sumMonto = (items: Oportunidad[]) => items.reduce((acc, item) => acc + item.monto_oportunidad, 0);
     const abiertas = filteredOportunidades.filter((item) => normalizeText(item.estatus) === 'abierta');
     const pausadas = filteredOportunidades.filter((item) => normalizeText(item.estatus) === 'pausada');
-    const ganadas = filteredOportunidades.filter((item) => normalizeText(item.estatus) === 'ganada');
+    const convertidas = filteredOportunidades.filter((item) => normalizeStatus(item.estatus) === 'convertida');
     const perdidas = filteredOportunidades.filter((item) => normalizeText(item.estatus) === 'perdida');
     const canceladas = filteredOportunidades.filter((item) => normalizeText(item.estatus) === 'cancelada');
+    const pipelineExtendido = filteredOportunidades.filter((item) => isExtendedPipelineStatus(item.estatus));
 
     return {
-      pipeline: {
-        monto: sumMonto(filteredOportunidades),
-        cantidad: filteredOportunidades.length,
+      pipelineActivo: {
+        monto: sumMonto(abiertas),
+        cantidad: abiertas.length,
+      },
+      pipelineExtendido: {
+        monto: sumMonto(pipelineExtendido),
+        cantidad: pipelineExtendido.length,
       },
       abiertas: {
         monto: sumMonto(abiertas),
@@ -815,9 +874,9 @@ export default function OportunidadesPage() {
         monto: sumMonto(pausadas),
         cantidad: pausadas.length,
       },
-      ganadas: {
-        monto: sumMonto(ganadas),
-        cantidad: ganadas.length,
+      convertidas: {
+        monto: sumMonto(convertidas),
+        cantidad: convertidas.length,
       },
       perdidas: {
         monto: sumMonto(perdidas),
@@ -829,6 +888,22 @@ export default function OportunidadesPage() {
       },
     };
   }, [filteredOportunidades]);
+
+  const commercialSummary = useMemo(() => {
+    const cierreCountBase = totals.convertidas.cantidad + totals.perdidas.cantidad;
+    const cierreMontoBase = totals.convertidas.monto + totals.perdidas.monto;
+    const tasaCierre = cierreCountBase > 0 ? totals.convertidas.cantidad / cierreCountBase : null;
+    const conversionMonetaria = cierreMontoBase > 0 ? totals.convertidas.monto / cierreMontoBase : null;
+    const ticketPromedioConvertida = totals.convertidas.cantidad > 0 ? totals.convertidas.monto / totals.convertidas.cantidad : 0;
+    const forecastEsperado = totals.pipelineExtendido.monto * (tasaCierre ?? 0);
+
+    return {
+      tasaCierre,
+      conversionMonetaria,
+      ticketPromedioConvertida,
+      forecastEsperado,
+    };
+  }, [totals]);
 
   const activeAdvancedFiltersCount = Object.values(appliedFilters).filter((value) => value !== '').length;
 
@@ -947,20 +1022,19 @@ export default function OportunidadesPage() {
     setStatusMenu({ anchorEl: null, row: null });
   }, []);
 
+  const openConversionLockDialog = useCallback((nextStatus: OportunidadStatus) => {
+    setConversionLockDialog({
+      open: true,
+      title: 'No se puede cambiar el estatus',
+      message: getConvertedStatusLockMessage(nextStatus),
+    });
+  }, []);
+
   const handleOpenStatusMenu = useCallback((event: MouseEvent<HTMLElement>, row: Oportunidad) => {
     event.preventDefault();
     event.stopPropagation();
 
     if (updatingStatusId === row.id) {
-      return;
-    }
-
-    if (normalizeStatus(row.estatus) === 'ganada' && row.has_factura_activa) {
-      setSnackbar({
-        open: true,
-        message: 'No se puede cambiar una oportunidad ganada mientras su cotizacion principal tenga una factura activa.',
-        severity: 'warning',
-      });
       return;
     }
 
@@ -1014,6 +1088,15 @@ export default function OportunidadesPage() {
         severity: 'success',
       });
     } catch (err) {
+      if (isConvertedStatusLockError(err)) {
+        setConversionLockDialog({
+          open: true,
+          title: 'No se puede cambiar el estatus',
+          message: getConvertedStatusLockErrorMessage(err, nextStatus),
+        });
+        return;
+      }
+
       setSnackbar({
         open: true,
         message: err instanceof Error ? err.message : 'No se pudo actualizar el estatus de la oportunidad.',
@@ -1030,13 +1113,18 @@ export default function OportunidadesPage() {
 
     if (!row) return;
 
+    if (isConvertedStatusChangeLocked(row, nextStatus)) {
+      openConversionLockDialog(nextStatus);
+      return;
+    }
+
     if (nextStatus === 'cancelada') {
       setCancelDialog({ open: true, row, motivo: '', error: null });
       return;
     }
 
     await applyStatusChange(row, nextStatus);
-  }, [applyStatusChange, closeStatusMenu, statusMenu.row]);
+  }, [applyStatusChange, closeStatusMenu, openConversionLockDialog, statusMenu.row]);
 
   const handleConfirmCancelacion = useCallback(async () => {
     const row = cancelDialog.row;
@@ -1573,6 +1661,60 @@ export default function OportunidadesPage() {
     }
   }, [closeRealizarActividadDialog, loadActividadesOportunidad, loadSeguimientoResumen, realizarActividadDialog]);
 
+  const handleConfirmRealizarYProgramarSiguiente = useCallback(async () => {
+    const actividad = realizarActividadDialog.actividad;
+    const resultado = realizarActividadDialog.resultado.trim();
+
+    if (!actividad || !actividad.oportunidad_id) {
+      return;
+    }
+
+    if (!resultado) {
+      setRealizarActividadDialog((prev) => ({ ...prev, error: 'El resultado es obligatorio.' }));
+      return;
+    }
+
+    setSavingActividad(true);
+
+    try {
+      await realizarActividad(actividad.id, resultado);
+      const oportunidad = oportunidades.find((item) => item.id === actividad.oportunidad_id) ?? null;
+
+      closeRealizarActividadDialog();
+      await loadActividadesOportunidad(actividad.oportunidad_id);
+      await loadSeguimientoResumen();
+
+      if (oportunidad) {
+        setSeguimientoOportunidadId(oportunidad.id);
+        setSeguimientoDrawerOpen(true);
+        setCreateActividadDialog({
+          open: true,
+          oportunidad,
+          tipo_actividad: 'llamada',
+          fecha_programada: defaultProgrammedDateTime(),
+          notas: '',
+          recordatorio: false,
+          recordatorio_minutos: '',
+        });
+        setSnackbar({ open: true, message: 'Actividad marcada como realizada. Programa la siguiente.', severity: 'success' });
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Actividad marcada como realizada, pero no se pudo abrir la siguiente programación.',
+          severity: 'warning',
+        });
+      }
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'No se pudo actualizar la actividad.',
+        severity: 'error',
+      });
+    } finally {
+      setSavingActividad(false);
+    }
+  }, [closeRealizarActividadDialog, loadActividadesOportunidad, loadSeguimientoResumen, oportunidades, realizarActividadDialog]);
+
   const handleAplicarFiltros = () => {
     setAppliedFilters(draftFilters);
   };
@@ -1667,7 +1809,7 @@ export default function OportunidadesPage() {
         {!loading ? (
           <>
             <PaperCard>
-              <Stack spacing={1}>
+              <Stack spacing={0.85}>
                 <Box
                   sx={{
                     display: 'grid',
@@ -1683,9 +1825,9 @@ export default function OportunidadesPage() {
                   {[
                     {
                       value: 'todas' as const,
-                      label: 'Total pipeline',
-                      monto: currencyFormatter.format(totals.pipeline.monto),
-                      cantidad: `${totals.pipeline.cantidad} oportunidades`,
+                      label: 'Pipeline extendido',
+                      monto: currencyFormatter.format(totals.pipelineExtendido.monto),
+                      cantidad: `${totals.pipelineExtendido.cantidad} oportunidades`,
                       backgroundColor: '#eff6ff',
                       borderColor: '#bfdbfe',
                       labelColor: '#1d4ed8',
@@ -1712,10 +1854,10 @@ export default function OportunidadesPage() {
                       amountColor: '#9a3412',
                     },
                     {
-                      value: 'ganadas' as const,
-                      label: 'Ganadas',
-                      monto: currencyFormatter.format(totals.ganadas.monto),
-                      cantidad: `${totals.ganadas.cantidad} oportunidades`,
+                      value: 'convertidas' as const,
+                      label: 'Convertidas',
+                      monto: currencyFormatter.format(totals.convertidas.monto),
+                      cantidad: `${totals.convertidas.cantidad} oportunidades`,
                       backgroundColor: '#ecfdf5',
                       borderColor: '#a7f3d0',
                       labelColor: '#047857',
@@ -1781,9 +1923,83 @@ export default function OportunidadesPage() {
                   ))}
                 </Box>
 
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gap: 0.65,
+                    gridTemplateColumns: {
+                      xs: '1fr',
+                      sm: 'repeat(2, minmax(0, 1fr))',
+                      lg: 'repeat(4, minmax(0, 1fr))',
+                    },
+                  }}
+                >
+                  {[
+                    {
+                      label: 'Tasa de cierre',
+                      value: formatRatioAsPercent(commercialSummary.tasaCierre),
+                      helper: 'basado en cierres',
+                      backgroundColor: '#fcfdff',
+                      borderColor: '#e2e8f0',
+                      labelColor: '#64748b',
+                      valueColor: '#0f172a',
+                    },
+                    {
+                      label: 'Conversion $',
+                      value: formatRatioAsPercent(commercialSummary.conversionMonetaria),
+                      helper: 'convertidas vs perdidas',
+                      backgroundColor: '#fcfdff',
+                      borderColor: '#e2e8f0',
+                      labelColor: '#64748b',
+                      valueColor: '#0f172a',
+                    },
+                    {
+                      label: 'Ticket promedio convertido',
+                      value: currencyFormatter.format(commercialSummary.ticketPromedioConvertida),
+                      helper: 'ticket promedio',
+                      backgroundColor: '#fcfdff',
+                      borderColor: '#e2e8f0',
+                      labelColor: '#64748b',
+                      valueColor: '#0f172a',
+                    },
+                    {
+                      label: 'Forecast esperado',
+                      value: currencyFormatter.format(commercialSummary.forecastEsperado),
+                      helper: 'sobre pipeline extendido',
+                      backgroundColor: '#eff6ff',
+                      borderColor: '#bfdbfe',
+                      labelColor: '#1d4ed8',
+                      valueColor: '#1e3a8a',
+                    },
+                  ].map((item) => (
+                    <Box
+                      key={item.label}
+                      sx={{
+                        border: '1px solid',
+                        borderColor: item.borderColor,
+                        borderRadius: 1.5,
+                        px: { xs: 0.9, sm: 0.95 },
+                        py: { xs: 0.52, sm: 0.58 },
+                        backgroundColor: item.backgroundColor,
+                        minWidth: 0,
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 9.75, fontWeight: 800, color: item.labelColor, textTransform: 'uppercase', letterSpacing: 0.32, lineHeight: 1.05 }}>
+                        {item.label}
+                      </Typography>
+                      <Typography sx={{ mt: 0.18, fontSize: { xs: 15.5, sm: 16.5 }, lineHeight: 1.02, fontWeight: 800, color: item.valueColor }}>
+                        {item.value}
+                      </Typography>
+                      <Typography sx={{ mt: 0.14, fontSize: 9.5, color: '#94a3b8', fontWeight: 500, lineHeight: 1.1 }}>
+                        {item.helper}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+
                 <Stack
                   direction={{ xs: 'column', lg: 'row' }}
-                  spacing={0.75}
+                  spacing={0.65}
                   alignItems={{ xs: 'stretch', lg: 'center' }}
                   justifyContent="space-between"
                 >
@@ -2433,7 +2649,7 @@ export default function OportunidadesPage() {
                   onClick={() => {
                     void handleSelectStatus(status);
                   }}
-                  disabled={status === 'ganada' || updatingStatusId === statusMenu.row?.id}
+                  disabled={status === 'convertida' || updatingStatusId === statusMenu.row?.id}
                 >
                   {getStatusLabel(status)}
                 </MenuItem>
@@ -2464,6 +2680,25 @@ export default function OportunidadesPage() {
                 <Button onClick={() => setCancelDialog({ open: false, row: null, motivo: '', error: null })}>Cancelar</Button>
                 <Button variant="contained" color="error" onClick={() => { void handleConfirmCancelacion(); }} disabled={updatingStatusId === cancelDialog.row?.id}>
                   Confirmar
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            <Dialog
+              open={conversionLockDialog.open}
+              onClose={() => setConversionLockDialog(EMPTY_CONVERSION_LOCK_DIALOG)}
+              fullWidth
+              maxWidth="sm"
+            >
+              <DialogTitle>{conversionLockDialog.title}</DialogTitle>
+              <DialogContent>
+                <Typography variant="body1" sx={{ color: '#475569', pt: 1 }}>
+                  {conversionLockDialog.message}
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button variant="contained" onClick={() => setConversionLockDialog(EMPTY_CONVERSION_LOCK_DIALOG)}>
+                  Entendido
                 </Button>
               </DialogActions>
             </Dialog>
@@ -2601,6 +2836,9 @@ export default function OportunidadesPage() {
               </DialogContent>
               <DialogActions>
                 <Button onClick={closeRealizarActividadDialog}>Cancelar</Button>
+                <Button variant="outlined" onClick={() => { void handleConfirmRealizarYProgramarSiguiente(); }} disabled={savingActividad}>
+                  {savingActividad ? 'Guardando...' : 'Completar y programar siguiente'}
+                </Button>
                 <Button variant="contained" onClick={() => { void handleConfirmRealizarActividad(); }} disabled={savingActividad}>
                   {savingActividad ? 'Guardando...' : 'Completar'}
                 </Button>

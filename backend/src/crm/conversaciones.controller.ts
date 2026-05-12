@@ -36,8 +36,30 @@ type EtapaOportunidad =
   | "interesado"
   | "cotizado"
   | "negociacion"
-  | "ganado"
-  | "perdido";
+  | "convertida"
+  | "perdida";
+
+const normalizarEtapaOportunidad = (valor: unknown): EtapaOportunidad | null => {
+  const etapa = String(valor ?? '').trim().toLowerCase();
+
+  switch (etapa) {
+    case 'nuevo':
+    case 'contactado':
+    case 'interesado':
+    case 'cotizado':
+    case 'negociacion':
+      return etapa;
+    case 'convertida':
+    case 'ganado':
+    case 'ganada':
+      return 'convertida';
+    case 'perdida':
+    case 'perdido':
+      return 'perdida';
+    default:
+      return null;
+  }
+};
 
 type RuteoLeadsRow = {
   id: number;
@@ -792,12 +814,12 @@ export const actualizarEtapaConversacion = async (req: Request, res: Response) =
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
     const conversacionId = req.params.id;
-    const { etapa_oportunidad } = req.body as { etapa_oportunidad?: EtapaOportunidad };
+    const etapaOportunidad = normalizarEtapaOportunidad((req.body as { etapa_oportunidad?: string })?.etapa_oportunidad);
     const authUserId = req.auth?.userId;
 
     console.log("[PATCH /whatsapp/conversaciones/:id/etapa] payload", {
       conversacionId,
-      etapa_oportunidad,
+      etapa_oportunidad: etapaOportunidad,
       empresaId,
     });
 
@@ -815,11 +837,11 @@ export const actualizarEtapaConversacion = async (req: Request, res: Response) =
       "interesado",
       "cotizado",
       "negociacion",
-      "ganado",
-      "perdido",
+      "convertida",
+      "perdida",
     ];
 
-    if (!etapa_oportunidad || !etapasValidas.includes(etapa_oportunidad)) {
+    if (!etapaOportunidad || !etapasValidas.includes(etapaOportunidad)) {
       return res.status(400).json({ message: "etapa_oportunidad inválida" });
     }
 
@@ -865,7 +887,7 @@ export const actualizarEtapaConversacion = async (req: Request, res: Response) =
       WHERE id = $2 AND empresa_id = $3
       RETURNING id, contacto_id AS "contactoId", estado, etapa_oportunidad, ultimo_mensaje_en, creada_en
       `,
-      [etapa_oportunidad, conversacionId, empresaId]
+      [etapaOportunidad, conversacionId, empresaId]
     );
 
     console.log("[PATCH /whatsapp/conversaciones/:id/etapa] update rowCount", updateResult.rowCount);

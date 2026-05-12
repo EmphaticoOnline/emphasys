@@ -1,7 +1,7 @@
 import type { TipoDocumento } from './documentos.types';
 
 export type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
-export type EstadoSeguimiento = 'abierta' | 'pausada' | 'ganada' | 'perdida' | 'cancelada';
+export type EstadoSeguimiento = 'abierta' | 'pausada' | 'convertida' | 'perdida' | 'no seleccionada' | 'cancelada';
 
 export interface CotizacionListado {
   id: number;
@@ -18,6 +18,7 @@ export interface CotizacionListado {
   producto_resumen?: string | null;
   estado_seguimiento?: EstadoSeguimiento | null;
   comentario_seguimiento?: string | null;
+  eliminara_oportunidad?: boolean;
   saldo?: number | null;
 }
 
@@ -27,6 +28,8 @@ export interface CotizacionDocumento {
   tipo_documento: TipoDocumento;
   serie: string | null;
   numero: number | null;
+  documento_origen_id?: number | null;
+  oportunidad_id?: number | null;
   fecha_documento: string;
   contacto_principal_id: number | null;
   agente_id?: number | null;
@@ -97,6 +100,8 @@ export interface CotizacionCrearPayload {
   empresa_id?: number;
   tipo_documento?: TipoDocumento;
   serie?: string | null;
+  documento_origen_id?: number | null;
+  oportunidad_id?: number | null;
   contacto_principal_id: number | null;
   agente_id?: number | null;
   fecha_documento: string;

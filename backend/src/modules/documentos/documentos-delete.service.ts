@@ -16,6 +16,11 @@ type OportunidadDeleteRow = {
 type DocumentoDeleteRow = {
   id: number;
   tipo_documento: string | null;
+  oportunidad_id?: number | null;
+};
+
+type CotizacionHermanaRow = {
+  id: number;
 };
 
 async function cotizacionTieneDocumentosPosteriores(documentoId: number, client: PoolClient) {
@@ -24,6 +29,7 @@ async function cotizacionTieneDocumentosPosteriores(documentoId: number, client:
        SELECT 1
        FROM documentos
        WHERE documento_origen_id = $1
+         AND LOWER(COALESCE(tipo_documento, '')) <> 'cotizacion'
      ) AS tiene_descendientes`,
     [documentoId]
   );
@@ -69,7 +75,7 @@ async function eliminarOportunidadBase(oportunidadId: number, empresaId: number,
 
 async function obtenerCotizacion(documentoId: number, empresaId: number, client: PoolClient) {
   const { rows } = await client.query<DocumentoDeleteRow>(
-    `SELECT id, tipo_documento
+    `SELECT id, tipo_documento, oportunidad_id
        FROM documentos
       WHERE id = $1
         AND empresa_id = $2
@@ -78,6 +84,26 @@ async function obtenerCotizacion(documentoId: number, empresaId: number, client:
   );
 
   return rows[0] ?? null;
+}
+
+async function obtenerCotizacionesHermanas(
+  oportunidadId: number,
+  cotizacionExcluirId: number,
+  empresaId: number,
+  client: PoolClient
+) {
+  const { rows } = await client.query<CotizacionHermanaRow>(
+    `SELECT d.id
+       FROM documentos d
+      WHERE d.empresa_id = $1
+        AND LOWER(d.tipo_documento) = 'cotizacion'
+        AND d.oportunidad_id = $2
+        AND d.id <> $3
+      ORDER BY d.fecha_documento DESC NULLS LAST, d.id DESC`,
+    [empresaId, oportunidadId, cotizacionExcluirId]
+  );
+
+  return rows;
 }
 
 async function obtenerOportunidad(oportunidadId: number, empresaId: number, client: PoolClient) {
@@ -95,10 +121,17 @@ async function obtenerOportunidad(oportunidadId: number, empresaId: number, clie
 
 async function obtenerOportunidadPorCotizacion(documentoId: number, empresaId: number, client: PoolClient) {
   const { rows } = await client.query<OportunidadDeleteRow>(
-    `SELECT id, cotizacion_principal_id
-       FROM crm.oportunidades_venta
-      WHERE cotizacion_principal_id = $1
-        AND empresa_id = $2
+    `SELECT o.id, o.cotizacion_principal_id
+       FROM documentos d
+       JOIN crm.oportunidades_venta o
+         ON o.empresa_id = d.empresa_id
+        AND (
+          o.id = d.oportunidad_id
+          OR o.cotizacion_principal_id = d.id
+        )
+      WHERE d.id = $1
+        AND d.empresa_id = $2
+      ORDER BY CASE WHEN o.id = d.oportunidad_id THEN 0 ELSE 1 END
       LIMIT 1`,
     [documentoId, empresaId]
   );
@@ -153,8 +186,37 @@ export async function eliminarCotizacionConValidacion(documentoId: number, empre
       throw new DocumentoDeleteValidationError('No se puede eliminar la cotización porque ya generó documentos posteriores.');
     }
 
-    const oportunidad = await obtenerOportunidadPorCotizacion(documentoId, empresaId, client);
+    const oportunidadId = documento.oportunidad_id ?? null;
+    const oportunidad = oportunidadId
+      ? await obtenerOportunidad(oportunidadId, empresaId, client)
+      : await obtenerOportunidadPorCotizacion(documentoId, empresaId, client);
+
     if (oportunidad) {
+      const esPrincipal = oportunidad.cotizacion_principal_id === documentoId;
+
+      if (!esPrincipal) {
+        const deleted = await eliminarDocumentoBase(documentoId, empresaId, 'cotizacion', client);
+        await client.query('COMMIT');
+        return deleted;
+      }
+
+      const cotizacionesHermanas = await obtenerCotizacionesHermanas(oportunidad.id, documentoId, empresaId, client);
+
+      if (cotizacionesHermanas.length > 0) {
+        await client.query(
+          `UPDATE crm.oportunidades_venta
+              SET cotizacion_principal_id = $1,
+                  updated_at = NOW()
+            WHERE id = $2
+              AND empresa_id = $3`,
+          [cotizacionesHermanas[0].id, oportunidad.id, empresaId]
+        );
+
+        const deleted = await eliminarDocumentoBase(documentoId, empresaId, 'cotizacion', client);
+        await client.query('COMMIT');
+        return deleted;
+      }
+
       await eliminarOportunidadBase(oportunidad.id, empresaId, client);
     }
 

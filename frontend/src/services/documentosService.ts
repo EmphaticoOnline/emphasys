@@ -44,6 +44,20 @@ export function updateDocumento(id: number, tipo: TipoDocumento, data: Partial<C
   });
 }
 
+export function duplicateDocumento(id: number, tipo: TipoDocumento): Promise<{ id: number }> {
+  const base = getBasePath(tipo);
+  return apiFetch(`${base}/${id}/duplicar`, {
+    method: 'POST',
+  });
+}
+
+export function validateDeleteDocumento(id: number, tipo: TipoDocumento): Promise<{ exists: boolean; canDelete: boolean; message?: string | null }> {
+  const base = getBasePath(tipo);
+  return apiFetch(`${base}/${id}/validar-eliminacion`, {
+    method: 'GET',
+  });
+}
+
 export function addPartida(documentoId: number, tipo: TipoDocumento, partida: CotizacionPartidaPayload) {
   const base = getBasePath(tipo);
   return apiFetch(`${base}/${documentoId}/partidas`, {
