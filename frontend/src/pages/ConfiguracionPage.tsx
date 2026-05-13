@@ -95,6 +95,12 @@ const opciones = [
     icono: LabelRounded,
     path: '/configuracion/whatsapp-etiquetas',
   },
+  {
+    titulo: 'Etapas de producción',
+    descripcion: 'Configura nombres, colores, secuencia y activación de las etapas operativas.',
+    icono: SchemaRounded,
+    path: '/configuracion/produccion-etapas',
+  },
 ];
 
 export default function ConfiguracionPage() {

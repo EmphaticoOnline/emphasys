@@ -37,6 +37,8 @@ import ActividadFormPage from './pages/ActividadFormPage';
 import OportunidadDetallePage from './pages/OportunidadDetallePage';
 import CotizacionesGridPage from './pages/CotizacionesGridPage';
 import AIReportesPage from './pages/AIReportesPage';
+import ProduccionPage from './pages/ProduccionPage';
+import ConfiguracionEtapasProduccionPage from './pages/ConfiguracionEtapasProduccionPage';
 
 export default function App() {
   return (
@@ -63,6 +65,7 @@ export default function App() {
               <Route path="/crm/conversaciones" element={<CRMPage />} />
               <Route path="/leads" element={<Navigate to="/crm/conversaciones" replace />} />
               <Route path="/oportunidades" element={<Navigate to="/crm/oportunidades" replace />} />
+              <Route path="/ventas/produccion" element={<ProduccionPage />} />
               <Route path="/ventas/:codigo" element={<DocumentosPage />} />
               <Route path="/ventas/:codigo/nuevo" element={<DocumentosFormPage />} />
               <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />
@@ -84,6 +87,7 @@ export default function App() {
               <Route path="/configuracion/formatos-impresion" element={<FormatosImpresionPage />} />
               <Route path="/configuracion/correo" element={<ConfiguracionCorreoPage />} />
               <Route path="/configuracion/whatsapp-etiquetas" element={<WhatsappEtiquetasPage />} />
+              <Route path="/configuracion/produccion-etapas" element={<ConfiguracionEtapasProduccionPage />} />
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />

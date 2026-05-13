@@ -115,9 +115,12 @@ export default function Layout({ children }: LayoutProps) {
 
         const ventasOrdenadas = sortDocs(ventas).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }));
         const mostrarVistaExcelCotizaciones = false;
-        const extras = mostrarVistaExcelCotizaciones
-          ? [{ label: 'Vista Excel cotizaciones', value: 'cotizaciones-grid', icon: 'Description' as string | null }]
-          : [];
+        const extras = [
+          { label: 'Producción', value: 'produccion', icon: 'PlaylistAddCheck' as string | null },
+          ...(mostrarVistaExcelCotizaciones
+            ? [{ label: 'Vista Excel cotizaciones', value: 'cotizaciones-grid', icon: 'Description' as string | null }]
+            : []),
+        ];
         const combinadas = [...ventasOrdenadas];
         extras.forEach((extra) => {
           if (!combinadas.find((t) => t.value === extra.value)) combinadas.push(extra);

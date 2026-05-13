@@ -15,6 +15,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  Drawer,
+  Divider,
   TextField,
   IconButton,
   Paper,
@@ -49,6 +51,8 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
+import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EmailIcon from '@mui/icons-material/Email';
@@ -78,6 +82,7 @@ import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoServic
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
 import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, duplicateDocumento, enviarCotizacionPorCorreo, getDocumentos, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
 import { timbrarFactura, enviarFactura } from '../services/facturasService';
+import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
 import { useSession } from '../session/useSession';
@@ -88,6 +93,79 @@ import {
   resolveDocumentoFormPath,
   resolveDocumentosListPath,
 } from '../modules/documentos/documentoNavigation';
+
+const formatCivilDate = (value: unknown) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    const formattedDay = date.toLocaleString('es-MX', { day: '2-digit' });
+    const formattedMonth = date.toLocaleString('es-MX', { month: 'short' }).replace('.', '').toUpperCase();
+    return `${formattedDay}-${formattedMonth}-${year}`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+
+  const day = parsed.toLocaleString('es-MX', { day: '2-digit' });
+  const month = parsed.toLocaleString('es-MX', { month: 'short' }).replace('.', '').toUpperCase();
+  const year = parsed.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
+const toCivilDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatProductionDateTime = (value: string | null | undefined) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '—';
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(parsed);
+};
+
+function normalizeHexColor(color: string | null | undefined) {
+  const raw = String(color ?? '').trim();
+  const match = raw.match(/^#?([0-9A-Fa-f]{6})$/);
+  if (!match) {
+    return null;
+  }
+
+  return `#${match[1].toUpperCase()}`;
+}
+
+function getContrastingTextColor(color: string | null | undefined) {
+  const hex = normalizeHexColor(color);
+  if (!hex) {
+    return '#111827';
+  }
+
+  const red = Number.parseInt(hex.slice(1, 3), 16) / 255;
+  const green = Number.parseInt(hex.slice(3, 5), 16) / 255;
+  const blue = Number.parseInt(hex.slice(5, 7), 16) / 255;
+  const transform = (channel: number) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  const luminance = (0.2126 * transform(red)) + (0.7152 * transform(green)) + (0.0722 * transform(blue));
+
+  const contrastWithWhite = 1.05 / (luminance + 0.05);
+  const contrastWithDark = (luminance + 0.05) / 0.05;
+
+  return contrastWithWhite >= contrastWithDark ? '#ffffff' : '#111827';
+}
 import {
   ESTADOS_SEGUIMIENTO,
   getEstadoSeguimientoPresentation,
@@ -284,6 +362,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     enviando: boolean;
     error?: string | null;
   }>({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null });
+  const [produccionDialog, setProduccionDialog] = useState<{
+    open: boolean;
+    id: number | null;
+    fechaPromesa: string;
+    comentarios: string;
+    enviando: boolean;
+    error?: string | null;
+  }>({ open: false, id: null, fechaPromesa: toCivilDate(), comentarios: '', enviando: false, error: null });
+  const [produccionDrawer, setProduccionDrawer] = useState<{
+    open: boolean;
+    loading: boolean;
+    documentoId: number | null;
+    titulo: string;
+    historial: SeguimientoProduccionHistorialRow[];
+    error: string | null;
+  }>({ open: false, loading: false, documentoId: null, titulo: '', historial: [], error: null });
   const [opcionesGeneracion, setOpcionesGeneracion] = useState<Record<number, OpcionGeneracionResponse[]>>({});
   const [tieneOpcionesGeneracion, setTieneOpcionesGeneracion] = useState<boolean | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
@@ -675,15 +769,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     }
   };
 
-  const formatFecha = (value: any) => {
-    if (!value) return '';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return value;
-    const day = d.toLocaleString('es-MX', { day: '2-digit' });
-    const month = d.toLocaleString('es-MX', { month: 'short' }).replace('.', '').toUpperCase();
-    const year = d.getFullYear();
-    return `${day}-${month}-${year}`;
-  };
+  const formatFecha = (value: any) => formatCivilDate(value);
 
   useEffect(() => {
     load();
@@ -705,6 +791,57 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       error: emailInicial ? null : 'El cliente no tiene correo registrado. Captura uno para continuar.',
     });
   };
+
+  const abrirDialogoProduccion = (row: CotizacionListado) => {
+    setProduccionDialog({
+      open: true,
+      id: Number(row.id),
+      fechaPromesa: toCivilDate(),
+      comentarios: '',
+      enviando: false,
+      error: null,
+    });
+  };
+
+  const abrirDrawerProduccion = useCallback(async (row: CotizacionListado) => {
+    const documentoId = Number(row.id);
+    const titulo = formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0)) || String(documentoId);
+
+    setProduccionDrawer({
+      open: true,
+      loading: true,
+      documentoId,
+      titulo,
+      historial: [],
+      error: null,
+    });
+
+    try {
+      const historial = await getSeguimientoProduccionPorDocumento(documentoId);
+      setProduccionDrawer((prev) => ({
+        ...prev,
+        loading: false,
+        historial,
+      }));
+    } catch (err: any) {
+      const message = err?.message || 'No se pudo cargar el historial de producción';
+      setProduccionDrawer((prev) => ({
+        ...prev,
+        loading: false,
+        historial: [],
+        error: message,
+      }));
+    }
+  }, []);
+
+  const cerrarDrawerProduccion = useCallback(() => {
+    setProduccionDrawer({ open: false, loading: false, documentoId: null, titulo: '', historial: [], error: null });
+  }, []);
+
+  const produccionActual = useMemo(
+    () => produccionDrawer.historial.find((item) => item.activo) ?? produccionDrawer.historial[0] ?? null,
+    [produccionDrawer.historial]
+  );
 
   const pendingDeleteRow = pendingDeleteId
     ? rows.find((row) => Number(row.id) === Number(pendingDeleteId)) ?? null
@@ -934,7 +1071,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     columns.push({
       field: 'actions',
       headerName: 'Acciones',
-  width: esCotizacion ? 340 : 270,
+  width: esCotizacion ? 440 : 270,
       sortable: false,
       filterable: false,
       headerAlign: 'center',
@@ -969,6 +1106,41 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   }}
                 >
                   <ContentCopyIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
+          {tipoDocumento === 'cotizacion' && (
+            <Tooltip title="Enviar a producción">
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    abrirDialogoProduccion(params.row as CotizacionListado);
+                  }}
+                >
+                  <PlaylistAddCheckIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
+          {tipoDocumento === 'cotizacion' && (
+            <Tooltip title="Ver producción">
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void abrirDrawerProduccion(params.row as CotizacionListado);
+                  }}
+                >
+                  <PrecisionManufacturingIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
@@ -1110,6 +1282,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     calcularEstatusFinanciero,
     tieneOpcionesGeneracion,
     vendedoresPorId,
+    abrirDialogoProduccion,
+    abrirDrawerProduccion,
     esCotizacion,
   ]);
 
@@ -1703,6 +1877,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             }
             if (params.field === 'estado_seguimiento' && esCotizacion) {
               handleOpenSeguimientoMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado);
+              return;
+            }
+            if (params.field === 'actions') {
+              return;
             }
           }}
           onRowClick={(params: GridRowParams, event) => {
@@ -2096,6 +2274,230 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             startIcon={enviarCotizacionDialog.enviando ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
             {enviarCotizacionDialog.enviando ? 'Enviando...' : 'Enviar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Drawer
+        anchor="right"
+        open={produccionDrawer.open}
+        onClose={cerrarDrawerProduccion}
+        PaperProps={{
+          sx: {
+            width: { xs: '100%', sm: 440, md: 520 },
+            maxWidth: '100%',
+          },
+        }}
+      >
+        <Box sx={{ p: 3, height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+            <Box>
+              <Typography variant="h6" fontWeight={700} color="#1d2f68">
+                Producción
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {produccionDrawer.titulo ? `Cotización ${produccionDrawer.titulo}` : 'Consulta del avance operativo'}
+              </Typography>
+            </Box>
+            <IconButton onClick={cerrarDrawerProduccion} aria-label="Cerrar producción">
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+
+          {produccionDrawer.loading ? (
+            <Stack spacing={1.5} alignItems="center" sx={{ py: 6 }}>
+              <CircularProgress size={28} />
+              <Typography variant="body2" color="text.secondary">
+                Cargando historial...
+              </Typography>
+            </Stack>
+          ) : produccionDrawer.error ? (
+            <Alert severity="error" variant="outlined">
+              {produccionDrawer.error}
+            </Alert>
+          ) : (
+            <>
+              <Box
+                sx={{
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 2,
+                  backgroundColor: '#f8fafc',
+                  p: 2,
+                }}
+              >
+                <Typography variant="overline" sx={{ color: '#6b7280', letterSpacing: 0.8 }}>
+                  Estado actual
+                </Typography>
+                {produccionActual ? (
+                  <Stack spacing={1} sx={{ mt: 1 }}>
+                    <Chip
+                      size="small"
+                      label={produccionActual.etapa_nombre || 'Sin etapa'}
+                      sx={{
+                        alignSelf: 'flex-start',
+                        fontWeight: 700,
+                        backgroundColor: normalizeHexColor(produccionActual.etapa_color) || '#e5e7eb',
+                        color: getContrastingTextColor(produccionActual.etapa_color),
+                        '& .MuiChip-label': {
+                          color: getContrastingTextColor(produccionActual.etapa_color),
+                        },
+                      }}
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                      Fecha compromiso: {formatCivilDate(produccionActual.fecha_promesa)}
+                    </Typography>
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    No hay seguimiento de producción para esta cotización.
+                  </Typography>
+                )}
+              </Box>
+
+              <Divider />
+
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ mb: 1 }}>
+                  Historial de avances
+                </Typography>
+
+                {produccionDrawer.historial.length === 0 ? (
+                  <Alert severity="info" variant="outlined">
+                    Todavía no hay avances registrados.
+                  </Alert>
+                ) : (
+                  <Stack spacing={1.25}>
+                    {produccionDrawer.historial.map((avance) => {
+                      const backgroundColor = normalizeHexColor(avance.etapa_color) || '#e5e7eb';
+                      const textColor = getContrastingTextColor(avance.etapa_color);
+
+                      return (
+                        <Box
+                          key={avance.id}
+                          sx={{
+                            border: '1px solid #e5e7eb',
+                            borderLeft: `4px solid ${backgroundColor}`,
+                            borderRadius: 2,
+                            bgcolor: avance.activo ? '#f8fafc' : '#ffffff',
+                            p: 1.5,
+                          }}
+                        >
+                          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                            <Chip
+                              size="small"
+                              label={avance.etapa_nombre || 'Sin etapa'}
+                              sx={{
+                                fontWeight: 700,
+                                backgroundColor,
+                                color: textColor,
+                                '& .MuiChip-label': {
+                                  color: textColor,
+                                },
+                              }}
+                            />
+                            {avance.activo ? <Chip size="small" label="Actual" color="success" variant="outlined" /> : null}
+                          </Stack>
+
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                            {formatProductionDateTime(avance.created_at)}
+                          </Typography>
+
+                          <Typography variant="body2" sx={{ mt: 0.75, whiteSpace: 'pre-wrap', color: '#111827' }}>
+                            {avance.comentarios || 'Sin comentario'}
+                          </Typography>
+
+                          <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} alignItems="center" flexWrap="wrap">
+                            {avance.usuario_nombre ? (
+                              <Typography variant="caption" color="text.secondary">
+                                Por {avance.usuario_nombre}
+                              </Typography>
+                            ) : null}
+                            <Typography variant="caption" color="text.secondary">
+                              Compromiso: {formatCivilDate(avance.fecha_promesa)}
+                            </Typography>
+                          </Stack>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Box>
+            </>
+          )}
+        </Box>
+      </Drawer>
+
+      <Dialog
+        open={produccionDialog.open}
+        onClose={() => !produccionDialog.enviando && setProduccionDialog({ open: false, id: null, fechaPromesa: toCivilDate(), comentarios: '', enviando: false, error: null })}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Enviar a producción</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              Crea el seguimiento operativo en Producción para esta cotización usando la primera etapa activa disponible.
+            </DialogContentText>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Fecha compromiso"
+              type="date"
+              value={produccionDialog.fechaPromesa}
+              onChange={(e) => setProduccionDialog((prev) => ({ ...prev, fechaPromesa: e.target.value, error: null }))}
+              error={Boolean(produccionDialog.error)}
+              helperText={produccionDialog.error || ' '}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              label="Comentario"
+              multiline
+              minRows={3}
+              value={produccionDialog.comentarios}
+              onChange={(e) => setProduccionDialog((prev) => ({ ...prev, comentarios: e.target.value }))}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button
+            onClick={() => setProduccionDialog({ open: false, id: null, fechaPromesa: toCivilDate(), comentarios: '', enviando: false, error: null })}
+            disabled={produccionDialog.enviando}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              const fechaPromesa = produccionDialog.fechaPromesa.trim();
+              if (!fechaPromesa) {
+                setProduccionDialog((prev) => ({ ...prev, error: 'La fecha compromiso es obligatoria' }));
+                return;
+              }
+              try {
+                setProduccionDialog((prev) => ({ ...prev, enviando: true, error: null }));
+                const response = await createSeguimientoProduccion({
+                  documento_id: Number(produccionDialog.id),
+                  fecha_promesa: fechaPromesa,
+                  comentarios: produccionDialog.comentarios.trim() || null,
+                });
+                setSnackbar({
+                  open: true,
+                  message: response.message || (response.created ? 'Seguimiento enviado a producción' : 'El seguimiento ya existía en producción'),
+                  severity: response.created ? 'success' : 'info',
+                });
+                setProduccionDialog({ open: false, id: null, fechaPromesa: toCivilDate(), comentarios: '', enviando: false, error: null });
+              } catch (err: any) {
+                const msg = err?.message || 'No se pudo enviar a producción';
+                setProduccionDialog((prev) => ({ ...prev, enviando: false, error: msg }));
+                setSnackbar({ open: true, message: msg, severity: 'error' });
+              }
+            }}
+            disabled={produccionDialog.enviando}
+            startIcon={produccionDialog.enviando ? <CircularProgress size={16} color="inherit" /> : undefined}
+          >
+            {produccionDialog.enviando ? 'Enviando...' : 'Enviar'}
           </Button>
         </DialogActions>
       </Dialog>

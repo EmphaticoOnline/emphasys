@@ -52,6 +52,7 @@ import inventarioRouter from "./modules/inventario/inventario.routes";
 import almacenesRouter from "./modules/almacenes/almacenes.routes";
 import uploadsRouter from "./modules/uploads/uploads.routes";
 import crmOportunidadesRouter from "./crm/oportunidades.routes";
+import produccionRouter from "./modules/produccion/produccion.routes";
 
 const app = express();
 
@@ -139,6 +140,7 @@ app.use("/api", formatosImpresionRouter);
 app.use("/api", configuracionEmailRouter);
 app.use("/api/finanzas", finanzasRouter);
 app.use("/api/conceptos", conceptosRouter);
+app.use("/api/produccion", produccionRouter);
 app.use("/api/inventario", inventarioRouter);
 app.use("/api/almacenes", almacenesRouter);
 app.use("/api/uploads", uploadsRouter);

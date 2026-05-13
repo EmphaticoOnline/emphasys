@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-09T02:56:41.519Z
+-- Generated at: 2026-05-13T01:37:34.016Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict TYV6utbCX8uhG1dvAsh5scyBbsgYDq242dmwBKY15WSey61VBV0au1HlVAGPVEY
+\restrict PfvO4VNiYGZbsO8eaLKi2pvHUu4dLw6WHAn65J5cOHcz9Yc6lpfjOKUe5KKsToG
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -48,6 +48,13 @@ CREATE SCHEMA inventario;
 --
 
 COMMENT ON SCHEMA inventario IS 'Módulo de inventario del ERP. Contiene movimientos, partidas y existencias por producto y almacén.';
+
+
+--
+-- Name: produccion; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA produccion;
 
 
 --
@@ -377,6 +384,20 @@ ON CONFLICT DO NOTHING;
   ---------------------------------------------------------------------------
   RAISE NOTICE 'Bootstrap completado para la empresa %.', p_empresa_id;
 
+END;
+$$;
+
+
+--
+-- Name: set_updated_at(); Type: FUNCTION; Schema: core; Owner: -
+--
+
+CREATE FUNCTION core.set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
 END;
 $$;
 
@@ -2543,7 +2564,7 @@ CREATE TABLE crm.conversaciones (
     prioridad character varying(10) DEFAULT 'media'::character varying NOT NULL,
     siguiente_accion character varying(30) DEFAULT 'responder'::character varying NOT NULL,
     etapa_oportunidad character varying(30) DEFAULT 'nuevo'::character varying NOT NULL,
-    CONSTRAINT chk_etapa_oportunidad CHECK (((etapa_oportunidad)::text = ANY ((ARRAY['nuevo'::character varying, 'contactado'::character varying, 'interesado'::character varying, 'cotizado'::character varying, 'negociacion'::character varying, 'ganado'::character varying, 'perdido'::character varying])::text[]))),
+    CONSTRAINT chk_etapa_oportunidad CHECK (((etapa_oportunidad)::text = ANY ((ARRAY['nuevo'::character varying, 'contactado'::character varying, 'interesado'::character varying, 'cotizado'::character varying, 'negociacion'::character varying, 'convertida'::character varying, 'perdida'::character varying])::text[]))),
     CONSTRAINT conversaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('abierta'::character varying)::text, ('cerrada'::character varying)::text])))
 );
 
@@ -2567,6 +2588,13 @@ COMMENT ON COLUMN crm.conversaciones.empresa_id IS 'Empresa propietaria de la co
 --
 
 COMMENT ON COLUMN crm.conversaciones.contacto_id IS 'Contacto asociado a la conversacion.';
+
+
+--
+-- Name: COLUMN conversaciones.etapa_oportunidad; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.etapa_oportunidad IS 'Etapa comercial del lead: nuevo, contactado, interesado, cotizado, negociacion, convertida o perdida.';
 
 
 --
@@ -2908,7 +2936,7 @@ COMMENT ON COLUMN crm.oportunidades_venta.vendedor_id IS 'Vendedor responsable d
 -- Name: COLUMN oportunidades_venta.estatus; Type: COMMENT; Schema: crm; Owner: -
 --
 
-COMMENT ON COLUMN crm.oportunidades_venta.estatus IS 'Estatus: abierta, pausada, ganada, perdida o cancelada.';
+COMMENT ON COLUMN crm.oportunidades_venta.estatus IS 'Estatus comercial: abierta, pausada, convertida, perdida o cancelada.';
 
 
 --
@@ -3499,6 +3527,79 @@ ALTER SEQUENCE inventario.movimientos_partidas_id_seq OWNED BY inventario.movimi
 
 
 --
+-- Name: etapas; Type: TABLE; Schema: produccion; Owner: -
+--
+
+CREATE TABLE produccion.etapas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    nombre character varying(100) NOT NULL,
+    orden integer DEFAULT 0 NOT NULL,
+    color character varying(20),
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: etapas_id_seq; Type: SEQUENCE; Schema: produccion; Owner: -
+--
+
+CREATE SEQUENCE produccion.etapas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: etapas_id_seq; Type: SEQUENCE OWNED BY; Schema: produccion; Owner: -
+--
+
+ALTER SEQUENCE produccion.etapas_id_seq OWNED BY produccion.etapas.id;
+
+
+--
+-- Name: seguimientos; Type: TABLE; Schema: produccion; Owner: -
+--
+
+CREATE TABLE produccion.seguimientos (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    documento_id integer NOT NULL,
+    etapa_id integer,
+    fecha_promesa date,
+    comentarios text,
+    updated_by integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: seguimientos_id_seq; Type: SEQUENCE; Schema: produccion; Owner: -
+--
+
+CREATE SEQUENCE produccion.seguimientos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: seguimientos_id_seq; Type: SEQUENCE OWNED BY; Schema: produccion; Owner: -
+--
+
+ALTER SEQUENCE produccion.seguimientos_id_seq OWNED BY produccion.seguimientos.id;
+
+
+--
 -- Name: aplicaciones; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3992,7 +4093,8 @@ CREATE TABLE public.documentos (
     tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL,
     estado_seguimiento text DEFAULT 'borrador'::text,
     comentario_seguimiento text,
-    producto_resumen text
+    producto_resumen text,
+    oportunidad_id integer
 );
 
 
@@ -6517,6 +6619,20 @@ ALTER TABLE ONLY inventario.movimientos_partidas ALTER COLUMN id SET DEFAULT nex
 
 
 --
+-- Name: etapas id; Type: DEFAULT; Schema: produccion; Owner: -
+--
+
+ALTER TABLE ONLY produccion.etapas ALTER COLUMN id SET DEFAULT nextval('produccion.etapas_id_seq'::regclass);
+
+
+--
+-- Name: seguimientos id; Type: DEFAULT; Schema: produccion; Owner: -
+--
+
+ALTER TABLE ONLY produccion.seguimientos ALTER COLUMN id SET DEFAULT nextval('produccion.seguimientos_id_seq'::regclass);
+
+
+--
 -- Name: aplicaciones id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -7136,6 +7252,22 @@ ALTER TABLE ONLY inventario.almacenes
 
 ALTER TABLE ONLY inventario.existencias
     ADD CONSTRAINT uq_inv_existencias_empresa_producto_almacen UNIQUE (empresa_id, producto_id, almacen_id);
+
+
+--
+-- Name: etapas etapas_pkey; Type: CONSTRAINT; Schema: produccion; Owner: -
+--
+
+ALTER TABLE ONLY produccion.etapas
+    ADD CONSTRAINT etapas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: seguimientos seguimientos_pkey; Type: CONSTRAINT; Schema: produccion; Owner: -
+--
+
+ALTER TABLE ONLY produccion.seguimientos
+    ADD CONSTRAINT seguimientos_pkey PRIMARY KEY (id);
 
 
 --
@@ -8457,6 +8589,48 @@ COMMENT ON INDEX inventario.uq_inventario_almacenes_empresa_clave IS 'Garantiza 
 
 
 --
+-- Name: idx_produccion_etapas_empresa; Type: INDEX; Schema: produccion; Owner: -
+--
+
+CREATE INDEX idx_produccion_etapas_empresa ON produccion.etapas USING btree (empresa_id);
+
+
+--
+-- Name: idx_produccion_etapas_empresa_orden; Type: INDEX; Schema: produccion; Owner: -
+--
+
+CREATE INDEX idx_produccion_etapas_empresa_orden ON produccion.etapas USING btree (empresa_id, orden);
+
+
+--
+-- Name: idx_produccion_seguimientos_documento; Type: INDEX; Schema: produccion; Owner: -
+--
+
+CREATE INDEX idx_produccion_seguimientos_documento ON produccion.seguimientos USING btree (documento_id);
+
+
+--
+-- Name: idx_produccion_seguimientos_empresa; Type: INDEX; Schema: produccion; Owner: -
+--
+
+CREATE INDEX idx_produccion_seguimientos_empresa ON produccion.seguimientos USING btree (empresa_id);
+
+
+--
+-- Name: idx_produccion_seguimientos_etapa; Type: INDEX; Schema: produccion; Owner: -
+--
+
+CREATE INDEX idx_produccion_seguimientos_etapa ON produccion.seguimientos USING btree (etapa_id);
+
+
+--
+-- Name: ux_produccion_seguimientos_empresa_documento; Type: INDEX; Schema: produccion; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_produccion_seguimientos_empresa_documento ON produccion.seguimientos USING btree (empresa_id, documento_id);
+
+
+--
 -- Name: documentos_unico; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8685,6 +8859,13 @@ CREATE INDEX idx_documentos_cfdi_uuid ON public.documentos_cfdi USING btree (uui
 --
 
 CREATE INDEX idx_documentos_estado_seguimiento ON public.documentos USING btree (estado_seguimiento);
+
+
+--
+-- Name: idx_documentos_oportunidad_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_oportunidad_id ON public.documentos USING btree (oportunidad_id);
 
 
 --
@@ -9147,6 +9328,20 @@ CREATE TRIGGER trg_usuarios_vendedor_contacto BEFORE INSERT OR UPDATE OF vendedo
 --
 
 CREATE TRIGGER trg_actividades_updated_at BEFORE UPDATE ON crm.actividades FOR EACH ROW EXECUTE FUNCTION crm.set_actividades_updated_at();
+
+
+--
+-- Name: etapas trg_produccion_etapas_updated_at; Type: TRIGGER; Schema: produccion; Owner: -
+--
+
+CREATE TRIGGER trg_produccion_etapas_updated_at BEFORE UPDATE ON produccion.etapas FOR EACH ROW EXECUTE FUNCTION core.set_updated_at();
+
+
+--
+-- Name: seguimientos trg_produccion_seguimientos_updated_at; Type: TRIGGER; Schema: produccion; Owner: -
+--
+
+CREATE TRIGGER trg_produccion_seguimientos_updated_at BEFORE UPDATE ON produccion.seguimientos FOR EACH ROW EXECUTE FUNCTION core.set_updated_at();
 
 
 --
@@ -9617,6 +9812,14 @@ ALTER TABLE ONLY inventario.movimientos_partidas
 
 ALTER TABLE ONLY inventario.almacenes
     ADD CONSTRAINT fk_inventario_almacenes_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: seguimientos fk_produccion_seguimientos_etapa; Type: FK CONSTRAINT; Schema: produccion; Owner: -
+--
+
+ALTER TABLE ONLY produccion.seguimientos
+    ADD CONSTRAINT fk_produccion_seguimientos_etapa FOREIGN KEY (etapa_id) REFERENCES produccion.etapas(id) ON DELETE SET NULL;
 
 
 --
@@ -10103,5 +10306,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict TYV6utbCX8uhG1dvAsh5scyBbsgYDq242dmwBKY15WSey61VBV0au1HlVAGPVEY
+\unrestrict PfvO4VNiYGZbsO8eaLKi2pvHUu4dLw6WHAn65J5cOHcz9Yc6lpfjOKUe5KKsToG
 

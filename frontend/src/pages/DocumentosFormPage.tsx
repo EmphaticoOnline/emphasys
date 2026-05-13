@@ -75,7 +75,19 @@ import {
 } from '../services/camposDinamicosService';
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
 
-const defaultFecha = () => new Date().toISOString().substring(0, 10);
+const toCivilDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeCivilDate = (value: string | null | undefined) => {
+  const match = String(value ?? '').trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? '';
+};
+
+const defaultFecha = () => toCivilDate();
 const validarRFC = (rfc: string) => /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(rfc);
 
 type PartidaForm = Omit<CotizacionPartidaPayload, 'impuestos'> & {
@@ -743,7 +755,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         oportunidad_id: (doc as any).oportunidad_id ?? null,
         contacto_principal_id: doc.contacto_principal_id,
         agente_id: (doc as any).agente_id ?? null,
-        fecha_documento: doc.fecha_documento?.substring(0, 10) || defaultFecha(),
+        fecha_documento: normalizeCivilDate(doc.fecha_documento) || defaultFecha(),
         moneda: doc.moneda || 'MXN',
         observaciones: doc.observaciones || '',
         subtotal: doc.subtotal || 0,

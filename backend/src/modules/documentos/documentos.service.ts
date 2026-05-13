@@ -19,6 +19,13 @@ type DuplicarCotizacionResult = {
 
 const OPORTUNIDAD_ESTATUS_SYNC_VALIDOS = new Set<string>(OPORTUNIDAD_ESTADOS_SEGUIMIENTO);
 
+const currentCivilDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 /**
  * Asigna agente_id (si no viene en el payload) con las reglas definidas.
  */
@@ -383,7 +390,7 @@ export async function duplicarCotizacionService(documentoId: number, empresaId: 
 
     const nuevoDocumento = await crearDocumentoRepository(
       {
-        fecha_documento: new Date().toISOString().slice(0, 10),
+        fecha_documento: currentCivilDate(),
         oportunidad_id: oportunidadId,
         documento_origen_id: documentoOrigen.id,
         contacto_principal_id: documentoOrigen.contacto_principal_id ?? null,
