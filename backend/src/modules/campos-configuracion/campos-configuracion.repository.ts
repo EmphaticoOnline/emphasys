@@ -28,6 +28,12 @@ export type CamposConfiguracionFiltro = {
   incluirInactivos?: boolean;
 };
 
+function validarCatalogoTipoLista(payload: Partial<CampoConfiguracion>): void {
+  if (payload.tipo_dato === 'lista' && !payload.catalogo_tipo_id) {
+    throw new Error('catalogo_tipo_id es obligatorio cuando tipo_dato es lista');
+  }
+}
+
 export async function obtenerCamposConfiguracion(
   empresaId: number,
   filtros: CamposConfiguracionFiltro = {}
@@ -119,6 +125,7 @@ export async function crearCampoConfiguracion(
   empresaId: number,
   payload: Partial<CampoConfiguracion>
 ): Promise<CampoConfiguracion> {
+  validarCatalogoTipoLista(payload);
   await validarCampoPadre(empresaId, payload, null);
 
   const cols = [
@@ -193,7 +200,12 @@ export async function actualizarCampoConfiguracion(
 
   if (!sets.length) return null;
 
-  const baseQuery = `SELECT entidad_tipo_id, tipo_documento FROM core.campos_configuracion WHERE id = $1 AND empresa_id = $2 LIMIT 1`;
+  const baseQuery = `
+    SELECT entidad_tipo_id, tipo_documento, tipo_dato, catalogo_tipo_id
+      FROM core.campos_configuracion
+     WHERE id = $1 AND empresa_id = $2
+     LIMIT 1
+  `;
   const baseRes = await pool.query(baseQuery, [id, empresaId]);
   const actual = baseRes.rows[0];
   if (!actual) return null;
@@ -201,9 +213,12 @@ export async function actualizarCampoConfiguracion(
   const merged: Partial<CampoConfiguracion> = {
     entidad_tipo_id: payload.entidad_tipo_id ?? actual.entidad_tipo_id,
     tipo_documento: payload.tipo_documento ?? actual.tipo_documento,
+    tipo_dato: ('tipo_dato' in payload ? payload.tipo_dato : actual.tipo_dato) as CampoConfiguracion['tipo_dato'],
+    catalogo_tipo_id: 'catalogo_tipo_id' in payload ? payload.catalogo_tipo_id ?? null : actual.catalogo_tipo_id ?? null,
     campo_padre_id: payload.campo_padre_id ?? undefined,
   } as any;
 
+  validarCatalogoTipoLista(merged);
   await validarCampoPadre(empresaId, merged, id);
 
   values.push(id);

@@ -6,6 +6,7 @@ import { clearSession, loadSession } from '../session/sessionStorage';
 const BASE_PATH: Record<TipoDocumento, string> = {
   cotizacion: '/api/documentos',
   factura: '/api/facturas',
+  orden_servicio: '/api/documentos',
   pedido: '/api/documentos',
   remision: '/api/documentos',
 };

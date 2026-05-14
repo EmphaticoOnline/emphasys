@@ -33,6 +33,7 @@ const buildFolio = (serie?: string | null, numero?: number | null) => {
 const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   cotizacion: "COT",
   factura: "FAC",
+  orden_servicio: "OS",
   pedido: "PED",
   remision: "REM",
   orden_entrega: "ODE",

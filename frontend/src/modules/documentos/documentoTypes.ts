@@ -68,6 +68,60 @@ export type DocumentoFiscalRules = {
 
 export type DocumentoEstatus = 'borrador' | 'emitido' | 'cancelado' | 'cerrado' | 'timbrado' | 'pagado';
 
+export type DocumentoAccion =
+  | 'duplicar'
+  | 'enviar_email'
+  | 'enviar_produccion'
+  | 'ver_produccion'
+  | 'aplicar_pago'
+  | 'timbrar';
+
+export type DocumentoTextos = {
+  nuevo: string;
+  editar: string;
+  guardado: string;
+  cargando: string;
+  singular: string;
+};
+
+export type EntidadCreationMode = 'inline' | 'full' | 'disabled';
+
+export type ContactCaptureMode = 'simple' | 'detailed';
+
+export type ProductoCaptureMode = 'simple' | 'detailed';
+
+export type VendedorCaptureMode = 'simple' | 'detailed';
+
+export type ContactoTipoPermitido = 'Lead' | 'Cliente' | 'Proveedor';
+
+export type ProductoTipoPermitido = 'Inventariable' | 'No inventariable' | 'Kit';
+
+export type VendedorTipoPermitido = 'Vendedor';
+
+export type DocumentoEntidadContextualConfig<TCaptureMode extends string, TTipoPermitido extends string> = {
+  creationMode?: EntidadCreationMode;
+  captureMode?: TCaptureMode;
+  tiposPermitidos?: TTipoPermitido[];
+};
+
+export type DocumentoContactoConfig = DocumentoEntidadContextualConfig<ContactCaptureMode, ContactoTipoPermitido> & {
+  defaultTipoContacto?: ContactoTipoPermitido;
+};
+
+export type DocumentoProductoConfig = DocumentoEntidadContextualConfig<ProductoCaptureMode, ProductoTipoPermitido> & {
+  defaultTipoProducto?: ProductoTipoPermitido;
+};
+
+export type DocumentoVendedorConfig = DocumentoEntidadContextualConfig<VendedorCaptureMode, VendedorTipoPermitido> & {
+  defaultTipoVendedor?: VendedorTipoPermitido;
+};
+
+export type DocumentoRelatedEntitiesConfig = {
+  contacto?: DocumentoContactoConfig;
+  vendedor?: DocumentoVendedorConfig;
+  producto?: DocumentoProductoConfig;
+};
+
 export type DocumentoTypeConfig = {
   tipo: TipoDocumento;
   label: string;
@@ -76,6 +130,29 @@ export type DocumentoTypeConfig = {
   campos?: Partial<Record<DocumentoField, DocumentoFieldRule>>;
   fiscales?: DocumentoFiscalRules;
   estatusPermitidos?: DocumentoEstatus[];
+  textos?: Partial<DocumentoTextos>;
+  features?: {
+    filtroAgente?: boolean;
+    mostrarSaldo?: boolean;
+    tiposContactoPermitidos?: string[];
+    accionesDisponibles?: DocumentoAccion[];
+  };
+  partidas?: {
+    mostrarImagenes?: boolean;
+    mostrarEsParteOportunidad?: boolean;
+    mostrarMontoOportunidad?: boolean;
+  };
+  widgets?: {
+    pagosDrawer?: boolean;
+    origenDocumento?: boolean;
+    tratamientoFiscal?: boolean;
+    fiscalTab?: boolean;
+  };
+  defaults?: {
+    serie?: string | null;
+    estadoSeguimiento?: string | null;
+  };
+  relatedEntities?: DocumentoRelatedEntitiesConfig;
 };
 
 export type DocumentoTypeConfigMap = Record<TipoDocumento, DocumentoTypeConfig>;

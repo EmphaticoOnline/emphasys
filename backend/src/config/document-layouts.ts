@@ -37,4 +37,16 @@ export const DOCUMENT_LAYOUTS: Record<string, DocumentLayout> = {
     colorTablaHeader: '#1d2f68',
     mostrarLogo: true,
   },
+  orden_servicio: {
+    mostrarHeader: true,
+    mostrarCliente: true,
+    mostrarPartidas: true,
+    mostrarTotales: true,
+    mostrarObservacionesPartida: true,
+    mostrarImagenPartida: false,
+    titulo: null,
+    colorPrimario: null,
+    colorTablaHeader: '#1d2f68',
+    mostrarLogo: true,
+  },
 };

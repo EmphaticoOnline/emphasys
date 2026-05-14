@@ -1,6 +1,7 @@
 export type TipoDocumento =
   | 'cotizacion'
   | 'factura'
+  | 'orden_servicio'
   | 'pedido'
   | 'remision'
   | 'orden_entrega'

@@ -34,6 +34,11 @@ export interface FinanzasOperacion {
   cuenta_id: number;
   contacto_id?: number | null;
   contacto_nombre?: string | null;
+  documento_origen_id?: number | null;
+  documento_origen_tipo_documento?: string | null;
+  documento_origen_serie?: string | null;
+  documento_origen_numero?: number | null;
+  documento_origen_total?: number | null;
   factura_id?: number | null;
   es_transferencia?: boolean;
   transferencia_id?: number | null;
@@ -84,6 +89,45 @@ export interface DocumentoSaldo {
   tipo_cambio?: number | null;
   total: number;
   saldo: number;
+}
+
+export interface DocumentoAnticipoResumen {
+  documento_id: number;
+  empresa_id: number;
+  tipo_documento: string;
+  flujo: 'ventas' | 'compras' | null;
+  total_documento: number;
+  total_anticipado: number;
+  total_aplicado: number;
+  disponible_por_aplicar: number;
+  pendiente_estimado: number;
+  cantidad_operaciones: number;
+}
+
+export interface AnticipoDisponible {
+  finanzas_operacion_id: number;
+  empresa_id: number;
+  documento_origen_id: number;
+  tipo_movimiento: string;
+  naturaleza_operacion: string;
+  fecha: string;
+  monto_total: number;
+  monto_aplicado: number;
+  monto_disponible: number;
+  contacto_id: number | null;
+  contacto_nombre: string | null;
+  cuenta_id: number;
+  cuenta_identificador: string | null;
+  moneda: string | null;
+}
+
+export interface DocumentoAnticiposDisponibles {
+  documento_id: number;
+  empresa_id: number;
+  tipo_documento: string;
+  flujo: 'ventas' | 'compras' | null;
+  anticipos: AnticipoDisponible[];
+  total_disponible: number;
 }
 
 export interface EstadoCuentaItem {

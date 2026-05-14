@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import {
+  aplicarAnticiposDocumentoDestino,
   actualizarCuenta,
   actualizarOperacion,
   actualizarTransferencia,
@@ -22,6 +23,8 @@ import {
   obtenerDisponibleOperacion,
   obtenerOperacionPorId,
   listarAplicacionesPorOperacion,
+  listarAnticiposDisponiblesDocumentoOrigen,
+  obtenerResumenAnticiposDocumento,
 } from './finanzas.repository';
 
 export async function getReporteAging(req: Request, res: Response) {
@@ -100,6 +103,36 @@ export async function getSaldoDocumento(req: Request, res: Response) {
     res.status(400).json({ message: err.message || 'No se pudo obtener saldo' });
   }
 }
+
+export async function getResumenAnticiposDocumento(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const documentoId = Number(req.params.id);
+  if (!Number.isFinite(documentoId)) return res.status(400).json({ message: 'documentoId inválido' });
+  try {
+    const row = await obtenerResumenAnticiposDocumento(documentoId, empresaId);
+    if (!row) return res.status(404).json({ message: 'Documento no encontrado' });
+    res.json(row);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message || 'No se pudo obtener resumen de anticipos' });
+  }
+}
+
+export async function getAnticiposDisponiblesDocumento(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const documentoId = Number(req.params.id);
+  if (!Number.isFinite(documentoId)) return res.status(400).json({ message: 'documentoId inválido' });
+  try {
+    const row = await listarAnticiposDisponiblesDocumentoOrigen(documentoId, empresaId);
+    if (!row) return res.status(404).json({ message: 'Documento no encontrado' });
+    res.json(row);
+  } catch (err: any) {
+    const status = err?.status ?? 400;
+    res.status(status).json({ message: err.message || 'No se pudo obtener anticipos disponibles' });
+  }
+}
+
 export async function getAplicacionesPorDocumento(req: Request, res: Response) {
   const empresaId = req.context?.empresaId as number;
   if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
@@ -274,6 +307,26 @@ export async function postAplicacion(req: Request, res: Response) {
   } catch (err: any) {
     const status = err?.status ?? 400;
     res.status(status).json({ message: err.message || 'No se pudo registrar la aplicación' });
+  }
+}
+
+export async function postAplicarAnticiposDocumento(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+    const documentoId = Number(req.params.id);
+    if (!Number.isFinite(documentoId)) return res.status(400).json({ message: 'documentoId inválido' });
+    const result = await aplicarAnticiposDocumentoDestino(
+      {
+        ...(req.body || {}),
+        documento_origen_id: documentoId,
+      },
+      empresaId
+    );
+    res.status(201).json(result);
+  } catch (err: any) {
+    const status = err?.status ?? 400;
+    res.status(status).json({ message: err.message || 'No se pudo aplicar anticipos al documento' });
   }
 }
 

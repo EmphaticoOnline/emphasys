@@ -1,3 +1,52 @@
+import pool from '../../config/database';
+import type { PoolClient } from 'pg';
+import { obtenerReglaDocumentoOrigenFinanciero } from './documento-origen-financiero';
+
+const currentCivilDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export type AnticipoDisponible = {
+  finanzas_operacion_id: number;
+  empresa_id: number;
+  documento_origen_id: number;
+  tipo_movimiento: string;
+  naturaleza_operacion: string;
+  fecha: string;
+  monto_total: number;
+  monto_aplicado: number;
+  monto_disponible: number;
+  contacto_id: number | null;
+  contacto_nombre: string | null;
+  cuenta_id: number;
+  cuenta_identificador: string | null;
+  moneda: string | null;
+};
+
+type AplicacionSaldoInput = {
+  finanzas_operacion_id?: number | null;
+  documento_origen_id?: number | null;
+  documento_destino_id: number;
+  monto: number;
+  monto_moneda_documento: number;
+  fecha_aplicacion?: string | null;
+};
+
+type AplicacionAnticipoBatchInput = {
+  documento_origen_id: number;
+  documento_destino_id: number;
+  aplicaciones: Array<{
+    finanzas_operacion_id: number;
+    monto: number;
+    monto_moneda_documento?: number | null;
+    fecha_aplicacion?: string | null;
+  }>;
+  fecha_aplicacion?: string | null;
+};
+
 export async function obtenerSaldoDocumento(id: number, empresaId: number) {
   const sql = `
     SELECT id, empresa_id, tipo_documento, moneda, tipo_cambio, total, saldo
@@ -10,14 +59,183 @@ export async function obtenerSaldoDocumento(id: number, empresaId: number) {
 
 export async function obtenerOperacionPorId(id: number, empresaId: number) {
   const sql = `
-    SELECT fo.*, c.nombre AS contacto_nombre, fc.identificador AS cuenta_nombre
+    SELECT fo.*, c.nombre AS contacto_nombre, fc.identificador AS cuenta_nombre,
+           d.tipo_documento AS documento_origen_tipo_documento,
+           d.serie AS documento_origen_serie,
+           d.numero AS documento_origen_numero,
+           d.total AS documento_origen_total
     FROM finanzas_operaciones fo
     LEFT JOIN contactos c ON c.id = fo.contacto_id
     LEFT JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id
+    LEFT JOIN documentos d ON d.id = fo.documento_origen_id AND d.empresa_id = fo.empresa_id
     WHERE fo.id = $1 AND fo.empresa_id = $2
   `;
   const { rows } = await pool.query(sql, [id, empresaId]);
   return rows[0] || null;
+}
+
+export async function obtenerResumenAnticiposDocumento(documentoId: number, empresaId: number) {
+  const { rows: documentoRows } = await pool.query<{
+    id: number;
+    empresa_id: number;
+    tipo_documento: string;
+    total: string;
+  }>(
+    `SELECT id, empresa_id, tipo_documento, total
+     FROM documentos
+     WHERE id = $1 AND empresa_id = $2`,
+    [documentoId, empresaId]
+  );
+
+  const documento = documentoRows[0];
+  if (!documento) return null;
+
+  const regla = obtenerReglaDocumentoOrigenFinanciero(documento.tipo_documento);
+  if (!regla) {
+    return {
+      documento_id: documento.id,
+      empresa_id: documento.empresa_id,
+      tipo_documento: documento.tipo_documento,
+      flujo: null,
+      total_documento: Number(documento.total || 0),
+      total_anticipado: 0,
+      total_aplicado: 0,
+      disponible_por_aplicar: 0,
+      pendiente_estimado: Number(documento.total || 0),
+      cantidad_operaciones: 0,
+    };
+  }
+
+  const sql = `
+    WITH operaciones_origen AS (
+      SELECT fo.id, fo.monto
+      FROM finanzas_operaciones fo
+      WHERE fo.empresa_id = $1
+        AND fo.documento_origen_id = $2
+        AND fo.tipo_movimiento = $3
+        AND fo.naturaleza_operacion = $4
+    ),
+    totales AS (
+      SELECT
+        COUNT(*)::int AS cantidad_operaciones,
+        COALESCE(SUM(monto), 0) AS total_anticipado
+      FROM operaciones_origen
+    ),
+    aplicaciones AS (
+      SELECT COALESCE(SUM(a.monto), 0) AS total_aplicado
+      FROM aplicaciones_saldo a
+      JOIN operaciones_origen oo ON oo.id = a.finanzas_operacion_id
+    )
+    SELECT
+      $2::int AS documento_id,
+      $1::int AS empresa_id,
+      $5::text AS tipo_documento,
+      $6::text AS flujo,
+      $7::numeric AS total_documento,
+      t.total_anticipado,
+      ap.total_aplicado,
+      t.total_anticipado - ap.total_aplicado AS disponible_por_aplicar,
+      GREATEST($7::numeric - t.total_anticipado, 0) AS pendiente_estimado,
+      t.cantidad_operaciones
+    FROM totales t
+    CROSS JOIN aplicaciones ap
+  `;
+
+  const { rows } = await pool.query(sql, [
+    empresaId,
+    documentoId,
+    regla.tipoMovimiento,
+    regla.naturaleza,
+    documento.tipo_documento,
+    regla.flujo,
+    Number(documento.total || 0),
+  ]);
+
+  return rows[0] || null;
+}
+
+export async function listarAnticiposDisponiblesDocumentoOrigen(documentoId: number, empresaId: number) {
+  const { rows: documentoRows } = await pool.query<{
+    id: number;
+    empresa_id: number;
+    tipo_documento: string;
+  }>(
+    `SELECT id, empresa_id, tipo_documento
+     FROM documentos
+     WHERE id = $1 AND empresa_id = $2`,
+    [documentoId, empresaId]
+  );
+
+  const documento = documentoRows[0];
+  if (!documento) return null;
+
+  const regla = obtenerReglaDocumentoOrigenFinanciero(documento.tipo_documento);
+  if (!regla) {
+    return {
+      documento_id: documento.id,
+      empresa_id: documento.empresa_id,
+      tipo_documento: documento.tipo_documento,
+      flujo: null,
+      anticipos: [] as AnticipoDisponible[],
+      total_disponible: 0,
+    };
+  }
+
+  const { rows } = await pool.query<AnticipoDisponible>(
+    `SELECT
+       fo.id AS finanzas_operacion_id,
+       fo.empresa_id,
+       fo.documento_origen_id,
+       fo.tipo_movimiento,
+       fo.naturaleza_operacion,
+       fo.fecha,
+       fo.monto AS monto_total,
+       COALESCE(SUM(a.monto), 0) AS monto_aplicado,
+       fo.monto - COALESCE(SUM(a.monto), 0) AS monto_disponible,
+       fo.contacto_id,
+       c.nombre AS contacto_nombre,
+       fo.cuenta_id,
+       fc.identificador AS cuenta_identificador,
+       fc.moneda
+     FROM finanzas_operaciones fo
+     LEFT JOIN aplicaciones_saldo a
+       ON a.finanzas_operacion_id = fo.id
+      AND a.empresa_id = fo.empresa_id
+     LEFT JOIN contactos c
+       ON c.id = fo.contacto_id
+     LEFT JOIN finanzas_cuentas fc
+       ON fc.id = fo.cuenta_id
+      AND fc.empresa_id = fo.empresa_id
+     WHERE fo.empresa_id = $1
+       AND fo.documento_origen_id = $2
+       AND fo.tipo_movimiento = $3
+       AND fo.naturaleza_operacion = $4
+     GROUP BY
+       fo.id,
+       fo.empresa_id,
+       fo.documento_origen_id,
+       fo.tipo_movimiento,
+       fo.naturaleza_operacion,
+       fo.fecha,
+       fo.monto,
+       fo.contacto_id,
+       c.nombre,
+       fo.cuenta_id,
+       fc.identificador,
+       fc.moneda
+     HAVING fo.monto - COALESCE(SUM(a.monto), 0) > 0
+     ORDER BY fo.fecha, fo.id`,
+    [empresaId, documentoId, regla.tipoMovimiento, regla.naturaleza]
+  );
+
+  return {
+    documento_id: documento.id,
+    empresa_id: documento.empresa_id,
+    tipo_documento: documento.tipo_documento,
+    flujo: regla.flujo,
+    anticipos: rows,
+    total_disponible: rows.reduce((sum, row) => sum + Number(row.monto_disponible || 0), 0),
+  };
 }
 
 export async function listarAplicacionesPorOperacion(operacionId: number, empresaId: number) {
@@ -29,7 +247,7 @@ export async function listarAplicacionesPorOperacion(operacionId: number, empres
       d.fecha_documento AS fecha_documento,
       d.total AS total_documento,
       d.moneda AS moneda_documento
-    FROM aplicaciones a
+    FROM aplicaciones_saldo a
     LEFT JOIN documentos d ON d.id = a.documento_destino_id AND d.empresa_id = a.empresa_id
     WHERE a.finanzas_operacion_id = $1
       AND a.empresa_id = $2
@@ -44,7 +262,7 @@ export async function listarAplicacionesPorDocumento(documentoId: number, empres
            doc_origen.tipo_documento AS tipo_documento_origen,
            doc_destino.tipo_documento AS tipo_documento_destino,
            fo.tipo_movimiento AS tipo_movimiento
-    FROM aplicaciones a
+    FROM aplicaciones_saldo a
     LEFT JOIN documentos doc_origen ON doc_origen.id = a.documento_origen_id AND doc_origen.empresa_id = a.empresa_id
     LEFT JOIN documentos doc_destino ON doc_destino.id = a.documento_destino_id AND doc_destino.empresa_id = a.empresa_id
     LEFT JOIN finanzas_operaciones fo ON fo.id = a.finanzas_operacion_id AND fo.empresa_id = a.empresa_id
@@ -157,13 +375,13 @@ export async function obtenerDisponibleOperacion(operacionId: number, empresaId:
       fo.monto AS monto_total,
       COALESCE((
         SELECT SUM(a.monto)
-        FROM aplicaciones a
+        FROM aplicaciones_saldo a
         WHERE a.finanzas_operacion_id = fo.id
           AND a.empresa_id = fo.empresa_id
       ), 0) AS monto_aplicado,
       fo.monto - COALESCE((
         SELECT SUM(a.monto)
-        FROM aplicaciones a
+        FROM aplicaciones_saldo a
         WHERE a.finanzas_operacion_id = fo.id
           AND a.empresa_id = fo.empresa_id
       ), 0) AS monto_disponible
@@ -174,9 +392,6 @@ export async function obtenerDisponibleOperacion(operacionId: number, empresaId:
   const { rows } = await pool.query(sql, [operacionId, empresaId]);
   return rows[0] || null;
 }
-import pool from '../../config/database';
-import type { PoolClient } from 'pg';
-
 export type TipoMovimiento = 'Deposito' | 'Retiro';
 
 export type Cuenta = {
@@ -207,6 +422,11 @@ export type Operacion = {
   observaciones?: string | null;
   contacto_id?: number | null;
   contacto_nombre?: string | null;
+  documento_origen_id?: number | null;
+  documento_origen_tipo_documento?: string | null;
+  documento_origen_serie?: string | null;
+  documento_origen_numero?: number | null;
+  documento_origen_total?: number | null;
   factura_id?: number | null;
   es_transferencia?: boolean;
   transferencia_id?: number | null;
@@ -383,6 +603,10 @@ export async function listarOperaciones(empresaId: number, cuentaId?: number): P
     `SELECT fo.*,
             c.nombre AS contacto_nombre,
             co.nombre_concepto AS concepto_nombre,
+           d.tipo_documento AS documento_origen_tipo_documento,
+           d.serie AS documento_origen_serie,
+           d.numero AS documento_origen_numero,
+           d.total AS documento_origen_total,
             ft.cuenta_origen_id AS transferencia_cuenta_origen,
             ft.cuenta_destino_id AS transferencia_cuenta_destino,
             coo.identificador AS transferencia_origen_nombre,
@@ -390,6 +614,7 @@ export async function listarOperaciones(empresaId: number, cuentaId?: number): P
      FROM finanzas_operaciones fo
      LEFT JOIN contactos c ON c.id = fo.contacto_id
      LEFT JOIN conceptos co ON co.id = fo.concepto_id
+         LEFT JOIN documentos d ON d.id = fo.documento_origen_id AND d.empresa_id = fo.empresa_id
      LEFT JOIN finanzas_transferencias ft ON ft.id = fo.transferencia_id
      LEFT JOIN finanzas_cuentas coo ON coo.id = ft.cuenta_origen_id
      LEFT JOIN finanzas_cuentas cod ON cod.id = ft.cuenta_destino_id
@@ -406,6 +631,7 @@ export type OperacionInput = {
   tipo_movimiento: TipoMovimiento;
   monto: number;
   naturaleza_operacion?: 'cobro_cliente' | 'pago_proveedor' | 'movimiento_general';
+  documento_origen_id?: number | null;
   contacto_id?: number | null;
   referencia?: string | null;
   observaciones?: string | null;
@@ -413,6 +639,238 @@ export type OperacionInput = {
   transferencia_id?: number | null;
   concepto_id?: number | null;
 };
+
+async function crearAplicacionTx(
+  client: PoolClient,
+  data: AplicacionSaldoInput,
+  empresaId: number
+) {
+  // Validaciones previas explícitas (sin truthiness)
+  const hasPago = data.finanzas_operacion_id !== null && data.finanzas_operacion_id !== undefined;
+  const hasDocOrigen = data.documento_origen_id !== null && data.documento_origen_id !== undefined;
+  if ((hasPago && hasDocOrigen) || (!hasPago && !hasDocOrigen)) {
+    const err = new Error('Debe enviar exactamente uno de finanzas_operacion_id o documento_origen_id');
+    (err as any).status = 400;
+    throw err;
+  }
+  if (data.documento_destino_id === null || data.documento_destino_id === undefined) {
+    const err = new Error('documento_destino_id es obligatorio');
+    (err as any).status = 400;
+    throw err;
+  }
+  if (!(data.monto > 0) || !(data.monto_moneda_documento > 0)) {
+    const err = new Error('monto y monto_moneda_documento deben ser mayores a 0');
+    (err as any).status = 400;
+    throw err;
+  }
+  if (hasDocOrigen && data.documento_origen_id === data.documento_destino_id) {
+    const err = new Error('No se puede aplicar un documento contra sí mismo');
+    (err as any).status = 409;
+    throw err;
+  }
+
+  // 1) Bloquear destino primero
+  const destinoQuery = `
+    SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
+    FROM documentos d
+    WHERE d.id = $1 AND d.tipo_documento IN ('factura', 'factura_compra') AND d.empresa_id = $2
+    FOR UPDATE
+  `;
+  const destinoRows = await client.query(destinoQuery, [data.documento_destino_id, empresaId]);
+  const destino = destinoRows.rows[0];
+  if (!destino) {
+    const err = new Error('Documento destino no encontrado o tipo inválido');
+    (err as any).status = 404;
+    throw err;
+  }
+
+  // 2) Bloquear origen (segundo)
+  let origen: any = null;
+  let esPago = hasPago;
+  if (esPago) {
+    const origenPagoQuery = `
+      SELECT fo.id,
+             fo.empresa_id,
+             fo.contacto_id,
+             fo.tipo_movimiento,
+             fo.naturaleza_operacion,
+             fc.moneda,
+             1::numeric(9,4) AS tipo_cambio,
+             fo.monto,
+             fo.fecha,
+             fo.documento_origen_id
+      FROM finanzas_operaciones fo
+      JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
+      WHERE fo.id = $1 AND fo.empresa_id = $2
+      FOR UPDATE
+    `;
+    const origenRows = await client.query(origenPagoQuery, [data.finanzas_operacion_id, empresaId]);
+    origen = origenRows.rows[0];
+    if (!origen) {
+      const err = new Error('Operación financiera no encontrada');
+      (err as any).status = 404;
+      throw err;
+    }
+  } else {
+    const origenDocQuery = `
+      SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
+      FROM documentos d
+      WHERE d.id = $1 AND d.empresa_id = $2 AND d.tipo_documento IN ('nota_credito', 'nota_credito_compra')
+      FOR UPDATE
+    `;
+    const origenRows = await client.query(origenDocQuery, [data.documento_origen_id, empresaId]);
+    origen = origenRows.rows[0];
+    if (!origen) {
+      const err = new Error('Documento origen no encontrado o tipo inválido');
+      (err as any).status = 404;
+      throw err;
+    }
+  }
+
+  // 3) Validar empresa/contacto
+  if (origen.empresa_id !== destino.empresa_id) {
+    const err = new Error('empresa_id distinto entre origen y destino');
+    (err as any).status = 409;
+    throw err;
+  }
+  if (origen.contacto_id !== destino.contacto_id) {
+    const err = new Error('contacto_id distinto entre origen y destino');
+    (err as any).status = 409;
+    throw err;
+  }
+
+  // 4) Validar compatibilidad naturaleza vs documento destino (solo para pagos)
+  if (esPago) {
+    const compatibilidad: Record<string, string[]> = {
+      cobro_cliente: ['factura', 'nota_credito'],
+      pago_proveedor: ['factura_compra', 'nota_credito_compra'],
+      movimiento_general: [],
+    };
+
+    const naturaleza = origen.naturaleza_operacion as string | undefined;
+    if (!naturaleza) {
+      const err = new Error('naturaleza_operacion no definida en la operación');
+      (err as any).status = 409;
+      throw err;
+    }
+    if (naturaleza === 'movimiento_general') {
+      const err = new Error('La naturaleza movimiento_general no permite aplicaciones a documentos');
+      (err as any).status = 409;
+      throw err;
+    }
+
+    const permitidos = compatibilidad[naturaleza] ?? [];
+    if (!permitidos.includes(destino.tipo_documento)) {
+      const err = new Error('tipo_documento incompatible con la naturaleza de la operación');
+      (err as any).status = 409;
+      throw err;
+    }
+  }
+
+  // 5) Validar compatibilidad de tipos
+  if (destino.tipo_documento === 'factura') {
+    if (esPago && origen.tipo_movimiento !== 'Deposito') {
+      const err = new Error('tipo_movimiento incompatible para factura');
+      (err as any).status = 409;
+      throw err;
+    }
+    if (!esPago && origen.tipo_documento !== 'nota_credito') {
+      const err = new Error('documento origen incompatible para factura');
+      (err as any).status = 409;
+      throw err;
+    }
+  } else if (destino.tipo_documento === 'factura_compra') {
+    if (esPago && origen.tipo_movimiento !== 'Retiro') {
+      const err = new Error('tipo_movimiento incompatible para factura_compra');
+      (err as any).status = 409;
+      throw err;
+    }
+    if (!esPago && origen.tipo_documento !== 'nota_credito_compra') {
+      const err = new Error('documento origen incompatible para factura_compra');
+      (err as any).status = 409;
+      throw err;
+    }
+  }
+
+  // 6) Agregaciones dentro de la misma transacción
+  let aplicadoOrigen = 0;
+  if (esPago) {
+    const { rows } = await client.query(
+      `SELECT COALESCE(SUM(a.monto), 0) AS aplicado_origen_base FROM aplicaciones_saldo a WHERE a.finanzas_operacion_id = $1`,
+      [origen.id]
+    );
+    aplicadoOrigen = Number(rows[0]?.aplicado_origen_base || 0);
+  } else {
+    const { rows } = await client.query(
+      `SELECT COALESCE(SUM(a.monto), 0) AS aplicado_origen_base FROM aplicaciones_saldo a WHERE a.documento_origen_id = $1`,
+      [origen.id]
+    );
+    aplicadoOrigen = Number(rows[0]?.aplicado_origen_base || 0);
+  }
+
+  const { rows: destSumRows } = await client.query(
+    `SELECT COALESCE(SUM(a.monto_moneda_documento), 0) AS aplicado_destino FROM aplicaciones_saldo a WHERE a.documento_destino_id = $1`,
+    [destino.id]
+  );
+  const aplicadoDestino = Number(destSumRows[0]?.aplicado_destino || 0);
+
+  const saldoOrigen = esPago
+    ? origen.monto * origen.tipo_cambio - aplicadoOrigen
+    : origen.total * origen.tipo_cambio - aplicadoOrigen;
+  const saldoDestino = destino.total - aplicadoDestino;
+
+  if (saldoOrigen <= 0 || saldoDestino <= 0) {
+    const err = new Error('Saldo insuficiente en origen o destino');
+    (err as any).status = 409;
+    throw err;
+  }
+  if (data.monto > saldoOrigen) {
+    const err = new Error('El monto excede el saldo del origen');
+    (err as any).status = 409;
+    throw err;
+  }
+  if (data.monto_moneda_documento > saldoDestino) {
+    const err = new Error('El monto excede el saldo del destino');
+    (err as any).status = 409;
+    throw err;
+  }
+
+  const expectedBase = data.monto_moneda_documento * origen.tipo_cambio;
+  const diff = Math.abs(expectedBase - data.monto);
+  const tolerance = 0.01;
+  if (diff > tolerance) {
+    const err = new Error('Inconsistencia entre monto y monto_moneda_documento respecto al tipo de cambio del origen');
+    (err as any).status = 409;
+    throw err;
+  }
+
+  const insertSql = `
+    INSERT INTO aplicaciones_saldo (
+      empresa_id,
+      finanzas_operacion_id,
+      documento_origen_id,
+      documento_destino_id,
+      monto,
+      monto_moneda_documento,
+      fecha_aplicacion,
+      fecha_creacion
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+    RETURNING *
+  `;
+
+  const insertValues = [
+    destino.empresa_id,
+    esPago ? origen.id : null,
+    esPago ? null : origen.id,
+    destino.id,
+    data.monto,
+    data.monto_moneda_documento,
+    data.fecha_aplicacion ?? null,
+  ];
+
+  const { rows: appRows } = await client.query(insertSql, insertValues);
+  return appRows[0];
+}
 
 export async function crearOperacion(data: OperacionInput, empresaId: number): Promise<Operacion> {
   const client = await pool.connect();
@@ -425,13 +883,39 @@ export async function crearOperacion(data: OperacionInput, empresaId: number): P
     const delta = data.tipo_movimiento === 'Deposito' ? Number(data.monto) : -Number(data.monto);
     const nuevoSaldo = Number(cuenta.saldo) + delta;
 
-    const naturaleza = data.naturaleza_operacion ?? 'movimiento_general';
+    let naturaleza = data.naturaleza_operacion ?? 'movimiento_general';
+    let contactoId = data.contacto_id ?? null;
+
+    if (data.documento_origen_id) {
+      const { rows: documentoRows } = await client.query<{
+        id: number;
+        empresa_id: number;
+        tipo_documento: string;
+        contacto_principal_id: number | null;
+      }>(
+        `SELECT id, empresa_id, tipo_documento, contacto_principal_id
+         FROM documentos
+         WHERE id = $1 AND empresa_id = $2`,
+        [data.documento_origen_id, empresaId]
+      );
+      const documentoOrigen = documentoRows[0];
+      if (!documentoOrigen) throw new Error('Documento origen no encontrado');
+
+      const regla = obtenerReglaDocumentoOrigenFinanciero(documentoOrigen.tipo_documento);
+      if (!regla) throw new Error('El tipo de documento origen no soporta anticipos/pagos financieros');
+      if (data.tipo_movimiento !== regla.tipoMovimiento) {
+        throw new Error('tipo_movimiento incompatible con el documento origen');
+      }
+
+      naturaleza = regla.naturaleza;
+      contactoId = documentoOrigen.contacto_principal_id;
+    }
 
     const insert = `
       INSERT INTO finanzas_operaciones (
-        empresa_id, cuenta_id, fecha, tipo_movimiento, naturaleza_operacion, monto, contacto_id, referencia, observaciones,
+        empresa_id, cuenta_id, fecha, tipo_movimiento, naturaleza_operacion, monto, contacto_id, documento_origen_id, referencia, observaciones,
         es_transferencia, transferencia_id, estado_conciliacion, saldo, concepto_id
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING *
     `;
     const { rows } = await client.query<Operacion>(insert, [
@@ -441,7 +925,8 @@ export async function crearOperacion(data: OperacionInput, empresaId: number): P
       data.tipo_movimiento,
       naturaleza,
       data.monto,
-      data.contacto_id ?? null,
+      contactoId,
+      data.documento_origen_id ?? null,
       data.referencia ?? null,
       data.observaciones ?? null,
       data.es_transferencia ?? false,
@@ -485,7 +970,34 @@ export async function actualizarOperacion(
     const cuentaOriginal = await obtenerCuentaConLock(client, original.cuenta_id, empresaId);
     if (!cuentaOriginal) throw new Error('Cuenta original no encontrada');
 
-    const naturaleza = data.naturaleza_operacion ?? (original as any).naturaleza_operacion ?? 'movimiento_general';
+    let naturaleza = data.naturaleza_operacion ?? (original as any).naturaleza_operacion ?? 'movimiento_general';
+    let contactoId = data.contacto_id ?? original.contacto_id ?? null;
+    const documentoOrigenId = data.documento_origen_id ?? original.documento_origen_id ?? null;
+
+    if (documentoOrigenId) {
+      const { rows: documentoRows } = await client.query<{
+        id: number;
+        empresa_id: number;
+        tipo_documento: string;
+        contacto_principal_id: number | null;
+      }>(
+        `SELECT id, empresa_id, tipo_documento, contacto_principal_id
+         FROM documentos
+         WHERE id = $1 AND empresa_id = $2`,
+        [documentoOrigenId, empresaId]
+      );
+      const documentoOrigen = documentoRows[0];
+      if (!documentoOrigen) throw new Error('Documento origen no encontrado');
+
+      const regla = obtenerReglaDocumentoOrigenFinanciero(documentoOrigen.tipo_documento);
+      if (!regla) throw new Error('El tipo de documento origen no soporta anticipos/pagos financieros');
+      if (data.tipo_movimiento !== regla.tipoMovimiento) {
+        throw new Error('tipo_movimiento incompatible con el documento origen');
+      }
+
+      naturaleza = regla.naturaleza;
+      contactoId = documentoOrigen.contacto_principal_id;
+    }
 
     if (data.cuenta_id === original.cuenta_id) {
       const nuevoSaldo = Number(cuentaOriginal.saldo) - oldDelta + newDelta;
@@ -493,8 +1005,8 @@ export async function actualizarOperacion(
       const { rows } = await client.query<Operacion>(
         `UPDATE finanzas_operaciones
          SET cuenta_id = $1, fecha = $2, tipo_movimiento = $3, naturaleza_operacion = $4, monto = $5, contacto_id = $6,
-             referencia = $7, observaciones = $8, es_transferencia = $9, transferencia_id = $10, saldo = $11, concepto_id = $12
-         WHERE id = $13
+             documento_origen_id = $7, referencia = $8, observaciones = $9, es_transferencia = $10, transferencia_id = $11, saldo = $12, concepto_id = $13
+         WHERE id = $14
          RETURNING *`,
         [
           data.cuenta_id,
@@ -502,7 +1014,8 @@ export async function actualizarOperacion(
           data.tipo_movimiento,
           naturaleza,
           data.monto,
-          data.contacto_id ?? null,
+          contactoId,
+          documentoOrigenId,
           data.referencia ?? null,
           data.observaciones ?? null,
           data.es_transferencia ?? false,
@@ -528,8 +1041,8 @@ export async function actualizarOperacion(
     const { rows } = await client.query<Operacion>(
       `UPDATE finanzas_operaciones
        SET cuenta_id = $1, fecha = $2, tipo_movimiento = $3, naturaleza_operacion = $4, monto = $5, contacto_id = $6,
-           referencia = $7, observaciones = $8, es_transferencia = $9, transferencia_id = $10, saldo = $11, concepto_id = $12
-       WHERE id = $13
+           documento_origen_id = $7, referencia = $8, observaciones = $9, es_transferencia = $10, transferencia_id = $11, saldo = $12, concepto_id = $13
+       WHERE id = $14
        RETURNING *`,
       [
         data.cuenta_id,
@@ -537,7 +1050,8 @@ export async function actualizarOperacion(
         data.tipo_movimiento,
         naturaleza,
         data.monto,
-        data.contacto_id ?? null,
+        contactoId,
+        documentoOrigenId,
         data.referencia ?? null,
         data.observaciones ?? null,
         data.es_transferencia ?? false,
@@ -839,250 +1353,157 @@ export async function crearConciliacion(
 }
 
 export async function crearAplicacion(
-  data: {
-    finanzas_operacion_id?: number | null;
-    documento_origen_id?: number | null;
-    documento_destino_id: number;
-    monto: number;
-    monto_moneda_documento: number;
-    fecha_aplicacion?: string | null;
-  },
+  data: AplicacionSaldoInput,
   empresaId: number
 ) {
   const client = await pool.connect();
   try {
-    // Validaciones previas explícitas (sin truthiness)
-    const hasPago = data.finanzas_operacion_id !== null && data.finanzas_operacion_id !== undefined;
-    const hasDocOrigen = data.documento_origen_id !== null && data.documento_origen_id !== undefined;
-    if ((hasPago && hasDocOrigen) || (!hasPago && !hasDocOrigen)) {
-      const err = new Error('Debe enviar exactamente uno de finanzas_operacion_id o documento_origen_id');
+    await client.query('BEGIN');
+    const created = await crearAplicacionTx(client, data, empresaId);
+
+    await client.query('COMMIT');
+    return created;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function aplicarAnticiposDocumentoDestino(
+  data: AplicacionAnticipoBatchInput,
+  empresaId: number
+) {
+  const client = await pool.connect();
+  try {
+    const documentoOrigenId = Number(data.documento_origen_id ?? 0);
+    const documentoDestinoId = Number(data.documento_destino_id ?? 0);
+    const aplicaciones = Array.isArray(data.aplicaciones) ? data.aplicaciones : [];
+
+    if (!documentoOrigenId || !documentoDestinoId) {
+      const err = new Error('documento_origen_id y documento_destino_id son obligatorios');
       (err as any).status = 400;
       throw err;
     }
-    if (data.documento_destino_id === null || data.documento_destino_id === undefined) {
-      const err = new Error('documento_destino_id es obligatorio');
+    if (aplicaciones.length === 0) {
+      const err = new Error('Se requiere al menos una aplicación');
       (err as any).status = 400;
-      throw err;
-    }
-    if (!(data.monto > 0) || !(data.monto_moneda_documento > 0)) {
-      const err = new Error('monto y monto_moneda_documento deben ser mayores a 0');
-      (err as any).status = 400;
-      throw err;
-    }
-    if (hasDocOrigen && data.documento_origen_id === data.documento_destino_id) {
-      const err = new Error('No se puede aplicar un documento contra sí mismo');
-      (err as any).status = 409;
       throw err;
     }
 
     await client.query('BEGIN');
 
-    // 1) Bloquear destino primero
-    const destinoQuery = `
-      SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
-      FROM documentos d
-      WHERE d.id = $1 AND d.tipo_documento IN ('factura', 'factura_compra') AND d.empresa_id = $2
-      FOR UPDATE
-    `;
-    const destinoRows = await client.query(destinoQuery, [data.documento_destino_id, empresaId]);
-    const destino = destinoRows.rows[0];
-    if (!destino) {
-      const err = new Error('Documento destino no encontrado o tipo inválido');
+    const { rows: sourceRows } = await client.query<{
+      id: number;
+      tipo_documento: string;
+      empresa_id: number;
+    }>(
+      `SELECT id, tipo_documento, empresa_id
+       FROM documentos
+       WHERE id = $1 AND empresa_id = $2
+       FOR SHARE`,
+      [documentoOrigenId, empresaId]
+    );
+    const documentoOrigen = sourceRows[0];
+    if (!documentoOrigen) {
+      const err = new Error('Documento origen no encontrado');
       (err as any).status = 404;
       throw err;
     }
 
-    // 2) Bloquear origen (segundo)
-    let origen: any = null;
-    let esPago = hasPago;
-    if (esPago) {
-      const origenPagoQuery = `
-        SELECT fo.id,
-               fo.empresa_id,
-               fo.contacto_id,
-               fo.tipo_movimiento,
-               fo.naturaleza_operacion,
-               fc.moneda,
-               1::numeric(9,4) AS tipo_cambio,
-               fo.monto,
-               fo.fecha
-        FROM finanzas_operaciones fo
-        JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
-        WHERE fo.id = $1 AND fo.empresa_id = $2
-        FOR UPDATE
-      `;
-      const origenRows = await client.query(origenPagoQuery, [data.finanzas_operacion_id, empresaId]);
-      origen = origenRows.rows[0];
-      if (!origen) {
-        const err = new Error('Operación financiera no encontrada');
-        (err as any).status = 404;
-        throw err;
-      }
-    } else {
-      const origenDocQuery = `
-        SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
-        FROM documentos d
-        WHERE d.id = $1 AND d.empresa_id = $2 AND d.tipo_documento IN ('nota_credito', 'nota_credito_compra')
-        FOR UPDATE
-      `;
-      const origenRows = await client.query(origenDocQuery, [data.documento_origen_id, empresaId]);
-      origen = origenRows.rows[0];
-      if (!origen) {
-        const err = new Error('Documento origen no encontrado o tipo inválido');
-        (err as any).status = 404;
-        throw err;
-      }
-    }
-
-    // 3) Validar empresa/contacto
-    if (origen.empresa_id !== destino.empresa_id) {
-      const err = new Error('empresa_id distinto entre origen y destino');
-      (err as any).status = 409;
-      throw err;
-    }
-    if (origen.contacto_id !== destino.contacto_id) {
-      const err = new Error('contacto_id distinto entre origen y destino');
-      (err as any).status = 409;
+    const regla = obtenerReglaDocumentoOrigenFinanciero(documentoOrigen.tipo_documento);
+    if (!regla) {
+      const err = new Error('El documento origen no soporta anticipos');
+      (err as any).status = 400;
       throw err;
     }
 
-    // 4) Validar compatibilidad naturaleza vs documento destino (solo para pagos)
-    if (esPago) {
-      const compatibilidad: Record<string, string[]> = {
-        cobro_cliente: ['factura', 'nota_credito'],
-        pago_proveedor: ['factura_compra', 'nota_credito_compra'],
-        movimiento_general: [],
-      };
-
-      const naturaleza = origen.naturaleza_operacion as string | undefined;
-      if (!naturaleza) {
-        const err = new Error('naturaleza_operacion no definida en la operación');
-        (err as any).status = 409;
-        throw err;
-      }
-      if (naturaleza === 'movimiento_general') {
-        const err = new Error('La naturaleza movimiento_general no permite aplicaciones a documentos');
-        (err as any).status = 409;
-        throw err;
-      }
-
-      const permitidos = compatibilidad[naturaleza] ?? [];
-      if (!permitidos.includes(destino.tipo_documento)) {
-        const err = new Error('tipo_documento incompatible con la naturaleza de la operación');
-        (err as any).status = 409;
-        throw err;
-      }
-    }
-
-    // 5) Validar compatibilidad de tipos
-    if (destino.tipo_documento === 'factura') {
-      if (esPago && origen.tipo_movimiento !== 'Deposito') {
-        const err = new Error('tipo_movimiento incompatible para factura');
-        (err as any).status = 409;
-        throw err;
-      }
-      if (!esPago && origen.tipo_documento !== 'nota_credito') {
-        const err = new Error('documento origen incompatible para factura');
-        (err as any).status = 409;
-        throw err;
-      }
-    } else if (destino.tipo_documento === 'factura_compra') {
-      if (esPago && origen.tipo_movimiento !== 'Retiro') {
-        const err = new Error('tipo_movimiento incompatible para factura_compra');
-        (err as any).status = 409;
-        throw err;
-      }
-      if (!esPago && origen.tipo_documento !== 'nota_credito_compra') {
-        const err = new Error('documento origen incompatible para factura_compra');
-        (err as any).status = 409;
-        throw err;
-      }
-    }
-
-  // 6) Agregaciones (sin FOR UPDATE en agregados) dentro de la misma transacción
-    let aplicadoOrigen = 0;
-    if (esPago) {
-      const { rows } = await client.query(
-        `SELECT COALESCE(SUM(a.monto), 0) AS aplicado_origen_base FROM aplicaciones a WHERE a.finanzas_operacion_id = $1`,
-        [origen.id]
-      );
-      aplicadoOrigen = Number(rows[0]?.aplicado_origen_base || 0);
-    } else {
-      const { rows } = await client.query(
-        `SELECT COALESCE(SUM(a.monto), 0) AS aplicado_origen_base FROM aplicaciones a WHERE a.documento_origen_id = $1`,
-        [origen.id]
-      );
-      aplicadoOrigen = Number(rows[0]?.aplicado_origen_base || 0);
-    }
-
-    const { rows: destSumRows } = await client.query(
-      `SELECT COALESCE(SUM(a.monto_moneda_documento), 0) AS aplicado_destino FROM aplicaciones a WHERE a.documento_destino_id = $1`,
-      [destino.id]
+    const { rows: destinoRows } = await client.query<{
+      id: number;
+      empresa_id: number;
+      documento_origen_id: number | null;
+      tipo_documento: string;
+    }>(
+      `SELECT id, empresa_id, documento_origen_id, tipo_documento
+       FROM documentos
+       WHERE id = $1 AND empresa_id = $2
+       FOR SHARE`,
+      [documentoDestinoId, empresaId]
     );
-    const aplicadoDestino = Number(destSumRows[0]?.aplicado_destino || 0);
-
-    // 6) Cálculo de saldos
-    const saldoOrigen = esPago
-      ? origen.monto * origen.tipo_cambio - aplicadoOrigen
-      : origen.total * origen.tipo_cambio - aplicadoOrigen;
-    const saldoDestino = destino.total - aplicadoDestino;
-
-    // 7) Validaciones de saldos
-    if (saldoOrigen <= 0 || saldoDestino <= 0) {
-      const err = new Error('Saldo insuficiente en origen o destino');
-      (err as any).status = 409;
+    const documentoDestino = destinoRows[0];
+    if (!documentoDestino) {
+      const err = new Error('Documento destino no encontrado');
+      (err as any).status = 404;
       throw err;
     }
-    if (data.monto > saldoOrigen) {
-      const err = new Error('El monto excede el saldo del origen');
-      (err as any).status = 409;
-      throw err;
-    }
-    if (data.monto_moneda_documento > saldoDestino) {
-      const err = new Error('El monto excede el saldo del destino');
+    if (documentoDestino.documento_origen_id !== documentoOrigenId) {
+      const err = new Error('La factura destino no está ligada al documento origen indicado');
       (err as any).status = 409;
       throw err;
     }
 
-    // 8) Coherencia multimoneda (tolerancia de redondeo)
-    const expectedBase = data.monto_moneda_documento * origen.tipo_cambio;
-    const diff = Math.abs(expectedBase - data.monto);
-    const tolerance = 0.01;
-    if (diff > tolerance) {
-      const err = new Error('Inconsistencia entre monto y monto_moneda_documento respecto al tipo de cambio del origen');
-      (err as any).status = 409;
+    const requestedOperationIds = Array.from(new Set(aplicaciones.map((item) => Number(item.finanzas_operacion_id)).filter((id) => id > 0)));
+    const { rows: operationRows } = await client.query<{
+      id: number;
+      documento_origen_id: number | null;
+      tipo_movimiento: string;
+      naturaleza_operacion: string;
+    }>(
+      `SELECT id, documento_origen_id, tipo_movimiento, naturaleza_operacion
+       FROM finanzas_operaciones
+       WHERE empresa_id = $1
+         AND id = ANY($2::int[])
+       FOR UPDATE`,
+      [empresaId, requestedOperationIds]
+    );
+
+    if (operationRows.length !== requestedOperationIds.length) {
+      const err = new Error('Una o más operaciones de anticipo no existen');
+      (err as any).status = 404;
       throw err;
     }
 
-    // 9) Insertar
-    const insertSql = `
-      INSERT INTO aplicaciones (
-        empresa_id,
-        finanzas_operacion_id,
-        documento_origen_id,
-        documento_destino_id,
-        monto,
-        monto_moneda_documento,
-        fecha_aplicacion,
-        fecha_creacion
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
-      RETURNING *
-    `;
+    const operationMap = new Map(operationRows.map((row) => [Number(row.id), row]));
+    const created: any[] = [];
+    for (const item of aplicaciones) {
+      const operation = operationMap.get(Number(item.finanzas_operacion_id));
+      if (!operation) {
+        const err = new Error('Operación de anticipo no encontrada');
+        (err as any).status = 404;
+        throw err;
+      }
+      if (Number(operation.documento_origen_id ?? 0) !== documentoOrigenId) {
+        const err = new Error('La operación no pertenece al documento origen');
+        (err as any).status = 409;
+        throw err;
+      }
+      if (String(operation.tipo_movimiento ?? '') !== regla.tipoMovimiento || String(operation.naturaleza_operacion ?? '') !== regla.naturaleza) {
+        const err = new Error('La operación no es compatible con el flujo de anticipo del documento origen');
+        (err as any).status = 409;
+        throw err;
+      }
 
-    const insertValues = [
-      destino.empresa_id,
-      esPago ? origen.id : null,
-      esPago ? null : origen.id,
-      destino.id,
-      data.monto,
-      data.monto_moneda_documento,
-      data.fecha_aplicacion ?? null,
-    ];
+      const monto = Number(item.monto ?? 0);
+      const montoMonedaDocumento = Number(item.monto_moneda_documento ?? item.monto ?? 0);
+      const fechaAplicacion = item.fecha_aplicacion ?? data.fecha_aplicacion ?? currentCivilDate();
 
-    const { rows: appRows } = await client.query(insertSql, insertValues);
+      const createdRow = await crearAplicacionTx(
+        client,
+        {
+          finanzas_operacion_id: Number(item.finanzas_operacion_id),
+          documento_destino_id: documentoDestinoId,
+          monto,
+          monto_moneda_documento: montoMonedaDocumento,
+          fecha_aplicacion: fechaAplicacion,
+        },
+        empresaId
+      );
+      created.push(createdRow);
+    }
 
     await client.query('COMMIT');
-    return appRows[0];
+    return created;
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -1096,10 +1517,10 @@ export async function eliminarAplicacion(id: number, empresaId: number) {
   try {
     await client.query('BEGIN');
 
-    // 1) Leer aplicación con FOR UPDATE en tabla aplicaciones
+    // 1) Leer aplicación con FOR UPDATE en tabla aplicaciones_saldo
     const appSql = `
       SELECT *
-      FROM aplicaciones
+      FROM aplicaciones_saldo
       WHERE id = $1 AND empresa_id = $2
       FOR UPDATE
     `;
@@ -1141,7 +1562,7 @@ export async function eliminarAplicacion(id: number, empresaId: number) {
 
     // 4) Eliminar aplicación (DELETE real)
     const deleteSql = `
-      DELETE FROM aplicaciones
+      DELETE FROM aplicaciones_saldo
       WHERE id = $1 AND empresa_id = $2
     `;
     await client.query(deleteSql, [id, empresaId]);

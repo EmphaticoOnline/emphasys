@@ -315,6 +315,10 @@ export default function CamposConfiguracionPage() {
       setError('La entidad es obligatoria');
       return;
     }
+    if (form.tipo_dato === 'lista' && !form.catalogo_tipo_id) {
+      setError('El catálogo configurable es obligatorio para campos tipo lista');
+      return;
+    }
     try {
       setSaving(true);
       const payload: Partial<CampoConfiguracion> = {
@@ -490,7 +494,8 @@ export default function CamposConfiguracionPage() {
               renderInput={(params) => (
                 <TextField
                   {...(params as any)}
-                  label="Catálogo"
+                  label="Catálogo configurable"
+                  required
                   size="small"
                   helperText={form.entidad_tipo_id ? 'Catálogo asociado a la entidad' : 'Selecciona primero la entidad'}
                 />

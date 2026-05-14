@@ -23,6 +23,7 @@ import { fetchLayoutConfiguracion, guardarLayoutConfiguracion } from '../../serv
 const TIPOS_DOCUMENTO = [
   { value: 'factura', label: 'Factura' },
   { value: 'cotizacion', label: 'Cotización' },
+  { value: 'orden_servicio', label: 'Orden de servicio' },
   { value: 'pedido', label: 'Pedido' },
   { value: 'remision', label: 'Remisión' },
 ];
@@ -74,6 +75,12 @@ const CAMPOS_LAYOUT: CampoLayout[] = [
     section: 'Partidas',
   },
   {
+    key: 'mostrarObservacionesPartida',
+    label: 'Mostrar observaciones de partida',
+    type: 'boolean',
+    section: 'Partidas',
+  },
+  {
     key: 'mostrarImagenPartida',
     label: 'Mostrar imagen de partida',
     type: 'boolean',
@@ -103,6 +110,10 @@ const agruparCamposLayoutPorSeccion = (campos: CampoLayout[]) =>
   }, {});
 
 const esCampoLayoutDeshabilitado = (campo: CampoLayout, config: LayoutConfig) => {
+  if (campo.key === 'mostrarObservacionesPartida') {
+    return !config.mostrarPartidas;
+  }
+
   if (campo.key === 'altoImagenPartida' || campo.key === 'maxAnchoImagenPartida') {
     return !config.mostrarImagenPartida;
   }

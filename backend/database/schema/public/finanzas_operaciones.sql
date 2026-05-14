@@ -37,6 +37,7 @@ CREATE TABLE public.finanzas_operaciones (
     observaciones text,
     cuenta_id integer NOT NULL,
     contacto_id integer,
+    documento_origen_id integer,
     factura_id integer,
     es_transferencia boolean DEFAULT false NOT NULL,
     transferencia_id integer,
@@ -92,6 +93,13 @@ CREATE INDEX idx_fo_concepto ON public.finanzas_operaciones USING btree (concept
 
 
 --
+-- Name: idx_finanzas_operaciones_documento_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_operaciones_documento_origen ON public.finanzas_operaciones USING btree (documento_origen_id);
+
+
+--
 -- Name: finanzas_operaciones fk_fo_concepto; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -105,6 +113,14 @@ ALTER TABLE ONLY public.finanzas_operaciones
 
 ALTER TABLE ONLY public.finanzas_operaciones
     ADD CONSTRAINT fk_fo_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finanzas_operaciones fk_finanzas_operaciones_documento_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_operaciones
+    ADD CONSTRAINT fk_finanzas_operaciones_documento_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
 
 
 --

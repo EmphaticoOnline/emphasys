@@ -31,6 +31,7 @@ type DocumentoCotizacion = {
   fecha_documento?: string | null;
   cliente_nombre?: string | null;
   cliente_email?: string | null;
+  cliente_telefono?: string | null;
   cliente_rfc?: string | null;
   rfc_receptor?: string | null;
   cliente_direccion?: string | null;
@@ -61,6 +62,14 @@ type PartidaCotizacion = {
 type DataCotizacion = {
   documento?: DocumentoCotizacion;
   partidas: PartidaCotizacion[];
+};
+
+type EmpresaPdfInfo = {
+  nombre: string | null;
+  direccion: string | null;
+  direccionLineas: string[];
+  telefono: string | null;
+  email: string | null;
 };
 
 const formatCurrency = (value?: number | null) => {
@@ -167,6 +176,7 @@ const normalizarColorHex = (color?: string | null): string | undefined => {
 const tituloPorTipo = (tipo: string | null | undefined) => {
   const t = (tipo || '').toString().toLowerCase();
   if (t === 'factura') return 'FACTURA';
+  if (t === 'orden_servicio') return 'ORDEN DE SERVICIO';
   if (t === 'pedido') return 'PEDIDO';
   if (t === 'remision') return 'REMISIÓN';
   return 'COTIZACIÓN';
@@ -271,6 +281,79 @@ async function obtenerLogoEmpresaPath(empresaId?: number): Promise<string | null
     return null;
   } catch (error) {
     console.warn('[pdf] No se pudo obtener logo de empresa', error);
+    return null;
+  }
+}
+
+async function obtenerEmpresaPdfInfo(empresaId?: number): Promise<EmpresaPdfInfo | null> {
+  if (!empresaId) return null;
+
+  try {
+    const { rows } = await pool.query<{
+      nombre: string | null;
+      razon_social: string | null;
+      calle: string | null;
+      numero_exterior: string | null;
+      numero_interior: string | null;
+      colonia: string | null;
+      localidad: string | null;
+      estado: string | null;
+      codigo_postal: string | null;
+      pais: string | null;
+      telefono: string | null;
+      email: string | null;
+    }>(
+      `SELECT
+         NULLIF(TRIM(COALESCE(e.nombre, '')), '') AS nombre,
+         NULLIF(TRIM(COALESCE(e.razon_social, '')), '') AS razon_social,
+         NULLIF(TRIM(COALESCE(e.calle, '')), '') AS calle,
+         NULLIF(TRIM(COALESCE(e.numero_exterior, '')), '') AS numero_exterior,
+         NULLIF(TRIM(COALESCE(e.numero_interior, '')), '') AS numero_interior,
+         NULLIF(TRIM(col.texto), '') AS colonia,
+         NULLIF(TRIM(loc.texto), '') AS localidad,
+         NULLIF(TRIM(est.texto), '') AS estado,
+         NULLIF(TRIM(COALESCE(e.codigo_postal, e.codigo_postal_id, '')), '') AS codigo_postal,
+         NULLIF(TRIM(COALESCE(e.pais, '')), '') AS pais,
+         NULLIF(TRIM(COALESCE(e.telefono, '')), '') AS telefono,
+         NULLIF(TRIM(COALESCE(e.email, '')), '') AS email
+       FROM core.empresas e
+       LEFT JOIN sat.colonias col
+         ON col.codigo_postal = e.codigo_postal_id
+        AND col.colonia = e.colonia_id
+       LEFT JOIN sat.localidades loc
+         ON loc.estado = e.estado_id
+        AND loc.localidad = e.localidad_id
+       LEFT JOIN sat.estados est
+         ON est.estado = e.estado_id
+      WHERE e.id = $1
+      LIMIT 1`,
+      [empresaId]
+    );
+
+    const row = rows[0];
+    if (!row) return null;
+
+    const direccionLineas = [
+      [row.calle, row.numero_exterior, row.numero_interior].filter(Boolean).join(' ').trim() || null,
+      row.colonia,
+      [row.localidad, row.estado].filter(Boolean).join(', ').trim() || null,
+      [row.codigo_postal ? `C.P. ${row.codigo_postal}` : null, row.pais].filter(Boolean).join(', ').trim() || null,
+    ].filter((value): value is string => Boolean(value && value.trim()));
+
+    const direccion = direccionLineas.join(', ');
+
+    return {
+      nombre: row.nombre ?? row.razon_social ?? null,
+      direccion: direccion || null,
+      direccionLineas,
+      telefono: row.telefono ?? null,
+      email: row.email ?? null,
+    };
+  } catch (error) {
+    console.warn('[pdf] No se pudo obtener información de empresa para PDF', {
+      empresaId,
+      error: (error as Error)?.message ?? error,
+    });
     return null;
   }
 }
@@ -426,8 +509,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
   let qrBuffer: Buffer | null = null;
   const estaTimbrado = !!timbre?.uuid;
-  const tipoDocumento = (documento?.tipo_documento ?? '').toString().toLowerCase();
-  const esCotizacion = tipoDocumento === 'cotizacion';
+  const tipoDocumentoNormalizado = (documento?.tipo_documento ?? '').toString().toLowerCase();
+  const esCotizacion = tipoDocumentoNormalizado === 'cotizacion';
+  const esOrdenServicio = tipoDocumentoNormalizado === 'orden_servicio';
   if (estaTimbrado) {
     const qrDatos: DatosQrCfdi = {
       uuid: timbre?.uuid || '',
@@ -460,6 +544,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
     empresaUsada: (documento as any)?.empresa_id ?? empresaId,
   });
   const empresaLogoPath = await obtenerLogoEmpresaPath((documento as any)?.empresa_id ?? empresaId);
+  const empresaInfo = await obtenerEmpresaPdfInfo((documento as any)?.empresa_id ?? empresaId);
   const logoPath = empresaLogoPath && fs.existsSync(empresaLogoPath) ? empresaLogoPath : defaultLogoPath;
   const hasLogo = fs.existsSync(logoPath);
   console.info('[pdf] Logo resuelto', {
@@ -558,11 +643,11 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
     const renderHeader = () => {
       // Encabezado clásico CFDI
       const headerTop = doc.y;
-      const headerHeight = 122;
+      const headerHeight = esOrdenServicio ? 82 : 122;
       const headerWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
       // Logo (mismo espacio que antes, escalado con proporción dentro de un cuadro fijo)
-      const logoMaxHeight = headerHeight * 0.7;
+      const logoMaxHeight = esOrdenServicio ? 54 : headerHeight * 0.7;
       const logoMaxWidth = 200; // ancho máximo permitido sin cambiar layout
       if (hasLogo && layout.mostrarLogo !== false) {
         doc.image(logoPath, doc.page.margins.left, headerTop, {
@@ -577,15 +662,19 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const tipoComp = tituloPorTipo(documento?.tipo_documento);
   const tituloLayout = layout.titulo ?? tipoComp;
   const colorPrimarioLayout = normalizarColorHex(layout.colorPrimario) ?? primaryColor;
+      const titleFontSize = esOrdenServicio ? 10 : 13;
+      const titleGapBottom = esOrdenServicio ? 1 : 4;
+      const boxRowHeight = esOrdenServicio ? 10 : 12;
 
       // Caja gris a la derecha
-      const boxW = 240;
+      const boxW = esOrdenServicio ? 272 : 240;
       const boxX = doc.page.width - doc.page.margins.right - boxW;
       const boxY = headerTop;
 
       // Título centrado en el recuadro gris
+      setFont(true, titleFontSize, colorPrimarioLayout);
       const titleHeight = doc.heightOfString(tituloLayout, { width: boxW });
-      const titleY = boxY + 8; // encabezado alto, centrado solo horizontalmente
+      const titleY = boxY + (esOrdenServicio ? 5 : 8); // encabezado alto, centrado solo horizontalmente
 
       const boxData: Array<[string, string]> = [
         ['Folio', folio || 'N/D'],
@@ -600,49 +689,57 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         );
       }
 
-      let cursorY = titleY + titleHeight + 4; // datos inmediatamente debajo del encabezado dentro del recuadro (ligeramente más arriba)
+      let cursorY = titleY + titleHeight + titleGapBottom; // datos inmediatamente debajo del encabezado dentro del recuadro (ligeramente más arriba)
 
       if (estaTimbrado) {
         // UUID centrado, independiente de columnas
-        cursorY += 12;
+        cursorY += boxRowHeight;
       }
 
-      const boxContentBottom = cursorY + boxData.length * 12;
-      const boxH = esCotizacion ? boxContentBottom - boxY + 8 : headerHeight;
+      const boxContentBottom = cursorY + boxData.length * boxRowHeight;
+      const boxH = esCotizacion
+        ? boxContentBottom - boxY + 8
+        : esOrdenServicio
+          ? 54
+          : headerHeight;
 
       doc.roundedRect(boxX, boxY, boxW, boxH, 6).fill('#eeeeee');
       doc.fillColor('#111827');
 
-      setFont(true, 13, colorPrimarioLayout);
+      setFont(true, titleFontSize, colorPrimarioLayout);
       doc.text(tituloLayout, boxX, titleY, { width: boxW, align: 'center' });
       if (estaTimbrado) {
         // UUID centrado, independiente de columnas
         setFont(true, 9, '#111827');
         doc.text(uuid, boxX, cursorY, { width: boxW, align: 'center' });
-        cursorY += 12;
+        cursorY += boxRowHeight;
       }
 
       // Columnas para etiquetas y valores
-      const labelColWidth = 88;
-      const gapCols = 8;
+      const labelColWidth = esOrdenServicio ? 110 : 88;
+      const gapCols = esOrdenServicio ? 4 : 8;
       const valueColWidth = boxW - 24 - labelColWidth - gapCols;
       const labelX = boxX + 12;
       const valueX = labelX + labelColWidth + gapCols;
 
       boxData.forEach(([label, value]) => {
-        setFont(false, 9, '#111827');
-        doc.text(label + ':', labelX, cursorY, { width: labelColWidth, align: 'right' });
-        doc.text(value, valueX, cursorY, { width: valueColWidth, align: 'left' });
-        cursorY += 12;
+        setFont(false, esOrdenServicio ? 8 : 9, '#111827');
+        doc.text(label + ':', labelX, cursorY, { width: labelColWidth, align: 'right', lineBreak: false });
+        doc.text(value, valueX, cursorY, { width: valueColWidth, align: 'left', lineBreak: false });
+        cursorY += boxRowHeight;
       });
 
-      const headerBottom = esCotizacion ? headerTop + boxH : headerTop + headerHeight;
-      doc.y = Math.max(headerBottom, cursorY) + 10;
-      if (esCotizacion) {
+      const headerBottom = esCotizacion
+        ? headerTop + boxH
+        : esOrdenServicio
+          ? Math.max(headerTop + boxH, headerTop + logoMaxHeight)
+          : headerTop + headerHeight;
+      doc.y = Math.max(headerBottom, cursorY) + (esOrdenServicio ? 4 : 10);
+      if (esCotizacion || esOrdenServicio) {
         const logoBottom = headerTop + logoMaxHeight;
-        const lineGapTop = 18;
-        const lineGapBottom = 14;
-        const lineY = logoBottom + lineGapTop;
+        const lineGapTop = esOrdenServicio ? 4 : 18;
+        const lineGapBottom = esOrdenServicio ? 4 : 14;
+        const lineY = Math.max(logoBottom, boxY + boxH) + lineGapTop;
         doc
           .moveTo(doc.page.margins.left, lineY)
           .lineTo(doc.page.width - doc.page.margins.right, lineY)
@@ -661,6 +758,66 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       // Bloque Emisor / Receptor
       const colWidth = (contentWidth - 12) / 2;
       const bloqueY = doc.y;
+      if (esOrdenServicio) {
+        const labelWidth = 62;
+        const rowGap = 4;
+        const sectionGap = 12;
+        const emisorX = doc.page.margins.left;
+        const receptorX = doc.page.margins.left + colWidth + sectionGap;
+        const valueGap = 6;
+        const valueWidth = colWidth - labelWidth - valueGap;
+        const emisorDomicilioLineas = empresaInfo?.direccionLineas?.length
+          ? empresaInfo.direccionLineas
+          : ((documento as any)?.empresa_direccion
+              ? String((documento as any).empresa_direccion)
+                  .split(',')
+                  .map((chunk: string) => chunk.trim())
+                  .filter(Boolean)
+              : []);
+        const receptorRowsBase: Array<[string, string | null]> = [
+          ['Nombre', documento?.nombre_receptor || documento?.cliente_nombre || null],
+          ['Teléfono', documento?.cliente_telefono ?? null],
+          ['Correo', documento?.cliente_email ?? null],
+        ];
+        const receptorRows = receptorRowsBase.filter(([, value]) => Boolean(value));
+
+        let emisorY = bloqueY;
+        if (emisorDomicilioLineas.length > 0) {
+          setFont(false, 9.5, textColor);
+          emisorDomicilioLineas.forEach((linea) => {
+            doc.text(linea, emisorX, emisorY, {
+              width: colWidth - 8,
+              align: 'left',
+              lineBreak: false,
+            });
+            emisorY += 12;
+          });
+        }
+
+        const drawCompactRows = (title: string, rows: Array<[string, string | null]>, startX: number) => {
+          let currentY = bloqueY;
+          setFont(true, 10, primaryColor);
+          doc.text(title, startX, currentY, { width: colWidth });
+          currentY += 16;
+
+          rows.forEach(([label, value]) => {
+            const safeValue = value ?? '';
+            setFont(true, 8, textColor);
+            doc.text(`${label}:`, startX, currentY, { width: labelWidth, align: 'right', lineBreak: false });
+            setFont(false, 8, mutedText);
+            const textHeight = doc.heightOfString(safeValue, { width: valueWidth });
+            doc.text(safeValue, startX + labelWidth + valueGap, currentY, { width: valueWidth, align: 'left' });
+            currentY += Math.max(10, textHeight) + rowGap;
+          });
+
+          return currentY;
+        };
+
+        const receptorY = drawCompactRows('Datos del cliente', receptorRows, receptorX);
+        doc.y = Math.max(emisorY, receptorY) + 4;
+        return;
+      }
+
       const drawLabelValue = (label: string, value: string | null | undefined, x: number, y: number) => {
         const textValue = value || 'N/D';
         setFont(false, 9, textColor);
@@ -729,7 +886,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       // Tabla de partidas (sin título "Partidas")
       const descripcionIndex = 1;
       const layoutWithImageConfig = layout as DocumentLayout & { maxAnchoImagenPartida?: number | null };
-      const showObservaciones = esCotizacion && layout.mostrarObservacionesPartida !== false;
+      const showObservaciones = (esCotizacion || esOrdenServicio) && layout.mostrarObservacionesPartida !== false;
       const showImagenPartida = layout.mostrarImagenPartida === true;
       const rawImagenPartidaHeight = Number(layout.altoImagenPartida ?? 60);
       const imagenPartidaHeight = Number.isFinite(rawImagenPartidaHeight) && rawImagenPartidaHeight > 0
@@ -1002,7 +1159,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
       if (documento?.observaciones) {
         const obsWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-        const obsHeight = doc.heightOfString(documento.observaciones, { width: obsWidth }) + 28;
+        const obsHeight = doc.heightOfString(documento.observaciones, { width: obsWidth }) + (esOrdenServicio ? 18 : 28);
         console.log('[PDF DEBUG]', {
           bloque: 'observaciones:antesEvaluar',
           y: doc.y,
@@ -1028,13 +1185,13 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         doc.moveDown(0.6);
       }
 
-      if (esCotizacion) {
+      if (esCotizacion || esOrdenServicio) {
         const totalsLabelWidth = 70;
         const rowHeightCompact = 12;
         const totalsHeight = totalRows.length * rowHeightCompact;
-        const gapBottom = 14;
+        const gapBottom = esOrdenServicio ? 10 : 14;
         const bloqueHeight = totalsHeight;
-        const anchorY = pageBottom - gapBottom - totalsHeight;
+        const anchorY = pageBottom - gapBottom - bloqueHeight;
 
         if (doc.y + bloqueHeight > anchorY) {
           doc.addPage();
@@ -1050,7 +1207,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         let totY = anchorY;
         totalRows.forEach(([label, value]) => {
           const isTotal = label === 'Total';
-          setFont(isTotal, 9, textColor);
+          setFont(isTotal, isTotal && esOrdenServicio ? 10 : 9, textColor);
 
           const importeX = startX + columnWidths[0] + columnWidths[1] + columnWidths[2] + columnWidths[3];
           const gapLabelValor = 8;

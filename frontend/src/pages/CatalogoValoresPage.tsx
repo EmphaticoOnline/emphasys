@@ -32,6 +32,8 @@ import {
   deleteCatalogoValor,
   type CatalogoValor,
 } from '../services/catalogosService';
+import { fetchCamposConfiguracion } from '../services/camposDinamicosService';
+import type { CampoConfiguracion } from '../types/camposDinamicos';
 
 function useTipoCatalogo(tipoId: number | null) {
   const [nombre, setNombre] = useState<string>('');
@@ -58,6 +60,35 @@ function useTipoCatalogo(tipoId: number | null) {
   return { nombre, loading, error };
 }
 
+function resolveConfiguredParentTipoId(
+  campos: CampoConfiguracion[],
+  tipoCatalogoId: number
+): number | null {
+  const childFields = campos.filter(
+    (campo) =>
+      campo.tipo_dato === 'lista'
+      && campo.catalogo_tipo_id === tipoCatalogoId
+      && campo.campo_padre_id !== null
+  );
+
+  if (!childFields.length) return null;
+
+  const fieldsById = new Map(childFields.map((campo) => [campo.id, campo]));
+  campos.forEach((campo) => {
+    fieldsById.set(campo.id, campo);
+  });
+
+  const parentTipoIds = Array.from(
+    new Set(
+      childFields
+        .map((campo) => fieldsById.get(campo.campo_padre_id as number)?.catalogo_tipo_id ?? null)
+        .filter((catalogoTipoId): catalogoTipoId is number => typeof catalogoTipoId === 'number' && Number.isFinite(catalogoTipoId))
+    )
+  );
+
+  return parentTipoIds.length === 1 ? parentTipoIds[0] : null;
+}
+
 export default function CatalogoValoresPage() {
   const { tipo_catalogo_id, id } = useParams();
   const navigate = useNavigate();
@@ -80,6 +111,8 @@ export default function CatalogoValoresPage() {
   const [toDelete, setToDelete] = useState<CatalogoValor | null>(null);
   const [parentOptions, setParentOptions] = useState<CatalogoValor[]>([]);
   const [parentOptionsLoading, setParentOptionsLoading] = useState(false);
+  const [configuredParentTipoId, setConfiguredParentTipoId] = useState<number | null>(null);
+  const [configuredParentTipoLoading, setConfiguredParentTipoLoading] = useState(false);
 
   const { nombre: tituloCatalogo, loading: loadingTipo, error: errorTipo } = useTipoCatalogo(tipoId);
 
@@ -105,6 +138,40 @@ export default function CatalogoValoresPage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipoId]);
+
+  useEffect(() => {
+    if (!dialogOpen || !tipoId) {
+      setConfiguredParentTipoId(null);
+      setConfiguredParentTipoLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadConfiguredParentTipo = async () => {
+      try {
+        setConfiguredParentTipoLoading(true);
+        setConfiguredParentTipoId(null);
+        const campos = await fetchCamposConfiguracion({ incluirInactivos: true });
+        if (cancelled) return;
+        setConfiguredParentTipoId(resolveConfiguredParentTipoId(campos, tipoId));
+      } catch (e) {
+        if (cancelled) return;
+        setConfiguredParentTipoId(null);
+        setError(e instanceof Error ? e.message : 'No se pudo resolver la configuración del catálogo padre');
+      } finally {
+        if (!cancelled) {
+          setConfiguredParentTipoLoading(false);
+        }
+      }
+    };
+
+    void loadConfiguredParentTipo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogOpen, tipoId]);
 
   const resetForm = () => {
     setForm({ clave: '', descripcion: '', orden: '', activo: true, catalogo_padre_id: null });
@@ -242,7 +309,12 @@ export default function CatalogoValoresPage() {
   useEffect(() => {
     if (!dialogOpen) return;
 
-    const parentTipoId = editing?.catalogo_padre_tipo_catalogo_id ?? null;
+    if (configuredParentTipoLoading) {
+      setParentOptions([]);
+      return;
+    }
+
+    const parentTipoId = editing?.catalogo_padre_tipo_catalogo_id ?? configuredParentTipoId ?? null;
     const targetTipoId = parentTipoId ?? tipoId;
 
     if (!targetTipoId) {
@@ -276,7 +348,7 @@ export default function CatalogoValoresPage() {
     };
 
     load();
-  }, [dialogOpen, editing, rows, tipoId, form.catalogo_padre_id]);
+  }, [dialogOpen, editing, rows, tipoId, form.catalogo_padre_id, configuredParentTipoId, configuredParentTipoLoading]);
 
   const handleToggleActivo = async (row: CatalogoValor) => {
     try {
@@ -423,6 +495,7 @@ export default function CatalogoValoresPage() {
           />
           <Autocomplete
             options={parentOptions}
+            loading={parentOptionsLoading || configuredParentTipoLoading}
             getOptionLabel={(option) => option.descripcion || ''}
             value={parentOptions.find((opt) => opt.id === form.catalogo_padre_id) || null}
             onChange={(_, value) => setForm((f) => ({ ...f, catalogo_padre_id: value?.id ?? null }))}

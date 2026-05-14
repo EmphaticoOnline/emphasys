@@ -77,16 +77,21 @@ import dayjs from 'dayjs';
 import type { Contacto } from '../types/contactos.types';
 import type { CotizacionListado, EstadoSeguimiento } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
+import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
 import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, duplicateDocumento, enviarCotizacionPorCorreo, getDocumentos, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
+import { fetchAnticiposDisponiblesDocumento } from '../services/finanzasService';
 import { timbrarFactura, enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
 import { useSession } from '../session/useSession';
+import type { DocumentoAccion } from '../modules/documentos/documentoTypes';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
+import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
+import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicacionDialog';
 import {
   navigateToGeneratedDocument,
   parseGeneratedDocumentFocus,
@@ -392,6 +397,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     cantidades: Record<number, number>;
     enviando: boolean;
   }>({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false });
+  const [aplicarAnticiposDialog, setAplicarAnticiposDialog] = useState<{
+    open: boolean;
+    documentoOrigenId: number | null;
+    documentoDestinoId: number | null;
+    documentoDestinoTipo: TipoDocumento | null;
+    data: DocumentoAnticiposDisponibles | null;
+    navigationPathname: string | null;
+  }>({ open: false, documentoOrigenId: null, documentoDestinoId: null, documentoDestinoTipo: null, data: null, navigationPathname: null });
   const [search, setSearch] = useState('');
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [actualizandoEstatusId, setActualizandoEstatusId] = useState<number | null>(null);
@@ -427,6 +440,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = resolveDocumentosListPath(tipoDocumento, modulo);
   const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
+  const { filtroAgente: configuredAgentFilter, mostrarSaldo: configuredShowSaldo, accionesDisponibles } = useDocumentoConfig(tipoDocumento);
   const generatedDocumentFocus = useMemo(() => parseGeneratedDocumentFocus(location.state), [location.state]);
   const statusField = tipoDocumento === 'cotizacion' ? 'estado_seguimiento' : 'estatus_documento';
   const sumField = 'subtotal';
@@ -446,7 +460,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     [documentoTypeConfig, tipoDocumento]
   );
   const enableFilters = statusOptions.length > 0;
-  const showAgentFilter = tipoDocumento === 'cotizacion';
+  const showAgentFilter = configuredAgentFilter;
 
   const currency = useMemo(
     () =>
@@ -459,8 +473,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   );
 
   const currencyFormatter = useCallback((value: number | string | null | undefined) => currency.format(Number(value ?? 0)), [currency]);
-  const showSaldo = tipoDocumento === 'factura' || tipoDocumento === 'factura_compra';
+  const showSaldo = configuredShowSaldo;
   const isFacturaConSaldo = showSaldo;
+  const hasAction = useCallback((action: DocumentoAccion) => accionesDisponibles.includes(action), [accionesDisponibles]);
   const estatusDocumentoOptions = useMemo<StatusOption[]>(
     () => (esCotizacion ? COTIZACION_ESTATUS_EDITABLE_OPTIONS : statusOptions),
     [esCotizacion, statusOptions]
@@ -703,6 +718,64 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     }));
   };
 
+  const completeGeneratedDocumentNavigation = useCallback((options: {
+    documentoId: number;
+    tipoDocumento: TipoDocumento;
+    pathname?: string | null;
+  }) => {
+    navigateToGeneratedDocument(navigate, {
+      documentoId: options.documentoId,
+      tipoDocumento: options.tipoDocumento,
+      pathname: options.pathname ?? location.pathname,
+    });
+  }, [location.pathname, navigate]);
+
+  const handlePostGeneration = useCallback(async (options: {
+    documentoOrigenId: number;
+    result: {
+      documento_destino_id: number;
+      tipo_documento_destino: TipoDocumento;
+    };
+    pathname?: string | null;
+  }) => {
+    const { documentoOrigenId, result, pathname } = options;
+    if (!['factura', 'factura_compra'].includes(String(result.tipo_documento_destino ?? ''))) {
+      completeGeneratedDocumentNavigation({
+        documentoId: result.documento_destino_id,
+        tipoDocumento: result.tipo_documento_destino,
+        pathname,
+      });
+      return;
+    }
+
+    try {
+      const anticiposData = await fetchAnticiposDisponiblesDocumento(documentoOrigenId);
+      if (Number(anticiposData?.total_disponible ?? 0) > 0) {
+        setAplicarAnticiposDialog({
+          open: true,
+          documentoOrigenId,
+          documentoDestinoId: result.documento_destino_id,
+          documentoDestinoTipo: result.tipo_documento_destino,
+          data: anticiposData,
+          navigationPathname: pathname ?? location.pathname,
+        });
+        return;
+      }
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err?.message || 'No se pudo verificar anticipos disponibles. Puedes aplicarlos manualmente más tarde.',
+        severity: 'warning',
+      });
+    }
+
+    completeGeneratedDocumentNavigation({
+      documentoId: result.documento_destino_id,
+      tipoDocumento: result.tipo_documento_destino,
+      pathname,
+    });
+  }, [completeGeneratedDocumentNavigation, location.pathname]);
+
   const handleGenerar = async () => {
     if (!generacionDialog.data || !generacionDialog.documentoId || !generacionDialog.tipoDestino) return;
     if (!requireAuthData()) return;
@@ -727,9 +800,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       const result = await generarDocumentoDesdeOrigen(payload, token!, empresaId!);
       setGeneracionDialog({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false });
       setSnackbar({ open: true, message: 'Documento generado correctamente', severity: 'success' });
-      navigateToGeneratedDocument(navigate, {
-        documentoId: result.documento_destino_id,
-        tipoDocumento: result.tipo_documento_destino,
+      await handlePostGeneration({
+        documentoOrigenId: payload.documento_origen_id,
+        result,
         pathname: location.pathname,
       });
     } catch (err: any) {
@@ -1093,7 +1166,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           >
             <DeleteIcon fontSize="small" />
           </IconButton>
-          {tipoDocumento === 'cotizacion' && (
+          {hasAction('duplicar') && (
             <Tooltip title="Duplicar cotización">
               <span>
                 <IconButton
@@ -1110,7 +1183,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {tipoDocumento === 'cotizacion' && (
+          {hasAction('enviar_produccion') && (
             <Tooltip title="Enviar a producción">
               <span>
                 <IconButton
@@ -1127,7 +1200,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {tipoDocumento === 'cotizacion' && (
+          {hasAction('ver_produccion') && (
             <Tooltip title="Ver producción">
               <span>
                 <IconButton
@@ -1174,7 +1247,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               <PictureAsPdfIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          {tipoDocumento === 'cotizacion' && (
+          {hasAction('enviar_email') && tipoDocumento === 'cotizacion' && (
             <Tooltip title="Enviar por correo">
               <span>
                 <IconButton
@@ -1191,7 +1264,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {tipoDocumento === 'factura' && (
+          {hasAction('aplicar_pago') && tipoDocumento === 'factura' && (
             <Tooltip title={Number(params.row?.saldo ?? 0) > 0 ? 'Aplicar pago' : 'Factura sin saldo pendiente'}>
               <span>
                 <IconButton
@@ -1208,7 +1281,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {tipoDocumento === 'factura' && (
+          {hasAction('timbrar') && (
             <Tooltip title="Timbrar CFDI">
               <span>
                 <IconButton
@@ -1235,7 +1308,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {tipoDocumento === 'factura' && (
+          {hasAction('enviar_email') && tipoDocumento === 'factura' && (
             <Tooltip title="Enviar factura por correo">
               <span>
                 <IconButton
@@ -1285,6 +1358,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     abrirDialogoProduccion,
     abrirDrawerProduccion,
     esCotizacion,
+    hasAction,
   ]);
 
   const columns: GridColDef[] = useMemo(
@@ -2077,6 +2151,42 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           {snackbar.message}
         </AlertSnackbar>
       </Snackbar>
+
+      <AnticiposAplicacionDialog
+        open={aplicarAnticiposDialog.open}
+        documentoOrigenId={aplicarAnticiposDialog.documentoOrigenId}
+        documentoDestinoId={aplicarAnticiposDialog.documentoDestinoId}
+        documentoDestinoTipo={aplicarAnticiposDialog.documentoDestinoTipo}
+        initialData={aplicarAnticiposDialog.data}
+        onClose={() => {
+          const targetId = aplicarAnticiposDialog.documentoDestinoId;
+          const targetType = aplicarAnticiposDialog.documentoDestinoTipo;
+          const pathname = aplicarAnticiposDialog.navigationPathname;
+          setAplicarAnticiposDialog({ open: false, documentoOrigenId: null, documentoDestinoId: null, documentoDestinoTipo: null, data: null, navigationPathname: null });
+          if (targetId && targetType) {
+            completeGeneratedDocumentNavigation({ documentoId: targetId, tipoDocumento: targetType, pathname });
+          }
+        }}
+        onSkip={() => {
+          const targetId = aplicarAnticiposDialog.documentoDestinoId;
+          const targetType = aplicarAnticiposDialog.documentoDestinoTipo;
+          const pathname = aplicarAnticiposDialog.navigationPathname;
+          setAplicarAnticiposDialog({ open: false, documentoOrigenId: null, documentoDestinoId: null, documentoDestinoTipo: null, data: null, navigationPathname: null });
+          if (targetId && targetType) {
+            completeGeneratedDocumentNavigation({ documentoId: targetId, tipoDocumento: targetType, pathname });
+          }
+        }}
+        onApplied={() => {
+          const targetId = aplicarAnticiposDialog.documentoDestinoId;
+          const targetType = aplicarAnticiposDialog.documentoDestinoTipo;
+          const pathname = aplicarAnticiposDialog.navigationPathname;
+          setSnackbar({ open: true, message: 'Anticipos aplicados correctamente', severity: 'success' });
+          setAplicarAnticiposDialog({ open: false, documentoOrigenId: null, documentoDestinoId: null, documentoDestinoTipo: null, data: null, navigationPathname: null });
+          if (targetId && targetType) {
+            completeGeneratedDocumentNavigation({ documentoId: targetId, tipoDocumento: targetType, pathname });
+          }
+        }}
+      />
 
       <Dialog
         open={generacionDialog.open}

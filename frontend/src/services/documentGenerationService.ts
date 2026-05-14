@@ -3,6 +3,7 @@ const BASE_PATH = "/api/documentos";
 type TipoDocumento =
   | "cotizacion"
   | "factura"
+  | "orden_servicio"
   | "pedido"
   | "remision"
   | "orden_entrega"

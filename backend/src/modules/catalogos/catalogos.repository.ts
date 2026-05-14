@@ -39,6 +39,34 @@ async function obtenerCatalogoInfo(
   return rows[0];
 }
 
+async function obtenerTipoCatalogoPadreConfigurado(
+  empresaId: number,
+  tipoCatalogoHijo: number
+): Promise<number | null> {
+  const query = `
+    SELECT DISTINCT padre.catalogo_tipo_id
+      FROM core.campos_configuracion hijo
+      INNER JOIN core.campos_configuracion padre
+        ON padre.id = hijo.campo_padre_id
+       AND padre.empresa_id = hijo.empresa_id
+     WHERE hijo.empresa_id = $1
+       AND hijo.catalogo_tipo_id = $2
+       AND hijo.campo_padre_id IS NOT NULL
+       AND padre.catalogo_tipo_id IS NOT NULL
+  `;
+
+  const { rows } = await pool.query<{ catalogo_tipo_id: number }>(query, [empresaId, tipoCatalogoHijo]);
+  const tiposPadre = Array.from(
+    new Set(
+      rows
+        .map((row) => row.catalogo_tipo_id)
+        .filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+    )
+  );
+
+  return tiposPadre.length === 1 ? tiposPadre[0] : null;
+}
+
 async function validarJerarquiaSinCiclo(
   empresaId: number,
   idActual: number | null,
@@ -56,12 +84,15 @@ async function validarJerarquiaSinCiclo(
     throw new CatalogoJerarquiaError('tipo_catalogo_id es obligatorio para validar jerarquía');
   }
 
+  const tipoCatalogoPadreConfigurado = await obtenerTipoCatalogoPadreConfigurado(empresaId, tipoActual);
+
   if (idActual !== null && catalogoPadreId === idActual) {
     throw new CatalogoJerarquiaError('Un registro no puede ser padre de sí mismo');
   }
 
   const visitados = new Set<number>();
   let cursor: number | null = catalogoPadreId;
+  let expectedAncestorType: number | null = null;
 
   while (cursor !== null) {
     if (visitados.has(cursor)) {
@@ -74,7 +105,18 @@ async function validarJerarquiaSinCiclo(
     }
 
     const infoPadre = await obtenerCatalogoInfo(empresaId, cursor);
-    if (infoPadre.tipo_catalogo_id !== tipoActual) {
+    if (expectedAncestorType === null) {
+      if (infoPadre.tipo_catalogo_id === tipoActual) {
+        expectedAncestorType = tipoActual;
+      } else if (
+        tipoCatalogoPadreConfigurado !== null
+        && infoPadre.tipo_catalogo_id === tipoCatalogoPadreConfigurado
+      ) {
+        expectedAncestorType = tipoCatalogoPadreConfigurado;
+      } else {
+        throw new CatalogoJerarquiaError('El padre debe pertenecer al mismo tipo de catálogo');
+      }
+    } else if (infoPadre.tipo_catalogo_id !== expectedAncestorType) {
       throw new CatalogoJerarquiaError('El padre debe pertenecer al mismo tipo de catálogo');
     }
 

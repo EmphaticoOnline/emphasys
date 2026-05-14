@@ -16,10 +16,10 @@ import {
   DialogTitle,
   CircularProgress,
   IconButton,
+  MenuItem,
   Paper,
   Stack,
   TextField,
-  MenuItem,
   Toolbar,
   Typography,
   Divider,
@@ -30,6 +30,7 @@ import {
 } from '@mui/material';
 
 import Grid from '@mui/material/Grid';
+import { createFilterOptions } from '@mui/material/Autocomplete';
 
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
@@ -38,8 +39,10 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
-import { resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
+import { resolveDocumentoFormPath, resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
 import DynamicFieldControl from '../components/DynamicFieldControl';
+import ContactCaptureDialog, { type ContactCaptureDetailedFields } from '../components/contactos/ContactCaptureDialog';
+import ProductoCaptureDialog from '../components/productos/ProductoCaptureDialog';
 import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 
 import type {
@@ -54,19 +57,25 @@ import type { TipoDocumento } from '../types/documentos.types';
 import { getDocumento, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana } from '../services/documentosService';
 import { uploadArchivo } from '../services/uploadsService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
-import type { Producto } from '../types/producto';
+import { createProducto, fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
+import type { Producto, ProductoBasico } from '../types/producto';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
 import { useSession } from '../session/useSession';
 import type { ImpuestoEntrada, ImpuestoCalculadoUI } from '../utils/impuestos';
 import { calcularImpuestosPreview } from '../services/documentosService';
 import { DocumentoDatosFiscalesTab } from '../modules/documentos';
+import { resolveDocumentoTextos } from '../modules/documentos/documentoTypeConfig';
+import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
+import type { ProductoTipoPermitido } from '../modules/documentos/documentoTypes';
 import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
+import { OperacionDialog } from '../modules/finanzas/OperacionDialog';
+import { getDocumentoOrigenFinancieroConfig } from '../modules/finanzas/documentoOrigenFinanciero';
 import { DEFAULT_ESTADO_SEGUIMIENTO } from '../modules/cotizaciones/estadoSeguimiento';
 import { crearContacto, getContacto } from '../services/contactos.api';
-import { fetchSaldoDocumento } from '../services/finanzasService';
+import { fetchCuentas, fetchResumenAnticiposDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
+import { normalizarTelefonoMx } from '../utils/telefono';
 import {
   guardarCamposDocumento,
   guardarCamposPartida,
@@ -74,6 +83,7 @@ import {
   fetchCamposPartida,
 } from '../services/camposDinamicosService';
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
+import type { DocumentoAnticipoResumen, FinanzasCuenta } from '../types/finanzas';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -124,43 +134,42 @@ type DocumentosFormPageProps = {
   tipoDocumento?: TipoDocumento;
 };
 
-const TEXTOS: Record<string, { nuevo: string; editar: string; descripcion: string; guardado: string; cargando: string; singular: string }> = {
-  cotizacion: {
-    nuevo: 'Nueva cotización',
-    editar: 'Editar cotización',
-    descripcion: 'Captura el encabezado y las partidas de la cotización.',
-    guardado: 'Cotización guardada',
-    cargando: 'Cargando cotización...',
-    singular: 'cotización',
-  },
-  factura: {
-    nuevo: 'Nueva factura',
-    editar: 'Editar factura',
-    descripcion: 'Captura el encabezado y las partidas de la factura.',
-    guardado: 'Factura guardada',
-    cargando: 'Cargando factura...',
-    singular: 'factura',
-  },
-  pedido: {
-    nuevo: 'Nuevo pedido',
-    editar: 'Editar pedido',
-    descripcion: 'Captura el encabezado y las partidas del pedido.',
-    guardado: 'Pedido guardado',
-    cargando: 'Cargando pedido...',
-    singular: 'pedido',
-  },
-  remision: {
-    nuevo: 'Nueva remisión',
-    editar: 'Editar remisión',
-    descripcion: 'Captura el encabezado y las partidas de la remisión.',
-    guardado: 'Remisión guardada',
-    cargando: 'Cargando remisión...',
-    singular: 'remisión',
-  },
+const DESCRIPCIONES_FORMULARIO: Record<string, string> = {
+  cotizacion: 'Captura el encabezado y las partidas de la cotización.',
+  factura: 'Captura el encabezado y las partidas de la factura.',
+  orden_servicio: 'Registra los artículos recibidos y los servicios solicitados',
+  pedido: 'Captura el encabezado y las partidas del pedido.',
+  remision: 'Captura el encabezado y las partidas de la remisión.',
 };
 
 const ENTIDAD_TIPO_DOCUMENTO = 'DOCUMENTO';
 const ENTIDAD_TIPO_PARTIDA = 'DOCUMENTO_PARTIDA';
+
+type ProductoAutocompleteOption = Producto | {
+  kind: 'create';
+  id: -1;
+  clave: string;
+  descripcion: string;
+};
+
+type ContactoAutocompleteOption = Contacto | {
+  kind: 'create';
+  id: -1;
+  nombre: string;
+  inputValue: string;
+};
+
+const emptyContactCaptureDetailedFields = (): ContactCaptureDetailedFields => ({
+  telefono: '',
+  email: '',
+  calle: '',
+  numeroExterior: '',
+  numeroInterior: '',
+  colonia: '',
+  ciudad: '',
+  estado: '',
+  cp: '',
+});
 
 const mapValoresToRecord = (valores: (CampoValorGuardado | CampoValorPayload)[]): Record<number, CampoValorPayload> => {
   const bucket: Record<number, CampoValorPayload> = {};
@@ -191,29 +200,75 @@ const prefetchOpcionesLista = (
     });
 };
 
+const buildCreateProductoOption = (): ProductoAutocompleteOption => ({
+  kind: 'create',
+  id: -1,
+  clave: 'Crear producto...',
+  descripcion: 'Registrar y asignar producto',
+});
+
+const filterContactoOptions = createFilterOptions<ContactoAutocompleteOption>({
+  stringify: (option) => ('kind' in option && option.kind === 'create' ? option.inputValue : option.nombre || ''),
+});
+
 export default function DocumentosFormPage({ tipoDocumento: propTipo }: DocumentosFormPageProps) {
   const { id, codigo } = useParams();
   const { session } = useSession();
   const sessionUserId = session.user?.id ?? null;
   const tipoDocumento = (propTipo ?? (codigo as TipoDocumento)) || 'cotizacion';
-  const isCotizacion = tipoDocumento === 'cotizacion';
-  const isEdit = Boolean(id && id !== 'nuevo');
+  const routeDocumentoId = useMemo(() => {
+    const parsedId = Number(id);
+    return Number.isFinite(parsedId) && parsedId > 0 ? parsedId : null;
+  }, [id]);
+  const [documentoPersistidoId, setDocumentoPersistidoId] = useState<number | null>(routeDocumentoId);
+  const {
+    config: documentoConfig,
+    defaultSerie,
+    defaultEstadoSeguimiento,
+    contactoCaptureMode,
+    contactoDefaultTipoContacto,
+    contactoTiposPermitidos,
+    tiposContactoPermitidos,
+    productoCreationMode,
+    productoCaptureMode,
+    productoDefaultTipoProducto,
+    productoTiposPermitidos,
+    widgetFiscalTab,
+    widgetOrigenDocumento,
+    widgetTratamientoFiscal,
+    widgetPagosDrawer,
+    partidasMostrarImagenes,
+    partidasMostrarEsParteOportunidad,
+    partidasMostrarMontoOportunidad,
+  } = useDocumentoConfig(tipoDocumento);
   const navigate = useNavigate();
   const location = useLocation();
-  const basePath = resolveDocumentosListPath(tipoDocumento, resolveDocumentoModulo(location.pathname));
-  const showFiscalTab = tipoDocumento === 'factura';
-  const textos = TEXTOS[tipoDocumento] ?? {
-    nuevo: 'Nuevo documento',
-    editar: 'Editar documento',
-    descripcion: 'Crea o edita documentos.',
-    guardado: 'Documento guardado',
-    cargando: 'Cargando documento...',
-    singular: 'documento',
-  };
+  const moduloDocumento = resolveDocumentoModulo(location.pathname);
+  const documentoActualId = documentoPersistidoId ?? routeDocumentoId;
+  const isCotizacion = tipoDocumento === 'cotizacion';
+  const isEdit = Boolean(documentoActualId);
+  const basePath = resolveDocumentosListPath(tipoDocumento, moduloDocumento);
+  const showFiscalTab = widgetFiscalTab;
+  const textos = useMemo(
+    () => ({
+      ...resolveDocumentoTextos(tipoDocumento, documentoConfig),
+      descripcion: DESCRIPCIONES_FORMULARIO[tipoDocumento] ?? 'Crea o edita documentos.',
+    }),
+    [documentoConfig, tipoDocumento]
+  );
+
+  const productoFlowConfig = useMemo(
+    () => ({
+      creationMode: productoCreationMode,
+      captureMode: productoCaptureMode,
+      defaultTipoProducto: productoDefaultTipoProducto,
+    }),
+    [productoCaptureMode, productoCreationMode, productoDefaultTipoProducto]
+  );
 
   const [form, setForm] = useState<CotizacionCrearPayload>({
     tipo_documento: tipoDocumento,
-    serie: tipoDocumento === 'factura' ? 'FAC' : null,
+    serie: defaultSerie,
     contacto_principal_id: null,
     agente_id: null,
     fecha_documento: defaultFecha(),
@@ -224,7 +279,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     total: 0,
     usuario_creacion_id: sessionUserId ?? null,
     empresa_id: getEmpresaActivaId(),
-    estado_seguimiento: isCotizacion ? DEFAULT_ESTADO_SEGUIMIENTO : null,
+    estado_seguimiento: (defaultEstadoSeguimiento ?? null) as NonNullable<CotizacionCrearPayload['estado_seguimiento']> | null,
     tratamiento_impuestos: 'normal',
     rfc_receptor: '',
     nombre_receptor: '',
@@ -255,7 +310,11 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [saving, setSaving] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [openPagos, setOpenPagos] = useState(false);
+  const [openAnticipoDialog, setOpenAnticipoDialog] = useState(false);
   const [saldoDocumento, setSaldoDocumento] = useState<number>(0);
+  const [anticiposResumen, setAnticiposResumen] = useState<DocumentoAnticipoResumen | null>(null);
+  const [cuentasFinancieras, setCuentasFinancieras] = useState<FinanzasCuenta[]>([]);
+  const [loadingAnticiposResumen, setLoadingAnticiposResumen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
@@ -264,13 +323,28 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [activeTab, setActiveTab] = useState<number>(0);
   const [crearClienteOpen, setCrearClienteOpen] = useState(false);
   const [crearClienteNombre, setCrearClienteNombre] = useState('');
-  const [crearClienteTipo, setCrearClienteTipo] = useState<'Lead' | 'Cliente'>('Lead');
+  const [crearClienteTipo, setCrearClienteTipo] = useState(contactoDefaultTipoContacto);
+  const [crearClienteDetailedFields, setCrearClienteDetailedFields] = useState<ContactCaptureDetailedFields>(emptyContactCaptureDetailedFields);
   const [crearClienteLoading, setCrearClienteLoading] = useState(false);
+  const [crearProductoOpen, setCrearProductoOpen] = useState(false);
+  const [crearProductoClave, setCrearProductoClave] = useState('');
+  const [crearProductoDescripcion, setCrearProductoDescripcion] = useState('');
+  const [crearProductoTipo, setCrearProductoTipo] = useState<ProductoTipoPermitido>(productoDefaultTipoProducto);
+  const [crearProductoLoading, setCrearProductoLoading] = useState(false);
+  const [crearProductoIndex, setCrearProductoIndex] = useState<number | null>(null);
+  const [crearProductoClaveError, setCrearProductoClaveError] = useState<string | null>(null);
 
   const shouldOpenPagos = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get('abrirPagos') === '1';
   }, [location.search]);
+  const anticipoConfig = useMemo(() => getDocumentoOrigenFinancieroConfig(tipoDocumento), [tipoDocumento]);
+  const totalAnticipadoRegistrado = Number(anticiposResumen?.total_anticipado ?? 0);
+  const hasAnticiposRegistrados = Number(anticiposResumen?.cantidad_operaciones ?? 0) > 0 || totalAnticipadoRegistrado > 0;
+  const tienePartidaValida = useMemo(
+    () => partidas.some((partida) => Number(partida.cantidad ?? 0) > 0 && Number(partida.precio_unitario ?? 0) > 0),
+    [partidas]
+  );
   const prefillContactoId = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const rawContactoId = params.get('contactoId');
@@ -396,6 +470,23 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     [form.moneda]
   );
 
+  const productosDisponibles = useMemo(() => {
+    const tiposPermitidos = new Set(productoTiposPermitidos.map((tipo) => tipo.toLowerCase()));
+
+    return productos.filter((producto) => {
+      const tipoProducto = String(producto.tipo_producto ?? productoDefaultTipoProducto).trim().toLowerCase();
+      return tiposPermitidos.has(tipoProducto);
+    });
+  }, [productoDefaultTipoProducto, productoTiposPermitidos, productos]);
+
+  const productosAutocompleteOptions = useMemo<ProductoAutocompleteOption[]>(() => {
+    if (productoCreationMode !== 'inline') {
+      return productosDisponibles;
+    }
+
+    return [...productosDisponibles, buildCreateProductoOption()];
+  }, [productoCreationMode, productosDisponibles]);
+
   const partidaImagenActual = partidaImagenDialog.index !== null ? partidas[partidaImagenDialog.index] ?? null : null;
   const partidaImagenProductoId = partidaImagenActual?.producto_id ?? null;
   const partidaImagenesProducto = partidaImagenProductoId ? partidaImagenesProductoById[partidaImagenProductoId] ?? [] : [];
@@ -483,10 +574,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const partidasGridTemplate = useMemo(
     () =>
-      (isCotizacion
+      (partidasMostrarEsParteOportunidad || partidasMostrarImagenes
         ? '180px 1fr 80px 120px 120px 120px 120px 120px 52px 40px 48px'
         : '180px 1fr 80px 120px 120px 120px 120px 40px 48px'),
-    [isCotizacion]
+    [partidasMostrarEsParteOportunidad, partidasMostrarImagenes]
   );
 
   const calcularPartida = (partida: PartidaForm): PartidaForm => {
@@ -725,8 +816,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const loadCombos = async () => {
     try {
-      const tiposContacto = tipoDocumento === 'cotizacion' ? ['Cliente', 'Lead'] : undefined;
-      const [c, p, v] = await Promise.all([fetchContactos(tiposContacto), fetchProductos(), fetchVendedores()]);
+      const [c, p, v] = await Promise.all([fetchContactos(tiposContactoPermitidos), fetchProductos(), fetchVendedores()]);
       setContactos(c);
       setProductos(p);
       setVendedores(v);
@@ -736,17 +826,18 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   };
 
   const loadDocumento = async () => {
-    if (!isEdit || !id) return;
+    if (!documentoActualId) return;
     try {
       setLoading(true);
       setValoresCamposDocumento({});
       setValoresCamposPartidas([{}]);
-      const requests: [Promise<CotizacionDetalle>, Promise<{ saldo: number } | null>?] = [getDocumento(Number(id), tipoDocumento)];
+      const requests: [Promise<CotizacionDetalle>, Promise<{ saldo: number } | null>?] = [getDocumento(Number(documentoActualId), tipoDocumento)];
       if (tipoDocumento === 'factura') {
-        requests.push(fetchSaldoDocumento(Number(id)).catch(() => null));
+        requests.push(fetchSaldoDocumento(Number(documentoActualId)).catch(() => null));
       }
       const [data, saldoData] = await Promise.all(requests);
       const doc = data.documento;
+      setDocumentoPersistidoId(Number((doc as any).id ?? documentoActualId));
       setSaldoDocumento(Number((saldoData as any)?.saldo ?? doc.saldo ?? 0));
       setForm({
         tipo_documento: doc.tipo_documento ?? tipoDocumento,
@@ -838,7 +929,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
       // Carga valores dinámicos ya capturados
       const [valoresDocResp, valoresPartidasResp] = await Promise.all([
-        fetchCamposDocumento(Number(id)),
+        fetchCamposDocumento(Number(documentoActualId)),
         Promise.all(nextPartidas.map((p) => (p.id ? fetchCamposPartida(p.id) : Promise.resolve([] as CampoValorGuardado[])))),
       ]);
 
@@ -862,13 +953,53 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   };
 
   useEffect(() => {
+    setDocumentoPersistidoId(routeDocumentoId);
+  }, [routeDocumentoId]);
+
+  const loadAnticiposResumen = useCallback(async (documentIdOverride?: number | null) => {
+    const targetDocumentId = documentIdOverride ?? documentoActualId;
+
+    if (!anticipoConfig || !targetDocumentId) {
+      setAnticiposResumen(null);
+      return;
+    }
+    try {
+      setLoadingAnticiposResumen(true);
+      const data = await fetchResumenAnticiposDocumento(Number(targetDocumentId));
+      setAnticiposResumen(data);
+    } catch {
+      setAnticiposResumen(null);
+    } finally {
+      setLoadingAnticiposResumen(false);
+    }
+  }, [anticipoConfig, documentoActualId]);
+
+  const loadCuentasFinancieras = useCallback(async () => {
+    try {
+      const data = await fetchCuentas();
+      setCuentasFinancieras(data ?? []);
+    } catch {
+      setCuentasFinancieras([]);
+    }
+  }, []);
+
+  useEffect(() => {
     loadCombos();
   }, []);
 
   useEffect(() => {
     loadDocumento();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, id, tipoDocumento]);
+  }, [documentoActualId, tipoDocumento]);
+
+  useEffect(() => {
+    void loadAnticiposResumen();
+  }, [loadAnticiposResumen]);
+
+  useEffect(() => {
+    if (!openAnticipoDialog || cuentasFinancieras.length > 0) return;
+    void loadCuentasFinancieras();
+  }, [cuentasFinancieras.length, loadCuentasFinancieras, openAnticipoDialog]);
 
   useEffect(() => {
     if (isEdit) return;
@@ -952,23 +1083,54 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     prevContactoRef.current = contactoId;
   }, [form.contacto_principal_id, tipoDocumento]);
 
-  const handleSave = async () => {
+  const validarDocumentoAntesDePersistir = useCallback((context: 'save' | 'anticipo' | 'exit' = 'save') => {
     if (!form.contacto_principal_id) {
-      setSnackbar({ open: true, message: 'Selecciona un cliente', severity: 'error' });
-      return;
+      setSnackbar({
+        open: true,
+        message: context === 'anticipo' ? 'Primero selecciona un cliente/proveedor.' : 'Selecciona un cliente',
+        severity: 'error',
+      });
+      return false;
     }
-    const requiereDatosFiscales = tipoDocumento === 'factura' && form.tratamiento_impuestos !== 'sin_iva';
+    if ((context === 'anticipo' || hasAnticiposRegistrados) && Number(form.total || 0) <= 0) {
+      setSnackbar({ open: true, message: 'Primero captura partidas o un total mayor a cero.', severity: 'error' });
+      return false;
+    }
+    if (context === 'anticipo' && !tienePartidaValida) {
+      setSnackbar({ open: true, message: 'Agrega al menos una partida válida con cantidad y precio mayores a cero.', severity: 'error' });
+      return false;
+    }
+    if (hasAnticiposRegistrados && Number(form.total || 0) < totalAnticipadoRegistrado) {
+      setSnackbar({ open: true, message: 'El total del documento no puede ser menor que los anticipos registrados.', severity: 'error' });
+      return false;
+    }
 
+    const requiereDatosFiscales = tipoDocumento === 'factura' && form.tratamiento_impuestos !== 'sin_iva';
     if (requiereDatosFiscales) {
       if (!form.rfc_receptor || !validarRFC(form.rfc_receptor)) {
         setSnackbar({ open: true, message: 'RFC receptor es obligatorio y debe ser válido', severity: 'error' });
-        return;
+        return false;
       }
       if (!form.regimen_fiscal_receptor || !form.uso_cfdi || !form.forma_pago || !form.metodo_pago || !form.codigo_postal_receptor) {
         setSnackbar({ open: true, message: 'Completa los datos fiscales requeridos', severity: 'error' });
-        return;
+        return false;
       }
     }
+
+    return true;
+  }, [form, hasAnticiposRegistrados, tienePartidaValida, tipoDocumento, totalAnticipadoRegistrado]);
+
+  const persistDocumento = useCallback(async (options?: {
+    context?: 'save' | 'anticipo' | 'exit';
+    navigateAfterSave?: boolean;
+    showSuccessMessage?: boolean;
+  }) => {
+    const { context = 'save', navigateAfterSave = false, showSuccessMessage = true } = options ?? {};
+
+    if (!validarDocumentoAntesDePersistir(context)) {
+      return null;
+    }
+
     try {
       setSaving(true);
       const payload: CotizacionCrearPayload & { conversacion_id: number | null } = {
@@ -993,13 +1155,15 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       };
 
       let docId: number;
-      if (isEdit && id) {
-        const updated = await updateDocumento(Number(id), tipoDocumento, payload);
-        docId = (updated as any).id ?? Number(id);
+      if (documentoActualId) {
+        const updated = await updateDocumento(Number(documentoActualId), tipoDocumento, payload);
+        docId = (updated as any).id ?? Number(documentoActualId);
       } else {
         const created = await createDocumento(tipoDocumento, payload);
         docId = (created as any).id;
       }
+
+      setDocumentoPersistidoId(docId);
 
       const partidasPayload: CotizacionPartidaPayload[] = partidas.map((p) => ({
         producto_id: p.producto_id,
@@ -1008,8 +1172,12 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         precio_unitario: p.precio_unitario ?? 0,
         subtotal_partida: p.subtotal_partida ?? 0,
         total_partida: p.total_partida ?? 0,
-        es_parte_oportunidad: p.es_parte_oportunidad ?? true,
-        ...(isCotizacion
+        ...(partidasMostrarEsParteOportunidad
+          ? {
+              es_parte_oportunidad: p.es_parte_oportunidad ?? true,
+            }
+          : {}),
+        ...(partidasMostrarImagenes
           ? {
               archivo_imagen_1: p.archivo_imagen_1 ?? null,
               producto_archivo_id: p.archivo_imagen_1 ? null : p.producto_archivo_id ?? null,
@@ -1047,8 +1215,22 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         }
       }
 
-  setSnackbar({ open: true, message: textos.guardado, severity: 'success' });
-      setTimeout(() => navigate(basePath), 400);
+      const nextPath = resolveDocumentoFormPath(tipoDocumento, docId, moduloDocumento);
+      if (location.pathname !== nextPath) {
+        navigate(nextPath, { replace: true });
+      }
+
+      void loadAnticiposResumen(docId);
+
+      if (showSuccessMessage) {
+        setSnackbar({ open: true, message: textos.guardado, severity: 'success' });
+      }
+
+      if (navigateAfterSave) {
+        setTimeout(() => navigate(basePath), 400);
+      }
+
+      return docId;
     } catch (e) {
       const message = e instanceof Error ? e.message : 'No se pudo guardar';
       if (message.toLowerCase().includes('serie') && message.toLowerCase().includes('número')) {
@@ -1056,9 +1238,34 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       } else {
         setSnackbar({ open: true, message, severity: 'error' });
       }
+      return null;
     } finally {
       setSaving(false);
     }
+  }, [
+    basePath,
+    conversacionId,
+    documentoActualId,
+    form,
+    isCotizacion,
+    loadAnticiposResumen,
+    location.pathname,
+    moduloDocumento,
+    navigate,
+    partidas,
+    partidasMostrarEsParteOportunidad,
+    partidasMostrarImagenes,
+    sessionUserId,
+    textos.guardado,
+    tieneValorCapturado,
+    tipoDocumento,
+    validarDocumentoAntesDePersistir,
+    valoresCamposDocumento,
+    valoresCamposPartidas,
+  ]);
+
+  const handleSave = async () => {
+    await persistDocumento({ context: 'save', navigateAfterSave: true, showSuccessMessage: true });
   };
 
   const handleProductoChange = (index: number, producto: Producto | null) => {
@@ -1074,6 +1281,58 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         impuestos_calculados: [],
       };
     });
+  };
+
+  const handleCrearProductoSubmit = async () => {
+    const descripcion = crearProductoDescripcion.trim();
+
+    if (!descripcion) {
+      setSnackbar({ open: true, message: 'La descripcion es obligatoria.', severity: 'error' });
+      return;
+    }
+
+    let clave = crearProductoClave.trim();
+    if (!clave) {
+      clave = `PRD-${Date.now()}`;
+    }
+
+    const claveNormalizada = clave.toLowerCase();
+    const claveDuplicada = productos.some((producto) => String(producto.clave ?? '').trim().toLowerCase() === claveNormalizada);
+
+    if (claveDuplicada) {
+      setCrearProductoClaveError('Ya existe un producto con esa clave.');
+      return;
+    }
+
+    try {
+      setCrearProductoLoading(true);
+      setCrearProductoClaveError(null);
+      const payload: ProductoBasico = {
+        clave,
+        descripcion,
+        tipo_producto: crearProductoTipo,
+        clasificacion: null,
+        activo: true,
+        unidad_venta_id: null,
+        unidad_inventario_id: null,
+      };
+      const nuevo = await createProducto(payload);
+      setProductos((prev) => [nuevo, ...prev.filter((producto) => producto.id !== nuevo.id)]);
+      if (crearProductoIndex !== null) {
+        handleProductoChange(crearProductoIndex, nuevo);
+      }
+      setSnackbar({ open: true, message: 'Producto creado', severity: 'success' });
+      setCrearProductoOpen(false);
+      setCrearProductoClave('');
+      setCrearProductoDescripcion('');
+      setCrearProductoTipo(productoDefaultTipoProducto);
+      setCrearProductoIndex(null);
+      setCrearProductoClaveError(null);
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'No se pudo crear el producto', severity: 'error' });
+    } finally {
+      setCrearProductoLoading(false);
+    }
   };
 
   const handleCantidadPrecioChange = (index: number, field: 'cantidad' | 'precio_unitario', value: string) => {
@@ -1238,14 +1497,44 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
     try {
       setCrearClienteLoading(true);
-      const nuevo = await crearContacto({ nombre, tipo_contacto: crearClienteTipo });
+      const payload: Record<string, unknown> = {
+        nombre,
+        tipo_contacto: crearClienteTipo,
+      };
+
+      if (contactoCaptureMode === 'detailed') {
+        const telefono = crearClienteDetailedFields.telefono.trim();
+        const email = crearClienteDetailedFields.email.trim();
+        const calle = crearClienteDetailedFields.calle.trim();
+        const numeroExterior = crearClienteDetailedFields.numeroExterior.trim();
+        const numeroInterior = crearClienteDetailedFields.numeroInterior.trim();
+        const colonia = crearClienteDetailedFields.colonia.trim();
+        const ciudad = crearClienteDetailedFields.ciudad.trim();
+        const estado = crearClienteDetailedFields.estado.trim();
+        const cp = crearClienteDetailedFields.cp.trim();
+
+        if (telefono) {
+          payload.telefono = normalizarTelefonoMx(telefono);
+        }
+        if (email) payload.email = email;
+        if (calle) payload.calle = calle;
+        if (numeroExterior) payload.numero_exterior = numeroExterior;
+        if (numeroInterior) payload.numero_interior = numeroInterior;
+        if (colonia) payload.colonia = colonia;
+        if (ciudad) payload.ciudad = ciudad;
+        if (estado) payload.estado = estado;
+        if (cp) payload.cp = cp;
+      }
+
+      const nuevo = await crearContacto(payload as Partial<Contacto>);
       setContactos((prev) => [nuevo, ...prev.filter((c) => c.id !== nuevo.id)]);
       handleClienteSelect(nuevo);
       await cargarDatosFiscalesContacto(nuevo.id);
       setSnackbar({ open: true, message: 'Cliente creado', severity: 'success' });
       setCrearClienteOpen(false);
       setCrearClienteNombre('');
-      setCrearClienteTipo('Lead');
+      setCrearClienteTipo(contactoDefaultTipoContacto);
+      setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
     } catch (err: any) {
       setSnackbar({ open: true, message: err?.message || 'No se pudo crear el cliente', severity: 'error' });
     } finally {
@@ -1297,6 +1586,64 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     void loadDocumento();
   }, [location.pathname, location.search, navigate]);
 
+  const handleOpenAnticipo = useCallback(async () => {
+    if (!anticipoConfig) return;
+
+    let docId = documentoActualId;
+    if (!docId) {
+      docId = await persistDocumento({ context: 'anticipo', navigateAfterSave: false, showSuccessMessage: false });
+      if (!docId) return;
+    } else if (!validarDocumentoAntesDePersistir('anticipo')) {
+      return;
+    }
+
+    if (!cuentasFinancieras.length) {
+      await loadCuentasFinancieras();
+    }
+
+    setDocumentoPersistidoId(docId);
+    setOpenAnticipoDialog(true);
+  }, [anticipoConfig, cuentasFinancieras.length, documentoActualId, loadCuentasFinancieras, persistDocumento, validarDocumentoAntesDePersistir]);
+
+  const handleNavigateBack = useCallback(async () => {
+    if (hasAnticiposRegistrados && documentoActualId) {
+      const savedDocumentoId = await persistDocumento({ context: 'exit', navigateAfterSave: false, showSuccessMessage: false });
+      if (!savedDocumentoId) return;
+      setSnackbar({ open: true, message: 'Cambios guardados antes de salir.', severity: 'success' });
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate(basePath);
+  }, [basePath, documentoActualId, hasAnticiposRegistrados, navigate, persistDocumento]);
+
+  const handleCloseAnticipoDialog = useCallback(() => {
+    setOpenAnticipoDialog(false);
+  }, []);
+
+  const handleSavedAnticipo = useCallback((savedDocumentoId?: number | null) => {
+    const targetDocumentId = savedDocumentoId ?? documentoActualId;
+
+    setOpenAnticipoDialog(false);
+    if (!targetDocumentId) return;
+
+    setDocumentoPersistidoId(Number(targetDocumentId));
+    void loadAnticiposResumen(Number(targetDocumentId));
+  }, [documentoActualId, loadAnticiposResumen]);
+
+  const anticiposFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: form.moneda || 'MXN',
+        minimumFractionDigits: 2,
+      }),
+    [form.moneda]
+  );
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
@@ -1304,13 +1651,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           <Button
             variant="text"
             startIcon={<ArrowBackIcon />}
-            onClick={() => {
-              if (window.history.length > 1) {
-                navigate(-1);
-                return;
-              }
-              navigate('/ventas/cotizaciones');
-            }}
+            onClick={() => void handleNavigateBack()}
           >
             Volver
           </Button>
@@ -1324,7 +1665,16 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           </Box>
         </Stack>
         <Stack direction="row" spacing={1}>
-          {isEdit && id && (
+          {anticipoConfig ? (
+            <Button
+              variant="outlined"
+              onClick={() => void handleOpenAnticipo()}
+              disabled={saving || loading}
+            >
+              {anticipoConfig.accionLabel}
+            </Button>
+          ) : null}
+          {isEdit && documentoActualId && (
             <Button
               variant="outlined"
               onClick={() => setOpenPagos(true)}
@@ -1333,14 +1683,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
               Aplicar pago
             </Button>
           )}
-          {isEdit && id && (
+          {isEdit && documentoActualId && (
             <Button
               variant="outlined"
               startIcon={<PictureAsPdfIcon />}
               onClick={async () => {
                 try {
                   setDownloadingPdf(true);
-                  await abrirDocumentoPdfEnNuevaVentana(Number(id), tipoDocumento);
+                  await abrirDocumentoPdfEnNuevaVentana(Number(documentoActualId), tipoDocumento);
                 } catch (err: any) {
                   setError(err?.message || 'No se pudo generar el PDF');
                 } finally {
@@ -1358,13 +1708,47 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         </Stack>
       </Toolbar>
 
+      {anticipoConfig && (documentoActualId || hasAnticiposRegistrados || Number(form.total || 0) > 0) ? (
+        <Paper
+          variant="outlined"
+          sx={{
+            px: 1.5,
+            py: 1,
+            borderRadius: 999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            flexWrap: 'wrap',
+            borderColor: hasAnticiposRegistrados ? '#9db4ff' : '#d7deed',
+            bgcolor: '#f7faff',
+          }}
+        >
+          {loadingAnticiposResumen ? <CircularProgress size={16} /> : null}
+          <Typography variant="body2" color="#1d2f68" fontWeight={700}>
+            {anticipoConfig.flujo === 'compras' ? 'Anticipos pagados' : 'Anticipos'}:
+          </Typography>
+          <Typography variant="body2" color="text.primary">
+            {anticiposFormatter.format(Number(anticiposResumen?.total_anticipado ?? 0))}
+            {anticipoConfig.flujo === 'compras' ? '' : ' recibidos'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">·</Typography>
+          <Typography variant="body2" color="text.primary">
+            Disponible: {anticiposFormatter.format(Number(anticiposResumen?.disponible_por_aplicar ?? 0))}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">·</Typography>
+          <Typography variant="body2" color={Number(form.total || 0) < totalAnticipadoRegistrado ? 'error.main' : 'text.primary'}>
+            Pendiente: {anticiposFormatter.format(Number(anticiposResumen?.pendiente_estimado ?? Math.max(Number(form.total || 0), 0)))}
+          </Typography>
+        </Paper>
+      ) : null}
+
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      {isCotizacion && isEdit && form.documento_origen_id ? (
+      {widgetOrigenDocumento && isEdit && form.documento_origen_id ? (
         <Box>
           <Chip
             variant="outlined"
@@ -1394,21 +1778,57 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
             <>
               <Grid container spacing={2} alignItems="center">
                 <Grid size={{ xs: 12, md: 5 }}>
-                  <Autocomplete
+                  <Autocomplete<ContactoAutocompleteOption>
                     fullWidth
-                    options={[...contactos, { id: -1, nombre: 'Crear cliente…' } as Contacto]}
+                    options={contactos}
                     loading={contactos.length === 0}
                     getOptionLabel={(option) => option.nombre || ''}
-                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                    filterOptions={(options, state) => {
+                      const filtered = filterContactoOptions(options, state);
+                      const inputValue = state.inputValue.trim();
+
+                      if (!inputValue) {
+                        return filtered;
+                      }
+
+                      const normalizedInput = inputValue.toLocaleLowerCase();
+                      const hasExactMatch = options.some((option) => {
+                        if ('kind' in option && option.kind === 'create') return false;
+                        return (option.nombre || '').trim().toLocaleLowerCase() === normalizedInput;
+                      });
+
+                      if (hasExactMatch) {
+                        return filtered;
+                      }
+
+                      return [
+                        {
+                          kind: 'create',
+                          id: -1,
+                          nombre: `➕ Crear cliente "${inputValue}"`,
+                          inputValue,
+                        },
+                        ...filtered,
+                      ];
+                    }}
+                    isOptionEqualToValue={(option, value) => {
+                      const optionIsCreate = 'kind' in option && option.kind === 'create';
+                      const valueIsCreate = !!value && 'kind' in value && value.kind === 'create';
+                      if (optionIsCreate || valueIsCreate) {
+                        return optionIsCreate && valueIsCreate && option.id === value.id;
+                      }
+                      return option?.id === value?.id;
+                    }}
                     value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
                     onChange={(_, value) => {
-                      if (value?.id === -1) {
+                      if (value && 'kind' in value && value.kind === 'create') {
                         setCrearClienteOpen(true);
-                        setCrearClienteNombre('');
-                        setCrearClienteTipo('Lead');
+                        setCrearClienteNombre(value.inputValue);
+                        setCrearClienteTipo(contactoDefaultTipoContacto);
+                        setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
                         return;
                       }
-                      handleClienteSelect(value);
+                      handleClienteSelect((value as Contacto | null) ?? null);
                     }}
                     renderOption={(props, option) => {
                       const { key, ...rest } = props;
@@ -1471,7 +1891,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     size="small"
                   />
                 </Grid>
-                {tipoDocumento === 'factura' && (
+                {widgetTratamientoFiscal && (
                   <Grid size={{ xs: 12, md: 2 }}>
                     <TextField
                       select
@@ -1546,30 +1966,6 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
               </Stack>
 
               <Stack spacing={1}>
-                <Box
-                  sx={{
-                    display: { xs: 'none', md: 'grid' },
-                    gridTemplateColumns: partidasGridTemplate,
-                    gap: 1,
-                    px: 1,
-                    color: '#6b7280',
-                    fontSize: 12,
-                    fontWeight: 600,
-                  }}
-                >
-                  <Box>Producto</Box>
-                  <Box>Descripción</Box>
-                  <Box textAlign="right">Cant.</Box>
-                  <Box textAlign="right">Precio</Box>
-                  <Box textAlign="right">Subtotal</Box>
-                  <Box textAlign="right">IVA</Box>
-                  <Box textAlign="right">Total</Box>
-                  {isCotizacion && <Box textAlign="center">Cuenta para oportunidad</Box>}
-                  {isCotizacion && <Box textAlign="center">Imagen</Box>}
-                  <Box textAlign="center">Obs.</Box>
-                  <Box textAlign="center">&nbsp;</Box>
-                </Box>
-
                 {partidas.map((partida, index) => (
                   <React.Fragment key={index}>
                     <Paper
@@ -1587,13 +1983,35 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                         alignItems: 'center',
                       }}
                     >
-                      <Autocomplete
-                        options={productos}
+                      <Autocomplete<ProductoAutocompleteOption>
+                        options={productosAutocompleteOptions}
                         loading={productos.length === 0}
                         getOptionLabel={(option) => option.clave || ''}
+                        isOptionEqualToValue={(option, value) => option.id === value.id}
                         value={productos.find((p) => p.id === partida.producto_id) || null}
-                        onChange={(_, value) => handleProductoChange(index, value)}
-                        filterOptions={filterProductos}
+                        onChange={(_, value) => {
+                          if (value && 'kind' in value && value.kind === 'create') {
+                            setCrearProductoIndex(index);
+                            setCrearProductoClave('');
+                            setCrearProductoDescripcion('');
+                            setCrearProductoTipo(productoDefaultTipoProducto);
+                            setCrearProductoClaveError(null);
+                            setCrearProductoOpen(true);
+                            return;
+                          }
+
+                          handleProductoChange(index, value as Producto | null);
+                        }}
+                        filterOptions={(options, state) => {
+                          const createOption = options.find((option) => 'kind' in option && option.kind === 'create') ?? null;
+                          const productOptions = options.filter((option): option is Producto => !('kind' in option));
+                          const filtered = filterProductos(productOptions, state);
+
+                          return createOption ? [...filtered, createOption] : filtered;
+                        }}
+                        data-product-creation-mode={productoFlowConfig.creationMode}
+                        data-product-capture-mode={productoFlowConfig.captureMode}
+                        data-product-default-type={productoFlowConfig.defaultTipoProducto}
                         slotProps={{
                           popper: {
                             placement: 'bottom-start',
@@ -1637,7 +2055,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              {(option as Producto)?.clave || ''}
+                              {'kind' in option ? option.clave : option.clave || ''}
                             </Typography>
                             <Typography
                               component="span"
@@ -1649,15 +2067,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              {(option as Producto)?.descripcion || ''}
+                              {'kind' in option ? option.descripcion : option.descripcion || ''}
                             </Typography>
                           </Box>
                         )}
                         renderInput={(params) => (
                           <TextField
                             {...(params as any)}
-                            label={undefined}
-                            placeholder="Producto"
+                            label="Producto"
                             size="small"
                             InputLabelProps={{ sx: { fontSize: 13 } }}
                             inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
@@ -1667,8 +2084,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       />
 
                       <TextField
-                        label={undefined}
-                        placeholder="Descripción"
+                        label="Descripción"
                         value={partida.descripcion_alterna ?? ''}
                         onChange={(e) => handleDescripcionChange(index, e.target.value)}
                         size="small"
@@ -1679,8 +2095,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       />
 
                       <TextField
-                        label={undefined}
-                        placeholder="Cant."
+                        label="Cantidad"
                         type="number"
                         value={partida.cantidad ?? 0}
                         onChange={(e) => handleCantidadPrecioChange(index, 'cantidad', e.target.value)}
@@ -1697,8 +2112,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       />
 
                       <TextField
-                        label={undefined}
-                        placeholder="Precio"
+                        label="Precio"
                         type="text"
                         value={editingPrecio[index]
                           ? precioInputs[index] ?? ''
@@ -1748,14 +2162,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       />
 
                       <TextField
-                        label={undefined}
+                        label="Subtotal"
                         value={formatter.format(partida.subtotal_partida ?? 0)}
                         InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
                         size="small"
                       />
 
                       <TextField
-                        label={undefined}
+                        label="IVA"
                         value={formatter.format(
                           (partida.impuestos ?? []).reduce((acc, imp: any) => {
                             const monto = Number(imp.monto ?? 0);
@@ -1768,13 +2182,13 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       />
 
                       <TextField
-                        label={undefined}
+                        label="Total"
                         value={formatter.format(partida.total_partida ?? 0)}
                         InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
                         size="small"
                       />
 
-                      {isCotizacion && (
+                      {partidasMostrarEsParteOportunidad && (
                         <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 40 }}>
                           <Tooltip title="Cuenta para oportunidad">
                             <Checkbox
@@ -1791,7 +2205,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                         </Box>
                       )}
 
-                      {isCotizacion && (
+                      {partidasMostrarImagenes && (
                         <Box display="flex" justifyContent="center" alignItems="center" gap={0.5}>
                           <Tooltip
                             title={
@@ -1857,7 +2271,18 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     </Paper>
 
                     {camposPartida.campos.length > 0 && (
-                      <Box sx={{ gridColumn: { xs: '1', md: '1 / -1' }, mt: 1 }}>
+                      <Box
+                        sx={{
+                          gridColumn: { xs: '1', md: '1 / -1' },
+                          mt: 0.5,
+                          '& .MuiInputBase-input': {
+                            fontSize: 13,
+                          },
+                          '& .MuiInputBase-root': {
+                            fontSize: 13,
+                          },
+                        }}
+                      >
                         <Grid container spacing={1.5}>
                           {camposPartida.campos.map((campo) => {
                             const parentCatalogId = campo.campo_padre_id
@@ -1893,9 +2318,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                           fullWidth
                           multiline
                           minRows={2}
+                          variant="outlined"
                           size="small"
-                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                          inputProps={{ style: { fontSize: 13 } }}
+                          InputProps={{ sx: { fontSize: 13 } }}
                         />
                       </Box>
                     )}
@@ -1927,7 +2352,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   size="small"
                   sx={{ width: { xs: '100%', sm: 180 } }}
                 />
-                {isCotizacion && (
+                {partidasMostrarMontoOportunidad && (
                   <TextField
                     label="Monto oportunidad"
                     value={formatter.format(montoOportunidad)}
@@ -1973,42 +2398,62 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         </DialogActions>
       </Dialog>
 
-      <Dialog open={crearClienteOpen} onClose={() => { if (!crearClienteLoading) { setCrearClienteOpen(false); setCrearClienteNombre(''); setCrearClienteTipo('Lead'); } }} fullWidth maxWidth="xs">
-        <DialogTitle>Crear cliente rápido</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          <TextField
-            label="Nombre"
-            size="small"
-            autoFocus
-            value={crearClienteNombre}
-            onChange={(e) => setCrearClienteNombre(e.target.value)}
-            disabled={crearClienteLoading}
-            InputLabelProps={{ shrink: true }}
-          />
-          <TextField
-            select
-            label="Tipo de contacto"
-            size="small"
-            value={crearClienteTipo}
-            onChange={(e) => setCrearClienteTipo(e.target.value as 'Lead' | 'Cliente')}
-            disabled={crearClienteLoading}
-          >
-            <MenuItem value="Lead">Lead</MenuItem>
-            <MenuItem value="Cliente">Cliente</MenuItem>
-          </TextField>
-          <Alert severity="info" sx={{ fontSize: 13 }}>
-            Se asignará al documento con el tipo seleccionado.
-          </Alert>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => { if (!crearClienteLoading) { setCrearClienteOpen(false); setCrearClienteNombre(''); setCrearClienteTipo('Lead'); } }} disabled={crearClienteLoading}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={() => void handleCrearClienteSubmit()} disabled={crearClienteLoading}>
-            {crearClienteLoading ? 'Creando…' : 'Crear y asignar'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ContactCaptureDialog
+        open={crearClienteOpen}
+        loading={crearClienteLoading}
+        nombre={crearClienteNombre}
+        tipoContacto={crearClienteTipo}
+        tiposPermitidos={contactoTiposPermitidos}
+        captureMode={contactoCaptureMode}
+        detailedFields={crearClienteDetailedFields}
+        title="Crear cliente"
+        infoMessage="Se asignará al documento con el tipo seleccionado."
+        onNombreChange={setCrearClienteNombre}
+        onTipoContactoChange={setCrearClienteTipo}
+        onDetailedFieldChange={(field, value) => {
+          setCrearClienteDetailedFields((prev) => ({ ...prev, [field]: value }));
+        }}
+        onClose={() => {
+          if (!crearClienteLoading) {
+            setCrearClienteOpen(false);
+            setCrearClienteNombre('');
+            setCrearClienteTipo(contactoDefaultTipoContacto);
+            setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
+          }
+        }}
+        onSubmit={() => void handleCrearClienteSubmit()}
+      />
+
+      <ProductoCaptureDialog
+        open={crearProductoOpen}
+        loading={crearProductoLoading}
+        clave={crearProductoClave}
+        claveError={crearProductoClaveError}
+        descripcion={crearProductoDescripcion}
+        tipoProducto={crearProductoTipo}
+        tiposPermitidos={productoTiposPermitidos}
+        captureMode={productoCaptureMode}
+        title="Crear producto rapido"
+        onClaveChange={(value) => {
+          setCrearProductoClave(value);
+          if (crearProductoClaveError) {
+            setCrearProductoClaveError(null);
+          }
+        }}
+        onDescripcionChange={setCrearProductoDescripcion}
+        onTipoProductoChange={setCrearProductoTipo}
+        onClose={() => {
+          if (!crearProductoLoading) {
+            setCrearProductoOpen(false);
+            setCrearProductoClave('');
+            setCrearProductoDescripcion('');
+            setCrearProductoTipo(productoDefaultTipoProducto);
+            setCrearProductoIndex(null);
+            setCrearProductoClaveError(null);
+          }
+        }}
+        onSubmit={() => void handleCrearProductoSubmit()}
+      />
 
       <Dialog open={partidaImagenDialog.open} onClose={cerrarImagenDialog} fullWidth maxWidth="sm">
         <DialogTitle fontWeight={700}>Imagen de la partida</DialogTitle>
@@ -2141,13 +2586,38 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         </Alert>
       </Snackbar>
 
-      {tipoDocumento === 'factura' && isEdit && id && form.contacto_principal_id ? (
+      {widgetPagosDrawer && isEdit && documentoActualId && form.contacto_principal_id ? (
         <FacturaPagosDrawer
           open={openPagos}
           onClose={handleClosePagosDrawer}
-          documentoId={Number(id)}
+          documentoId={Number(documentoActualId)}
           contactoId={Number(form.contacto_principal_id)}
           saldo={saldoDocumento}
+        />
+      ) : null}
+
+      {anticipoConfig && documentoActualId ? (
+        <OperacionDialog
+          open={openAnticipoDialog}
+          cuentas={cuentasFinancieras}
+          defaultCuentaId={cuentasFinancieras[0]?.id ?? null}
+          operacion={null}
+          title={anticipoConfig.dialogTitle}
+          saveLabel={anticipoConfig.accionLabel}
+          presetPayload={{
+            fecha: normalizeCivilDate(form.fecha_documento) || defaultFecha(),
+            tipo_movimiento: anticipoConfig.tipo_movimiento,
+            naturaleza_operacion: anticipoConfig.naturaleza_operacion,
+            contacto_id: form.contacto_principal_id,
+            documento_origen_id: Number(documentoActualId),
+          }}
+          lockedFields={{
+            tipo_movimiento: true,
+            naturaleza_operacion: true,
+            contacto_id: true,
+          }}
+          onClose={handleCloseAnticipoDialog}
+          onSaved={handleSavedAnticipo}
         />
       ) : null}
     </Box>

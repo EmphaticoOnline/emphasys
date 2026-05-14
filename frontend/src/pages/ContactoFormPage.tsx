@@ -25,6 +25,7 @@ import { apiFetch } from '../services/apiFetch';
 import { fetchVendedores } from '../services/contactosService';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
+import { normalizarTelefonoMx } from '../utils/telefono';
 
 type FormState = {
   nombre: string;
@@ -451,8 +452,8 @@ function validarRFC(rfc: string) {
       vendedor_id: form.vendedor_id ? Number(form.vendedor_id) : null,
       rfc: form.rfc || null,
       email: form.email || null,
-      telefono: form.telefono || null,
-      telefono_secundario: form.telefono_secundario || null,
+      telefono: form.telefono ? normalizarTelefonoMx(form.telefono) : null,
+      telefono_secundario: form.telefono_secundario ? normalizarTelefonoMx(form.telefono_secundario) : null,
       activo: Boolean(form.activo),
       calle: form.calle.trim() || null,
       numero_exterior: form.numero_exterior.trim() || null,

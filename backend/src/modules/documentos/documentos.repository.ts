@@ -484,6 +484,7 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
 const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   cotizacion: 'COT',
   factura: 'FAC',
+  orden_servicio: 'OS',
   pedido: 'PED',
   remision: 'REM',
   orden_entrega: 'ODE',

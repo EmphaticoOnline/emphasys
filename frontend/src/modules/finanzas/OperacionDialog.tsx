@@ -27,13 +27,32 @@ interface OperacionDialogProps {
   cuentas: FinanzasCuenta[];
   defaultCuentaId?: number | null;
   operacion?: FinanzasOperacion | null;
+  title?: string;
+  saveLabel?: string;
+  presetPayload?: Partial<OperacionPayload> | null;
+  lockedFields?: {
+    tipo_movimiento?: boolean;
+    naturaleza_operacion?: boolean;
+    contacto_id?: boolean;
+  };
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (documentoOrigenId?: number | null) => void;
 }
 
 type ConceptoOption = Concepto & { inputValue?: string; isNew?: boolean };
 
-export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onClose, onSaved }: OperacionDialogProps) {
+export function OperacionDialog({
+  open,
+  cuentas,
+  defaultCuentaId,
+  operacion,
+  title,
+  saveLabel,
+  presetPayload,
+  lockedFields,
+  onClose,
+  onSaved,
+}: OperacionDialogProps) {
   const [cuentaId, setCuentaId] = useState<number | ''>(defaultCuentaId || '');
   const [fecha, setFecha] = useState<string>('');
   const [tipoMovimiento, setTipoMovimiento] = useState<TipoMovimiento>('Deposito');
@@ -71,18 +90,18 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
       setConceptoId(operacion.concepto_id ? String(operacion.concepto_id) : '');
       setNaturaleza((operacion.naturaleza_operacion as NaturalezaOperacion) || 'movimiento_general');
     } else {
-      setCuentaId(defaultCuentaId || '');
-      setFecha(new Date().toISOString().slice(0, 10));
-      setTipoMovimiento('Deposito');
-      setNaturaleza('movimiento_general');
-      setContactoId('');
-      setReferencia('');
-      setObservaciones('');
-      setMonto('');
-      setConceptoId('');
+      setCuentaId(presetPayload?.cuenta_id ?? defaultCuentaId ?? '');
+      setFecha(presetPayload?.fecha || new Date().toISOString().slice(0, 10));
+      setTipoMovimiento(presetPayload?.tipo_movimiento || 'Deposito');
+      setNaturaleza(presetPayload?.naturaleza_operacion || 'movimiento_general');
+      setContactoId(presetPayload?.contacto_id ? String(presetPayload.contacto_id) : '');
+      setReferencia(presetPayload?.referencia || '');
+      setObservaciones(presetPayload?.observaciones || '');
+      setMonto(presetPayload?.monto ? formatCurrency(presetPayload.monto) : '');
+      setConceptoId(presetPayload?.concepto_id ? String(presetPayload.concepto_id) : '');
     }
     setError(null);
-  }, [operacion, defaultCuentaId, open]);
+  }, [operacion, defaultCuentaId, open, presetPayload]);
 
   useEffect(() => {
     if (!open) return;
@@ -111,6 +130,7 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
       fecha,
       tipo_movimiento: tipoMovimiento,
       naturaleza_operacion: naturaleza || 'movimiento_general',
+      documento_origen_id: presetPayload?.documento_origen_id ?? operacion?.documento_origen_id ?? null,
       contacto_id: contactoId ? Number(contactoId) : null,
       referencia: referencia || null,
       observaciones: observaciones || null,
@@ -126,7 +146,7 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
       } else {
         await crearOperacion(payload);
       }
-      onSaved();
+      onSaved(payload.documento_origen_id ?? null);
       onClose();
     } catch (err: any) {
       setError(err?.message || 'No se pudo guardar la operación');
@@ -139,7 +159,7 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{operacion ? 'Editar operación' : 'Nueva operación'}</DialogTitle>
+      <DialogTitle>{title || (operacion ? 'Editar operación' : 'Nueva operación')}</DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
         <Stack spacing={2} mt={1}>
           <FormControl size="small" fullWidth>
@@ -174,6 +194,7 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
                 labelId="tipo-label"
                 value={tipoMovimiento}
                 label="Tipo"
+                disabled={Boolean(lockedFields?.tipo_movimiento)}
                 onChange={(e) => setTipoMovimiento(e.target.value as TipoMovimiento)}
               >
                 <MenuItem value="Deposito">Depósito</MenuItem>
@@ -188,6 +209,7 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
               labelId="naturaleza-label"
               value={naturaleza}
               label="Naturaleza de la operación"
+              disabled={Boolean(lockedFields?.naturaleza_operacion)}
               onChange={(e) => setNaturaleza((e.target.value as NaturalezaOperacion) || 'movimiento_general')}
             >
               <MenuItem value="cobro_cliente">Cobro de cliente</MenuItem>
@@ -201,8 +223,12 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
             getOptionLabel={(option) => option.nombre || ''}
             loading={loadingContactos}
             value={contactos.find((c) => c.id === Number(contactoId)) || null}
-            onChange={(_e, value) => setContactoId(value ? String(value.id) : '')}
+            onChange={(_e, value) => {
+              if (lockedFields?.contacto_id) return;
+              setContactoId(value ? String(value.id) : '');
+            }}
             isOptionEqualToValue={(option, value) => option.id === value.id}
+            disabled={Boolean(lockedFields?.contacto_id)}
             renderInput={(params) => {
               const { InputLabelProps: _ignoredLabelProps, ...rest } = params;
               return (
@@ -345,7 +371,7 @@ export function OperacionDialog({ open, cuentas, defaultCuentaId, operacion, onC
           variant="contained"
           sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
         >
-          {saving ? 'Guardando...' : 'Guardar'}
+          {saving ? 'Guardando...' : saveLabel || 'Guardar'}
         </Button>
       </DialogActions>
     </Dialog>

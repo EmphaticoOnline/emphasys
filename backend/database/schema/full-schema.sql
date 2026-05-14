@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-13T01:37:34.016Z
+-- Generated at: 2026-05-13T22:13:29.049Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict PfvO4VNiYGZbsO8eaLKi2pvHUu4dLw6WHAn65J5cOHcz9Yc6lpfjOKUe5KKsToG
+\restrict n1GGWJY7m5qEoit07YWj94UXBcKGJmddc3zo8HsodwrIJhm1WTDkLCF9J54kIob
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -3575,7 +3575,8 @@ CREATE TABLE produccion.seguimientos (
     comentarios text,
     updated_by integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    activo boolean DEFAULT true NOT NULL
 );
 
 
@@ -3603,7 +3604,7 @@ ALTER SEQUENCE produccion.seguimientos_id_seq OWNED BY produccion.seguimientos.i
 -- Name: aplicaciones; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.aplicaciones (
+CREATE TABLE public.aplicaciones_saldo (
     id integer NOT NULL,
     empresa_id integer NOT NULL,
     finanzas_operacion_id integer,
@@ -3613,85 +3614,85 @@ CREATE TABLE public.aplicaciones (
     monto_moneda_documento numeric(15,2) NOT NULL,
     fecha_aplicacion timestamp with time zone DEFAULT now() NOT NULL,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_aplicacion_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
+    CONSTRAINT chk_aplicaciones_saldo_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
 );
 
 
 --
--- Name: TABLE aplicaciones; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE aplicaciones_saldo; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.aplicaciones IS 'Registra aplicaciones de saldo desde pagos o notas de crédito hacia documentos destino (por ejemplo facturas). Soporta multimoneda.';
-
-
---
--- Name: COLUMN aplicaciones.id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.aplicaciones.id IS 'Identificador único de la aplicación.';
+COMMENT ON TABLE public.aplicaciones_saldo IS 'Registra aplicaciones de saldo desde pagos o notas de crédito hacia documentos destino (por ejemplo facturas). Soporta multimoneda.';
 
 
 --
--- Name: COLUMN aplicaciones.empresa_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN aplicaciones_saldo.id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.aplicaciones.empresa_id IS 'Empresa a la que pertenece la aplicación (soporte multiempresa).';
-
-
---
--- Name: COLUMN aplicaciones.finanzas_operacion_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.aplicaciones.finanzas_operacion_id IS 'Origen de la aplicación cuando proviene de una operación financiera (pago de banco o caja).';
+COMMENT ON COLUMN public.aplicaciones_saldo.id IS 'Identificador único de la aplicación.';
 
 
 --
--- Name: COLUMN aplicaciones.documento_origen_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN aplicaciones_saldo.empresa_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.aplicaciones.documento_origen_id IS 'Origen de la aplicación cuando proviene de un documento (por ejemplo una nota de crédito).';
-
-
---
--- Name: COLUMN aplicaciones.documento_destino_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.aplicaciones.documento_destino_id IS 'Documento que recibe la aplicación de saldo (normalmente una factura).';
+COMMENT ON COLUMN public.aplicaciones_saldo.empresa_id IS 'Empresa a la que pertenece la aplicación (soporte multiempresa).';
 
 
 --
--- Name: COLUMN aplicaciones.monto; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN aplicaciones_saldo.finanzas_operacion_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.aplicaciones.monto IS 'Monto aplicado en moneda base del sistema (por ejemplo MXN). Se descuenta del saldo del origen.';
-
-
---
--- Name: COLUMN aplicaciones.monto_moneda_documento; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.aplicaciones.monto_moneda_documento IS 'Monto aplicado expresado en la moneda del documento destino. Se utiliza para calcular el saldo del documento destino.';
+COMMENT ON COLUMN public.aplicaciones_saldo.finanzas_operacion_id IS 'Origen de la aplicación cuando proviene de una operación financiera (pago de banco o caja).';
 
 
 --
--- Name: COLUMN aplicaciones.fecha_aplicacion; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN aplicaciones_saldo.documento_origen_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.aplicaciones.fecha_aplicacion IS 'Fecha efectiva en la que se realiza la aplicación del saldo.';
-
-
---
--- Name: COLUMN aplicaciones.fecha_creacion; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.aplicaciones.fecha_creacion IS 'Fecha en que se creó el registro de la aplicación en el sistema.';
+COMMENT ON COLUMN public.aplicaciones_saldo.documento_origen_id IS 'Origen de la aplicación cuando proviene de un documento (por ejemplo una nota de crédito).';
 
 
 --
--- Name: aplicaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: COLUMN aplicaciones_saldo.documento_destino_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.aplicaciones_id_seq
+COMMENT ON COLUMN public.aplicaciones_saldo.documento_destino_id IS 'Documento que recibe la aplicación de saldo (normalmente una factura).';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.monto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.monto IS 'Monto aplicado en moneda base del sistema (por ejemplo MXN). Se descuenta del saldo del origen.';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.monto_moneda_documento; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.monto_moneda_documento IS 'Monto aplicado expresado en la moneda del documento destino. Se utiliza para calcular el saldo del documento destino.';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.fecha_aplicacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.fecha_aplicacion IS 'Fecha efectiva en la que se realiza la aplicación del saldo.';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.fecha_creacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.fecha_creacion IS 'Fecha en que se creó el registro de la aplicación en el sistema.';
+
+
+--
+-- Name: aplicaciones_saldo_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.aplicaciones_saldo_id_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -3701,10 +3702,10 @@ CREATE SEQUENCE public.aplicaciones_id_seq
 
 
 --
--- Name: aplicaciones_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: aplicaciones_saldo_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.aplicaciones_id_seq OWNED BY public.aplicaciones.id;
+ALTER SEQUENCE public.aplicaciones_saldo_id_seq OWNED BY public.aplicaciones_saldo.id;
 
 
 --
@@ -4666,7 +4667,7 @@ CREATE VIEW public.documentos_saldo AS
     d.total,
     (d.total - COALESCE(sum(a.monto), (0)::numeric)) AS saldo
    FROM (public.documentos d
-     LEFT JOIN public.aplicaciones a ON (((a.documento_destino_id = d.id) AND (a.empresa_id = d.empresa_id))))
+      LEFT JOIN public.aplicaciones_saldo a ON (((a.documento_destino_id = d.id) AND (a.empresa_id = d.empresa_id))))
   GROUP BY d.id, d.empresa_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total;
 
 
@@ -4674,7 +4675,7 @@ CREATE VIEW public.documentos_saldo AS
 -- Name: VIEW documentos_saldo; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.documentos_saldo IS 'Vista de compatibilidad: id, empresa_id, datos básicos y saldo = total - aplicaciones (COALESCE).';
+COMMENT ON VIEW public.documentos_saldo IS 'Vista de compatibilidad: id, empresa_id, datos básicos y saldo = total - aplicaciones_saldo (COALESCE).';
 
 
 --
@@ -4878,6 +4879,7 @@ CREATE TABLE public.finanzas_operaciones (
     observaciones text,
     cuenta_id integer NOT NULL,
     contacto_id integer,
+    documento_origen_id integer,
     factura_id integer,
     es_transferencia boolean DEFAULT false NOT NULL,
     transferencia_id integer,
@@ -6636,7 +6638,7 @@ ALTER TABLE ONLY produccion.seguimientos ALTER COLUMN id SET DEFAULT nextval('pr
 -- Name: aplicaciones id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.aplicaciones ALTER COLUMN id SET DEFAULT nextval('public.aplicaciones_id_seq'::regclass);
+ALTER TABLE ONLY public.aplicaciones_saldo ALTER COLUMN id SET DEFAULT nextval('public.aplicaciones_saldo_id_seq'::regclass);
 
 
 --
@@ -7271,11 +7273,11 @@ ALTER TABLE ONLY produccion.seguimientos
 
 
 --
--- Name: aplicaciones aplicaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo aplicaciones_saldo_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.aplicaciones
-    ADD CONSTRAINT aplicaciones_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.aplicaciones_saldo
+    ADD CONSTRAINT aplicaciones_saldo_pkey PRIMARY KEY (id);
 
 
 --
@@ -8624,13 +8626,6 @@ CREATE INDEX idx_produccion_seguimientos_etapa ON produccion.seguimientos USING 
 
 
 --
--- Name: ux_produccion_seguimientos_empresa_documento; Type: INDEX; Schema: produccion; Owner: -
---
-
-CREATE UNIQUE INDEX ux_produccion_seguimientos_empresa_documento ON produccion.seguimientos USING btree (empresa_id, documento_id);
-
-
---
 -- Name: documentos_unico; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8638,66 +8633,66 @@ CREATE UNIQUE INDEX documentos_unico ON public.documentos USING btree (empresa_i
 
 
 --
--- Name: idx_aplicaciones_doc_destino; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_aplicaciones_saldo_doc_destino; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_doc_destino ON public.aplicaciones USING btree (documento_destino_id);
-
-
---
--- Name: INDEX idx_aplicaciones_doc_destino; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_aplicaciones_doc_destino IS 'Optimiza consultas para calcular saldo pendiente de documentos destino (facturas).';
+CREATE INDEX idx_aplicaciones_saldo_doc_destino ON public.aplicaciones_saldo USING btree (documento_destino_id);
 
 
 --
--- Name: idx_aplicaciones_doc_origen; Type: INDEX; Schema: public; Owner: -
+-- Name: INDEX idx_aplicaciones_saldo_doc_destino; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_doc_origen ON public.aplicaciones USING btree (documento_origen_id);
-
-
---
--- Name: INDEX idx_aplicaciones_doc_origen; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_aplicaciones_doc_origen IS 'Optimiza consultas para calcular saldo disponible de notas de crédito.';
+COMMENT ON INDEX public.idx_aplicaciones_saldo_doc_destino IS 'Optimiza consultas para calcular saldo pendiente de documentos destino (facturas).';
 
 
 --
--- Name: idx_aplicaciones_empresa; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_aplicaciones_saldo_doc_origen; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_empresa ON public.aplicaciones USING btree (empresa_id);
-
-
---
--- Name: INDEX idx_aplicaciones_empresa; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_aplicaciones_empresa IS 'Permite filtrar rápidamente aplicaciones por empresa.';
+CREATE INDEX idx_aplicaciones_saldo_doc_origen ON public.aplicaciones_saldo USING btree (documento_origen_id);
 
 
 --
--- Name: idx_aplicaciones_operacion; Type: INDEX; Schema: public; Owner: -
+-- Name: INDEX idx_aplicaciones_saldo_doc_origen; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_operacion ON public.aplicaciones USING btree (finanzas_operacion_id);
-
-
---
--- Name: INDEX idx_aplicaciones_operacion; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_aplicaciones_operacion IS 'Optimiza consultas para calcular saldo de operaciones financieras (pagos).';
+COMMENT ON INDEX public.idx_aplicaciones_saldo_doc_origen IS 'Optimiza consultas para calcular saldo disponible de notas de crédito.';
 
 
 --
--- Name: idx_aplicaciones_operacion_empresa; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_aplicaciones_saldo_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_operacion_empresa ON public.aplicaciones USING btree (empresa_id, finanzas_operacion_id);
+CREATE INDEX idx_aplicaciones_saldo_empresa ON public.aplicaciones_saldo USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_aplicaciones_saldo_empresa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aplicaciones_saldo_empresa IS 'Permite filtrar rápidamente aplicaciones por empresa.';
+
+
+--
+-- Name: idx_aplicaciones_saldo_operacion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_saldo_operacion ON public.aplicaciones_saldo USING btree (finanzas_operacion_id);
+
+
+--
+-- Name: INDEX idx_aplicaciones_saldo_operacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aplicaciones_saldo_operacion IS 'Optimiza consultas para calcular saldo de operaciones financieras (pagos).';
+
+
+--
+-- Name: idx_aplicaciones_saldo_operacion_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_saldo_operacion_empresa ON public.aplicaciones_saldo USING btree (empresa_id, finanzas_operacion_id);
 
 
 --
@@ -8978,6 +8973,13 @@ CREATE INDEX idx_finanzas_operaciones_empresa_naturaleza ON public.finanzas_oper
 --
 
 CREATE INDEX idx_fo_concepto ON public.finanzas_operaciones USING btree (concepto_id);
+
+
+--
+-- Name: idx_finanzas_operaciones_documento_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_operaciones_documento_origen ON public.finanzas_operaciones USING btree (documento_origen_id);
 
 
 --
@@ -9823,35 +9825,35 @@ ALTER TABLE ONLY produccion.seguimientos
 
 
 --
--- Name: aplicaciones fk_aplicaciones_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_saldo_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.aplicaciones
-    ADD CONSTRAINT fk_aplicaciones_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
-
-
---
--- Name: aplicaciones fk_aplicaciones_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aplicaciones
-    ADD CONSTRAINT fk_aplicaciones_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.aplicaciones_saldo
+    ADD CONSTRAINT fk_aplicaciones_saldo_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
 
 
 --
--- Name: aplicaciones fk_aplicaciones_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_saldo_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.aplicaciones
-    ADD CONSTRAINT fk_aplicaciones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.aplicaciones_saldo
+    ADD CONSTRAINT fk_aplicaciones_saldo_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
 
 
 --
--- Name: aplicaciones fk_aplicaciones_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_saldo_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.aplicaciones
-    ADD CONSTRAINT fk_aplicaciones_operacion FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.aplicaciones_saldo
+    ADD CONSTRAINT fk_aplicaciones_saldo_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones_saldo fk_aplicaciones_saldo_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones_saldo
+    ADD CONSTRAINT fk_aplicaciones_saldo_operacion FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
 
 
 --
@@ -10087,6 +10089,14 @@ ALTER TABLE ONLY public.finanzas_operaciones
 
 
 --
+-- Name: finanzas_operaciones fk_finanzas_operaciones_documento_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_operaciones
+    ADD CONSTRAINT fk_finanzas_operaciones_documento_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
+
+
+--
 -- Name: finanzas_operaciones fk_fo_cuenta; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10306,5 +10316,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict PfvO4VNiYGZbsO8eaLKi2pvHUu4dLw6WHAn65J5cOHcz9Yc6lpfjOKUe5KKsToG
+\unrestrict n1GGWJY7m5qEoit07YWj94UXBcKGJmddc3zo8HsodwrIJhm1WTDkLCF9J54kIob
 

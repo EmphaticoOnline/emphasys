@@ -6,6 +6,7 @@ import {
   deleteCuenta,
   deleteOperacion,
   deleteTransferencia,
+  getAnticiposDisponiblesDocumento,
   getAplicacionesPorDocumento,
   getCuentas,
   getEstadoCuentaContacto,
@@ -14,7 +15,9 @@ import {
   getDisponibleOperacion,
   getOperacion,
   getReporteAgingResumen,
+  getResumenAnticiposDocumento,
   getSaldoDocumento,
+  postAplicarAnticiposDocumento,
   postAplicacion,
   postConciliacion,
   postCuenta,
@@ -32,6 +35,9 @@ router.use(requireAuth, requireEmpresaActiva);
 
 router.get('/documentos/:id/aplicaciones', getAplicacionesPorDocumento);
 router.get('/documentos/:id/saldo', getSaldoDocumento);
+router.get('/documentos/:id/anticipos-resumen', getResumenAnticiposDocumento);
+router.get('/documentos/:id/anticipos-disponibles', getAnticiposDisponiblesDocumento);
+router.post('/documentos/:id/aplicar-anticipos', postAplicarAnticiposDocumento);
 router.get('/contactos/:id/estado-cuenta', getEstadoCuentaContacto);
 router.get('/reportes/aging', getReporteAging);
 router.get('/reportes/aging-resumen', getReporteAgingResumen);

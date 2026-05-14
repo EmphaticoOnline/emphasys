@@ -31,6 +31,8 @@ import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import DescriptionIcon from '@mui/icons-material/Description';
+import BuildIcon from '@mui/icons-material/Build';
+import { compareDocumentoVisualOrder } from '../modules/documentos/documentoVisualOrder';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { apiFetch } from '../services/apiFetch';
 
@@ -94,6 +96,7 @@ export default function Layout({ children }: LayoutProps) {
       Inventory: InventoryIcon,
       Warehouse: WarehouseIcon,
       Description: DescriptionIcon,
+      Build: BuildIcon,
     }),
     []
   );
@@ -110,8 +113,7 @@ export default function Layout({ children }: LayoutProps) {
           fetchTiposDocumentoHabilitados('compras'),
         ]);
 
-        const sortDocs = (docs: typeof ventas) =>
-          [...docs].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.nombre.localeCompare(b.nombre));
+        const sortDocs = (docs: typeof ventas) => [...docs].sort(compareDocumentoVisualOrder);
 
         const ventasOrdenadas = sortDocs(ventas).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }));
         const mostrarVistaExcelCotizaciones = false;

@@ -1,7 +1,9 @@
 import { apiFetch } from './apiFetch';
 import type {
   AplicacionOperacion,
+  DocumentoAnticiposDisponibles,
   ConciliacionPayload,
+  DocumentoAnticipoResumen,
   DocumentoSaldo,
   EstadoCuentaItem,
   FinanzasCuenta,
@@ -46,6 +48,7 @@ export interface OperacionPayload {
   fecha: string;
   tipo_movimiento: TipoMovimiento;
   naturaleza_operacion?: NaturalezaOperacion;
+  documento_origen_id?: number | null;
   contacto_id?: number | null;
   referencia?: string | null;
   observaciones?: string | null;
@@ -116,6 +119,14 @@ export async function fetchSaldoDocumento(id: number): Promise<DocumentoSaldo> {
   return apiFetch(`${BASE}/documentos/${id}/saldo`);
 }
 
+export async function fetchResumenAnticiposDocumento(id: number): Promise<DocumentoAnticipoResumen> {
+  return apiFetch(`${BASE}/documentos/${id}/anticipos-resumen`);
+}
+
+export async function fetchAnticiposDisponiblesDocumento(id: number): Promise<DocumentoAnticiposDisponibles> {
+  return apiFetch(`${BASE}/documentos/${id}/anticipos-disponibles`);
+}
+
 export async function fetchEstadoCuenta(contactoId: number): Promise<EstadoCuentaItem[]> {
   return apiFetch(`${BASE}/contactos/${contactoId}/estado-cuenta`);
 }
@@ -128,6 +139,25 @@ export async function crearAplicacion(payload: {
   fecha_aplicacion?: string | null;
 }): Promise<AplicacionOperacion> {
   return apiFetch(`${BASE}/aplicaciones`, {
+    method: 'POST',
+    body: payload as any,
+  });
+}
+
+export async function aplicarAnticiposDocumento(
+  documentoOrigenId: number,
+  payload: {
+    documento_destino_id: number;
+    aplicaciones: Array<{
+      finanzas_operacion_id: number;
+      monto: number;
+      monto_moneda_documento?: number;
+      fecha_aplicacion?: string | null;
+    }>;
+    fecha_aplicacion?: string | null;
+  }
+): Promise<AplicacionOperacion[]> {
+  return apiFetch(`${BASE}/documentos/${documentoOrigenId}/aplicar-anticipos`, {
     method: 'POST',
     body: payload as any,
   });

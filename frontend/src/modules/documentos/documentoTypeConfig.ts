@@ -3,9 +3,12 @@ import type {
   DocumentoField,
   DocumentoSectionKey,
   DocumentoTypeConfigMap,
+  DocumentoTypeConfig,
+  DocumentoTextos,
   DocumentoFieldRule,
   DocumentoSectionRule,
 } from './documentoTypes';
+import { DEFAULT_ESTADO_SEGUIMIENTO } from '../cotizaciones/estadoSeguimiento';
 
 const seccionesBase: Partial<Record<DocumentoSectionKey, DocumentoSectionRule>> = {
   encabezado: { visible: true, label: 'Encabezado' },
@@ -50,6 +53,54 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     tipo: 'cotizacion',
     label: 'Cotización',
     descripcion: 'Propuesta económica o estimado de venta.',
+    textos: {
+      nuevo: 'Nueva cotización',
+      editar: 'Editar cotización',
+      guardado: 'Cotización guardada',
+      cargando: 'Cargando cotización...',
+      singular: 'cotización',
+    },
+    features: {
+      filtroAgente: true,
+      mostrarSaldo: false,
+      tiposContactoPermitidos: ['Cliente', 'Lead'],
+      accionesDisponibles: ['duplicar', 'enviar_produccion', 'ver_produccion', 'enviar_email'],
+    },
+    partidas: {
+      mostrarImagenes: true,
+      mostrarEsParteOportunidad: true,
+      mostrarMontoOportunidad: true,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: true,
+      tratamientoFiscal: false,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: null,
+      estadoSeguimiento: DEFAULT_ESTADO_SEGUIMIENTO,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Cliente',
+        tiposPermitidos: ['Cliente'],
+      },
+      vendedor: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
     secciones: { ...seccionesBase },
     campos: {
       ...camposBase,
@@ -72,6 +123,53 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     tipo: 'factura',
     label: 'Factura',
     descripcion: 'Documento fiscal timbrable.',
+    textos: {
+      nuevo: 'Nueva factura',
+      editar: 'Editar factura',
+      guardado: 'Factura guardada',
+      cargando: 'Cargando factura...',
+      singular: 'factura',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: true,
+      accionesDisponibles: ['aplicar_pago', 'timbrar', 'enviar_email'],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: true,
+      origenDocumento: false,
+      tratamientoFiscal: true,
+      fiscalTab: true,
+    },
+    defaults: {
+      serie: 'FAC',
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Lead',
+        tiposPermitidos: ['Lead', 'Cliente'],
+      },
+      vendedor: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
     secciones: {
       ...seccionesBase,
       fiscal: withOverrides(seccionesBase.fiscal ?? { label: 'Datos fiscales' }, { visible: true }),
@@ -101,10 +199,132 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     },
     estatusPermitidos: ['borrador', 'emitido', 'cancelado', 'timbrado'],
   },
+  orden_servicio: {
+    tipo: 'orden_servicio',
+    label: 'Orden de servicio',
+    descripcion: 'Registra los artículos recibidos y los servicios solicitados.',
+    textos: {
+      nuevo: 'Nueva orden de servicio',
+      editar: 'Editar orden de servicio',
+      guardado: 'Orden de servicio guardada',
+      cargando: 'Cargando orden de servicio...',
+      singular: 'orden de servicio',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: false,
+      tiposContactoPermitidos: ['Cliente'],
+      accionesDisponibles: ['enviar_email'],
+    },
+    partidas: {
+      mostrarImagenes: true,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: false,
+      tratamientoFiscal: false,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: null,
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'detailed',
+        defaultTipoContacto: 'Cliente',
+        tiposPermitidos: ['Cliente'],
+      },
+      vendedor: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
+    secciones: { ...seccionesBase },
+    campos: {
+      ...camposBase,
+      serie: { ...camposBase.serie, visible: false },
+      numero: { ...camposBase.numero, visible: false },
+      moneda: { ...camposBase.moneda, required: true },
+      tipo_cambio: { ...camposBase.tipo_cambio, visible: false },
+      observaciones: {
+        ...camposBase.observaciones,
+        required: false,
+        helperText: 'Usa este espacio para describir el servicio solicitado o condiciones de recepción.',
+      },
+    },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
+  },
   pedido: {
     tipo: 'pedido',
     label: 'Pedido',
     descripcion: 'Orden interna para surtir productos o servicios.',
+    textos: {
+      nuevo: 'Nuevo pedido',
+      editar: 'Editar pedido',
+      guardado: 'Pedido guardado',
+      cargando: 'Cargando pedido...',
+      singular: 'pedido',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: false,
+      accionesDisponibles: [],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: false,
+      tratamientoFiscal: false,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: null,
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Cliente',
+        tiposPermitidos: ['Cliente'],
+      },
+      vendedor: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
     secciones: { ...seccionesBase },
     campos: {
       ...camposBase,
@@ -127,6 +347,53 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     tipo: 'remision',
     label: 'Remisión',
     descripcion: 'Documento de entrega o salida de almacén.',
+    textos: {
+      nuevo: 'Nueva remisión',
+      editar: 'Editar remisión',
+      guardado: 'Remisión guardada',
+      cargando: 'Cargando remisión...',
+      singular: 'remisión',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: false,
+      accionesDisponibles: [],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: false,
+      tratamientoFiscal: false,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: null,
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Cliente',
+        tiposPermitidos: ['Cliente'],
+      },
+      vendedor: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
     secciones: { ...seccionesBase },
     campos: {
       ...camposBase,
@@ -146,6 +413,83 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     },
     estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
   },
+  factura_compra: {
+    tipo: 'factura_compra',
+    label: 'Factura de compra',
+    descripcion: 'Factura recibida de proveedor.',
+    textos: {
+      nuevo: 'Nueva factura de compra',
+      editar: 'Editar factura de compra',
+      guardado: 'Factura de compra guardada',
+      cargando: 'Cargando factura de compra...',
+      singular: 'factura de compra',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: true,
+      accionesDisponibles: ['aplicar_pago'],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: true,
+      origenDocumento: false,
+      tratamientoFiscal: false,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: null,
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Proveedor',
+        tiposPermitidos: ['Proveedor'],
+      },
+      vendedor: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
+    secciones: { ...seccionesBase },
+    campos: { ...camposBase },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
+  },
 };
 
-export const getDocumentoTypeConfig = (tipo: TipoDocumento) => DOCUMENTO_TYPE_CONFIG[tipo];
+export const getDocumentoTypeConfig = (tipo: TipoDocumento): DocumentoTypeConfig | undefined => DOCUMENTO_TYPE_CONFIG[tipo];
+
+const TEXTOS_DEFAULT: DocumentoTextos = {
+  nuevo: 'Nuevo documento',
+  editar: 'Editar documento',
+  guardado: 'Documento guardado',
+  cargando: 'Cargando documento...',
+  singular: 'documento',
+};
+
+export const resolveDocumentoTextos = (tipo: TipoDocumento, config?: DocumentoTypeConfig): DocumentoTextos => {
+  const resolvedConfig = config ?? getDocumentoTypeConfig(tipo);
+  if (!resolvedConfig?.textos) return TEXTOS_DEFAULT;
+  return { ...TEXTOS_DEFAULT, ...resolvedConfig.textos };
+};

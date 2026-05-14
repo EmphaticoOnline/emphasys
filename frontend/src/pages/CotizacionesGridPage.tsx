@@ -15,7 +15,6 @@ import {
   DialogTitle,
   Grid,
   IconButton,
-  MenuItem,
   Snackbar,
   Stack,
   TextField,
@@ -48,13 +47,16 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import type { CotizacionCrearPayload, CotizacionListado, EstadoSeguimiento } from '../types/cotizacion';
+import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import { createCotizacion, deleteCotizacion, duplicateCotizacion, getCotizaciones, updateCotizacion, validateDeleteCotizacion } from '../services/cotizacionesService';
 import { fetchContactos } from '../services/contactosService';
 import { crearContacto } from '../services/contactos.api';
+import ContactCaptureDialog from '../components/contactos/ContactCaptureDialog';
 import { fetchProductos } from '../services/productosService';
 import type { Producto } from '../types/producto';
 import type { Contacto } from '../types/contactos.types';
 import { useSession } from '../session/useSession';
+import { fetchAnticiposDisponiblesDocumento } from '../services/finanzasService';
 import {
   generarDocumentoDesdeOrigen,
   getOpcionesGeneracion,
@@ -68,6 +70,7 @@ import {
   getEstadoSeguimientoRowClassName,
   normalizeEstadoSeguimiento,
 } from '../modules/cotizaciones/estadoSeguimiento';
+import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicacionDialog';
 import { navigateToGeneratedDocument } from '../modules/documentos/documentoNavigation';
 
 const toCivilDate = (date = new Date()) => {
@@ -147,6 +150,13 @@ export default function CotizacionesGridPage() {
   );
   const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [convirtiendoId, setConvirtiendoId] = useState<number | null>(null);
+  const [aplicarAnticiposDialog, setAplicarAnticiposDialog] = useState<{
+    open: boolean;
+    documentoOrigenId: number | null;
+    documentoDestinoId: number | null;
+    data: DocumentoAnticiposDisponibles | null;
+    pathname: string | null;
+  }>({ open: false, documentoOrigenId: null, documentoDestinoId: null, data: null, pathname: null });
   const [crearClienteOpen, setCrearClienteOpen] = useState(false);
   const [crearClienteNombre, setCrearClienteNombre] = useState('');
   const [crearClienteLoading, setCrearClienteLoading] = useState(false);
@@ -451,6 +461,26 @@ export default function CotizacionesGridPage() {
       );
 
       setSnackbar({ open: true, message: 'Factura generada', severity: 'success' });
+      try {
+        const anticiposData = await fetchAnticiposDisponiblesDocumento(row.id);
+        if (Number(anticiposData?.total_disponible ?? 0) > 0) {
+          setAplicarAnticiposDialog({
+            open: true,
+            documentoOrigenId: row.id,
+            documentoDestinoId: resultado.documento_destino_id,
+            data: anticiposData,
+            pathname: '/ventas/cotizaciones-grid',
+          });
+          return;
+        }
+      } catch (anticiposError: any) {
+        setSnackbar({
+          open: true,
+          message: anticiposError?.message || 'No se pudo verificar anticipos disponibles. Puedes aplicarlos manualmente después.',
+          severity: 'warning',
+        });
+      }
+
       navigateToGeneratedDocument(navigate, {
         documentoId: resultado.documento_destino_id,
         tipoDocumento: resultado.tipo_documento_destino,
@@ -1306,42 +1336,26 @@ export default function CotizacionesGridPage() {
         </DialogActions>
       </Dialog>
 
-  <Dialog open={crearClienteOpen} onClose={() => { if (!crearClienteLoading) { setCrearClienteOpen(false); setCrearClienteNombre(''); setCrearClienteRowId(null); setCrearClienteTipo('Lead'); setCrearClienteParaNuevo(false); } }} fullWidth maxWidth="xs">
-        <DialogTitle>Crear cliente rápido</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          <TextField
-            label="Nombre"
-            size="small"
-            autoFocus
-            value={crearClienteNombre}
-            onChange={(e) => setCrearClienteNombre(e.target.value)}
-            disabled={crearClienteLoading}
-            InputLabelProps={{ shrink: true }}
-          />
-          <TextField
-            select
-            label="Tipo de contacto"
-            size="small"
-            value={crearClienteTipo}
-            onChange={(e) => setCrearClienteTipo(e.target.value as 'Lead' | 'Cliente')}
-            disabled={crearClienteLoading}
-          >
-            <MenuItem value="Lead">Lead</MenuItem>
-            <MenuItem value="Cliente">Cliente</MenuItem>
-          </TextField>
-          <Alert severity="info" sx={{ fontSize: 13 }}>
-            Se asignará a la cotización con el tipo seleccionado.
-          </Alert>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => { if (!crearClienteLoading) { setCrearClienteOpen(false); setCrearClienteNombre(''); setCrearClienteRowId(null); setCrearClienteTipo('Lead'); setCrearClienteParaNuevo(false); } }} disabled={crearClienteLoading}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={() => void handleCrearClienteSubmit()} disabled={crearClienteLoading}>
-            {crearClienteLoading ? 'Creando…' : 'Crear y asignar'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ContactCaptureDialog
+        open={crearClienteOpen}
+        loading={crearClienteLoading}
+        nombre={crearClienteNombre}
+        tipoContacto={crearClienteTipo}
+        title="Crear cliente"
+        infoMessage="Se asignará a la cotización con el tipo seleccionado."
+        onNombreChange={setCrearClienteNombre}
+        onTipoContactoChange={setCrearClienteTipo}
+        onClose={() => {
+          if (!crearClienteLoading) {
+            setCrearClienteOpen(false);
+            setCrearClienteNombre('');
+            setCrearClienteRowId(null);
+            setCrearClienteTipo('Lead');
+            setCrearClienteParaNuevo(false);
+          }
+        }}
+        onSubmit={() => void handleCrearClienteSubmit()}
+      />
 
       <Snackbar
         open={snackbar.open}
@@ -1353,6 +1367,51 @@ export default function CotizacionesGridPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <AnticiposAplicacionDialog
+        open={aplicarAnticiposDialog.open}
+        documentoOrigenId={aplicarAnticiposDialog.documentoOrigenId}
+        documentoDestinoId={aplicarAnticiposDialog.documentoDestinoId}
+        documentoDestinoTipo="factura"
+        initialData={aplicarAnticiposDialog.data}
+        onClose={() => {
+          const documentoDestinoId = aplicarAnticiposDialog.documentoDestinoId;
+          const pathname = aplicarAnticiposDialog.pathname;
+          setAplicarAnticiposDialog({ open: false, documentoOrigenId: null, documentoDestinoId: null, data: null, pathname: null });
+          if (documentoDestinoId) {
+            navigateToGeneratedDocument(navigate, {
+              documentoId: documentoDestinoId,
+              tipoDocumento: 'factura',
+              pathname: pathname ?? '/ventas/cotizaciones-grid',
+            });
+          }
+        }}
+        onSkip={() => {
+          const documentoDestinoId = aplicarAnticiposDialog.documentoDestinoId;
+          const pathname = aplicarAnticiposDialog.pathname;
+          setAplicarAnticiposDialog({ open: false, documentoOrigenId: null, documentoDestinoId: null, data: null, pathname: null });
+          if (documentoDestinoId) {
+            navigateToGeneratedDocument(navigate, {
+              documentoId: documentoDestinoId,
+              tipoDocumento: 'factura',
+              pathname: pathname ?? '/ventas/cotizaciones-grid',
+            });
+          }
+        }}
+        onApplied={() => {
+          const documentoDestinoId = aplicarAnticiposDialog.documentoDestinoId;
+          const pathname = aplicarAnticiposDialog.pathname;
+          setSnackbar({ open: true, message: 'Anticipos aplicados correctamente', severity: 'success' });
+          setAplicarAnticiposDialog({ open: false, documentoOrigenId: null, documentoDestinoId: null, data: null, pathname: null });
+          if (documentoDestinoId) {
+            navigateToGeneratedDocument(navigate, {
+              documentoId: documentoDestinoId,
+              tipoDocumento: 'factura',
+              pathname: pathname ?? '/ventas/cotizaciones-grid',
+            });
+          }
+        }}
+      />
 
       <Snackbar
         open={Boolean(error)}

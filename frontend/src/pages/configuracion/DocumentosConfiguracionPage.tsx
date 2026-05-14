@@ -20,6 +20,7 @@ import {
   Typography,
   Icon,
 } from '@mui/material';
+import { compareDocumentoVisualOrder } from '../../modules/documentos/documentoVisualOrder';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
@@ -77,12 +78,12 @@ export default function DocumentosConfiguracionPage() {
   const [errorFlujo, setErrorFlujo] = useState<string | null>(null);
 
   const documentosOrdenados = useMemo(
-    () => [...documentos].sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre)),
+    () => [...documentos].sort(compareDocumentoVisualOrder),
     [documentos]
   );
 
   const documentosFlujoOrdenados = useMemo(
-    () => [...documentosFlujo].sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre)),
+    () => [...documentosFlujo].sort(compareDocumentoVisualOrder),
     [documentosFlujo]
   );
 

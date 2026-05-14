@@ -153,6 +153,7 @@ function DynamicFieldControlDirecto({ label, type, value, disabled, onChange }: 
         onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
         disabled={Boolean(disabled)}
         fullWidth
+        variant="outlined"
         size="small"
       />
     );
@@ -169,6 +170,7 @@ function DynamicFieldControlDirecto({ label, type, value, disabled, onChange }: 
       onChange={(e) => onChange(e.target.value)}
       disabled={Boolean(disabled)}
       fullWidth
+      variant="outlined"
       size="small"
     />
   );
@@ -187,6 +189,7 @@ export function DynamicFieldControl(props: Props) {
     required: campo.obligatorio,
     disabled: isDisabled,
     fullWidth: true,
+    variant: 'outlined' as const,
     size: 'small' as const,
   };
 

@@ -19,9 +19,13 @@ const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   return t ? t.toString().toLowerCase() : fallback;
 };
 
+const resolverTipoDocumentoRequest = (req: Request, fallback: TipoDocumento): TipoDocumento =>
+  normalizarTipo(req.query.tipo_documento ?? req.body?.tipo_documento, fallback);
+
 const nombreDocumento: Record<TipoDocumento, string> = {
   cotizacion: 'cotización',
   factura: 'factura',
+  orden_servicio: 'orden de servicio',
   pedido: 'pedido',
   remision: 'remisión',
   orden_entrega: 'orden de entrega',
@@ -40,8 +44,8 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
     const data = await listarDocumentosRepository(tipo, Number(empresaId));
     res.json(data);
   } catch (error) {
-    console.error(`Error al listar ${tipoPorDefecto}`, error);
-    res.status(500).json({ message: `Error al listar ${tipoPorDefecto}` });
+    console.error(`Error al listar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
+    res.status(500).json({ message: `Error al listar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}` });
   }
 };
 
@@ -53,26 +57,28 @@ const buildObtenerHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) 
 
     const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
     const result = await obtenerDocumentoRepository(id, Number(empresaId), tipo);
-    if (!result) return res.status(404).json({ message: `${nombreDocumento[tipoPorDefecto]} no encontrada` });
+    if (!result) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
     res.json(result);
   } catch (error) {
-    console.error(`Error al obtener ${tipoPorDefecto}`, error);
-    res.status(500).json({ message: `Error al obtener ${tipoPorDefecto}` });
+    console.error(`Error al obtener ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
+    res.status(500).json({ message: `Error al obtener ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}` });
   }
 };
 
-const buildCrearHandler = (tipoPorDefecto: TipoDocumento) => async (req: Request, res: Response) => {
+const buildCrearHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId;
     if (!empresaId) return res.status(400).json({ message: 'empresaId no disponible en contexto' });
 
+    const tipo = forzarTipo ? tipoPorDefecto : resolverTipoDocumentoRequest(req, tipoPorDefecto);
+
     const payload = {
       ...(req.body || {}),
-      tipo_documento: tipoPorDefecto,
+      tipo_documento: tipo,
       estatus_documento: 'Borrador',
     };
 
-  const created = await crearDocumentoService(payload, Number(empresaId), tipoPorDefecto);
+    const created = await crearDocumentoService(payload, Number(empresaId), tipo);
     res.status(201).json(created);
   } catch (error) {
     const message = (error as Error)?.message ?? '';
@@ -82,8 +88,8 @@ const buildCrearHandler = (tipoPorDefecto: TipoDocumento) => async (req: Request
     if ((error as any)?.code === 'DOCUMENTO_DUPLICADO') {
       return res.status(400).json({ message: (error as any)?.message || 'Documento duplicado' });
     }
-    console.error(`Error al crear ${tipoPorDefecto}`, error);
-    res.status(500).json({ message: `Error al crear ${tipoPorDefecto}` });
+    console.error(`Error al crear ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
+    res.status(500).json({ message: `Error al crear ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}` });
   }
 };
 
@@ -93,17 +99,17 @@ const buildActualizarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = fals
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
-    const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
+    const tipo = forzarTipo ? tipoPorDefecto : resolverTipoDocumentoRequest(req, tipoPorDefecto);
     const updated = await actualizarDocumentoRepository(id, req.body || {}, Number(empresaId), tipo);
-    if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipoPorDefecto]} no encontrada` });
+    if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
     res.json(updated);
   } catch (error) {
     const message = (error as Error)?.message ?? '';
     if (message.startsWith('VALIDATION_ERROR')) {
       return res.status(400).json({ ok: false, error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
     }
-    console.error(`Error al actualizar ${tipoPorDefecto}`, error);
-    res.status(500).json({ message: `Error al actualizar ${tipoPorDefecto}` });
+    console.error(`Error al actualizar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
+    res.status(500).json({ message: `Error al actualizar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}` });
   }
 };
 
@@ -113,13 +119,13 @@ const buildEliminarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false)
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
-    const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
+    const tipo = forzarTipo ? tipoPorDefecto : resolverTipoDocumentoRequest(req, tipoPorDefecto);
     const deleted = await eliminarDocumentoRepository(id, Number(empresaId), tipo);
-    if (!deleted) return res.status(404).json({ message: `${nombreDocumento[tipoPorDefecto]} no encontrada` });
+    if (!deleted) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
     res.status(204).send();
   } catch (error) {
-    console.error(`Error al eliminar ${tipoPorDefecto}`, error);
-    res.status(500).json({ message: `Error al eliminar ${tipoPorDefecto}` });
+    console.error(`Error al eliminar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
+    res.status(500).json({ message: `Error al eliminar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}` });
   }
 };
 
@@ -131,6 +137,21 @@ export const validarEliminacionCotizacion = async (req: Request, res: Response) 
     const id = Number(req.params.id);
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
+
+    const tipo = resolverTipoDocumentoRequest(req, 'cotizacion');
+
+    if (tipo !== 'cotizacion') {
+      const documento = await obtenerDocumentoRepository(id, Number(empresaId), tipo);
+      if (!documento) {
+        return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
+      }
+
+      return res.json({
+        exists: true,
+        canDelete: true,
+        message: null,
+      });
+    }
 
     const result = await puedeEliminarCotizacion(id, Number(empresaId));
     if (!result.exists) {
@@ -154,14 +175,15 @@ export const actualizarCotizacion = async (req: Request, res: Response) => {
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
+    const tipo = resolverTipoDocumentoRequest(req, 'cotizacion');
     const body = req.body || {};
-    const requiereReconciliarOportunidad = Object.prototype.hasOwnProperty.call(body, 'contacto_principal_id');
+    const requiereReconciliarOportunidad = tipo === 'cotizacion' && Object.prototype.hasOwnProperty.call(body, 'contacto_principal_id');
 
     const updated = requiereReconciliarOportunidad
       ? await actualizarCotizacionService(id, body, Number(empresaId))
-      : await actualizarDocumentoRepository(id, body, Number(empresaId), 'cotizacion');
+      : await actualizarDocumentoRepository(id, body, Number(empresaId), tipo);
 
-    if (!updated) return res.status(404).json({ message: 'cotización no encontrada' });
+    if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
     return res.json(updated);
   } catch (error) {
     const message = (error as Error)?.message ?? '';
@@ -177,6 +199,14 @@ export const eliminarCotizacion = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ error: 'ID o empresaId inválido' });
+
+    const tipo = resolverTipoDocumentoRequest(req, 'cotizacion');
+
+    if (tipo !== 'cotizacion') {
+      const deleted = await eliminarDocumentoRepository(id, Number(empresaId), tipo);
+      if (!deleted) return res.status(404).json({ error: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
+      return res.status(204).send();
+    }
 
     const deleted = await eliminarCotizacionConValidacion(id, Number(empresaId));
     if (!deleted) return res.status(404).json({ error: 'Cotización no encontrada' });
@@ -212,7 +242,7 @@ export const duplicarCotizacion = async (req: Request, res: Response) => {
 
 export const listarFacturas = buildListarHandler('factura', true);
 export const obtenerFactura = buildObtenerHandler('factura', true);
-export const crearFactura = buildCrearHandler('factura');
+export const crearFactura = buildCrearHandler('factura', true);
 export const actualizarFactura = buildActualizarHandler('factura', true);
 export const eliminarFactura = buildEliminarHandler('factura', true);
 export const calcularImpuestosPreviewHandler = async (req: Request, res: Response) => {
