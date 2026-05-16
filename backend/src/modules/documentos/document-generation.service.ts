@@ -299,8 +299,9 @@ export class DocumentGenerationService {
       );
       const nextNumero = numeroRows[0]?.next_numero ?? 1;
       const fechaDocumento = datos_encabezado?.fecha ?? new Date();
+      const descuentoGlobalDocumento = Math.min(100, Math.max(0, Number(documentoOrigen.descuento_global ?? 0) || 0));
       const columnasCotizacion = camposCotizacion ? ",\n            estado_seguimiento" : "";
-      const valoresCotizacion = camposCotizacion ? ",\n            $15" : "";
+      const valoresCotizacion = camposCotizacion ? ",\n            $16" : "";
 
       const { rows: insertDocRows } = await client.query(
         `INSERT INTO documentos (
@@ -319,6 +320,7 @@ export class DocumentGenerationService {
             subtotal,
             iva,
             total,
+            descuento_global,
             observaciones,
             documento_origen_id,
             usuario_creacion_id${columnasCotizacion}
@@ -329,7 +331,8 @@ export class DocumentGenerationService {
             0, 0, 0,
             $12,
             $13,
-            $14${valoresCotizacion}
+            $14,
+            $15${valoresCotizacion}
           )
           RETURNING *`,
         [
@@ -344,6 +347,7 @@ export class DocumentGenerationService {
           documentoOrigen.agente_id ?? null,
           documentoOrigen.moneda,
           documentoOrigen.tipo_cambio ?? null,
+          descuentoGlobalDocumento,
           datos_encabezado?.comentarios ?? documentoOrigen.observaciones ?? null,
           documento_origen_id,
           usuarioId ?? null,
@@ -386,7 +390,10 @@ export class DocumentGenerationService {
         }
 
         const precioUnitario = Number(partidaOrigen.precio_unitario ?? 0);
-        const subtotalPartida = Number((cantidad * precioUnitario).toFixed(2));
+        const descuento = Math.min(100, Math.max(0, Number(partidaOrigen.descuento ?? 0) || 0));
+        const baseBruta = Number((cantidad * precioUnitario).toFixed(2));
+        const subtotalDespuesDescuentoPartida = Number((baseBruta - (baseBruta * (descuento / 100))).toFixed(2));
+        const subtotalPartida = Number((subtotalDespuesDescuentoPartida - (subtotalDespuesDescuentoPartida * (descuentoGlobalDocumento / 100))).toFixed(2));
 
         console.log("[GenDoc] partida base", {
           documento_origen_id,
@@ -394,6 +401,8 @@ export class DocumentGenerationService {
           partida_origen_id: partidaOrigen.partida_id,
           cantidad,
           precioUnitario,
+          descuento,
+          descuento_global: descuentoGlobalDocumento,
           subtotalPartida,
         });
 
@@ -404,9 +413,10 @@ export class DocumentGenerationService {
               producto_id,
               cantidad,
               precio_unitario,
+              descuento,
               subtotal_partida,
               total_partida
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id`,
           [
             documentoDestino.id,
@@ -414,6 +424,7 @@ export class DocumentGenerationService {
             partidaOrigen.producto_id ?? null,
             cantidad,
             precioUnitario,
+            descuento,
             subtotalPartida,
             0, // total_partida lo calculará calcularImpuestosPartida
           ]

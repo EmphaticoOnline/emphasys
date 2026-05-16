@@ -360,6 +360,7 @@ function construirPartidasDuplicadas(partidas: Array<Record<string, any>>): Part
     descripcion_alterna: partida.descripcion_alterna ?? null,
     cantidad: Number(partida.cantidad ?? 0),
     precio_unitario: Number(partida.precio_unitario ?? 0),
+    descuento: Number(partida.descuento ?? 0),
     subtotal_partida: Number(partida.subtotal_partida ?? 0),
     total_partida: Number(partida.total_partida ?? partida.subtotal_partida ?? 0),
     es_parte_oportunidad: partida.es_parte_oportunidad ?? true,
@@ -398,6 +399,7 @@ export async function duplicarCotizacionService(documentoId: number, empresaId: 
         moneda: documentoOrigen.moneda ?? 'MXN',
         observaciones: documentoOrigen.observaciones ?? null,
         subtotal: Number(documentoOrigen.subtotal ?? 0),
+        descuento_global: Number(documentoOrigen.descuento_global ?? 0),
         iva: Number(documentoOrigen.iva ?? 0),
         total: Number(documentoOrigen.total ?? 0),
         usuario_creacion_id: documentoOrigen.usuario_creacion_id ?? null,
@@ -571,6 +573,7 @@ export async function actualizarTotales(documentoId: number, client?: PoolClient
 
     const { rows: totalesRows } = await executor.query(
       `SELECT
+          COALESCE(SUM(COALESCE(dp.cantidad, 0) * COALESCE(dp.precio_unitario, 0)), 0) AS subtotal_bruto,
           COALESCE(SUM(dp.subtotal_partida), 0) AS subtotal,
           COALESCE(SUM(CASE WHEN LOWER(i.tipo) = 'traslado' THEN dpi.monto ELSE 0 END), 0) AS traslados,
           COALESCE(SUM(CASE WHEN LOWER(i.tipo) = 'retencion' THEN dpi.monto ELSE 0 END), 0) AS retenciones
@@ -581,7 +584,9 @@ export async function actualizarTotales(documentoId: number, client?: PoolClient
       [documentoId]
     );
 
+    const subtotalBruto = Number(totalesRows[0]?.subtotal_bruto ?? 0);
     const subtotal = Number(totalesRows[0]?.subtotal ?? 0);
+    const descuento = Number((subtotalBruto - subtotal).toFixed(2));
     const traslados = Number(totalesRows[0]?.traslados ?? 0);
     const retenciones = Number(totalesRows[0]?.retenciones ?? 0);
     const iva = traslados;
@@ -590,10 +595,11 @@ export async function actualizarTotales(documentoId: number, client?: PoolClient
     await executor.query(
       `UPDATE documentos
           SET subtotal = $1,
-              iva = $2,
-              total = $3
-        WHERE id = $4`,
-      [subtotal, iva, total, documentoId]
+              descuento = $2,
+              iva = $3,
+              total = $4
+        WHERE id = $5`,
+      [subtotal, descuento, iva, total, documentoId]
     );
 
     if (ownedClient) {

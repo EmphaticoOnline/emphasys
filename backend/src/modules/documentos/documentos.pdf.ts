@@ -236,13 +236,11 @@ async function obtenerLogoEmpresaPath(empresaId?: number): Promise<string | null
         LIMIT 1`,
       [empresaId]
     );
-
     const ruta = rows?.[0]?.ruta as string | undefined;
     if (!ruta) {
       try {
         const dbInfo = await pool.query<{ db: string }>('SELECT current_database() AS db');
         console.warn('[pdf] Logo no encontrado en BD', {
-          empresaId,
           rowCount: rows?.length ?? 0,
           dbEnv: process.env.DB_NAME,
           currentDb: dbInfo.rows?.[0]?.db,
@@ -512,6 +510,23 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const tipoDocumentoNormalizado = (documento?.tipo_documento ?? '').toString().toLowerCase();
   const esCotizacion = tipoDocumentoNormalizado === 'cotizacion';
   const esOrdenServicio = tipoDocumentoNormalizado === 'orden_servicio';
+  const partidasConMontos = (partidas ?? []).map((partida) => {
+    const cantidad = Number(partida.cantidad ?? 0);
+    const precioUnitario = Number(partida.precio_unitario ?? 0);
+    const subtotalNeto = Number(partida.subtotal_partida ?? 0);
+    const subtotalBruto = cantidad * precioUnitario;
+    const descuento = Math.max(0, subtotalBruto - subtotalNeto);
+
+    return {
+      ...partida,
+      subtotalBruto,
+      subtotalNeto,
+      descuento,
+    };
+  });
+  const subtotalBrutoDocumento = partidasConMontos.reduce((acc, partida) => acc + partida.subtotalBruto, 0);
+  const subtotalNetoDocumento = Number(documento?.subtotal ?? partidasConMontos.reduce((acc, partida) => acc + partida.subtotalNeto, 0));
+  const descuentoTotalDocumento = Math.max(0, subtotalBrutoDocumento - subtotalNetoDocumento);
   if (estaTimbrado) {
     const qrDatos: DatosQrCfdi = {
       uuid: timbre?.uuid || '',
@@ -632,13 +647,14 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
     const startX = doc.page.margins.left;
     const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const columnWidths = [
-      90, // Producto (se mantiene)
-      tableWidth - (90 + 60 + 80 + 65), // Descripción absorbe espacio extra
-      60, // Cantidad
-      80, // Precio unitario
-      65, // Importe (alineado a margen derecho)
+      84, // Producto (se mantiene)
+      tableWidth - (84 + 58 + 76 + 68 + 68), // Descripción absorbe espacio extra
+      58, // Cantidad
+      76, // Precio unitario
+      68, // Desc.
+      68, // Importe (alineado a margen derecho)
     ];
-    const headers = ['Producto', 'Descripción', 'Cantidad', 'Precio unitario', 'Importe'];
+    const headers = ['Producto', 'Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe'];
 
     const renderHeader = () => {
       // Encabezado clásico CFDI
@@ -1048,12 +1064,18 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       currentY = drawRow(headers, currentY, true);
 
       for (const p of partidas) {
+        const cantidad = Number(p.cantidad ?? 0);
+        const precioUnitario = Number(p.precio_unitario ?? 0);
+        const subtotalNeto = Number(p.subtotal_partida ?? 0);
+        const subtotalBruto = cantidad * precioUnitario;
+        const descuento = Math.max(0, subtotalBruto - subtotalNeto);
         const values = [
           p.producto_clave || '',
           p.descripcion_alterna || '',
-          Number(p.cantidad ?? 0).toFixed(2),
-          formatCurrency(Number(p.precio_unitario ?? 0)),
-          formatCurrency(Number(p.subtotal_partida ?? 0)),
+          cantidad.toFixed(2),
+          formatCurrency(precioUnitario),
+          formatCurrency(descuento),
+          formatCurrency(subtotalNeto),
         ];
         const imageBuffer = await getPartidaImageBufferFromPartida(p as PartidaCotizacion);
         const metrics = computeRowMetrics(values, (p as PartidaCotizacion).observaciones ?? null, Boolean(imageBuffer));
@@ -1086,7 +1108,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       });
       // Totales se renderizarán en el pie de página
       const totalRows: Array<[string, number | null | undefined]> = [
-        ['Subtotal', documento?.subtotal],
+        ['Subtotal bruto', subtotalBrutoDocumento],
+        ['Descuentos', descuentoTotalDocumento],
+        ['Subtotal neto', subtotalNetoDocumento],
         ['IVA', documento?.iva],
         ['Total', documento?.total],
       ];
@@ -1186,37 +1210,43 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       }
 
       if (esCotizacion || esOrdenServicio) {
-        const totalsLabelWidth = 70;
+        const totalsLabelWidth = 84;
+        const totalsValueWidth = 90;
         const rowHeightCompact = 12;
-        const totalsHeight = totalRows.length * rowHeightCompact;
+        const totalsPaddingX = 12;
+        const totalsPaddingY = 8;
+        const totalsInnerGap = 8;
+        const totalsRightExtra = 12;
+        const totalsHeight = totalRows.length * rowHeightCompact + totalsPaddingY * 2;
         const gapBottom = esOrdenServicio ? 10 : 14;
         const bloqueHeight = totalsHeight;
         const anchorY = pageBottom - gapBottom - bloqueHeight;
+        const totalsAmountRightX = startX + columnWidths.reduce((acc, width) => acc + width, 0);
+        const totalsPanelRightX = totalsAmountRightX + totalsRightExtra;
+        const totalsPanelWidth = totalsPaddingX + totalsLabelWidth + totalsInnerGap + totalsValueWidth + totalsRightExtra;
+        const totalsPanelLeftX = totalsPanelRightX - totalsPanelWidth;
 
         if (doc.y + bloqueHeight > anchorY) {
           doc.addPage();
         }
 
-        const lineY = anchorY - 6;
         doc
-          .moveTo(doc.page.margins.left, lineY)
-          .lineTo(doc.page.width - doc.page.margins.right, lineY)
-          .strokeColor('#cccccc')
-          .stroke();
+          .roundedRect(totalsPanelLeftX, anchorY - 4, totalsPanelWidth, totalsHeight, 5)
+          .fillAndStroke('#f3f4f6', '#e5e7eb');
 
-        let totY = anchorY;
+        let totY = anchorY + totalsPaddingY - 4;
         totalRows.forEach(([label, value]) => {
           const isTotal = label === 'Total';
           setFont(isTotal, isTotal && esOrdenServicio ? 10 : 9, textColor);
 
-          const importeX = startX + columnWidths[0] + columnWidths[1] + columnWidths[2] + columnWidths[3];
-          const gapLabelValor = 8;
+          const importeX = totalsAmountRightX - totalsValueWidth;
+          const gapLabelValor = totalsInnerGap;
           const labelRight = importeX - gapLabelValor;
           const labelX = labelRight - totalsLabelWidth;
 
           doc.text(label.toUpperCase(), labelX, totY, { width: totalsLabelWidth, align: 'right' });
           doc.text(formatCurrency(value), importeX, totY, {
-            width: columnWidths[4],
+            width: totalsValueWidth,
             align: 'right',
           });
           totY += rowHeightCompact;
@@ -1280,7 +1310,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       } else {
         const startYTimbrado = doc.y;
         const gapCols = 12;
-        const totalsLabelWidth = 70;
+        const totalsLabelWidth = 84;
         const totalsValueWidth = 90;
         const totalsWidth = totalsLabelWidth + totalsValueWidth;
         const colLeftX = doc.page.margins.left;
@@ -1309,21 +1339,34 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           doc.moveDown(0.35);
         });
 
-        // Columna derecha: Subtotal / IVA / TOTAL compactos
+        // Columna derecha: Subtotal bruto / descuentos / neto / IVA / total compactos
         let totY = startYTimbrado;
         const rowHeightCompact = 12;
+        const totalsPaddingX = 12;
+        const totalsPaddingY = 8;
+        const totalsInnerGap = 8;
+        const totalsPanelRightX = startX + columnWidths.reduce((acc, width) => acc + width, 0);
+        const totalsPanelWidth = totalsPaddingX + totalsLabelWidth + totalsInnerGap + totalsValueWidth;
+        const totalsPanelLeftX = totalsPanelRightX - totalsPanelWidth;
+        const totalsPanelHeight = totalRows.length * rowHeightCompact + totalsPaddingY * 2;
+
+        doc
+          .roundedRect(totalsPanelLeftX, startYTimbrado - 4, totalsPanelWidth, totalsPanelHeight, 5)
+          .fillAndStroke('#f3f4f6', '#e5e7eb');
+
+        totY = startYTimbrado + totalsPaddingY - 4;
         totalRows.forEach(([label, value]) => {
           const isTotal = label === 'Total';
           setFont(isTotal, 9, textColor); // mismo tamaño para TOTAL, mantiene negritas
 
-          const importeX = startX + columnWidths[0] + columnWidths[1] + columnWidths[2] + columnWidths[3];
-          const gapLabelValor = 8; // acerca la etiqueta al monto
+          const importeX = totalsPanelRightX - totalsValueWidth;
+          const gapLabelValor = totalsInnerGap; // mantiene el monto alineado al borde derecho de la tabla
           const labelRight = importeX - gapLabelValor;
           const labelX = labelRight - totalsLabelWidth;
 
           doc.text(label.toUpperCase(), labelX, totY, { width: totalsLabelWidth, align: 'right' });
           doc.text(formatCurrency(value), importeX, totY, {
-            width: columnWidths[4],
+            width: totalsValueWidth,
             align: 'right',
           });
           totY += rowHeightCompact;

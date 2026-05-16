@@ -143,6 +143,8 @@ export function calcularImpuestosPreview(payload: {
   producto_id?: number | null;
   cantidad?: number | null;
   precio_unitario?: number | null;
+  descuento?: number | null;
+  descuento_global?: number | null;
   tratamiento_impuestos?: string | null;
 }) {
   return apiFetch('/api/documentos/calcular-impuestos', {

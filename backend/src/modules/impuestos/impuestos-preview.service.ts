@@ -9,6 +9,8 @@ export type PreviewCalculoInput = {
   productoId?: number | null;
   cantidad?: number | null;
   precioUnitario?: number | null;
+  descuento?: number | null;
+  descuentoGlobal?: number | null;
   tratamientoImpuestos?: TratamientoImpuestos | null;
 };
 
@@ -30,12 +32,20 @@ export async function calcularImpuestosPreview({
   productoId,
   cantidad,
   precioUnitario,
+  descuento,
+  descuentoGlobal,
   tratamientoImpuestos,
 }: PreviewCalculoInput): Promise<PreviewCalculoResultado> {
   console.log('[impuestos-preview] tratamiento recibido', tratamientoImpuestos);
   const cantidadNum = Number(cantidad ?? 0) || 0;
   const precioNum = Number(precioUnitario ?? 0) || 0;
-  const subtotal_partida = Number((cantidadNum * precioNum).toFixed(2));
+  const descuentoNum = Math.min(100, Math.max(0, Number(descuento ?? 0) || 0));
+  const descuentoGlobalNum = Math.min(100, Math.max(0, Number(descuentoGlobal ?? 0) || 0));
+  const baseBruta = Number((cantidadNum * precioNum).toFixed(2));
+  const descuentoMonto = Number((baseBruta * (descuentoNum / 100)).toFixed(2));
+  const subtotalDespuesDescuentoPartida = Number((baseBruta - descuentoMonto).toFixed(2));
+  const descuentoGlobalMonto = Number((subtotalDespuesDescuentoPartida * (descuentoGlobalNum / 100)).toFixed(2));
+  const subtotal_partida = Number((subtotalDespuesDescuentoPartida - descuentoGlobalMonto).toFixed(2));
 
   if ((tratamientoImpuestos ?? '').toLowerCase() === 'sin_iva') {
     return {

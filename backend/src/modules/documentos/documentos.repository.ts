@@ -19,6 +19,8 @@ export type Documento = {
   contacto_principal_id: number | null;
   agente_id?: number | null;
   subtotal: number;
+  descuento_global?: number;
+  descuento?: number;
   iva: number;
   total: number;
   estatus_documento: string;
@@ -37,6 +39,7 @@ export type Partida = {
   descripcion_alterna: string | null;
   cantidad: number;
   precio_unitario: number;
+  descuento?: number;
   subtotal_partida: number;
   total_partida: number;
   es_parte_oportunidad?: boolean;
@@ -75,6 +78,8 @@ const CAMPOS_DOCUMENTO = [
   'estado_seguimiento',
   'comentario_seguimiento',
   'subtotal',
+  'descuento_global',
+  'descuento',
   'iva',
   'total',
   'agente_id',
@@ -286,6 +291,7 @@ export type PartidaInput = {
   descripcion_alterna?: string | null;
   cantidad?: number | null;
   precio_unitario?: number | null;
+  descuento?: number | null;
   subtotal_partida?: number | null;
   total_partida?: number | null;
   es_parte_oportunidad?: boolean;
@@ -752,6 +758,7 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       'descripcion_alterna',
       'cantidad',
       'precio_unitario',
+      'descuento',
       'subtotal_partida',
       'total_partida',
       'es_parte_oportunidad',
@@ -844,13 +851,14 @@ export async function reemplazarPartidasRepository(
         descripcion_alterna,
         cantidad,
         precio_unitario,
+        descuento,
         subtotal_partida,
         total_partida,
         es_parte_oportunidad,
         archivo_imagen_1,
         producto_archivo_id,
         observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `;
 
@@ -864,6 +872,7 @@ export async function reemplazarPartidasRepository(
         partida.descripcion_alterna ?? null,
         partida.cantidad ?? 0,
         partida.precio_unitario ?? 0,
+        partida.descuento ?? 0,
         partida.subtotal_partida ?? 0,
         partida.total_partida ?? partida.subtotal_partida ?? 0,
         partida.es_parte_oportunidad ?? true,

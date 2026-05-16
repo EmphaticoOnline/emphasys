@@ -100,6 +100,61 @@ const normalizeCivilDate = (value: string | null | undefined) => {
 const defaultFecha = () => toCivilDate();
 const validarRFC = (rfc: string) => /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(rfc);
 
+const clampDiscountPercent = (value: unknown) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.min(100, Math.max(0, numeric));
+};
+
+const getPartidaBaseBruta = (partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario'>) => {
+  const cantidad = Number(partida.cantidad) || 0;
+  const precio = Number(partida.precio_unitario) || 0;
+  return cantidad * precio;
+};
+
+const getPartidaDiscountAmount = (partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>) => {
+  const baseBruta = getPartidaBaseBruta(partida);
+  const descuento = clampDiscountPercent(partida.descuento);
+  return baseBruta * (descuento / 100);
+};
+
+const getPartidaSubtotalAfterLineDiscount = (partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>) => (
+  getPartidaBaseBruta(partida) - getPartidaDiscountAmount(partida)
+);
+
+const getPartidaGlobalDiscountAmount = (
+  partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>,
+  descuentoGlobal: unknown
+) => {
+  const subtotalDespuesDescuentoPartida = getPartidaSubtotalAfterLineDiscount(partida);
+  const descuentoGlobalNormalizado = clampDiscountPercent(descuentoGlobal);
+  return subtotalDespuesDescuentoPartida * (descuentoGlobalNormalizado / 100);
+};
+
+const getPartidaTotalDiscountAmount = (
+  partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>,
+  descuentoGlobal: unknown
+) => getPartidaDiscountAmount(partida) + getPartidaGlobalDiscountAmount(partida, descuentoGlobal);
+
+const getPartidaDiscountBreakdown = (
+  partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>,
+  descuentoGlobal: unknown
+) => {
+  const precioBruto = getPartidaBaseBruta(partida);
+  const descuentoPartida = getPartidaDiscountAmount(partida);
+  const subtotalIntermedio = precioBruto - descuentoPartida;
+  const descuentoGlobalMonto = getPartidaGlobalDiscountAmount(partida, descuentoGlobal);
+  const subtotalFinal = subtotalIntermedio - descuentoGlobalMonto;
+
+  return {
+    precioBruto,
+    descuentoPartida,
+    subtotalIntermedio,
+    descuentoGlobalMonto,
+    subtotalFinal,
+  };
+};
+
 type PartidaForm = Omit<CotizacionPartidaPayload, 'impuestos'> & {
   id?: number;
   producto?: Producto | null;
@@ -119,6 +174,7 @@ const emptyPartida = (): PartidaForm => ({
   descripcion_alterna: '',
   cantidad: 1,
   precio_unitario: 0,
+  descuento: 0,
   subtotal_partida: 0,
   total_partida: 0,
   es_parte_oportunidad: true,
@@ -275,6 +331,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     moneda: 'MXN',
     observaciones: '',
     subtotal: 0,
+    descuento_global: 0,
     iva: 0,
     total: 0,
     usuario_creacion_id: sessionUserId ?? null,
@@ -370,16 +427,20 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const previewSeqRef = useRef<Record<number, number>>({});
   const previewGlobalSeqRef = useRef<number>(0);
   const tratamientoRef = useRef<TratamientoImpuestos | null>(form.tratamiento_impuestos ?? 'normal');
+  const descuentoGlobalRef = useRef<number>(clampDiscountPercent(form.descuento_global ?? 0));
+  const resumenFinancieroRef = useRef<HTMLDivElement | null>(null);
   const isChangingTratamientoRef = useRef<boolean>(false);
   const suppressPreviewRef = useRef<boolean>(false);
   const tratamientoChangeSeqRef = useRef<number>(0);
+  const [mostrarResumenFinancieroSticky, setMostrarResumenFinancieroSticky] = useState(false);
 
   const runImpuestosPreview = async (
     index: number,
     partida: PartidaForm,
     tratamientoActual: TratamientoImpuestos,
     seq: number,
-    immediate: boolean = false
+    immediate: boolean = false,
+    descuentoGlobalActual?: number | null
   ) => {
     console.log('[impuestos] runPreview caller stack', new Error().stack);
     console.log('[impuestos] debounce fired -> runPreview', {
@@ -388,6 +449,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       producto_id: partida.producto_id,
       cantidad: partida.cantidad,
       precio_unitario: partida.precio_unitario,
+      descuento_global: descuentoGlobalActual ?? descuentoGlobalRef.current,
       tratamiento_impuestos: tratamientoActual,
       immediate,
     });
@@ -398,12 +460,16 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         producto_id: partida.producto_id,
         cantidad: partida.cantidad,
         precio_unitario: partida.precio_unitario,
+        descuento: partida.descuento,
+        descuento_global: descuentoGlobalActual ?? descuentoGlobalRef.current,
         tratamiento_impuestos: tratamientoActual,
       });
       const resp: any = await calcularImpuestosPreview({
         producto_id: partida.producto_id ?? null,
         cantidad: partida.cantidad ?? 0,
         precio_unitario: partida.precio_unitario ?? 0,
+        descuento: partida.descuento ?? 0,
+        descuento_global: descuentoGlobalActual ?? descuentoGlobalRef.current,
         tratamiento_impuestos: tratamientoActual,
       });
 
@@ -415,6 +481,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         producto_id: partida.producto_id,
         cantidad: partida.cantidad,
         precio_unitario: partida.precio_unitario,
+        descuento: partida.descuento,
+        descuento_global: descuentoGlobalActual ?? descuentoGlobalRef.current,
         tratamiento_impuestos: tratamientoActual,
         impuestos_len: Array.isArray(resp?.impuestos) ? resp.impuestos.length : null,
         subtotal_partida: resp?.subtotal_partida,
@@ -452,7 +520,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         };
 
         next[index] = updated;
-        recalcTotales(next);
+        recalcTotales(next, descuentoGlobalActual ?? descuentoGlobalRef.current);
         return next;
       });
     } catch (error) {
@@ -547,8 +615,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     return false;
   };
 
-  const recalcTotales = (partidasList: PartidaForm[]) => {
+  const recalcTotales = (partidasList: PartidaForm[], descuentoGlobalOverride?: number | null) => {
+    const descuentoGlobalDocumento = clampDiscountPercent(descuentoGlobalOverride ?? descuentoGlobalRef.current ?? 0);
     const subtotal = partidasList.reduce((acc, p) => acc + (p.subtotal_partida || 0), 0);
+    const descuento = partidasList.reduce((acc, p) => acc + getPartidaTotalDiscountAmount(p, descuentoGlobalDocumento), 0);
     const impuestosTotales = partidasList.reduce((acc, p) => {
       const impuestos = p.impuestos ?? [];
       const totalImpuestos = impuestos.reduce((s, imp: any) => {
@@ -559,7 +629,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       return acc + totalImpuestos;
     }, 0);
     const total = subtotal + impuestosTotales;
-    setForm((prev) => ({ ...prev, subtotal, iva: impuestosTotales, total }));
+    setForm((prev) => ({ ...prev, subtotal, descuento, iva: impuestosTotales, total }));
   };
 
   const montoOportunidad = useMemo(
@@ -569,22 +639,78 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     [partidas]
   );
 
+  const discountSummary = useMemo(() => {
+    const descuentoGlobalDocumento = clampDiscountPercent(form.descuento_global ?? 0);
+
+    return partidas.reduce((acc, partida) => {
+      const breakdown = getPartidaDiscountBreakdown(partida, descuentoGlobalDocumento);
+      const impuestos = partida.impuestos ?? [];
+      const ivaPartida = impuestos.reduce((sum, imp: any) => {
+        const monto = Number(imp.monto ?? 0);
+        const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
+        return sum + (esRetencion ? -monto : monto);
+      }, 0);
+
+      acc.subtotalBruto += breakdown.precioBruto;
+      acc.descuentoPartidas += breakdown.descuentoPartida;
+      acc.descuentoGlobal += breakdown.descuentoGlobalMonto;
+      acc.subtotalNeto += Number(partida.subtotal_partida ?? breakdown.subtotalFinal ?? 0);
+      acc.iva += ivaPartida;
+      acc.total += Number(partida.total_partida ?? 0);
+      return acc;
+    }, {
+      subtotalBruto: 0,
+      descuentoPartidas: 0,
+      descuentoGlobal: 0,
+      subtotalNeto: 0,
+      iva: 0,
+      total: 0,
+    });
+  }, [form.descuento_global, partidas]);
+
+  useEffect(() => {
+    const target = resumenFinancieroRef.current;
+    if (!target || typeof IntersectionObserver === 'undefined') {
+      setMostrarResumenFinancieroSticky(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setMostrarResumenFinancieroSticky(!entry.isIntersecting);
+      },
+      {
+        threshold: 0.12,
+      }
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [activeTab, loading]);
+
   const isSinIva = (t: TratamientoImpuestos | null | undefined) => (t ?? '').toLowerCase() === 'sin_iva';
   const isOperacionEstandar = (t: TratamientoImpuestos | null | undefined) => ['normal', 'operacion_estandar'].includes((t ?? '').toLowerCase());
 
   const partidasGridTemplate = useMemo(
     () =>
       (partidasMostrarEsParteOportunidad || partidasMostrarImagenes
-        ? '180px 1fr 80px 120px 120px 120px 120px 120px 52px 40px 48px'
-        : '180px 1fr 80px 120px 120px 120px 120px 40px 48px'),
+        ? '180px 1fr 80px 120px 88px 120px 120px 120px 120px 52px 40px 48px'
+        : '180px 1fr 80px 120px 88px 120px 120px 120px 40px 48px'),
     [partidasMostrarEsParteOportunidad, partidasMostrarImagenes]
   );
 
-  const calcularPartida = (partida: PartidaForm): PartidaForm => {
+  const calcularPartida = (partida: PartidaForm, descuentoGlobalOverride?: number | null): PartidaForm => {
     const cantidad = Number(partida.cantidad) || 0;
     const precio = Number(partida.precio_unitario) || 0;
-    const subtotal_partida = cantidad * precio;
-  const impuestosLista = (partida.impuestos ?? partida.impuestos_calculados ?? []) as any[];
+    const descuento = clampDiscountPercent(partida.descuento);
+    const descuentoGlobal = clampDiscountPercent(descuentoGlobalOverride ?? descuentoGlobalRef.current ?? 0);
+    const baseBruta = cantidad * precio;
+    const descuentoMonto = baseBruta * (descuento / 100);
+    const subtotalDespuesDescuentoPartida = baseBruta - descuentoMonto;
+    const descuentoGlobalMonto = subtotalDespuesDescuentoPartida * (descuentoGlobal / 100);
+    const subtotal_partida = subtotalDespuesDescuentoPartida - descuentoGlobalMonto;
+    const impuestosLista = (partida.impuestos ?? partida.impuestos_calculados ?? []) as any[];
     const totalImpuestos = impuestosLista.reduce((acc: number, imp: any) => {
       const monto = Number(imp.monto ?? 0);
       const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
@@ -596,6 +722,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       ...partida,
       cantidad,
       precio_unitario: precio,
+      descuento,
       subtotal_partida,
       total_partida,
       impuestos: impuestosLista as any,
@@ -616,6 +743,35 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       };
       return calcularPartida(base);
     });
+  };
+
+  const recalcularPartidasPorDescuentoGlobal = (descuentoGlobal: number) => {
+    suppressPreviewRef.current = true;
+
+    Object.keys(previewTimersRef.current).forEach((key) => {
+      const timer = previewTimersRef.current[Number(key)];
+      if (timer) clearTimeout(timer as any);
+    });
+    previewTimersRef.current = {} as any;
+
+    const seq = ++previewGlobalSeqRef.current;
+    descuentoGlobalRef.current = descuentoGlobal;
+
+    setPartidas((prev) => {
+      const next = prev.map((partida) => calcularPartida(partida, descuentoGlobal));
+      recalcTotales(next, descuentoGlobal);
+
+      next.forEach((partida, index) => {
+        previewSeqRef.current[index] = seq;
+        runImpuestosPreview(index, partida, tratamientoRef.current ?? form.tratamiento_impuestos ?? 'normal', seq, true, descuentoGlobal);
+      });
+
+      return next;
+    });
+
+    setTimeout(() => {
+      suppressPreviewRef.current = false;
+    }, 0);
   };
 
   const scheduleImpuestosPreview = (
@@ -643,13 +799,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       producto_id: partida.producto_id,
       cantidad: partida.cantidad,
       precio_unitario: partida.precio_unitario,
+      descuento_global: descuentoGlobalRef.current,
       tratamiento_impuestos: tratamientoPlan,
       immediate,
     });
 
     const runPreview = () => {
       const tratamientoActual = tratamientoOverride ?? tratamientoRef.current ?? form.tratamiento_impuestos ?? 'normal';
-      runImpuestosPreview(index, partida, tratamientoActual, seq, immediate);
+      runImpuestosPreview(index, partida, tratamientoActual, seq, immediate, descuentoGlobalRef.current);
     };
 
     if (immediate) {
@@ -666,10 +823,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       const current = next[index];
       if (!current) return prev;
 
-      const updated = calcularPartida(updater(current));
+      const updated = calcularPartida(updater(current), descuentoGlobalRef.current);
 
       next[index] = updated;
-      recalcTotales(next);
+      recalcTotales(next, descuentoGlobalRef.current);
       if (!isChangingTratamientoRef.current) {
         scheduleImpuestosPreview(index, updated);
       }
@@ -721,14 +878,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
     setPartidas((prev) => {
       const next = aplicarTratamientoEnLista(prev, valor);
-      recalcTotales(next);
+      recalcTotales(next, descuentoGlobalRef.current);
 
       next.forEach((p, idx) => {
         if (changeSeq !== tratamientoChangeSeqRef.current) {
           return;
         }
         previewSeqRef.current[idx] = newSeq;
-        runImpuestosPreview(idx, p, valor, newSeq, true);
+        runImpuestosPreview(idx, p, valor, newSeq, true, descuentoGlobalRef.current);
       });
 
       return next;
@@ -743,7 +900,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     setPartidas((prev) => {
       const next = [...prev, emptyPartida()];
       const ajustadas = form.tratamiento_impuestos === 'sin_iva' ? aplicarTratamientoEnLista(next, 'sin_iva') : next;
-      setTimeout(() => recalcTotales(ajustadas), 0);
+      setTimeout(() => recalcTotales(ajustadas, descuentoGlobalRef.current), 0);
       return ajustadas;
     });
     setExpandedObs((prev) => [...prev, false]);
@@ -790,7 +947,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         const aligned = filteredValores.length === 0 ? [{}] : filteredValores;
         return aligned;
       });
-      recalcTotales(next);
+      recalcTotales(next, descuentoGlobalRef.current);
       return next;
     });
   };
@@ -850,6 +1007,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         moneda: doc.moneda || 'MXN',
         observaciones: doc.observaciones || '',
         subtotal: doc.subtotal || 0,
+        descuento_global: (doc as any).descuento_global || 0,
+        descuento: doc.descuento || 0,
         iva: doc.iva || 0,
         total: doc.total || 0,
         usuario_creacion_id: doc.usuario_creacion_id ?? sessionUserId ?? null,
@@ -866,6 +1025,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       });
       skipFiscalFetchRef.current = true;
       prevContactoRef.current = doc.contacto_principal_id;
+      descuentoGlobalRef.current = clampDiscountPercent((doc as any).descuento_global ?? 0);
 
       const mapped: PartidaForm[] = data.partidas.map((p: CotizacionPartida) => {
         const prod = productos.find((pr) => pr.id === p.producto_id) || null;
@@ -905,6 +1065,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           descripcion_alterna: p.descripcion_alterna ?? '',
           cantidad: p.cantidad,
           precio_unitario: p.precio_unitario,
+          descuento: p.descuento ?? 0,
           subtotal_partida: p.subtotal_partida,
           total_partida: p.total_partida,
           es_parte_oportunidad: p.es_parte_oportunidad ?? true,
@@ -914,7 +1075,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           producto: prod,
           impuestos: impuestosEntrada,
           impuestos_calculados: impuestosCalc,
-        });
+        }, (doc as any).descuento_global ?? 0);
       });
       let nextPartidas = mapped.length ? mapped : [emptyPartida()];
       if ((doc as any).tratamiento_impuestos === 'sin_iva') {
@@ -925,7 +1086,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       setEditingPrecio(nextPartidas.map(() => false));
       setPrecioInputs(nextPartidas.map((p) => (p.precio_unitario ?? '').toString()));
   setUploadingImagen(nextPartidas.map(() => false));
-      recalcTotales(nextPartidas);
+      recalcTotales(nextPartidas, (doc as any).descuento_global ?? 0);
 
       // Carga valores dinámicos ya capturados
       const [valoresDocResp, valoresPartidasResp] = await Promise.all([
@@ -1010,6 +1171,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   useEffect(() => {
     tratamientoRef.current = form.tratamiento_impuestos ?? 'normal';
   }, [form.tratamiento_impuestos]);
+
+  useEffect(() => {
+    descuentoGlobalRef.current = clampDiscountPercent(form.descuento_global ?? 0);
+  }, [form.descuento_global]);
 
   useEffect(() => {
     setValoresCamposPartidas((prev) => {
@@ -1138,6 +1303,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         tipo_documento: tipoDocumento,
         serie: form.serie?.trim() || null,
         subtotal: form.subtotal || 0,
+        descuento_global: form.descuento_global || 0,
+        descuento: form.descuento || 0,
         iva: form.iva || 0,
         total: form.total || 0,
         empresa_id: getEmpresaActivaId(),
@@ -1170,6 +1337,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         descripcion_alterna: p.descripcion_alterna ?? '',
         cantidad: p.cantidad ?? 0,
         precio_unitario: p.precio_unitario ?? 0,
+        descuento: p.descuento ?? 0,
         subtotal_partida: p.subtotal_partida ?? 0,
         total_partida: p.total_partida ?? 0,
         ...(partidasMostrarEsParteOportunidad
@@ -1335,15 +1503,22 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     }
   };
 
-  const handleCantidadPrecioChange = (index: number, field: 'cantidad' | 'precio_unitario', value: string) => {
+  const handleCantidadPrecioChange = (index: number, field: 'cantidad' | 'precio_unitario' | 'descuento', value: string) => {
     console.log('[calc] onChange input', { index, field, value });
     setPartidaAt(index, (prev) => {
+      const nextValue = field === 'descuento' ? clampDiscountPercent(value) : Number(value);
       return {
         ...prev,
-        [field]: Number(value),
+        [field]: nextValue,
         impuestos: prev.impuestos ?? [],
       };
     });
+  };
+
+  const handleDescuentoGlobalChange = (value: string) => {
+    const descuentoGlobal = clampDiscountPercent(value);
+    setForm((prev) => ({ ...prev, descuento_global: descuentoGlobal }));
+    recalcularPartidasPorDescuentoGlobal(descuentoGlobal);
   };
 
   const abrirImagenDialog = (index: number) => {
@@ -1645,7 +1820,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: mostrarResumenFinancieroSticky ? { xs: 10, sm: 9 } : 0 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
           <Button
@@ -1922,6 +2097,18 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     inputProps={{ style: { fontSize: 13 } }}
                   />
                 </Grid>
+                <Grid size={{ xs: 12, md: 2 }}>
+                  <TextField
+                    label="Descuento global %"
+                    type="number"
+                    value={form.descuento_global ?? 0}
+                    onChange={(e) => handleDescuentoGlobalChange(e.target.value)}
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                    inputProps={{ min: 0, max: 100, step: 0.0001, style: { textAlign: 'right', fontSize: 13 } }}
+                  />
+                </Grid>
               </Grid>
 
               {camposDocumento.campos.length > 0 && (
@@ -2162,11 +2349,40 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       />
 
                       <TextField
-                        label="Subtotal"
-                        value={formatter.format(partida.subtotal_partida ?? 0)}
-                        InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
+                        label="% Desc."
+                        type="number"
+                        value={partida.descuento ?? 0}
+                        onChange={(e) => handleCantidadPrecioChange(index, 'descuento', e.target.value)}
                         size="small"
+                        inputProps={{ min: 0, max: 100, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
                       />
+
+                      <Tooltip
+                        arrow
+                        placement="top"
+                        title={(() => {
+                          const breakdown = getPartidaDiscountBreakdown(partida, form.descuento_global ?? 0);
+                          return (
+                            <Box sx={{ py: 0.25 }}>
+                              <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.5 }}>
+                                Desglose del subtotal
+                              </Typography>
+                              <Typography sx={{ fontSize: 12 }}>Precio bruto: {formatter.format(breakdown.precioBruto)}</Typography>
+                              <Typography sx={{ fontSize: 12 }}>Desc. partida: -{formatter.format(breakdown.descuentoPartida)}</Typography>
+                              <Typography sx={{ fontSize: 12 }}>Subtotal intermedio: {formatter.format(breakdown.subtotalIntermedio)}</Typography>
+                              <Typography sx={{ fontSize: 12 }}>Desc. global: -{formatter.format(breakdown.descuentoGlobalMonto)}</Typography>
+                              <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Subtotal final: {formatter.format(breakdown.subtotalFinal)}</Typography>
+                            </Box>
+                          );
+                        })()}
+                      >
+                        <TextField
+                          label="Subtotal"
+                          value={formatter.format(partida.subtotal_partida ?? 0)}
+                          InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
+                          size="small"
+                        />
+                      </Tooltip>
 
                       <TextField
                         label="IVA"
@@ -2330,29 +2546,63 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
               <Divider />
 
-              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" spacing={1.5} alignItems="flex-end">
-                <TextField
-                  label="Subtotal"
-                  value={formatter.format(form.subtotal || 0)}
-                  InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
-                  size="small"
-                  sx={{ width: { xs: '100%', sm: 180 } }}
-                />
-                <TextField
-                  label="IVA"
-                  value={formatter.format(form.iva || 0)}
-                  InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
-                  size="small"
-                  sx={{ width: { xs: '100%', sm: 160 } }}
-                />
-                <TextField
-                  label="Total cotización"
-                  value={formatter.format(form.total || 0)}
-                  InputProps={{ readOnly: true, sx: { fontSize: 13, fontWeight: 700 }, style: { textAlign: 'right' } }}
-                  size="small"
-                  sx={{ width: { xs: '100%', sm: 180 } }}
-                />
-                {partidasMostrarMontoOportunidad && (
+              <Box
+                ref={resumenFinancieroRef}
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: 'repeat(2, minmax(0, 1fr))',
+                    lg: 'repeat(6, minmax(0, 1fr))',
+                  },
+                  gap: 1,
+                }}
+              >
+                {[
+                  { label: 'Subtotal bruto', value: discountSummary.subtotalBruto, tone: '#334155' },
+                  { label: 'Desc. partidas', value: -discountSummary.descuentoPartidas, tone: '#b45309' },
+                  { label: 'Desc. global', value: -discountSummary.descuentoGlobal, tone: '#9a3412' },
+                  { label: 'Subtotal neto', value: discountSummary.subtotalNeto, tone: '#1d4ed8' },
+                  { label: 'IVA', value: discountSummary.iva, tone: '#0f766e' },
+                  { label: 'Total', value: discountSummary.total, tone: '#111827' },
+                ].map((item) => (
+                  <Paper
+                    key={item.label}
+                    variant="outlined"
+                    sx={{
+                      px: 1.25,
+                      py: 1,
+                      borderRadius: 1.5,
+                      borderColor: '#e5e7eb',
+                      bgcolor: '#fbfdff',
+                      minWidth: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: 0.35,
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontSize: 11.5 }}>
+                      {item.label}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: item.tone,
+                        fontWeight: 800,
+                        fontSize: 14.5,
+                        lineHeight: 1.1,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {formatter.format(item.value)}
+                    </Typography>
+                  </Paper>
+                ))}
+              </Box>
+              {partidasMostrarMontoOportunidad && (
+                <Stack direction="row" justifyContent="flex-end">
                   <TextField
                     label="Monto oportunidad"
                     value={formatter.format(montoOportunidad)}
@@ -2360,10 +2610,74 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     size="small"
                     sx={{ width: { xs: '100%', sm: 190 } }}
                   />
-                )}
-              </Stack>
+                </Stack>
+              )}
             </>
           )}
+        </Paper>
+      )}
+
+      {mostrarResumenFinancieroSticky && (
+        <Paper
+          elevation={8}
+          sx={{
+            position: 'fixed',
+            left: { xs: 8, sm: '50%' },
+            right: { xs: 8, sm: 'auto' },
+            bottom: { xs: 8, sm: 16 },
+            transform: { sm: 'translateX(-50%)' },
+            width: { xs: 'auto', sm: 'min(720px, calc(100vw - 32px))' },
+            maxWidth: 760,
+            zIndex: 1200,
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'rgba(148, 163, 184, 0.35)',
+            bgcolor: 'rgba(255, 255, 255, 0.96)',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',
+            px: 1.5,
+            py: 1,
+          }}
+        >
+          <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="center" sx={{ flexWrap: 'wrap' }}>
+            {[
+              { label: 'Bruto', value: discountSummary.subtotalBruto, tone: '#334155' },
+              ...(discountSummary.descuentoPartidas + discountSummary.descuentoGlobal > 0
+                ? [{ label: 'Desc', value: -(discountSummary.descuentoPartidas + discountSummary.descuentoGlobal), tone: '#9a3412' }]
+                : []),
+              { label: 'Neto', value: discountSummary.subtotalNeto, tone: '#1d4ed8' },
+              { label: 'IVA', value: discountSummary.iva, tone: '#0f766e' },
+              { label: 'Total', value: discountSummary.total, tone: '#111827', strong: true },
+            ].map((item) => (
+              <Box
+                key={item.label}
+                sx={{
+                  minWidth: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 0.15,
+                  px: 0.5,
+                }}
+              >
+                <Typography variant="caption" sx={{ color: '#64748b', fontSize: 10.5, lineHeight: 1.1 }}>
+                  {item.label}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: item.tone,
+                    fontWeight: item.strong ? 800 : 700,
+                    fontSize: item.strong ? 15 : 13.5,
+                    lineHeight: 1.05,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatter.format(item.value)}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
         </Paper>
       )}
 

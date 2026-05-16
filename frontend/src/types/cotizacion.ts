@@ -12,6 +12,8 @@ export interface CotizacionListado {
   agente_id?: number | null;
   nombre_cliente: string | null;
   subtotal: number;
+  descuento_global?: number;
+  descuento?: number;
   iva: number;
   total: number;
   estatus_documento: string;
@@ -36,6 +38,8 @@ export interface CotizacionDocumento {
   moneda: string | null;
   observaciones?: string | null;
   subtotal: number;
+  descuento_global?: number;
+  descuento?: number;
   iva: number;
   total: number;
   estatus_documento: string;
@@ -61,6 +65,7 @@ export interface CotizacionPartida {
   descripcion_alterna: string | null;
   cantidad: number;
   precio_unitario: number;
+  descuento?: number;
   subtotal_partida: number;
   total_partida: number;
   es_parte_oportunidad?: boolean;
@@ -108,6 +113,8 @@ export interface CotizacionCrearPayload {
   moneda: string | null;
   observaciones?: string | null;
   subtotal: number;
+  descuento_global?: number;
+  descuento?: number;
   iva?: number;
   total: number;
   usuario_creacion_id?: number | null;
@@ -129,6 +136,7 @@ export interface CotizacionPartidaPayload {
   descripcion_alterna: string | null;
   cantidad: number;
   precio_unitario: number;
+  descuento?: number;
   subtotal_partida: number;
   total_partida: number;
   es_parte_oportunidad?: boolean;
