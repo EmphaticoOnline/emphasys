@@ -8,6 +8,7 @@ import {
   eliminarContacto as eliminarContactoRepository,
   obtenerCatalogosConfigurablesDeContacto,
   guardarCatalogosConfigurablesDeContacto,
+  precioListaPerteneceAEmpresa,
 } from "./contactos.repository";
 import { normalizarTelefono } from "../../utils/telefono";
 import { normalizeRFC } from "../../shared/normalizers/rfc";
@@ -48,6 +49,20 @@ export async function crearContacto(req: Request, res: Response) {
 
     if ("email" in data) {
       data.email = normalizeEmail(data.email);
+    }
+
+    if (data.precio_lista_id !== undefined && data.precio_lista_id !== null && String(data.precio_lista_id).trim() !== '') {
+      const precioListaId = Number(data.precio_lista_id);
+      if (!Number.isFinite(precioListaId)) {
+        return res.status(400).json({ message: 'precio_lista_id debe ser numérico' });
+      }
+      const valida = await precioListaPerteneceAEmpresa(Number(empresaId), precioListaId);
+      if (!valida) {
+        return res.status(400).json({ message: 'La lista de precios específica no existe, no pertenece a la empresa o no está activa.' });
+      }
+      data.precio_lista_id = precioListaId;
+    } else if (data.precio_lista_id === '') {
+      data.precio_lista_id = null;
     }
 
     const contacto = await insertarContacto(data, Number(empresaId));
@@ -158,6 +173,20 @@ export async function actualizarContacto(req: Request, res: Response) {
 
     if ("email" in data) {
       data.email = normalizeEmail(data.email);
+    }
+
+    if (data.precio_lista_id !== undefined && data.precio_lista_id !== null && String(data.precio_lista_id).trim() !== '') {
+      const precioListaId = Number(data.precio_lista_id);
+      if (!Number.isFinite(precioListaId)) {
+        return res.status(400).json({ message: 'precio_lista_id debe ser numérico' });
+      }
+      const valida = await precioListaPerteneceAEmpresa(Number(empresaId), precioListaId);
+      if (!valida) {
+        return res.status(400).json({ message: 'La lista de precios específica no existe, no pertenece a la empresa o no está activa.' });
+      }
+      data.precio_lista_id = precioListaId;
+    } else if (data.precio_lista_id === null || data.precio_lista_id === '') {
+      data.precio_lista_id = null;
     }
 
     const contacto = await actualizarContactoRepository(id, Number(empresaId), data);

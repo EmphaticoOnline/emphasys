@@ -12,6 +12,7 @@ export type CampoConfiguracion = {
   clave: string | null;
   tipo_dato: TipoDatoCampo;
   tipo_control: string | null;
+  proposito_sistema: string | null;
   catalogo_tipo_id: number | null;
   catalogo_tipo_nombre: string | null;
   campo_padre_id: number | null;
@@ -32,6 +33,13 @@ function validarCatalogoTipoLista(payload: Partial<CampoConfiguracion>): void {
   if (payload.tipo_dato === 'lista' && !payload.catalogo_tipo_id) {
     throw new Error('catalogo_tipo_id es obligatorio cuando tipo_dato es lista');
   }
+}
+
+function normalizarPropositoSistema(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || String(value).trim() === '') return null;
+
+  return String(value).trim();
 }
 
 export async function obtenerCamposConfiguracion(
@@ -69,6 +77,7 @@ export async function obtenerCamposConfiguracion(
       cc.clave,
       cc.tipo_dato,
       cc.tipo_control,
+      cc.proposito_sistema,
       cc.catalogo_tipo_id,
       ct.nombre AS catalogo_tipo_nombre,
       cc.campo_padre_id,
@@ -125,8 +134,13 @@ export async function crearCampoConfiguracion(
   empresaId: number,
   payload: Partial<CampoConfiguracion>
 ): Promise<CampoConfiguracion> {
-  validarCatalogoTipoLista(payload);
-  await validarCampoPadre(empresaId, payload, null);
+  const normalizedPayload: Partial<CampoConfiguracion> = {
+    ...payload,
+    proposito_sistema: normalizarPropositoSistema(payload.proposito_sistema),
+  };
+
+  validarCatalogoTipoLista(normalizedPayload);
+  await validarCampoPadre(empresaId, normalizedPayload, null);
 
   const cols = [
     'empresa_id',
@@ -136,6 +150,7 @@ export async function crearCampoConfiguracion(
     'clave',
     'tipo_dato',
     'tipo_control',
+    'proposito_sistema',
     'catalogo_tipo_id',
     'campo_padre_id',
     'obligatorio',
@@ -145,17 +160,18 @@ export async function crearCampoConfiguracion(
 
   const values = [
     empresaId,
-    payload.entidad_tipo_id,
-    payload.tipo_documento ?? null,
-    payload.nombre,
-    payload.clave ?? null,
-    payload.tipo_dato,
-    payload.tipo_control ?? null,
-    payload.catalogo_tipo_id ?? null,
-    payload.campo_padre_id ?? null,
-    payload.obligatorio ?? false,
-    payload.activo ?? true,
-    payload.orden ?? null,
+    normalizedPayload.entidad_tipo_id,
+    normalizedPayload.tipo_documento ?? null,
+    normalizedPayload.nombre,
+    normalizedPayload.clave ?? null,
+    normalizedPayload.tipo_dato,
+    normalizedPayload.tipo_control ?? null,
+    normalizedPayload.proposito_sistema ?? null,
+    normalizedPayload.catalogo_tipo_id ?? null,
+    normalizedPayload.campo_padre_id ?? null,
+    normalizedPayload.obligatorio ?? false,
+    normalizedPayload.activo ?? true,
+    normalizedPayload.orden ?? null,
   ];
 
   const params = values.map((_, i) => `$${i + 1}`).join(', ');
@@ -174,6 +190,13 @@ export async function actualizarCampoConfiguracion(
   id: number,
   payload: Partial<CampoConfiguracion>
 ): Promise<CampoConfiguracion | null> {
+  const normalizedPayload: Partial<CampoConfiguracion> = {
+    ...payload,
+    ...(payload.proposito_sistema !== undefined
+      ? { proposito_sistema: normalizarPropositoSistema(payload.proposito_sistema) }
+      : {}),
+  };
+
   const allowed = [
     'entidad_tipo_id',
     'tipo_documento',
@@ -181,6 +204,7 @@ export async function actualizarCampoConfiguracion(
     'clave',
     'tipo_dato',
     'tipo_control',
+    'proposito_sistema',
     'catalogo_tipo_id',
     'campo_padre_id',
     'obligatorio',
@@ -192,8 +216,8 @@ export async function actualizarCampoConfiguracion(
   const values: any[] = [];
 
   for (const field of allowed) {
-    if (field in payload) {
-      values.push((payload as any)[field]);
+    if (field in normalizedPayload) {
+      values.push((normalizedPayload as any)[field]);
       sets.push(`${field} = $${values.length}`);
     }
   }
@@ -201,7 +225,7 @@ export async function actualizarCampoConfiguracion(
   if (!sets.length) return null;
 
   const baseQuery = `
-    SELECT entidad_tipo_id, tipo_documento, tipo_dato, catalogo_tipo_id
+    SELECT entidad_tipo_id, tipo_documento, tipo_dato, proposito_sistema, catalogo_tipo_id
       FROM core.campos_configuracion
      WHERE id = $1 AND empresa_id = $2
      LIMIT 1
@@ -211,11 +235,14 @@ export async function actualizarCampoConfiguracion(
   if (!actual) return null;
 
   const merged: Partial<CampoConfiguracion> = {
-    entidad_tipo_id: payload.entidad_tipo_id ?? actual.entidad_tipo_id,
-    tipo_documento: payload.tipo_documento ?? actual.tipo_documento,
-    tipo_dato: ('tipo_dato' in payload ? payload.tipo_dato : actual.tipo_dato) as CampoConfiguracion['tipo_dato'],
-    catalogo_tipo_id: 'catalogo_tipo_id' in payload ? payload.catalogo_tipo_id ?? null : actual.catalogo_tipo_id ?? null,
-    campo_padre_id: payload.campo_padre_id ?? undefined,
+    entidad_tipo_id: normalizedPayload.entidad_tipo_id ?? actual.entidad_tipo_id,
+    tipo_documento: normalizedPayload.tipo_documento ?? actual.tipo_documento,
+    tipo_dato: ('tipo_dato' in normalizedPayload ? normalizedPayload.tipo_dato : actual.tipo_dato) as CampoConfiguracion['tipo_dato'],
+    proposito_sistema: ('proposito_sistema' in normalizedPayload
+      ? normalizedPayload.proposito_sistema ?? null
+      : actual.proposito_sistema ?? null) as CampoConfiguracion['proposito_sistema'],
+    catalogo_tipo_id: 'catalogo_tipo_id' in normalizedPayload ? normalizedPayload.catalogo_tipo_id ?? null : actual.catalogo_tipo_id ?? null,
+    campo_padre_id: normalizedPayload.campo_padre_id ?? undefined,
   } as any;
 
   validarCatalogoTipoLista(merged);

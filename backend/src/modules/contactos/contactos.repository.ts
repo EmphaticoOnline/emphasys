@@ -31,6 +31,7 @@ const columnasPermitidasContacto = new Set([
   'ultimo_concepto_utilizado',
   'iva_desglosado',
   'tipo_contacto',
+  'precio_lista_id',
 ]);
 
 type DomicilioData = {
@@ -200,11 +201,15 @@ export async function obtenerContactos(empresaId: number, tipos?: string[]) {
             clasificacion.descripcion AS clasificacion_descripcion,
             origen.clave AS origen_contacto,
             origen.descripcion AS origen_contacto_descripcion,
+            lista_directa.nombre AS precio_lista_nombre,
             vendedor.nombre AS vendedor_nombre
      FROM contactos
      LEFT JOIN contactos vendedor
        ON vendedor.id = contactos.vendedor_id
       AND vendedor.empresa_id = contactos.empresa_id
+     LEFT JOIN precios_listas lista_directa
+       ON lista_directa.id = contactos.precio_lista_id
+      AND lista_directa.empresa_id = contactos.empresa_id
     LEFT JOIN LATERAL (
   SELECT c.clave,
          c.descripcion
@@ -292,11 +297,15 @@ export async function obtenerContactosPaginados(
     clasificacion.descripcion AS clasificacion_descripcion,
     origen.clave AS origen_contacto,
     origen.descripcion AS origen_contacto_descripcion,
+              lista_directa.nombre AS precio_lista_nombre,
               vendedor.nombre AS vendedor_nombre
        FROM contactos
        LEFT JOIN contactos vendedor
          ON vendedor.id = contactos.vendedor_id
         AND vendedor.empresa_id = contactos.empresa_id
+       LEFT JOIN precios_listas lista_directa
+         ON lista_directa.id = contactos.precio_lista_id
+        AND lista_directa.empresa_id = contactos.empresa_id
        LEFT JOIN core.entidades_catalogos ec
          ON ec.empresa_id = contactos.empresa_id
         AND ec.entidad_id = contactos.id
@@ -403,6 +412,8 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
         c.activo,
   c.tipo_contacto,
   c.vendedor_id,
+        c.precio_lista_id,
+        pl.nombre AS precio_lista_nombre,
 
         cd.calle,
         cd.numero_exterior,
@@ -424,6 +435,9 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
   cdf.metodo_pago
 
       FROM contactos c
+  LEFT JOIN precios_listas pl
+     ON pl.id = c.precio_lista_id
+    AND pl.empresa_id = c.empresa_id
 
       LEFT JOIN contactos_domicilios cd
              ON cd.contacto_id = c.id
@@ -450,7 +464,9 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
       telefono_secundario: row.telefono_secundario,
       activo: row.activo,
       tipo_contacto: row.tipo_contacto,
-  vendedor_id: row.vendedor_id,
+      vendedor_id: row.vendedor_id,
+      precio_lista_id: row.precio_lista_id,
+      precio_lista_nombre: row.precio_lista_nombre,
     },
     domicilio_principal: {
       calle: row.calle,
@@ -619,6 +635,23 @@ export async function guardarCatalogosConfigurablesDeContacto(
   } finally {
     client.release();
   }
+}
+
+export async function precioListaPerteneceAEmpresa(
+  empresaId: number,
+  precioListaId: number
+): Promise<boolean> {
+  const query = `
+    SELECT 1
+      FROM precios_listas
+     WHERE id = $1
+       AND empresa_id = $2
+       AND tipo_precio = 'VENTA'
+       AND activo = true
+     LIMIT 1
+  `;
+  const { rowCount } = await pool.query(query, [precioListaId, empresaId]);
+  return (rowCount ?? 0) > 0;
 }
 
 export async function eliminarContacto(id: number, empresa_id: number) {

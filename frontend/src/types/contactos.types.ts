@@ -6,6 +6,8 @@ export interface Contacto {
   clasificacion_descripcion?: string | null;
   origen_contacto?: string | null;
   origen_contacto_descripcion?: string | null;
+  precio_lista_id?: number | null;
+  precio_lista_nombre?: string | null;
   nombre: string;
   rfc?: string | null;
   email?: string | null;

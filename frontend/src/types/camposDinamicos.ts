@@ -10,6 +10,7 @@ export type CampoConfiguracion = {
   clave: string | null;
   tipo_dato: TipoDatoCampo;
   tipo_control: string | null;
+  proposito_sistema: string | null;
   catalogo_tipo_id: number | null;
   catalogo_tipo_nombre: string | null;
   campo_padre_id: number | null;

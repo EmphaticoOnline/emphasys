@@ -23,6 +23,7 @@ import type { SelectChangeEvent } from '@mui/material/Select';
 import { getContacto, crearContacto, actualizarContacto, obtenerCatalogosConfigurablesContacto, guardarCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../services/contactos.api';
 import { apiFetch } from '../services/apiFetch';
 import { fetchVendedores } from '../services/contactosService';
+import { fetchPreciosListas, type PrecioLista } from '../services/preciosListasService';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
 import { normalizarTelefonoMx } from '../utils/telefono';
@@ -32,6 +33,7 @@ type FormState = {
   tipo_contacto: string;
   clasificacion: string;
   origen_contacto: string;
+  precio_lista_id: string;
   vendedor_id: string;
   rfc: string;
   email: string;
@@ -60,6 +62,7 @@ const initialState: FormState = {
   tipo_contacto: 'Cliente',
   clasificacion: '',
   origen_contacto: '',
+  precio_lista_id: '',
   vendedor_id: '',
   rfc: '',
   email: '',
@@ -121,6 +124,7 @@ function validarRFC(rfc: string) {
   const [comercialError, setComercialError] = useState<string | null>(null);
 
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
+  const [listasPrecioVenta, setListasPrecioVenta] = useState<PrecioLista[]>([]);
 
   const [cpSatLoading, setCpSatLoading] = useState<boolean>(false);
   const [coloniasSatLoading, setColoniasSatLoading] = useState<boolean>(false);
@@ -207,6 +211,27 @@ function validarRFC(rfc: string) {
   useEffect(() => {
     let isMounted = true;
 
+    const loadListasPrecio = async () => {
+      try {
+        const data = await fetchPreciosListas(false);
+        if (!isMounted) return;
+        setListasPrecioVenta(data.filter((item) => item.tipo_precio === 'VENTA' && item.activo));
+      } catch (_err) {
+        if (!isMounted) return;
+        setListasPrecioVenta([]);
+      }
+    };
+
+    void loadListasPrecio();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
     async function load() {
       try {
         const response = await getContacto(Number(id));
@@ -223,6 +248,7 @@ function validarRFC(rfc: string) {
           tipo_contacto: contacto.tipo_contacto || 'Cliente',
           clasificacion: contacto.clasificacion || '',
           origen_contacto: contacto.origen_contacto || '',
+          precio_lista_id: contacto.precio_lista_id ? String(contacto.precio_lista_id) : '',
           vendedor_id: contacto.vendedor_id ? String(contacto.vendedor_id) : '',
           rfc: contacto.rfc || '',
           email: contacto.email || '',
@@ -449,6 +475,7 @@ function validarRFC(rfc: string) {
       tipo_contacto: form.tipo_contacto,
       clasificacion: form.clasificacion.trim() || null,
       origen_contacto: form.origen_contacto.trim() || null,
+      precio_lista_id: form.precio_lista_id ? Number(form.precio_lista_id) : null,
       vendedor_id: form.vendedor_id ? Number(form.vendedor_id) : null,
       rfc: form.rfc || null,
       email: form.email || null,
@@ -609,6 +636,28 @@ function validarRFC(rfc: string) {
                     </FormControl>
                   );
                 })()}
+
+                <FormControl fullWidth>
+                  <InputLabel id="precio-lista-especifica-label">Lista de precios específica</InputLabel>
+                  <Select
+                    labelId="precio-lista-especifica-label"
+                    label="Lista de precios específica"
+                    value={form.precio_lista_id}
+                    onChange={(event) => setForm((prev) => ({ ...prev, precio_lista_id: event.target.value }))}
+                  >
+                    <MenuItem value="">
+                      <em>Usar derivada por clasificación o default</em>
+                    </MenuItem>
+                    {listasPrecioVenta.map((lista) => (
+                      <MenuItem key={lista.id} value={String(lista.id)}>
+                        {lista.nombre}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Typography variant="caption" color="#4b5563">
+                  Si no seleccionas una lista específica, se conservará la prioridad para derivarla desde la clasificación comercial o desde la lista predeterminada.
+                </Typography>
 
                 {(() => {
                   const origenTipo = obtenerCatalogoTipo('origen', catalogoTipoIds.origen);

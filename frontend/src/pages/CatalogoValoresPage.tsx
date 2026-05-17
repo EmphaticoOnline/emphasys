@@ -34,9 +34,10 @@ import {
 } from '../services/catalogosService';
 import { fetchCamposConfiguracion } from '../services/camposDinamicosService';
 import type { CampoConfiguracion } from '../types/camposDinamicos';
+import { fetchPreciosListas, type PrecioLista } from '../services/preciosListasService';
 
 function useTipoCatalogo(tipoId: number | null) {
-  const [nombre, setNombre] = useState<string>('');
+  const [tipo, setTipo] = useState<{ id: number; nombre: string | null; entidad_tipo_id: number; entidad_tipo_codigo: string | null } | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +47,7 @@ function useTipoCatalogo(tipoId: number | null) {
       try {
         setLoading(true);
         const data = await fetchCatalogoTipo(tipoId);
-        setNombre(data.nombre || 'Catálogo');
+        setTipo(data);
         setError(null);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'No se pudo obtener el catálogo');
@@ -57,7 +58,14 @@ function useTipoCatalogo(tipoId: number | null) {
     load();
   }, [tipoId]);
 
-  return { nombre, loading, error };
+  return { tipo, nombre: tipo?.nombre || '', loading, error };
+}
+
+function normalizarTexto(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 function resolveConfiguredParentTipoId(
@@ -100,21 +108,28 @@ export default function CatalogoValoresPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogoValor | null>(null);
-  const [form, setForm] = useState<{ clave: string; descripcion: string; orden: string; activo: boolean; catalogo_padre_id: number | null }>({
+  const [form, setForm] = useState<{ clave: string; descripcion: string; orden: string; activo: boolean; catalogo_padre_id: number | null; precio_lista_id: number | null }>({
     clave: '',
     descripcion: '',
     orden: '',
     activo: true,
     catalogo_padre_id: null,
+    precio_lista_id: null,
   });
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<CatalogoValor | null>(null);
   const [parentOptions, setParentOptions] = useState<CatalogoValor[]>([]);
+  const [listasPrecioVenta, setListasPrecioVenta] = useState<PrecioLista[]>([]);
   const [parentOptionsLoading, setParentOptionsLoading] = useState(false);
   const [configuredParentTipoId, setConfiguredParentTipoId] = useState<number | null>(null);
   const [configuredParentTipoLoading, setConfiguredParentTipoLoading] = useState(false);
 
-  const { nombre: tituloCatalogo, loading: loadingTipo, error: errorTipo } = useTipoCatalogo(tipoId);
+  const { tipo: tipoCatalogoActual, nombre: tituloCatalogo, loading: loadingTipo, error: errorTipo } = useTipoCatalogo(tipoId);
+
+  const esClasificacionComercialContacto = useMemo(() => {
+    const nombre = tipoCatalogoActual?.nombre || '';
+    return tipoCatalogoActual?.entidad_tipo_codigo === 'CONTACTO' && normalizarTexto(nombre).includes('clasificacion');
+  }, [tipoCatalogoActual]);
 
   const loadData = async () => {
     if (!tipoId) {
@@ -138,6 +153,33 @@ export default function CatalogoValoresPage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipoId]);
+
+  useEffect(() => {
+    if (!esClasificacionComercialContacto) {
+      setListasPrecioVenta([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadListas = async () => {
+      try {
+        const data = await fetchPreciosListas(false);
+        if (cancelled) return;
+        setListasPrecioVenta(data.filter((item) => item.tipo_precio === 'VENTA' && item.activo));
+      } catch (e) {
+        if (cancelled) return;
+        setListasPrecioVenta([]);
+        setError(e instanceof Error ? e.message : 'No se pudieron cargar las listas de precios');
+      }
+    };
+
+    void loadListas();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [esClasificacionComercialContacto]);
 
   useEffect(() => {
     if (!dialogOpen || !tipoId) {
@@ -174,7 +216,7 @@ export default function CatalogoValoresPage() {
   }, [dialogOpen, tipoId]);
 
   const resetForm = () => {
-    setForm({ clave: '', descripcion: '', orden: '', activo: true, catalogo_padre_id: null });
+    setForm({ clave: '', descripcion: '', orden: '', activo: true, catalogo_padre_id: null, precio_lista_id: null });
     setEditing(null);
   };
 
@@ -191,6 +233,7 @@ export default function CatalogoValoresPage() {
       orden: row.orden !== null && row.orden !== undefined ? String(row.orden) : '',
       activo: row.activo !== null && row.activo !== undefined ? Boolean(row.activo) : true,
       catalogo_padre_id: row.catalogo_padre_id ?? null,
+      precio_lista_id: row.precio_lista_id ?? null,
     });
     setDialogOpen(true);
   };
@@ -212,6 +255,7 @@ export default function CatalogoValoresPage() {
         descripcion: form.descripcion.trim(),
         orden: form.orden ? Number(form.orden) : null,
         catalogo_padre_id: form.catalogo_padre_id ?? null,
+        precio_lista_id: esClasificacionComercialContacto ? form.precio_lista_id ?? null : null,
         activo: form.activo,
       };
       if (editing) {
@@ -395,6 +439,11 @@ export default function CatalogoValoresPage() {
           <Typography variant="body2" color="#4b5563">
             Administra los valores del catálogo.
           </Typography>
+          {esClasificacionComercialContacto ? (
+            <Typography variant="body2" color="#2563eb">
+              Cada clasificación comercial puede asociarse a una lista de precios de venta.
+            </Typography>
+          ) : null}
           {errorTipo ? (
             <Typography variant="caption" color="error">
               {errorTipo}
@@ -516,6 +565,25 @@ export default function CatalogoValoresPage() {
             onChange={(e) => setForm((f) => ({ ...f, orden: e.target.value }))}
             size="small"
           />
+          {esClasificacionComercialContacto ? (
+            <Autocomplete
+              options={listasPrecioVenta}
+              loading={loading}
+              getOptionLabel={(option) => option.nombre || ''}
+              value={listasPrecioVenta.find((item) => item.id === form.precio_lista_id) || null}
+              onChange={(_, value) => setForm((f) => ({ ...f, precio_lista_id: value?.id ?? null }))}
+              isOptionEqualToValue={(opt, val) => opt.id === val.id}
+              renderInput={(params) => (
+                <TextField
+                  {...(params as any)}
+                  label="Lista de precios asociada"
+                  size="small"
+                  helperText="Opcional. Se usará cuando un contacto tenga esta clasificación comercial."
+                />
+              )}
+              noOptionsText="No hay listas de precios de venta activas"
+            />
+          ) : null}
           <FormControlLabel
             control={
               <Checkbox

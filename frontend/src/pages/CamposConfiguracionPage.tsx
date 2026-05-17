@@ -11,6 +11,8 @@ import {
   DialogContent,
   FormControlLabel,
   IconButton,
+  Paper,
+  Snackbar,
   Stack,
   TextField,
   Typography,
@@ -43,6 +45,7 @@ type FormState = {
   tipo_documento: string;
   tipo_dato: CampoConfiguracion['tipo_dato'];
   tipo_control: string;
+  proposito_sistema: string;
   catalogo_tipo_id: number | null;
   campo_padre_id: number | null;
   orden: string;
@@ -89,6 +92,7 @@ const emptyForm = (): FormState => ({
   tipo_documento: '',
   tipo_dato: 'texto',
   tipo_control: inferTipoControl('texto'),
+  proposito_sistema: '',
   catalogo_tipo_id: null,
   campo_padre_id: null,
   orden: '',
@@ -100,6 +104,11 @@ export default function CamposConfiguracionPage() {
   const [rows, setRows] = useState<CampoConfiguracion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'error' | 'success' }>({
+    open: false,
+    message: '',
+    severity: 'error',
+  });
 
   const [entidades, setEntidades] = useState<EntidadTipo[]>([]);
   const [catalogosTipos, setCatalogosTipos] = useState<CatalogoTipo[]>([]);
@@ -109,8 +118,13 @@ export default function CamposConfiguracionPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CampoConfiguracion | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<CampoConfiguracion | null>(null);
+
+  const showSnackbar = (message: string, severity: 'error' | 'success' = 'error') => {
+    setSnackbar({ open: true, message, severity });
+  };
 
   const load = async () => {
     try {
@@ -119,7 +133,9 @@ export default function CamposConfiguracionPage() {
       setRows(data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudieron cargar los campos');
+      const message = e instanceof Error ? e.message : 'No se pudieron cargar los campos';
+      setError(message);
+      showSnackbar(message);
     } finally {
       setLoading(false);
     }
@@ -142,7 +158,9 @@ export default function CamposConfiguracionPage() {
         setCatalogosTipos(catalogosResp);
         setTiposDocumento(tiposDocResp);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'No se pudieron cargar opciones');
+        const message = e instanceof Error ? e.message : 'No se pudieron cargar opciones';
+        setError(message);
+        showSnackbar(message);
       } finally {
         setLoadingOptions(false);
       }
@@ -219,6 +237,12 @@ export default function CamposConfiguracionPage() {
       renderCell: (p) => TIPO_DATO_OPCIONES.find((o) => o.value === p.row.tipo_dato)?.label || p.row.tipo_dato,
     },
     {
+      field: 'proposito_sistema',
+      headerName: 'Propósito',
+      width: 120,
+      renderCell: (p) => p.row.proposito_sistema || '—',
+    },
+    {
       field: 'catalogo_tipo_id',
       headerName: 'Catálogo',
       width: 170,
@@ -283,6 +307,7 @@ export default function CamposConfiguracionPage() {
 
   const handleEdit = (row: CampoConfiguracion) => {
     setEditing(row);
+    setFormError(null);
     const inferredControl = inferTipoControl(row.tipo_dato);
     setForm({
       nombre: row.nombre || '',
@@ -291,6 +316,7 @@ export default function CamposConfiguracionPage() {
       tipo_documento: row.tipo_documento || '',
       tipo_dato: row.tipo_dato,
       tipo_control: row.tipo_control || inferredControl,
+      proposito_sistema: row.proposito_sistema ?? '',
       catalogo_tipo_id: row.catalogo_tipo_id ?? null,
       campo_padre_id: row.campo_padre_id ?? null,
       orden: row.orden !== null && row.orden !== undefined ? String(row.orden) : '',
@@ -303,24 +329,35 @@ export default function CamposConfiguracionPage() {
   const handleCreate = () => {
     setEditing(null);
     setForm(emptyForm());
+    setFormError(null);
     setDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    if (saving) return;
+    setDialogOpen(false);
+    setFormError(null);
   };
 
   const handleSave = async () => {
     if (!form.nombre.trim()) {
-      setError('El nombre es obligatorio');
+      setFormError('El nombre es obligatorio');
+      showSnackbar('El nombre es obligatorio');
       return;
     }
     if (!form.entidad_tipo_id) {
-      setError('La entidad es obligatoria');
+      setFormError('La entidad es obligatoria');
+      showSnackbar('La entidad es obligatoria');
       return;
     }
     if (form.tipo_dato === 'lista' && !form.catalogo_tipo_id) {
-      setError('El catálogo configurable es obligatorio para campos tipo lista');
+      setFormError('El catálogo configurable es obligatorio para campos tipo lista');
+      showSnackbar('El catálogo configurable es obligatorio para campos tipo lista');
       return;
     }
     try {
       setSaving(true);
+      setFormError(null);
       const payload: Partial<CampoConfiguracion> = {
         nombre: form.nombre.trim(),
         clave: form.clave.trim() || slugify(form.nombre),
@@ -328,6 +365,7 @@ export default function CamposConfiguracionPage() {
         tipo_documento: form.tipo_documento.trim() || null,
         tipo_dato: form.tipo_dato,
         tipo_control: inferTipoControl(form.tipo_dato),
+        proposito_sistema: form.proposito_sistema || null,
         catalogo_tipo_id: form.tipo_dato === 'lista' ? form.catalogo_tipo_id ?? null : null,
         campo_padre_id: form.campo_padre_id ?? null,
         orden: form.orden ? Number(form.orden) : null,
@@ -343,9 +381,13 @@ export default function CamposConfiguracionPage() {
       setDialogOpen(false);
       setEditing(null);
       setForm(emptyForm());
+      showSnackbar(editing ? 'Campo actualizado correctamente' : 'Campo creado correctamente', 'success');
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo guardar');
+      const message = e instanceof Error ? e.message : 'No se pudo guardar';
+      setFormError(message);
+      setError(message);
+      showSnackbar(message);
     } finally {
       setSaving(false);
     }
@@ -356,9 +398,12 @@ export default function CamposConfiguracionPage() {
     try {
       await eliminarCampoConfiguracion(confirmDelete.id);
       setConfirmDelete(null);
+      showSnackbar('Campo eliminado correctamente', 'success');
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo eliminar');
+      const message = e instanceof Error ? e.message : 'No se pudo eliminar';
+      setError(message);
+      showSnackbar(message);
     }
   };
 
@@ -378,7 +423,7 @@ export default function CamposConfiguracionPage() {
         </Button>
       </Stack>
 
-      {error ? <Alert severity="error">{error}</Alert> : null}
+      {error && !dialogOpen ? <Alert severity="error">{error}</Alert> : null}
 
       <Box
         sx={{
@@ -403,9 +448,14 @@ export default function CamposConfiguracionPage() {
         />
       </Box>
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? 'Editar campo' : 'Nuevo campo'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          {formError ? (
+            <Alert severity="error" sx={{ position: 'sticky', top: 0, zIndex: 1 }}>
+              {formError}
+            </Alert>
+          ) : null}
           <TextField
             label="Nombre"
             value={form.nombre}
@@ -485,26 +535,45 @@ export default function CamposConfiguracionPage() {
             }
             renderInput={(params) => <TextField {...(params as any)} label="Tipo de información" required size="small" />}
           />
+          <TextField
+            label="Propósito sistema"
+            size="small"
+            value={form.proposito_sistema}
+            onChange={(e) => setForm((f) => ({ ...f, proposito_sistema: e.target.value }))}
+            helperText="Opcional. Úselo sólo si necesita una marca técnica interna del sistema."
+          />
           {form.tipo_dato === 'lista' ? (
-            <Autocomplete
-              options={catalogoTipoOptions}
-              getOptionLabel={(opt) => opt?.label ?? ''}
-              value={catalogoTipoOptions.find((o) => o.id === form.catalogo_tipo_id) || null}
-              onChange={(_, value) => setForm((f) => ({ ...f, catalogo_tipo_id: value?.id ?? null }))}
-              renderInput={(params) => (
-                <TextField
-                  {...(params as any)}
-                  label="Catálogo configurable"
-                  required
-                  size="small"
-                  helperText={form.entidad_tipo_id ? 'Catálogo asociado a la entidad' : 'Selecciona primero la entidad'}
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 1.5,
+                borderRadius: 1.5,
+                borderColor: '#e5e7eb',
+                backgroundColor: '#fff',
+              }}
+            >
+              <Stack spacing={1}>
+                <Autocomplete
+                  options={catalogoTipoOptions}
+                  getOptionLabel={(opt) => opt?.label ?? ''}
+                  value={catalogoTipoOptions.find((o) => o.id === form.catalogo_tipo_id) || null}
+                  onChange={(_, value) => setForm((f) => ({ ...f, catalogo_tipo_id: value?.id ?? null }))}
+                  renderInput={(params) => (
+                    <TextField
+                      {...(params as any)}
+                      label="Catálogo configurable"
+                      required
+                      size="small"
+                      helperText={form.entidad_tipo_id ? 'Catálogo asociado a la entidad' : 'Selecciona primero la entidad'}
+                    />
+                  )}
+                  disabled={!catalogoTipoOptions.length}
+                  loading={loadingOptions}
+                  loadingText="Cargando catálogos..."
+                  noOptionsText={form.entidad_tipo_id ? 'Sin catálogos para la entidad' : 'Seleccione entidad'}
                 />
-              )}
-              disabled={!catalogoTipoOptions.length}
-              loading={loadingOptions}
-              loadingText="Cargando catálogos..."
-              noOptionsText={form.entidad_tipo_id ? 'Sin catálogos para la entidad' : 'Seleccione entidad'}
-            />
+              </Stack>
+            </Paper>
           ) : null}
           <Autocomplete
             options={parentOptions}
@@ -541,7 +610,7 @@ export default function CamposConfiguracionPage() {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)} color="inherit" variant="outlined" disabled={saving}>
+          <Button onClick={handleCloseDialog} color="inherit" variant="outlined" disabled={saving}>
             Cancelar
           </Button>
           <Button onClick={handleSave} variant="contained" disabled={saving}>
@@ -564,6 +633,23 @@ export default function CamposConfiguracionPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          variant="filled"
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

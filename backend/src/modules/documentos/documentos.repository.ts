@@ -39,6 +39,9 @@ export type Partida = {
   descripcion_alterna: string | null;
   cantidad: number;
   precio_unitario: number;
+  precio_lista_id?: number | null;
+  precio_editado_manual?: boolean;
+  precio_origen?: string | null;
   descuento?: number;
   subtotal_partida: number;
   total_partida: number;
@@ -291,6 +294,9 @@ export type PartidaInput = {
   descripcion_alterna?: string | null;
   cantidad?: number | null;
   precio_unitario?: number | null;
+  precio_lista_id?: number | null;
+  precio_editado_manual?: boolean;
+  precio_origen?: string | null;
   descuento?: number | null;
   subtotal_partida?: number | null;
   total_partida?: number | null;
@@ -758,6 +764,9 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       'descripcion_alterna',
       'cantidad',
       'precio_unitario',
+      'precio_lista_id',
+      'precio_editado_manual',
+      'precio_origen',
       'descuento',
       'subtotal_partida',
       'total_partida',
@@ -851,6 +860,9 @@ export async function reemplazarPartidasRepository(
         descripcion_alterna,
         cantidad,
         precio_unitario,
+        precio_lista_id,
+        precio_editado_manual,
+        precio_origen,
         descuento,
         subtotal_partida,
         total_partida,
@@ -858,7 +870,7 @@ export async function reemplazarPartidasRepository(
         archivo_imagen_1,
         producto_archivo_id,
         observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `;
 
@@ -872,6 +884,9 @@ export async function reemplazarPartidasRepository(
         partida.descripcion_alterna ?? null,
         partida.cantidad ?? 0,
         partida.precio_unitario ?? 0,
+        partida.precio_lista_id ?? null,
+        partida.precio_editado_manual === true,
+        partida.precio_origen ?? null,
         partida.descuento ?? 0,
         partida.subtotal_partida ?? 0,
         partida.total_partida ?? partida.subtotal_partida ?? 0,

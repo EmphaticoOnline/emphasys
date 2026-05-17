@@ -6,6 +6,19 @@ import {
   eliminarCampoConfiguracion,
 } from './campos-configuracion.repository';
 
+function getCampoConfiguracionErrorMessage(error: unknown): string {
+  const pgError = error as { code?: string; constraint?: string; message?: string };
+
+  if (
+    pgError?.code === '23505' &&
+    pgError?.constraint === 'ux_campos_configuracion_empresa_proposito_sistema'
+  ) {
+    return 'Ya existe un campo configurado con ese propósito del sistema en esta empresa.';
+  }
+
+  return error instanceof Error ? error.message : 'No se pudo procesar el campo';
+}
+
 export async function listarCamposConfiguracion(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId;
@@ -39,7 +52,7 @@ export async function crearCampo(req: Request, res: Response) {
     res.status(201).json(nuevo);
   } catch (error) {
     console.error('Error al crear campo configuracion', error);
-    res.status(400).json({ message: error instanceof Error ? error.message : 'No se pudo crear el campo' });
+    res.status(400).json({ message: getCampoConfiguracionErrorMessage(error) });
   }
 }
 
@@ -56,7 +69,7 @@ export async function actualizarCampo(req: Request, res: Response) {
     res.json(actualizado);
   } catch (error) {
     console.error('Error al actualizar campo configuracion', error);
-    res.status(400).json({ message: error instanceof Error ? error.message : 'No se pudo actualizar el campo' });
+    res.status(400).json({ message: getCampoConfiguracionErrorMessage(error) });
   }
 }
 

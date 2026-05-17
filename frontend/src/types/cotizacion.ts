@@ -65,6 +65,9 @@ export interface CotizacionPartida {
   descripcion_alterna: string | null;
   cantidad: number;
   precio_unitario: number;
+  precio_lista_id?: number | null;
+  precio_editado_manual?: boolean;
+  precio_origen?: string | null;
   descuento?: number;
   subtotal_partida: number;
   total_partida: number;
@@ -136,6 +139,9 @@ export interface CotizacionPartidaPayload {
   descripcion_alterna: string | null;
   cantidad: number;
   precio_unitario: number;
+  precio_lista_id?: number | null;
+  precio_editado_manual?: boolean;
+  precio_origen?: string | null;
   descuento?: number;
   subtotal_partida: number;
   total_partida: number;

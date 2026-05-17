@@ -3,7 +3,7 @@ import {
   obtenerCatalogosPorTipo,
   crearCatalogoValor,
   actualizarCatalogoValor,
-  obtenerCatalogoTipoNombre,
+  obtenerCatalogoTipoDetalle,
   listarCatalogosTipos,
   catalogoEstaEnUso,
   eliminarCatalogoValor,
@@ -29,13 +29,15 @@ export async function listarCatalogos(req: Request, res: Response) {
 
 export async function obtenerCatalogoTipo(req: Request, res: Response) {
   try {
+    const empresaId = req.context?.empresaId;
     const tipoCatalogoId = Number(req.params.id);
+    if (!empresaId) return res.status(400).json({ message: 'empresaId es obligatorio' });
     if (!tipoCatalogoId) return res.status(400).json({ message: 'tipo_catalogo_id es obligatorio' });
 
-    const nombre = await obtenerCatalogoTipoNombre(tipoCatalogoId);
-    if (!nombre) return res.status(404).json({ message: 'Tipo de catálogo no encontrado' });
+    const tipo = await obtenerCatalogoTipoDetalle(Number(empresaId), tipoCatalogoId);
+    if (!tipo) return res.status(404).json({ message: 'Tipo de catálogo no encontrado' });
 
-    res.json({ id: tipoCatalogoId, nombre });
+    res.json(tipo);
   } catch (error) {
     console.error('Error al obtener tipo de catálogo:', error);
     res.status(500).json({ message: 'Error interno del servidor' });

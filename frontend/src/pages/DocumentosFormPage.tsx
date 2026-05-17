@@ -75,6 +75,7 @@ import { DEFAULT_ESTADO_SEGUIMIENTO } from '../modules/cotizaciones/estadoSeguim
 import { crearContacto, getContacto } from '../services/contactos.api';
 import { fetchCuentas, fetchResumenAnticiposDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
+import { resolvePrecioDocumento } from '../services/preciosService';
 import { normalizarTelefonoMx } from '../utils/telefono';
 import {
   guardarCamposDocumento,
@@ -174,6 +175,9 @@ const emptyPartida = (): PartidaForm => ({
   descripcion_alterna: '',
   cantidad: 1,
   precio_unitario: 0,
+  precio_lista_id: null,
+  precio_editado_manual: false,
+  precio_origen: null,
   descuento: 0,
   subtotal_partida: 0,
   total_partida: 0,
@@ -422,6 +426,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const cantidadRefs = useRef<(HTMLInputElement | null)[]>([]);
   const partidaImagenInputRef = useRef<HTMLInputElement | null>(null);
   const prevContactoRef = useRef<number | null | undefined>(undefined);
+  const prevPrecioResolverContactoRef = useRef<number | null | undefined>(undefined);
   const skipFiscalFetchRef = useRef<boolean>(false);
   const previewTimersRef = useRef<Record<number, ReturnType<typeof setTimeout> | null>>({});
   const previewSeqRef = useRef<Record<number, number>>({});
@@ -1025,6 +1030,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       });
       skipFiscalFetchRef.current = true;
       prevContactoRef.current = doc.contacto_principal_id;
+      prevPrecioResolverContactoRef.current = doc.contacto_principal_id;
       descuentoGlobalRef.current = clampDiscountPercent((doc as any).descuento_global ?? 0);
 
       const mapped: PartidaForm[] = data.partidas.map((p: CotizacionPartida) => {
@@ -1065,6 +1071,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           descripcion_alterna: p.descripcion_alterna ?? '',
           cantidad: p.cantidad,
           precio_unitario: p.precio_unitario,
+          precio_lista_id: p.precio_lista_id ?? null,
+          precio_editado_manual: p.precio_editado_manual === true,
+          precio_origen: p.precio_origen ?? null,
           descuento: p.descuento ?? 0,
           subtotal_partida: p.subtotal_partida,
           total_partida: p.total_partida,
@@ -1337,6 +1346,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         descripcion_alterna: p.descripcion_alterna ?? '',
         cantidad: p.cantidad ?? 0,
         precio_unitario: p.precio_unitario ?? 0,
+        precio_lista_id: p.precio_lista_id ?? null,
+        precio_editado_manual: p.precio_editado_manual === true,
+        precio_origen: p.precio_origen ?? null,
         descuento: p.descuento ?? 0,
         subtotal_partida: p.subtotal_partida ?? 0,
         total_partida: p.total_partida ?? 0,
@@ -1436,19 +1448,88 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     await persistDocumento({ context: 'save', navigateAfterSave: true, showSuccessMessage: true });
   };
 
-  const handleProductoChange = (index: number, producto: Producto | null) => {
+  const resolverPrecioAutomaticoPartida = useCallback(async (
+    index: number,
+    producto: Producto | null,
+    contactoId: number | null | undefined
+  ) => {
+    if (!producto?.id) {
+      return;
+    }
+
+    if (!['cotizacion', 'orden_servicio', 'factura'].includes(tipoDocumento)) {
+      return;
+    }
+
+    const partidaActual = partidas[index];
+    if (!partidaActual || partidaActual.precio_editado_manual === true) {
+      return;
+    }
+
+    try {
+      const resolucion = await resolvePrecioDocumento(producto.id, contactoId ?? null);
+      const precioResuelto = Number(resolucion.precio ?? 0);
+
+      setPartidaAt(index, (prev) => {
+        if (prev.producto_id !== producto.id || prev.precio_editado_manual === true) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          precio_unitario: precioResuelto,
+          precio_lista_id: resolucion.precio_lista_id ?? null,
+          precio_editado_manual: false,
+          precio_origen: 'LISTA',
+        };
+      });
+
+      setPrecioInputs((prev) => {
+        const next = [...prev];
+        next[index] = String(precioResuelto);
+        return next;
+      });
+    } catch (resolverError) {
+      const rawMessage = resolverError instanceof Error ? resolverError.message : '';
+      const isNetworkError = /load failed|failed to fetch/i.test(rawMessage);
+      setSnackbar({
+        open: true,
+        message: isNetworkError
+          ? 'No se pudo conectar con el backend para resolver el precio. Verifica que el backend local esté corriendo en el puerto 7001.'
+          : rawMessage || 'No se pudo resolver el precio del producto',
+        severity: 'error',
+      });
+    }
+  }, [partidas, tipoDocumento]);
+
+  const handleProductoChange = async (index: number, producto: Producto | null) => {
     setPartidaAt(index, (prev) => {
+      const conservarManual = prev.precio_editado_manual === true;
       return {
         ...prev,
         producto_id: producto?.id ?? null,
         descripcion_alterna: producto?.descripcion || prev.descripcion_alterna,
-        precio_unitario: producto?.precio_publico ?? producto?.precio_menudeo ?? prev.precio_unitario ?? 0,
+        precio_unitario: producto ? prev.precio_unitario ?? 0 : (conservarManual ? prev.precio_unitario ?? 0 : 0),
+        precio_lista_id: producto ? prev.precio_lista_id ?? null : (conservarManual ? prev.precio_lista_id ?? null : null),
+        precio_editado_manual: conservarManual,
+        precio_origen: producto ? (prev.precio_origen ?? null) : (conservarManual ? 'MANUAL' : null),
         producto: producto ?? null,
         producto_archivo_id: null,
         impuestos: [],
         impuestos_calculados: [],
       };
     });
+
+    if (!producto) {
+      setPrecioInputs((prev) => {
+        const next = [...prev];
+        next[index] = String(partidas[index]?.precio_editado_manual === true ? partidas[index]?.precio_unitario ?? 0 : 0);
+        return next;
+      });
+      return;
+    }
+
+    await resolverPrecioAutomaticoPartida(index, producto, form.contacto_principal_id ?? null);
   };
 
   const handleCrearProductoSubmit = async () => {
@@ -1510,6 +1591,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       return {
         ...prev,
         [field]: nextValue,
+        precio_editado_manual: field === 'precio_unitario' ? true : prev.precio_editado_manual ?? false,
+        precio_origen: field === 'precio_unitario' ? 'MANUAL' : prev.precio_origen ?? null,
         impuestos: prev.impuestos ?? [],
       };
     });
@@ -1628,6 +1711,33 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       agente_id: prev.agente_id ?? value?.vendedor_id ?? null,
     }));
   };
+
+  useEffect(() => {
+    if (!['cotizacion', 'orden_servicio', 'factura'].includes(tipoDocumento)) {
+      return;
+    }
+
+    if (prevPrecioResolverContactoRef.current === undefined) {
+      prevPrecioResolverContactoRef.current = form.contacto_principal_id ?? null;
+      return;
+    }
+
+    if (prevPrecioResolverContactoRef.current === (form.contacto_principal_id ?? null)) {
+      return;
+    }
+
+    const siguienteContactoId = form.contacto_principal_id ?? null;
+    prevPrecioResolverContactoRef.current = siguienteContactoId;
+
+    partidas.forEach((partida, index) => {
+      const producto = partida.producto ?? productos.find((item) => item.id === partida.producto_id) ?? null;
+      if (!producto || partida.precio_editado_manual === true) {
+        return;
+      }
+
+      void resolverPrecioAutomaticoPartida(index, producto, siguienteContactoId);
+    });
+  }, [form.contacto_principal_id, partidas, productos, resolverPrecioAutomaticoPartida, tipoDocumento]);
 
   useEffect(() => {
     if (isEdit) return;

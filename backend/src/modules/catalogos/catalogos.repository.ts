@@ -8,6 +8,8 @@ export type CatalogoValor = {
   descripcion: string;
   orden: number | null;
   activo: boolean | null;
+  precio_lista_id: number | null;
+  precio_lista_nombre?: string | null;
   extra: any;
   catalogo_padre_id: number | null;
   catalogo_padre_nombre?: string | null;
@@ -37,6 +39,28 @@ async function obtenerCatalogoInfo(
     throw new CatalogoJerarquiaError('El padre indicado no existe en la empresa');
   }
   return rows[0];
+}
+
+async function validarPrecioListaAsociada(
+  empresaId: number,
+  precioListaId: number | null | undefined
+): Promise<void> {
+  if (precioListaId === null || precioListaId === undefined) return;
+
+  const query = `
+    SELECT id
+      FROM precios_listas
+     WHERE id = $1
+       AND empresa_id = $2
+       AND tipo_precio = 'VENTA'
+       AND activo = true
+     LIMIT 1
+  `;
+
+  const { rows } = await pool.query<{ id: number }>(query, [precioListaId, empresaId]);
+  if (!rows.length) {
+    throw new CatalogoJerarquiaError('La lista de precios asociada no existe, no pertenece a la empresa o no está activa.', 400);
+  }
 }
 
 async function obtenerTipoCatalogoPadreConfigurado(
@@ -129,9 +153,10 @@ export async function obtenerCatalogosPorTipo(
   tipoCatalogoId: number
 ): Promise<CatalogoValorWithTipo[]> {
   const query = `
-    SELECT c.*, ct.nombre AS tipo_catalogo_nombre, cpadre.descripcion AS catalogo_padre_nombre, cpadre.tipo_catalogo_id AS catalogo_padre_tipo_catalogo_id
+    SELECT c.*, ct.nombre AS tipo_catalogo_nombre, pl.nombre AS precio_lista_nombre, cpadre.descripcion AS catalogo_padre_nombre, cpadre.tipo_catalogo_id AS catalogo_padre_tipo_catalogo_id
     FROM core.catalogos c
     INNER JOIN core.catalogos_tipos ct ON ct.id = c.tipo_catalogo_id
+    LEFT JOIN precios_listas pl ON pl.id = c.precio_lista_id
     LEFT JOIN core.catalogos cpadre ON cpadre.id = c.catalogo_padre_id
     WHERE c.empresa_id = $1 AND c.tipo_catalogo_id = $2
     ORDER BY c.orden ASC NULLS LAST, c.descripcion ASC NULLS LAST, c.id
@@ -184,9 +209,10 @@ export async function obtenerCatalogosPorTipoFlexible(
   }
 
   const query = `
-    SELECT c.*, ct.nombre AS tipo_catalogo_nombre, cpadre.descripcion AS catalogo_padre_nombre, cpadre.tipo_catalogo_id AS catalogo_padre_tipo_catalogo_id
+    SELECT c.*, ct.nombre AS tipo_catalogo_nombre, pl.nombre AS precio_lista_nombre, cpadre.descripcion AS catalogo_padre_nombre, cpadre.tipo_catalogo_id AS catalogo_padre_tipo_catalogo_id
       FROM core.catalogos c
       INNER JOIN core.catalogos_tipos ct ON ct.id = c.tipo_catalogo_id
+      LEFT JOIN precios_listas pl ON pl.id = c.precio_lista_id
       LEFT JOIN core.catalogos cpadre ON cpadre.id = c.catalogo_padre_id
      WHERE ${conditions.join(' AND ')}
        AND c.activo = true
@@ -203,6 +229,29 @@ export async function obtenerCatalogoTipoNombre(
   const query = 'SELECT nombre FROM core.catalogos_tipos WHERE id = $1 LIMIT 1';
   const { rows } = await pool.query(query, [tipoCatalogoId]);
   return rows[0]?.nombre ?? null;
+}
+
+export type CatalogoTipoDetalleRow = {
+  id: number;
+  nombre: string | null;
+  entidad_tipo_id: number;
+  entidad_tipo_codigo: string | null;
+};
+
+export async function obtenerCatalogoTipoDetalle(
+  empresaId: number,
+  tipoCatalogoId: number
+): Promise<CatalogoTipoDetalleRow | null> {
+  const query = `
+    SELECT ct.id, ct.nombre, ct.entidad_tipo_id, et.codigo AS entidad_tipo_codigo
+      FROM core.catalogos_tipos ct
+      LEFT JOIN core.entidades_tipos et ON et.id = ct.entidad_tipo_id
+     WHERE ct.id = $1
+       AND ct.empresa_id = $2
+     LIMIT 1
+  `;
+  const { rows } = await pool.query<CatalogoTipoDetalleRow>(query, [tipoCatalogoId, empresaId]);
+  return rows[0] ?? null;
 }
 
 export type CatalogoTipoRow = {
@@ -228,9 +277,10 @@ export async function crearCatalogoValor(
   empresaId: number,
   payload: Partial<CatalogoValor>
 ): Promise<CatalogoValor> {
+  await validarPrecioListaAsociada(empresaId, payload.precio_lista_id ?? null);
   await validarJerarquiaSinCiclo(empresaId, null, payload.catalogo_padre_id ?? null, payload.tipo_catalogo_id ?? null);
 
-  const cols = ['empresa_id', 'tipo_catalogo_id', 'clave', 'descripcion', 'orden', 'activo', 'extra', 'catalogo_padre_id'];
+  const cols = ['empresa_id', 'tipo_catalogo_id', 'clave', 'descripcion', 'orden', 'activo', 'extra', 'catalogo_padre_id', 'precio_lista_id'];
   const values = [
     empresaId,
     payload.tipo_catalogo_id,
@@ -240,6 +290,7 @@ export async function crearCatalogoValor(
     payload.activo ?? true,
     payload.extra ?? null,
     payload.catalogo_padre_id ?? null,
+    payload.precio_lista_id ?? null,
   ];
   const params = values.map((_, i) => `$${i + 1}`).join(', ');
   const query = `INSERT INTO core.catalogos (${cols.join(', ')}) VALUES (${params}) RETURNING *`;
@@ -252,12 +303,16 @@ export async function actualizarCatalogoValor(
   id: number,
   payload: Partial<CatalogoValor>
 ): Promise<CatalogoValor | null> {
+  if ('precio_lista_id' in payload) {
+    await validarPrecioListaAsociada(empresaId, payload.precio_lista_id ?? null);
+  }
+
   if ('catalogo_padre_id' in payload) {
     const tipoActual = payload.tipo_catalogo_id ?? null;
     await validarJerarquiaSinCiclo(empresaId, id, payload.catalogo_padre_id ?? null, tipoActual);
   }
 
-  const allowed = ['clave', 'descripcion', 'orden', 'activo', 'extra', 'catalogo_padre_id'];
+  const allowed = ['clave', 'descripcion', 'orden', 'activo', 'extra', 'catalogo_padre_id', 'precio_lista_id'];
   const sets: string[] = [];
   const values: any[] = [];
 

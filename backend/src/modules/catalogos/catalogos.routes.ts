@@ -15,7 +15,7 @@ const router = Router();
 
 router.get('/', requireAuth, requireEmpresaActiva, listarCatalogos);
 router.get('/tipos', requireAuth, requireEmpresaActiva, obtenerCatalogosTipos);
-router.get('/tipos/:id', requireAuth, obtenerCatalogoTipo);
+router.get('/tipos/:id', requireAuth, requireEmpresaActiva, obtenerCatalogoTipo);
 // Catálogo SAT: régimen fiscal plano (id, descripcion)
 router.get('/regimenes-fiscales', requireAuth, requireEmpresaActiva, getRegimenesFiscalesCatalogo);
 router.get('/:tipo', requireAuth, requireEmpresaActiva, listarCatalogosPorTipoFlexible);

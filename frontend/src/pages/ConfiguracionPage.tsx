@@ -14,6 +14,8 @@ import {
   PictureAsPdfRounded,
   LabelRounded,
   AlternateEmailRounded,
+  ViewListRounded,
+  GridViewRounded,
 } from '@mui/icons-material';
 
 const opciones = [
@@ -46,6 +48,18 @@ const opciones = [
     descripcion: 'Configura campos dinámicos y sus dependencias.',
     icono: TuneRounded,
     path: '/configuracion/campos',
+  },
+  {
+    titulo: 'Listas de precios',
+    descripcion: 'Administra catálogos de listas de precios de venta y compra por empresa.',
+    icono: ViewListRounded,
+    path: '/configuracion/listas-precios',
+  },
+  {
+    titulo: 'Administración de precios',
+    descripcion: 'Captura masiva de precios por producto y por lista de precios activa.',
+    icono: GridViewRounded,
+    path: '/configuracion/precios',
   },
   {
     titulo: 'Documentos y flujo',

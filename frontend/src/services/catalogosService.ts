@@ -8,6 +8,8 @@ export type CatalogoValor = {
   descripcion: string;
   orden: number | null;
   activo: boolean | null;
+  precio_lista_id?: number | null;
+  precio_lista_nombre?: string | null;
   catalogo_padre_id?: number | null;
   catalogo_padre_nombre?: string | null;
   catalogo_padre_tipo_catalogo_id?: number | null;
@@ -21,7 +23,7 @@ export async function fetchCatalogos(tipoCatalogoId: number): Promise<CatalogoVa
   return apiFetch(`${BASE_URL}?tipo_catalogo_id=${tipoCatalogoId}`);
 }
 
-export async function fetchCatalogoTipo(tipoCatalogoId: number): Promise<{ id: number; nombre: string | null }> {
+export async function fetchCatalogoTipo(tipoCatalogoId: number): Promise<{ id: number; nombre: string | null; entidad_tipo_id: number; entidad_tipo_codigo: string | null }> {
   return apiFetch(`${BASE_URL}/tipos/${tipoCatalogoId}`);
 }
 
@@ -31,6 +33,7 @@ export async function createCatalogoValor(payload: {
   descripcion: string;
   orden?: number | null;
   catalogo_padre_id?: number | null;
+  precio_lista_id?: number | null;
   activo?: boolean;
 }): Promise<CatalogoValor> {
   return apiFetch(BASE_URL, {
