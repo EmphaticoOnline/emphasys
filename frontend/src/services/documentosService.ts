@@ -16,6 +16,39 @@ const shouldAppendTipoQuery = (tipo: TipoDocumento) => getBasePath(tipo) === '/a
 const withTipoQuery = (path: string, tipo: TipoDocumento) =>
   shouldAppendTipoQuery(tipo) ? `${path}${path.includes('?') ? '&' : '?'}tipo_documento=${tipo}` : path;
 
+type PdfDescarga = {
+  blob: File;
+  filename: string;
+};
+
+function obtenerFilenameDesdeContentDisposition(contentDisposition: string | null, fallback: string): string {
+  if (!contentDisposition) {
+    return fallback;
+  }
+
+  const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (filenameStarMatch?.[1]) {
+    try {
+      return decodeURIComponent(filenameStarMatch[1]).trim();
+    } catch {
+      return filenameStarMatch[1].trim();
+    }
+  }
+
+  const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  if (filenameMatch?.[1]) {
+    return filenameMatch[1].trim();
+  }
+
+  return fallback;
+}
+
+function normalizarPdfDescarga(blob: Blob, filename: string): PdfDescarga {
+  const nombreSeguro = (filename || 'documento.pdf').trim() || 'documento.pdf';
+  const file = new File([blob], nombreSeguro, { type: 'application/pdf' });
+  return { blob: file, filename: nombreSeguro };
+}
+
 export function getDocumentos(tipo: TipoDocumento): Promise<CotizacionListado[]> {
   const base = getBasePath(tipo);
   const url = withTipoQuery(base, tipo);
@@ -52,6 +85,14 @@ export function duplicateDocumento(id: number, tipo: TipoDocumento): Promise<{ i
   });
 }
 
+export function duplicateDocumentos(ids: number[], tipo: TipoDocumento): Promise<{ ids: number[] }> {
+  const base = getBasePath(tipo);
+  return apiFetch(`${base}/duplicar-masivo`, {
+    method: 'POST',
+    body: { ids, tipo_documento: tipo } as any,
+  });
+}
+
 export function validateDeleteDocumento(id: number, tipo: TipoDocumento): Promise<{ exists: boolean; canDelete: boolean; message?: string | null }> {
   const base = getBasePath(tipo);
   return apiFetch(`${base}/${id}/validar-eliminacion`, {
@@ -81,7 +122,7 @@ export async function deleteDocumento(id: number, tipo: TipoDocumento) {
   await apiFetch(url, { method: 'DELETE' });
 }
 
-export async function downloadDocumentoPdf(id: number, tipo: TipoDocumento): Promise<Blob> {
+async function fetchDocumentoPdf(id: number, tipo: TipoDocumento): Promise<PdfDescarga> {
   const session = loadSession();
   const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL?.replace(/\/$/, '')) || '';
   const basePath = getBasePath(tipo);
@@ -106,7 +147,34 @@ export async function downloadDocumentoPdf(id: number, tipo: TipoDocumento): Pro
     throw new Error(message);
   }
 
-  return response.blob();
+  const blob = await response.blob();
+  const fallbackFilename = `${tipo}-${id}.pdf`;
+  const filename = obtenerFilenameDesdeContentDisposition(response.headers.get('Content-Disposition'), fallbackFilename);
+
+  return normalizarPdfDescarga(blob, filename);
+}
+
+export async function downloadDocumentoPdf(id: number, tipo: TipoDocumento): Promise<Blob> {
+  const { blob } = await fetchDocumentoPdf(id, tipo);
+  return blob;
+}
+
+export async function descargarDocumentoPdfEnNavegador(id: number, tipo: TipoDocumento): Promise<void> {
+  const { blob, filename } = await fetchDocumentoPdf(id, tipo);
+  const url = URL.createObjectURL(blob);
+
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
 }
 
 export async function abrirDocumentoPdfEnNuevaVentana(id: number, tipo: TipoDocumento): Promise<void> {
@@ -117,7 +185,7 @@ export async function abrirDocumentoPdfEnNuevaVentana(id: number, tipo: TipoDocu
   }
 
   try {
-    const blob = await downloadDocumentoPdf(id, tipo);
+    const { blob, filename } = await fetchDocumentoPdf(id, tipo);
     const url = URL.createObjectURL(blob);
     win.location.href = url;
     setTimeout(() => URL.revokeObjectURL(url), 10_000);

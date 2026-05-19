@@ -53,9 +53,11 @@ import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import PrintIcon from '@mui/icons-material/Print';
+import DownloadIcon from '@mui/icons-material/Download';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EmailIcon from '@mui/icons-material/Email';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SearchIcon from '@mui/icons-material/Search';
@@ -81,7 +83,7 @@ import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, deleteDocumento, duplicateDocumento, enviarCotizacionPorCorreo, getDocumentos, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, getDocumentos, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
 import { fetchAnticiposDisponiblesDocumento } from '../services/finanzasService';
 import { timbrarFactura, enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
@@ -92,6 +94,7 @@ import type { DocumentoAccion } from '../modules/documentos/documentoTypes';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
 import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
 import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicacionDialog';
+import { DocumentoWhatsappDialog } from '../modules/documentos/DocumentoWhatsappDialog';
 import {
   navigateToGeneratedDocument,
   parseGeneratedDocumentFocus,
@@ -258,6 +261,8 @@ const getDocumentoEstatusColor = (value: unknown): 'default' | 'info' | 'success
   return 'default';
 };
 
+const isFacturaTimbrada = (value: unknown): boolean => normalizeDocumentoEstatus(value) === 'timbrado';
+
 const normalizeCotizacionEstatusDocumento = (value: unknown): CotizacionEstatusDocumento => {
   const normalized = String(value ?? 'borrador')
     .trim()
@@ -341,6 +346,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([]);
+  const [bulkDuplicating, setBulkDuplicating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
@@ -367,6 +374,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     enviando: boolean;
     error?: string | null;
   }>({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null });
+  const [enviarWhatsappDialog, setEnviarWhatsappDialog] = useState<{
+    open: boolean;
+    id: number | null;
+  }>({ open: false, id: null });
   const [produccionDialog, setProduccionDialog] = useState<{
     open: boolean;
     id: number | null;
@@ -476,6 +487,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const showSaldo = configuredShowSaldo;
   const isFacturaConSaldo = showSaldo;
   const hasAction = useCallback((action: DocumentoAccion) => accionesDisponibles.includes(action), [accionesDisponibles]);
+  const canBulkDuplicate = true;
   const estatusDocumentoOptions = useMemo<StatusOption[]>(
     () => (esCotizacion ? COTIZACION_ESTATUS_EDITABLE_OPTIONS : statusOptions),
     [esCotizacion, statusOptions]
@@ -851,6 +863,41 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const obtenerEmailDocumento = (row: any) =>
     row?.contacto_email ?? row?.email_contacto ?? row?.cliente_email ?? row?.email_cliente ?? row?.email ?? '';
 
+  const obtenerTelefonoDocumento = useCallback((row: any) => {
+    const contactoPrincipalId = Number(row?.contacto_principal_id ?? 0);
+    const contacto = contactos.find((item) => item.id === contactoPrincipalId);
+    return (
+      contacto?.telefono ??
+      contacto?.telefono_secundario ??
+      row?.contacto_telefono ??
+      row?.telefono_contacto ??
+      row?.cliente_telefono ??
+      row?.telefono_cliente ??
+      row?.telefono ??
+      row?.celular ??
+      ''
+    );
+  }, [contactos]);
+
+  const documentoWhatsappActual = useMemo(() => {
+    if (!enviarWhatsappDialog.id) return null;
+
+    const row = rows.find((item) => Number(item.id) === Number(enviarWhatsappDialog.id));
+    if (!row) return null;
+
+    const tipoDocumentoMeta = tiposDocumento.find((item) => item.codigo === tipoDocumento);
+    return {
+      id: Number(row.id),
+      tipoDocumento,
+      tipoDocumentoLabel: tipoDocumentoMeta?.nombre || textos.singular,
+      folio: formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0)) || String(row.id),
+      cliente: row?.nombre_cliente || 'Sin cliente',
+      total: row?.total ?? null,
+      telefono: obtenerTelefonoDocumento(row),
+      plantillaDefaultId: tipoDocumentoMeta?.whatsapp_plantilla_default_id ?? null,
+    };
+  }, [enviarWhatsappDialog.id, rows, tipoDocumento, tiposDocumento, textos.singular, obtenerTelefonoDocumento]);
+
   const abrirDialogoEnviarCotizacion = (row: CotizacionListado) => {
     const folio = formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0));
     const emailInicial = obtenerEmailDocumento(row);
@@ -1150,7 +1197,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       headerAlign: 'center',
       headerClassName: 'finanzas-header',
       align: 'center',
-      renderCell: (params: GridRenderCellParams) => (
+      renderCell: (params: GridRenderCellParams) => {
+        const facturaTimbrada = tipoDocumento !== 'factura' || isFacturaTimbrada(params.row?.estatus_documento);
+        const mensajeFacturaNoTimbrada = 'La factura debe estar timbrada antes de enviarse.';
+
+        return (
         <Stack direction="row" spacing={0.5} alignItems="center">
           <IconButton size="small" color="primary" onClick={() => navigate(`${basePath}/${params.id}`)}>
             <EditIcon fontSize="small" />
@@ -1232,7 +1283,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          <Tooltip title="Descargar PDF">
+          <Tooltip title="Ver / Imprimir PDF">
             <IconButton
               size="small"
               color="primary"
@@ -1244,7 +1295,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   });
               }}
             >
-              <PictureAsPdfIcon fontSize="small" />
+              <PrintIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Descargar PDF">
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                descargarDocumentoPdfEnNavegador(Number(params.row.id), tipoDocumento)
+                  .catch((err) => {
+                    setError(err?.message || 'No se pudo descargar el PDF');
+                  });
+              }}
+            >
+              <DownloadIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           {hasAction('enviar_email') && tipoDocumento === 'cotizacion' && (
@@ -1309,12 +1375,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             </Tooltip>
           )}
           {hasAction('enviar_email') && tipoDocumento === 'factura' && (
-            <Tooltip title="Enviar factura por correo">
+            <Tooltip title={facturaTimbrada ? 'Enviar factura por correo' : mensajeFacturaNoTimbrada}>
               <span>
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading}
+                  disabled={loading || !facturaTimbrada}
                   onClick={(e) => {
                     e.stopPropagation();
                     const emailInicial = obtenerEmailDocumento(params.row);
@@ -1326,8 +1392,31 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
+          {hasAction('enviar_whatsapp') && (
+            <Tooltip title={tipoDocumento === 'factura' && !facturaTimbrada ? mensajeFacturaNoTimbrada : 'Enviar por WhatsApp'}>
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading || (tipoDocumento === 'factura' && !facturaTimbrada)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.info('[CFDI WhatsApp] Abrir modal de envio', {
+                      documentoId: Number(params.row.id),
+                      tipoDocumento,
+                      folio: formatearFolioDocumento(params.row?.serie ?? '', Number(params.row?.numero ?? 0)) || String(params.row.id),
+                    });
+                    setEnviarWhatsappDialog({ open: true, id: Number(params.row.id) });
+                  }}
+                >
+                  <WhatsAppIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
         </Stack>
-      ),
+      );
+      },
     });
 
     return columns;
@@ -1445,6 +1534,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     });
   }, [rows, search, soloPendientes, isFacturaConSaldo, enableFilters, quickFilter, filtrosCotizacion, showAgentFilter, statusField]);
 
+  useEffect(() => {
+    if (!canBulkDuplicate) {
+      setSelectedDocumentIds([]);
+      return;
+    }
+
+    const visibleIds = new Set(filteredRows.map((row) => Number(row.id)));
+    setSelectedDocumentIds((prev) => prev.filter((id) => visibleIds.has(id)));
+  }, [canBulkDuplicate, filteredRows]);
+
   const resumenTotales = useMemo(() => {
     if (!enableFilters) {
       return null;
@@ -1545,6 +1644,30 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
     return () => window.cancelAnimationFrame(frameId);
   }, [filteredRows, focusedDocumentId, loading]);
+
+  const handleDuplicarSeleccionados = async () => {
+    if (!canBulkDuplicate || selectedDocumentIds.length === 0) return;
+
+    try {
+      setBulkDuplicating(true);
+      const duplicated = await duplicateDocumentos(selectedDocumentIds, tipoDocumento);
+      setSelectedDocumentIds([]);
+      setSnackbar({
+        open: true,
+        message: `Se duplicaron ${duplicated.ids.length} documentos`,
+        severity: 'success',
+      });
+      await load();
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err?.message || 'No se pudieron duplicar los documentos seleccionados',
+        severity: 'error',
+      });
+    } finally {
+      setBulkDuplicating(false);
+    }
+  };
 
   return (
     <Container maxWidth={false} sx={{ py: 2 }}>
@@ -1927,17 +2050,58 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </DialogActions>
       </Dialog>
 
+      {canBulkDuplicate && selectedDocumentIds.length > 0 && (
+        <Paper
+          variant="outlined"
+          sx={{
+            borderRadius: 2,
+            px: 2,
+            py: 1.25,
+            display: 'flex',
+            alignItems: { xs: 'stretch', sm: 'center' },
+            justifyContent: 'space-between',
+            gap: 1,
+            flexDirection: { xs: 'column', sm: 'row' },
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 700, color: '#1f2937' }}>
+            {selectedDocumentIds.length} documento{selectedDocumentIds.length === 1 ? '' : 's'} seleccionado{selectedDocumentIds.length === 1 ? '' : 's'}
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            <Button variant="text" onClick={() => setSelectedDocumentIds([])} disabled={bulkDuplicating}>
+              Limpiar selección
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<ContentCopyIcon />}
+              onClick={() => {
+                void handleDuplicarSeleccionados();
+              }}
+              disabled={bulkDuplicating}
+              sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
+            >
+              Duplicar seleccionados
+            </Button>
+          </Stack>
+        </Paper>
+      )}
+
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
         <Box ref={gridContainerRef}>
         <DataGrid
           rows={filteredRows}
           columns={columns}
+          checkboxSelection={canBulkDuplicate}
           autoHeight
           density="standard"
           rowHeight={42}
           columnHeaderHeight={52}
           loading={loading}
           disableRowSelectionOnClick
+          rowSelectionModel={selectedDocumentIds}
+          onRowSelectionModelChange={(selectionModel) => {
+            setSelectedDocumentIds(selectionModel.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0));
+          }}
           // @ts-expect-error Deshabilitamos el reordenamiento para mantener el orden fijo de columnas
           disableColumnReorder
           onCellClick={(params, event) => {
@@ -2387,6 +2551,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           </Button>
         </DialogActions>
       </Dialog>
+
+      <DocumentoWhatsappDialog
+        open={enviarWhatsappDialog.open}
+        onClose={() => setEnviarWhatsappDialog({ open: false, id: null })}
+        documento={
+          documentoWhatsappActual
+            ? {
+                id: documentoWhatsappActual.id,
+                tipoDocumento: documentoWhatsappActual.tipoDocumento,
+                tipoDocumentoLabel: documentoWhatsappActual.tipoDocumentoLabel,
+                folio: documentoWhatsappActual.folio,
+                cliente: documentoWhatsappActual.cliente,
+                total: documentoWhatsappActual.total,
+              }
+            : null
+        }
+        telefonoInicial={documentoWhatsappActual?.telefono || ''}
+        plantillaDefaultId={documentoWhatsappActual?.plantillaDefaultId ?? null}
+      />
 
       <Drawer
         anchor="right"

@@ -6,6 +6,7 @@ export type DocumentoEmpresa = {
   icono: string | null;
   orden: number;
   habilitado: boolean;
+  whatsapp_plantilla_default_id: number | null;
 };
 
 export type TransicionDocumento = {

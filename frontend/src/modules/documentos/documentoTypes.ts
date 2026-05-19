@@ -71,6 +71,7 @@ export type DocumentoEstatus = 'borrador' | 'emitido' | 'cancelado' | 'cerrado' 
 export type DocumentoAccion =
   | 'duplicar'
   | 'enviar_email'
+  | 'enviar_whatsapp'
   | 'enviar_produccion'
   | 'ver_produccion'
   | 'aplicar_pago'

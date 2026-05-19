@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import pool from '../../config/database';
 import type { FacturamaConfig, FacturamaStampResponse } from './cfdi.types';
 import { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
 export { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
@@ -13,6 +14,47 @@ function tryDecodeBase64(value: string | undefined | null): string | null {
   } catch (_) {
     return value;
   }
+}
+
+function getEnvConfig(): FacturamaConfig {
+  const username = process.env.FACTURAMA_USER || process.env.FACTURAMA_USERNAME;
+  const password = process.env.FACTURAMA_PASSWORD;
+  const baseUrl = process.env.FACTURAMA_BASE_URL || DEFAULT_BASE_URL;
+  const stampPath = process.env.FACTURAMA_STAMP_PATH || DEFAULT_STAMP_PATH;
+
+  return {
+    baseUrl,
+    username: username || '',
+    password: password || '',
+    stampPath,
+  };
+}
+
+async function getActiveDatabaseConfig(): Promise<FacturamaConfig | null> {
+  const { rows } = await pool.query<{
+    base_url: string;
+    username: string;
+    password: string;
+    stamp_path: string;
+  }>(
+    `SELECT base_url,
+            username,
+            password,
+            stamp_path
+       FROM core.cfdi_pac_config
+      WHERE activo = TRUE
+      LIMIT 1`
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    baseUrl: row.base_url || DEFAULT_BASE_URL,
+    username: row.username || '',
+    password: row.password || '',
+    stampPath: row.stamp_path || DEFAULT_STAMP_PATH,
+  };
 }
 
 export class FacturamaClient {
@@ -35,11 +77,20 @@ export class FacturamaClient {
   }
 
   static fromEnv(): FacturamaClient {
-    const username = process.env.FACTURAMA_USER || process.env.FACTURAMA_USERNAME;
-    const password = process.env.FACTURAMA_PASSWORD;
-    const baseUrl = process.env.FACTURAMA_BASE_URL || DEFAULT_BASE_URL;
-    const stampPath = process.env.FACTURAMA_STAMP_PATH || DEFAULT_STAMP_PATH;
-    return new FacturamaClient({ baseUrl, username: username || '', password: password || '', stampPath });
+    return new FacturamaClient(getEnvConfig());
+  }
+
+  static async fromDatabaseOrEnv(): Promise<FacturamaClient> {
+    try {
+      const databaseConfig = await getActiveDatabaseConfig();
+      if (databaseConfig) {
+        return new FacturamaClient(databaseConfig);
+      }
+    } catch (error) {
+      console.warn('[facturama] No se pudo cargar configuración activa desde core.cfdi_pac_config. Se usará .env como fallback.', error);
+    }
+
+    return FacturamaClient.fromEnv();
   }
 
   async stampXml(xml: string): Promise<{ xmlTimbrado: string; response: FacturamaStampResponse; uuid?: string; pdfUrl?: string; xmlUrl?: string; }> {

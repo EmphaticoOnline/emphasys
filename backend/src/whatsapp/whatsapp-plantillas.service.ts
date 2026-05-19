@@ -11,6 +11,59 @@ export type WhatsappPlantilla = {
   activa: boolean;
 };
 
+export async function listarPlantillasWhatsapp(
+  empresaId: number,
+  incluirInactivas = false
+): Promise<WhatsappPlantilla[]> {
+  const filtroActiva = incluirInactivas ? '' : 'AND activa = true';
+  const { rows } = await pool.query<WhatsappPlantilla>(
+    `
+    SELECT
+      id,
+      empresa_id,
+      nombre_interno,
+      tipo,
+      proveedor,
+      provider_template_id,
+      es_default,
+      activa
+    FROM whatsapp.plantillas
+    WHERE empresa_id = $1
+      ${filtroActiva}
+    ORDER BY activa DESC, nombre_interno ASC, id ASC
+    `,
+    [empresaId]
+  );
+
+  return rows;
+}
+
+export async function obtenerPlantillaWhatsappPorId(
+  empresaId: number,
+  plantillaId: number
+): Promise<WhatsappPlantilla | null> {
+  const { rows } = await pool.query<WhatsappPlantilla>(
+    `
+    SELECT
+      id,
+      empresa_id,
+      nombre_interno,
+      tipo,
+      proveedor,
+      provider_template_id,
+      es_default,
+      activa
+    FROM whatsapp.plantillas
+    WHERE empresa_id = $1
+      AND id = $2
+    LIMIT 1
+    `,
+    [empresaId, plantillaId]
+  );
+
+  return rows[0] ?? null;
+}
+
 export async function resolverPlantillaWhatsapp(
   empresaId: number,
   tipo: string

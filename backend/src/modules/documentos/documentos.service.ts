@@ -17,6 +17,76 @@ type DuplicarCotizacionResult = {
   id: number;
 };
 
+type DuplicarCotizacionesMasivoResult = {
+  ids: number[];
+};
+
+function construirPayloadDocumentoDuplicado(documentoOrigen: Record<string, any>, tipoDocumento: TipoDocumento): DocumentoCrearPayload {
+  return {
+    fecha_documento: currentCivilDate(),
+    documento_origen_id: documentoOrigen.id,
+    oportunidad_id: documentoOrigen.oportunidad_id ?? null,
+    contacto_principal_id: documentoOrigen.contacto_principal_id ?? null,
+    agente_id: documentoOrigen.agente_id ?? null,
+    moneda: documentoOrigen.moneda ?? 'MXN',
+    observaciones: documentoOrigen.observaciones ?? null,
+    subtotal: Number(documentoOrigen.subtotal ?? 0),
+    descuento_global: Number(documentoOrigen.descuento_global ?? 0),
+    descuento: Number(documentoOrigen.descuento ?? 0),
+    iva: Number(documentoOrigen.iva ?? 0),
+    total: Number(documentoOrigen.total ?? 0),
+    usuario_creacion_id: documentoOrigen.usuario_creacion_id ?? null,
+    producto_resumen: documentoOrigen.producto_resumen ?? null,
+    estado_seguimiento: tipoDocumento === 'cotizacion' ? 'abierta' : undefined,
+    comentario_seguimiento: tipoDocumento === 'cotizacion' ? null : undefined,
+    estatus_documento: 'Borrador',
+    tratamiento_impuestos: documentoOrigen.tratamiento_impuestos ?? 'normal',
+    rfc_receptor: documentoOrigen.rfc_receptor ?? null,
+    nombre_receptor: documentoOrigen.nombre_receptor ?? null,
+    regimen_fiscal_receptor: documentoOrigen.regimen_fiscal_receptor ?? null,
+    uso_cfdi: documentoOrigen.uso_cfdi ?? null,
+    forma_pago: documentoOrigen.forma_pago ?? null,
+    metodo_pago: documentoOrigen.metodo_pago ?? null,
+    codigo_postal_receptor: documentoOrigen.codigo_postal_receptor ?? null,
+  };
+}
+
+async function duplicarPartidasYTotales(
+  nuevoDocumentoId: number,
+  documentoOrigen: Record<string, any>,
+  partidasOrigen: Array<Record<string, any>>,
+  empresaId: number,
+  client: PoolClient
+) {
+  const partidasDuplicadas = construirPartidasDuplicadas(partidasOrigen);
+  const partidasInsertadas = await reemplazarPartidasRepository(nuevoDocumentoId, partidasDuplicadas, empresaId, client);
+
+  if (Array.isArray(partidasInsertadas) && partidasInsertadas.length > 0) {
+    const tratamiento = String(documentoOrigen.tratamiento_impuestos ?? '').toLowerCase();
+
+    if (tratamiento === 'sin_iva') {
+      const partidaIds = partidasInsertadas.map((partida) => partida?.id).filter(Boolean) as number[];
+      if (partidaIds.length) {
+        await client.query('DELETE FROM documentos_partidas_impuestos WHERE partida_id = ANY($1)', [partidaIds]);
+        await client.query(
+          `UPDATE documentos_partidas
+              SET total_partida = subtotal_partida
+            WHERE id = ANY($1)`,
+          [partidaIds]
+        );
+      }
+    } else {
+      for (const partida of partidasInsertadas) {
+        if (partida?.id) {
+          await calcularImpuestosPartida(partida.id, client);
+        }
+      }
+    }
+  }
+
+  await actualizarTotales(nuevoDocumentoId, client);
+}
+
 const OPORTUNIDAD_ESTATUS_SYNC_VALIDOS = new Set<string>(OPORTUNIDAD_ESTADOS_SEGUIMIENTO);
 
 const currentCivilDate = (date = new Date()) => {
@@ -391,63 +461,21 @@ export async function duplicarCotizacionService(documentoId: number, empresaId: 
 
     const nuevoDocumento = await crearDocumentoRepository(
       {
-        fecha_documento: currentCivilDate(),
+        ...construirPayloadDocumentoDuplicado(documentoOrigen, 'cotizacion'),
         oportunidad_id: oportunidadId,
-        documento_origen_id: documentoOrigen.id,
-        contacto_principal_id: documentoOrigen.contacto_principal_id ?? null,
-        agente_id: documentoOrigen.agente_id ?? null,
-        moneda: documentoOrigen.moneda ?? 'MXN',
-        observaciones: documentoOrigen.observaciones ?? null,
-        subtotal: Number(documentoOrigen.subtotal ?? 0),
-        descuento_global: Number(documentoOrigen.descuento_global ?? 0),
-        iva: Number(documentoOrigen.iva ?? 0),
-        total: Number(documentoOrigen.total ?? 0),
-        usuario_creacion_id: documentoOrigen.usuario_creacion_id ?? null,
-        producto_resumen: documentoOrigen.producto_resumen ?? null,
-        estado_seguimiento: 'abierta',
-        comentario_seguimiento: null,
-        estatus_documento: 'Borrador',
-        tratamiento_impuestos: documentoOrigen.tratamiento_impuestos ?? 'normal',
-        rfc_receptor: documentoOrigen.rfc_receptor ?? null,
-        nombre_receptor: documentoOrigen.nombre_receptor ?? null,
-        regimen_fiscal_receptor: documentoOrigen.regimen_fiscal_receptor ?? null,
-        uso_cfdi: documentoOrigen.uso_cfdi ?? null,
-        forma_pago: documentoOrigen.forma_pago ?? null,
-        metodo_pago: documentoOrigen.metodo_pago ?? null,
-        codigo_postal_receptor: documentoOrigen.codigo_postal_receptor ?? null,
       },
       empresaId,
       'cotizacion',
       client
     );
 
-    const partidasDuplicadas = construirPartidasDuplicadas(origen.partidas as Array<Record<string, any>>);
-    const partidasInsertadas = await reemplazarPartidasRepository(nuevoDocumento.id, partidasDuplicadas, empresaId, client);
-
-    if (Array.isArray(partidasInsertadas) && partidasInsertadas.length > 0) {
-      const tratamiento = String(documentoOrigen.tratamiento_impuestos ?? '').toLowerCase();
-
-      if (tratamiento === 'sin_iva') {
-        const partidaIds = partidasInsertadas.map((partida) => partida?.id).filter(Boolean) as number[];
-        if (partidaIds.length) {
-          await client.query('DELETE FROM documentos_partidas_impuestos WHERE partida_id = ANY($1)', [partidaIds]);
-          await client.query(
-            `UPDATE documentos_partidas
-                SET total_partida = subtotal_partida
-              WHERE id = ANY($1)`,
-            [partidaIds]
-          );
-        }
-      } else {
-        for (const partida of partidasInsertadas) {
-          if (partida?.id) {
-            await calcularImpuestosPartida(partida.id, client);
-          }
-        }
-      }
-    }
-
-    await actualizarTotales(nuevoDocumento.id, client);
+    await duplicarPartidasYTotales(
+      nuevoDocumento.id,
+      documentoOrigen,
+      origen.partidas as Array<Record<string, any>>,
+      empresaId,
+      client
+    );
 
     await client.query('COMMIT');
     return { id: nuevoDocumento.id };
@@ -457,6 +485,70 @@ export async function duplicarCotizacionService(documentoId: number, empresaId: 
   } finally {
     client.release();
   }
+}
+
+export async function duplicarDocumentoService(
+  documentoId: number,
+  empresaId: number,
+  tipoDocumento: TipoDocumento
+): Promise<DuplicarCotizacionResult | null> {
+  if (tipoDocumento === 'cotizacion') {
+    return duplicarCotizacionService(documentoId, empresaId);
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const origen = await obtenerDocumentoRepository(documentoId, empresaId, tipoDocumento);
+    if (!origen?.documento) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const documentoOrigen = origen.documento as Record<string, any>;
+    const nuevoDocumento = await crearDocumentoRepository(
+      construirPayloadDocumentoDuplicado(documentoOrigen, tipoDocumento),
+      empresaId,
+      tipoDocumento,
+      client
+    );
+
+    await duplicarPartidasYTotales(
+      nuevoDocumento.id,
+      documentoOrigen,
+      origen.partidas as Array<Record<string, any>>,
+      empresaId,
+      client
+    );
+
+    await client.query('COMMIT');
+    return { id: nuevoDocumento.id };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function duplicarDocumentosMasivoService(
+  documentoIds: number[],
+  empresaId: number,
+  tipoDocumento: TipoDocumento
+): Promise<DuplicarCotizacionesMasivoResult> {
+  const idsGenerados: number[] = [];
+
+  for (const documentoId of documentoIds) {
+    const duplicated = await duplicarDocumentoService(documentoId, empresaId, tipoDocumento);
+    if (!duplicated) {
+      throw new Error(`DOCUMENT_NOT_FOUND:${documentoId}`);
+    }
+    idsGenerados.push(duplicated.id);
+  }
+
+  return { ids: idsGenerados };
 }
 
 export async function actualizarCotizacionService(

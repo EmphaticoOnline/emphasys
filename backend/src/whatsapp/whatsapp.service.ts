@@ -249,7 +249,8 @@ export const sendDocumentMessage = async (
   empresaId: number,
   to: string,
   mediaUrl: string,
-  filename?: string | null
+  filename?: string | null,
+  options?: { skipWindowValidation?: boolean }
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -262,7 +263,17 @@ export const sendDocumentMessage = async (
     const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
-    await validateWhatsapp24hWindow(empresaId, conversacionId);
+    if (!options?.skipWindowValidation) {
+      await validateWhatsapp24hWindow(empresaId, conversacionId);
+    }
+
+    console.log('[WhatsApp Media] Enviando documento', {
+      empresaId,
+      destino: destinoNormalizado,
+      mediaUrl,
+      filename: filename ?? null,
+      skipWindowValidation: Boolean(options?.skipWindowValidation),
+    });
 
     const payload = qs.stringify({
       channel: "whatsapp",
@@ -274,6 +285,8 @@ export const sendDocumentMessage = async (
         filename: filename ?? undefined
       })
     });
+
+    console.log('[WhatsApp Media] Payload documento', payload);
 
     const response = await axios.post(
       GUPSHUP_API_URL,
@@ -287,6 +300,13 @@ export const sendDocumentMessage = async (
     );
 
     console.log("📤 Documento enviado:", response.data);
+    console.log('[WhatsApp Media] Respuesta documento', {
+      empresaId,
+      destino: destinoNormalizado,
+      mediaUrl,
+      filename: filename ?? null,
+      response: response.data,
+    });
 
     await registrarMensajeDocumentoSalienteWhatsapp(
       empresaId,
@@ -370,10 +390,20 @@ export const sendTemplateMessage = async (
   tipoPlantilla: string
 ) => {
   try {
+    console.info('[WhatsApp Template] Inicio de flujo template', {
+      empresaId,
+      destinoOriginal: to,
+      tipoPlantilla,
+    });
+
     const config = await getWhatsappConfig(empresaId);
     const plantilla = await resolverPlantillaWhatsapp(empresaId, tipoPlantilla);
 
     if (!plantilla) {
+      console.warn('[WhatsApp Template] No se encontro plantilla activa para el tipo solicitado', {
+        empresaId,
+        tipoPlantilla,
+      });
       return { error: true, message: "No hay plantilla activa configurada" };
     }
 
@@ -447,6 +477,7 @@ export const sendTemplateMessage = async (
       message: error?.message,
       status: error?.response?.status,
       data: error?.response?.data,
+      providerResponse: error?.response?.data,
     });
     throw error;
   }

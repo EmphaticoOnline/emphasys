@@ -10,6 +10,7 @@ import {
   upsertDocumentoEmpresa,
   upsertTransicionDocumento,
 } from './documentos-empresa.repository';
+import { obtenerPlantillaWhatsappPorId } from '../../../whatsapp/whatsapp-plantillas.service';
 
 function ensureEmpresa(req: Request): number | null {
   const empresaId = req.context?.empresaId;
@@ -38,13 +39,38 @@ export async function actualizarDocumentoEmpresa(req: Request, res: Response) {
     const tipoDocumentoId = Number(req.params.tipoDocumentoId ?? req.body?.tipo_documento_id);
     if (!Number.isFinite(tipoDocumentoId)) return res.status(400).json({ message: 'tipo_documento_id inválido' });
 
-    const { activo } = req.body || {};
+    const body = req.body || {};
+    const { activo } = body;
     if (activo === undefined) return res.status(400).json({ message: 'El campo activo es obligatorio' });
+
+    const includeWhatsappPlantillaDefault = Object.prototype.hasOwnProperty.call(body, 'whatsapp_plantilla_default_id');
+    const whatsappPlantillaDefaultRaw = includeWhatsappPlantillaDefault ? body.whatsapp_plantilla_default_id : undefined;
+    const whatsappPlantillaDefaultId =
+      whatsappPlantillaDefaultRaw == null || whatsappPlantillaDefaultRaw === ''
+        ? null
+        : Number(whatsappPlantillaDefaultRaw);
+
+    if (includeWhatsappPlantillaDefault && whatsappPlantillaDefaultId !== null && !Number.isFinite(whatsappPlantillaDefaultId)) {
+      return res.status(400).json({ message: 'whatsapp_plantilla_default_id inválido' });
+    }
 
     const tipoExiste = await existeTipoDocumento(tipoDocumentoId);
     if (!tipoExiste) return res.status(404).json({ message: 'Tipo de documento no encontrado o inactivo' });
 
-    const actualizado = await upsertDocumentoEmpresa(empresaId, tipoDocumentoId, Boolean(activo));
+    if (includeWhatsappPlantillaDefault && whatsappPlantillaDefaultId !== null) {
+      const plantilla = await obtenerPlantillaWhatsappPorId(empresaId, whatsappPlantillaDefaultId);
+      if (!plantilla) {
+        return res.status(404).json({ message: 'Plantilla de WhatsApp no encontrada para la empresa activa' });
+      }
+    }
+
+    const actualizado = await upsertDocumentoEmpresa(
+      empresaId,
+      tipoDocumentoId,
+      Boolean(activo),
+      includeWhatsappPlantillaDefault,
+      whatsappPlantillaDefaultId
+    );
     if (!actualizado) return res.status(500).json({ message: 'No se pudo actualizar el documento' });
 
     return res.json(actualizado);

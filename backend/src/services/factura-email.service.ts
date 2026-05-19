@@ -1,23 +1,61 @@
 import { EmailService } from './email.service';
 import pool from '../config/database';
+import { getConfiguracionEmailPrivada } from '../modules/configuracion/email/email.service';
 import { obtenerDocumentoRepository } from '../modules/documentos/documentos.repository';
 import { generarDocumentoPDF } from '../modules/documentos/documentos.pdf';
 import { formatearFolioDocumento } from '../utils/documentos';
+
+type EnviarFacturaEmailInput = {
+  documentoId: number;
+  usuarioId?: number | null;
+  emailDestino?: string;
+};
 
 // Servicio para enviar facturas por correo con PDF y XML adjuntos
 export class FacturaEmailService {
   /**
    * Envía una factura por correo. Usa emailDestino si se proporciona; de lo contrario, toma el email del contacto.
    */
-  public static async enviarFactura(documentoId: number, emailDestino?: string): Promise<void> {
+  public static async enviarFactura(input: EnviarFacturaEmailInput): Promise<void> {
+    const documentoId = input.documentoId;
+
     // 1) Obtener datos mínimos de la factura
     const documento = await FacturaEmailService.obtenerFactura(documentoId);
 
+    const smtpConfig = await getConfiguracionEmailPrivada(documento.empresa_id, input.usuarioId ?? null);
+    if (!smtpConfig) {
+      throw new Error('No hay configuración SMTP activa para esta empresa o usuario');
+    }
+
     // 2) Obtener email del contacto si no se proporcionó
-    const email = emailDestino?.trim() || (await FacturaEmailService.obtenerEmailContacto(documento.contacto_id));
+    const emailDestinoExplicito = input.emailDestino?.trim() || '';
+    const email = emailDestinoExplicito || (await FacturaEmailService.obtenerEmailContacto(documento.contacto_id));
     if (!email) {
       throw new Error('El contacto no tiene correo registrado');
     }
+
+    const from = smtpConfig.email_remitente || smtpConfig.smtp_user || null;
+    const nombreRemitente = smtpConfig.nombre_remitente?.trim() || smtpConfig.email_remitente || smtpConfig.smtp_user || 'Tu asesor';
+
+    console.info('[Factura Email] Configuracion SMTP resuelta', {
+      documentoId,
+      empresaId: documento.empresa_id,
+      usuarioId: input.usuarioId ?? null,
+      scope: smtpConfig.scope,
+      smtp_host: smtpConfig.smtp_host,
+      smtp_port: smtpConfig.smtp_port,
+      smtp_secure: smtpConfig.smtp_secure,
+      smtp_user: smtpConfig.smtp_user,
+    });
+
+    console.info('[Factura Email] Resolucion destinatario/remitente', {
+      documentoId,
+      empresaId: documento.empresa_id,
+      emailDestinoExplicito: Boolean(emailDestinoExplicito),
+      to: email,
+      from,
+      nombreRemitente,
+    });
 
     // 3) Obtener XML timbrado
     const xmlTimbrado = await FacturaEmailService.obtenerXmlTimbrado(documentoId);
@@ -44,12 +82,19 @@ export class FacturaEmailService {
     const text = 'Se adjuntan el PDF y el XML de su factura.';
 
     // 6) Enviar correo
-    await EmailService.sendMail({
-      to: email,
-      subject,
-      text,
-      attachments,
-    });
+    await EmailService.sendMailForContext(
+      {
+        empresaId: documento.empresa_id,
+        usuarioId: input.usuarioId ?? null,
+      },
+      {
+        to: email,
+        from: from ? (smtpConfig.nombre_remitente ? `${smtpConfig.nombre_remitente} <${from}>` : from) : undefined,
+        subject,
+        text,
+        attachments,
+      }
+    );
   }
 
   // Lee factura mínima para armar nombres y relaciones

@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-13T22:13:29.049Z
+-- Generated at: 2026-05-18T17:41:20.563Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict n1GGWJY7m5qEoit07YWj94UXBcKGJmddc3zo8HsodwrIJhm1WTDkLCF9J54kIob
+\restrict G7W6VIdslSiH8PTtzsY2V6cmkCQJPpStigTQ7pPJL5wydWEeLuukT9Wmdg2ylMC
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -698,7 +698,8 @@ CREATE TABLE core.campos_configuracion (
     obligatorio boolean DEFAULT false,
     activo boolean DEFAULT true,
     orden integer,
-    created_at timestamp without time zone DEFAULT now()
+    created_at timestamp without time zone DEFAULT now(),
+    proposito_sistema character varying(50)
 );
 
 
@@ -808,6 +809,13 @@ COMMENT ON COLUMN core.campos_configuracion.created_at IS 'Fecha y hora en que s
 
 
 --
+-- Name: COLUMN campos_configuracion.proposito_sistema; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.campos_configuracion.proposito_sistema IS 'Propósito especial del campo configurable dentro del sistema. Ejemplo: PRECIOS.';
+
+
+--
 -- Name: campos_configuracion_id_seq; Type: SEQUENCE; Schema: core; Owner: -
 --
 
@@ -841,7 +849,8 @@ CREATE TABLE core.catalogos (
     activo boolean DEFAULT true,
     extra jsonb,
     created_at timestamp without time zone DEFAULT now(),
-    catalogo_padre_id integer
+    catalogo_padre_id integer,
+    precio_lista_id bigint
 );
 
 
@@ -1031,6 +1040,45 @@ CREATE SEQUENCE core.catalogos_tipos_id_seq
 --
 
 ALTER SEQUENCE core.catalogos_tipos_id_seq OWNED BY core.catalogos_tipos.id;
+
+
+--
+-- Name: cfdi_pac_config; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.cfdi_pac_config (
+    id integer NOT NULL,
+    pac character varying(50) DEFAULT 'facturama'::character varying NOT NULL,
+    modo character varying(20) DEFAULT 'sandbox'::character varying NOT NULL,
+    base_url text NOT NULL,
+    username text NOT NULL,
+    password text NOT NULL,
+    stamp_path text NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cfdi_pac_config_modo_chk CHECK (((modo)::text = ANY ((ARRAY['sandbox'::character varying, 'produccion'::character varying])::text[])))
+);
+
+
+--
+-- Name: cfdi_pac_config_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.cfdi_pac_config_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cfdi_pac_config_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.cfdi_pac_config_id_seq OWNED BY core.cfdi_pac_config.id;
 
 
 --
@@ -3601,7 +3649,7 @@ ALTER SEQUENCE produccion.seguimientos_id_seq OWNED BY produccion.seguimientos.i
 
 
 --
--- Name: aplicaciones; Type: TABLE; Schema: public; Owner: -
+-- Name: aplicaciones_saldo; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.aplicaciones_saldo (
@@ -3614,7 +3662,7 @@ CREATE TABLE public.aplicaciones_saldo (
     monto_moneda_documento numeric(15,2) NOT NULL,
     fecha_aplicacion timestamp with time zone DEFAULT now() NOT NULL,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_aplicaciones_saldo_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
+    CONSTRAINT chk_aplicacion_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
 );
 
 
@@ -3833,8 +3881,16 @@ CREATE TABLE public.contactos (
     iva_desglosado boolean,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     telefono_secundario character varying(15),
-    codigo_legacy character varying(20)
+    codigo_legacy character varying(20),
+    precio_lista_id bigint
 );
+
+
+--
+-- Name: COLUMN contactos.precio_lista_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contactos.precio_lista_id IS 'Lista de precios asignada directamente al contacto. Tiene prioridad sobre la lista derivada de campos configurables.';
 
 
 --
@@ -4325,7 +4381,10 @@ CREATE TABLE public.documentos_partidas (
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     fecha_modificacion timestamp with time zone,
     es_parte_oportunidad boolean DEFAULT true,
-    producto_archivo_id integer
+    producto_archivo_id integer,
+    precio_lista_id bigint,
+    precio_editado_manual boolean DEFAULT false NOT NULL,
+    precio_origen character varying(30)
 );
 
 
@@ -4334,6 +4393,27 @@ CREATE TABLE public.documentos_partidas (
 --
 
 COMMENT ON COLUMN public.documentos_partidas.es_parte_oportunidad IS 'Indica si la partida de la cotizacion debe considerarse dentro del monto real de la oportunidad comercial. Permite distinguir entre el total completo cotizado y las partidas que efectivamente cuentan para pipeline, forecast y valor comercial de la oportunidad.';
+
+
+--
+-- Name: COLUMN documentos_partidas.precio_lista_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.precio_lista_id IS 'Lista de precios utilizada para resolver automáticamente el precio de la partida.';
+
+
+--
+-- Name: COLUMN documentos_partidas.precio_editado_manual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.precio_editado_manual IS 'Indica si el precio unitario fue modificado manualmente por el usuario después de ser sugerido por el sistema.';
+
+
+--
+-- Name: COLUMN documentos_partidas.precio_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.precio_origen IS 'Origen del precio unitario. Ejemplos: LISTA, DEFAULT, MANUAL, LEGACY.';
 
 
 --
@@ -4667,7 +4747,7 @@ CREATE VIEW public.documentos_saldo AS
     d.total,
     (d.total - COALESCE(sum(a.monto), (0)::numeric)) AS saldo
    FROM (public.documentos d
-      LEFT JOIN public.aplicaciones_saldo a ON (((a.documento_destino_id = d.id) AND (a.empresa_id = d.empresa_id))))
+     LEFT JOIN public.aplicaciones_saldo a ON (((a.documento_destino_id = d.id) AND (a.empresa_id = d.empresa_id))))
   GROUP BY d.id, d.empresa_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total;
 
 
@@ -4675,7 +4755,7 @@ CREATE VIEW public.documentos_saldo AS
 -- Name: VIEW documentos_saldo; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.documentos_saldo IS 'Vista de compatibilidad: id, empresa_id, datos básicos y saldo = total - aplicaciones_saldo (COALESCE).';
+COMMENT ON VIEW public.documentos_saldo IS 'Vista de compatibilidad: saldo = total - aplicaciones_saldo.';
 
 
 --
@@ -4879,7 +4959,6 @@ CREATE TABLE public.finanzas_operaciones (
     observaciones text,
     cuenta_id integer NOT NULL,
     contacto_id integer,
-    documento_origen_id integer,
     factura_id integer,
     es_transferencia boolean DEFAULT false NOT NULL,
     transferencia_id integer,
@@ -4888,6 +4967,7 @@ CREATE TABLE public.finanzas_operaciones (
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     concepto_id integer,
     naturaleza_operacion character varying(30) DEFAULT 'movimiento_general'::character varying NOT NULL,
+    documento_origen_id integer,
     CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('cotejado'::character varying)::text, ('conciliado'::character varying)::text]))),
     CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY (ARRAY[('Deposito'::character varying)::text, ('Retiro'::character varying)::text])))
 );
@@ -5172,6 +5252,102 @@ CREATE SEQUENCE public.plantillas_documento_id_seq
 --
 
 ALTER SEQUENCE public.plantillas_documento_id_seq OWNED BY public.plantillas_documento.id;
+
+
+--
+-- Name: precios; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.precios (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    producto_id bigint NOT NULL,
+    precio_lista_id bigint NOT NULL,
+    contacto_id bigint,
+    precio numeric(18,6) DEFAULT 0 NOT NULL,
+    moneda_id bigint,
+    vigencia_desde timestamp without time zone,
+    vigencia_hasta timestamp without time zone,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE precios; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.precios IS 'Precios de productos por lista, con posibilidad futura de precio específico por contacto.';
+
+
+--
+-- Name: precios_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.precios_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: precios_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.precios_id_seq OWNED BY public.precios.id;
+
+
+--
+-- Name: precios_listas; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.precios_listas (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    nombre character varying(120) NOT NULL,
+    tipo_precio character varying(20) DEFAULT 'VENTA'::character varying NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL,
+    orden integer,
+    es_default boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: TABLE precios_listas; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.precios_listas IS 'Define listas de precios de venta o compra por empresa.';
+
+
+--
+-- Name: COLUMN precios_listas.tipo_precio; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.precios_listas.tipo_precio IS 'Tipo de lista de precio. Valores esperados: VENTA o COMPRA.';
+
+
+--
+-- Name: precios_listas_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.precios_listas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: precios_listas_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.precios_listas_id_seq OWNED BY public.precios_listas.id;
 
 
 --
@@ -6467,6 +6643,13 @@ ALTER TABLE ONLY core.catalogos_tipos ALTER COLUMN id SET DEFAULT nextval('core.
 
 
 --
+-- Name: cfdi_pac_config id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_pac_config ALTER COLUMN id SET DEFAULT nextval('core.cfdi_pac_config_id_seq'::regclass);
+
+
+--
 -- Name: empresas id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -6635,7 +6818,7 @@ ALTER TABLE ONLY produccion.seguimientos ALTER COLUMN id SET DEFAULT nextval('pr
 
 
 --
--- Name: aplicaciones id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo ALTER COLUMN id SET DEFAULT nextval('public.aplicaciones_saldo_id_seq'::regclass);
@@ -6796,6 +6979,20 @@ ALTER TABLE ONLY public.plantillas_documento ALTER COLUMN id SET DEFAULT nextval
 
 
 --
+-- Name: precios id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios ALTER COLUMN id SET DEFAULT nextval('public.precios_id_seq'::regclass);
+
+
+--
+-- Name: precios_listas id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios_listas ALTER COLUMN id SET DEFAULT nextval('public.precios_listas_id_seq'::regclass);
+
+
+--
 -- Name: productos id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -6894,6 +7091,22 @@ ALTER TABLE ONLY core.catalogos
 
 ALTER TABLE ONLY core.catalogos_tipos
     ADD CONSTRAINT catalogos_tipos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cfdi_pac_config cfdi_pac_config_pac_modo_unique; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_pac_config
+    ADD CONSTRAINT cfdi_pac_config_pac_modo_unique UNIQUE (pac, modo);
+
+
+--
+-- Name: cfdi_pac_config cfdi_pac_config_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_pac_config
+    ADD CONSTRAINT cfdi_pac_config_pkey PRIMARY KEY (id);
 
 
 --
@@ -7273,11 +7486,11 @@ ALTER TABLE ONLY produccion.seguimientos
 
 
 --
--- Name: aplicaciones_saldo aplicaciones_saldo_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo aplicaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT aplicaciones_saldo_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT aplicaciones_pkey PRIMARY KEY (id);
 
 
 --
@@ -7478,6 +7691,22 @@ ALTER TABLE ONLY public.credito_operaciones_items
 
 ALTER TABLE ONLY public.plantillas_documento
     ADD CONSTRAINT plantillas_documento_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: precios_listas precios_listas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios_listas
+    ADD CONSTRAINT precios_listas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: precios precios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios
+    ADD CONSTRAINT precios_pkey PRIMARY KEY (id);
 
 
 --
@@ -7968,6 +8197,13 @@ COMMENT ON INDEX core.idx_catalogos_padre IS 'Optimiza consultas que filtran reg
 
 
 --
+-- Name: idx_catalogos_precio_lista; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_catalogos_precio_lista ON core.catalogos USING btree (precio_lista_id) WHERE (precio_lista_id IS NOT NULL);
+
+
+--
 -- Name: idx_catalogos_tipo; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -8311,6 +8547,13 @@ CREATE INDEX idx_usuarios_vendedor_contacto_id ON core.usuarios USING btree (ven
 
 
 --
+-- Name: ux_campos_configuracion_empresa_proposito_sistema; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_campos_configuracion_empresa_proposito_sistema ON core.campos_configuracion USING btree (empresa_id, proposito_sistema) WHERE (proposito_sistema IS NOT NULL);
+
+
+--
 -- Name: ux_catalogos_tipos_empresa_nombre; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -8322,6 +8565,13 @@ CREATE UNIQUE INDEX ux_catalogos_tipos_empresa_nombre ON core.catalogos_tipos US
 --
 
 COMMENT ON INDEX core.ux_catalogos_tipos_empresa_nombre IS 'Evita duplicar nombres de catálogo dentro de una empresa';
+
+
+--
+-- Name: ux_cfdi_pac_config_activo_modo; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_cfdi_pac_config_activo_modo ON core.cfdi_pac_config USING btree (modo) WHERE (activo = true);
 
 
 --
@@ -8633,45 +8883,52 @@ CREATE UNIQUE INDEX documentos_unico ON public.documentos USING btree (empresa_i
 
 
 --
--- Name: idx_aplicaciones_saldo_doc_destino; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_aplicaciones_doc_destino; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_saldo_doc_destino ON public.aplicaciones_saldo USING btree (documento_destino_id);
-
-
---
--- Name: INDEX idx_aplicaciones_saldo_doc_destino; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_aplicaciones_saldo_doc_destino IS 'Optimiza consultas para calcular saldo pendiente de documentos destino (facturas).';
+CREATE INDEX idx_aplicaciones_doc_destino ON public.aplicaciones_saldo USING btree (documento_destino_id);
 
 
 --
--- Name: idx_aplicaciones_saldo_doc_origen; Type: INDEX; Schema: public; Owner: -
+-- Name: INDEX idx_aplicaciones_doc_destino; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_saldo_doc_origen ON public.aplicaciones_saldo USING btree (documento_origen_id);
-
-
---
--- Name: INDEX idx_aplicaciones_saldo_doc_origen; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_aplicaciones_saldo_doc_origen IS 'Optimiza consultas para calcular saldo disponible de notas de crédito.';
+COMMENT ON INDEX public.idx_aplicaciones_doc_destino IS 'Optimiza consultas para calcular saldo pendiente de documentos destino (facturas).';
 
 
 --
--- Name: idx_aplicaciones_saldo_empresa; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_aplicaciones_doc_origen; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_saldo_empresa ON public.aplicaciones_saldo USING btree (empresa_id);
+CREATE INDEX idx_aplicaciones_doc_origen ON public.aplicaciones_saldo USING btree (documento_origen_id);
 
 
 --
--- Name: INDEX idx_aplicaciones_saldo_empresa; Type: COMMENT; Schema: public; Owner: -
+-- Name: INDEX idx_aplicaciones_doc_origen; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON INDEX public.idx_aplicaciones_saldo_empresa IS 'Permite filtrar rápidamente aplicaciones por empresa.';
+COMMENT ON INDEX public.idx_aplicaciones_doc_origen IS 'Optimiza consultas para calcular saldo disponible de notas de crédito.';
+
+
+--
+-- Name: idx_aplicaciones_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_empresa ON public.aplicaciones_saldo USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_aplicaciones_empresa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aplicaciones_empresa IS 'Permite filtrar rápidamente aplicaciones por empresa.';
+
+
+--
+-- Name: idx_aplicaciones_operacion_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_operacion_empresa ON public.aplicaciones_saldo USING btree (empresa_id, finanzas_operacion_id);
 
 
 --
@@ -8686,13 +8943,6 @@ CREATE INDEX idx_aplicaciones_saldo_operacion ON public.aplicaciones_saldo USING
 --
 
 COMMENT ON INDEX public.idx_aplicaciones_saldo_operacion IS 'Optimiza consultas para calcular saldo de operaciones financieras (pagos).';
-
-
---
--- Name: idx_aplicaciones_saldo_operacion_empresa; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_aplicaciones_saldo_operacion_empresa ON public.aplicaciones_saldo USING btree (empresa_id, finanzas_operacion_id);
 
 
 --
@@ -8721,6 +8971,13 @@ CREATE INDEX idx_conceptos_orden ON public.conceptos USING btree (empresa_id, or
 --
 
 CREATE INDEX idx_conceptos_rubro_presupuesto ON public.conceptos USING btree (empresa_id, rubro_presupuesto_id);
+
+
+--
+-- Name: idx_contactos_precio_lista; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contactos_precio_lista ON public.contactos USING btree (precio_lista_id);
 
 
 --
@@ -8892,6 +9149,20 @@ COMMENT ON INDEX public.idx_documentos_partidas_impuestos_partida_id IS 'Optimiz
 
 
 --
+-- Name: idx_documentos_partidas_precio_editado_manual; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_precio_editado_manual ON public.documentos_partidas USING btree (precio_editado_manual);
+
+
+--
+-- Name: idx_documentos_partidas_precio_lista; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_precio_lista ON public.documentos_partidas USING btree (precio_lista_id);
+
+
+--
 -- Name: idx_dpc_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8962,6 +9233,13 @@ COMMENT ON INDEX public.idx_fa_operacion IS 'Permite localizar rápidamente las 
 
 
 --
+-- Name: idx_finanzas_operaciones_documento_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_operaciones_documento_origen ON public.finanzas_operaciones USING btree (documento_origen_id);
+
+
+--
 -- Name: idx_finanzas_operaciones_empresa_naturaleza; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8973,13 +9251,6 @@ CREATE INDEX idx_finanzas_operaciones_empresa_naturaleza ON public.finanzas_oper
 --
 
 CREATE INDEX idx_fo_concepto ON public.finanzas_operaciones USING btree (concepto_id);
-
-
---
--- Name: idx_finanzas_operaciones_documento_origen; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_finanzas_operaciones_documento_origen ON public.finanzas_operaciones USING btree (documento_origen_id);
 
 
 --
@@ -9008,6 +9279,41 @@ CREATE INDEX idx_plantillas_empresa ON public.plantillas_documento USING btree (
 --
 
 COMMENT ON INDEX public.idx_plantillas_empresa IS 'Optimiza búsquedas de plantillas por empresa';
+
+
+--
+-- Name: idx_precios_contacto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_precios_contacto ON public.precios USING btree (contacto_id);
+
+
+--
+-- Name: idx_precios_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_precios_empresa ON public.precios USING btree (empresa_id);
+
+
+--
+-- Name: idx_precios_lista; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_precios_lista ON public.precios USING btree (precio_lista_id);
+
+
+--
+-- Name: idx_precios_listas_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_precios_listas_empresa ON public.precios_listas USING btree (empresa_id);
+
+
+--
+-- Name: idx_precios_producto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_precios_producto ON public.precios USING btree (producto_id);
 
 
 --
@@ -9148,6 +9454,27 @@ CREATE UNIQUE INDEX ux_contactos_rfc_empresa ON public.contactos USING btree (em
 --
 
 CREATE UNIQUE INDEX ux_plantilla_activa ON public.plantillas_documento USING btree (empresa_id, tipo_documento) WHERE (activo = true);
+
+
+--
+-- Name: ux_precios_empresa_producto_lista_contacto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_precios_empresa_producto_lista_contacto ON public.precios USING btree (empresa_id, producto_id, precio_lista_id, COALESCE(contacto_id, (0)::bigint));
+
+
+--
+-- Name: ux_precios_listas_empresa_tipo_default; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_precios_listas_empresa_tipo_default ON public.precios_listas USING btree (empresa_id, tipo_precio) WHERE (es_default = true);
+
+
+--
+-- Name: ux_precios_listas_empresa_tipo_nombre; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_precios_listas_empresa_tipo_nombre ON public.precios_listas USING btree (empresa_id, tipo_precio, nombre);
 
 
 --
@@ -9430,6 +9757,14 @@ ALTER TABLE ONLY core.campos_configuracion
 
 ALTER TABLE ONLY core.catalogos
     ADD CONSTRAINT fk_catalogos_padre FOREIGN KEY (catalogo_padre_id) REFERENCES core.catalogos(id) ON DELETE SET NULL;
+
+
+--
+-- Name: catalogos fk_catalogos_precio_lista; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.catalogos
+    ADD CONSTRAINT fk_catalogos_precio_lista FOREIGN KEY (precio_lista_id) REFERENCES public.precios_listas(id);
 
 
 --
@@ -9825,35 +10160,35 @@ ALTER TABLE ONLY produccion.seguimientos
 
 
 --
--- Name: aplicaciones_saldo fk_aplicaciones_saldo_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_saldo_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT fk_aplicaciones_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
 
 
 --
--- Name: aplicaciones_saldo fk_aplicaciones_saldo_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_saldo_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
-
-
---
--- Name: aplicaciones_saldo fk_aplicaciones_saldo_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_saldo_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT fk_aplicaciones_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
 
 
 --
--- Name: aplicaciones_saldo fk_aplicaciones_saldo_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_saldo_operacion FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_aplicaciones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones_saldo fk_aplicaciones_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones_saldo
+    ADD CONSTRAINT fk_aplicaciones_operacion FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
 
 
 --
@@ -9878,6 +10213,14 @@ ALTER TABLE ONLY public.contactos_domicilios
 
 ALTER TABLE ONLY public.contactos_datos_fiscales
     ADD CONSTRAINT fk_cdf_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: contactos fk_contactos_precio_lista; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos
+    ADD CONSTRAINT fk_contactos_precio_lista FOREIGN KEY (precio_lista_id) REFERENCES public.precios_listas(id);
 
 
 --
@@ -10001,6 +10344,14 @@ ALTER TABLE ONLY public.documentos
 
 
 --
+-- Name: documentos_partidas fk_documentos_partidas_precio_lista; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas
+    ADD CONSTRAINT fk_documentos_partidas_precio_lista FOREIGN KEY (precio_lista_id) REFERENCES public.precios_listas(id);
+
+
+--
 -- Name: documentos fk_documentos_regimen_fiscal; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10073,6 +10424,14 @@ ALTER TABLE ONLY public.finanzas_conciliaciones_operaciones
 
 
 --
+-- Name: finanzas_operaciones fk_finanzas_operaciones_documento_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_operaciones
+    ADD CONSTRAINT fk_finanzas_operaciones_documento_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
+
+
+--
 -- Name: finanzas_operaciones fk_fo_concepto; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10086,14 +10445,6 @@ ALTER TABLE ONLY public.finanzas_operaciones
 
 ALTER TABLE ONLY public.finanzas_operaciones
     ADD CONSTRAINT fk_fo_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE SET NULL;
-
-
---
--- Name: finanzas_operaciones fk_finanzas_operaciones_documento_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.finanzas_operaciones
-    ADD CONSTRAINT fk_finanzas_operaciones_documento_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
 
 
 --
@@ -10217,6 +10568,46 @@ ALTER TABLE ONLY public.plantillas_documento
 
 
 --
+-- Name: precios fk_precios_contacto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios
+    ADD CONSTRAINT fk_precios_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
+
+
+--
+-- Name: precios fk_precios_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios
+    ADD CONSTRAINT fk_precios_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: precios fk_precios_lista; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios
+    ADD CONSTRAINT fk_precios_lista FOREIGN KEY (precio_lista_id) REFERENCES public.precios_listas(id);
+
+
+--
+-- Name: precios_listas fk_precios_listas_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios_listas
+    ADD CONSTRAINT fk_precios_listas_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: precios fk_precios_producto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.precios
+    ADD CONSTRAINT fk_precios_producto FOREIGN KEY (producto_id) REFERENCES public.productos(id);
+
+
+--
 -- Name: productos fk_producto_unidad_inventario; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10316,5 +10707,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict n1GGWJY7m5qEoit07YWj94UXBcKGJmddc3zo8HsodwrIJhm1WTDkLCF9J54kIob
+\unrestrict G7W6VIdslSiH8PTtzsY2V6cmkCQJPpStigTQ7pPJL5wydWEeLuukT9Wmdg2ylMC
 

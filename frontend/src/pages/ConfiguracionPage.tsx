@@ -4,6 +4,7 @@ import { Box, Card, CardActionArea, CardContent, Stack, Typography } from '@mui/
 import {
   BusinessRounded,
   CategoryRounded,
+  CloudRounded,
   ReceiptLongRounded,
   GroupRounded,
   SchemaRounded,
@@ -104,6 +105,13 @@ const opciones = [
     path: '/configuracion/correo',
   },
   {
+    titulo: 'PAC CFDI',
+    descripcion: 'Administra la configuración global del PAC CFDI para sandbox y productivo.',
+    icono: CloudRounded,
+    path: '/configuracion/cfdi-pac',
+    soloSuperadmin: true,
+  },
+  {
     titulo: 'Etiquetas de WhatsApp',
     descripcion: 'Administra el catálogo de etiquetas para conversaciones y leads.',
     icono: LabelRounded,
@@ -119,6 +127,9 @@ const opciones = [
 
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
+  const isSuperadmin = Boolean((window.localStorage.getItem('emphasys.session') && JSON.parse(window.localStorage.getItem('emphasys.session') || '{}')?.user?.es_superadmin));
+
+  const opcionesVisibles = opciones.filter((opcion) => !(opcion as any).soloSuperadmin || isSuperadmin);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -142,7 +153,7 @@ export default function ConfiguracionPage() {
           gap: 2,
         }}
       >
-        {opciones.map((opcion) => {
+        {opcionesVisibles.map((opcion) => {
           const Icono = opcion.icono ?? SchemaRounded;
 
           return (

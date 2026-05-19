@@ -8,6 +8,7 @@ export type DocumentoEmpresa = {
   icono: string | null;
   orden: number;
   habilitado: boolean;
+  whatsapp_plantilla_default_id: number | null;
 };
 
 export type TransicionDocumento = {
@@ -25,7 +26,8 @@ export async function obtenerDocumentosEmpresa(empresaId: number): Promise<Docum
       td.nombre_plural,
       td.icono,
       td.orden,
-      COALESCE(etd.activo, FALSE) AS habilitado
+      COALESCE(etd.activo, FALSE) AS habilitado,
+      etd.whatsapp_plantilla_default_id
     FROM core.tipos_documento td
     LEFT JOIN core.empresas_tipos_documento etd
       ON etd.tipo_documento_id = td.id
@@ -66,15 +68,32 @@ export async function existeTipoDocumento(tipoDocumentoId: number): Promise<bool
 export async function upsertDocumentoEmpresa(
   empresaId: number,
   tipoDocumentoId: number,
-  activo: boolean
-): Promise<{ empresa_id: number; tipo_documento_id: number; activo: boolean } | null> {
-  const { rows } = await pool.query<{ empresa_id: number; tipo_documento_id: number; activo: boolean }>(
-    `INSERT INTO core.empresas_tipos_documento (empresa_id, tipo_documento_id, activo)
-       VALUES ($1, $2, $3)
+  activo: boolean,
+  includeWhatsappPlantillaDefault: boolean,
+  whatsappPlantillaDefaultId: number | null
+): Promise<{ empresa_id: number; tipo_documento_id: number; activo: boolean; whatsapp_plantilla_default_id: number | null } | null> {
+  const { rows } = await pool.query<{
+    empresa_id: number;
+    tipo_documento_id: number;
+    activo: boolean;
+    whatsapp_plantilla_default_id: number | null;
+  }>(
+    `INSERT INTO core.empresas_tipos_documento (
+        empresa_id,
+        tipo_documento_id,
+        activo,
+        whatsapp_plantilla_default_id
+     )
+       VALUES ($1, $2, $3, CASE WHEN $4 THEN $5::bigint ELSE NULL::bigint END)
    ON CONFLICT (empresa_id, tipo_documento_id)
-     DO UPDATE SET activo = EXCLUDED.activo
-   RETURNING empresa_id, tipo_documento_id, activo`,
-    [empresaId, tipoDocumentoId, activo]
+     DO UPDATE SET
+       activo = EXCLUDED.activo,
+       whatsapp_plantilla_default_id = CASE
+         WHEN $4 THEN EXCLUDED.whatsapp_plantilla_default_id
+         ELSE core.empresas_tipos_documento.whatsapp_plantilla_default_id
+       END
+   RETURNING empresa_id, tipo_documento_id, activo, whatsapp_plantilla_default_id`,
+    [empresaId, tipoDocumentoId, activo, includeWhatsappPlantillaDefault, whatsappPlantillaDefaultId]
   );
 
   return rows[0] ?? null;
@@ -89,7 +108,8 @@ export async function obtenerDocumentosActivosEmpresa(empresaId: number): Promis
       td.nombre_plural,
       td.icono,
       td.orden,
-      TRUE AS habilitado
+      TRUE AS habilitado,
+      etd.whatsapp_plantilla_default_id
     FROM core.tipos_documento td
     JOIN core.empresas_tipos_documento etd
       ON etd.tipo_documento_id = td.id

@@ -37,7 +37,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import PrintIcon from '@mui/icons-material/Print';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import { resolveDocumentoFormPath, resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
 import DynamicFieldControl from '../components/DynamicFieldControl';
@@ -1971,7 +1971,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           {isEdit && documentoActualId && (
             <Button
               variant="outlined"
-              startIcon={<PictureAsPdfIcon />}
+              startIcon={<PrintIcon />}
               onClick={async () => {
                 try {
                   setDownloadingPdf(true);
@@ -1984,7 +1984,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
               }}
               disabled={loading || downloadingPdf}
             >
-              {downloadingPdf ? 'Generando...' : 'PDF'}
+              {downloadingPdf ? 'Generando...' : 'Ver / Imprimir PDF'}
             </Button>
           )}
           <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving || loading}>

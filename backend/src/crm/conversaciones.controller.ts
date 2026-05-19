@@ -1136,6 +1136,12 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
     const { telefono, tipo } = req.body || {};
 
+    console.info('[WhatsApp Template Controller] Solicitud recibida', {
+      empresaId,
+      telefono,
+      tipo,
+    });
+
     if (!empresaId) {
       return res.status(400).json({ message: "empresaId requerido" });
     }
@@ -1147,13 +1153,20 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
     const tipoPlantilla = String(tipo || "reactivacion");
     const respuesta = await sendTemplateMessage(Number(empresaId), String(telefono), tipoPlantilla);
 
+    console.info('[WhatsApp Template Controller] Respuesta de sendTemplateMessage', {
+      empresaId,
+      telefono,
+      tipoPlantilla,
+      respuesta,
+    });
+
     if (respuesta?.error) {
       return res.status(409).json({ message: respuesta.message || "No hay plantilla disponible" });
     }
 
     return res.status(200).json(respuesta);
   } catch (error) {
-    console.error("Error al enviar plantilla de WhatsApp:", error);
+    console.error('[WhatsApp Template Controller] Error al enviar plantilla de WhatsApp', error);
     return res.status(500).json({ message: "No se pudo enviar la plantilla" });
   }
 };

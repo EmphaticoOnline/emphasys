@@ -36,6 +36,18 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export function requireSuperadmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.auth) {
+    return res.status(401).json({ message: "No autenticado" });
+  }
+
+  if (!req.auth.esSuperadmin) {
+    return res.status(403).json({ message: "Acceso restringido a superadministradores" });
+  }
+
+  return next();
+}
+
 export async function requireEmpresaActiva(req: Request, res: Response, next: NextFunction) {
   try {
     if (!req.auth) {

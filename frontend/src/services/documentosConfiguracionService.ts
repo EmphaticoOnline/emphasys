@@ -8,10 +8,13 @@ export async function fetchDocumentosEmpresa(): Promise<DocumentoEmpresa[]> {
   return apiFetch<DocumentoEmpresa[]>(BASE_URL);
 }
 
-export async function updateDocumentoEmpresa(tipoDocumentoId: number, activo: boolean) {
+export async function updateDocumentoEmpresa(
+  tipoDocumentoId: number,
+  payload: { activo: boolean; whatsapp_plantilla_default_id?: number | null }
+) {
   return apiFetch(`${BASE_URL}/${tipoDocumentoId}`, {
     method: 'PUT',
-    body: { activo } as any,
+    body: payload as any,
   });
 }
 

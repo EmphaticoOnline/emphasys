@@ -6,6 +6,7 @@ export type TipoDocumentoEmpresa = {
   nombre_plural: string | null;
   icono: string | null;
   orden?: number | null;
+  whatsapp_plantilla_default_id?: number | null;
 };
 
 export async function fetchTiposDocumentoHabilitados(modulo?: string): Promise<TipoDocumentoEmpresa[]> {

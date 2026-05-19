@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { getEmpresaActivaId } from "../shared/context/empresa";
 import {
   actualizarEtapaConversacion as actualizarEtapaConversacionController,
   actualizarEtiquetaWhatsappController as actualizarEtiquetaWhatsappControllerHandler,
@@ -15,6 +16,7 @@ import {
   quitarEtiquetaConversacionWhatsapp as quitarEtiquetaConversacionWhatsappHandler,
   whatsappWebhook as whatsappWebhookHandler,
 } from "../crm/conversaciones.controller";
+import { listarPlantillasWhatsapp as listarPlantillasWhatsappRepo } from "./whatsapp-plantillas.service";
 
 export const whatsappWebhook = async (req: Request, res: Response) => whatsappWebhookHandler(req, res);
 
@@ -37,6 +39,23 @@ export const actualizarEtiquetaWhatsappController = async (req: Request, res: Re
 export const eliminarEtiquetaWhatsappController = async (req: Request, res: Response) => eliminarEtiquetaWhatsappControllerHandler(req, res);
 
 export const listarEtiquetasConversacionWhatsapp = async (req: Request, res: Response) => listarEtiquetasConversacionWhatsappHandler(req, res);
+
+export const listarPlantillasWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const incluirInactivas = req.query.incluir_inactivas === "1" || req.query.incluir_inactivas === "true";
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    const plantillas = await listarPlantillasWhatsappRepo(empresaId, incluirInactivas);
+    return res.status(200).json(plantillas);
+  } catch (error) {
+    console.error("Error listando plantillas de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudieron obtener las plantillas" });
+  }
+};
 
 export const agregarEtiquetaConversacionWhatsapp = async (req: Request, res: Response) => agregarEtiquetaConversacionWhatsappHandler(req, res);
 

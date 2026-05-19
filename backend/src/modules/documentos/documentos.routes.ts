@@ -9,6 +9,7 @@ import {
   validarEliminacionCotizacion,
   actualizarCotizacion,
   duplicarCotizacion,
+  duplicarDocumentosMasivo,
   reemplazarPartidas,
   eliminarCotizacion,
   obtenerCotizacionPDF,
@@ -38,6 +39,9 @@ router.post('/:id/enviar-email', requireAuth, requireEmpresaActiva, enviarCotiza
 
 // POST /api/documentos
 router.post('/', requireAuth, requireEmpresaActiva, crearCotizacion);
+
+// POST /api/documentos/duplicar-masivo
+router.post('/duplicar-masivo', requireAuth, requireEmpresaActiva, duplicarDocumentosMasivo);
 
 // PUT /api/documentos/:id
 router.put('/:id', requireAuth, requireEmpresaActiva, actualizarCotizacion);

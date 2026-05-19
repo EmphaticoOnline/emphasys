@@ -38,6 +38,7 @@ import {
   updateDocumentoEmpresa,
   updateTransicionDocumento,
 } from '../../services/documentosConfiguracionService';
+import { fetchWhatsappPlantillas, type WhatsappPlantillaOption } from '../../services/whatsappPlantillasService';
 
 const TAB_DOCUMENTOS = 0;
 const TAB_FLUJO = 1;
@@ -71,6 +72,8 @@ export default function DocumentosConfiguracionPage() {
   const [documentos, setDocumentos] = useState<DocumentoEmpresa[]>([]);
   const [loadingDocumentos, setLoadingDocumentos] = useState(false);
   const [errorDocumentos, setErrorDocumentos] = useState<string | null>(null);
+  const [plantillasWhatsapp, setPlantillasWhatsapp] = useState<WhatsappPlantillaOption[]>([]);
+  const [loadingPlantillasWhatsapp, setLoadingPlantillasWhatsapp] = useState(false);
 
   const [transiciones, setTransiciones] = useState<TransicionDocumento[]>([]);
   const [documentosFlujo, setDocumentosFlujo] = useState<DocumentoEmpresa[]>([]);
@@ -90,6 +93,7 @@ export default function DocumentosConfiguracionPage() {
   useEffect(() => {
     if (empresaId) {
       void loadDocumentos();
+      void loadPlantillasWhatsapp();
       if (tab === TAB_FLUJO) {
         void loadFlujo();
       }
@@ -109,6 +113,7 @@ export default function DocumentosConfiguracionPage() {
     setDocumentos([]);
     setTransiciones([]);
     setDocumentosFlujo([]);
+    setPlantillasWhatsapp([]);
   };
 
   const loadDocumentos = async () => {
@@ -140,10 +145,23 @@ export default function DocumentosConfiguracionPage() {
     }
   };
 
+  const loadPlantillasWhatsapp = async () => {
+    if (!empresaId) return;
+    setLoadingPlantillasWhatsapp(true);
+    try {
+      const data = await fetchWhatsappPlantillas();
+      setPlantillasWhatsapp(data.filter((plantilla) => plantilla.activa));
+    } catch (err: any) {
+      setErrorDocumentos(err?.message || 'No se pudieron cargar las plantillas de WhatsApp');
+    } finally {
+      setLoadingPlantillasWhatsapp(false);
+    }
+  };
+
   const handleToggleDocumento = async (doc: DocumentoEmpresa, nextValue: boolean) => {
     setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, habilitado: nextValue } : d)));
     try {
-      await updateDocumentoEmpresa(doc.id, nextValue);
+      await updateDocumentoEmpresa(doc.id, { activo: nextValue });
       if (tab === TAB_FLUJO) {
         await loadFlujo();
       }
@@ -152,6 +170,31 @@ export default function DocumentosConfiguracionPage() {
       setErrorDocumentos(err?.message || 'No se pudo actualizar el documento');
     }
   };
+
+  const handleWhatsappPlantillaChange = async (doc: DocumentoEmpresa, value: number | '') => {
+    const nextPlantillaId = value === '' ? null : value;
+    const previousPlantillaId = doc.whatsapp_plantilla_default_id;
+
+    setDocumentos((prev) =>
+      prev.map((d) => (d.id === doc.id ? { ...d, whatsapp_plantilla_default_id: nextPlantillaId } : d))
+    );
+
+    try {
+      await updateDocumentoEmpresa(doc.id, {
+        activo: Boolean(doc.habilitado),
+        whatsapp_plantilla_default_id: nextPlantillaId,
+      });
+    } catch (err: any) {
+      setDocumentos((prev) =>
+        prev.map((d) => (d.id === doc.id ? { ...d, whatsapp_plantilla_default_id: previousPlantillaId } : d))
+      );
+      setErrorDocumentos(err?.message || 'No se pudo actualizar la plantilla de WhatsApp');
+    }
+  };
+
+  const plantillaDisponiblePorId = useMemo(() => {
+    return new Set(plantillasWhatsapp.map((plantilla) => plantilla.id));
+  }, [plantillasWhatsapp]);
 
   const isTransicionActiva = (origenId: number, destinoId: number) =>
     transiciones.some(
@@ -196,6 +239,7 @@ export default function DocumentosConfiguracionPage() {
             </TableCell>
             <TableCell sx={{ width: 120 }}>Icono</TableCell>
             <TableCell>Nombre del documento</TableCell>
+              <TableCell sx={{ minWidth: 260 }}>Plantilla envío por WhatsApp</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -226,12 +270,48 @@ export default function DocumentosConfiguracionPage() {
                   Código: {doc.codigo}
                 </Typography>
               </TableCell>
+              <TableCell>
+                <FormControl fullWidth size="small">
+                  <InputLabel id={`whatsapp-plantilla-${doc.id}`} shrink>
+                    Opcional
+                  </InputLabel>
+                  <Select
+                    labelId={`whatsapp-plantilla-${doc.id}`}
+                    value={
+                      doc.whatsapp_plantilla_default_id && plantillaDisponiblePorId.has(doc.whatsapp_plantilla_default_id)
+                        ? doc.whatsapp_plantilla_default_id
+                        : ''
+                    }
+                    label="Opcional"
+                    disabled={loadingDocumentos || loadingPlantillasWhatsapp}
+                    onChange={(event) => handleWhatsappPlantillaChange(doc, event.target.value as number | '')}
+                    displayEmpty
+                    renderValue={(selected) => {
+                      if (!selected) {
+                        return <em style={{ color: '#6b7280' }}>Sin plantilla</em>;
+                      }
+
+                      const plantilla = plantillasWhatsapp.find((item) => item.id === selected);
+                      return plantilla?.nombre_interno ?? String(selected);
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>Sin plantilla</em>
+                    </MenuItem>
+                    {plantillasWhatsapp.map((plantilla) => (
+                      <MenuItem key={plantilla.id} value={plantilla.id}>
+                        {plantilla.nombre_interno}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </TableCell>
             </TableRow>
           ))}
 
           {documentosOrdenados.length === 0 && !loadingDocumentos && (
             <TableRow>
-              <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+              <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                 <Typography variant="body2" color="#6b7280">
                   No se encontraron tipos de documento activos en el catálogo.
                 </Typography>

@@ -6,12 +6,15 @@ import {
   crearFactura,
   actualizarFactura,
   eliminarFactura,
+  duplicarDocumentosMasivo,
   agregarPartida,
   reemplazarPartidas,
   obtenerFacturaPDF,
   obtenerFacturaXML,
+  obtenerFacturaPublicLinks,
   timbrarFacturaCfdi,
   enviarFacturaPorCorreo,
+  enviarFacturaPorWhatsappCfdi,
 } from './documentos.controller';
 
 const router = Router();
@@ -28,8 +31,17 @@ router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerFacturaPDF);
 // GET /api/facturas/:id/xml
 router.get('/:id/xml', requireAuth, requireEmpresaActiva, obtenerFacturaXML);
 
+// POST /api/facturas/:id/public-links
+router.post('/:id/public-links', requireAuth, requireEmpresaActiva, obtenerFacturaPublicLinks);
+
+// POST /api/facturas/:id/enviar-whatsapp-cfdi
+router.post('/:id/enviar-whatsapp-cfdi', requireAuth, requireEmpresaActiva, enviarFacturaPorWhatsappCfdi);
+
 // POST /api/facturas
 router.post('/', requireAuth, requireEmpresaActiva, crearFactura);
+
+// POST /api/facturas/duplicar-masivo
+router.post('/duplicar-masivo', requireAuth, requireEmpresaActiva, duplicarDocumentosMasivo);
 
 // PUT /api/facturas/:id
 router.put('/:id', requireAuth, requireEmpresaActiva, actualizarFactura);

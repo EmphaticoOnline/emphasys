@@ -32,7 +32,7 @@ export class CfdiService {
 
     const { xml } = this.builder.build(data);
 
-    const facturama = FacturamaClient.fromEnv();
+    const facturama = await FacturamaClient.fromDatabaseOrEnv();
     const { xmlTimbrado, response } = await facturama.stampXml(xml);
 
     if (!xmlTimbrado || !xmlTimbrado.trim()) {

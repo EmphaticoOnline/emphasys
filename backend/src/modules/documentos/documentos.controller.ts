@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import {
   listarDocumentosRepository,
@@ -10,9 +11,12 @@ import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
-import { actualizarCotizacionService, crearDocumentoService, duplicarCotizacionService } from './documentos.service';
+import { actualizarCotizacionService, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
 import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeEliminarCotizacion } from './documentos-delete.service';
+import { formatearFolioDocumento } from '../../utils/documentos';
+import { obtenerJwtSecret } from '../auth/auth.service';
+import { sendDocumentMessage, sendTemplateMessage } from '../../whatsapp/whatsapp.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -21,6 +25,20 @@ const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
 
 const resolverTipoDocumentoRequest = (req: Request, fallback: TipoDocumento): TipoDocumento =>
   normalizarTipo(req.query.tipo_documento ?? req.body?.tipo_documento, fallback);
+
+function sanitizarNombreDescarga(nombre: string): string {
+  const limpio = (nombre || 'documento').replace(/[^a-zA-Z0-9._-]/g, '_');
+  return limpio || 'documento';
+}
+
+function construirNombrePdf(documento: any, fallbackId: number): string {
+  const numero = Number(documento?.numero);
+  const folio = Number.isFinite(numero)
+    ? formatearFolioDocumento(documento?.serie ?? '', numero)
+    : `documento-${fallbackId}`;
+
+  return `${sanitizarNombreDescarga(folio)}.pdf`;
+}
 
 const nombreDocumento: Record<TipoDocumento, string> = {
   cotizacion: 'cotización',
@@ -34,6 +52,221 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   recepcion: 'recepción',
   factura_compra: 'factura de compra',
 };
+
+type RecursoFacturaPublico = 'pdf' | 'xml';
+
+type FacturaPublicLinkTokenPayload = {
+  documentoId: number;
+  empresaId: number;
+  recurso: RecursoFacturaPublico;
+  tipo_documento: 'factura';
+  exp: number;
+};
+
+const WHATSAPP_PUBLIC_LINK_EXPIRES_IN_SECONDS = (() => {
+  const parsed = Number(process.env.WHATSAPP_PUBLIC_LINK_EXPIRES_IN_SECONDS ?? 600);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 600;
+})();
+
+function buildHttpError(status: number, message: string) {
+  const error = new Error(message) as Error & { status: number };
+  error.status = status;
+  return error;
+}
+
+function construirNombreXml(documento: any, fallbackId: number): string {
+  const numero = Number(documento?.numero);
+  const folio = Number.isFinite(numero)
+    ? formatearFolioDocumento(documento?.serie ?? '', numero)
+    : `factura-${fallbackId}`;
+
+  return `${sanitizarNombreDescarga(folio)}.xml`;
+}
+
+function resolverBaseUrlPublica(req: Request): string {
+  const envBaseUrl = process.env.APP_BASE_URL?.trim();
+  if (envBaseUrl) {
+    return envBaseUrl.replace(/\/$/, '');
+  }
+
+  const forwardedProto = req.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const forwardedHost = req.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const host = forwardedHost || req.get('host')?.trim();
+  const protocol = forwardedProto || req.protocol || 'http';
+
+  if (host) {
+    return `${protocol}://${host}`.replace(/\/$/, '');
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    return 'http://localhost:3001';
+  }
+
+  throw buildHttpError(500, 'APP_BASE_URL no configurada');
+}
+
+function firmarTokenPublicoFactura(
+  payload: Omit<FacturaPublicLinkTokenPayload, 'exp'>,
+  exp: number
+): string {
+  return jwt.sign({ ...payload, exp }, obtenerJwtSecret());
+}
+
+async function assertFacturaTimbrada(documentoId: number, empresaId: number): Promise<void> {
+  const { rows } = await pool.query<{ estatus_documento: string | null }>(
+    `SELECT estatus_documento
+       FROM documentos
+      WHERE id = $1
+        AND empresa_id = $2
+        AND LOWER(COALESCE(tipo_documento, '')) = 'factura'
+      LIMIT 1`,
+    [documentoId, empresaId]
+  );
+
+  const estatus = rows[0]?.estatus_documento?.trim().toLowerCase() ?? null;
+  if (estatus !== 'timbrado') {
+    throw buildHttpError(400, 'La factura no está timbrada');
+  }
+}
+
+function validarTokenPublicoFactura(
+  token: string,
+  documentoId: number,
+  recurso: RecursoFacturaPublico
+): FacturaPublicLinkTokenPayload {
+  const decoded = jwt.verify(token, obtenerJwtSecret()) as jwt.JwtPayload & FacturaPublicLinkTokenPayload;
+
+  if (!decoded || typeof decoded !== 'object') {
+    throw buildHttpError(401, 'Token inválido');
+  }
+
+  if (decoded.tipo_documento !== 'factura') {
+    throw buildHttpError(403, 'Token no autorizado para este tipo de documento');
+  }
+
+  if (Number(decoded.documentoId) !== documentoId || decoded.recurso !== recurso) {
+    throw buildHttpError(403, 'Token no coincide con el recurso solicitado');
+  }
+
+  if (!Number.isFinite(Number(decoded.empresaId)) || Number(decoded.empresaId) <= 0) {
+    throw buildHttpError(403, 'Token sin empresa válida');
+  }
+
+  return {
+    documentoId: Number(decoded.documentoId),
+    empresaId: Number(decoded.empresaId),
+    recurso: decoded.recurso,
+    tipo_documento: 'factura',
+    exp: Number(decoded.exp),
+  };
+}
+
+async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, tipo: TipoDocumento) {
+  const result = await obtenerDocumentoRepository(documentoId, empresaId, tipo);
+  if (!result) {
+    throw buildHttpError(404, 'Documento no encontrado');
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT uuid, fecha_timbrado, rfc_proveedor_certificacion, no_certificado_sat, sello_cfdi, sello_sat, cadena_original, rfc_emisor, rfc_receptor, total
+         FROM documentos_cfdi
+        WHERE documento_id = $1
+        LIMIT 1`,
+      [documentoId]
+    );
+
+    const timbre = rows[0];
+    if (timbre) {
+      result.documento = result.documento || ({} as any);
+      (result.documento as any).timbre = {
+        uuid: timbre.uuid,
+        fecha_timbrado: timbre.fecha_timbrado?.toISOString?.() ?? timbre.fecha_timbrado,
+        rfc_proveedor_certificacion: timbre.rfc_proveedor_certificacion,
+        no_certificado_sat: timbre.no_certificado_sat,
+        sello_cfdi: timbre.sello_cfdi,
+        sello_sat: timbre.sello_sat,
+        cadena_original: timbre.cadena_original,
+        rfc_emisor: timbre.rfc_emisor,
+        rfc_receptor: timbre.rfc_receptor,
+        total: timbre.total,
+      };
+      (result.documento as any).estatus_documento = 'Timbrado';
+    }
+  } catch (err) {
+    console.error('Error al consultar timbre CFDI para PDF', err);
+  }
+
+  const pdfBuffer = await generarDocumentoPDF(result, empresaId);
+  const filename = construirNombrePdf(result.documento, documentoId);
+
+  return {
+    buffer: pdfBuffer,
+    filename,
+    documento: result.documento,
+  };
+}
+
+async function obtenerFacturaXmlData(documentoId: number, empresaId: number) {
+  const { rows } = await pool.query(
+    `SELECT dc.xml_timbrado, d.serie, d.numero
+       FROM documentos_cfdi dc
+       JOIN documentos d ON d.id = dc.documento_id
+      WHERE dc.documento_id = $1
+        AND d.empresa_id = $2
+      LIMIT 1`,
+    [documentoId, empresaId]
+  );
+
+  const row = rows[0];
+  if (!row || !row.xml_timbrado) {
+    throw buildHttpError(404, 'XML timbrado no encontrado');
+  }
+
+  return {
+    xml: String(row.xml_timbrado),
+    filename: construirNombreXml({ serie: row.serie, numero: row.numero }, documentoId),
+  };
+}
+
+async function generarFacturaPublicLinks(req: Request, documentoId: number, empresaId: number) {
+  const result = await obtenerDocumentoRepository(documentoId, empresaId, 'factura');
+  if (!result) {
+    throw buildHttpError(404, 'Factura no encontrada');
+  }
+
+  const { filename: xmlFilename } = await obtenerFacturaXmlData(documentoId, empresaId);
+  const pdfFilename = construirNombrePdf(result.documento, documentoId);
+  const baseUrl = resolverBaseUrlPublica(req);
+  const exp = Math.floor(Date.now() / 1000) + WHATSAPP_PUBLIC_LINK_EXPIRES_IN_SECONDS;
+
+  const pdfToken = firmarTokenPublicoFactura(
+    { documentoId, empresaId, recurso: 'pdf', tipo_documento: 'factura' },
+    exp
+  );
+  const xmlToken = firmarTokenPublicoFactura(
+    { documentoId, empresaId, recurso: 'xml', tipo_documento: 'factura' },
+    exp
+  );
+
+  const links = {
+    pdfUrl: `${baseUrl}/public/facturas/${documentoId}/pdf?token=${encodeURIComponent(pdfToken)}`,
+    xmlUrl: `${baseUrl}/public/facturas/${documentoId}/xml?token=${encodeURIComponent(xmlToken)}`,
+    pdfFilename,
+    xmlFilename,
+    expiresAt: new Date(exp * 1000).toISOString(),
+  };
+
+  console.info('[CFDI WhatsApp] URLs temporales generadas', {
+    documentoId,
+    empresaId,
+    expiresAt: links.expiresAt,
+    pdfUrl: links.pdfUrl,
+    xmlUrl: links.xmlUrl,
+  });
+
+  return links;
+}
 
 const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => async (req: Request, res: Response) => {
   try {
@@ -240,6 +473,34 @@ export const duplicarCotizacion = async (req: Request, res: Response) => {
   }
 };
 
+export const duplicarDocumentosMasivo = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId;
+    const tipo = resolverTipoDocumentoRequest(req, 'cotizacion');
+    const ids = Array.isArray(req.body?.ids)
+      ? req.body.ids.map((value: unknown) => Number(value)).filter((value: number) => Number.isInteger(value) && value > 0)
+      : [];
+
+    if (!empresaId || ids.length === 0) {
+      return res.status(400).json({ error: 'IDs o empresaId inválidos' });
+    }
+
+    const duplicated = await duplicarDocumentosMasivoService(ids, Number(empresaId), tipo);
+    return res.status(201).json(duplicated);
+  } catch (error) {
+    const message = (error as Error)?.message ?? '';
+    if (message.startsWith('VALIDATION_ERROR')) {
+      return res.status(400).json({ error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
+    }
+    if (message.startsWith('DOCUMENT_NOT_FOUND:')) {
+      return res.status(404).json({ error: 'Una de las cotizaciones no fue encontrada' });
+    }
+
+    console.error('Error al duplicar documentos', error);
+    return res.status(500).json({ error: 'Error al duplicar los documentos' });
+  }
+};
+
 export const listarFacturas = buildListarHandler('factura', true);
 export const obtenerFactura = buildObtenerHandler('factura', true);
 export const crearFactura = buildCrearHandler('factura', true);
@@ -283,47 +544,16 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
     const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
-    const result = await obtenerDocumentoRepository(id, Number(empresaId), tipo);
-    if (!result) return res.status(404).json({ message: 'Documento no encontrado' });
-
-    // Adjuntar timbre CFDI si existe
-    try {
-      const { rows } = await pool.query(
-        `SELECT uuid, fecha_timbrado, rfc_proveedor_certificacion, no_certificado_sat, sello_cfdi, sello_sat, cadena_original, rfc_emisor, rfc_receptor, total
-           FROM documentos_cfdi
-          WHERE documento_id = $1
-          LIMIT 1`,
-        [id]
-      );
-
-      const timbre = rows[0];
-      if (timbre) {
-        result.documento = result.documento || ({} as any);
-        (result.documento as any).timbre = {
-          uuid: timbre.uuid,
-          fecha_timbrado: timbre.fecha_timbrado?.toISOString?.() ?? timbre.fecha_timbrado,
-          rfc_proveedor_certificacion: timbre.rfc_proveedor_certificacion,
-          no_certificado_sat: timbre.no_certificado_sat,
-          sello_cfdi: timbre.sello_cfdi,
-          sello_sat: timbre.sello_sat,
-          cadena_original: timbre.cadena_original,
-          rfc_emisor: timbre.rfc_emisor,
-          rfc_receptor: timbre.rfc_receptor,
-          total: timbre.total,
-        };
-        // Marcar estatus como Timbrado para el PDF
-        (result.documento as any).estatus_documento = 'Timbrado';
-      }
-    } catch (err) {
-      console.error('Error al consultar timbre CFDI para PDF', err);
-    }
-
-  const pdfBuffer = await generarDocumentoPDF(result, empresaId);
+    const { buffer, filename } = await obtenerDocumentoPdfData(id, Number(empresaId), tipo);
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename=documento-${id}.pdf`);
-    res.send(pdfBuffer);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(buffer);
   } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ message: (error as Error).message });
+    }
     console.error('Error al obtener PDF del documento', {
       message: (error as Error)?.message,
       stack: (error as Error)?.stack,
@@ -346,20 +576,32 @@ const limpiarArchivoImagenPartida = (partida: any, permitir: boolean) => {
 export async function enviarFacturaPorCorreo(req: Request, res: Response) {
   try {
     const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    const emailDestino = String(req.body?.email ?? '').trim() || undefined;
 
-    if (Number.isNaN(documentoId)) {
-      return res.status(400).json({ error: 'ID inválido' });
+    if (Number.isNaN(documentoId) || !empresaId) {
+      return res.status(400).json({ error: 'ID o empresaId inválido' });
     }
+
+    await assertFacturaTimbrada(documentoId, Number(empresaId));
 
   // Import dinámico para no acoplar el controlador a la implementación
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   const { FacturaEmailService } = await import('../../services/factura-email.service');
 
-  await FacturaEmailService.enviarFactura(documentoId);
+  await FacturaEmailService.enviarFactura({
+    documentoId,
+    usuarioId: req.auth?.userId ?? null,
+    emailDestino,
+  });
 
     return res.json({ success: true, message: 'Factura enviada correctamente' });
   } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ error: (error as Error).message });
+    }
     const message = (error as Error)?.message ?? 'Error al enviar la factura';
     return res.status(400).json({ error: message });
   }
@@ -410,27 +652,215 @@ export async function obtenerFacturaXML(req: Request, res: Response) {
       return res.status(400).json({ message: 'ID o empresaId inválido' });
     }
 
-    const { rows } = await pool.query(
-      `SELECT dc.xml_timbrado
-         FROM documentos_cfdi dc
-         JOIN documentos d ON d.id = dc.documento_id
-        WHERE dc.documento_id = $1
-          AND d.empresa_id = $2
-        LIMIT 1`,
-      [documentoId, Number(empresaId)]
-    );
-
-    const row = rows[0];
-    if (!row || !row.xml_timbrado) {
-      return res.status(404).json({ message: 'XML timbrado no encontrado' });
-    }
+    const { xml, filename } = await obtenerFacturaXmlData(documentoId, Number(empresaId));
 
     res.setHeader('Content-Type', 'application/xml');
-    res.setHeader('Content-Disposition', `attachment; filename=factura-${documentoId}.xml`);
-    res.send(row.xml_timbrado);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(xml);
   } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ message: (error as Error).message });
+    }
     console.error('Error al obtener XML timbrado', error);
     res.status(500).json({ message: 'Error al obtener XML timbrado' });
+  }
+}
+
+export async function obtenerFacturaPublicLinks(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+
+    if (Number.isNaN(documentoId) || !empresaId) {
+      return res.status(400).json({ message: 'ID o empresaId inválido' });
+    }
+
+    const links = await generarFacturaPublicLinks(req, documentoId, Number(empresaId));
+    return res.status(200).json({
+      documentoId,
+      pdfUrl: links.pdfUrl,
+      xmlUrl: links.xmlUrl,
+      expiresAt: links.expiresAt,
+    });
+  } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ message: (error as Error).message });
+    }
+    console.error('[CFDI WhatsApp] Error generando URLs públicas', error);
+    return res.status(500).json({ message: 'No se pudieron generar las URLs temporales' });
+  }
+}
+
+export async function obtenerFacturaPDFPublico(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const token = String(req.query.token ?? '').trim();
+
+    if (Number.isNaN(documentoId) || !token) {
+      return res.status(400).json({ message: 'Solicitud inválida' });
+    }
+
+    const tokenPayload = validarTokenPublicoFactura(token, documentoId, 'pdf');
+    console.info('[CFDI WhatsApp] Token público validado', {
+      documentoId,
+      empresaId: tokenPayload.empresaId,
+      recurso: 'pdf',
+      exp: tokenPayload.exp,
+    });
+
+    const { buffer, filename } = await obtenerDocumentoPdfData(documentoId, tokenPayload.empresaId, 'factura');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    return res.send(buffer);
+  } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ message: (error as Error).message });
+    }
+    if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ message: 'Token inválido o expirado' });
+    }
+    console.error('[CFDI WhatsApp] Error sirviendo PDF público', error);
+    return res.status(500).json({ message: 'No se pudo servir el PDF público' });
+  }
+}
+
+export async function obtenerFacturaXMLPublico(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const token = String(req.query.token ?? '').trim();
+
+    if (Number.isNaN(documentoId) || !token) {
+      return res.status(400).json({ message: 'Solicitud inválida' });
+    }
+
+    const tokenPayload = validarTokenPublicoFactura(token, documentoId, 'xml');
+    console.info('[CFDI WhatsApp] Token público validado', {
+      documentoId,
+      empresaId: tokenPayload.empresaId,
+      recurso: 'xml',
+      exp: tokenPayload.exp,
+    });
+
+    const { xml, filename } = await obtenerFacturaXmlData(documentoId, tokenPayload.empresaId);
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    return res.send(xml);
+  } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ message: (error as Error).message });
+    }
+    if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ message: 'Token inválido o expirado' });
+    }
+    console.error('[CFDI WhatsApp] Error sirviendo XML público', error);
+    return res.status(500).json({ message: 'No se pudo servir el XML público' });
+  }
+}
+
+export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    const telefono = String(req.body?.telefono ?? '').trim();
+    const tipoPlantilla = String(req.body?.tipoPlantilla ?? req.body?.tipo ?? '').trim();
+
+    if (Number.isNaN(documentoId) || !empresaId) {
+      return res.status(400).json({ message: 'ID o empresaId inválido' });
+    }
+
+    if (!telefono) {
+      return res.status(400).json({ message: 'telefono es requerido' });
+    }
+
+    if (!tipoPlantilla) {
+      return res.status(400).json({ message: 'tipoPlantilla es requerido' });
+    }
+
+    await assertFacturaTimbrada(documentoId, Number(empresaId));
+
+    console.info('[CFDI WhatsApp] Inicio de envio automatico', {
+      documentoId,
+      empresaId,
+      telefono,
+      tipoPlantilla,
+    });
+
+    const templateResponse = await sendTemplateMessage(Number(empresaId), telefono, tipoPlantilla);
+    console.info('[CFDI WhatsApp] Respuesta envio template', {
+      documentoId,
+      empresaId,
+      telefono,
+      templateResponse,
+    });
+
+    if (templateResponse?.error) {
+      return res.status(409).json({ message: templateResponse.message || 'No hay plantilla disponible' });
+    }
+
+    const links = await generarFacturaPublicLinks(req, documentoId, Number(empresaId));
+
+    console.info('[CFDI WhatsApp] Enviando PDF por media message', {
+      documentoId,
+      empresaId,
+      telefono,
+      pdfUrl: links.pdfUrl,
+      filename: links.pdfFilename,
+    });
+    const pdfResponse = await sendDocumentMessage(
+      Number(empresaId),
+      telefono,
+      links.pdfUrl,
+      links.pdfFilename,
+      { skipWindowValidation: true }
+    );
+    console.info('[CFDI WhatsApp] Respuesta Gupshup PDF', {
+      documentoId,
+      empresaId,
+      telefono,
+      response: pdfResponse,
+    });
+
+    console.info('[CFDI WhatsApp] Enviando XML por media message', {
+      documentoId,
+      empresaId,
+      telefono,
+      xmlUrl: links.xmlUrl,
+      filename: links.xmlFilename,
+    });
+    const xmlResponse = await sendDocumentMessage(
+      Number(empresaId),
+      telefono,
+      links.xmlUrl,
+      links.xmlFilename,
+      { skipWindowValidation: true }
+    );
+    console.info('[CFDI WhatsApp] Respuesta Gupshup XML', {
+      documentoId,
+      empresaId,
+      telefono,
+      response: xmlResponse,
+    });
+
+    return res.status(200).json({
+      success: true,
+      template: templateResponse,
+      pdf: pdfResponse,
+      xml: xmlResponse,
+      expiresAt: links.expiresAt,
+      pdfUrl: links.pdfUrl,
+      xmlUrl: links.xmlUrl,
+    });
+  } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ error: (error as Error).message });
+    }
+    console.error('[CFDI WhatsApp] Error en envio automatico de CFDI', error);
+    return res.status(500).json({ message: 'No se pudo enviar el CFDI por WhatsApp' });
   }
 }
 

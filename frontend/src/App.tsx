@@ -25,6 +25,7 @@ import ConceptosConfigPage from './pages/configuracion/ConceptosPage';
 import EmpresaImpuestosDefaultPage from './pages/configuracion/EmpresaImpuestosDefaultPage';
 import FormatosImpresionPage from './pages/configuracion/FormatosImpresionPage';
 import ConfiguracionCorreoPage from './pages/configuracion/ConfiguracionCorreoPage';
+import CfdiPacConfigPage from './pages/configuracion/CfdiPacConfigPage';
 import WhatsappEtiquetasPage from './pages/configuracion/WhatsappEtiquetasPage';
 import FinanzasPage from './pages/FinanzasPage';
 import { Outlet } from 'react-router-dom';
@@ -88,6 +89,7 @@ export default function App() {
               <Route path="/configuracion/empresa/impuestos-default" element={<EmpresaImpuestosDefaultPage />} />
               <Route path="/configuracion/formatos-impresion" element={<FormatosImpresionPage />} />
               <Route path="/configuracion/correo" element={<ConfiguracionCorreoPage />} />
+              <Route path="/configuracion/cfdi-pac" element={<CfdiPacConfigPage />} />
               <Route path="/configuracion/whatsapp-etiquetas" element={<WhatsappEtiquetasPage />} />
               <Route path="/configuracion/produccion-etapas" element={<ConfiguracionEtapasProduccionPage />} />
               <Route path="/configuracion/listas-precios" element={<ListasPreciosPage />} />

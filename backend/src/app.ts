@@ -25,6 +25,7 @@ import productosRouter from "./modules/productos/productos.routes";
 import unidadesRouter from "./modules/unidades/unidades.routes";
 import documentosRouter from "./modules/documentos/documentos.routes";
 import facturasRouter from "./modules/documentos/facturas.routes";
+import facturasPublicRouter from "./modules/documentos/facturas-public.routes";
 import documentosGeneracionRouter from "./modules/documentos/document-generation.routes";
 import tiposDocumentoRouter from "./modules/documentos/tipos-documento.routes";
 import whatsappRoutes from "./whatsapp/whatsapp.routes";
@@ -45,6 +46,7 @@ import rolesRouter from "./modules/roles/roles.routes";
 import usuariosRouter from "./modules/usuarios/usuarios.routes";
 import documentosEmpresaRouter from "./modules/configuracion/documentos-empresa/documentos-empresa.routes";
 import formatosImpresionRouter from "./modules/configuracion/formatos-impresion/formatos-impresion.routes";
+import cfdiPacConfigRouter from "./modules/configuracion/cfdi-pac-config/cfdi-pac-config.routes";
 import configuracionEmailRouter from "./modules/configuracion/email/email.routes";
 import finanzasRouter from "./modules/finanzas/finanzas.routes";
 import conceptosRouter from "./modules/conceptos/conceptos.routes";
@@ -124,6 +126,7 @@ app.use("/api/documentos", documentosGeneracionRouter);
 app.use("/api/documentos", documentosRouter);
 // módulo de facturas reutilizando la misma lógica de documentos
 app.use("/api/facturas", facturasRouter);
+app.use("/public/facturas", facturasPublicRouter);
 // esquema de campos dinámicos (documentos)
 app.use("/api/documentos", documentosEsquemaRouter);
 
@@ -139,6 +142,7 @@ app.use("/api", rolesRouter);
 app.use("/api/usuarios", usuariosRouter);
 app.use("/api", documentosEmpresaRouter);
 app.use("/api", formatosImpresionRouter);
+app.use("/api", cfdiPacConfigRouter);
 app.use("/api", configuracionEmailRouter);
 app.use("/api/finanzas", finanzasRouter);
 app.use("/api/conceptos", conceptosRouter);
