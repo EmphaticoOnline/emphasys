@@ -12,6 +12,7 @@ RSYNC_SSH=("ssh" "${SSH_OPTS[@]}")
 SKIP_FRONTEND="${SKIP_FRONTEND:-false}"
 SKIP_LOCAL_INSTALL="${SKIP_LOCAL_INSTALL:-false}"
 SKIP_REMOTE_INSTALL="${SKIP_REMOTE_INSTALL:-false}"
+BUILD_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 
 log() { echo "==> $*"; }
 
@@ -31,6 +32,7 @@ if [[ "$SKIP_FRONTEND" != "true" ]]; then
   log "Building frontend..."
   (
     cd "$FRONTEND_DIR"
+    rm -rf dist
     if [[ "$SKIP_LOCAL_INSTALL" != "true" ]]; then
       npm install
     else
@@ -45,6 +47,7 @@ fi
 log "Building backend..."
 (
   cd "$BACKEND_DIR"
+  rm -rf dist
   if [[ "$SKIP_LOCAL_INSTALL" != "true" ]]; then
     npm install
   else
@@ -53,11 +56,21 @@ log "Building backend..."
   npm run build
 )
 
+log "Escribiendo marca de build..."
+printf '%s\n' "$BUILD_ID" > "$BACKEND_DIR/dist/.build-id"
+
 log "Preparando servidor remoto..."
 ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p $REMOTE_PATH $REMOTE_PATH/dist $REMOTE_PATH/frontend-dist"
 
 log "Sincronizando backend dist (rsync incremental)..."
 rsync -az --delete -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/dist/" "$SERVER:$REMOTE_PATH/dist/"
+
+log "Verificando build desplegado en remoto..."
+remote_build_id=$(ssh "${SSH_OPTS[@]}" "$SERVER" "cat $REMOTE_PATH/dist/.build-id 2>/dev/null" || true)
+if [[ "$remote_build_id" != "$BUILD_ID" ]]; then
+  echo "Build remoto no coincide con el build local esperado. local=$BUILD_ID remote=$remote_build_id"
+  exit 1
+fi
 
 log "Sincronizando frontend dist (rsync incremental)..."
 rsync -az --delete -e "${RSYNC_SSH[*]}" "$FRONTEND_DIR/dist/" "$SERVER:$REMOTE_PATH/frontend-dist/"

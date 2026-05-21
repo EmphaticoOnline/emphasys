@@ -579,6 +579,66 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
   return await new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40, size: 'LETTER' });
+    let tracedPageNumber = 1;
+    let manualAddPageInProgress = false;
+
+    const getTraceStack = () => {
+      const raw = String(new Error().stack || '')
+        .split('\n')
+        .slice(2)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.includes('getTraceStack') && !line.includes('wrappedAddPage') && !line.includes('wrappedText'));
+
+      return raw.slice(0, 6);
+    };
+
+    const getCurrentFunction = () => {
+      const stackLine = getTraceStack()[0] || '';
+      const match = stackLine.match(/^at\s+(.+?)\s+\(/);
+      return match?.[1] || stackLine || 'unknown';
+    };
+
+    const originalAddPage = doc.addPage.bind(doc);
+    const originalText = doc.text.bind(doc);
+
+    const wrappedAddPage: typeof doc.addPage = ((...args: any[]) => {
+      manualAddPageInProgress = true;
+      console.log('[PDF TRACE] addPage() llamado', {
+        currentFunction: getCurrentFunction(),
+        page: tracedPageNumber,
+        y: doc.y,
+        stack: getTraceStack(),
+      });
+      try {
+        return originalAddPage(...args);
+      } finally {
+        manualAddPageInProgress = false;
+      }
+    }) as typeof doc.addPage;
+
+    const wrappedText: typeof doc.text = ((text: any, ...args: any[]) => {
+      const normalizedText = typeof text === 'string' ? text : '';
+      const shouldTrace = [
+        'Cadena original del complemento',
+        'Sello digital del CFDI',
+        'Sello del SAT',
+      ].some((needle) => normalizedText.includes(needle));
+
+      if (shouldTrace) {
+        console.log('[PDF TRACE] text() clave', {
+          currentFunction: getCurrentFunction(),
+          page: tracedPageNumber,
+          y: doc.y,
+          text: normalizedText,
+          stack: getTraceStack(),
+        });
+      }
+
+      return originalText(text, ...args);
+    }) as typeof doc.text;
+
+    doc.addPage = wrappedAddPage;
+    doc.text = wrappedText;
 
     let hasTrebuchet = false;
     let hasTrebuchetBold = false;
@@ -587,8 +647,18 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
     const chunks: Buffer[] = [];
 
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-  doc.on('error', reject);
+    doc.on('error', reject);
     doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('pageAdded', () => {
+      tracedPageNumber += 1;
+      console.log('[PDF TRACE] pageAdded', {
+        mode: manualAddPageInProgress ? 'manual-or-wrapped' : 'automatic-or-indirect',
+        currentFunction: getCurrentFunction(),
+        page: tracedPageNumber,
+        y: doc.y,
+        stack: getTraceStack(),
+      });
+    });
 
     const registerFontIfExists = (fontName: string, filePath: string) => {
       const exists = fs.existsSync(filePath);
@@ -763,9 +833,6 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           .stroke();
         doc.y = lineY + lineGapBottom;
       } else {
-        // Línea divisoria (ligeramente por encima de Emisor)
-        const lineY = doc.y + 2; // bajar ~12 pts respecto al ajuste anterior
-        doc.moveTo(doc.page.margins.left, lineY).lineTo(doc.page.width - doc.page.margins.right, lineY).strokeColor('#cccccc').stroke();
         doc.moveDown(0.6);
       }
     };
@@ -1121,7 +1188,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       const qrWidth = 110;
       const textoWidthBase = qrBuffer ? contentWidth - qrWidth - 24 : contentWidth;
       const pageBottom = doc.page.height - doc.page.margins.bottom;
-      const footerBottomMargin = 22; // margen inferior ~20-25 px para garantizar que no se corte
+      const footerBottomMargin = doc.page.margins.bottom;
 
       const calcularAlturaPie = () => {
         if (!estaTimbrado) return 50; // margen de seguridad mínimo cuando no hay timbre
@@ -1134,37 +1201,46 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
         let hIzq = 0;
         const gapCols = 12;
-        const totalsLabelWidth = 70;
+        const totalsLabelWidth = 84;
         const totalsValueWidth = 90;
         const totalsWidth = totalsLabelWidth + totalsValueWidth;
         const textoWidth = contentWidth - totalsWidth - gapCols;
+        const rowHeightCompact = 12;
+        const totalsPaddingY = 8;
+        const qrGap = 10;
+        const qrWidthAdjusted = qrBuffer ? Math.min(qrWidth, 85) : 0;
 
         textoLargo.forEach(([label, value, size]) => {
           setFont(true, 8, textColor);
           hIzq += doc.heightOfString(`${label}:`, { width: textoWidth });
           setFont(false, size, mutedText);
-          hIzq += doc.heightOfString(value, { width: textoWidth, lineGap: size <= 6 ? 0.2 : 0 });
-          hIzq += 4; // espaciado equivalente a moveDown corto
+          hIzq += doc.heightOfString(value, { width: textoWidth, lineGap: 0 });
+          hIzq += 2; // espaciado corto para bloque CFDI largo
         });
 
-        // Altura del bloque de totales (columna derecha, sin recuadro)
-        const rowHeightCompact = 12; // espaciado compacto
         const totalsHeight = totalRows.length * rowHeightCompact;
 
-        // QR debajo de totales (ligeramente más pequeño y con gap)
-        const qrGap = 10;
-        const qrHeight = qrBuffer ? Math.min(qrWidth, 85) : 0;
+        const alturaDerecha = totalsHeight + (totalsPaddingY * 2) + (qrBuffer ? qrGap + qrWidthAdjusted : 0);
 
-        // Leyenda final
-        setFont(true, 10, textColor);
-        const alturaLeyenda = doc.heightOfString('** Este documento es una representación impresa de un CFDI. **', {
-          width: contentWidth,
-        });
-
-        const padding = 10; // padding superior/inferior
+        const padding = 0; // no hay padding inferior renderizado en el bloque final
         const topOffset = 8; // desplazamiento usado al comenzar el footer (doc.y = footerY + 8)
 
-        const alturaTotalBloque = Math.max(hIzq, totalsHeight + qrGap + qrHeight) + alturaLeyenda + 12;
+        const alturaTotalBloque = Math.max(hIzq, alturaDerecha);
+
+        console.log('[PDF DEBUG]', {
+          bloque: 'renderTotales:componentesFooter',
+          y: doc.y,
+          pageHeight: doc.page.height,
+          bottomMargin: footerBottomMargin,
+          hIzq,
+          alturaDerecha,
+          qrHeight: qrWidthAdjusted,
+          totalsHeight,
+          padding,
+          topOffset,
+          alturaTotalBloque,
+          estaTimbrado,
+        });
 
         return alturaTotalBloque + padding + topOffset;
       };
@@ -1257,11 +1333,13 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       }
 
       // Pie fijo timbrado CFDI anclado al borde inferior
-      const necesitaNuevaPagina = doc.y > footerTop - 8;
+      const necesitaNuevaPagina = doc.y > footerTop;
       console.log('[PDF DEBUG]', {
         bloque: 'footer:antesEvaluar',
         y: doc.y,
         pageHeight: doc.page.height,
+        bottomMargin: footerBottomMargin,
+        footerHeight,
         footerTop,
         necesitaNuevaPagina,
         estaTimbrado,
@@ -1288,12 +1366,6 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       }
 
       const footerY = doc.page.height - footerBottomMargin - footerHeight;
-      doc
-        .moveTo(doc.page.margins.left, footerY)
-        .lineTo(doc.page.width - doc.page.margins.right, footerY)
-        .strokeColor('#cccccc')
-        .stroke();
-
       doc.y = footerY + 8;
 
       console.log('[PDF DEBUG]', {
@@ -1331,13 +1403,20 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           setFont(false, size, mutedText);
           doc.text(value, {
             width: textoWidth,
-            lineGap: size <= 6 ? 0.2 : 0,
+            lineGap: 0,
           });
           if (label === 'Sello digital del CFDI') {
             selloCfdiEndY = doc.y;
           }
-          doc.moveDown(0.35);
+          doc.moveDown(0.15);
         });
+
+        setFont(false, 8, mutedText);
+        doc.text('**Este documento es una representación impresa de un CFDI**', colLeftX, doc.y, {
+          width: textoWidth,
+          align: 'left',
+        });
+        doc.moveDown(0.15);
 
         // Columna derecha: Subtotal bruto / descuentos / neto / IVA / total compactos
         let totY = startYTimbrado;
@@ -1381,14 +1460,6 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           totY = qrY + qrWidthAdjusted;
         }
 
-        // Leyenda final centrada en todo el ancho disponible del pie
-        const leyendaY = Math.max(doc.y, totY + 4, selloCfdiEndY + 2); // reduce gap para que no salte de página
-        doc.y = leyendaY;
-        setFont(true, 10, textColor);
-        doc.text('** Este documento es una representación impresa de un CFDI. **', colLeftX, doc.y, {
-          width: contentWidth,
-          align: 'center',
-        });
       }
     };
 

@@ -16,7 +16,6 @@ type CatalogoValor = {
 
 const columnasPermitidasContacto = new Set([
   'nombre',
-  'rfc',
   'email',
   'telefono',
   'telefono_secundario',
@@ -147,7 +146,7 @@ async function upsertDatosFiscales(
   contactoId: number,
   datos: DatosFiscalesData | undefined
 ) {
-  const keys = ['rfc', 'regimen_fiscal', 'uso_cfdi', 'forma_pago', 'metodo_pago', 'codigo_postal'];
+  const keys = ['rfc', 'regimen_fiscal', 'uso_cfdi', 'forma_pago', 'metodo_pago'];
   if (!hasAnyValue(datos as any, keys)) return null;
 
   const values = keys.map((k) => (datos as any)?.[k] ?? null);
@@ -158,9 +157,8 @@ async function upsertDatosFiscales(
            regimen_fiscal = $2,
            uso_cfdi = $3,
            forma_pago = $4,
-           metodo_pago = $5,
-           codigo_postal = $6
-     WHERE contacto_id = $7
+           metodo_pago = $5
+         WHERE contacto_id = $6
      RETURNING *`,
     [...values, contactoId]
   );
@@ -174,10 +172,9 @@ async function upsertDatosFiscales(
         regimen_fiscal,
         uso_cfdi,
         forma_pago,
-        metodo_pago,
-        codigo_postal
+        metodo_pago
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      VALUES ($1,$2,$3,$4,$5,$6)
       RETURNING *`,
     [contactoId, ...values]
   );
@@ -197,6 +194,7 @@ export async function obtenerContactos(empresaId: number, tipos?: string[]) {
 
   const result = await pool.query(
     `SELECT contactos.*,
+            cdf.rfc AS rfc_fiscal,
             clasificacion.clave AS clasificacion,
             clasificacion.descripcion AS clasificacion_descripcion,
             origen.clave AS origen_contacto,
@@ -204,6 +202,8 @@ export async function obtenerContactos(empresaId: number, tipos?: string[]) {
             lista_directa.nombre AS precio_lista_nombre,
             vendedor.nombre AS vendedor_nombre
      FROM contactos
+     LEFT JOIN contactos_datos_fiscales cdf
+       ON cdf.contacto_id = contactos.id
      LEFT JOIN contactos vendedor
        ON vendedor.id = contactos.vendedor_id
       AND vendedor.empresa_id = contactos.empresa_id
@@ -245,7 +245,10 @@ export async function obtenerContactos(empresaId: number, tipos?: string[]) {
     params
   );
 
-  return result.rows;
+  return result.rows.map(({ rfc_fiscal, ...row }) => ({
+    ...row,
+    rfc: rfc_fiscal ?? row.rfc ?? null,
+  }));
 }
 
 export async function obtenerContactosPaginados(
@@ -273,6 +276,7 @@ export async function obtenerContactosPaginados(
         contactos.nombre ILIKE $${idx}
         OR contactos.email ILIKE $${idx}
         OR contactos.rfc ILIKE $${idx}
+        OR cdf.rfc ILIKE $${idx}
         OR contactos.telefono ILIKE $${idx}
         OR contactos.telefono_secundario ILIKE $${idx}
         OR contactos.tipo_contacto::text ILIKE $${idx}
@@ -293,6 +297,7 @@ export async function obtenerContactosPaginados(
      FROM (
        SELECT DISTINCT ON (contactos.id)
               contactos.*,
+              cdf.rfc AS rfc_fiscal,
     clasificacion.clave AS clasificacion,
     clasificacion.descripcion AS clasificacion_descripcion,
     origen.clave AS origen_contacto,
@@ -306,6 +311,8 @@ export async function obtenerContactosPaginados(
        LEFT JOIN precios_listas lista_directa
          ON lista_directa.id = contactos.precio_lista_id
         AND lista_directa.empresa_id = contactos.empresa_id
+       LEFT JOIN contactos_datos_fiscales cdf
+         ON cdf.contacto_id = contactos.id
        LEFT JOIN core.entidades_catalogos ec
          ON ec.empresa_id = contactos.empresa_id
         AND ec.entidad_id = contactos.id
@@ -353,7 +360,10 @@ export async function obtenerContactosPaginados(
   );
 
   const total = result.rows.length ? Number(result.rows[0].total_count) : 0;
-  const data = result.rows.map(({ total_count, ...rest }) => rest);
+  const data = result.rows.map(({ total_count, rfc_fiscal, ...rest }) => ({
+    ...rest,
+    rfc: rfc_fiscal ?? rest.rfc ?? null,
+  }));
 
   return { data, total };
 }
@@ -426,7 +436,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
     cd.cp_sat,
   cd.colonia_sat,
 
-  cd.cp AS contacto_codigo_postal,
+  COALESCE(cd.cp_sat, cd.cp) AS contacto_codigo_postal,
 
   cdf.rfc AS rfc_fiscal,
   cdf.regimen_fiscal,
@@ -458,7 +468,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
     contacto: {
       id: row.id,
       nombre: row.nombre,
-      rfc: row.rfc_contacto,
+      rfc: row.rfc_fiscal ?? row.rfc_contacto,
       email: row.email,
       telefono: row.telefono,
       telefono_secundario: row.telefono_secundario,
@@ -481,7 +491,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
       colonia_sat: row.colonia_sat,
     },
     datos_fiscales: {
-      rfc: row.rfc_fiscal,
+      rfc: row.rfc_fiscal ?? row.rfc_contacto,
       regimen_fiscal: row.regimen_fiscal,
       uso_cfdi: row.uso_cfdi,
       forma_pago: row.forma_pago,

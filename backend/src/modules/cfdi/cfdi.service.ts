@@ -83,9 +83,11 @@ export class CfdiService {
               dp.subtotal_partida,
               COALESCE(dp.descripcion_alterna, p.descripcion) AS descripcion,
               p.clave_producto_sat,
-              p.clave_unidad_sat
+              COALESCE(p.clave_unidad_sat, su.clave) AS clave_unidad_sat
          FROM documentos_partidas dp
          LEFT JOIN productos p ON p.id = dp.producto_id
+         LEFT JOIN unidades u ON u.id = p.unidad_venta_id
+         LEFT JOIN sat.unidades su ON su.id = u.unidad_sat_id
         WHERE dp.documento_id = $1
         ORDER BY dp.numero_partida ASC`,
       [documentoId]
@@ -104,11 +106,12 @@ export class CfdiService {
       const { rows: impuestosRows } = await pool.query(
         `SELECT partida_id,
                 impuesto_id    AS impuesto,
-                tipo,
-                tasa,
+                i.tipo,
+                dpi.tasa,
                 base,
                 monto
-           FROM documentos_partidas_impuestos
+           FROM documentos_partidas_impuestos dpi
+           LEFT JOIN impuestos i ON i.id = dpi.impuesto_id
           WHERE partida_id = ANY($1::int[])
           ORDER BY partida_id ASC, impuesto_id ASC`,
         [partidasIds]

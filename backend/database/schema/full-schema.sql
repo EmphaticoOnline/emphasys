@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-18T17:41:20.563Z
+-- Generated at: 2026-05-20T18:47:59.703Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict G7W6VIdslSiH8PTtzsY2V6cmkCQJPpStigTQ7pPJL5wydWEeLuukT9Wmdg2ylMC
+\restrict tuzUmLFF8HiQjhsMLz1CfXoQjmxENauGEGnpoHIRHJLhZL8vw62AsnIH7XIvgSz
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -1472,7 +1472,8 @@ CREATE TABLE core.empresas_tipos_documento (
     activo boolean DEFAULT true NOT NULL,
     orden integer DEFAULT 0,
     usuario_creacion_id integer,
-    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    whatsapp_plantilla_default_id bigint
 );
 
 
@@ -1523,6 +1524,13 @@ COMMENT ON COLUMN core.empresas_tipos_documento.usuario_creacion_id IS 'Usuario 
 --
 
 COMMENT ON COLUMN core.empresas_tipos_documento.fecha_creacion IS 'Fecha de creación del registro.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.whatsapp_plantilla_default_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.whatsapp_plantilla_default_id IS 'Plantilla de WhatsApp predeterminada para este tipo de documento y empresa.';
 
 
 --
@@ -8379,6 +8387,13 @@ COMMENT ON INDEX core.idx_empresas_tipos_documento_tipo IS 'Índice para consult
 
 
 --
+-- Name: idx_empresas_tipos_documento_whatsapp_plantilla; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_empresas_tipos_documento_whatsapp_plantilla ON core.empresas_tipos_documento USING btree (whatsapp_plantilla_default_id);
+
+
+--
 -- Name: idx_entidades_catalogos_entidad; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -9840,6 +9855,14 @@ ALTER TABLE ONLY core.empresas_tipos_documento
 
 
 --
+-- Name: empresas_tipos_documento fk_empresas_tipos_documento_whatsapp_plantilla; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_tipos_documento
+    ADD CONSTRAINT fk_empresas_tipos_documento_whatsapp_plantilla FOREIGN KEY (whatsapp_plantilla_default_id) REFERENCES whatsapp.plantillas(id);
+
+
+--
 -- Name: empresas_tipos_documento_transiciones fk_etdt_destino; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -10707,5 +10730,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict G7W6VIdslSiH8PTtzsY2V6cmkCQJPpStigTQ7pPJL5wydWEeLuukT9Wmdg2ylMC
+\unrestrict tuzUmLFF8HiQjhsMLz1CfXoQjmxENauGEGnpoHIRHJLhZL8vw62AsnIH7XIvgSz
 

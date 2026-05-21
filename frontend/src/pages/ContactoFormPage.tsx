@@ -35,7 +35,6 @@ type FormState = {
   origen_contacto: string;
   precio_lista_id: string;
   vendedor_id: string;
-  rfc: string;
   email: string;
   telefono: string;
   telefono_secundario: string;
@@ -64,7 +63,6 @@ const initialState: FormState = {
   origen_contacto: '',
   precio_lista_id: '',
   vendedor_id: '',
-  rfc: '',
   email: '',
   telefono: '',
   telefono_secundario: '',
@@ -99,6 +97,24 @@ type CatalogoComercialTipo = {
   nombre: string | null;
   descripcion: string | null;
   valores: CatalogoComercialValor[];
+};
+
+const normalizeContactoMexicoMobilePhone = (telefono: string): string => {
+  const digits = telefono.replace(/\D/g, '');
+
+  if (digits.startsWith('521') && digits.length === 13) {
+    return digits;
+  }
+
+  if (digits.startsWith('52') && digits.length === 12) {
+    return `521${digits.slice(-10)}`;
+  }
+
+  if (digits.length === 10) {
+    return `521${digits}`;
+  }
+
+  return normalizarTelefonoMx(telefono);
 };
 
 export default function ContactoFormPage() {
@@ -250,7 +266,6 @@ function validarRFC(rfc: string) {
           origen_contacto: contacto.origen_contacto || '',
           precio_lista_id: contacto.precio_lista_id ? String(contacto.precio_lista_id) : '',
           vendedor_id: contacto.vendedor_id ? String(contacto.vendedor_id) : '',
-          rfc: contacto.rfc || '',
           email: contacto.email || '',
           telefono: contacto.telefono || '',
           telefono_secundario: contacto.telefono_secundario || '',
@@ -265,7 +280,7 @@ function validarRFC(rfc: string) {
           pais: domicilio?.pais || c.pais || '',
           cp_sat: domicilio?.cp_sat || c.cp_sat || '',
           colonia_sat: domicilio?.colonia_sat || c.colonia_sat || '',
-          rfc_fiscal: datosFiscales?.rfc || c.rfc_fiscal || '',
+          rfc_fiscal: datosFiscales?.rfc || contacto.rfc || c.rfc_fiscal || '',
           regimen_fiscal: datosFiscales?.regimen_fiscal || c.regimen_fiscal || '',
           uso_cfdi: datosFiscales?.uso_cfdi || c.uso_cfdi || '',
           forma_pago: datosFiscales?.forma_pago || c.forma_pago || '',
@@ -477,10 +492,10 @@ function validarRFC(rfc: string) {
       origen_contacto: form.origen_contacto.trim() || null,
       precio_lista_id: form.precio_lista_id ? Number(form.precio_lista_id) : null,
       vendedor_id: form.vendedor_id ? Number(form.vendedor_id) : null,
-      rfc: form.rfc || null,
+      rfc: form.rfc_fiscal.trim() || null,
       email: form.email || null,
-      telefono: form.telefono ? normalizarTelefonoMx(form.telefono) : null,
-      telefono_secundario: form.telefono_secundario ? normalizarTelefonoMx(form.telefono_secundario) : null,
+      telefono: form.telefono ? normalizeContactoMexicoMobilePhone(form.telefono) : null,
+      telefono_secundario: form.telefono_secundario ? normalizeContactoMexicoMobilePhone(form.telefono_secundario) : null,
       activo: Boolean(form.activo),
       calle: form.calle.trim() || null,
       numero_exterior: form.numero_exterior.trim() || null,
@@ -492,7 +507,6 @@ function validarRFC(rfc: string) {
       pais: form.pais.trim() || null,
   cp_sat: form.cp_sat.trim() || null,
   colonia_sat: form.colonia_sat.trim() || null,
-      rfc_fiscal: form.rfc_fiscal.trim() || null,
       regimen_fiscal: form.regimen_fiscal.trim() || null,
       uso_cfdi: form.uso_cfdi.trim() || null,
       forma_pago: form.forma_pago.trim() || null,
@@ -704,7 +718,6 @@ function validarRFC(rfc: string) {
                   )}
                 />
 
-                <TextField label="RFC" value={form.rfc} onChange={handleTextChange('rfc')} fullWidth />
                 <TextField label="Email" value={form.email} onChange={handleTextChange('email')} fullWidth />
                 <TextField label="Teléfono" value={form.telefono} onChange={handleTextChange('telefono')} fullWidth />
                 <TextField
@@ -859,7 +872,7 @@ function validarRFC(rfc: string) {
                   }}
                 >
                   <TextField
-                    label="RFC fiscal"
+                    label="RFC"
                     value={form.rfc_fiscal}
                     onChange={(e) => {
                       const value = e.target.value.toUpperCase();

@@ -7,6 +7,7 @@ import {
   getUsosCfdi,
   getFormasPago,
   getMetodosPago,
+  getProductosServicios,
   buscarCodigosPostalesHandler,
 } from "./sat.controller";
 
@@ -20,5 +21,6 @@ router.get("/regimenes-fiscales", requireAuth, requireEmpresaActiva, getRegimene
 router.get("/usos-cfdi", requireAuth, requireEmpresaActiva, getUsosCfdi);
 router.get("/formas-pago", requireAuth, requireEmpresaActiva, getFormasPago);
 router.get("/metodos-pago", requireAuth, requireEmpresaActiva, getMetodosPago);
+router.get('/productos-servicios', requireAuth, requireEmpresaActiva, getProductosServicios);
 
 export default router;

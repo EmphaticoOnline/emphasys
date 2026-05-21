@@ -6,6 +6,7 @@ import {
   buscarUsosCfdi,
   buscarFormasPago,
   buscarMetodosPago,
+  buscarProductosServicios,
   buscarCodigosPostales,
   RegimenFiscal,
 } from "./sat.repository";
@@ -104,6 +105,18 @@ export async function getMetodosPago(req: Request, res: Response) {
   } catch (error) {
     console.error("Error al consultar métodos de pago:", error);
     res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+
+export async function getProductosServicios(req: Request, res: Response) {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : null;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+    const items = await buscarProductosServicios(q, limit);
+    res.json({ items });
+  } catch (error) {
+    console.error('Error al consultar productos/servicios SAT:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
   }
 }
 

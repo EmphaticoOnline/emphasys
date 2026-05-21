@@ -64,6 +64,7 @@ export interface ProductoBasico {
   clasificacion?: string | null;
   tipo_producto?: string | null;
   activo: boolean;
+  clave_producto_sat?: string | null;
   unidad_venta_id?: number | null;
   unidad_inventario_id?: number | null;
 }

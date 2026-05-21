@@ -182,7 +182,7 @@ export function DocumentoWhatsappDialog({
 
       const response = await apiFetch(endpoint, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: payload,
       });
 
       console.info('[CFDI WhatsApp] Response envio WhatsApp documento', {

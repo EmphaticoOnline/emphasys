@@ -10,6 +10,11 @@ export type RegimenFiscal = {
   descripcion: string;
 };
 
+export type ProductoServicioSat = {
+  id: string;
+  texto: string;
+};
+
 export type CodigoPostalResultado = {
   codigo_postal: string;
   estado: SatClaveNombre;
@@ -122,6 +127,16 @@ ORDER BY texto
 LIMIT $2;
 `;
 
+const QUERY_PRODUCTOS_SERVICIOS = `
+SELECT
+  id,
+  texto
+FROM sat.productos_servicios
+WHERE ($1::text IS NULL OR texto ILIKE '%' || $1 || '%' OR id ILIKE '%' || $1 || '%')
+ORDER BY id
+LIMIT $2;
+`;
+
 const sanitizeLimit = (limit: number | undefined, fallback = 20, max = 50) => {
   if (!limit || Number.isNaN(Number(limit))) return fallback;
   const parsed = Number(limit);
@@ -187,6 +202,12 @@ export async function buscarMetodosPago(q: string | null, limit?: number): Promi
   const safeLimit = sanitizeLimit(limit);
   const { rows } = await pool.query(QUERY_METODOS_PAGO, [q ?? null, safeLimit]);
   return rows.map((row: any) => ({ clave: row.id, nombre: row.texto }));
+}
+
+export async function buscarProductosServicios(q: string | null, limit?: number): Promise<ProductoServicioSat[]> {
+  const safeLimit = sanitizeLimit(limit);
+  const { rows } = await pool.query(QUERY_PRODUCTOS_SERVICIOS, [q ?? null, safeLimit]);
+  return rows.map((row: any) => ({ id: String(row.id), texto: String(row.texto) }));
 }
 
 export async function buscarCodigosPostales(q: string | null, limit?: number) {

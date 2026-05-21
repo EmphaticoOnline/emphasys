@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
+import fs from 'fs/promises';
+import path from 'path';
 import {
   listarDocumentosRepository,
   obtenerDocumentoRepository,
@@ -16,7 +18,7 @@ import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service
 import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeEliminarCotizacion } from './documentos-delete.service';
 import { formatearFolioDocumento } from '../../utils/documentos';
 import { obtenerJwtSecret } from '../auth/auth.service';
-import { sendDocumentMessage, sendTemplateMessage } from '../../whatsapp/whatsapp.service';
+import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -111,7 +113,6 @@ function firmarTokenPublicoFactura(
 ): string {
   return jwt.sign({ ...payload, exp }, obtenerJwtSecret());
 }
-
 async function assertFacturaTimbrada(documentoId: number, empresaId: number): Promise<void> {
   const { rows } = await pool.query<{ estatus_documento: string | null }>(
     `SELECT estatus_documento
@@ -229,32 +230,37 @@ async function obtenerFacturaXmlData(documentoId: number, empresaId: number) {
   };
 }
 
-async function generarFacturaPublicLinks(req: Request, documentoId: number, empresaId: number) {
+async function generarFacturaPublicLinks(req: Request, documentoId: number, empresaId: number, incluirXml = true) {
   const result = await obtenerDocumentoRepository(documentoId, empresaId, 'factura');
   if (!result) {
     throw buildHttpError(404, 'Factura no encontrada');
   }
 
-  const { filename: xmlFilename } = await obtenerFacturaXmlData(documentoId, empresaId);
-  const pdfFilename = construirNombrePdf(result.documento, documentoId);
-  const baseUrl = resolverBaseUrlPublica(req);
-  const exp = Math.floor(Date.now() / 1000) + WHATSAPP_PUBLIC_LINK_EXPIRES_IN_SECONDS;
+  const { buffer: pdfBuffer, filename: pdfFilename } = await obtenerDocumentoPdfData(documentoId, empresaId, 'factura');
 
-  const pdfToken = firmarTokenPublicoFactura(
-    { documentoId, empresaId, recurso: 'pdf', tipo_documento: 'factura' },
-    exp
-  );
-  const xmlToken = firmarTokenPublicoFactura(
-    { documentoId, empresaId, recurso: 'xml', tipo_documento: 'factura' },
-    exp
-  );
+  const uploadsDir = process.env.UPLOADS_DIR
+    ? path.resolve(process.env.UPLOADS_DIR)
+    : path.resolve(process.cwd(), 'uploads');
+  const facturaUploadsDir = path.join(uploadsDir, 'facturas', String(documentoId));
+
+  await fs.mkdir(facturaUploadsDir, { recursive: true });
+  await fs.writeFile(path.join(facturaUploadsDir, pdfFilename), pdfBuffer);
+
+  let xmlFilename: string | null = null;
+  if (incluirXml) {
+    const { xml, filename } = await obtenerFacturaXmlData(documentoId, empresaId);
+    xmlFilename = filename;
+    await fs.writeFile(path.join(facturaUploadsDir, xmlFilename), xml, 'utf8');
+  }
+
+  const baseUrl = resolverBaseUrlPublica(req);
 
   const links = {
-    pdfUrl: `${baseUrl}/public/facturas/${documentoId}/pdf?token=${encodeURIComponent(pdfToken)}`,
-    xmlUrl: `${baseUrl}/public/facturas/${documentoId}/xml?token=${encodeURIComponent(xmlToken)}`,
+    pdfUrl: `${baseUrl}/uploads/facturas/${documentoId}/${pdfFilename}`,
+    xmlUrl: xmlFilename ? `${baseUrl}/uploads/facturas/${documentoId}/${xmlFilename}` : null,
     pdfFilename,
     xmlFilename,
-    expiresAt: new Date(exp * 1000).toISOString(),
+    expiresAt: null,
   };
 
   console.info('[CFDI WhatsApp] URLs temporales generadas', {
@@ -782,6 +788,17 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) 
 
     await assertFacturaTimbrada(documentoId, Number(empresaId));
 
+    const factura = await obtenerDocumentoRepository(documentoId, Number(empresaId), 'factura');
+    if (!factura) {
+      return res.status(404).json({ message: 'Factura no encontrada' });
+    }
+
+    const facturaDocumento = factura.documento as any;
+    const nombreCliente = String(facturaDocumento?.nombre_receptor ?? facturaDocumento?.cliente_nombre ?? 'Cliente').trim() || 'Cliente';
+    const folioFactura = formatearFolioDocumento(facturaDocumento?.serie ?? '', Number(facturaDocumento?.numero ?? 0)) || String(documentoId);
+    const links = await generarFacturaPublicLinks(req, documentoId, Number(empresaId), true);
+    const templateParams = [nombreCliente, folioFactura, links.xmlUrl ?? ''];
+
     console.info('[CFDI WhatsApp] Inicio de envio automatico', {
       documentoId,
       empresaId,
@@ -789,67 +806,45 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) 
       tipoPlantilla,
     });
 
-    const templateResponse = await sendTemplateMessage(Number(empresaId), telefono, tipoPlantilla);
-    console.info('[CFDI WhatsApp] Respuesta envio template', {
+    console.info('[CFDI WhatsApp] Envio template a Gupshup', {
       documentoId,
       empresaId,
       telefono,
-      templateResponse,
+      tipoPlantilla,
+      templateParams,
+      xmlUrl: links.xmlUrl,
+      nota: 'Se considera exito cuando sendTemplateDocumentMessage resuelve sin lanzar error',
     });
 
-    if (templateResponse?.error) {
-      return res.status(409).json({ message: templateResponse.message || 'No hay plantilla disponible' });
-    }
-
-    const links = await generarFacturaPublicLinks(req, documentoId, Number(empresaId));
-
-    console.info('[CFDI WhatsApp] Enviando PDF por media message', {
+    console.info('[CFDI WhatsApp] Enviando template+PDF por Gupshup', {
       documentoId,
       empresaId,
       telefono,
+      templateParams,
+      xmlUrl: links.xmlUrl,
       pdfUrl: links.pdfUrl,
       filename: links.pdfFilename,
     });
-    const pdfResponse = await sendDocumentMessage(
+    const templateDocumentResponse = await sendTemplateDocumentMessage(
       Number(empresaId),
       telefono,
+      tipoPlantilla,
+      templateParams,
       links.pdfUrl,
-      links.pdfFilename,
-      { skipWindowValidation: true }
+      links.pdfFilename
     );
-    console.info('[CFDI WhatsApp] Respuesta Gupshup PDF', {
+    console.info('[CFDI WhatsApp] Respuesta Gupshup template+PDF', {
       documentoId,
       empresaId,
       telefono,
-      response: pdfResponse,
-    });
-
-    console.info('[CFDI WhatsApp] Enviando XML por media message', {
-      documentoId,
-      empresaId,
-      telefono,
+      templateParams,
       xmlUrl: links.xmlUrl,
-      filename: links.xmlFilename,
-    });
-    const xmlResponse = await sendDocumentMessage(
-      Number(empresaId),
-      telefono,
-      links.xmlUrl,
-      links.xmlFilename,
-      { skipWindowValidation: true }
-    );
-    console.info('[CFDI WhatsApp] Respuesta Gupshup XML', {
-      documentoId,
-      empresaId,
-      telefono,
-      response: xmlResponse,
+      response: templateDocumentResponse,
     });
 
     return res.status(200).json({
       success: true,
-      template: templateResponse,
-      pdf: pdfResponse,
-      xml: xmlResponse,
+      template: templateDocumentResponse,
       expiresAt: links.expiresAt,
       pdfUrl: links.pdfUrl,
       xmlUrl: links.xmlUrl,

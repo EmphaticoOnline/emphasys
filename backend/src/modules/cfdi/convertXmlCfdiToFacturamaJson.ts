@@ -5,6 +5,7 @@ export type FacturamaItemTax = {
   Base: number;
   Rate: number;
   Total: number;
+  IsRetention: boolean;
 };
 
 export type FacturamaItem = {
@@ -58,7 +59,8 @@ const ensureArray = <T>(value: T | T[] | undefined | null): T[] => {
 
 const mapImpuestoNombre = (impuesto?: string): string => {
   if (!impuesto) return 'IVA';
-  switch (impuesto) {
+  const normalized = impuesto.toUpperCase();
+  switch (normalized) {
     case '002':
       return 'IVA';
     case '001':
@@ -66,6 +68,9 @@ const mapImpuestoNombre = (impuesto?: string): string => {
     case '003':
       return 'IEPS';
     default:
+      if (normalized.startsWith('IVA')) return 'IVA';
+      if (normalized.startsWith('ISR')) return 'ISR';
+      if (normalized.startsWith('IEPS')) return 'IEPS';
       return impuesto;
   }
 };
@@ -109,9 +114,10 @@ export function convertXmlCfdiToFacturamaJson(xml: string): FacturamaLiteJson {
 
     const taxes: FacturamaItemTax[] = trasladosArr.map((t: any) => ({
       Name: mapImpuestoNombre(t.Impuesto),
-      Base: subtotal,
+      Base: toNumber(t.Base),
       Rate: toNumber(t.TasaOCuota),
       Total: toNumber(t.Importe),
+      IsRetention: false,
     }));
 
     const totalTaxes = taxes.reduce((acc, t) => acc + toNumber(t.Total), 0);

@@ -14,6 +14,27 @@ import { normalizarTelefono } from "../../utils/telefono";
 import { normalizeRFC } from "../../shared/normalizers/rfc";
 import { normalizeEmail } from "../../shared/normalizers/email";
 
+const normalizeTelefonoContacto = (value: any) => {
+  if (value === undefined || value === null || String(value).trim() === "") return null;
+
+  const rawValue = String(value);
+  const digits = rawValue.replace(/\D/g, '');
+
+  if (digits.startsWith('521') && digits.length === 13) {
+    return digits;
+  }
+
+  if (digits.startsWith('52') && digits.length === 12) {
+    return `521${digits.slice(-10)}`;
+  }
+
+  if (digits.length === 10) {
+    return `521${digits}`;
+  }
+
+  return normalizarTelefono(rawValue);
+};
+
 export async function crearContacto(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId;
@@ -30,17 +51,18 @@ export async function crearContacto(req: Request, res: Response) {
 
     data.nombre = String(data.nombre).trim();
 
-    const normalizeTelefonoMx = (value: any) => {
-      if (value === undefined || value === null || String(value).trim() === "") return null;
-      return normalizarTelefono(String(value));
-    };
+    const telefonoRecibido = "telefono" in data ? data.telefono : undefined;
 
     if ("telefono" in data) {
-      data.telefono = normalizeTelefonoMx(data.telefono);
+      data.telefono = normalizeTelefonoContacto(data.telefono);
+      console.log('[Contactos] Telefono normalizado', {
+        telefonoRecibido,
+        telefonoGuardado: data.telefono,
+      });
     }
 
     if ("telefono_secundario" in data) {
-      data.telefono_secundario = normalizeTelefonoMx(data.telefono_secundario);
+      data.telefono_secundario = normalizeTelefonoContacto(data.telefono_secundario);
     }
 
     if ("rfc" in data) {
@@ -150,21 +172,22 @@ export async function actualizarContacto(req: Request, res: Response) {
     const empresaId = req.context?.empresaId;
     const data = { ...req.body };
 
+    const telefonoRecibido = "telefono" in data ? data.telefono : undefined;
+
     if (empresaId === undefined || empresaId === null || Number.isNaN(Number(empresaId))) {
       return res.status(400).json({ message: "empresaId es obligatorio" });
     }
 
-    const normalizeTelefonoMx = (value: any) => {
-      if (value === undefined || value === null || String(value).trim() === "") return null;
-      return normalizarTelefono(String(value));
-    };
-
     if ("telefono" in data) {
-      data.telefono = normalizeTelefonoMx(data.telefono);
+      data.telefono = normalizeTelefonoContacto(data.telefono);
+      console.log('[Contactos] Telefono normalizado', {
+        telefonoRecibido,
+        telefonoGuardado: data.telefono,
+      });
     }
 
     if ("telefono_secundario" in data) {
-      data.telefono_secundario = normalizeTelefonoMx(data.telefono_secundario);
+      data.telefono_secundario = normalizeTelefonoContacto(data.telefono_secundario);
     }
 
     if ("rfc" in data) {

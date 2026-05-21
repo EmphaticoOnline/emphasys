@@ -317,6 +317,23 @@ async function validarAccesoConversacion(
 }
 
 export const whatsappWebhook = async (req: Request, res: Response) => {
+  const value = req.body?.entry?.[0]?.changes?.[0]?.value;
+  const messages = Array.isArray(value?.messages) ? value.messages : [];
+  const statuses = Array.isArray(value?.statuses) ? value.statuses : [];
+  const extractedIds = {
+    gs_ids: statuses.map((item: any) => item?.gs_id).filter(Boolean),
+    message_ids: messages.map((item: any) => item?.id).filter(Boolean),
+    statuses_ids: statuses.map((item: any) => item?.id).filter(Boolean),
+    external_ids: statuses.map((item: any) => item?.externalId ?? item?.external_id).filter(Boolean),
+  };
+  const extractedStatuses = statuses.map((item: any) => ({
+    status: item?.status ?? null,
+    gs_id: item?.gs_id ?? null,
+    id: item?.id ?? null,
+    externalId: item?.externalId ?? item?.external_id ?? null,
+    errors: item?.errors ?? item?.error_data ?? item?.error ?? null,
+  }));
+
   console.log("WEBHOOK HIT", JSON.stringify(req.body, null, 2));
   console.log("[WhatsApp Webhook] RAW ENTRY", {
     headers: req.headers,
@@ -329,7 +346,23 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       "x-webhook-token": req.headers["x-webhook-token"],
       "user-agent": req.headers["user-agent"],
       "content-type": req.headers["content-type"],
+      "x-forwarded-for": req.headers["x-forwarded-for"],
+      host: req.headers["host"],
     },
+    body: req.body,
+  });
+  console.info('[WhatsApp Webhook] Callback summary', {
+    method: req.method,
+    path: req.path,
+    headers: {
+      'x-webhook-token': req.headers['x-webhook-token'],
+      'user-agent': req.headers['user-agent'],
+      'content-type': req.headers['content-type'],
+      'x-forwarded-for': req.headers['x-forwarded-for'],
+      host: req.headers['host'],
+    },
+    ids: extractedIds,
+    statuses: extractedStatuses,
     body: req.body,
   });
 
@@ -340,11 +373,21 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
     return res.status(200).json({ ignored: true });
   }
 
-  const value = req.body?.entry?.[0]?.changes?.[0]?.value;
   if (!value?.messages && !value?.statuses) {
     return res.sendStatus(200);
   }
-  const statuses = value?.statuses || [];
+  if (Array.isArray(statuses) && statuses.length > 0) {
+    console.info('[WhatsApp Webhook][STATUS PAYLOAD]', {
+      value,
+      statuses,
+      body: req.body,
+    });
+  }
+  const targetMessageIds = new Set([
+    'db1fbc39-1342-48f5-9e1b-23b6dbbb89d3',
+    '40614c4b-b30a-4760-b38a-0075194fb89a',
+    '61d3efa5-d9b0-4bd7-8adc-0b8b8bf2c730',
+  ]);
   if (Array.isArray(statuses) && statuses.length > 0) {
     const STATUS_ORDER: Record<string, number> = {
       sending: 0,
@@ -359,6 +402,22 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
     for (const statusObj of statuses) {
       const estado = statusObj?.status;
       const externalId = statusObj?.gs_id;
+      console.info('[WhatsApp Webhook][STATUS ITEM]', {
+        estado,
+        externalId,
+        statusObj,
+      });
+      const isTargetMessage = Boolean(externalId && targetMessageIds.has(String(externalId)));
+
+      if (isTargetMessage) {
+        console.info('[WhatsApp Webhook][TARGET STATUS]', {
+          externalId,
+          estado,
+          statusObj,
+          value,
+          body: req.body,
+        });
+      }
 
       if (!estado || !externalId) {
         continue;
@@ -415,12 +474,35 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
           status: estado,
           rowCount: updateResult.rowCount ?? 0,
         });
+
+        if (isTargetMessage) {
+          console.info('[WhatsApp Webhook][TARGET UPDATED]', {
+            externalId,
+            estado,
+            currentStatus,
+            nextOrder,
+            currentOrder,
+            rowCount: updateResult.rowCount ?? 0,
+          });
+        }
       } catch (error) {
         console.error("[WhatsApp Webhook] Error actualizando status", {
           externalId,
           status: estado,
           message: (error as Error)?.message,
         });
+
+        if (isTargetMessage) {
+          console.error('[WhatsApp Webhook][TARGET ERROR]', {
+            externalId,
+            estado,
+            message: (error as Error)?.message,
+            stack: (error as Error)?.stack,
+            body: req.body,
+            value,
+            statusObj,
+          });
+        }
       }
     }
 

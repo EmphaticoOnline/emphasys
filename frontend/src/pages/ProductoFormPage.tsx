@@ -43,6 +43,7 @@ import {
   type CatalogoConfigurablesProductoRespuesta,
   type ProductoArchivo,
 } from '../services/productosService';
+import { apiFetch } from '../services/apiFetch';
 import { fetchUnidades, type Unidad } from '../services/unidadesService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
 
@@ -54,8 +55,14 @@ const initialForm: ProductoBasico = {
   clasificacion: '',
   tipo_producto: 'Inventariable',
   activo: true,
+  clave_producto_sat: null,
   unidad_venta_id: null,
   unidad_inventario_id: null,
+};
+
+type ProductoServicioSatOption = {
+  id: string;
+  texto: string;
 };
 
 type CatalogoComercialValor = {
@@ -89,6 +96,8 @@ export default function ProductoFormPage() {
   );
   const [productoLoaded, setProductoLoaded] = useState<Producto | null>(null);
   const [unidades, setUnidades] = useState<Unidad[]>([]);
+  const [productosSatOptions, setProductosSatOptions] = useState<ProductoServicioSatOption[]>([]);
+  const [productosSatLoading, setProductosSatLoading] = useState(false);
   const [comercialTipos, setComercialTipos] = useState<CatalogoComercialTipo[]>([]);
   const [comercialSeleccionados, setComercialSeleccionados] = useState<Record<number, number[]>>({});
   const [comercialLoading, setComercialLoading] = useState<boolean>(false);
@@ -99,6 +108,36 @@ export default function ProductoFormPage() {
   const [uploadingImagenes, setUploadingImagenes] = useState(false);
   const [archivoActionId, setArchivoActionId] = useState<number | null>(null);
   const imagenesInputRef = React.useRef<HTMLInputElement | null>(null);
+  const productosSatDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const loadProductosSat = React.useCallback(async (search: string) => {
+    setProductosSatLoading(true);
+    try {
+      const url = new URL('/api/catalogos/sat/productos-servicios', window.location.origin);
+      if (search.trim()) {
+        url.searchParams.set('q', search.trim());
+      }
+      url.searchParams.set('limit', '50');
+
+      const data = await apiFetch<{ items: ProductoServicioSatOption[] }>(`${url.pathname}${url.search}`);
+      setProductosSatOptions(data.items || []);
+    } catch (err) {
+      console.error('No se pudieron cargar productos/servicios SAT', err);
+      setProductosSatOptions([]);
+    } finally {
+      setProductosSatLoading(false);
+    }
+  }, []);
+
+  const queueLoadProductosSat = React.useCallback((search: string) => {
+    if (productosSatDebounceRef.current) {
+      clearTimeout(productosSatDebounceRef.current);
+    }
+
+    productosSatDebounceRef.current = setTimeout(() => {
+      void loadProductosSat(search);
+    }, 250);
+  }, [loadProductosSat]);
 
   useEffect(() => {
     const loadUnidades = async () => {
@@ -128,9 +167,13 @@ export default function ProductoFormPage() {
           clasificacion: producto.clasificacion ?? '',
           tipo_producto: (producto.tipo_producto as ProductoBasico['tipo_producto']) ?? 'Inventariable',
           activo: producto.activo,
+          clave_producto_sat: producto.clave_producto_sat ?? null,
           unidad_venta_id: producto.unidad_venta_id ?? null,
           unidad_inventario_id: producto.unidad_inventario_id ?? null,
         });
+        if (producto.clave_producto_sat) {
+          void loadProductosSat(producto.clave_producto_sat);
+        }
         setError(null);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'No se pudo cargar el producto');
@@ -139,7 +182,13 @@ export default function ProductoFormPage() {
       }
     };
     load();
-  }, [id, isEdit]);
+  }, [id, isEdit, loadProductosSat]);
+
+  useEffect(() => () => {
+    if (productosSatDebounceRef.current) {
+      clearTimeout(productosSatDebounceRef.current);
+    }
+  }, []);
 
   const buildSeleccionInicial = (
     tipos: CatalogoComercialTipo[],
@@ -415,6 +464,46 @@ export default function ProductoFormPage() {
                   fullWidth
                   multiline
                   minRows={2}
+                />
+                <Autocomplete
+                  options={productosSatOptions}
+                  loading={productosSatLoading}
+                  filterOptions={(options) => options}
+                  value={
+                    productosSatOptions.find((option) => option.id === form.clave_producto_sat) ||
+                    (form.clave_producto_sat ? { id: form.clave_producto_sat, texto: '' } : null)
+                  }
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  getOptionLabel={(option) => option.texto ? `${option.id} - ${option.texto}` : option.id}
+                  onOpen={() => {
+                    if (!productosSatOptions.length) {
+                      void loadProductosSat(form.clave_producto_sat || '');
+                    }
+                  }}
+                  onInputChange={(_, value, reason) => {
+                    if (reason === 'input') {
+                      queueLoadProductosSat(value);
+                    }
+                  }}
+                  onChange={(_, value) => handleChange('clave_producto_sat', value?.id || null)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...(params as any)}
+                      label="Clave SAT"
+                      fullWidth
+                      helperText="Busca por clave o descripción SAT"
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {productosSatLoading ? <CircularProgress size={18} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ) as React.ReactNode,
+                      }}
+                    />
+                  )}
+                  noOptionsText={productosSatLoading ? 'Cargando...' : 'Sin resultados'}
                 />
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                   <TextField

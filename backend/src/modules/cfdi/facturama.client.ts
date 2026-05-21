@@ -95,7 +95,9 @@ export class FacturamaClient {
 
   async stampXml(xml: string): Promise<{ xmlTimbrado: string; response: FacturamaStampResponse; uuid?: string; pdfUrl?: string; xmlUrl?: string; }> {
     const jsonPayload = convertXmlCfdiToFacturamaJson(xml);
-    console.log('[facturama] JSON enviado a API Lite:', JSON.stringify(jsonPayload, null, 2));
+    console.log('===== FACTURAMA PAYLOAD START =====');
+    console.log(JSON.stringify(jsonPayload, null, 2));
+    console.log('===== FACTURAMA PAYLOAD END =====');
 
     try {
       const create = await this.http.post(this.stampPath, jsonPayload, {

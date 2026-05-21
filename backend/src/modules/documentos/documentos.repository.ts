@@ -535,11 +535,18 @@ export async function crearDocumentoRepository(
       const nombreContacto = contactoRows[0]?.nombre || null;
 
       const { rows: fiscalesRows } = await executor.query(
-        `SELECT rfc, regimen_fiscal, uso_cfdi, forma_pago, metodo_pago
-           FROM contactos_datos_fiscales
-          WHERE contacto_id = $1
+        `SELECT COALESCE(cdf.rfc, c.rfc) AS rfc,
+                cdf.regimen_fiscal,
+                cdf.uso_cfdi,
+                cdf.forma_pago,
+                cdf.metodo_pago
+           FROM contactos c
+           LEFT JOIN contactos_datos_fiscales cdf
+             ON cdf.contacto_id = c.id
+          WHERE c.id = $1
+            AND c.empresa_id = $2
           LIMIT 1`,
-        [dataConDefaults.contacto_principal_id]
+        [dataConDefaults.contacto_principal_id, empresaId]
       );
       const fiscales = fiscalesRows[0] || {};
 
