@@ -13,6 +13,9 @@ export interface CfdiEmpresa {
 export interface CfdiDocumento {
   id: number;
   empresa_id: number;
+  tipo_documento?: string | null;
+  motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
+  documento_origen_id?: number | null;
   serie: string | null;
   numero: number | null;
   fecha_documento: string;
@@ -56,8 +59,19 @@ export interface CfdiInvoiceData {
   partidas: CfdiPartida[];
 }
 
+export interface CfdiRelatedDocument {
+  uuid: string;
+}
+
+export interface CfdiRelationsData {
+  type: string;
+  cfdis: CfdiRelatedDocument[];
+}
+
 export interface CfdiBuildOptions {
   fechaEmision?: string;
+  cfdiType?: string;
+  relations?: CfdiRelationsData;
 }
 
 export interface CfdiBuildResult {

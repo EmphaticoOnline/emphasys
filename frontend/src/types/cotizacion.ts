@@ -5,6 +5,7 @@ export type EstadoSeguimiento = 'abierta' | 'pausada' | 'convertida' | 'perdida'
 
 export interface CotizacionListado {
   id: number;
+  motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
   serie: string | null;
   numero: number | null;
   fecha_documento: string;
@@ -28,6 +29,8 @@ export interface CotizacionDocumento {
   id: number;
   empresa_id: number;
   tipo_documento: TipoDocumento;
+  motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
+  concepto_id?: number | null;
   serie: string | null;
   numero: number | null;
   documento_origen_id?: number | null;
@@ -62,6 +65,9 @@ export interface CotizacionPartida {
   id: number;
   documento_id: number;
   producto_id: number | null;
+  documento_origen_id?: number | null;
+  partida_origen_id?: number | null;
+  cantidad_vinculada?: number | null;
   descripcion_alterna: string | null;
   cantidad: number;
   precio_unitario: number;
@@ -107,6 +113,8 @@ export interface ImpuestoCalculadoUI {
 export interface CotizacionCrearPayload {
   empresa_id?: number;
   tipo_documento?: TipoDocumento;
+  motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
+  concepto_id?: number | null;
   serie?: string | null;
   documento_origen_id?: number | null;
   oportunidad_id?: number | null;

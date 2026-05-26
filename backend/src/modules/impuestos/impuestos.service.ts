@@ -97,7 +97,7 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
     );
 
     // Recalcular totales sólo para facturas y facturas de compra
-    const tiposConTotales = ['factura', 'factura_compra'];
+    const tiposConTotales = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'];
     if (tiposConTotales.includes(tipoDocumento?.toLowerCase?.() ?? '')) {
       await actualizarTotales(documentoId, executor);
     }

@@ -2,11 +2,19 @@ import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import { obtenerReglaDocumentoOrigenFinanciero } from './documento-origen-financiero';
 
+const TIPOS_DOCUMENTO_CARGO = ['factura', 'factura_compra'];
+
 const currentCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const roundFinancial = (value: number | string | null | undefined, decimals = 6) => {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) return 0;
+  return Number(numeric.toFixed(decimals));
 };
 
 export type AnticipoDisponible = {
@@ -259,6 +267,12 @@ export async function listarAplicacionesPorOperacion(operacionId: number, empres
 export async function listarAplicacionesPorDocumento(documentoId: number, empresaId: number) {
   const sql = `
     SELECT a.*, 
+           CASE WHEN a.documento_origen_id = $1 THEN doc_destino.tipo_documento ELSE doc_origen.tipo_documento END AS tipo_documento,
+           CASE WHEN a.documento_origen_id = $1 THEN doc_destino.serie ELSE doc_origen.serie END AS serie,
+           CASE WHEN a.documento_origen_id = $1 THEN doc_destino.numero ELSE doc_origen.numero END AS numero,
+           CASE WHEN a.documento_origen_id = $1 THEN doc_destino.fecha_documento ELSE doc_origen.fecha_documento END AS fecha_documento,
+           CASE WHEN a.documento_origen_id = $1 THEN doc_destino.total ELSE doc_origen.total END AS total_documento,
+           CASE WHEN a.documento_origen_id = $1 THEN doc_destino.moneda ELSE doc_origen.moneda END AS moneda_documento,
            doc_origen.tipo_documento AS tipo_documento_origen,
            doc_destino.tipo_documento AS tipo_documento_destino,
            fo.tipo_movimiento AS tipo_movimiento
@@ -292,7 +306,7 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
     JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id
     WHERE d.empresa_id = $1
       AND d.contacto_principal_id = $2
-      AND d.tipo_documento IN ('factura','factura_compra','nota_credito','nota_credito_compra')
+      AND d.tipo_documento = ANY($3::text[])
 
     UNION ALL
 
@@ -316,7 +330,7 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
 
     ORDER BY fecha, id
   `;
-  const { rows } = await pool.query(sql, [empresaId, contactoId]);
+  const { rows } = await pool.query(sql, [empresaId, contactoId, TIPOS_DOCUMENTO_CARGO]);
   return rows;
 }
 
@@ -814,30 +828,50 @@ async function crearAplicacionTx(
   );
   const aplicadoDestino = Number(destSumRows[0]?.aplicado_destino || 0);
 
-  const saldoOrigen = esPago
-    ? origen.monto * origen.tipo_cambio - aplicadoOrigen
-    : origen.total * origen.tipo_cambio - aplicadoOrigen;
-  const saldoDestino = destino.total - aplicadoDestino;
+  const tipoCambioOrigen = Math.abs(Number(origen.tipo_cambio || 1)) || 1;
+  const tipoCambioDestino = Math.abs(Number(destino.tipo_cambio || 1)) || 1;
+  const montoOrigenBase = esPago
+    ? Number(origen.monto || 0) * tipoCambioOrigen
+    : Math.abs(Number(origen.total || 0) * tipoCambioOrigen);
+  const saldoOrigen = roundFinancial(montoOrigenBase - aplicadoOrigen);
+  const saldoDestino = roundFinancial(Number(destino.total || 0) - aplicadoDestino);
+  const montoBase = roundFinancial(data.monto);
+  const montoMonedaDocumento = roundFinancial(data.monto_moneda_documento);
+  const compareTolerance = 0.000001;
 
-  if (saldoOrigen <= 0 || saldoDestino <= 0) {
+  console.info('[finanzas.crearAplicacionTx] validacion_saldos', {
+    empresaId,
+    finanzas_operacion_id: data.finanzas_operacion_id ?? null,
+    documento_origen_id: data.documento_origen_id ?? null,
+    documento_destino_id: data.documento_destino_id,
+    esPago,
+    tipo_cambio_origen: tipoCambioOrigen,
+    tipo_cambio_destino: tipoCambioDestino,
+    saldo_origen: saldoOrigen,
+    saldo_destino: saldoDestino,
+    monto: montoBase,
+    monto_moneda_documento: montoMonedaDocumento,
+  });
+
+  if (saldoOrigen <= compareTolerance || saldoDestino <= compareTolerance) {
     const err = new Error('Saldo insuficiente en origen o destino');
     (err as any).status = 409;
     throw err;
   }
-  if (data.monto > saldoOrigen) {
+  if (montoBase - saldoOrigen > compareTolerance) {
     const err = new Error('El monto excede el saldo del origen');
     (err as any).status = 409;
     throw err;
   }
-  if (data.monto_moneda_documento > saldoDestino) {
+  if (montoMonedaDocumento - saldoDestino > compareTolerance) {
     const err = new Error('El monto excede el saldo del destino');
     (err as any).status = 409;
     throw err;
   }
 
-  const expectedBase = data.monto_moneda_documento * origen.tipo_cambio;
-  const diff = Math.abs(expectedBase - data.monto);
-  const tolerance = 0.01;
+  const expectedBase = roundFinancial(montoMonedaDocumento * tipoCambioOrigen);
+  const diff = Math.abs(roundFinancial(expectedBase - montoBase));
+  const tolerance = 0.000001;
   if (diff > tolerance) {
     const err = new Error('Inconsistencia entre monto y monto_moneda_documento respecto al tipo de cambio del origen');
     (err as any).status = 409;
@@ -863,8 +897,8 @@ async function crearAplicacionTx(
     esPago ? origen.id : null,
     esPago ? null : origen.id,
     destino.id,
-    data.monto,
-    data.monto_moneda_documento,
+    montoBase,
+    montoMonedaDocumento,
     data.fecha_aplicacion ?? null,
   ];
 

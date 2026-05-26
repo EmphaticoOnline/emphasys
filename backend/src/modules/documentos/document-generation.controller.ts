@@ -48,6 +48,29 @@ export async function prepararGeneracion(req: Request, res: Response) {
   }
 }
 
+export async function prepararGeneracionMultiple(req: Request, res: Response) {
+  try {
+    const payload = req.body as {
+      documento_origen_ids?: number[];
+      tipo_documento_destino?: TipoDocumento;
+    };
+    const empresaId = req.context?.empresaId;
+    const documentoIds = Array.isArray(payload?.documento_origen_ids)
+      ? payload.documento_origen_ids.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+      : [];
+    const tipoDestino = parseTipo(payload?.tipo_documento_destino);
+
+    if (!empresaId || documentoIds.length === 0 || !tipoDestino) {
+      return res.status(400).json({ message: "Parámetros inválidos" });
+    }
+
+    const respuesta = await DocumentGenerationService.prepararGeneracionMultiple(documentoIds, tipoDestino, empresaId);
+    return res.json(respuesta);
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
 export async function generarDocumentoDesdeOrigen(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId;
@@ -56,8 +79,13 @@ export async function generarDocumentoDesdeOrigen(req: Request, res: Response) {
     }
 
     const payload = req.body as GenerarDocumentoPayload;
-    if (!payload?.documento_origen_id || !payload?.tipo_documento_destino) {
-      return res.status(400).json({ message: "documento_origen_id y tipo_documento_destino son requeridos" });
+    const documentoOrigenIds = Array.isArray(payload?.documento_origen_ids)
+      ? payload.documento_origen_ids.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+      : [];
+    const documentoDestinoId = Number(payload?.documento_destino_id);
+    const hasSingleOrigen = Number.isFinite(Number(payload?.documento_origen_id)) && Number(payload?.documento_origen_id) > 0;
+    if ((!hasSingleOrigen && documentoOrigenIds.length === 0) || !payload?.tipo_documento_destino) {
+      return res.status(400).json({ message: "documento_origen_id o documento_origen_ids y tipo_documento_destino son requeridos" });
     }
 
     const usuarioId = req.auth?.userId ?? null;
@@ -65,6 +93,9 @@ export async function generarDocumentoDesdeOrigen(req: Request, res: Response) {
     const resultado = await DocumentGenerationService.generarDocumentoDesdeOrigen(
       {
         ...payload,
+        documento_origen_id: hasSingleOrigen ? Number(payload.documento_origen_id) : undefined,
+        documento_origen_ids: documentoOrigenIds,
+        documento_destino_id: Number.isFinite(documentoDestinoId) && documentoDestinoId > 0 ? documentoDestinoId : undefined,
         tipo_documento_destino: parseTipo(payload.tipo_documento_destino),
       },
       empresaId,

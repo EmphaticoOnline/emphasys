@@ -44,6 +44,12 @@ export type FacturamaLiteJson = {
     Months: string;
     Year: string;
   };
+  Relations?: {
+    Type: string;
+    Cfdis: Array<{
+      Uuid: string;
+    }>;
+  };
   Items: FacturamaItem[];
 };
 
@@ -95,6 +101,7 @@ export function convertXmlCfdiToFacturamaJson(xml: string): FacturamaLiteJson {
 
   const emisor = comprobante['cfdi:Emisor'] || comprobante.Emisor;
   const receptor = comprobante['cfdi:Receptor'] || comprobante.Receptor;
+  const cfdiRelacionados = comprobante['cfdi:CfdiRelacionados'] || comprobante.CfdiRelacionados;
   const conceptos = comprobante['cfdi:Conceptos']?.['cfdi:Concepto'] || comprobante.Conceptos?.Concepto;
 
   // Fecha del comprobante para global information (when receptor is generic)
@@ -163,6 +170,20 @@ export function convertXmlCfdiToFacturamaJson(xml: string): FacturamaLiteJson {
       Periodicity: '01',
       Months: monthStr,
       Year: yearStr,
+    };
+  }
+
+  const relacionados = ensureArray(
+    cfdiRelacionados?.['cfdi:CfdiRelacionado'] || cfdiRelacionados?.CfdiRelacionado
+  )
+    .map((relation: any) => String(relation?.UUID || '').trim())
+    .filter((uuid) => uuid.length > 0)
+    .map((uuid) => ({ Uuid: uuid }));
+
+  if (cfdiRelacionados?.TipoRelacion && relacionados.length > 0) {
+    result.Relations = {
+      Type: String(cfdiRelacionados.TipoRelacion),
+      Cfdis: relacionados,
     };
   }
 

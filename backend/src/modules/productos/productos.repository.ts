@@ -1,5 +1,6 @@
 import path from 'path';
 import pool from '../../config/database';
+import type { PoolClient } from 'pg';
 import { removeFileIfExists } from '../../services/fileStorage.service';
 import { resolveUploadsDir } from '../uploads/uploads.multer';
 
@@ -28,6 +29,72 @@ type CatalogoValor = {
   orden: number | null;
 };
 
+type ProductoTecnicoRow = {
+  id: number;
+  clave: string;
+  descripcion: string;
+  activo: boolean;
+  clasificacion: string | null;
+  tipo_producto: string | null;
+  familia: string | null;
+  linea: string | null;
+  presentacion: string | null;
+  unidad_compra: string | null;
+  factor_conversion: number | null;
+  existencia_actual: number | null;
+  minimo_inventario: number | null;
+  costo_estandar: number | null;
+  costo_promedio: number | null;
+  ultimo_costo: number | null;
+  precio_publico: number | null;
+  precio_mayoreo: number | null;
+  precio_menudeo: number | null;
+  precio_distribuidor: number | null;
+  iva_porcentaje: number | null;
+  ieps_porcentaje: number | null;
+  retiene_iva: boolean;
+  retiene_isr: boolean;
+  clave_producto_sat: string | null;
+  fraccion_arancelaria: string | null;
+  largo: number | null;
+  ancho: number | null;
+  alto: number | null;
+  espesor: number | null;
+  diametro: number | null;
+  peso_unitario: number | null;
+  equivalente_m2: number | null;
+  piezas_por_empaque: number | null;
+  peso_por_empaque: number | null;
+  unidad_peso_empaque: string | null;
+  ubicacion_almacen: string | null;
+  proveedor_principal_id: number | null;
+  proveedor_alternativo_1_id: number | null;
+  proveedor_alternativo_2_id: number | null;
+  archivo_fotografia_1: string | null;
+  archivo_fotografia_2: string | null;
+  archivo_ficha_tecnica: string | null;
+  archivo_certificado: string | null;
+  es_estacional: boolean;
+  demanda_mensual_estimado: number | null;
+  factor_demanda: number | null;
+  observaciones: string | null;
+  observaciones_compras: string | null;
+  observaciones_diseno: string | null;
+  fecha_creacion: string;
+  empresa_id: number;
+  unidad_venta_id: number | null;
+  unidad_inventario_id: number | null;
+  clave_unidad_sat: string | null;
+  unidad_venta_clave?: string | null;
+  unidad_venta_descripcion?: string | null;
+  unidad_inventario_clave?: string | null;
+  unidad_inventario_descripcion?: string | null;
+};
+
+const PRODUCTO_TECNICO_NC_CLAVE = 'NC-COMERCIAL';
+const PRODUCTO_TECNICO_NC_DESCRIPCION = 'Nota de crédito comercial';
+const PRODUCTO_TECNICO_NC_CLAVE_PRODUCTO_SAT = '01010101';
+
 async function obtenerEntidadTipoIdProducto(): Promise<number> {
   const { rows } = await pool.query<{ id: number }>(
     `SELECT id FROM core.entidades_tipos WHERE codigo = 'PRODUCTO' LIMIT 1`
@@ -39,6 +106,138 @@ async function obtenerEntidadTipoIdProducto(): Promise<number> {
   }
 
   return entidadTipoId;
+}
+
+async function obtenerUnidadServicioId(empresaId: number): Promise<number | null> {
+  const { rows } = await pool.query<{ id: number }>(
+    `SELECT u.id
+       FROM public.unidades u
+       JOIN sat.unidades su ON su.id = u.unidad_sat_id
+      WHERE u.empresa_id = $1
+        AND u.activo = true
+      ORDER BY CASE
+        WHEN su.clave = 'E48' THEN 0
+        WHEN su.clave = 'H87' THEN 1
+        ELSE 2
+      END,
+      u.id
+      LIMIT 1`,
+    [empresaId]
+  );
+
+  return rows[0]?.id ?? null;
+}
+
+export async function obtenerOCrearProductoTecnicoNcComercialRepository(empresaId: number, client?: PoolClient): Promise<ProductoTecnicoRow> {
+  const executor = client ?? pool;
+
+  const { rows: existenteRows } = await executor.query<ProductoTecnicoRow>(
+    `SELECT p.*,
+            uv.clave AS unidad_venta_clave,
+            uv.descripcion AS unidad_venta_descripcion,
+            ui.clave AS unidad_inventario_clave,
+            ui.descripcion AS unidad_inventario_descripcion
+       FROM productos p
+       LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
+       LEFT JOIN unidades ui ON p.unidad_inventario_id = ui.id
+      WHERE p.empresa_id = $1
+        AND p.clave = $2
+      LIMIT 1`,
+    [empresaId, PRODUCTO_TECNICO_NC_CLAVE]
+  );
+
+  const unidadVentaId = await obtenerUnidadServicioId(empresaId);
+
+  if (existenteRows[0]) {
+    const existente = existenteRows[0];
+    const requiereAjuste =
+      existente.tipo_producto !== 'SERVICIO' ||
+      !existente.activo ||
+      !existente.unidad_venta_id ||
+      existente.clave_producto_sat !== PRODUCTO_TECNICO_NC_CLAVE_PRODUCTO_SAT;
+
+    if (!requiereAjuste) {
+      return existente;
+    }
+
+    if (!unidadVentaId) {
+      throw new Error('No se encontró una unidad de servicio activa para ajustar el producto técnico de nota de crédito.');
+    }
+
+    const { rows: actualizadas } = await executor.query<ProductoTecnicoRow>(
+      `UPDATE productos
+          SET descripcion = $1,
+              activo = true,
+              tipo_producto = 'SERVICIO',
+              unidad_venta_id = $2,
+              unidad_inventario_id = NULL,
+              clave_producto_sat = $3,
+              retiene_iva = false,
+              retiene_isr = false,
+              es_estacional = false,
+              observaciones = $4
+        WHERE empresa_id = $5
+          AND clave = $6
+        RETURNING *`,
+      [
+        PRODUCTO_TECNICO_NC_DESCRIPCION,
+        unidadVentaId,
+        PRODUCTO_TECNICO_NC_CLAVE_PRODUCTO_SAT,
+        'Producto técnico interno para notas de crédito comerciales',
+        empresaId,
+        PRODUCTO_TECNICO_NC_CLAVE,
+      ]
+    );
+
+    return actualizadas[0] ?? existente;
+  }
+
+  if (!unidadVentaId) {
+    throw new Error('No se encontró una unidad de servicio activa para crear el producto técnico de nota de crédito.');
+  }
+
+  const { rows: insertRows } = await executor.query<ProductoTecnicoRow>(
+    `INSERT INTO productos (
+        empresa_id,
+        clave,
+        descripcion,
+        activo,
+        tipo_producto,
+        unidad_venta_id,
+        unidad_inventario_id,
+        clave_producto_sat,
+        observaciones,
+        retiene_iva,
+        retiene_isr,
+        es_estacional
+      ) VALUES (
+        $1, $2, $3, true, $4, $5, NULL, $6, $7, false, false, false
+      )
+      ON CONFLICT (empresa_id, clave) DO UPDATE
+        SET descripcion = EXCLUDED.descripcion,
+            activo = true,
+            tipo_producto = EXCLUDED.tipo_producto,
+            unidad_venta_id = EXCLUDED.unidad_venta_id,
+            clave_producto_sat = EXCLUDED.clave_producto_sat,
+            observaciones = EXCLUDED.observaciones
+      RETURNING *`,
+    [
+      empresaId,
+      PRODUCTO_TECNICO_NC_CLAVE,
+      PRODUCTO_TECNICO_NC_DESCRIPCION,
+      'SERVICIO',
+      unidadVentaId,
+      PRODUCTO_TECNICO_NC_CLAVE_PRODUCTO_SAT,
+      'Producto técnico interno para notas de crédito comerciales',
+    ]
+  );
+
+  const producto = insertRows[0];
+  if (!producto) {
+    throw new Error('No se pudo crear el producto técnico de nota de crédito.');
+  }
+
+  return producto;
 }
 
 const CAMPOS = [
@@ -78,11 +277,12 @@ export async function getProductosRepository(empresaId: number) {
   LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
   LEFT JOIN unidades ui ON p.unidad_inventario_id = ui.id
     WHERE p.empresa_id = $1
+      AND p.clave <> $2
     ORDER BY p.id
   `;
   console.log('[BACK SQL DEBUG] getProductos SQL', query);
-  console.log('[BACK SQL DEBUG] getProductos params', [empresaId]);
-  const { rows } = await pool.query(query, [empresaId]);
+  console.log('[BACK SQL DEBUG] getProductos params', [empresaId, PRODUCTO_TECNICO_NC_CLAVE]);
+  const { rows } = await pool.query(query, [empresaId, PRODUCTO_TECNICO_NC_CLAVE]);
   console.log('[BACK IVA DEBUG] getProductos rows', rows.map((r) => ({ id: r.id, iva_porcentaje: r.iva_porcentaje })));
   return rows;
 }

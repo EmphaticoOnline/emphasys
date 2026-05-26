@@ -206,6 +206,19 @@ export function enviarCotizacionPorCorreo(id: number, payload: {
   });
 }
 
+export function timbrarDocumentoCfdi(id: number, tipo: TipoDocumento) {
+  const base = getBasePath(tipo);
+  if (base === '/api/facturas') {
+    return apiFetch(`/api/facturas/${id}/timbrar`, {
+      method: 'POST',
+    });
+  }
+
+  return apiFetch(withTipoQuery(`/api/documentos/${id}/timbrar-cfdi`, tipo), {
+    method: 'POST',
+  });
+}
+
 // Preview de cálculo de impuestos (no persiste)
 export function calcularImpuestosPreview(payload: {
   producto_id?: number | null;

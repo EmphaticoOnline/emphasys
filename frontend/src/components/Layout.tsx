@@ -34,6 +34,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import BuildIcon from '@mui/icons-material/Build';
 import { compareDocumentoVisualOrder } from '../modules/documentos/documentoVisualOrder';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
+import { fetchParametrosSistema } from '../services/parametrosService';
 import { apiFetch } from '../services/apiFetch';
 
 interface LayoutProps {
@@ -65,6 +66,12 @@ function getRecordatorioTexto(actividad: ActividadRecordatorio) {
   }
 
   return `Actividad de ${actividad.tipo_actividad}`;
+}
+
+function toBoolean(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return ['1', 'true', 't', 'yes', 'si', 'sí', 'on'].includes(normalized);
 }
 
 export default function Layout({ children }: LayoutProps) {
@@ -105,20 +112,27 @@ export default function Layout({ children }: LayoutProps) {
     const loadTabs = async () => {
       if (!empresaId) {
         setVentasTabs([]);
+        setComprasTabs([]);
         return;
       }
       try {
-        const [ventas, compras] = await Promise.all([
+        const [ventas, compras, modulos] = await Promise.all([
           fetchTiposDocumentoHabilitados('ventas'),
           fetchTiposDocumentoHabilitados('compras'),
+          fetchParametrosSistema(),
         ]);
 
         const sortDocs = (docs: typeof ventas) => [...docs].sort(compareDocumentoVisualOrder);
 
         const ventasOrdenadas = sortDocs(ventas).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }));
+        const mostrarModuloProduccion = modulos
+          .flatMap((modulo) => modulo.parametros)
+          .some((parametro) => parametro.clave === 'mostrar_modulo_produccion' && toBoolean(parametro.valor_resuelto));
         const mostrarVistaExcelCotizaciones = false;
         const extras = [
-          { label: 'Producción', value: 'produccion', icon: 'PlaylistAddCheck' as string | null },
+          ...(mostrarModuloProduccion
+            ? [{ label: 'Producción', value: 'produccion', icon: 'PlaylistAddCheck' as string | null }]
+            : []),
           ...(mostrarVistaExcelCotizaciones
             ? [{ label: 'Vista Excel cotizaciones', value: 'cotizaciones-grid', icon: 'Description' as string | null }]
             : []),

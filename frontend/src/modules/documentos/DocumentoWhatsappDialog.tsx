@@ -129,6 +129,7 @@ export function DocumentoWhatsappDialog({
   const handleEnviar = async () => {
     const telefonoFinal = telefono.trim();
     const esFacturaCfdi = documento?.tipoDocumento === 'factura';
+    const esCotizacion = documento?.tipoDocumento === 'cotizacion';
 
     if (!telefonoFinal) {
       const message = 'Captura un teléfono para continuar.';
@@ -154,14 +155,20 @@ export function DocumentoWhatsappDialog({
           telefono: telefonoFinal,
           tipoPlantilla: plantillaSeleccionada.tipo,
         }
-      : {
-          telefono: telefonoFinal,
-          tipo: plantillaSeleccionada.tipo,
-        };
+      : esCotizacion
+        ? {
+            telefono: telefonoFinal,
+          }
+        : {
+            telefono: telefonoFinal,
+            tipo: plantillaSeleccionada.tipo,
+          };
 
     const endpoint = esFacturaCfdi && documento?.id
       ? `/api/facturas/${documento.id}/enviar-whatsapp-cfdi`
-      : '/api/whatsapp/enviar-plantilla';
+      : esCotizacion && documento?.id
+        ? `/api/documentos/${documento.id}/enviar-whatsapp-cotizacion`
+        : '/api/whatsapp/enviar-plantilla';
 
     console.info('[CFDI WhatsApp] Request envio WhatsApp documento', {
       documentoId: documento?.id ?? null,
@@ -194,12 +201,16 @@ export function DocumentoWhatsappDialog({
         severity: 'success',
         message: esFacturaCfdi
           ? 'Template, PDF y XML enviados correctamente por WhatsApp.'
-          : 'Plantilla enviada correctamente por WhatsApp.',
+          : esCotizacion
+            ? 'Cotización enviada correctamente por WhatsApp.'
+            : 'Plantilla enviada correctamente por WhatsApp.',
       });
     } catch (error: any) {
       const message = error?.message || (esFacturaCfdi
         ? 'No se pudo enviar el CFDI por WhatsApp.'
-        : 'No se pudo enviar la plantilla por WhatsApp.');
+        : esCotizacion
+          ? 'No se pudo enviar la cotización por WhatsApp.'
+          : 'No se pudo enviar la plantilla por WhatsApp.');
       console.error('[CFDI WhatsApp] Error envio WhatsApp documento', {
         documentoId: documento?.id ?? null,
         endpoint,

@@ -59,6 +59,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EmailIcon from '@mui/icons-material/Email';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import LinkIcon from '@mui/icons-material/Link';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
@@ -83,9 +84,9 @@ import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, getDocumentos, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, getDocumentos, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
 import { fetchAnticiposDisponiblesDocumento } from '../services/finanzasService';
-import { timbrarFactura, enviarFactura } from '../services/facturasService';
+import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
@@ -94,6 +95,7 @@ import type { DocumentoAccion } from '../modules/documentos/documentoTypes';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
 import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
 import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicacionDialog';
+import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
 import { DocumentoWhatsappDialog } from '../modules/documentos/DocumentoWhatsappDialog';
 import {
   navigateToGeneratedDocument,
@@ -182,6 +184,7 @@ import {
 import {
   getOpcionesGeneracion,
   prepararGeneracion,
+  prepararGeneracionMultiple,
   generarDocumentoDesdeOrigen,
   type OpcionGeneracionResponse,
   type PrepararGeneracionResponse,
@@ -191,8 +194,6 @@ import {
 type DocumentosPageProps = {
   tipoDocumento?: TipoDocumento;
 };
-
-const TIPOS_CONTACTO_COTIZACION = ['Cliente', 'Lead'];
 
 type QuickFilter = 'todos' | string;
 
@@ -252,6 +253,14 @@ const formatDocumentoEstatusLabel = (value: unknown): string => {
   return DOCUMENTO_ESTATUS_LABELS[normalized] ?? String(value ?? 'Borrador');
 };
 
+const formatMotivoNcLabel = (value: unknown): string => {
+  const normalized = normalizeMotivoNc(value);
+  if (normalized === 'devolucion') return 'Devolución';
+  if (normalized === 'bonificacion') return 'Bonificación';
+  if (normalized === 'otro') return 'Otro';
+  return '—';
+};
+
 const getDocumentoEstatusColor = (value: unknown): 'default' | 'info' | 'success' | 'warning' | 'error' => {
   const normalized = normalizeDocumentoEstatus(value);
   if (normalized === 'borrador') return 'default';
@@ -297,16 +306,32 @@ const getCotizacionEstatusEditableOptions = (value: unknown): StatusOption[] => 
   return normalizeCotizacionEstatusDocumento(value) === 'enviado' ? COTIZACION_ESTATUS_EDITABLE_OPTIONS : [];
 };
 
+const normalizeTipoDocumento = (value: unknown): TipoDocumento =>
+  String(value ?? 'cotizacion').trim().toLowerCase() as TipoDocumento;
+
+const normalizeMotivoNc = (value: unknown): string =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const esNotaCreditoTimbrable = (motivoNc: unknown): boolean => {
+  const normalized = normalizeMotivoNc(motivoNc);
+  return normalized === 'bonificacion' || normalized === 'devolucion' || normalized === 'otro';
+};
+
 export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
   const { session } = useSession();
-  const tipoDocumento = (propTipo ?? (params.codigo as TipoDocumento)) || 'cotizacion';
+  const tipoDocumento = normalizeTipoDocumento(propTipo ?? params.codigo ?? 'cotizacion');
   const token = session.token;
   const empresaId = session.empresaActivaId;
   const modulo = location.pathname.startsWith('/compras') ? 'compras' : 'ventas';
   const esCotizacion = tipoDocumento === 'cotizacion';
+  const esNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
   const [tiposDocumento, setTiposDocumento] = useState<TipoDocumentoEmpresa[]>([]);
 
   useEffect(() => {
@@ -403,11 +428,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     open: boolean;
     loading: boolean;
     documentoId: number | null;
+    documentoIds: number[];
     tipoDestino: string | null;
     data: PrepararGeneracionResponse | null;
     cantidades: Record<number, number>;
     enviando: boolean;
-  }>({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false });
+  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
   const [aplicarAnticiposDialog, setAplicarAnticiposDialog] = useState<{
     open: boolean;
     documentoOrigenId: number | null;
@@ -416,6 +442,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     data: DocumentoAnticiposDisponibles | null;
     navigationPathname: string | null;
   }>({ open: false, documentoOrigenId: null, documentoDestinoId: null, documentoDestinoTipo: null, data: null, navigationPathname: null });
+  const [aplicarSaldoNcDrawer, setAplicarSaldoNcDrawer] = useState<{
+    open: boolean;
+    documentoId: number | null;
+    contactoId: number | null;
+    saldo: number;
+    tipoDocumento: TipoDocumento | null;
+  }>({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
   const [search, setSearch] = useState('');
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [actualizandoEstatusId, setActualizandoEstatusId] = useState<number | null>(null);
@@ -451,7 +484,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = resolveDocumentosListPath(tipoDocumento, modulo);
   const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
-  const { filtroAgente: configuredAgentFilter, mostrarSaldo: configuredShowSaldo, accionesDisponibles } = useDocumentoConfig(tipoDocumento);
+  const {
+    filtroAgente: configuredAgentFilter,
+    mostrarSaldo: configuredShowSaldo,
+    accionesDisponibles,
+    contactoLabel,
+    contactoTiposPermitidos,
+    vendedorVisible,
+  } = useDocumentoConfig(tipoDocumento);
   const generatedDocumentFocus = useMemo(() => parseGeneratedDocumentFocus(location.state), [location.state]);
   const statusField = tipoDocumento === 'cotizacion' ? 'estado_seguimiento' : 'estatus_documento';
   const sumField = 'subtotal';
@@ -471,7 +511,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     [documentoTypeConfig, tipoDocumento]
   );
   const enableFilters = statusOptions.length > 0;
-  const showAgentFilter = configuredAgentFilter;
+  const showAgentFilter = configuredAgentFilter && vendedorVisible;
+  const contactoLabelLower = contactoLabel.toLocaleLowerCase();
 
   const currency = useMemo(
     () =>
@@ -488,6 +529,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const isFacturaConSaldo = showSaldo;
   const hasAction = useCallback((action: DocumentoAccion) => accionesDisponibles.includes(action), [accionesDisponibles]);
   const canBulkDuplicate = true;
+  const bulkNotaCreditoDestino = tipoDocumento === 'factura'
+    ? 'nota_credito'
+    : tipoDocumento === 'factura_compra'
+      ? 'nota_credito_compra'
+      : null;
   const estatusDocumentoOptions = useMemo<StatusOption[]>(
     () => (esCotizacion ? COTIZACION_ESTATUS_EDITABLE_OPTIONS : statusOptions),
     [esCotizacion, statusOptions]
@@ -539,7 +585,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const loadFilterData = async () => {
       try {
         const [contactosData, vendedoresData] = await Promise.all([
-          fetchContactos(TIPOS_CONTACTO_COTIZACION),
+          fetchContactos(contactoTiposPermitidos),
           showAgentFilter ? fetchVendedores() : Promise.resolve([]),
         ]);
         setContactos(contactosData);
@@ -550,7 +596,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     };
 
     void loadFilterData();
-  }, [enableFilters, showAgentFilter]);
+  }, [contactoTiposPermitidos, enableFilters, showAgentFilter]);
 
   const requireAuthData = () => {
     if (!token || !empresaId) {
@@ -687,6 +733,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       open: true,
       loading: true,
       documentoId: menuDocumentoId,
+      documentoIds: [menuDocumentoId],
       tipoDestino,
       data: null,
       cantidades: {},
@@ -703,6 +750,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         open: true,
         loading: false,
         documentoId: menuDocumentoId,
+        documentoIds: [menuDocumentoId],
         tipoDestino,
         data,
         cantidades,
@@ -713,12 +761,74 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         open: false,
         loading: false,
         documentoId: null,
+        documentoIds: [],
         tipoDestino: null,
         data: null,
         cantidades: {},
         enviando: false,
       });
       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la generación', severity: 'error' });
+    }
+  };
+
+  const handlePrepararConsolidacionNotaCredito = async () => {
+    if (!bulkNotaCreditoDestino || selectedDocumentIds.length < 2) return;
+    if (!requireAuthData()) return;
+
+    const selectedRows = rows.filter((row) => selectedDocumentIds.includes(Number(row.id)));
+    if (selectedRows.length !== selectedDocumentIds.length) {
+      setSnackbar({ open: true, message: 'La selección cambió. Recarga la lista e inténtalo de nuevo.', severity: 'warning' });
+      return;
+    }
+
+    const contactoBase = selectedRows[0]?.contacto_principal_id ?? null;
+    const monedaBase = String(selectedRows[0]?.moneda ?? '').trim().toUpperCase();
+    const inactivo = selectedRows.find((row) => ['cancelado', 'cancelada'].includes(String(row.estatus_documento ?? '').trim().toLowerCase()));
+    if (inactivo) {
+      setSnackbar({ open: true, message: 'Solo se pueden consolidar documentos activos.', severity: 'warning' });
+      return;
+    }
+    const distintoContacto = selectedRows.find((row) => (row.contacto_principal_id ?? null) !== contactoBase);
+    if (distintoContacto) {
+      setSnackbar({ open: true, message: 'La selección debe pertenecer al mismo cliente o proveedor.', severity: 'warning' });
+      return;
+    }
+    const distintaMoneda = selectedRows.find((row) => String(row.moneda ?? '').trim().toUpperCase() !== monedaBase);
+    if (distintaMoneda) {
+      setSnackbar({ open: true, message: 'La selección debe usar la misma moneda.', severity: 'warning' });
+      return;
+    }
+
+    setGeneracionDialog({
+      open: true,
+      loading: true,
+      documentoId: selectedDocumentIds[0] ?? null,
+      documentoIds: selectedDocumentIds,
+      tipoDestino: bulkNotaCreditoDestino,
+      data: null,
+      cantidades: {},
+      enviando: false,
+    });
+
+    try {
+      const data = await prepararGeneracionMultiple(selectedDocumentIds, bulkNotaCreditoDestino as any, token!, empresaId!);
+      const cantidades = data.partidas.reduce<Record<number, number>>((acc, p) => {
+        acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
+        return acc;
+      }, {});
+      setGeneracionDialog({
+        open: true,
+        loading: false,
+        documentoId: selectedDocumentIds[0] ?? null,
+        documentoIds: selectedDocumentIds,
+        tipoDestino: bulkNotaCreditoDestino,
+        data,
+        cantidades,
+        enviando: false,
+      });
+    } catch (err: any) {
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
+      setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la consolidación', severity: 'error' });
     }
   };
 
@@ -789,7 +899,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   }, [completeGeneratedDocumentNavigation, location.pathname]);
 
   const handleGenerar = async () => {
-    if (!generacionDialog.data || !generacionDialog.documentoId || !generacionDialog.tipoDestino) return;
+    if (!generacionDialog.data || !generacionDialog.tipoDestino) return;
     if (!requireAuthData()) return;
 
     const partidas = generacionDialog.data.partidas
@@ -802,7 +912,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     }
 
     const payload: GenerarDocumentoPayload = {
-      documento_origen_id: generacionDialog.documentoId,
+      ...(generacionDialog.documentoIds.length > 1
+        ? { documento_origen_ids: generacionDialog.documentoIds }
+        : { documento_origen_id: generacionDialog.documentoId ?? undefined }),
       tipo_documento_destino: generacionDialog.tipoDestino as any,
       partidas,
     };
@@ -810,10 +922,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     try {
       setGeneracionDialog((prev) => ({ ...prev, enviando: true }));
       const result = await generarDocumentoDesdeOrigen(payload, token!, empresaId!);
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
       setSnackbar({ open: true, message: 'Documento generado correctamente', severity: 'success' });
       await handlePostGeneration({
-        documentoOrigenId: payload.documento_origen_id,
+        documentoOrigenId: generacionDialog.documentoId ?? generacionDialog.documentoIds[0] ?? 0,
         result,
         pathname: location.pathname,
       });
@@ -891,7 +1003,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       tipoDocumento,
       tipoDocumentoLabel: tipoDocumentoMeta?.nombre || textos.singular,
       folio: formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0)) || String(row.id),
-      cliente: row?.nombre_cliente || 'Sin cliente',
+      cliente: row?.nombre_cliente || `Sin ${contactoLabelLower}`,
       total: row?.total ?? null,
       telefono: obtenerTelefonoDocumento(row),
       plantillaDefaultId: tipoDocumentoMeta?.whatsapp_plantilla_default_id ?? null,
@@ -1026,7 +1138,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           return formatFecha(value);
         },
       },
-      { field: 'nombre_cliente', headerName: 'Cliente', flex: 1, minWidth: 220, headerClassName: 'finanzas-header' },
+      { field: 'nombre_cliente', headerName: contactoLabel, flex: 1, minWidth: 220, headerClassName: 'finanzas-header' },
+      ...(esNotaCredito
+        ? ([{
+            field: 'motivo_nc',
+            headerName: 'Motivo',
+            width: 130,
+            headerClassName: 'finanzas-header',
+            renderCell: (params: any) => (
+              <Typography variant="body2" noWrap sx={{ width: '100%', color: '#374151' }}>
+                {formatMotivoNcLabel(params.row?.motivo_nc)}
+              </Typography>
+            ),
+          }] as GridColDef[])
+        : []),
       ...(esCotizacion
         ? ([{
             field: 'agente_id',
@@ -1347,7 +1472,30 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {hasAction('timbrar') && (
+          {(tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') && Number(params.row?.saldo ?? 0) > 0 && String(params.row?.estatus_documento ?? '').toLowerCase() !== 'cancelado' && (
+            <Tooltip title={Number(params.row?.contacto_principal_id ?? 0) > 0 ? 'Aplicar saldo' : 'Documento sin contacto principal'}>
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading || Number(params.row?.contacto_principal_id ?? 0) <= 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAplicarSaldoNcDrawer({
+                      open: true,
+                      documentoId: Number(params.row?.id ?? 0) || null,
+                      contactoId: Number(params.row?.contacto_principal_id ?? 0) || null,
+                      saldo: Number(params.row?.saldo ?? 0),
+                      tipoDocumento,
+                    });
+                  }}
+                >
+                  <LinkIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
+          {hasAction('timbrar') && (tipoDocumento !== 'nota_credito' || esNotaCreditoTimbrable(params.row?.motivo_nc)) && (
             <Tooltip title="Timbrar CFDI">
               <span>
                 <IconButton
@@ -1358,12 +1506,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                     e.stopPropagation();
                     try {
                       setTimbrandoId(params.row.id as number);
-                      await timbrarFactura(Number(params.row.id));
+                      await timbrarDocumentoCfdi(Number(params.row.id), tipoDocumento);
                       await load();
-                      const emailInicial = obtenerEmailDocumento(params.row);
-                      setEnviarDialog({ open: true, id: Number(params.row.id), email: emailInicial, enviando: false, error: null });
+                      if (tipoDocumento === 'factura') {
+                        const emailInicial = obtenerEmailDocumento(params.row);
+                        setEnviarDialog({ open: true, id: Number(params.row.id), email: emailInicial, enviando: false, error: null });
+                      }
                     } catch (err: any) {
-                      setError(err?.message || 'No se pudo timbrar la factura');
+                      setError(err?.message || 'No se pudo timbrar el documento');
                     } finally {
                       setTimbrandoId(null);
                     }
@@ -1443,6 +1593,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     currencyFormatter,
     calcularEstatusFinanciero,
     tieneOpcionesGeneracion,
+    contactoLabel,
+    contactoLabelLower,
     vendedoresPorId,
     abrirDialogoProduccion,
     abrirDrawerProduccion,
@@ -1877,7 +2029,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                         <TextField
                           {...params}
                           size="small"
-                          label="Cliente"
+                          label={contactoLabel}
                           placeholder="Todos"
                           InputLabelProps={{ ...(params.InputLabelProps as any), shrink: true }}
                           sx={{
@@ -2071,6 +2223,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             <Button variant="text" onClick={() => setSelectedDocumentIds([])} disabled={bulkDuplicating}>
               Limpiar selección
             </Button>
+            {bulkNotaCreditoDestino && selectedDocumentIds.length > 1 && (
+              <Button
+                variant="outlined"
+                startIcon={<ReceiptLongIcon />}
+                onClick={() => {
+                  void handlePrepararConsolidacionNotaCredito();
+                }}
+              >
+                Consolidar nota de crédito
+              </Button>
+            )}
             <Button
               variant="contained"
               startIcon={<ContentCopyIcon />}
@@ -2352,9 +2515,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         }}
       />
 
+      {aplicarSaldoNcDrawer.open && aplicarSaldoNcDrawer.documentoId && aplicarSaldoNcDrawer.contactoId && aplicarSaldoNcDrawer.tipoDocumento ? (
+        <FacturaPagosDrawer
+          open={aplicarSaldoNcDrawer.open}
+          onClose={() => setAplicarSaldoNcDrawer({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null })}
+          documentoId={aplicarSaldoNcDrawer.documentoId}
+          contactoId={aplicarSaldoNcDrawer.contactoId}
+          saldo={aplicarSaldoNcDrawer.saldo}
+          tipoDocumento={aplicarSaldoNcDrawer.tipoDocumento}
+        />
+      ) : null}
+
       <Dialog
         open={generacionDialog.open}
-        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false })}
+        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false })}
         fullWidth
         maxWidth="md"
       >
@@ -2370,11 +2544,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           ) : (
             <Stack spacing={2}>
               <Typography variant="body2" color="text.secondary">
-                Origen: {generacionDialog.data.documento_origen.folio || generacionDialog.data.documento_origen.documento_id} · Destino: {generacionDialog.tipoDestino}
+                Origen: {generacionDialog.data.es_consolidado
+                  ? `${generacionDialog.data.documentos_origen.length} documentos consolidados`
+                  : (generacionDialog.data.documento_origen?.folio || generacionDialog.data.documento_origen?.documento_id)} · Destino: {generacionDialog.tipoDestino}
               </Typography>
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    {generacionDialog.data.es_consolidado && <TableCell>Documento origen</TableCell>}
                     <TableCell>Producto</TableCell>
                     <TableCell align="right">Cant. origen</TableCell>
                     <TableCell align="right">Pendiente</TableCell>
@@ -2384,6 +2561,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                 <TableBody>
                   {generacionDialog.data.partidas.map((p) => (
                     <TableRow key={p.partida_id} hover>
+                      {generacionDialog.data.es_consolidado && <TableCell>{p.documento_origen_folio || p.documento_origen_id}</TableCell>}
                       <TableCell>{p.descripcion || `Producto ${p.producto_id ?? ''}`}</TableCell>
                       <TableCell align="right">{p.cantidad_origen}</TableCell>
                       <TableCell align="right">{p.cantidad_pendiente_sugerida}</TableCell>
@@ -2405,7 +2583,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
           <Button
-            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, tipoDestino: null, data: null, cantidades: {}, enviando: false })}
+            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false })}
             disabled={generacionDialog.enviando}
           >
             Cancelar

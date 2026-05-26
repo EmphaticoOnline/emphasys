@@ -16,6 +16,7 @@ import {
   DialogTitle,
   CircularProgress,
   IconButton,
+  InputAdornment,
   MenuItem,
   Paper,
   Stack,
@@ -47,6 +48,7 @@ import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 
 import type {
   CotizacionDetalle,
+  CotizacionListado,
   CotizacionPartidaPayload,
   CotizacionCrearPayload,
   CotizacionPartida,
@@ -54,7 +56,13 @@ import type {
   TratamientoImpuestos,
 } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
-import { getDocumento, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana } from '../services/documentosService';
+import { getDocumento, getDocumentos, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana } from '../services/documentosService';
+import { fetchConceptos } from '../services/conceptosService';
+import {
+  generarDocumentoDesdeOrigen,
+  prepararGeneracionMultiple,
+  type PrepararGeneracionResponse,
+} from '../services/documentGenerationService';
 import { uploadArchivo } from '../services/uploadsService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
 import { createProducto, fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
@@ -77,6 +85,8 @@ import { fetchCuentas, fetchResumenAnticiposDocumento, fetchSaldoDocumento } fro
 import { buildAssetUrl } from '../services/empresasAssetsService';
 import { resolvePrecioDocumento } from '../services/preciosService';
 import { normalizarTelefonoMx } from '../utils/telefono';
+import { formatearFolioDocumento } from '../utils/documentos.utils';
+import { crearConcepto } from '../services/conceptosService';
 import {
   guardarCamposDocumento,
   guardarCamposPartida,
@@ -84,7 +94,7 @@ import {
   fetchCamposPartida,
 } from '../services/camposDinamicosService';
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
-import type { DocumentoAnticipoResumen, FinanzasCuenta } from '../types/finanzas';
+import type { Concepto, DocumentoAnticipoResumen, FinanzasCuenta } from '../types/finanzas';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -163,6 +173,48 @@ type PartidaForm = Omit<CotizacionPartidaPayload, 'impuestos'> & {
   impuestos_calculados?: ImpuestoCalculadoUI[];
 };
 
+type FinancialSummary = {
+  subtotalBruto: number;
+  descuentoPartidas: number;
+  descuentoGlobal: number;
+  subtotalNeto: number;
+  iva: number;
+  total: number;
+};
+
+const EMPTY_FINANCIAL_SUMMARY: FinancialSummary = {
+  subtotalBruto: 0,
+  descuentoPartidas: 0,
+  descuentoGlobal: 0,
+  subtotalNeto: 0,
+  iva: 0,
+  total: 0,
+};
+const campoEncabezadoSx = {
+  '& .MuiOutlinedInput-root': {
+    display: 'flex',
+    alignItems: 'center',
+  },
+  '& .MuiInputBase-input': {
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: 1.4375,
+    py: '8.5px',
+  },
+  '& .MuiAutocomplete-input': {
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: 1.4375,
+  },
+  '& .MuiSelect-select': {
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: 1.4375,
+    display: 'flex',
+    alignItems: 'center',
+  },
+} as const;
+
 const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
   { label: 'Operación estándar', value: 'normal' },
   { label: 'Nota de venta', value: 'sin_iva' },
@@ -197,9 +249,30 @@ type DocumentosFormPageProps = {
 const DESCRIPCIONES_FORMULARIO: Record<string, string> = {
   cotizacion: 'Captura el encabezado y las partidas de la cotización.',
   factura: 'Captura el encabezado y las partidas de la factura.',
+  nota_credito: 'Captura una nota de crédito comercial o por devolución.',
   orden_servicio: 'Registra los artículos recibidos y los servicios solicitados',
   pedido: 'Captura el encabezado y las partidas del pedido.',
   remision: 'Captura el encabezado y las partidas de la remisión.',
+  nota_credito_compra: 'Captura una nota de crédito de compra o devolución a proveedor.',
+};
+
+const TIPOS_DOCUMENTO_CON_SALDO = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'];
+const MOTIVOS_NOTA_CREDITO = ['devolucion', 'bonificacion', 'otro'] as const;
+type MotivoNotaCredito = typeof MOTIVOS_NOTA_CREDITO[number];
+
+const esPartidaPlaceholder = (partida: PartidaForm) => {
+  const impuestos = partida.impuestos_calculados ?? partida.impuestos ?? [];
+  const sinProductoNiDescripcion = !partida.producto_id && !String(partida.descripcion_alterna ?? '').trim();
+  const sinMontos = Number(partida.precio_unitario ?? 0) <= 0
+    && Number(partida.subtotal_partida ?? 0) <= 0
+    && Number(partida.total_partida ?? 0) <= 0
+    && Number(partida.descuento ?? 0) <= 0;
+
+  if (sinProductoNiDescripcion && sinMontos && !String(partida.observaciones ?? '').trim() && impuestos.length === 0) {
+    return true;
+  }
+
+  return false;
 };
 
 const ENTIDAD_TIPO_DOCUMENTO = 'DOCUMENTO';
@@ -216,6 +289,13 @@ type ContactoAutocompleteOption = Contacto | {
   kind: 'create';
   id: -1;
   nombre: string;
+  inputValue: string;
+};
+
+type ConceptoAutocompleteOption = Concepto | {
+  kind: 'create';
+  id: -1;
+  nombre_concepto: string;
   inputValue: string;
 };
 
@@ -267,8 +347,19 @@ const buildCreateProductoOption = (): ProductoAutocompleteOption => ({
   descripcion: 'Registrar y asignar producto',
 });
 
+const buildCreateConceptoOption = (inputValue: string): ConceptoAutocompleteOption => ({
+  kind: 'create',
+  id: -1,
+  nombre_concepto: inputValue ? `+ Nuevo concepto "${inputValue}"` : '+ Nuevo concepto',
+  inputValue,
+});
+
 const filterContactoOptions = createFilterOptions<ContactoAutocompleteOption>({
   stringify: (option) => ('kind' in option && option.kind === 'create' ? option.inputValue : option.nombre || ''),
+});
+
+const filterConceptoOptions = createFilterOptions<ConceptoAutocompleteOption>({
+  stringify: (option) => ('kind' in option && option.kind === 'create' ? option.inputValue : option.nombre_concepto || ''),
 });
 
 export default function DocumentosFormPage({ tipoDocumento: propTipo }: DocumentosFormPageProps) {
@@ -306,6 +397,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const moduloDocumento = resolveDocumentoModulo(location.pathname);
   const documentoActualId = documentoPersistidoId ?? routeDocumentoId;
   const isCotizacion = tipoDocumento === 'cotizacion';
+  const isNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
   const isEdit = Boolean(documentoActualId);
   const basePath = resolveDocumentosListPath(tipoDocumento, moduloDocumento);
   const showFiscalTab = widgetFiscalTab;
@@ -328,6 +420,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const [form, setForm] = useState<CotizacionCrearPayload>({
     tipo_documento: tipoDocumento,
+    motivo_nc: isNotaCredito ? 'otro' : null,
+    concepto_id: null,
     serie: defaultSerie,
     contacto_principal_id: null,
     agente_id: null,
@@ -365,8 +459,26 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [partidaImagenesProductoLoadingId, setPartidaImagenesProductoLoadingId] = useState<number | null>(null);
   const [partidaImagenesProductoError, setPartidaImagenesProductoError] = useState<string | null>(null);
   const [contactos, setContactos] = useState<Contacto[]>([]);
+  const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [documentosOrigenDisponibles, setDocumentosOrigenDisponibles] = useState<CotizacionListado[]>([]);
+  const [documentosOrigenSeleccionados, setDocumentosOrigenSeleccionados] = useState<CotizacionListado[]>([]);
+  const [preparacionNotaCredito, setPreparacionNotaCredito] = useState<PrepararGeneracionResponse | null>(null);
+  const [valoresEspecialesNotaCredito, setValoresEspecialesNotaCredito] = useState<Record<number, number>>({});
+  const [loadingPreparacionNotaCredito, setLoadingPreparacionNotaCredito] = useState(false);
+  const [resumenNotaCreditoEspecial, setResumenNotaCreditoEspecial] = useState<FinancialSummary>(EMPTY_FINANCIAL_SUMMARY);
+  const [detallePartidasNotaCreditoEspecial, setDetallePartidasNotaCreditoEspecial] = useState<Record<number, { subtotal: number; iva: number; total: number }>>({});
+  const [lineasSeleccionadasNotaCreditoEspecial, setLineasSeleccionadasNotaCreditoEspecial] = useState<Record<number, boolean>>({});
+  const [busquedaNotaCreditoEspecial, setBusquedaNotaCreditoEspecial] = useState('');
+  const [bonificacionInputDisplay, setBonificacionInputDisplay] = useState<Record<number, string>>({});
+  const [bonificacionInputFocusedId, setBonificacionInputFocusedId] = useState<number | null>(null);
+  const [capturasEspecialesDocumentoActual, setCapturasEspecialesDocumentoActual] = useState<Record<number, {
+    documentoOrigenId: number;
+    cantidadVinculada: number;
+    montoCapturado: number;
+    valor: number;
+  }>>({});
   const [loading, setLoading] = useState<boolean>(isEdit);
   const [saving, setSaving] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -381,6 +493,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     { open: false, message: '', severity: 'success' }
   );
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+  const [conceptoObligatorioDialog, setConceptoObligatorioDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [activeTab, setActiveTab] = useState<number>(0);
   const [crearClienteOpen, setCrearClienteOpen] = useState(false);
   const [crearClienteNombre, setCrearClienteNombre] = useState('');
@@ -394,6 +507,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [crearProductoLoading, setCrearProductoLoading] = useState(false);
   const [crearProductoIndex, setCrearProductoIndex] = useState<number | null>(null);
   const [crearProductoClaveError, setCrearProductoClaveError] = useState<string | null>(null);
+  const [crearConceptoOpen, setCrearConceptoOpen] = useState(false);
+  const [crearConceptoNombre, setCrearConceptoNombre] = useState('');
+  const [crearConceptoLoading, setCrearConceptoLoading] = useState(false);
+  const [crearConceptoError, setCrearConceptoError] = useState<string | null>(null);
+  const [notaCreditoManualTotalInput, setNotaCreditoManualTotalInput] = useState('');
+  const [notaCreditoManualTotalFocused, setNotaCreditoManualTotalFocused] = useState(false);
+  const conceptoAutoSyncRef = useRef<string | null>(null);
+  const conceptoManualOverrideRef = useRef(false);
 
   const shouldOpenPagos = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -406,6 +527,15 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     () => partidas.some((partida) => Number(partida.cantidad ?? 0) > 0 && Number(partida.precio_unitario ?? 0) > 0),
     [partidas]
   );
+  const motivoNotaCredito = (form.motivo_nc ?? 'otro') as MotivoNotaCredito;
+  const isNotaCreditoManual = isNotaCredito && motivoNotaCredito === 'otro';
+  const isNotaCreditoDevolucion = isNotaCredito && motivoNotaCredito === 'devolucion';
+  const isNotaCreditoBonificacion = isNotaCredito && motivoNotaCredito === 'bonificacion';
+  const usaCapturaEspecialNotaCredito = isNotaCreditoManual || isNotaCreditoDevolucion || isNotaCreditoBonificacion;
+  const usaGeneracionEspecialNotaCredito = isNotaCreditoDevolucion || isNotaCreditoBonificacion;
+  const permiteCapturaManualSinPartidas = isNotaCredito && !partidas.some((partida) => !esPartidaPlaceholder(partida));
+  const contactoLabel = tipoDocumento === 'nota_credito_compra' ? 'Proveedor' : 'Cliente';
+  const tipoDocumentoOrigenNotaCredito = tipoDocumento === 'nota_credito_compra' ? 'factura_compra' : 'factura';
   const prefillContactoId = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const rawContactoId = params.get('contactoId');
@@ -416,6 +546,78 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     const params = new URLSearchParams(location.search);
     return params.get('conversacionId');
   }, [location.search]);
+
+  const partidasNotaCreditoDisponibles = useMemo(
+    () => (preparacionNotaCredito?.partidas ?? []).map((partida) => {
+      const capturaActual = capturasEspecialesDocumentoActual[partida.partida_id];
+      if (!capturaActual) return partida;
+
+      return {
+        ...partida,
+        cantidad_ya_generada: Math.max(0, Number(partida.cantidad_ya_generada ?? 0) - Number(capturaActual.cantidadVinculada ?? 0)),
+        cantidad_pendiente_sugerida: Number((Number(partida.cantidad_pendiente_sugerida ?? 0) + Number(capturaActual.cantidadVinculada ?? 0)).toFixed(6)),
+        importe_maximo_sugerido: Number((Number(partida.importe_maximo_sugerido ?? 0) + Number(capturaActual.montoCapturado ?? 0)).toFixed(2)),
+      };
+    }).filter((partida) => {
+      const disponible = isNotaCreditoDevolucion
+        ? Number(partida.cantidad_pendiente_sugerida ?? 0)
+        : Number(partida.importe_maximo_sugerido ?? 0);
+      return disponible > 0.000001;
+    }),
+    [capturasEspecialesDocumentoActual, isNotaCreditoDevolucion, preparacionNotaCredito]
+  );
+
+  const getMontoEspecialNotaCredito = useCallback((partida: PrepararGeneracionResponse['partidas'][number]) => {
+    const capturado = Math.max(0, Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0));
+    if (capturado <= 0) return 0;
+
+    if (isNotaCreditoDevolucion) {
+      const cantidadDisponible = Math.max(0, Number(partida.cantidad_pendiente_sugerida ?? 0));
+      const importeDisponible = Math.max(0, Number(partida.importe_maximo_sugerido ?? 0));
+      if (cantidadDisponible <= 0 || importeDisponible <= 0) return 0;
+      const proporcion = Math.min(capturado, cantidadDisponible) / cantidadDisponible;
+      return Number((importeDisponible * proporcion).toFixed(2));
+    }
+
+    return Number(Math.min(capturado, Math.max(0, Number(partida.importe_maximo_sugerido ?? 0))).toFixed(2));
+  }, [isNotaCreditoDevolucion, valoresEspecialesNotaCredito]);
+
+  const documentosOrigenPorId = useMemo(
+    () => Object.fromEntries(documentosOrigenDisponibles.map((doc) => [doc.id, doc])),
+    [documentosOrigenDisponibles]
+  );
+
+  const documentosOrigenCliente = useMemo(
+    () => documentosOrigenDisponibles.filter((doc) => Number(doc.contacto_principal_id ?? 0) === Number(form.contacto_principal_id ?? 0)),
+    [documentosOrigenDisponibles, form.contacto_principal_id]
+  );
+
+  const partidasNotaCreditoVisibles = useMemo(() => {
+    const termino = busquedaNotaCreditoEspecial.trim().toLowerCase();
+    if (!termino) return partidasNotaCreditoDisponibles;
+
+    return partidasNotaCreditoDisponibles.filter((partida) => {
+      const documentoOrigen = documentosOrigenPorId[partida.documento_origen_id];
+      const folio = formatearFolioDocumento(documentoOrigen?.serie ?? '', Number(documentoOrigen?.numero ?? 0))
+        || partida.documento_origen_folio
+        || String(partida.documento_origen_id);
+      const producto = partida.producto_id ? (productos.find((item) => item.id === partida.producto_id)?.descripcion ?? '') : '';
+      const descripcion = partida.descripcion ?? '';
+      const searchable = `${folio} ${producto} ${descripcion}`.toLowerCase();
+      return searchable.includes(termino);
+    });
+  }, [busquedaNotaCreditoEspecial, documentosOrigenPorId, partidasNotaCreditoDisponibles, productos]);
+
+  const isPartidaNotaCreditoEspecialSeleccionada = useCallback((partidaId: number) => {
+    const cantidad = Number(valoresEspecialesNotaCredito[partidaId] ?? 0);
+    return Boolean(lineasSeleccionadasNotaCreditoEspecial[partidaId]) || cantidad > 0;
+  }, [lineasSeleccionadasNotaCreditoEspecial, valoresEspecialesNotaCredito]);
+
+  const getMaximoCapturableNotaCredito = useCallback((partida: PrepararGeneracionResponse['partidas'][number]) => (
+    isNotaCreditoDevolucion
+      ? Number(partida.cantidad_pendiente_sugerida ?? 0)
+      : Number(partida.importe_maximo_sugerido ?? 0)
+  ), [isNotaCreditoDevolucion]);
 
   const camposDocumento = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_DOCUMENTO, tipoDocumento });
   const camposPartida = useCamposDinamicos({ entidadTipoCodigo: ENTIDAD_TIPO_PARTIDA, tipoDocumento });
@@ -431,6 +633,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const previewTimersRef = useRef<Record<number, ReturnType<typeof setTimeout> | null>>({});
   const previewSeqRef = useRef<Record<number, number>>({});
   const previewGlobalSeqRef = useRef<number>(0);
+  const resumenNotaCreditoEspecialSeqRef = useRef<number>(0);
   const tratamientoRef = useRef<TratamientoImpuestos | null>(form.tratamiento_impuestos ?? 'normal');
   const descuentoGlobalRef = useRef<number>(clampDiscountPercent(form.descuento_global ?? 0));
   const resumenFinancieroRef = useRef<HTMLDivElement | null>(null);
@@ -543,6 +746,87 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     [form.moneda]
   );
 
+  const decimalFormatter = useMemo(
+    () => new Intl.NumberFormat('es-MX', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }),
+    []
+  );
+
+  const sanitizeMontoBonificacionInput = useCallback((rawValue: string) => {
+    const normalized = String(rawValue ?? '').replace(/,/g, '.').replace(/[^0-9.]/g, '');
+    if (!normalized) return '';
+
+    const parts = normalized.split('.');
+    const integerPart = (parts[0] ?? '').replace(/^0+(?=\d)/, '');
+    const decimalDigits = parts.slice(1).join('').slice(0, 2);
+    const hasDecimalPoint = normalized.includes('.');
+
+    if (hasDecimalPoint) {
+      if (normalized.endsWith('.') && decimalDigits.length === 0) {
+        return `${integerPart || '0'}.`;
+      }
+      return `${integerPart || '0'}.${decimalDigits}`;
+    }
+
+    return integerPart || '0';
+  }, []);
+
+  const parseMontoBonificacionInput = useCallback((rawValue: string) => {
+    const sanitized = sanitizeMontoBonificacionInput(rawValue);
+    if (!sanitized || sanitized === '.') return 0;
+    return Math.max(0, Number(sanitized) || 0);
+  }, [sanitizeMontoBonificacionInput]);
+
+  const formatMontoBonificacionInput = useCallback((value: number) => decimalFormatter.format(Number(value ?? 0)), [decimalFormatter]);
+
+  const sanitizeMontoMonetarioInput = useCallback((rawValue: string) => {
+    const cleaned = String(rawValue ?? '').replace(/[^0-9.]/g, '');
+    if (!cleaned) return '';
+
+    const parts = cleaned.split('.');
+    const integerPart = (parts[0] ?? '').replace(/^0+(?=\d)/, '');
+    const decimalDigits = parts.slice(1).join('').slice(0, 2);
+    const hasDecimalPoint = cleaned.includes('.');
+
+    if (hasDecimalPoint) {
+      if (cleaned.endsWith('.') && decimalDigits.length === 0) {
+        return `${integerPart || '0'}.`;
+      }
+      return `${integerPart || '0'}.${decimalDigits}`;
+    }
+
+    return integerPart || '0';
+  }, []);
+
+  const parseMontoMonetarioInput = useCallback((rawValue: string) => {
+    const sanitized = sanitizeMontoMonetarioInput(rawValue);
+    if (!sanitized || sanitized === '.') return 0;
+    return Math.max(0, Number(sanitized) || 0);
+  }, [sanitizeMontoMonetarioInput]);
+
+  const formatMontoMonetarioInput = useCallback((value: number) => decimalFormatter.format(Number(value ?? 0)), [decimalFormatter]);
+  const normalizarNombreConcepto = useCallback((value: string) => value.trim().toLowerCase(), []);
+
+  const nombreConceptoAutoNotaCredito = useMemo(() => {
+    if (!isNotaCreditoDevolucion && !isNotaCreditoBonificacion) return null;
+
+    const contexto = tipoDocumento === 'nota_credito_compra' ? 'compra' : 'venta';
+    return isNotaCreditoDevolucion
+      ? `Devolución de ${contexto}`
+      : `Bonificación sobre ${contexto}`;
+  }, [isNotaCreditoBonificacion, isNotaCreditoDevolucion, tipoDocumento]);
+
+  const conceptosActivos = useMemo(() => conceptos.filter((concepto) => concepto.activo), [conceptos]);
+
+  const limpiarCrearConceptoDialog = useCallback(() => {
+    setCrearConceptoOpen(false);
+    setCrearConceptoNombre('');
+    setCrearConceptoLoading(false);
+    setCrearConceptoError(null);
+  }, []);
+
   const productosDisponibles = useMemo(() => {
     const tiposPermitidos = new Set(productoTiposPermitidos.map((tipo) => tipo.toLowerCase()));
 
@@ -621,6 +905,19 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   };
 
   const recalcTotales = (partidasList: PartidaForm[], descuentoGlobalOverride?: number | null) => {
+    if (isNotaCredito && !partidasList.some((partida) => !esPartidaPlaceholder(partida))) {
+      setForm((prev) => {
+        const subtotal = Number(prev.subtotal ?? 0);
+        const iva = Number(prev.iva ?? 0);
+        return {
+          ...prev,
+          descuento: 0,
+          total: Number((subtotal + iva).toFixed(2)),
+        };
+      });
+      return;
+    }
+
     const descuentoGlobalDocumento = clampDiscountPercent(descuentoGlobalOverride ?? descuentoGlobalRef.current ?? 0);
     const subtotal = partidasList.reduce((acc, p) => acc + (p.subtotal_partida || 0), 0);
     const descuento = partidasList.reduce((acc, p) => acc + getPartidaTotalDiscountAmount(p, descuentoGlobalDocumento), 0);
@@ -645,6 +942,19 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   );
 
   const discountSummary = useMemo(() => {
+    if (isNotaCredito && !partidas.some((partida) => !esPartidaPlaceholder(partida))) {
+      const subtotal = Number(form.subtotal ?? 0);
+      const iva = Number(form.iva ?? 0);
+      return {
+        subtotalBruto: subtotal,
+        descuentoPartidas: 0,
+        descuentoGlobal: 0,
+        subtotalNeto: subtotal,
+        iva,
+        total: Number(form.total ?? (subtotal + iva)),
+      };
+    }
+
     const descuentoGlobalDocumento = clampDiscountPercent(form.descuento_global ?? 0);
 
     return partidas.reduce((acc, partida) => {
@@ -671,7 +981,112 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       iva: 0,
       total: 0,
     });
-  }, [form.descuento_global, partidas]);
+  }, [form.descuento_global, form.iva, form.subtotal, form.total, isNotaCredito, partidas]);
+
+  const resumenFinanciero = usaGeneracionEspecialNotaCredito ? resumenNotaCreditoEspecial : discountSummary;
+  const mostrarResumenFinanciero = !usaCapturaEspecialNotaCredito || usaGeneracionEspecialNotaCredito;
+  const mostrarResumenFinancieroStickyVisible = mostrarResumenFinancieroSticky || usaGeneracionEspecialNotaCredito;
+
+  const recalcularNotaCreditoManual = useCallback(async (montoTotal: number, tratamiento: TratamientoImpuestos | null | undefined) => {
+    const total = Number.isFinite(montoTotal) ? Math.max(0, Number(montoTotal)) : 0;
+    if (total <= 0) {
+      setForm((prev) => ({ ...prev, subtotal: 0, iva: 0, total: 0, descuento: 0, descuento_global: 0 }));
+      return { subtotal: 0, iva: 0, total: 0 };
+    }
+
+    if ((tratamiento ?? 'normal') === 'sin_iva' || (tratamiento ?? 'normal') === 'tasa_cero' || (tratamiento ?? 'normal') === 'exento') {
+      setForm((prev) => ({ ...prev, subtotal: total, iva: 0, total, descuento: 0, descuento_global: 0 }));
+      return { subtotal: total, iva: 0, total };
+    }
+
+    try {
+      const previewBase: any = await calcularImpuestosPreview({
+        producto_id: null,
+        cantidad: 1,
+        precio_unitario: 100,
+        descuento: 0,
+        descuento_global: 0,
+        tratamiento_impuestos: tratamiento ?? 'normal',
+      });
+
+      const subtotalBase = Number(previewBase?.subtotal_partida ?? 100) || 100;
+      const totalBase = Number(previewBase?.total_partida ?? subtotalBase) || subtotalBase;
+      const factor = totalBase > 0 ? totalBase / subtotalBase : 1;
+      const subtotalEstimado = factor > 0 ? Number((total / factor).toFixed(6)) : total;
+
+      const previewExacto: any = await calcularImpuestosPreview({
+        producto_id: null,
+        cantidad: 1,
+        precio_unitario: subtotalEstimado,
+        descuento: 0,
+        descuento_global: 0,
+        tratamiento_impuestos: tratamiento ?? 'normal',
+      });
+
+      const subtotal = Number(previewExacto?.subtotal_partida ?? subtotalEstimado) || subtotalEstimado;
+      const totalCalculado = Number(previewExacto?.total_partida ?? total) || total;
+      const iva = Number((totalCalculado - subtotal).toFixed(2));
+
+      setForm((prev) => ({
+        ...prev,
+        subtotal: Number(subtotal.toFixed(2)),
+        iva,
+        total: Number(total.toFixed(2)),
+        descuento: 0,
+        descuento_global: 0,
+      }));
+      return {
+        subtotal: Number(subtotal.toFixed(2)),
+        iva,
+        total: Number(total.toFixed(2)),
+      };
+    } catch (previewError) {
+      console.error('[nota_credito_manual] No se pudo calcular impuestos', previewError);
+      setForm((prev) => ({ ...prev, subtotal: total, iva: 0, total, descuento: 0, descuento_global: 0 }));
+      return { subtotal: total, iva: 0, total };
+    }
+  }, []);
+
+  const getNotaCreditoManualTotalActual = useCallback(() => parseMontoMonetarioInput(notaCreditoManualTotalInput), [notaCreditoManualTotalInput, parseMontoMonetarioInput]);
+
+  useEffect(() => {
+    if (!isNotaCreditoManual) {
+      setNotaCreditoManualTotalInput('');
+      setNotaCreditoManualTotalFocused(false);
+      return;
+    }
+
+    if (notaCreditoManualTotalFocused) return;
+    setNotaCreditoManualTotalInput(formatMontoMonetarioInput(Number(form.total ?? 0)));
+  }, [form.total, formatMontoMonetarioInput, isNotaCreditoManual, notaCreditoManualTotalFocused]);
+
+  useEffect(() => {
+    if (!isNotaCreditoManual || !notaCreditoManualTotalFocused) return;
+
+    const timer = setTimeout(() => {
+      const numeric = getNotaCreditoManualTotalActual();
+      void recalcularNotaCreditoManual(numeric, form.tratamiento_impuestos);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [form.tratamiento_impuestos, getNotaCreditoManualTotalActual, isNotaCreditoManual, notaCreditoManualTotalFocused, recalcularNotaCreditoManual]);
+
+  const handleNotaCreditoManualTotalChange = useCallback((rawValue: string) => {
+    setNotaCreditoManualTotalInput(rawValue);
+  }, []);
+
+  const handleNotaCreditoManualTotalFocus = useCallback(() => {
+    setNotaCreditoManualTotalFocused(true);
+  }, []);
+
+  const handleNotaCreditoManualTotalBlur = useCallback(() => {
+    if (!isNotaCreditoManual) return;
+
+    const numeric = getNotaCreditoManualTotalActual();
+    setNotaCreditoManualTotalFocused(false);
+    setNotaCreditoManualTotalInput(formatMontoMonetarioInput(numeric));
+    void recalcularNotaCreditoManual(numeric, form.tratamiento_impuestos);
+  }, [form.tratamiento_impuestos, formatMontoMonetarioInput, getNotaCreditoManualTotalActual, isNotaCreditoManual, recalcularNotaCreditoManual]);
 
   useEffect(() => {
     const target = resumenFinancieroRef.current;
@@ -841,6 +1256,13 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   };
 
   const handleTratamientoChange = (valor: TratamientoImpuestos) => {
+    if (isNotaCreditoManual) {
+      tratamientoRef.current = valor;
+      setForm((prev) => ({ ...prev, tratamiento_impuestos: valor }));
+      void recalcularNotaCreditoManual(getNotaCreditoManualTotalActual(), valor);
+      return;
+    }
+
     tratamientoChangeSeqRef.current += 1;
     const changeSeq = tratamientoChangeSeqRef.current;
     console.log('[impuestos] handleTratamientoChange', {
@@ -899,6 +1321,25 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     setTimeout(() => {
       suppressPreviewRef.current = false;
     }, 0);
+  };
+
+  const handleMotivoNotaCreditoChange = (valor: MotivoNotaCredito) => {
+    conceptoManualOverrideRef.current = false;
+    setConceptoObligatorioDialog({ open: false, message: '' });
+    setForm((prev) => ({
+      ...prev,
+      motivo_nc: valor,
+      descuento_global: 0,
+      descuento: 0,
+      concepto_id: valor === 'otro' ? prev.concepto_id : null,
+    }));
+
+    if (valor === 'otro') {
+      setPartidas([emptyPartida()]);
+      const montoActual = Number(form.total ?? 0);
+      setNotaCreditoManualTotalInput(formatMontoMonetarioInput(montoActual));
+      void recalcularNotaCreditoManual(montoActual, form.tratamiento_impuestos);
+    }
   };
 
   const addRow = () => {
@@ -978,10 +1419,16 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
   const loadCombos = async () => {
     try {
-      const [c, p, v] = await Promise.all([fetchContactos(tiposContactoPermitidos), fetchProductos(), fetchVendedores()]);
+      const [c, p, v, conceptosData] = await Promise.all([
+        fetchContactos(tiposContactoPermitidos),
+        fetchProductos(),
+        fetchVendedores(),
+        fetchConceptos().catch(() => []),
+      ]);
       setContactos(c);
       setProductos(p);
       setVendedores(v);
+      setConceptos(conceptosData ?? []);
     } catch (e) {
       console.error(e);
     }
@@ -994,7 +1441,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       setValoresCamposDocumento({});
       setValoresCamposPartidas([{}]);
       const requests: [Promise<CotizacionDetalle>, Promise<{ saldo: number } | null>?] = [getDocumento(Number(documentoActualId), tipoDocumento)];
-      if (tipoDocumento === 'factura') {
+      if (TIPOS_DOCUMENTO_CON_SALDO.includes(tipoDocumento)) {
         requests.push(fetchSaldoDocumento(Number(documentoActualId)).catch(() => null));
       }
       const [data, saldoData] = await Promise.all(requests);
@@ -1003,6 +1450,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       setSaldoDocumento(Number((saldoData as any)?.saldo ?? doc.saldo ?? 0));
       setForm({
         tipo_documento: doc.tipo_documento ?? tipoDocumento,
+        motivo_nc: (doc as any).motivo_nc ?? (isNotaCredito ? 'otro' : null),
+        concepto_id: (doc as any).concepto_id ?? null,
   serie: (doc as any).serie || null,
         documento_origen_id: (doc as any).documento_origen_id ?? null,
         oportunidad_id: (doc as any).oportunidad_id ?? null,
@@ -1028,6 +1477,35 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         metodo_pago: (doc as any).metodo_pago || '',
         codigo_postal_receptor: (doc as any).codigo_postal_receptor || '',
       });
+      const motivoDocumentoActual = ((doc as any).motivo_nc ?? null) as MotivoNotaCredito | null;
+      if (isNotaCredito && (motivoDocumentoActual === 'devolucion' || motivoDocumentoActual === 'bonificacion')) {
+        const capturasActuales = data.partidas.reduce<Record<number, {
+          documentoOrigenId: number;
+          cantidadVinculada: number;
+          montoCapturado: number;
+          valor: number;
+        }>>((acc, partida) => {
+          const partidaOrigenId = Number((partida as any).partida_origen_id ?? 0);
+          const documentoOrigenId = Number((partida as any).documento_origen_id ?? 0);
+          if (partidaOrigenId <= 0 || documentoOrigenId <= 0) return acc;
+
+          const cantidadVinculada = Number((partida as any).cantidad_vinculada ?? partida.cantidad ?? 0);
+          const montoCapturado = Number(partida.subtotal_partida ?? partida.total_partida ?? 0);
+          const actual = acc[partidaOrigenId];
+          acc[partidaOrigenId] = {
+            documentoOrigenId,
+            cantidadVinculada: Number(((actual?.cantidadVinculada ?? 0) + cantidadVinculada).toFixed(6)),
+            montoCapturado: Number(((actual?.montoCapturado ?? 0) + montoCapturado).toFixed(2)),
+            valor: motivoDocumentoActual === 'devolucion'
+              ? Number(((actual?.valor ?? 0) + cantidadVinculada).toFixed(6))
+              : Number(((actual?.valor ?? 0) + montoCapturado).toFixed(2)),
+          };
+          return acc;
+        }, {});
+        setCapturasEspecialesDocumentoActual(capturasActuales);
+      } else {
+        setCapturasEspecialesDocumentoActual({});
+      }
       skipFiscalFetchRef.current = true;
       prevContactoRef.current = doc.contacto_principal_id;
       prevPrecioResolverContactoRef.current = doc.contacto_principal_id;
@@ -1163,6 +1641,277 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   }, [documentoActualId, tipoDocumento]);
 
   useEffect(() => {
+    if (!isNotaCreditoDevolucion && !isNotaCreditoBonificacion) {
+      setDocumentosOrigenDisponibles([]);
+      setDocumentosOrigenSeleccionados([]);
+      setPreparacionNotaCredito(null);
+      setCapturasEspecialesDocumentoActual({});
+      setValoresEspecialesNotaCredito({});
+      setDetallePartidasNotaCreditoEspecial({});
+      setLineasSeleccionadasNotaCreditoEspecial({});
+      setBonificacionInputDisplay({});
+      setBonificacionInputFocusedId(null);
+      setBusquedaNotaCreditoEspecial('');
+      return;
+    }
+
+    getDocumentos(tipoDocumentoOrigenNotaCredito)
+      .then((docs) => setDocumentosOrigenDisponibles((docs ?? []).filter((doc) => String(doc.estatus_documento ?? '').toLowerCase() !== 'cancelada' && String(doc.estatus_documento ?? '').toLowerCase() !== 'cancelado')))
+      .catch(() => setDocumentosOrigenDisponibles([]));
+  }, [isNotaCreditoBonificacion, isNotaCreditoDevolucion, tipoDocumentoOrigenNotaCredito]);
+
+  useEffect(() => {
+    if (!usaGeneracionEspecialNotaCredito || !form.contacto_principal_id) {
+      setDocumentosOrigenSeleccionados([]);
+      setPreparacionNotaCredito(null);
+      setValoresEspecialesNotaCredito({});
+      setDetallePartidasNotaCreditoEspecial({});
+      setLineasSeleccionadasNotaCreditoEspecial({});
+      setBonificacionInputDisplay({});
+      setBonificacionInputFocusedId(null);
+      return;
+    }
+
+    setDocumentosOrigenSeleccionados(documentosOrigenCliente);
+  }, [documentosOrigenCliente, form.contacto_principal_id, usaGeneracionEspecialNotaCredito]);
+
+  useEffect(() => {
+    if (!nombreConceptoAutoNotaCredito || conceptoManualOverrideRef.current) return;
+
+    const nombreObjetivo = nombreConceptoAutoNotaCredito;
+    const conceptoExistente = conceptos.find((concepto) => normalizarNombreConcepto(concepto.nombre_concepto) === normalizarNombreConcepto(nombreObjetivo));
+
+    if (conceptoExistente) {
+      if (form.concepto_id !== conceptoExistente.id) {
+        setForm((prev) => ({ ...prev, concepto_id: conceptoExistente.id }));
+      }
+      conceptoAutoSyncRef.current = null;
+      return;
+    }
+
+    if (conceptoAutoSyncRef.current === nombreObjetivo) return;
+    conceptoAutoSyncRef.current = nombreObjetivo;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const creado = await crearConcepto({
+          nombre_concepto: nombreObjetivo,
+          es_gasto: tipoDocumento === 'nota_credito_compra',
+          activo: true,
+        });
+
+        if (cancelled) return;
+
+        setConceptos((prev) => [
+          ...prev.filter((concepto) => concepto.id !== creado.id),
+          creado,
+        ]);
+        setForm((prev) => ({ ...prev, concepto_id: creado.id }));
+      } catch (error) {
+        if (!cancelled) {
+          setSnackbar({
+            open: true,
+            message: `No se pudo crear automáticamente el concepto "${nombreObjetivo}"`,
+            severity: 'error',
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          conceptoAutoSyncRef.current = null;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conceptos, form.concepto_id, nombreConceptoAutoNotaCredito, normalizarNombreConcepto, tipoDocumento]);
+
+  useEffect(() => {
+    if ((!isNotaCreditoDevolucion && !isNotaCreditoBonificacion) || documentosOrigenSeleccionados.length === 0) {
+      setPreparacionNotaCredito(null);
+      setValoresEspecialesNotaCredito({});
+      setDetallePartidasNotaCreditoEspecial({});
+      setLineasSeleccionadasNotaCreditoEspecial({});
+      setBonificacionInputDisplay({});
+      setBonificacionInputFocusedId(null);
+      return;
+    }
+    if (!session.token || !session.empresaActivaId) {
+      return;
+    }
+
+    setLoadingPreparacionNotaCredito(true);
+    prepararGeneracionMultiple(
+      documentosOrigenSeleccionados.map((doc) => doc.id),
+      tipoDocumento,
+      session.token,
+      session.empresaActivaId
+    )
+      .then((data) => {
+        setPreparacionNotaCredito(data);
+        setValoresEspecialesNotaCredito(() => Object.fromEntries(data.partidas.map((partida) => [
+          partida.partida_id,
+          Number(capturasEspecialesDocumentoActual[partida.partida_id]?.valor ?? 0),
+        ])));
+        setLineasSeleccionadasNotaCreditoEspecial(() => Object.fromEntries(data.partidas.map((partida) => [
+          partida.partida_id,
+          Number(capturasEspecialesDocumentoActual[partida.partida_id]?.valor ?? 0) > 0,
+        ])));
+        setBonificacionInputDisplay(() => Object.fromEntries(data.partidas.map((partida) => [
+          partida.partida_id,
+          formatMontoBonificacionInput(Number(capturasEspecialesDocumentoActual[partida.partida_id]?.valor ?? 0)),
+        ])));
+        setBonificacionInputFocusedId(null);
+        const contactoId = data.documentos_origen.length === 1
+          ? (documentosOrigenSeleccionados[0]?.contacto_principal_id ?? null)
+          : (documentosOrigenSeleccionados[0]?.contacto_principal_id ?? null);
+        setForm((prev) => ({ ...prev, contacto_principal_id: contactoId }));
+      })
+      .catch((prepError: any) => {
+        setPreparacionNotaCredito(null);
+        setValoresEspecialesNotaCredito({});
+        setLineasSeleccionadasNotaCreditoEspecial({});
+        setBonificacionInputDisplay({});
+        setBonificacionInputFocusedId(null);
+        setSnackbar({ open: true, message: prepError?.message || 'No se pudo preparar la nota de crédito.', severity: 'error' });
+      })
+      .finally(() => setLoadingPreparacionNotaCredito(false));
+  }, [capturasEspecialesDocumentoActual, documentosOrigenSeleccionados, formatMontoBonificacionInput, isNotaCreditoBonificacion, isNotaCreditoDevolucion, session.empresaActivaId, session.token, tipoDocumento]);
+
+  useEffect(() => {
+    if (!usaGeneracionEspecialNotaCredito) {
+      setResumenNotaCreditoEspecial(EMPTY_FINANCIAL_SUMMARY);
+      setDetallePartidasNotaCreditoEspecial({});
+      return;
+    }
+
+    const partidasConMonto = partidasNotaCreditoDisponibles
+      .map((partida) => ({ partida, subtotal: getMontoEspecialNotaCredito(partida) }))
+      .filter((item) => item.subtotal > 0);
+
+    if (partidasConMonto.length === 0) {
+      setResumenNotaCreditoEspecial(EMPTY_FINANCIAL_SUMMARY);
+      setDetallePartidasNotaCreditoEspecial({});
+      setForm((prev) => ({
+        ...prev,
+        subtotal: 0,
+        descuento: 0,
+        descuento_global: 0,
+        iva: 0,
+        total: 0,
+      }));
+      return;
+    }
+
+    const seq = ++resumenNotaCreditoEspecialSeqRef.current;
+
+    void Promise.all(
+      partidasConMonto.map(async ({ partida, subtotal }) => {
+        try {
+          const preview: any = await calcularImpuestosPreview({
+            producto_id: partida.producto_id ?? null,
+            cantidad: 1,
+            precio_unitario: subtotal,
+            descuento: 0,
+            descuento_global: 0,
+            tratamiento_impuestos: form.tratamiento_impuestos ?? 'normal',
+          });
+
+          const subtotalPreview = Number(preview?.subtotal_partida ?? subtotal) || subtotal;
+          const impuestos = Array.isArray(preview?.impuestos) ? preview.impuestos : [];
+          const ivaPreview = impuestos.reduce((sum: number, imp: any) => {
+            const monto = Number(imp?.monto ?? 0);
+            const esRetencion = String(imp?.tipo ?? '').toLowerCase() === 'retencion';
+            return sum + (esRetencion ? -monto : monto);
+          }, 0);
+          const totalPreview = Number(preview?.total_partida ?? (subtotalPreview + ivaPreview)) || (subtotalPreview + ivaPreview);
+
+          return {
+            partidaId: partida.partida_id,
+            subtotalBruto: subtotalPreview,
+            descuentoPartidas: 0,
+            descuentoGlobal: 0,
+            subtotalNeto: subtotalPreview,
+            iva: Number(ivaPreview.toFixed(2)),
+            total: Number(totalPreview.toFixed(2)),
+          };
+        } catch {
+          return {
+            partidaId: partida.partida_id,
+            subtotalBruto: subtotal,
+            descuentoPartidas: 0,
+            descuentoGlobal: 0,
+            subtotalNeto: subtotal,
+            iva: 0,
+            total: subtotal,
+          };
+        }
+      })
+    ).then((items) => {
+      if (resumenNotaCreditoEspecialSeqRef.current !== seq) return;
+
+      setDetallePartidasNotaCreditoEspecial(Object.fromEntries(items.map((item) => [
+        item.partidaId,
+        {
+          subtotal: Number(item.subtotalNeto.toFixed(2)),
+          iva: Number(item.iva.toFixed(2)),
+          total: Number(item.total.toFixed(2)),
+        },
+      ])));
+
+      const resumen = items.reduce<FinancialSummary>((acc, item) => ({
+        subtotalBruto: acc.subtotalBruto + item.subtotalBruto,
+        descuentoPartidas: acc.descuentoPartidas + item.descuentoPartidas,
+        descuentoGlobal: acc.descuentoGlobal + item.descuentoGlobal,
+        subtotalNeto: acc.subtotalNeto + item.subtotalNeto,
+        iva: acc.iva + item.iva,
+        total: acc.total + item.total,
+      }), { ...EMPTY_FINANCIAL_SUMMARY });
+
+      const resumenNormalizado: FinancialSummary = {
+        subtotalBruto: Number(resumen.subtotalBruto.toFixed(2)),
+        descuentoPartidas: 0,
+        descuentoGlobal: 0,
+        subtotalNeto: Number(resumen.subtotalNeto.toFixed(2)),
+        iva: Number(resumen.iva.toFixed(2)),
+        total: Number(resumen.total.toFixed(2)),
+      };
+
+      setResumenNotaCreditoEspecial(resumenNormalizado);
+      setForm((prev) => ({
+        ...prev,
+        subtotal: resumenNormalizado.subtotalNeto,
+        descuento: 0,
+        descuento_global: 0,
+        iva: resumenNormalizado.iva,
+        total: resumenNormalizado.total,
+      }));
+    });
+  }, [form.tratamiento_impuestos, getMontoEspecialNotaCredito, partidasNotaCreditoDisponibles, usaGeneracionEspecialNotaCredito]);
+
+  useEffect(() => {
+    if (!isNotaCreditoBonificacion) {
+      setBonificacionInputDisplay({});
+      setBonificacionInputFocusedId(null);
+      return;
+    }
+
+    setBonificacionInputDisplay((prev) => {
+      const next: Record<number, string> = {};
+      partidasNotaCreditoDisponibles.forEach((partida) => {
+        if (bonificacionInputFocusedId === partida.partida_id && prev[partida.partida_id] !== undefined) {
+          next[partida.partida_id] = prev[partida.partida_id];
+          return;
+        }
+        next[partida.partida_id] = formatMontoBonificacionInput(Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0));
+      });
+      return next;
+    });
+  }, [bonificacionInputFocusedId, formatMontoBonificacionInput, isNotaCreditoBonificacion, partidasNotaCreditoDisponibles, valoresEspecialesNotaCredito]);
+
+  useEffect(() => {
     void loadAnticiposResumen();
   }, [loadAnticiposResumen]);
 
@@ -1236,7 +1985,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   }, [camposPartida.campos, camposPartida.loadOptions, valoresCamposPartidas]);
 
   useEffect(() => {
-    if (tipoDocumento !== 'factura') return;
+    if (!['factura', 'nota_credito'].includes(tipoDocumento)) return;
 
     const contactoId = form.contacto_principal_id;
 
@@ -1257,7 +2006,50 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     prevContactoRef.current = contactoId;
   }, [form.contacto_principal_id, tipoDocumento]);
 
+  const construirPartidaTecnicaNotaCredito = useCallback(async (calculoManual?: { subtotal: number; iva: number; total: number }): Promise<CotizacionPartidaPayload> => {
+    const subtotal = Number(calculoManual?.subtotal ?? form.subtotal ?? 0);
+    const totalPartida = Number(calculoManual?.total ?? form.total ?? subtotal);
+
+    let impuestosPayload: CotizacionPartidaPayload['impuestos'] = [];
+    if (subtotal > 0) {
+      const preview: any = await calcularImpuestosPreview({
+        producto_id: null,
+        cantidad: 1,
+        precio_unitario: subtotal,
+        descuento: 0,
+        descuento_global: 0,
+        tratamiento_impuestos: form.tratamiento_impuestos ?? 'normal',
+      });
+
+      impuestosPayload = (preview?.impuestos ?? []).map((imp: any) => ({
+        impuesto_id: imp.impuestoId ?? imp.impuesto_id ?? imp.id,
+        nombre: imp.nombre ?? null,
+        tipo: imp.tipo ?? null,
+        tasa: Number(imp.tasa ?? 0),
+        base: imp.base ?? subtotal,
+        monto: Number(imp.monto ?? 0),
+      }));
+    }
+
+    return {
+      producto_id: null,
+      descripcion_alterna: null,
+      cantidad: 1,
+      precio_unitario: subtotal,
+      precio_lista_id: null,
+      precio_editado_manual: true,
+      precio_origen: 'manual_nc',
+      descuento: 0,
+      subtotal_partida: subtotal,
+      total_partida: totalPartida,
+      observaciones: '',
+      impuestos: impuestosPayload,
+    };
+  }, [form.subtotal, form.total, form.tratamiento_impuestos]);
+
   const validarDocumentoAntesDePersistir = useCallback((context: 'save' | 'anticipo' | 'exit' = 'save') => {
+    const totalActual = isNotaCreditoManual ? getNotaCreditoManualTotalActual() : Number(form.total || 0);
+
     if (!form.contacto_principal_id) {
       setSnackbar({
         open: true,
@@ -1266,20 +2058,43 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       });
       return false;
     }
-    if ((context === 'anticipo' || hasAnticiposRegistrados) && Number(form.total || 0) <= 0) {
+    if ((context === 'anticipo' || hasAnticiposRegistrados) && totalActual <= 0) {
       setSnackbar({ open: true, message: 'Primero captura partidas o un total mayor a cero.', severity: 'error' });
       return false;
+    }
+    if (context === 'save' && isNotaCredito && !usaGeneracionEspecialNotaCredito && !tienePartidaValida && totalActual <= 0) {
+      setSnackbar({ open: true, message: 'Captura un monto mayor a cero para la nota de crédito, o agrega partidas válidas.', severity: 'error' });
+      return false;
+    }
+    if (context === 'save' && usaGeneracionEspecialNotaCredito) {
+      if (documentosOrigenSeleccionados.length === 0 || !preparacionNotaCredito) {
+        setSnackbar({ open: true, message: 'Selecciona al menos una factura origen válida.', severity: 'error' });
+        return false;
+      }
+      const tieneCapturaValida = preparacionNotaCredito.partidas.some((partida) => Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0) > 0);
+      if (!tieneCapturaValida) {
+        setSnackbar({ open: true, message: isNotaCreditoDevolucion ? 'Captura al menos una cantidad a devolver.' : 'Captura al menos un monto a bonificar.', severity: 'error' });
+        return false;
+      }
     }
     if (context === 'anticipo' && !tienePartidaValida) {
       setSnackbar({ open: true, message: 'Agrega al menos una partida válida con cantidad y precio mayores a cero.', severity: 'error' });
       return false;
     }
-    if (hasAnticiposRegistrados && Number(form.total || 0) < totalAnticipadoRegistrado) {
+    if (hasAnticiposRegistrados && totalActual < totalAnticipadoRegistrado) {
       setSnackbar({ open: true, message: 'El total del documento no puede ser menor que los anticipos registrados.', severity: 'error' });
       return false;
     }
 
-    const requiereDatosFiscales = tipoDocumento === 'factura' && form.tratamiento_impuestos !== 'sin_iva';
+    if (context === 'save' && isNotaCredito && !form.concepto_id) {
+      setConceptoObligatorioDialog({
+        open: true,
+        message: 'La nota de crédito debe tener un concepto asociado. El concepto será utilizado posteriormente para la contabilización.',
+      });
+      return false;
+    }
+
+    const requiereDatosFiscales = ['factura', 'nota_credito'].includes(tipoDocumento) && form.tratamiento_impuestos !== 'sin_iva';
     if (requiereDatosFiscales) {
       if (!form.rfc_receptor || !validarRFC(form.rfc_receptor)) {
         setSnackbar({ open: true, message: 'RFC receptor es obligatorio y debe ser válido', severity: 'error' });
@@ -1292,7 +2107,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     }
 
     return true;
-  }, [form, hasAnticiposRegistrados, tienePartidaValida, tipoDocumento, totalAnticipadoRegistrado]);
+  }, [documentoActualId, documentosOrigenSeleccionados.length, form, getNotaCreditoManualTotalActual, hasAnticiposRegistrados, isNotaCredito, isNotaCreditoBonificacion, isNotaCreditoDevolucion, isNotaCreditoManual, preparacionNotaCredito, tienePartidaValida, tipoDocumento, totalAnticipadoRegistrado, usaGeneracionEspecialNotaCredito, valoresEspecialesNotaCredito]);
 
   const persistDocumento = useCallback(async (options?: {
     context?: 'save' | 'anticipo' | 'exit';
@@ -1307,20 +2122,25 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
     try {
       setSaving(true);
+      const totalNotaCreditoManual = isNotaCreditoManual ? getNotaCreditoManualTotalActual() : Number(form.total || 0);
+      const calculoNotaCreditoManual = isNotaCreditoManual
+        ? await recalcularNotaCreditoManual(totalNotaCreditoManual, form.tratamiento_impuestos)
+        : null;
       const payload: CotizacionCrearPayload & { conversacion_id: number | null } = {
         ...form,
         tipo_documento: tipoDocumento,
+        producto_resumen: form.producto_resumen ?? null,
         serie: form.serie?.trim() || null,
-        subtotal: form.subtotal || 0,
+        subtotal: isNotaCreditoManual ? (calculoNotaCreditoManual?.subtotal ?? form.subtotal ?? 0) : (form.subtotal || 0),
         descuento_global: form.descuento_global || 0,
         descuento: form.descuento || 0,
-        iva: form.iva || 0,
-        total: form.total || 0,
+        iva: isNotaCreditoManual ? (calculoNotaCreditoManual?.iva ?? form.iva ?? 0) : (form.iva || 0),
+        total: isNotaCreditoManual ? (calculoNotaCreditoManual?.total ?? totalNotaCreditoManual) : (form.total || 0),
         empresa_id: getEmpresaActivaId(),
         conversacion_id: conversacionId ? Number(conversacionId) : null,
         usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
         estado_seguimiento: isCotizacion ? (form.estado_seguimiento ?? DEFAULT_ESTADO_SEGUIMIENTO) : null,
-        tratamiento_impuestos: tipoDocumento === 'factura' ? form.tratamiento_impuestos || 'normal' : 'normal',
+        tratamiento_impuestos: ['factura', 'nota_credito', 'nota_credito_compra'].includes(tipoDocumento) ? form.tratamiento_impuestos || 'normal' : 'normal',
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
         regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
@@ -1329,6 +2149,61 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         metodo_pago: form.metodo_pago?.trim() || null,
         codigo_postal_receptor: form.codigo_postal_receptor?.trim() || null,
       };
+
+      if (isNotaCreditoDevolucion || isNotaCreditoBonificacion) {
+        if (!session.token || !session.empresaActivaId || !preparacionNotaCredito) {
+          throw new Error('No se pudo preparar la generación de la nota de crédito.');
+        }
+
+        const resultado = await generarDocumentoDesdeOrigen({
+          documento_origen_ids: documentosOrigenSeleccionados.map((doc) => doc.id),
+          documento_destino_id: documentoActualId ? Number(documentoActualId) : undefined,
+          tipo_documento_destino: tipoDocumento,
+          datos_encabezado: {
+            serie: form.serie?.trim() || null,
+            fecha: form.fecha_documento,
+            contacto_principal_id: form.contacto_principal_id,
+            comentarios: form.observaciones?.trim() || null,
+            motivo_nc: motivoNotaCredito,
+            concepto_id: form.concepto_id ?? null,
+            rfc_receptor: form.rfc_receptor?.trim() || null,
+            nombre_receptor: form.nombre_receptor?.trim() || null,
+            regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
+            uso_cfdi: form.uso_cfdi?.trim() || null,
+            forma_pago: form.forma_pago?.trim() || null,
+            metodo_pago: form.metodo_pago?.trim() || null,
+            codigo_postal_receptor: form.codigo_postal_receptor?.trim() || null,
+          },
+          partidas: preparacionNotaCredito.partidas
+            .map((partida) => {
+              const valor = Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0);
+              if (valor <= 0) return null;
+              return isNotaCreditoDevolucion
+                ? { partida_origen_id: partida.partida_id, cantidad: valor }
+                : {
+                    partida_origen_id: partida.partida_id,
+                    cantidad: 1,
+                    monto_bonificacion: Number(valor.toFixed(2)),
+                  };
+            })
+            .filter(Boolean) as Array<{ partida_origen_id: number; cantidad: number; monto_bonificacion?: number | null }>,
+        }, session.token, session.empresaActivaId);
+
+        const docId = Number(resultado.documento_destino_id);
+        setDocumentoPersistidoId(docId);
+        const nextPath = resolveDocumentoFormPath(tipoDocumento, docId, moduloDocumento);
+        if (location.pathname !== nextPath) {
+          navigate(nextPath, { replace: true });
+        }
+        void loadAnticiposResumen(docId);
+        if (showSuccessMessage) {
+          setSnackbar({ open: true, message: textos.guardado, severity: 'success' });
+        }
+        if (navigateAfterSave) {
+          setTimeout(() => navigate(basePath), 400);
+        }
+        return docId;
+      }
 
       let docId: number;
       if (documentoActualId) {
@@ -1341,9 +2216,11 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
       setDocumentoPersistidoId(docId);
 
-      const partidasPayload: CotizacionPartidaPayload[] = partidas.map((p) => ({
+      const partidasPayload: CotizacionPartidaPayload[] = isNotaCreditoManual
+        ? [await construirPartidaTecnicaNotaCredito(calculoNotaCreditoManual ?? undefined)]
+        : partidas.filter((p) => !esPartidaPlaceholder(p)).map((p) => ({
         producto_id: p.producto_id,
-        descripcion_alterna: p.descripcion_alterna ?? '',
+      descripcion_alterna: p.descripcion_alterna ?? null,
         cantidad: p.cantidad ?? 0,
         precio_unitario: p.precio_unitario ?? 0,
         precio_lista_id: p.precio_lista_id ?? null,
@@ -1827,6 +2704,44 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     }
   };
 
+  const handleCrearConceptoSubmit = async () => {
+    const nombre = crearConceptoNombre.trim();
+    if (!nombre) {
+      setCrearConceptoError('Ingresa el nombre del concepto');
+      return;
+    }
+
+    const existente = conceptos.find((concepto) => normalizarNombreConcepto(concepto.nombre_concepto) === normalizarNombreConcepto(nombre));
+    if (existente) {
+      conceptoManualOverrideRef.current = true;
+      setForm((prev) => ({ ...prev, concepto_id: existente.id }));
+      limpiarCrearConceptoDialog();
+      setSnackbar({ open: true, message: 'Concepto seleccionado', severity: 'success' });
+      return;
+    }
+
+    try {
+      setCrearConceptoLoading(true);
+      setCrearConceptoError(null);
+      const creado = await crearConcepto({
+        nombre_concepto: nombre,
+        es_gasto: tipoDocumento === 'nota_credito_compra',
+        activo: true,
+      });
+
+      const refreshed = await fetchConceptos().catch(() => []);
+      setConceptos((refreshed ?? []).length > 0 ? refreshed : [creado, ...conceptos.filter((concepto) => concepto.id !== creado.id)]);
+      conceptoManualOverrideRef.current = true;
+      setForm((prev) => ({ ...prev, concepto_id: creado.id }));
+      setSnackbar({ open: true, message: 'Concepto creado', severity: 'success' });
+      limpiarCrearConceptoDialog();
+    } catch (err: any) {
+      setCrearConceptoError(err?.message || 'No se pudo crear el concepto');
+    } finally {
+      setCrearConceptoLoading(false);
+    }
+  };
+
   const filterProductos = (options: Producto[], state: any) => {
     const term = (state.inputValue || '').toString().trim().toLowerCase();
     if (!term) return options;
@@ -1897,12 +2812,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       setSnackbar({ open: true, message: 'Cambios guardados antes de salir.', severity: 'success' });
     }
 
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
-    navigate(basePath);
+    navigate(basePath, { replace: true });
   }, [basePath, documentoActualId, hasAnticiposRegistrados, navigate, persistDocumento]);
 
   const handleCloseAnticipoDialog = useCallback(() => {
@@ -1930,7 +2840,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: mostrarResumenFinancieroSticky ? { xs: 10, sm: 9 } : 0 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: mostrarResumenFinancieroStickyVisible ? { xs: 10, sm: 9 } : 0 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
           <Button
@@ -2127,15 +3037,23 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       <TextField
                         {...(params as any)}
                         fullWidth
-                        label="Cliente"
+                        label={contactoLabel}
                         required
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                         inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
+                        sx={{
+                          '& .MuiInputBase-input': {
+                            fontSize: 13,
+                            fontWeight: 400,
+                            lineHeight: 1.4375,
+                          },
+                        }}
                       />
                     )}
                   />
                 </Grid>
+                {!usaCapturaEspecialNotaCredito && (
                 <Grid size={{ xs: 12, md: 3 }}>
                   <Autocomplete
                     fullWidth
@@ -2159,11 +3077,14 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                         label="Vendedor"
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                        inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
+                        inputProps={{ ...params.inputProps }}
+                        sx={campoEncabezadoSx}
                       />
                     )}
                   />
                 </Grid>
+                )}
+                {!usaCapturaEspecialNotaCredito && (
                 <Grid size={{ xs: 12, md: 2 }}>
                   <TextField
                     label="Fecha documento"
@@ -2176,6 +3097,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     size="small"
                   />
                 </Grid>
+                )}
                 {widgetTratamientoFiscal && (
                   <Grid size={{ xs: 12, md: 2 }}>
                     <TextField
@@ -2186,7 +3108,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       fullWidth
                       size="small"
                       InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                      inputProps={{ style: { fontSize: 13 } }}
+                      sx={campoEncabezadoSx}
                     >
                       {TRATAMIENTO_OPCIONES.map((opt) => (
                         <MenuItem key={opt.value} value={opt.value}>
@@ -2194,6 +3116,117 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                         </MenuItem>
                       ))}
                     </TextField>
+                  </Grid>
+                )}
+                {isNotaCredito && (
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <TextField
+                      select
+                      label="Motivo NC"
+                      value={motivoNotaCredito}
+                      onChange={(e) => handleMotivoNotaCreditoChange(e.target.value as MotivoNotaCredito)}
+                      fullWidth
+                      size="small"
+                      InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                      sx={campoEncabezadoSx}
+                    >
+                      <MenuItem value="otro">Otro</MenuItem>
+                      <MenuItem value="devolucion">Devolucion</MenuItem>
+                      <MenuItem value="bonificacion">Bonificacion</MenuItem>
+                    </TextField>
+                  </Grid>
+                )}
+                {isNotaCredito && (
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Autocomplete<ConceptoAutocompleteOption, false, false, false>
+                      fullWidth
+                      options={conceptosActivos}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                      filterOptions={(options, params) => {
+                        const filtered = filterConceptoOptions(options, params);
+                        const inputValue = params.inputValue.trim();
+                        const exists = options.some(
+                          (option) => normalizarNombreConcepto(option.nombre_concepto) === normalizarNombreConcepto(inputValue)
+                        );
+
+                        if (inputValue && !exists) {
+                          filtered.push(buildCreateConceptoOption(inputValue));
+                        }
+
+                        return filtered;
+                      }}
+                      getOptionLabel={(option) => {
+                        if (typeof option === 'string') return option;
+                        if ('kind' in option && option.kind === 'create') return option.nombre_concepto;
+                        return option.nombre_concepto || '';
+                      }}
+                      value={conceptosActivos.find((concepto) => concepto.id === form.concepto_id) || null}
+                      onChange={(_, value) => {
+                        if (!value) {
+                          conceptoManualOverrideRef.current = true;
+                          setForm((prev) => ({ ...prev, concepto_id: null }));
+                          return;
+                        }
+
+                        if ('kind' in value && value.kind === 'create') {
+                          conceptoManualOverrideRef.current = true;
+                          setCrearConceptoNombre(value.inputValue || '');
+                          setCrearConceptoError(null);
+                          setCrearConceptoOpen(true);
+                          return;
+                        }
+
+                        conceptoManualOverrideRef.current = true;
+                        setForm((prev) => ({ ...prev, concepto_id: value.id }));
+                      }}
+                      renderOption={(props, option) => {
+                        const { key, ...rest } = props;
+                        if ('kind' in option && option.kind === 'create') {
+                          return (
+                            <li {...rest} key={option.id ?? key}>
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                <AddIcon fontSize="small" />
+                                <Typography variant="body2">{option.nombre_concepto}</Typography>
+                              </Stack>
+                            </li>
+                          );
+                        }
+
+                        return (
+                          <li {...rest} key={option.id ?? key}>
+                            {option.nombre_concepto || ''}
+                          </li>
+                        );
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...(params as any)}
+                          fullWidth
+                          label="Concepto"
+                          size="small"
+                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                          inputProps={{ ...params.inputProps }}
+                          sx={campoEncabezadoSx}
+                        />
+                      )}
+                    />
+                  </Grid>
+                )}
+                {isNotaCreditoManual && (
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <TextField
+                      label="Monto total"
+                      value={notaCreditoManualTotalInput}
+                      onChange={(e) => handleNotaCreditoManualTotalChange(e.target.value)}
+                      onFocus={handleNotaCreditoManualTotalFocus}
+                      onBlur={handleNotaCreditoManualTotalBlur}
+                      type="text"
+                      inputMode="decimal"
+                      fullWidth
+                      size="small"
+                      InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                      inputProps={{ style: { textAlign: 'right', fontSize: 13 } }}
+                    />
                   </Grid>
                 )}
                 <Grid size={{ xs: 12, md: 3 }}>
@@ -2207,19 +3240,299 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     inputProps={{ style: { fontSize: 13 } }}
                   />
                 </Grid>
+                {!usaCapturaEspecialNotaCredito && (
                 <Grid size={{ xs: 12, md: 2 }}>
                   <TextField
                     label="Descuento global %"
                     type="number"
                     value={form.descuento_global ?? 0}
                     onChange={(e) => handleDescuentoGlobalChange(e.target.value)}
+                    disabled={permiteCapturaManualSinPartidas}
                     fullWidth
                     size="small"
                     InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                     inputProps={{ min: 0, max: 100, step: 0.0001, style: { textAlign: 'right', fontSize: 13 } }}
                   />
                 </Grid>
+                )}
               </Grid>
+
+              {isNotaCreditoManual && (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 1.5 }}>
+                  <TextField
+                    label="Subtotal"
+                    value={formatter.format(Number(form.subtotal ?? 0))}
+                    size="small"
+                    InputProps={{ readOnly: true, style: { textAlign: 'right' } }}
+                  />
+                  <TextField
+                    label="IVA"
+                    value={formatter.format(Number(form.iva ?? 0))}
+                    size="small"
+                    InputProps={{ readOnly: true, style: { textAlign: 'right' } }}
+                  />
+                  <TextField
+                    label="Total"
+                    value={formatter.format(Number(form.total ?? 0))}
+                    size="small"
+                    InputProps={{ readOnly: true, style: { textAlign: 'right' } }}
+                  />
+                </Box>
+              )}
+
+              {(isNotaCreditoDevolucion || isNotaCreditoBonificacion) && (
+                <Stack spacing={1.5}>
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }}>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                        Partidas disponibles para {isNotaCreditoDevolucion ? 'devolución' : 'bonificación'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        El sistema carga automáticamente todas las partidas pendientes del {contactoLabel.toLowerCase()}.
+                      </Typography>
+                    </Box>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                      <Chip label={`${documentosOrigenCliente.length} factura(s)`} size="small" variant="outlined" />
+                      <Chip label={`${partidasNotaCreditoDisponibles.length} partida(s) disponibles`} size="small" variant="outlined" />
+                    </Stack>
+                  </Stack>
+
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} flexWrap="wrap">
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setLineasSeleccionadasNotaCreditoEspecial(Object.fromEntries(partidasNotaCreditoVisibles.map((partida) => [partida.partida_id, true])))}
+                      disabled={partidasNotaCreditoVisibles.length === 0}
+                    >
+                      Seleccionar todo
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => {
+                        setLineasSeleccionadasNotaCreditoEspecial({});
+                        setValoresEspecialesNotaCredito((prev) => Object.fromEntries(Object.keys(prev).map((key) => [Number(key), 0])));
+                      }}
+                      disabled={partidasNotaCreditoDisponibles.length === 0}
+                    >
+                      Limpiar selección
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={() => {
+                        setLineasSeleccionadasNotaCreditoEspecial(Object.fromEntries(partidasNotaCreditoVisibles.map((partida) => [partida.partida_id, true])));
+                        setValoresEspecialesNotaCredito((prev) => ({
+                          ...prev,
+                          ...Object.fromEntries(partidasNotaCreditoVisibles.map((partida) => [partida.partida_id, getMaximoCapturableNotaCredito(partida)])),
+                        }));
+                      }}
+                      disabled={partidasNotaCreditoVisibles.length === 0}
+                    >
+                      {isNotaCreditoDevolucion ? 'Devolver completos' : 'Bonificar completos'}
+                    </Button>
+                  </Stack>
+
+                  <TextField
+                    label="Buscar por factura, producto o descripción"
+                    value={busquedaNotaCreditoEspecial}
+                    onChange={(e) => setBusquedaNotaCreditoEspecial(e.target.value)}
+                    size="small"
+                    fullWidth
+                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                    inputProps={{ style: { fontSize: 13 } }}
+                  />
+
+                  {!form.contacto_principal_id && (
+                    <Alert severity="info">Selecciona un {contactoLabel.toLowerCase()} para cargar automáticamente las partidas disponibles.</Alert>
+                  )}
+
+                  {form.contacto_principal_id && loadingPreparacionNotaCredito && (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CircularProgress size={18} />
+                      <Typography variant="body2" color="text.secondary">Cargando partidas disponibles...</Typography>
+                    </Stack>
+                  )}
+
+                  {form.contacto_principal_id && !loadingPreparacionNotaCredito && partidasNotaCreditoDisponibles.length === 0 && (
+                    <Alert severity="info">No hay partidas disponibles para devolución o bonificación para este {contactoLabel.toLowerCase()}.</Alert>
+                  )}
+
+                  {preparacionNotaCredito && partidasNotaCreditoDisponibles.length > 0 && (
+                    <Paper variant="outlined" sx={{ borderColor: '#e5e7eb', overflow: 'hidden' }}>
+                      <Box sx={{ overflowX: 'auto' }}>
+                        <Box sx={{ minWidth: isNotaCreditoDevolucion ? 980 : 980 }}>
+                          <Box
+                            sx={{
+                              display: 'grid',
+                              gridTemplateColumns: isNotaCreditoDevolucion ? '52px 240px 120px 130px 120px 120px 120px' : '52px 240px 90px 120px 140px 150px 120px',
+                              gap: 1,
+                              px: 1.25,
+                              py: 1,
+                              bgcolor: '#f8fafc',
+                              borderBottom: '1px solid #e5e7eb',
+                            }}
+                          >
+                            {(isNotaCreditoDevolucion
+                              ? ['Sel.', 'Factura / producto', 'Disponible', 'A devolver', 'Precio', 'Total', 'Acción']
+                              : ['Sel.', 'Factura / producto', 'Cantidad', 'Precio unitario', 'Subtotal partida', 'Monto bonificado', 'Acción']
+                            ).map((header) => (
+                              <Typography key={header} variant="caption" sx={{ fontWeight: 800, color: '#475569', fontSize: 11.5 }}>
+                                {header}
+                              </Typography>
+                            ))}
+                          </Box>
+
+                          <Stack divider={<Divider flexItem />}>
+                            {partidasNotaCreditoVisibles.map((partida) => {
+                              const documentoOrigen = documentosOrigenPorId[partida.documento_origen_id];
+                              const producto = partida.producto_id ? productos.find((item) => item.id === partida.producto_id) : null;
+                              const detalle = detallePartidasNotaCreditoEspecial[partida.partida_id] ?? { subtotal: 0, iva: 0, total: 0 };
+                              const folio = formatearFolioDocumento(documentoOrigen?.serie ?? '', Number(documentoOrigen?.numero ?? 0))
+                                || partida.documento_origen_folio
+                                || String(partida.documento_origen_id);
+                              const fecha = documentoOrigen?.fecha_documento ? normalizeCivilDate(documentoOrigen.fecha_documento) : '';
+                              const seleccionada = isPartidaNotaCreditoEspecialSeleccionada(partida.partida_id);
+                              const maximo = getMaximoCapturableNotaCredito(partida);
+
+                              return (
+                                <Box
+                                  key={partida.partida_id}
+                                  sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: isNotaCreditoDevolucion ? '52px 240px 120px 130px 120px 120px 120px' : '52px 240px 90px 120px 140px 150px 120px',
+                                    gap: 1,
+                                    px: 1.25,
+                                    py: 1,
+                                    alignItems: 'center',
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={seleccionada}
+                                    onChange={(_, checked) => {
+                                      setLineasSeleccionadasNotaCreditoEspecial((prev) => ({ ...prev, [partida.partida_id]: checked }));
+                                      if (!checked) {
+                                        setValoresEspecialesNotaCredito((prev) => ({ ...prev, [partida.partida_id]: 0 }));
+                                      }
+                                    }}
+                                    size="small"
+                                  />
+                                  <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="body2" fontWeight={700} noWrap>{folio}</Typography>
+                                    <Typography variant="body2" noWrap>{producto?.clave || producto?.descripcion || partida.descripcion || 'Sin descripción'}</Typography>
+                                    <Typography variant="caption" color="text.secondary" noWrap>
+                                      {fecha || '-'} · Facturado {Number(partida.cantidad_origen ?? 0).toFixed(2)} · Ya devuelto {Number(partida.cantidad_ya_generada ?? 0).toFixed(2)}
+                                    </Typography>
+                                  </Box>
+                                  <Typography variant="body2" textAlign="right" fontWeight={600}>
+                                    {isNotaCreditoDevolucion
+                                      ? Number(partida.cantidad_pendiente_sugerida ?? 0).toFixed(2)
+                                      : Number(partida.cantidad_pendiente_sugerida ?? 0).toFixed(2)}
+                                  </Typography>
+                                  {!isNotaCreditoDevolucion && (
+                                    <Typography variant="body2" textAlign="right">{formatter.format(Number(partida.precio_unitario ?? 0))}</Typography>
+                                  )}
+                                  {!isNotaCreditoDevolucion && (
+                                    <Typography variant="body2" textAlign="right">{formatter.format(Number(partida.importe_maximo_sugerido ?? 0))}</Typography>
+                                  )}
+                                  <TextField
+                                    type={isNotaCreditoDevolucion ? 'number' : 'text'}
+                                    value={isNotaCreditoBonificacion
+                                      ? (bonificacionInputDisplay[partida.partida_id] ?? formatMontoBonificacionInput(Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0)))
+                                      : (valoresEspecialesNotaCredito[partida.partida_id] ?? 0)}
+                                    disabled={false}
+                                    onChange={(e) => {
+                                      const rawValue = String(e.target.value ?? '');
+                                      const valor = isNotaCreditoBonificacion
+                                        ? parseMontoBonificacionInput(rawValue)
+                                        : Math.max(0, Number(rawValue) || 0);
+                                      if (isNotaCreditoBonificacion) {
+                                        setBonificacionInputDisplay((prev) => ({
+                                          ...prev,
+                                          [partida.partida_id]: sanitizeMontoBonificacionInput(rawValue),
+                                        }));
+                                      }
+                                      setLineasSeleccionadasNotaCreditoEspecial((prev) => ({ ...prev, [partida.partida_id]: valor > 0 }));
+                                      setValoresEspecialesNotaCredito((prev) => ({
+                                        ...prev,
+                                        [partida.partida_id]: isNotaCreditoDevolucion
+                                          ? Math.min(valor, Number(partida.cantidad_pendiente_sugerida ?? 0))
+                                          : Math.min(valor, Number(partida.importe_maximo_sugerido ?? 0)),
+                                      }));
+                                    }}
+                                    onFocus={() => {
+                                      if (!isNotaCreditoBonificacion) return;
+                                      setBonificacionInputFocusedId(partida.partida_id);
+                                      setBonificacionInputDisplay((prev) => ({
+                                        ...prev,
+                                        [partida.partida_id]: Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0).toFixed(2),
+                                      }));
+                                    }}
+                                    onBlur={() => {
+                                      if (!isNotaCreditoBonificacion) return;
+                                      setBonificacionInputFocusedId((prev) => (prev === partida.partida_id ? null : prev));
+                                      setBonificacionInputDisplay((prev) => ({
+                                        ...prev,
+                                        [partida.partida_id]: formatMontoBonificacionInput(Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0)),
+                                      }));
+                                    }}
+                                    size="small"
+                                    InputProps={isNotaCreditoBonificacion ? {
+                                      startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                                    } : undefined}
+                                    sx={isNotaCreditoBonificacion ? {
+                                      '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
+                                        WebkitAppearance: 'none',
+                                        margin: 0,
+                                      },
+                                      '& input[type=number], & input[type=text]': {
+                                        MozAppearance: 'textfield',
+                                      },
+                                    } : undefined}
+                                    inputProps={{
+                                      inputMode: isNotaCreditoBonificacion ? 'decimal' : undefined,
+                                      min: 0,
+                                      max: maximo,
+                                      step: 0.01,
+                                      style: { textAlign: 'right', fontSize: 13 },
+                                    }}
+                                  />
+                                  {isNotaCreditoDevolucion && (
+                                    <Typography variant="body2" textAlign="right">{formatter.format(Number(partida.precio_unitario ?? 0))}</Typography>
+                                  )}
+                                  {isNotaCreditoDevolucion && (
+                                    <Typography variant="body2" textAlign="right" fontWeight={700}>
+                                      {formatter.format(detalle.total)}
+                                    </Typography>
+                                  )}
+                                  <Tooltip title={isNotaCreditoDevolucion ? 'Llena automáticamente la cantidad disponible para devolver.' : 'Llena automáticamente la bonificación total con el subtotal completo de la partida.'}>
+                                    <span>
+                                      <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={() => {
+                                          setLineasSeleccionadasNotaCreditoEspecial((prev) => ({ ...prev, [partida.partida_id]: true }));
+                                          setValoresEspecialesNotaCredito((prev) => ({ ...prev, [partida.partida_id]: maximo }));
+                                        }}
+                                      >
+                                        {isNotaCreditoDevolucion ? 'Devolver todo' : 'Bonificar todo'}
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
+                                </Box>
+                              );
+                            })}
+                          </Stack>
+                        </Box>
+                      </Box>
+                    </Paper>
+                  )}
+
+                  {preparacionNotaCredito && partidasNotaCreditoDisponibles.length > 0 && partidasNotaCreditoVisibles.length === 0 && !loadingPreparacionNotaCredito && (
+                    <Alert severity="info">No hay coincidencias para la búsqueda actual.</Alert>
+                  )}
+                </Stack>
+              )}
 
               {camposDocumento.campos.length > 0 && (
                 <Box>
@@ -2251,8 +3564,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                 </Box>
               )}
 
-              <Divider />
+              {!usaCapturaEspecialNotaCredito && <Divider />}
 
+              {!usaCapturaEspecialNotaCredito && (
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
                 <Typography variant="h6" color="#1d2f68" fontWeight={700}>
                   Partidas
@@ -2261,7 +3575,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   Agregar partida
                 </Button>
               </Stack>
+              )}
 
+              {!usaCapturaEspecialNotaCredito && (
               <Stack spacing={1}>
                 {partidas.map((partida, index) => (
                   <React.Fragment key={index}>
@@ -2653,9 +3969,11 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   </React.Fragment>
                 ))}
               </Stack>
+              )}
 
-              <Divider />
+              {mostrarResumenFinanciero && <Divider />}
 
+              {mostrarResumenFinanciero && (
               <Box
                 ref={resumenFinancieroRef}
                 sx={{
@@ -2668,12 +3986,12 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                 }}
               >
                 {[
-                  { label: 'Subtotal bruto', value: discountSummary.subtotalBruto, tone: '#334155' },
-                  { label: 'Desc. partidas', value: -discountSummary.descuentoPartidas, tone: '#b45309' },
-                  { label: 'Desc. global', value: -discountSummary.descuentoGlobal, tone: '#9a3412' },
-                  { label: 'Subtotal neto', value: discountSummary.subtotalNeto, tone: '#1d4ed8' },
-                  { label: 'IVA', value: discountSummary.iva, tone: '#0f766e' },
-                  { label: 'Total', value: discountSummary.total, tone: '#111827' },
+                  { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },
+                  { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
+                  { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
+                  { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+                  { label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' },
+                  { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
                 ].map((item) => (
                   <Paper
                     key={item.label}
@@ -2711,6 +4029,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   </Paper>
                 ))}
               </Box>
+              )}
               {partidasMostrarMontoOportunidad && (
                 <Stack direction="row" justifyContent="flex-end">
                   <TextField
@@ -2727,7 +4046,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         </Paper>
       )}
 
-      {mostrarResumenFinancieroSticky && (
+      {mostrarResumenFinancieroStickyVisible && (
         <Paper
           elevation={8}
           sx={{
@@ -2751,13 +4070,13 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         >
           <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="center" sx={{ flexWrap: 'wrap' }}>
             {[
-              { label: 'Bruto', value: discountSummary.subtotalBruto, tone: '#334155' },
-              ...(discountSummary.descuentoPartidas + discountSummary.descuentoGlobal > 0
-                ? [{ label: 'Desc', value: -(discountSummary.descuentoPartidas + discountSummary.descuentoGlobal), tone: '#9a3412' }]
+              { label: 'Bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },
+              ...(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal > 0
+                ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: '#9a3412' }]
                 : []),
-              { label: 'Neto', value: discountSummary.subtotalNeto, tone: '#1d4ed8' },
-              { label: 'IVA', value: discountSummary.iva, tone: '#0f766e' },
-              { label: 'Total', value: discountSummary.total, tone: '#111827', strong: true },
+              { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+              { label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' },
+              { label: 'Total', value: resumenFinanciero.total, tone: '#111827', strong: true },
             ].map((item) => (
               <Box
                 key={item.label}
@@ -2818,6 +4137,58 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button variant="contained" onClick={() => setDuplicateDialog({ open: false, message: '' })}>
             Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={conceptoObligatorioDialog.open} onClose={() => setConceptoObligatorioDialog({ open: false, message: '' })}>
+        <DialogTitle fontWeight={700}>Concepto obligatorio</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: '#374151' }}>
+            {conceptoObligatorioDialog.message}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button variant="contained" onClick={() => setConceptoObligatorioDialog({ open: false, message: '' })}>
+            Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={crearConceptoOpen}
+        onClose={() => {
+          if (!crearConceptoLoading) {
+            limpiarCrearConceptoDialog();
+          }
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle fontWeight={700}>Crear concepto</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
+          <TextField
+            autoFocus
+            label="Nombre del concepto"
+            value={crearConceptoNombre}
+            onChange={(e) => {
+              setCrearConceptoNombre(e.target.value);
+              if (crearConceptoError) setCrearConceptoError(null);
+            }}
+            fullWidth
+            size="small"
+            error={Boolean(crearConceptoError)}
+            helperText={crearConceptoError || 'Se seleccionará automáticamente al guardar.'}
+            InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+            sx={campoEncabezadoSx}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button disabled={crearConceptoLoading} onClick={() => limpiarCrearConceptoDialog()}>
+            Cancelar
+          </Button>
+          <Button variant="contained" onClick={() => void handleCrearConceptoSubmit()} disabled={crearConceptoLoading}>
+            {crearConceptoLoading ? 'Guardando...' : 'Guardar'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -3017,6 +4388,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           documentoId={Number(documentoActualId)}
           contactoId={Number(form.contacto_principal_id)}
           saldo={saldoDocumento}
+          tipoDocumento={tipoDocumento}
         />
       ) : null}
 

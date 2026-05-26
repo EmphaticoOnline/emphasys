@@ -8,6 +8,7 @@ export type UseDocumentoConfigResult = {
   textos: DocumentoTextos;
   filtroAgente: boolean;
   mostrarSaldo: boolean;
+  contactoLabel: string;
   tiposContactoPermitidos: string[] | undefined;
   accionesDisponibles: DocumentoAccion[];
   estatusPermitidos: string[];
@@ -24,6 +25,7 @@ export type UseDocumentoConfigResult = {
   contactoCaptureMode: ContactCaptureMode;
   contactoDefaultTipoContacto: ContactoTipoPermitido;
   contactoTiposPermitidos: ContactoTipoPermitido[];
+  vendedorVisible: boolean;
   vendedorCreationMode: EntidadCreationMode;
   vendedorCaptureMode: VendedorCaptureMode;
   vendedorDefaultTipoVendedor: VendedorTipoPermitido;
@@ -37,12 +39,14 @@ export type UseDocumentoConfigResult = {
 export function useDocumentoConfig(tipo: TipoDocumento): UseDocumentoConfigResult {
   return useMemo(() => {
     const config = getDocumentoTypeConfig(tipo);
+    const isDocumentoCompra = String(tipo ?? '').trim().toLowerCase().endsWith('_compra');
 
     return {
       config,
       textos: resolveDocumentoTextos(tipo, config),
       filtroAgente: config?.features?.filtroAgente ?? false,
       mostrarSaldo: config?.features?.mostrarSaldo ?? false,
+      contactoLabel: config?.relatedEntities?.contacto?.label ?? (isDocumentoCompra ? 'Proveedor' : 'Cliente'),
       tiposContactoPermitidos: config?.features?.tiposContactoPermitidos,
       accionesDisponibles: config?.features?.accionesDisponibles ?? [],
       estatusPermitidos: config?.estatusPermitidos ?? ['borrador', 'emitido', 'cancelado'],
@@ -59,6 +63,7 @@ export function useDocumentoConfig(tipo: TipoDocumento): UseDocumentoConfigResul
       contactoCaptureMode: config?.relatedEntities?.contacto?.captureMode ?? 'simple',
       contactoDefaultTipoContacto: config?.relatedEntities?.contacto?.defaultTipoContacto ?? 'Lead',
       contactoTiposPermitidos: config?.relatedEntities?.contacto?.tiposPermitidos ?? ['Lead', 'Cliente'],
+      vendedorVisible: config?.relatedEntities?.vendedor?.visible ?? !isDocumentoCompra,
       vendedorCreationMode: config?.relatedEntities?.vendedor?.creationMode ?? 'disabled',
       vendedorCaptureMode: config?.relatedEntities?.vendedor?.captureMode ?? 'simple',
       vendedorDefaultTipoVendedor: config?.relatedEntities?.vendedor?.defaultTipoVendedor ?? 'Vendedor',

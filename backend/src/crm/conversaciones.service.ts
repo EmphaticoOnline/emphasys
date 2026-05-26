@@ -1,4 +1,5 @@
 import pool from "../config/database";
+import { normalizarTelefono } from "../utils/telefono";
 
 export type ReglasSeguimiento = {
   tiempo_tolerancia_respuesta_a_cliente: number;
@@ -50,20 +51,51 @@ export async function getReglasSeguimiento(empresaId: number): Promise<ReglasSeg
 }
 
 export const getOrCreateWhatsappContacto = async (empresaId: number, telefono: string) => {
-  const contactoResult = await pool.query(
-    `
-      SELECT id
-      FROM public.contactos
-      WHERE empresa_id = $1
-        AND telefono = $2
-      LIMIT 1
-      `,
-    [empresaId, telefono]
-  );
+  const telefonoNormalizado = normalizarTelefono(telefono);
+  const variantes = Array.from(new Set([
+    telefono,
+    telefonoNormalizado,
+    telefonoNormalizado.startsWith('52') && telefonoNormalizado.length === 12
+      ? `521${telefonoNormalizado.slice(2)}`
+      : null,
+    telefonoNormalizado.startsWith('521') && telefonoNormalizado.length === 13
+      ? `52${telefonoNormalizado.slice(3)}`
+      : null,
+  ].filter((value): value is string => Boolean(value))));
 
-  if (contactoResult.rows.length > 0) {
-    return contactoResult.rows[0].id as number;
+  for (const variante of variantes) {
+    const contactoResult = await pool.query(
+      `
+        SELECT id
+        FROM public.contactos
+        WHERE empresa_id = $1
+          AND telefono = $2
+        LIMIT 1
+        `,
+      [empresaId, variante]
+    );
+
+    if (contactoResult.rows.length > 0) {
+      console.info('[WhatsApp Contacto] Contacto existente encontrado', {
+        empresaId,
+        telefonoOriginal: telefono,
+        telefonoNormalizado,
+        varianteUsada: variante,
+        contactoId: contactoResult.rows[0].id,
+        huboMatch: true,
+      });
+
+      return contactoResult.rows[0].id as number;
+    }
   }
+
+  console.info('[WhatsApp Contacto] No se encontro contacto existente, creando nuevo', {
+    empresaId,
+    telefonoOriginal: telefono,
+    telefonoNormalizado,
+    variantesBuscadas: variantes,
+    huboMatch: false,
+  });
 
   const newContacto = await pool.query(
     `
@@ -72,7 +104,7 @@ export const getOrCreateWhatsappContacto = async (empresaId: number, telefono: s
   VALUES ($1, 'Lead', $2, $3, true, false)
         RETURNING id
         `,
-    [empresaId, telefono, telefono]
+    [empresaId, telefonoNormalizado, telefonoNormalizado]
   );
 
   return newContacto.rows[0].id as number;

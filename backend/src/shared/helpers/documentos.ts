@@ -3,7 +3,12 @@
  * en servicios/módulos como impuestos, timbrado CFDI, validaciones fiscales y generación de XML.
  * Si se agregan nuevos documentos fiscales, basta con actualizar TIPOS_DOCUMENTO_FISCALES.
  */
-export const TIPOS_DOCUMENTO_FISCALES = new Set<string>(['factura', 'factura_compra']);
+export const TIPOS_DOCUMENTO_FISCALES = new Set<string>([
+  'factura',
+  'factura_compra',
+  'nota_credito',
+  'nota_credito_compra',
+]);
 
 export function esDocumentoFiscal(tipoDocumento: string | null | undefined): boolean {
   if (!tipoDocumento) return false;

@@ -130,11 +130,11 @@ export class CfdiBuilder {
       Folio: data.documento.numero ? String(data.documento.numero) : undefined,
       Fecha: options.fechaEmision ?? formatFecha(data.documento.fecha_documento),
       Moneda: data.documento.moneda || 'MXN',
-      TipoDeComprobante: 'I',
+      TipoDeComprobante: options.cfdiType || 'I',
       Exportacion: '01',
       SubTotal: formatMoney(subtotal),
       Total: formatMoney(total),
-  LugarExpedicion: data.empresa.codigo_postal_id,
+      LugarExpedicion: data.empresa.codigo_postal_id,
       MetodoPago: data.documento.metodo_pago || 'PUE',
       FormaPago: data.documento.forma_pago || '99',
       TotalImpuestosTrasladados: totalImpuestosTrasladados > 0 ? formatMoney(totalImpuestosTrasladados) : undefined,
@@ -147,8 +147,17 @@ export class CfdiBuilder {
       comprobanteAttrs.LugarExpedicion as string | undefined
     );
 
-    const xml = create({ version: '1.0', encoding: 'UTF-8' })
-      .ele('cfdi:Comprobante', comprobanteAttrs)
+    const xml = create({ version: '1.0', encoding: 'UTF-8' }).ele('cfdi:Comprobante', comprobanteAttrs);
+
+    if (options.relations?.type && options.relations.cfdis?.length) {
+      const relaciones = xml.ele('cfdi:CfdiRelacionados', { TipoRelacion: options.relations.type });
+      options.relations.cfdis.forEach((relation) => {
+        relaciones.ele('cfdi:CfdiRelacionado', { UUID: relation.uuid });
+      });
+      relaciones.up();
+    }
+
+    xml
       .ele('cfdi:Emisor', sanitize({
         Rfc: data.empresa.rfc,
         Nombre: data.empresa.razon_social,
@@ -166,7 +175,7 @@ export class CfdiBuilder {
 
     const conceptosNode = xml.ele('cfdi:Conceptos');
 
-  conceptos.forEach(({ partida, base, impuestosCalculados }) => {
+    conceptos.forEach(({ partida, base, impuestosCalculados }) => {
       const concepto = conceptosNode.ele('cfdi:Concepto', sanitize({
         ClaveProdServ: partida.clave_producto_sat,
         Cantidad: formatRate(partida.cantidad),

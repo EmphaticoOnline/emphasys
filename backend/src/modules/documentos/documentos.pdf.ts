@@ -26,9 +26,12 @@ type TimbreCfdi = {
 type DocumentoCotizacion = {
   id?: number;
   tipo_documento?: string | null;
+  motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
   serie?: string | null;
   numero?: number | null;
   fecha_documento?: string | null;
+  concepto_id?: number | null;
+  producto_resumen?: string | null;
   cliente_nombre?: string | null;
   cliente_email?: string | null;
   cliente_telefono?: string | null;
@@ -50,6 +53,8 @@ type DocumentoCotizacion = {
 
 type PartidaCotizacion = {
   producto_clave?: string | null;
+  producto_descripcion?: string | null;
+  descripcion?: string | null;
   descripcion_alterna?: string | null;
   archivo_imagen_1?: string | null;
   producto_archivo_id?: number | null;
@@ -176,6 +181,8 @@ const normalizarColorHex = (color?: string | null): string | undefined => {
 const tituloPorTipo = (tipo: string | null | undefined) => {
   const t = (tipo || '').toString().toLowerCase();
   if (t === 'factura') return 'FACTURA';
+  if (t === 'nota_credito') return 'NOTA DE CRÉDITO';
+  if (t === 'nota_credito_compra') return 'NOTA DE CRÉDITO DE COMPRA';
   if (t === 'orden_servicio') return 'ORDEN DE SERVICIO';
   if (t === 'pedido') return 'PEDIDO';
   if (t === 'remision') return 'REMISIÓN';
@@ -356,6 +363,30 @@ async function obtenerEmpresaPdfInfo(empresaId?: number): Promise<EmpresaPdfInfo
   }
 }
 
+async function obtenerNombreConceptoPdf(conceptoId?: number | null, empresaId?: number): Promise<string | null> {
+  if (!conceptoId || !empresaId) return null;
+
+  try {
+    const { rows } = await pool.query<{ nombre_concepto: string | null }>(
+      `SELECT nombre_concepto
+         FROM conceptos
+        WHERE id = $1
+          AND empresa_id = $2
+        LIMIT 1`,
+      [conceptoId, empresaId]
+    );
+
+    return rows[0]?.nombre_concepto?.trim() || null;
+  } catch (error) {
+    console.warn('[pdf] No se pudo obtener el nombre del concepto para NC comercial', {
+      conceptoId,
+      empresaId,
+      error: (error as Error)?.message ?? error,
+    });
+    return null;
+  }
+}
+
 const obtenerLayoutFallback = (tipoDocumento?: string | null): DocumentLayout => {
   const tipo = (tipoDocumento ?? '').toString().toLowerCase();
   return (
@@ -510,6 +541,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const tipoDocumentoNormalizado = (documento?.tipo_documento ?? '').toString().toLowerCase();
   const esCotizacion = tipoDocumentoNormalizado === 'cotizacion';
   const esOrdenServicio = tipoDocumentoNormalizado === 'orden_servicio';
+  const esNotaCredito = tipoDocumentoNormalizado === 'nota_credito' || tipoDocumentoNormalizado === 'nota_credito_compra';
+  const esNotaCreditoComercial = esNotaCredito && (documento?.motivo_nc ?? null) === 'otro';
   const partidasConMontos = (partidas ?? []).map((partida) => {
     const cantidad = Number(partida.cantidad ?? 0);
     const precioUnitario = Number(partida.precio_unitario ?? 0);
@@ -560,6 +593,13 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   });
   const empresaLogoPath = await obtenerLogoEmpresaPath((documento as any)?.empresa_id ?? empresaId);
   const empresaInfo = await obtenerEmpresaPdfInfo((documento as any)?.empresa_id ?? empresaId);
+  const motivoNcNormalizado = (documento?.motivo_nc ?? null) as DocumentoCotizacion['motivo_nc'];
+  const esNotaCreditoMotivoOtro = tipoDocumentoNormalizado === 'nota_credito' || tipoDocumentoNormalizado === 'nota_credito_compra'
+    ? motivoNcNormalizado === 'otro'
+    : false;
+  const nombreConceptoNcComercial = esNotaCreditoMotivoOtro
+    ? await obtenerNombreConceptoPdf(documento?.concepto_id ?? null, (documento as any)?.empresa_id ?? empresaId)
+    : null;
   const logoPath = empresaLogoPath && fs.existsSync(empresaLogoPath) ? empresaLogoPath : defaultLogoPath;
   const hasLogo = fs.existsSync(logoPath);
   console.info('[pdf] Logo resuelto', {
@@ -714,17 +754,57 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       doc.fillColor(textColor);
     };
 
+    const renderMotivoNotaCredito = () => {
+      if (tipoDocumentoNormalizado !== 'nota_credito' && tipoDocumentoNormalizado !== 'nota_credito_compra') {
+        return;
+      }
+
+      const motivoLabel = motivoNcNormalizado === 'devolucion'
+        ? 'Devolución'
+        : motivoNcNormalizado === 'bonificacion'
+          ? 'Bonificación'
+          : null;
+
+      if (!motivoLabel) return;
+
+      doc.moveDown(0.2);
+      setFont(true, 10, primaryColor);
+      doc.text(`Motivo: ${motivoLabel}`, doc.page.margins.left, doc.y, { width: contentWidth });
+      doc.moveDown(0.35);
+    };
+
     const startX = doc.page.margins.left;
     const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const columnWidths = [
-      84, // Producto (se mantiene)
-      tableWidth - (84 + 58 + 76 + 68 + 68), // Descripción absorbe espacio extra
-      58, // Cantidad
-      76, // Precio unitario
-      68, // Desc.
-      68, // Importe (alineado a margen derecho)
-    ];
-    const headers = ['Producto', 'Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe'];
+    const columnWidths = esNotaCreditoComercial
+      ? [
+          tableWidth - (58 + 76 + 68 + 68), // Descripción absorbe el espacio del producto oculto
+          58, // Cantidad
+          76, // Precio unitario
+          68, // Desc.
+          68, // Importe (alineado a margen derecho)
+        ]
+      : [
+          84, // Producto (se mantiene)
+          tableWidth - (84 + 58 + 76 + 68 + 68), // Descripción absorbe espacio extra
+          58, // Cantidad
+          76, // Precio unitario
+          68, // Desc.
+          68, // Importe (alineado a margen derecho)
+        ];
+    const headers = esNotaCreditoComercial
+      ? ['Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe']
+      : ['Producto', 'Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe'];
+    const descripcionIndex = esNotaCreditoComercial ? 0 : 1;
+
+    const obtenerDescripcionPartidaPdf = (partida: PartidaCotizacion) => {
+      if (esNotaCreditoComercial) {
+        const descripcionComercial = (nombreConceptoNcComercial ?? documento?.producto_resumen ?? partida.descripcion_alterna ?? '').toString().trim();
+        if (descripcionComercial) return descripcionComercial;
+        return '';
+      }
+
+      return (partida.producto_descripcion ?? partida.descripcion ?? partida.descripcion_alterna ?? '').toString().trim();
+    };
 
     const renderHeader = () => {
       // Encabezado clásico CFDI
@@ -967,9 +1047,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
     const renderPartidas = async () => {
       // Tabla de partidas (sin título "Partidas")
-      const descripcionIndex = 1;
       const layoutWithImageConfig = layout as DocumentLayout & { maxAnchoImagenPartida?: number | null };
-      const showObservaciones = (esCotizacion || esOrdenServicio) && layout.mostrarObservacionesPartida !== false;
+      const showObservaciones = (esCotizacion || esOrdenServicio || esNotaCredito) && layout.mostrarObservacionesPartida !== false;
       const showImagenPartida = layout.mostrarImagenPartida === true;
       const rawImagenPartidaHeight = Number(layout.altoImagenPartida ?? 60);
       const imagenPartidaHeight = Number.isFinite(rawImagenPartidaHeight) && rawImagenPartidaHeight > 0
@@ -1092,7 +1171,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           const x = startX + columnWidths.slice(0, idx).reduce((acc, w) => acc + w, 0) + 6;
           setFont(isHeader, isHeader ? headerFontSize : 9, isHeader ? '#ffffff' : mutedText);
           const textY = isHeader ? headerTextY : y + bodyPaddingY;
-          doc.text(text, x, textY, { width: columnWidths[idx] - 12, align: idx >= 2 ? 'right' : 'left' });
+          const align = idx === descripcionIndex ? 'left' : 'right';
+          doc.text(text, x, textY, { width: columnWidths[idx] - 12, align });
         });
 
         if (!isHeader && obsHeight > 0 && obsText) {
@@ -1136,14 +1216,23 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         const subtotalNeto = Number(p.subtotal_partida ?? 0);
         const subtotalBruto = cantidad * precioUnitario;
         const descuento = Math.max(0, subtotalBruto - subtotalNeto);
-        const values = [
-          p.producto_clave || '',
-          p.descripcion_alterna || '',
-          cantidad.toFixed(2),
-          formatCurrency(precioUnitario),
-          formatCurrency(descuento),
-          formatCurrency(subtotalNeto),
-        ];
+        const descripcionPartida = obtenerDescripcionPartidaPdf(p as PartidaCotizacion);
+        const values = esNotaCreditoComercial
+          ? [
+              descripcionPartida,
+              cantidad.toFixed(2),
+              formatCurrency(precioUnitario),
+              formatCurrency(descuento),
+              formatCurrency(subtotalNeto),
+            ]
+          : [
+              p.producto_clave || '',
+              descripcionPartida,
+              cantidad.toFixed(2),
+              formatCurrency(precioUnitario),
+              formatCurrency(descuento),
+              formatCurrency(subtotalNeto),
+            ];
         const imageBuffer = await getPartidaImageBufferFromPartida(p as PartidaCotizacion);
         const metrics = computeRowMetrics(values, (p as PartidaCotizacion).observaciones ?? null, Boolean(imageBuffer));
         const rowHeight = metrics.rowHeight;
@@ -1471,6 +1560,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       if (layout.mostrarCliente) {
         renderCliente();
       }
+
+      renderMotivoNotaCredito();
 
       if (layout.mostrarPartidas) {
         await renderPartidas();

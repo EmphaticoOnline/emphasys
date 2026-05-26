@@ -100,6 +100,8 @@ export type ProductoTipoPermitido = 'Inventariable' | 'No inventariable' | 'Kit'
 export type VendedorTipoPermitido = 'Vendedor';
 
 export type DocumentoEntidadContextualConfig<TCaptureMode extends string, TTipoPermitido extends string> = {
+  visible?: boolean;
+  label?: string;
   creationMode?: EntidadCreationMode;
   captureMode?: TCaptureMode;
   tiposPermitidos?: TTipoPermitido[];

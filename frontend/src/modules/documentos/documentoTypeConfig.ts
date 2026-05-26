@@ -64,7 +64,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       filtroAgente: true,
       mostrarSaldo: false,
       tiposContactoPermitidos: ['Cliente', 'Lead'],
-      accionesDisponibles: ['duplicar', 'enviar_produccion', 'ver_produccion', 'enviar_email'],
+      accionesDisponibles: ['duplicar', 'enviar_produccion', 'ver_produccion', 'enviar_email', 'enviar_whatsapp'],
     },
     partidas: {
       mostrarImagenes: true,
@@ -178,6 +178,90 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       ...camposBase,
       serie: { ...camposBase.serie, visible: true, required: true },
       numero: { ...camposBase.numero, visible: true, required: true },
+      rfc_receptor: { ...camposBase.rfc_receptor, visible: true, required: true },
+      nombre_receptor: { ...camposBase.nombre_receptor, visible: true, required: false },
+      moneda: { ...camposBase.moneda, required: true },
+      tipo_cambio: { ...camposBase.tipo_cambio, visible: true },
+      metodo_pago: { ...camposBase.metodo_pago, visible: true, required: true },
+      forma_pago: { ...camposBase.forma_pago, visible: true, required: true },
+      uso_cfdi: { ...camposBase.uso_cfdi, visible: true, required: true },
+      regimen_fiscal_receptor: { ...camposBase.regimen_fiscal_receptor, visible: true, required: true },
+      codigo_postal_receptor: { ...camposBase.codigo_postal_receptor, visible: true, required: true },
+      lugar_expedicion: { ...camposBase.lugar_expedicion, visible: true, required: true },
+    },
+    fiscales: {
+      requiereDatosFiscales: true,
+      requiereMetodoPago: true,
+      requiereFormaPago: true,
+      requiereUsoCfdi: true,
+      requiereRegimenFiscal: true,
+      requiereTipoCambio: true,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado', 'timbrado'],
+  },
+  nota_credito: {
+    tipo: 'nota_credito',
+    label: 'Nota de crédito',
+    descripcion: 'Documento de egreso para descuentos comerciales o devoluciones de cliente.',
+    textos: {
+      nuevo: 'Nueva nota de crédito',
+      editar: 'Editar nota de crédito',
+      guardado: 'Nota de crédito guardada',
+      cargando: 'Cargando nota de crédito...',
+      singular: 'nota de crédito',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: true,
+      accionesDisponibles: ['timbrar'],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: false,
+      tratamientoFiscal: true,
+      fiscalTab: true,
+    },
+    defaults: {
+      serie: 'NCR',
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Cliente',
+        tiposPermitidos: ['Cliente'],
+      },
+      vendedor: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
+    secciones: {
+      ...seccionesBase,
+      fiscal: withOverrides(seccionesBase.fiscal ?? { label: 'Datos fiscales' }, { visible: true }),
+    },
+    campos: {
+      ...camposBase,
+      partidas: { ...camposBase.partidas, required: false },
+      serie: { ...camposBase.serie, visible: true, required: true },
+      numero: { ...camposBase.numero, visible: true, required: true },
+      subtotal: { ...camposBase.subtotal, readOnly: false },
+      iva: { ...camposBase.iva, readOnly: false },
+      total: { ...camposBase.total, readOnly: true },
       rfc_receptor: { ...camposBase.rfc_receptor, visible: true, required: true },
       nombre_receptor: { ...camposBase.nombre_receptor, visible: true, required: false },
       moneda: { ...camposBase.moneda, required: true },
@@ -446,12 +530,14 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     },
     relatedEntities: {
       contacto: {
+        label: 'Proveedor',
         creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoContacto: 'Proveedor',
         tiposPermitidos: ['Proveedor'],
       },
       vendedor: {
+        visible: false,
         creationMode: 'disabled',
         captureMode: 'simple',
         defaultTipoVendedor: 'Vendedor',
@@ -476,9 +562,87 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     },
     estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
   },
+  nota_credito_compra: {
+    tipo: 'nota_credito_compra',
+    label: 'Nota de crédito de compra',
+    descripcion: 'Documento de ajuste o devolución asociado a una factura de proveedor.',
+    textos: {
+      nuevo: 'Nueva nota de crédito de compra',
+      editar: 'Editar nota de crédito de compra',
+      guardado: 'Nota de crédito de compra guardada',
+      cargando: 'Cargando nota de crédito de compra...',
+      singular: 'nota de crédito de compra',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: true,
+      accionesDisponibles: [],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: false,
+      tratamientoFiscal: false,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: 'NCC',
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        label: 'Proveedor',
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Proveedor',
+        tiposPermitidos: ['Proveedor'],
+      },
+      vendedor: {
+        visible: false,
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
+    secciones: { ...seccionesBase },
+    campos: {
+      ...camposBase,
+      partidas: { ...camposBase.partidas, required: false },
+      serie: { ...camposBase.serie, visible: true, required: true },
+      numero: { ...camposBase.numero, visible: true, required: true },
+      subtotal: { ...camposBase.subtotal, readOnly: false },
+      iva: { ...camposBase.iva, readOnly: false },
+      total: { ...camposBase.total, readOnly: true },
+      moneda: { ...camposBase.moneda, required: true },
+      tipo_cambio: { ...camposBase.tipo_cambio, visible: true },
+    },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
+  },
 };
 
-export const getDocumentoTypeConfig = (tipo: TipoDocumento): DocumentoTypeConfig | undefined => DOCUMENTO_TYPE_CONFIG[tipo];
+export const getDocumentoTypeConfig = (tipo: TipoDocumento): DocumentoTypeConfig | undefined => {
+  const normalizedTipo = String(tipo ?? '').trim().toLowerCase() as TipoDocumento;
+  return DOCUMENTO_TYPE_CONFIG[normalizedTipo];
+};
 
 const TEXTOS_DEFAULT: DocumentoTextos = {
   nuevo: 'Nuevo documento',

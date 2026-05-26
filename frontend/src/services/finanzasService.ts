@@ -132,7 +132,8 @@ export async function fetchEstadoCuenta(contactoId: number): Promise<EstadoCuent
 }
 
 export async function crearAplicacion(payload: {
-  finanzas_operacion_id: number;
+  finanzas_operacion_id?: number;
+  documento_origen_id?: number;
   documento_destino_id: number;
   monto: number;
   monto_moneda_documento?: number;

@@ -8,6 +8,8 @@ export interface OpcionGeneracion {
 
 export interface PrepararGeneracionPartida {
   partida_id: number;
+  documento_origen_id: number;
+  documento_origen_folio: string | null;
   producto_id: number | null;
   descripcion: string | null;
   unidad: string | null;
@@ -16,6 +18,7 @@ export interface PrepararGeneracionPartida {
   cantidad_pendiente_sugerida: number;
   cantidad_default: number;
   precio_unitario: number;
+  importe_maximo_sugerido: number;
 }
 
 export interface PrepararGeneracionResponse {
@@ -23,7 +26,13 @@ export interface PrepararGeneracionResponse {
     documento_id: number;
     tipo_documento: TipoDocumento;
     folio: string | null;
-  };
+  } | null;
+  documentos_origen: Array<{
+    documento_id: number;
+    tipo_documento: TipoDocumento;
+    folio: string | null;
+  }>;
+  es_consolidado: boolean;
   tipo_documento_destino: TipoDocumento;
   partidas: PrepararGeneracionPartida[];
 }
@@ -34,15 +43,28 @@ export interface DatosEncabezadoGeneracion {
   contacto_principal_id?: number | null;
   conversacion_id?: number | null;
   comentarios?: string | null;
+  motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
+  concepto_id?: number | null;
+  producto_resumen?: string | null;
+  rfc_receptor?: string | null;
+  nombre_receptor?: string | null;
+  regimen_fiscal_receptor?: string | null;
+  uso_cfdi?: string | null;
+  forma_pago?: string | null;
+  metodo_pago?: string | null;
+  codigo_postal_receptor?: string | null;
 }
 
 export interface GenerarDocumentoPartidaInput {
   partida_origen_id: number;
   cantidad: number;
+  monto_bonificacion?: number | null;
 }
 
 export interface GenerarDocumentoPayload {
-  documento_origen_id: number;
+  documento_origen_id?: number;
+  documento_origen_ids?: number[];
+  documento_destino_id?: number;
   tipo_documento_destino: TipoDocumento;
   datos_encabezado?: DatosEncabezadoGeneracion;
   partidas: GenerarDocumentoPartidaInput[];

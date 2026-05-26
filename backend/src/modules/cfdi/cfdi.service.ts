@@ -4,6 +4,7 @@ import pool from '../../config/database';
 import { CfdiBuilder } from './cfdi.builder';
 import { FacturamaClient } from './facturama.client';
 import type {
+  CfdiBuildOptions,
   CfdiInvoiceData,
   CfdiPartida,
   FacturamaStampResponse,
@@ -23,14 +24,18 @@ export class CfdiService {
   constructor(private readonly builder = new CfdiBuilder()) {}
 
   async timbrarFactura(documentoId: number, empresaId: number): Promise<TimbrarFacturaResult> {
-    const data = await this.obtenerFactura(documentoId, empresaId);
+    return this.timbrarDocumento(documentoId, empresaId);
+  }
+
+  async timbrarDocumento(documentoId: number, empresaId: number): Promise<TimbrarFacturaResult> {
+    const data = await this.obtenerDocumentoTimbrable(documentoId, empresaId);
     this.validarDatos(data);
 
-    // Validaciones: impedir timbrar si ya existe CFDI o si el documento ya está marcado como timbrado
     await this.assertDocumentoNoTimbrado(documentoId, empresaId);
     await this.assertNoCfdi(documentoId);
 
-    const { xml } = this.builder.build(data);
+    const buildOptions = await this.resolverBuildOptions(data, empresaId);
+    const { xml } = this.builder.build(data, buildOptions);
 
     const facturama = await FacturamaClient.fromDatabaseOrEnv();
     const { xmlTimbrado, response } = await facturama.stampXml(xml);
@@ -57,25 +62,74 @@ export class CfdiService {
     };
   }
 
-  private async obtenerFactura(documentoId: number, empresaId: number): Promise<CfdiInvoiceData> {
+  private async obtenerDocumentoTimbrable(documentoId: number, empresaId: number): Promise<CfdiInvoiceData> {
     const { rows: documentoRows } = await pool.query(
-      `SELECT d.id, d.empresa_id, d.serie, d.numero, d.fecha_documento, d.moneda, d.subtotal, d.iva, d.total,
+      `SELECT d.id, d.empresa_id, d.tipo_documento, d.motivo_nc, d.documento_origen_id,
+              d.serie, d.numero, d.fecha_documento, d.moneda, d.subtotal, d.iva, d.total,
               d.forma_pago, d.metodo_pago, d.uso_cfdi, d.rfc_receptor, d.nombre_receptor, d.regimen_fiscal_receptor, d.codigo_postal_receptor,
               e.razon_social, e.rfc, e.regimen_fiscal, e.codigo_postal_id
          FROM documentos d
          JOIN core.empresas e ON e.id = d.empresa_id
         WHERE d.id = $1
           AND d.empresa_id = $2
-          AND LOWER(d.tipo_documento) = 'factura'
+          AND LOWER(d.tipo_documento) IN ('factura', 'nota_credito')
         LIMIT 1`,
       [documentoId, empresaId]
     );
 
     const documento = documentoRows[0];
     if (!documento) {
-      throw new CfdiValidationError('Factura no encontrada o no pertenece a la empresa.');
+      throw new CfdiValidationError('Documento timbrable no encontrado o no pertenece a la empresa.');
     }
 
+    const tipoDocumento = String(documento.tipo_documento || '').trim().toLowerCase();
+    if (tipoDocumento !== 'factura' && tipoDocumento !== 'nota_credito') {
+      throw new CfdiValidationError('Solo se permite timbrar facturas y notas de crédito.');
+    }
+
+    if (tipoDocumento === 'nota_credito') {
+      const motivoNc = String(documento.motivo_nc || '').trim().toLowerCase();
+      if (!['bonificacion', 'devolucion', 'otro'].includes(motivoNc)) {
+        throw new CfdiValidationError('Por ahora solo se permite timbrar notas de crédito con motivo Bonificación, Devolución o Otro.');
+      }
+    }
+
+    const partidas = await this.obtenerPartidas(documentoId);
+
+    return {
+      documento: {
+        id: documento.id,
+        empresa_id: documento.empresa_id,
+        tipo_documento: documento.tipo_documento,
+        motivo_nc: documento.motivo_nc,
+        documento_origen_id: documento.documento_origen_id,
+        serie: documento.serie,
+        numero: documento.numero,
+        fecha_documento: documento.fecha_documento,
+        moneda: documento.moneda || 'MXN',
+        subtotal: Number(documento.subtotal),
+        iva: Number(documento.iva ?? 0),
+        total: Number(documento.total),
+        forma_pago: documento.forma_pago,
+        metodo_pago: documento.metodo_pago,
+        uso_cfdi: documento.uso_cfdi,
+        rfc_receptor: documento.rfc_receptor,
+        nombre_receptor: documento.nombre_receptor,
+        regimen_fiscal_receptor: documento.regimen_fiscal_receptor,
+        codigo_postal_receptor: documento.codigo_postal_receptor,
+      },
+      empresa: {
+        id: documento.empresa_id,
+        razon_social: documento.razon_social,
+        rfc: documento.rfc,
+        regimen_fiscal: documento.regimen_fiscal,
+        codigo_postal_id: documento.codigo_postal_id,
+      },
+      partidas,
+    };
+  }
+
+  private async obtenerPartidas(documentoId: number): Promise<CfdiPartida[]> {
     const { rows: partidasRows } = await pool.query(
       `SELECT dp.id,
               dp.cantidad,
@@ -130,7 +184,7 @@ export class CfdiService {
       });
     }
 
-    const partidas: CfdiPartida[] = partidasRows.map((p) => ({
+    return partidasRows.map((p) => ({
       id: p.id,
       cantidad: Number(p.cantidad),
       precio_unitario: Number(p.precio_unitario),
@@ -140,34 +194,56 @@ export class CfdiService {
       clave_unidad_sat: p.clave_unidad_sat,
       impuestos: impuestosPorPartida[p.id],
     }));
+  }
+
+  private async resolverBuildOptions(data: CfdiInvoiceData, empresaId: number): Promise<CfdiBuildOptions> {
+    const tipoDocumento = String(data.documento.tipo_documento || '').trim().toLowerCase();
+    if (tipoDocumento === 'nota_credito') {
+      const motivoNc = String(data.documento.motivo_nc || '').trim().toLowerCase();
+      if (motivoNc === 'otro') {
+        return {
+          cfdiType: 'E',
+        };
+      }
+
+      return {
+        cfdiType: 'E',
+        relations: await this.resolverNcRelations(data.documento.documento_origen_id, empresaId),
+      };
+    }
 
     return {
-      documento: {
-        id: documento.id,
-        empresa_id: documento.empresa_id,
-        serie: documento.serie,
-        numero: documento.numero,
-        fecha_documento: documento.fecha_documento,
-        moneda: documento.moneda || 'MXN',
-        subtotal: Number(documento.subtotal),
-        iva: Number(documento.iva ?? 0),
-        total: Number(documento.total),
-        forma_pago: documento.forma_pago,
-        metodo_pago: documento.metodo_pago,
-        uso_cfdi: documento.uso_cfdi,
-        rfc_receptor: documento.rfc_receptor,
-        nombre_receptor: documento.nombre_receptor,
-        regimen_fiscal_receptor: documento.regimen_fiscal_receptor,
-        codigo_postal_receptor: documento.codigo_postal_receptor,
-      },
-      empresa: {
-        id: documento.empresa_id,
-        razon_social: documento.razon_social,
-        rfc: documento.rfc,
-        regimen_fiscal: documento.regimen_fiscal,
-        codigo_postal_id: documento.codigo_postal_id,
-      },
-      partidas,
+      cfdiType: 'I',
+    };
+  }
+
+  private async resolverNcRelations(documentoOrigenId: number | null | undefined, empresaId: number) {
+    const origenId = Number(documentoOrigenId);
+    ensure(Number.isFinite(origenId) && origenId > 0, 'La nota de crédito no tiene factura origen relacionada.');
+
+    const { rows } = await pool.query<{ uuid: string | null }>(
+      `SELECT dc.uuid
+         FROM documentos origen
+         LEFT JOIN documentos_cfdi dc ON dc.documento_id = origen.id
+        WHERE origen.id = $1
+          AND origen.empresa_id = $2
+          AND LOWER(COALESCE(origen.tipo_documento, '')) = 'factura'
+        LIMIT 1`,
+      [origenId, empresaId]
+    );
+
+    if (!rows.length) {
+      throw new CfdiValidationError('La factura origen no existe o no pertenece a la empresa.');
+    }
+
+    const uuid = String(rows[0]?.uuid || '').trim();
+    if (!uuid) {
+      throw new CfdiValidationError('La factura origen aún no está timbrada');
+    }
+
+    return {
+      type: '01',
+      cfdis: [{ uuid }],
     };
   }
 
@@ -297,7 +373,7 @@ export class CfdiService {
     try {
       const pre = await pool.query('SELECT 1 FROM public.documentos_cfdi WHERE documento_id = $1 LIMIT 1', [documentoId]);
       if (pre.rowCount && pre.rowCount > 0) {
-        throw new CfdiValidationError('Esta factura ya fue timbrada y no puede timbrarse nuevamente.');
+        throw new CfdiValidationError('Este documento ya fue timbrado y no puede timbrarse nuevamente.');
       }
 
       const { rows } = await pool.query<TimbradoPersisted>(
@@ -315,7 +391,7 @@ export class CfdiService {
     } catch (err: any) {
       // Defensa contra condiciones de carrera: si ya existe un timbre, no sobrescribir.
       if (err?.code === '23505') {
-        throw new CfdiValidationError('Esta factura ya fue timbrada y no puede timbrarse nuevamente.');
+        throw new CfdiValidationError('Este documento ya fue timbrado y no puede timbrarse nuevamente.');
       }
       throw err;
     }
@@ -333,7 +409,7 @@ export class CfdiService {
 
     const existente = rows[0]?.uuid;
     if (existente && String(existente).trim().length > 0) {
-      throw new CfdiValidationError('Esta factura ya fue timbrada y no puede timbrarse nuevamente.');
+      throw new CfdiValidationError('Este documento ya fue timbrado y no puede timbrarse nuevamente.');
     }
   }
 
@@ -351,7 +427,7 @@ export class CfdiService {
 
     const estatus = rows[0]?.estatus_documento?.toLowerCase?.() ?? null;
     if (estatus === 'timbrado') {
-      throw new CfdiValidationError('Esta factura ya fue timbrada y no puede timbrarse nuevamente.');
+      throw new CfdiValidationError('Este documento ya fue timbrado y no puede timbrarse nuevamente.');
     }
   }
 

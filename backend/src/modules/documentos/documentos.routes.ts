@@ -3,7 +3,9 @@ import { requireAuth, requireEmpresaActiva } from "../auth/auth.middleware";
 import {
   agregarPartida,
   crearCotizacion,
+  timbrarDocumentoCfdi,
   enviarCotizacionPorCorreo,
+  enviarWhatsappCotizacion,
   listarCotizaciones,
   obtenerCotizacion,
   validarEliminacionCotizacion,
@@ -37,6 +39,9 @@ router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerCotizacionPDF);
 // POST /api/documentos/:id/enviar-email
 router.post('/:id/enviar-email', requireAuth, requireEmpresaActiva, enviarCotizacionPorCorreo);
 
+// POST /api/documentos/:id/enviar-whatsapp-cotizacion
+router.post('/:id/enviar-whatsapp-cotizacion', requireAuth, requireEmpresaActiva, enviarWhatsappCotizacion);
+
 // POST /api/documentos
 router.post('/', requireAuth, requireEmpresaActiva, crearCotizacion);
 
@@ -57,6 +62,9 @@ router.post('/:id/partidas', requireAuth, requireEmpresaActiva, agregarPartida);
 
 // PUT /api/documentos/:id/partidas (reemplaza todas)
 router.put('/:id/partidas', requireAuth, requireEmpresaActiva, reemplazarPartidas);
+
+// POST /api/documentos/:id/timbrar-cfdi
+router.post('/:id/timbrar-cfdi', requireAuth, requireEmpresaActiva, timbrarDocumentoCfdi);
 
 // POST /api/documentos/calcular-impuestos (preview sin persistir)
 router.post('/calcular-impuestos', requireAuth, requireEmpresaActiva, calcularImpuestosPreviewHandler);

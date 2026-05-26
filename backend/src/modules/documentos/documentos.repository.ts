@@ -6,11 +6,14 @@ import {
   normalizarEstadoSeguimientoCotizacion,
   sanitizarCamposCotizacion,
 } from './cotizacion-status';
+import { obtenerOCrearProductoTecnicoNcComercialRepository } from '../productos/productos.repository';
 
 export type Documento = {
   id: number;
   empresa_id: number;
   tipo_documento: TipoDocumento;
+  motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
+  concepto_id?: number | null;
   serie: string | null;
   numero: number | null;
   documento_origen_id?: number | null;
@@ -68,6 +71,8 @@ const CAMPOS_DOCUMENTO = [
   'documento_origen_id',
   'oportunidad_id',
   'contacto_principal_id',
+  'motivo_nc',
+  'concepto_id',
   'rfc_receptor',
   'nombre_receptor',
   'regimen_fiscal_receptor',
@@ -336,7 +341,7 @@ const normalizarImagenPartida = (data: PartidaInput, permiteImagen: boolean) => 
 };
 
 export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number) {
-  const esFactura = ['factura', 'factura_compra'].includes((tipoDocumento || '').toLowerCase());
+  const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
   const selectSaldo = esFactura ? 'COALESCE(ds.saldo, 0) AS saldo' : 'NULL::numeric AS saldo';
   const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
@@ -374,6 +379,7 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
   const query = `
     SELECT
       d.id,
+      d.motivo_nc,
       d.serie,
       d.numero,
       d.fecha_documento,
@@ -429,9 +435,20 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
   if (!documento) return null;
 
   const partidasQuery = `
-    SELECT dp.*, p.descripcion AS producto_descripcion, p.clave AS producto_clave
+    SELECT dp.*, p.descripcion AS producto_descripcion, p.clave AS producto_clave,
+           dpv.documento_origen_id,
+           dpv.partida_origen_id,
+           dpv.cantidad AS cantidad_vinculada
     FROM documentos_partidas dp
     LEFT JOIN productos p ON dp.producto_id = p.id
+    LEFT JOIN LATERAL (
+      SELECT documento_origen_id, partida_origen_id, cantidad
+      FROM documentos_partidas_vinculos
+      WHERE partida_destino_id = dp.id
+        AND documento_destino_id = dp.documento_id
+      ORDER BY id
+      LIMIT 1
+    ) dpv ON true
     WHERE dp.documento_id = $1
     ORDER BY dp.id
   `;
@@ -496,6 +513,7 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
 const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   cotizacion: 'COT',
   factura: 'FAC',
+  nota_credito: 'NCR',
   orden_servicio: 'OS',
   pedido: 'PED',
   remision: 'REM',
@@ -503,6 +521,7 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   requisicion: 'REQ',
   orden_compra: 'OC',
   recepcion: 'REC',
+  nota_credito_compra: 'NCC',
   factura_compra: 'FCO',
 };
 
@@ -852,6 +871,7 @@ export async function reemplazarPartidasRepository(
       return null;
     }
     const permiteImagen = String(docRow.tipo_documento ?? '').toLowerCase() === 'cotizacion';
+    const usaProductoTecnicoNc = ['nota_credito', 'nota_credito_compra'].includes(String(docRow.tipo_documento ?? '').toLowerCase());
 
     if (ownedClient) {
       await executor.query('BEGIN');
@@ -884,10 +904,13 @@ export async function reemplazarPartidasRepository(
     const insertedRows: any[] = [];
     for (const [idx, partida] of partidas.entries()) {
       const imagen = normalizarImagenPartida(partida, permiteImagen);
+      const productoTecnico = usaProductoTecnicoNc && !partida.producto_id
+        ? await obtenerOCrearProductoTecnicoNcComercialRepository(empresaId, executor)
+        : null;
       const values = [
         documentoId,
         idx + 1, // numero_partida secuencial por documento
-        partida.producto_id ?? null,
+        partida.producto_id ?? productoTecnico?.id ?? null,
         partida.descripcion_alterna ?? null,
         partida.cantidad ?? 0,
         partida.precio_unitario ?? 0,
