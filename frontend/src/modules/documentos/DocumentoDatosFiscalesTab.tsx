@@ -16,10 +16,15 @@ export type DatosFiscalesValues = {
 type CatalogItem = { clave: string; nombre: string };
 type FormaCatalogItem = { id: string; texto: string };
 
+type VisibleFields = Partial<Record<keyof DatosFiscalesValues, boolean>>;
+
 type Props = {
   values: DatosFiscalesValues;
   onChange: (changes: Partial<DatosFiscalesValues>) => void;
   disabled?: boolean;
+  visibleFields?: VisibleFields;
+  showCatalogNote?: boolean;
+  compact?: boolean;
 };
 
 const validarRFC = (rfc: string) => /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(rfc);
@@ -31,9 +36,45 @@ const endpoints = {
   metodo: '/api/catalogos/sat/metodos-pago',
 };
 
-export function DocumentoDatosFiscalesTab({ values, onChange, disabled }: Props) {
+export function DocumentoDatosFiscalesTab({ values, onChange, disabled, visibleFields, showCatalogNote = true, compact = false }: Props) {
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const isDisabled = Boolean(disabled);
+  const fields = {
+    rfc_receptor: visibleFields?.rfc_receptor ?? true,
+    nombre_receptor: visibleFields?.nombre_receptor ?? true,
+    regimen_fiscal_receptor: visibleFields?.regimen_fiscal_receptor ?? true,
+    uso_cfdi: visibleFields?.uso_cfdi ?? true,
+    forma_pago: visibleFields?.forma_pago ?? true,
+    metodo_pago: visibleFields?.metodo_pago ?? true,
+    codigo_postal_receptor: visibleFields?.codigo_postal_receptor ?? true,
+  };
+  const mostrarNotaCatalogos = fields.regimen_fiscal_receptor || fields.uso_cfdi || fields.forma_pago || fields.metodo_pago;
+  const gridGap = compact ? 1 : 2;
+  const compactTextFieldSx = compact
+    ? {
+        '& .MuiInputBase-root': {
+          minHeight: 40,
+        },
+        '& .MuiInputBase-input': {
+          fontSize: 13,
+          padding: '8.5px 14px',
+        },
+        '& .MuiAutocomplete-input': {
+          minWidth: 0,
+          padding: '0 !important',
+        },
+        '& .MuiAutocomplete-endAdornment': {
+          top: 'calc(50% - 14px)',
+        },
+      }
+    : undefined;
+  const textFieldProps = compact
+    ? {
+        size: 'small' as const,
+        InputLabelProps: { shrink: true, sx: { fontSize: 13 } },
+        sx: compactTextFieldSx,
+      }
+    : {};
 
   const [rfcError, setRfcError] = useState<string | null>(null);
 
@@ -137,6 +178,16 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled }: Props)
           {...(params as any)}
           label={label}
           fullWidth
+          {...textFieldProps}
+          inputProps={compact
+            ? {
+                ...params.inputProps,
+                style: {
+                  ...(params.inputProps?.style ?? {}),
+                  fontSize: 13,
+                },
+              }
+            : params.inputProps}
           InputProps={{
             ...params.InputProps,
             endAdornment: (
@@ -166,128 +217,157 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled }: Props)
   }, []);
 
   return (
-    <Stack spacing={2}>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-          gap: 2,
-        }}
-      >
-        <TextField
-          label="RFC receptor"
-          value={values.rfc_receptor}
-          onChange={(e) => handleRfcChange(e.target.value)}
-          error={Boolean(rfcError)}
-          helperText={rfcError || ''}
-          fullWidth
-          disabled={isDisabled}
-        />
-        <TextField
-          label="Nombre receptor"
-          value={values.nombre_receptor}
-          onChange={(e) => onChange({ nombre_receptor: e.target.value })}
-          fullWidth
-          disabled={isDisabled}
-        />
-      </Box>
-
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-          gap: 2,
-        }}
-      >
-        {buildAutocomplete(
-          'Régimen fiscal',
-          values.regimen_fiscal_receptor,
-          regimenOptions,
-          regimenLoading,
-          (search) => loadCatalog(endpoints.regimen, search, setRegimenOptions, setRegimenLoading, 'regimen', mapRegimenItems),
-          (clave) => onChange({ regimen_fiscal_receptor: clave })
-        )}
-        {buildAutocomplete(
-          'Uso CFDI',
-          values.uso_cfdi,
-          usoOptions,
-          usoLoading,
-          (search) => loadCatalog(endpoints.uso, search, setUsoOptions, setUsoLoading, 'uso'),
-          (clave) => onChange({ uso_cfdi: clave })
-        )}
-      </Box>
-
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-          gap: 2,
-        }}
-      >
-        <Autocomplete
-          options={formaOptions}
-          loading={formaLoading}
-          value={
-            formaOptions.find((o) => o.id === values.forma_pago) ||
-            (values.forma_pago ? { id: values.forma_pago, texto: values.forma_pago } : null)
-          }
-          getOptionLabel={(option) => option?.texto || ''}
-          isOptionEqualToValue={(option, val) => option?.id === val?.id}
-          filterOptions={(options) => options}
-          onInputChange={(_, newValue) => loadCatalogForma(newValue || '')}
-          onChange={(_, newValue) => onChange({ forma_pago: newValue?.id || '' })}
-          renderInput={(params) => (
+    <Stack spacing={compact ? 1 : 2}>
+      {(fields.rfc_receptor || fields.nombre_receptor) && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gap: gridGap,
+          }}
+        >
+          {fields.rfc_receptor && (
             <TextField
-              {...(params as any)}
-              label="Forma de pago"
+              label="RFC receptor"
+              value={values.rfc_receptor}
+              onChange={(e) => handleRfcChange(e.target.value)}
+              error={Boolean(rfcError)}
+              helperText={rfcError || ''}
               fullWidth
-              InputProps={{
-                ...params.InputProps,
-                endAdornment: (
-                  <>
-                    {formaLoading && <CircularProgress size={18} />} {params.InputProps.endAdornment}
-                  </>
-                ) as React.ReactNode,
+              disabled={isDisabled}
+              {...textFieldProps}
+            />
+          )}
+          {fields.nombre_receptor && (
+            <TextField
+              label="Nombre receptor"
+              value={values.nombre_receptor}
+              onChange={(e) => onChange({ nombre_receptor: e.target.value })}
+              fullWidth
+              disabled={isDisabled}
+              {...textFieldProps}
+            />
+          )}
+        </Box>
+      )}
+
+      {(fields.regimen_fiscal_receptor || fields.uso_cfdi) && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gap: gridGap,
+          }}
+        >
+          {fields.regimen_fiscal_receptor && buildAutocomplete(
+            'Régimen fiscal',
+            values.regimen_fiscal_receptor,
+            regimenOptions,
+            regimenLoading,
+            (search) => loadCatalog(endpoints.regimen, search, setRegimenOptions, setRegimenLoading, 'regimen', mapRegimenItems),
+            (clave) => onChange({ regimen_fiscal_receptor: clave })
+          )}
+          {fields.uso_cfdi && buildAutocomplete(
+            'Uso CFDI',
+            values.uso_cfdi,
+            usoOptions,
+            usoLoading,
+            (search) => loadCatalog(endpoints.uso, search, setUsoOptions, setUsoLoading, 'uso'),
+            (clave) => onChange({ uso_cfdi: clave })
+          )}
+        </Box>
+      )}
+
+      {(fields.forma_pago || fields.metodo_pago) && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gap: gridGap,
+          }}
+        >
+          {fields.forma_pago && (
+            <Autocomplete
+              options={formaOptions}
+              loading={formaLoading}
+              value={
+                formaOptions.find((o) => o.id === values.forma_pago) ||
+                (values.forma_pago ? { id: values.forma_pago, texto: values.forma_pago } : null)
+              }
+              getOptionLabel={(option) => option?.texto || ''}
+              isOptionEqualToValue={(option, val) => option?.id === val?.id}
+              filterOptions={(options) => options}
+              onInputChange={(_, newValue) => loadCatalogForma(newValue || '')}
+              onChange={(_, newValue) => onChange({ forma_pago: newValue?.id || '' })}
+              renderInput={(params) => (
+                <TextField
+                  {...(params as any)}
+                  label="Forma de pago"
+                  fullWidth
+                  {...textFieldProps}
+                  inputProps={compact
+                    ? {
+                        ...params.inputProps,
+                        style: {
+                          ...(params.inputProps?.style ?? {}),
+                          fontSize: 13,
+                        },
+                      }
+                    : params.inputProps}
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {formaLoading && <CircularProgress size={18} />} {params.InputProps.endAdornment}
+                      </>
+                    ) as React.ReactNode,
+                  }}
+                  placeholder="Buscar"
+                  disabled={isDisabled}
+                />
+              )}
+              noOptionsText="Sin resultados"
+              onOpen={() => {
+                loadCatalogForma('');
               }}
-              placeholder="Buscar"
               disabled={isDisabled}
             />
           )}
-          noOptionsText="Sin resultados"
-          onOpen={() => {
-            loadCatalogForma('');
+          {fields.metodo_pago && buildAutocomplete(
+            'Método de pago',
+            values.metodo_pago,
+            metodoOptions,
+            metodoLoading,
+            (search) => loadCatalog(endpoints.metodo, search, setMetodoOptions, setMetodoLoading, 'metodo'),
+            (clave) => onChange({ metodo_pago: clave })
+          )}
+        </Box>
+      )}
+
+      {fields.codigo_postal_receptor && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr' },
+            gap: gridGap,
           }}
-          disabled={isDisabled}
-        />
-        {buildAutocomplete(
-          'Método de pago',
-          values.metodo_pago,
-          metodoOptions,
-          metodoLoading,
-          (search) => loadCatalog(endpoints.metodo, search, setMetodoOptions, setMetodoLoading, 'metodo'),
-          (clave) => onChange({ metodo_pago: clave })
-        )}
-      </Box>
+        >
+          <TextField
+            label="Código postal receptor"
+            value={values.codigo_postal_receptor}
+            onChange={(e) => onChange({ codigo_postal_receptor: e.target.value })}
+            fullWidth
+            disabled={isDisabled}
+            {...textFieldProps}
+          />
+        </Box>
+      )}
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: '1fr' },
-          gap: 2,
-        }}
-      >
-        <TextField
-          label="Código postal receptor"
-          value={values.codigo_postal_receptor}
-          onChange={(e) => onChange({ codigo_postal_receptor: e.target.value })}
-          fullWidth
-          disabled={isDisabled}
-        />
-      </Box>
-
-      <Typography variant="body2" color="text.secondary">
-        Catálogos cargados desde SAT (SAT: régimen, uso CFDI, forma y método de pago). Valores = clave, etiquetas = texto.
-      </Typography>
+      {showCatalogNote && mostrarNotaCatalogos && (
+        <Typography variant="body2" color="text.secondary">
+          Catálogos cargados desde SAT (SAT: régimen, uso CFDI, forma y método de pago). Valores = clave, etiquetas = texto.
+        </Typography>
+      )}
     </Stack>
   );
 }

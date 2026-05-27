@@ -63,7 +63,6 @@ export interface OperacionDisponible {
 export interface AplicacionOperacion {
   id: number;
   empresa_id: number;
-  finanzas_operacion_id: number | null;
   documento_origen_id: number | null;
   documento_destino_id: number | null;
   monto: number;
@@ -78,7 +77,6 @@ export interface AplicacionOperacion {
   moneda_documento?: string | null;
   tipo_documento_origen?: string | null;
   tipo_documento_destino?: string | null;
-  tipo_movimiento?: string | null;
 }
 
 export interface DocumentoSaldo {

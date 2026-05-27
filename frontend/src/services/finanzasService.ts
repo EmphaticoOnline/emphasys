@@ -103,12 +103,12 @@ export async function fetchOperacionDetalle(id: number): Promise<FinanzasOperaci
   return apiFetch(`${BASE}/finanzas_operaciones/${id}`);
 }
 
-export async function fetchOperacionDisponible(id: number): Promise<OperacionDisponible> {
-  return apiFetch(`${BASE}/finanzas_operaciones/${id}/disponible`);
+export async function fetchOperacionDisponible(_id: number): Promise<OperacionDisponible> {
+  throw new Error('fetchOperacionDisponible ya no está disponible en el modelo documental');
 }
 
-export async function fetchAplicacionesPorOperacion(id: number): Promise<AplicacionOperacion[]> {
-  return apiFetch(`${BASE}/finanzas_operaciones/${id}/aplicaciones`);
+export async function fetchAplicacionesPorOperacion(_id: number): Promise<AplicacionOperacion[]> {
+  throw new Error('fetchAplicacionesPorOperacion ya no está disponible en el modelo documental');
 }
 
 export async function fetchAplicacionesDocumento(id: number): Promise<AplicacionOperacion[]> {
@@ -132,11 +132,10 @@ export async function fetchEstadoCuenta(contactoId: number): Promise<EstadoCuent
 }
 
 export async function crearAplicacion(payload: {
-  finanzas_operacion_id?: number;
-  documento_origen_id?: number;
+  documento_origen_id: number;
   documento_destino_id: number;
   monto: number;
-  monto_moneda_documento?: number;
+  monto_moneda_documento: number;
   fecha_aplicacion?: string | null;
 }): Promise<AplicacionOperacion> {
   return apiFetch(`${BASE}/aplicaciones`, {

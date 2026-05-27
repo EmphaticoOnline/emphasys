@@ -12,6 +12,9 @@ export type UseDocumentoConfigResult = {
   tiposContactoPermitidos: string[] | undefined;
   accionesDisponibles: DocumentoAccion[];
   estatusPermitidos: string[];
+  esDocumentoMonetario: boolean;
+  requiereCuentaFinanciera: boolean;
+  usaPartidas: boolean;
   partidasMostrarImagenes: boolean;
   partidasMostrarEsParteOportunidad: boolean;
   partidasMostrarMontoOportunidad: boolean;
@@ -50,6 +53,9 @@ export function useDocumentoConfig(tipo: TipoDocumento): UseDocumentoConfigResul
       tiposContactoPermitidos: config?.features?.tiposContactoPermitidos,
       accionesDisponibles: config?.features?.accionesDisponibles ?? [],
       estatusPermitidos: config?.estatusPermitidos ?? ['borrador', 'emitido', 'cancelado'],
+      esDocumentoMonetario: config?.esDocumentoMonetario ?? false,
+      requiereCuentaFinanciera: config?.requiereCuentaFinanciera ?? false,
+      usaPartidas: config?.usaPartidas ?? true,
       partidasMostrarImagenes: config?.partidas?.mostrarImagenes ?? false,
       partidasMostrarEsParteOportunidad: config?.partidas?.mostrarEsParteOportunidad ?? false,
       partidasMostrarMontoOportunidad: config?.partidas?.mostrarMontoOportunidad ?? false,

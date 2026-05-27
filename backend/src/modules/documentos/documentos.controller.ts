@@ -13,7 +13,7 @@ import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
-import { actualizarCotizacionService, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
+import { actualizarCotizacionService, actualizarDocumentoService, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
 import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeEliminarCotizacion } from './documentos-delete.service';
 import { formatearFolioDocumento } from '../../utils/documentos';
@@ -27,6 +27,8 @@ const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
 
 const resolverTipoDocumentoRequest = (req: Request, fallback: TipoDocumento): TipoDocumento =>
   normalizarTipo(req.query.tipo_documento ?? req.body?.tipo_documento, fallback);
+
+const TIPOS_DOCUMENTO_MONETARIOS = new Set<TipoDocumento>(['pago_cliente', 'pago_proveedor']);
 
 function sanitizarNombreDescarga(nombre: string): string {
   const limpio = (nombre || 'documento').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -46,6 +48,7 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   cotizacion: 'cotización',
   factura: 'factura',
   nota_credito: 'nota de crédito',
+  pago_cliente: 'pago cliente',
   orden_servicio: 'orden de servicio',
   pedido: 'pedido',
   remision: 'remisión',
@@ -54,6 +57,7 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   orden_compra: 'orden de compra',
   recepcion: 'recepción',
   nota_credito_compra: 'nota de crédito de compra',
+  pago_proveedor: 'pago proveedor',
   factura_compra: 'factura de compra',
 };
 
@@ -365,7 +369,9 @@ const buildActualizarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = fals
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
     const tipo = forzarTipo ? tipoPorDefecto : resolverTipoDocumentoRequest(req, tipoPorDefecto);
-    const updated = await actualizarDocumentoRepository(id, req.body || {}, Number(empresaId), tipo);
+    const updated = TIPOS_DOCUMENTO_MONETARIOS.has(tipo)
+      ? await actualizarDocumentoService(id, req.body || {}, Number(empresaId), tipo)
+      : await actualizarDocumentoRepository(id, req.body || {}, Number(empresaId), tipo);
     if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
     res.json(updated);
   } catch (error) {

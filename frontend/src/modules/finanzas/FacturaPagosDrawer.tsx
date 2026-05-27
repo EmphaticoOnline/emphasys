@@ -7,32 +7,24 @@ import {
   Divider,
   Drawer,
   IconButton,
-  MenuItem,
   Snackbar,
   Stack,
-  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import LinkIcon from '@mui/icons-material/Link';
 import {
   crearAplicacion,
-  crearOperacion,
   fetchAplicacionesDocumento,
-  fetchCuentas,
   fetchEstadoCuenta,
-  fetchOperacionDetalle,
-  fetchOperacionDisponible,
   fetchSaldoDocumento,
 } from '../../services/finanzasService';
 import { getDocumento } from '../../services/documentosService';
@@ -40,9 +32,6 @@ import type {
   AplicacionOperacion,
   DocumentoSaldo,
   EstadoCuentaItem,
-  FinanzasCuenta,
-  FinanzasOperacion,
-  OperacionDisponible,
 } from '../../types/finanzas';
 import type { TipoDocumento } from '../../types/documentos.types';
 import { formatearFolioDocumento } from '../../utils/documentos.utils';
@@ -64,15 +53,17 @@ const formatDateShort = (value?: string | null) => {
   return `${day}-${month}-${year}`;
 };
 
-type OperacionDisponibleRow = {
-  operacion: FinanzasOperacion;
-  disponible: OperacionDisponible;
-};
-
 type DocumentoDrawerMeta = {
   folio: string;
   fechaDocumento: string;
   contactoNombre: string;
+};
+
+const TIPOS_DOCUMENTO_ORIGEN_COMPATIBLES: Record<string, string[]> = {
+  factura: ['nota_credito', 'pago'],
+  factura_compra: ['nota_credito_compra', 'pago_compra'],
+  nota_credito: ['factura'],
+  nota_credito_compra: ['factura_compra'],
 };
 
 interface FacturaPagosDrawerProps {
@@ -85,28 +76,14 @@ interface FacturaPagosDrawerProps {
 }
 
 export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, saldo, tipoDocumento }: FacturaPagosDrawerProps) {
-  const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [applying, setApplying] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [cuentas, setCuentas] = useState<FinanzasCuenta[]>([]);
   const [saldoDocumento, setSaldoDocumento] = useState<DocumentoSaldo | null>(null);
   const [aplicaciones, setAplicaciones] = useState<AplicacionOperacion[]>([]);
-  const [operacionesDisponibles, setOperacionesDisponibles] = useState<OperacionDisponibleRow[]>([]);
   const [documentosDisponibles, setDocumentosDisponibles] = useState<EstadoCuentaItem[]>([]);
-  const [selectedOperacionId, setSelectedOperacionId] = useState<number | null>(null);
-  const [montoExistente, setMontoExistente] = useState('');
   const [montosDocumento, setMontosDocumento] = useState<Record<number, string>>({});
   const [applyingDocumentoId, setApplyingDocumentoId] = useState<number | null>(null);
   const [autoApplying, setAutoApplying] = useState(false);
   const [documentoMeta, setDocumentoMeta] = useState<DocumentoDrawerMeta | null>(null);
-  const [nuevoPago, setNuevoPago] = useState({
-    cuenta_id: '',
-    fecha: new Date().toISOString().slice(0, 10),
-    monto: '',
-    referencia: '',
-    observaciones: '',
-  });
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'success' }
   );
@@ -116,26 +93,17 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     []
   );
 
-  const esNotaCredito = String(tipoDocumento ?? '').toLowerCase() === 'nota_credito' || String(tipoDocumento ?? '').toLowerCase() === 'nota_credito_compra';
-  const tituloTipo = esNotaCredito ? 'Tipo: Nota de crédito' : 'Tipo de movimiento';
-  const valorTipo = esNotaCredito ? 'Nota de crédito' : 'Depósito';
-  const encabezadoPendientes = esNotaCredito ? 'Documentos de cargo pendientes' : 'Facturas pendientes';
+  const tipoDocumentoNormalizado = String(tipoDocumento ?? '').toLowerCase();
+  const esNotaCredito = tipoDocumentoNormalizado === 'nota_credito' || tipoDocumentoNormalizado === 'nota_credito_compra';
+  const encabezadoPendientes = esNotaCredito ? 'Documentos de cargo pendientes' : 'Documentos de abono disponibles';
   const descripcionPendientes = esNotaCredito
     ? 'Selecciona un documento de cargo y aplica un monto al saldo disponible.'
-    : 'Selecciona una factura y aplica un monto al documento.';
+    : 'Selecciona un documento de abono y aplica un monto directamente al saldo de este documento.';
   const ariaPendientes = esNotaCredito ? 'Documentos de cargo pendientes' : 'Facturas pendientes';
-  const emptyPendientes = esNotaCredito ? 'No hay documentos de cargo pendientes' : 'No hay facturas pendientes';
-  const candidatosCargo = useMemo(
-    () => (esNotaCredito ? documentosDisponibles : []),
-    [documentosDisponibles, esNotaCredito]
-  );
+  const emptyPendientes = esNotaCredito ? 'No hay documentos de cargo pendientes' : 'No hay documentos de abono disponibles';
   const etiquetaDocumento = esNotaCredito ? (tipoDocumento === 'nota_credito_compra' ? 'Nota de credito de compra' : 'Nota de credito') : 'Documento';
   const etiquetaContacto = tipoDocumento === 'nota_credito_compra' ? 'Proveedor' : 'Cliente';
-
-  const selectedOperacion = useMemo(
-    () => operacionesDisponibles.find((item) => item.operacion.id === selectedOperacionId) || null,
-    [operacionesDisponibles, selectedOperacionId]
-  );
+  const documentosCompatibles = useMemo(() => TIPOS_DOCUMENTO_ORIGEN_COMPATIBLES[tipoDocumentoNormalizado] ?? [], [tipoDocumentoNormalizado]);
 
   const effectiveSaldo = Number(saldoDocumento?.saldo ?? saldo ?? 0);
 
@@ -149,77 +117,36 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     return saldoData;
   };
 
-  const loadOperacionesDisponibles = async (saldoActual: number, monedaSaldo: string) => {
+  const loadDocumentosDisponibles = async (saldoActual: number, monedaSaldo: string) => {
     if (!contactoId || saldoActual <= 0) {
-      setOperacionesDisponibles([]);
       setDocumentosDisponibles([]);
       return;
     }
     const estadoCuenta = await fetchEstadoCuenta(contactoId);
-    if (esNotaCredito) {
-      const documentos = (estadoCuenta ?? [])
-        .filter((item) => item.origen === 'documento' && Number(item.saldo ?? 0) > 0)
-        .filter((item) => ['factura', 'factura_compra'].includes(String(item.tipo ?? '').toLowerCase()))
-        .filter((item) => Number(item.id) !== Number(documentoId))
-        .filter((item) => String(item.moneda ?? '').trim().toUpperCase() === String(monedaSaldo).trim().toUpperCase());
+    const documentos = (estadoCuenta ?? [])
+      .filter((item) => item.origen === 'documento' && Number(item.saldo ?? 0) > 0)
+      .filter((item) => documentosCompatibles.includes(String(item.tipo ?? '').toLowerCase()))
+      .filter((item) => Number(item.id) !== Number(documentoId))
+      .filter((item) => String(item.moneda ?? '').trim().toUpperCase() === String(monedaSaldo).trim().toUpperCase())
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-      setDocumentosDisponibles(documentos);
-      return;
-    }
-
-    const operaciones = (estadoCuenta ?? []).filter((item) => item.origen === 'operacion' && item.tipo === 'Deposito');
-    const operationIds = Array.from(new Set(operaciones.map((item) => item.id)));
-
-    const rows = await Promise.all(
-      operationIds.map(async (operacionId) => {
-        try {
-          const [operacion, disponible] = await Promise.all([
-            fetchOperacionDetalle(operacionId),
-            fetchOperacionDisponible(operacionId),
-          ]);
-          if (operacion.naturaleza_operacion !== 'cobro_cliente') return null;
-          if (Number(disponible?.monto_disponible ?? 0) <= 0) return null;
-          return { operacion, disponible };
-        } catch {
-          return null;
-        }
-      })
-    );
-
-    const filtered = rows
-      .filter((item): item is OperacionDisponibleRow => Boolean(item))
-      .sort((a, b) => a.operacion.fecha.localeCompare(b.operacion.fecha));
-
-    setOperacionesDisponibles(filtered);
-
-    if (!filtered.some((item) => item.operacion.id === selectedOperacionId)) {
-      setSelectedOperacionId(filtered[0]?.operacion.id ?? null);
-      setMontoExistente('');
-    }
+    setDocumentosDisponibles(documentos);
   };
 
   const loadAll = async () => {
     if (!open || !documentoId || !contactoId) return;
     try {
       setLoading(true);
-      const [saldoData, cuentasData, documentoData] = await Promise.all([
+      const [saldoData, documentoData] = await Promise.all([
         refreshDocumentoFinanzas(),
-        fetchCuentas(),
         tipoDocumento ? getDocumento(documentoId, tipoDocumento as TipoDocumento) : Promise.resolve(null),
       ]);
-      setCuentas(cuentasData ?? []);
       setDocumentoMeta(documentoData ? {
         folio: formatearFolioDocumento(documentoData.documento?.serie || '', documentoData.documento?.numero || 0),
         fechaDocumento: documentoData.documento?.fecha_documento || '',
         contactoNombre: String((documentoData.documento as any)?.nombre_cliente || documentoData.documento?.nombre_receptor || '').trim(),
       } : null);
-      const saldoActual = Number(saldoData?.saldo ?? saldo ?? 0);
-      setNuevoPago((prev) => ({
-        ...prev,
-        monto: saldoActual > 0 ? String(saldoActual) : '',
-        cuenta_id: prev.cuenta_id || String(cuentasData?.[0]?.id ?? ''),
-      }));
-      await loadOperacionesDisponibles(saldoActual, saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
+      await loadDocumentosDisponibles(Number(saldoData?.saldo ?? saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
     } catch (err: any) {
       setSnackbar({ open: true, message: err?.message || 'No se pudo cargar la información de pagos', severity: 'error' });
     } finally {
@@ -229,11 +156,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
 
   useEffect(() => {
     if (!open) {
-      setTab(0);
-      setSelectedOperacionId(null);
-      setMontoExistente('');
       setMontosDocumento({});
-      setOperacionesDisponibles([]);
       setDocumentosDisponibles([]);
       setDocumentoMeta(null);
       return;
@@ -245,46 +168,6 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     if (!open) return;
     setSaldoDocumento((prev) => (prev ? prev : { id: documentoId, empresa_id: 0, tipo_documento: 'factura', moneda: 'MXN', total: saldo, saldo }));
   }, [open, documentoId, saldo]);
-
-  const handleApplyExisting = async () => {
-    if (!selectedOperacion) {
-      setSnackbar({ open: true, message: 'Selecciona un pago existente', severity: 'error' });
-      return;
-    }
-    const disponibleOrigen = Number(selectedOperacion?.disponible.monto_disponible ?? 0);
-    const monto = Number(montoExistente || Math.min(effectiveSaldo, disponibleOrigen));
-    if (!monto || Number.isNaN(monto) || monto <= 0) {
-      setSnackbar({ open: true, message: 'Ingresa un monto válido', severity: 'error' });
-      return;
-    }
-    if (monto > disponibleOrigen) {
-      setSnackbar({ open: true, message: 'El monto excede el disponible del pago', severity: 'error' });
-      return;
-    }
-    if (monto > effectiveSaldo) {
-      setSnackbar({ open: true, message: 'El monto excede el saldo de la factura', severity: 'error' });
-      return;
-    }
-
-    try {
-      setApplying(true);
-      await crearAplicacion({
-        finanzas_operacion_id: selectedOperacion?.operacion.id ?? 0,
-        documento_destino_id: documentoId,
-        monto,
-        monto_moneda_documento: monto,
-        fecha_aplicacion: new Date().toISOString().slice(0, 10),
-      });
-      const saldoData = await refreshDocumentoFinanzas();
-      await loadOperacionesDisponibles(Number(saldoData?.saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
-      setMontoExistente('');
-      setSnackbar({ open: true, message: 'Pago aplicado correctamente', severity: 'success' });
-    } catch (err: any) {
-      setSnackbar({ open: true, message: err?.message || 'No se pudo aplicar el pago', severity: 'error' });
-    } finally {
-      setApplying(false);
-    }
-  };
 
   const handleApplyDocumento = async (doc: EstadoCuentaItem) => {
     const raw = montosDocumento[doc.id] ?? '';
@@ -313,35 +196,40 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
         return;
       }
       if (monto > effectiveSaldo) {
-        setSnackbar({ open: true, message: 'El monto excede el saldo disponible de la nota de credito', severity: 'error' });
+        setSnackbar({ open: true, message: 'El monto excede el saldo documental disponible', severity: 'error' });
         return;
       }
     }
 
+    const documentoOrigenId = esNotaCredito ? documentoId : doc.id;
+    const documentoDestinoId = esNotaCredito ? doc.id : documentoId;
+    const successMessage = esNotaCredito ? 'Aplicacion registrada' : 'Abono aplicado correctamente';
+    const errorMessage = esNotaCredito ? 'No se pudo aplicar la nota de credito' : 'No se pudo aplicar el documento de abono';
+
     try {
       setApplyingDocumentoId(doc.id);
       await crearAplicacion({
-        documento_origen_id: documentoId,
-        documento_destino_id: doc.id,
+        documento_origen_id: documentoOrigenId,
+        documento_destino_id: documentoDestinoId,
         monto,
         monto_moneda_documento: monto,
         fecha_aplicacion: new Date().toISOString().slice(0, 10),
       });
-      setSnackbar({ open: true, message: 'Aplicacion registrada', severity: 'success' });
+      setSnackbar({ open: true, message: successMessage, severity: 'success' });
       setMontosDocumento((prev) => ({ ...prev, [doc.id]: '' }));
       const saldoData = await refreshDocumentoFinanzas();
-      await loadOperacionesDisponibles(Number(saldoData?.saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
+      await loadDocumentosDisponibles(Number(saldoData?.saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
     } catch (err: any) {
-      setSnackbar({ open: true, message: err?.message || 'No se pudo aplicar la nota de credito', severity: 'error' });
+      setSnackbar({ open: true, message: err?.message || errorMessage, severity: 'error' });
     } finally {
       setApplyingDocumentoId(null);
     }
   };
 
   const handleAutoApplyNotaCredito = async () => {
-    if (!esNotaCredito || effectiveSaldo <= 0 || candidatosCargo.length === 0) return;
+    if (!esNotaCredito || effectiveSaldo <= 0 || documentosDisponibles.length === 0) return;
     let disponible = effectiveSaldo;
-    const pendientesOrdenados = [...candidatosCargo].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const pendientesOrdenados = [...documentosDisponibles].sort((a, b) => a.fecha.localeCompare(b.fecha));
     try {
       setAutoApplying(true);
       for (const doc of pendientesOrdenados) {
@@ -359,64 +247,12 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
         disponible -= aplicar;
       }
       const saldoData = await refreshDocumentoFinanzas();
-      await loadOperacionesDisponibles(Number(saldoData?.saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
+      await loadDocumentosDisponibles(Number(saldoData?.saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
       setSnackbar({ open: true, message: 'Aplicacion automatica completada', severity: 'success' });
     } catch (err: any) {
       setSnackbar({ open: true, message: err?.message || 'No se pudo aplicar automaticamente', severity: 'error' });
     } finally {
       setAutoApplying(false);
-    }
-  };
-
-  const handleCreateAndApply = async () => {
-    if (esNotaCredito) {
-      setSnackbar({ open: true, message: 'En notas de credito se aplica contra documentos de cargo existentes.', severity: 'info' });
-      return;
-    }
-    const monto = Number(nuevoPago.monto);
-    if (!nuevoPago.cuenta_id || !nuevoPago.fecha || !monto || Number.isNaN(monto) || monto <= 0) {
-      setSnackbar({ open: true, message: 'Completa cuenta, fecha y monto válidos', severity: 'error' });
-      return;
-    }
-    if (monto > effectiveSaldo) {
-      setSnackbar({ open: true, message: 'El monto excede el saldo de la factura', severity: 'error' });
-      return;
-    }
-
-    try {
-      setCreating(true);
-      const operacion = await crearOperacion({
-        cuenta_id: Number(nuevoPago.cuenta_id),
-        fecha: nuevoPago.fecha,
-        tipo_movimiento: 'Deposito',
-        naturaleza_operacion: 'cobro_cliente',
-        contacto_id: contactoId,
-        referencia: nuevoPago.referencia || null,
-        observaciones: nuevoPago.observaciones || null,
-        monto,
-      });
-
-      await crearAplicacion({
-        finanzas_operacion_id: operacion.id,
-        documento_destino_id: documentoId,
-        monto,
-        monto_moneda_documento: monto,
-        fecha_aplicacion: nuevoPago.fecha,
-      });
-
-      const saldoData = await refreshDocumentoFinanzas();
-      await loadOperacionesDisponibles(Number(saldoData?.saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
-      setNuevoPago((prev) => ({
-        ...prev,
-        monto: Number(saldoData?.saldo ?? 0) > 0 ? String(Number(saldoData?.saldo ?? 0)) : '',
-        referencia: '',
-        observaciones: '',
-      }));
-      setSnackbar({ open: true, message: 'Pago registrado y aplicado', severity: 'success' });
-    } catch (err: any) {
-      setSnackbar({ open: true, message: err?.message || 'No se pudo registrar y aplicar el pago', severity: 'error' });
-    } finally {
-      setCreating(false);
     }
   };
 
@@ -438,7 +274,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
 
   const headerTitle = esNotaCredito
     ? `${etiquetaDocumento} ${documentoMeta?.folio || ''}`.trim()
-    : 'Aplicar pago';
+    : `Aplicar saldo a ${documentoMeta?.folio || `documento #${documentoId}`}`;
 
   return (
     <Drawer
@@ -471,14 +307,17 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                 </Typography>
               </Stack>
             ) : (
-              <>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }} mt={0.5}>
                 <Typography variant="body2" color="text.secondary">
-                  Documento #{documentoId}
+                  {etiquetaContacto}: {documentoMeta?.contactoNombre || '—'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {tituloTipo}: {valorTipo}
+                  Fecha: {documentoMeta?.fechaDocumento ? formatDateShort(documentoMeta.fechaDocumento) : '—'}
                 </Typography>
-              </>
+                <Typography variant="body2" color="text.secondary">
+                  Saldo pendiente: {formatter.format(effectiveSaldo)}
+                </Typography>
+              </Stack>
             )}
           </Box>
           <IconButton onClick={onClose}>
@@ -515,7 +354,11 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             <Typography variant="body2" color="text.secondary">
               Documentos a los que ya se aplico esta nota de credito.
             </Typography>
-          ) : null}
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Documentos de abono que ya fueron aplicados a este documento.
+            </Typography>
+          )}
           <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
             <Table size="small" aria-label="Aplicaciones registradas">
               <TableHead>
@@ -535,9 +378,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                 )}
                 {aplicaciones.map((item) => {
                   const folio = formatearFolioDocumento(item?.serie || '', item?.numero || 0);
-                  const tipoRelacionado = esNotaCredito
-                    ? item.tipo_documento || item.tipo_documento_destino || item.tipo_documento_origen || 'Documento'
-                    : item.tipo_movimiento || item.tipo_documento_origen || 'Pago';
+                  const tipoRelacionado = item.tipo_documento || item.tipo_documento_origen || item.tipo_documento_destino || 'Documento';
                   return (
                     <TableRow key={item.id}>
                       <TableCell sx={bodyCellSx}>{folio ? `${tipoRelacionado} ${folio}` : tipoRelacionado}</TableCell>
@@ -553,250 +394,127 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
 
         <Divider />
 
-        {!esNotaCredito ? (
-          <Tabs value={tab} onChange={(_event, next) => setTab(next)}>
-            <Tab label="Usar pago existente" value={0} />
-            <Tab label="Registrar nuevo pago" value={1} />
-          </Tabs>
-        ) : null}
-
         {loading ? (
           <Stack alignItems="center" py={4} spacing={1}>
             <CircularProgress size={32} />
             <Typography variant="body2">Cargando información de pagos…</Typography>
           </Stack>
-        ) : tab === 0 ? (
+        ) : (
           <Stack spacing={2}>
-            {esNotaCredito ? (
-              <Stack spacing={1} mt={1}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Box>
-                    <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-                      {encabezadoPendientes}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Aplica la nota de credito contra los documentos de cargo pendientes.
-                    </Typography>
-                  </Box>
-                  {candidatosCargo.length > 0 && effectiveSaldo > 0 && (
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={handleAutoApplyNotaCredito}
-                      disabled={autoApplying}
-                      sx={{ textTransform: 'none' }}
-                    >
-                      {autoApplying ? 'Aplicando…' : 'Aplicar automaticamente'}
-                    </Button>
-                  )}
-                </Stack>
-                <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
-                  <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2, maxHeight: 340, boxShadow: 'none' }}>
-                    <Table size="small" stickyHeader aria-label={ariaPendientes} sx={{ width: '100%', minWidth: 0 }}>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ ...headerCellSx, width: '24%' }}>Documento</TableCell>
-                          <TableCell sx={{ ...headerCellSx, width: '16%' }}>Fecha</TableCell>
-                          <TableCell align="right" sx={{ ...headerCellSx, width: '14%' }}>Total</TableCell>
-                          <TableCell align="right" sx={{ ...headerCellSx, width: '14%' }}>Saldo</TableCell>
-                          <TableCell sx={{ ...headerCellSx, width: '22%' }}>Monto a aplicar</TableCell>
-                          <TableCell align="center" sx={{ ...headerCellSx, width: '10%' }}>Accion</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {candidatosCargo.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={6} align="center" sx={{ py: 2, fontStyle: 'italic', color: 'text.secondary' }}>
-                              {emptyPendientes}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                        {candidatosCargo.map((item, idx) => {
-                          const folio = formatearFolioDocumento(item?.serie || '', item?.numero || 0);
-                          const label = `${item.tipo || 'Documento'} ${folio}`.trim();
-                          const backgroundColor = idx % 2 === 0 ? '#f4faf4' : '#ffffff';
-                          return (
-                            <TableRow key={item.id} sx={{ ...rowBaseSx, backgroundColor }}>
-                              <TableCell sx={{ ...bodyCellSx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '24%' }}>
-                                {label || '—'}
-                              </TableCell>
-                              <TableCell sx={{ ...bodyCellSx, width: '16%' }}>{formatDateShort(item.fecha)}</TableCell>
-                              <TableCell align="right" sx={{ ...bodyCellSx, width: '14%' }}>{formatter.format(Number(item.monto || 0))}</TableCell>
-                              <TableCell align="right" sx={{ ...bodyCellSx, width: '14%' }}>{formatter.format(Number(item.saldo || 0))}</TableCell>
-                              <TableCell sx={{ ...bodyCellSx, py: '2px', width: '22%' }}>
-                                <TextField
-                                  size="small"
-                                  type="number"
-                                  value={montosDocumento[item.id] ?? ''}
-                                  onChange={(e) => setMontosDocumento((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                                  fullWidth
-                                  inputProps={{ min: 0, step: '0.01', style: { MozAppearance: 'textfield' } }}
-                                  sx={{
-                                    '& .MuiInputBase-root': {
-                                      height: 22,
-                                      fontSize: '12px',
-                                      px: 1,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      backgroundColor: '#fff',
-                                      border: '1px solid #cbd5e1',
-                                      borderRadius: 1,
-                                    },
-                                    '& .MuiInputBase-input': {
-                                      py: 0.2,
-                                      fontSize: '12px',
-                                      lineHeight: 1.15,
-                                      textAlign: 'right',
-                                    },
-                                    '& input[type=number]': {
-                                      MozAppearance: 'textfield',
-                                    },
-                                    '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-                                      WebkitAppearance: 'none',
-                                      margin: 0,
-                                    },
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell align="center" sx={{ ...bodyCellSx, py: '2px', width: '10%' }}>
-                                <Tooltip title="Aplicar monto (o saldo si esta vacio)">
-                                  <span>
-                                    <IconButton
-                                      size="small"
-                                      color="primary"
-                                      onClick={() => handleApplyDocumento(item)}
-                                      disabled={applyingDocumentoId === item.id || effectiveSaldo <= 0}
-                                      sx={{ p: 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                    >
-                                      <LinkIcon fontSize="small" />
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+            <Stack spacing={1} mt={1}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                    {encabezadoPendientes}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {descripcionPendientes}
+                  </Typography>
                 </Box>
+                {esNotaCredito && documentosDisponibles.length > 0 && effectiveSaldo > 0 && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={handleAutoApplyNotaCredito}
+                    disabled={autoApplying}
+                    sx={{ textTransform: 'none' }}
+                  >
+                    {autoApplying ? 'Aplicando…' : 'Aplicar automaticamente'}
+                  </Button>
+                )}
               </Stack>
-            ) : (
-              <>
-                <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
-                  <Table size="small">
+              <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
+                <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2, maxHeight: 340, boxShadow: 'none' }}>
+                  <Table size="small" stickyHeader aria-label={ariaPendientes} sx={{ width: '100%', minWidth: 0 }}>
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={headerCellSx}>Fecha</TableCell>
-                        <TableCell sx={headerCellSx}>Referencia</TableCell>
-                        <TableCell align="right" sx={headerCellSx}>Monto</TableCell>
-                        <TableCell align="right" sx={headerCellSx}>Disponible</TableCell>
-                        <TableCell align="center" sx={headerCellSx}>Accion</TableCell>
+                        <TableCell sx={{ ...headerCellSx, width: '24%' }}>Documento</TableCell>
+                        <TableCell sx={{ ...headerCellSx, width: '16%' }}>Fecha</TableCell>
+                        <TableCell align="right" sx={{ ...headerCellSx, width: '14%' }}>Total</TableCell>
+                        <TableCell align="right" sx={{ ...headerCellSx, width: '14%' }}>Saldo</TableCell>
+                        <TableCell sx={{ ...headerCellSx, width: '22%' }}>Monto a aplicar</TableCell>
+                        <TableCell align="center" sx={{ ...headerCellSx, width: '10%' }}>Accion</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {operacionesDisponibles.length === 0 && (
+                      {documentosDisponibles.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 2, color: 'text.secondary' }}>
+                          <TableCell colSpan={6} align="center" sx={{ py: 2, fontStyle: 'italic', color: 'text.secondary' }}>
                             {emptyPendientes}
                           </TableCell>
                         </TableRow>
                       )}
-                      {operacionesDisponibles.map((item) => (
-                        <TableRow key={item.operacion.id} selected={selectedOperacionId === item.operacion.id}>
-                          <TableCell sx={bodyCellSx}>{formatDateShort(item.operacion.fecha)}</TableCell>
-                          <TableCell sx={bodyCellSx}>{item.operacion.referencia || '—'}</TableCell>
-                          <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(item.operacion.monto || 0))}</TableCell>
-                          <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(item.disponible.monto_disponible || 0))}</TableCell>
-                          <TableCell align="center" sx={bodyCellSx}>
-                            <Button size="small" variant={selectedOperacionId === item.operacion.id ? 'contained' : 'outlined'} onClick={() => setSelectedOperacionId(item.operacion.id)}>
-                              Seleccionar
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {documentosDisponibles.map((item, idx) => {
+                        const folio = formatearFolioDocumento(item?.serie || '', item?.numero || 0);
+                        const label = `${item.tipo || 'Documento'} ${folio}`.trim();
+                        const backgroundColor = idx % 2 === 0 ? '#f4faf4' : '#ffffff';
+                        return (
+                          <TableRow key={item.id} sx={{ ...rowBaseSx, backgroundColor }}>
+                            <TableCell sx={{ ...bodyCellSx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '24%' }}>
+                              {label || '—'}
+                            </TableCell>
+                            <TableCell sx={{ ...bodyCellSx, width: '16%' }}>{formatDateShort(item.fecha)}</TableCell>
+                            <TableCell align="right" sx={{ ...bodyCellSx, width: '14%' }}>{formatter.format(Number(item.monto || 0))}</TableCell>
+                            <TableCell align="right" sx={{ ...bodyCellSx, width: '14%' }}>{formatter.format(Number(item.saldo || 0))}</TableCell>
+                            <TableCell sx={{ ...bodyCellSx, py: '2px', width: '22%' }}>
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={montosDocumento[item.id] ?? ''}
+                                onChange={(e) => setMontosDocumento((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                fullWidth
+                                inputProps={{ min: 0, step: '0.01', style: { MozAppearance: 'textfield' } }}
+                                sx={{
+                                  '& .MuiInputBase-root': {
+                                    height: 22,
+                                    fontSize: '12px',
+                                    px: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    backgroundColor: '#fff',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: 1,
+                                  },
+                                  '& .MuiInputBase-input': {
+                                    py: 0.2,
+                                    fontSize: '12px',
+                                    lineHeight: 1.15,
+                                    textAlign: 'right',
+                                  },
+                                  '& input[type=number]': {
+                                    MozAppearance: 'textfield',
+                                  },
+                                  '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+                                    WebkitAppearance: 'none',
+                                    margin: 0,
+                                  },
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell align="center" sx={{ ...bodyCellSx, py: '2px', width: '10%' }}>
+                              <Tooltip title="Aplicar monto (o saldo si esta vacio)">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleApplyDocumento(item)}
+                                    disabled={applyingDocumentoId === item.id || effectiveSaldo <= 0}
+                                    sx={{ p: 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                  >
+                                    <LinkIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </TableContainer>
-
-                {selectedOperacion && (
-                  <Box sx={{ border: '1px solid #dbe3f4', borderRadius: 2, p: 2, backgroundColor: '#f8fafc' }}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'flex-end' }}>
-                      <TextField
-                        label="Monto a aplicar"
-                        type="number"
-                        value={montoExistente}
-                        onChange={(event) => setMontoExistente(event.target.value)}
-                        fullWidth
-                        inputProps={{ min: 0, step: '0.01' }}
-                        helperText={`Maximo disponible: ${formatter.format(Math.min(effectiveSaldo, Number(selectedOperacion?.disponible.monto_disponible || 0)))}`}
-                      />
-                      <Button
-                        variant="contained"
-                        startIcon={<CheckCircleOutlineIcon />}
-                        onClick={handleApplyExisting}
-                        disabled={applying || effectiveSaldo <= 0}
-                        sx={{ minWidth: 180, textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
-                      >
-                        {applying ? 'Aplicando…' : 'Aplicar pago'}
-                      </Button>
-                    </Stack>
-                  </Box>
-                )}
-              </>
-            )}
+              </Box>
+            </Stack>
           </Stack>
-        ) : (
-          !esNotaCredito ? (
-          <Stack spacing={2}>
-            <TextField
-              label="Cuenta"
-              value={nuevoPago.cuenta_id}
-              onChange={(event) => setNuevoPago((prev) => ({ ...prev, cuenta_id: event.target.value }))}
-              fullWidth
-            >
-              {cuentas.map((cuenta) => (
-                <MenuItem key={cuenta.id} value={String(cuenta.id)}>
-                  {cuenta.identificador}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Fecha"
-              value={nuevoPago.fecha}
-            />
-            <TextField
-              label="Monto"
-              type="number"
-              value={nuevoPago.monto}
-              onChange={(event) => setNuevoPago((prev) => ({ ...prev, monto: event.target.value }))}
-              inputProps={{ min: 0, step: '0.01' }}
-              fullWidth
-            />
-            <TextField
-              label="Referencia"
-              value={nuevoPago.referencia}
-              onChange={(event) => setNuevoPago((prev) => ({ ...prev, referencia: event.target.value }))}
-              fullWidth
-            />
-            <TextField
-              label="Observaciones"
-              value={nuevoPago.observaciones}
-              onChange={(event) => setNuevoPago((prev) => ({ ...prev, observaciones: event.target.value }))}
-              multiline
-              minRows={3}
-              fullWidth
-            />
-            <Button
-              variant="contained"
-              onClick={handleCreateAndApply}
-              disabled={creating || effectiveSaldo <= 0}
-              sx={{ alignSelf: 'flex-start', textTransform: 'none', borderRadius: 999, bgcolor: '#006261', '&:hover': { bgcolor: '#014c4c' } }}
-            >
-              {creating ? 'Registrando…' : 'Registrar y aplicar'}
-            </Button>
-          </Stack>
-          ) : null
         )}
 
         <Snackbar

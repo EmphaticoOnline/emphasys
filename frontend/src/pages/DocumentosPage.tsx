@@ -52,10 +52,11 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
-import PrecisionManufacturingIcon from '@mui/icons-material/PrecisionManufacturing';
+import BuildIcon from '@mui/icons-material/Build';
 import PrintIcon from '@mui/icons-material/Print';
 import DownloadIcon from '@mui/icons-material/Download';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import EmailIcon from '@mui/icons-material/Email';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -97,6 +98,10 @@ import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
 import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicacionDialog';
 import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
 import { DocumentoWhatsappDialog } from '../modules/documentos/DocumentoWhatsappDialog';
+import { GridContextMenu } from '../components/grids/GridContextMenu';
+import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { useGridContextMenu } from '../hooks/useGridContextMenu';
 import {
   navigateToGeneratedDocument,
   parseGeneratedDocumentFocus,
@@ -346,6 +351,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     void loadTipos();
   }, [modulo]);
 
+  const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
+
   const textos = useMemo(() => {
     const match = tiposDocumento.find((t) => t.codigo === tipoDocumento);
     if (match) {
@@ -358,13 +365,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       };
     }
 
+    const configLabel = documentoTypeConfig?.label?.trim();
+    if (configLabel) {
+      return {
+        titulo: configLabel,
+        descripcion: `Consulta y gestiona ${configLabel.toLowerCase()}.`,
+        singular: configLabel,
+      };
+    }
+
     const fallbackTitulo = tipoDocumento.charAt(0).toUpperCase() + tipoDocumento.slice(1);
     return {
       titulo: fallbackTitulo,
       descripcion: 'Consulta y gestiona los documentos.',
       singular: fallbackTitulo,
     };
-  }, [tiposDocumento, tipoDocumento]);
+  }, [documentoTypeConfig, tiposDocumento, tipoDocumento]);
   const [rows, setRows] = useState<CotizacionListado[]>([]);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
@@ -483,7 +499,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = resolveDocumentosListPath(tipoDocumento, modulo);
-  const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
   const {
     filtroAgente: configuredAgentFilter,
     mostrarSaldo: configuredShowSaldo,
@@ -539,7 +554,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     [esCotizacion, statusOptions]
   );
   const effectiveColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
-    () => (esCotizacion ? { ...columnVisibilityModel, estatus_documento: true } : columnVisibilityModel),
+    () => ({
+      ...columnVisibilityModel,
+      ...(esCotizacion ? { estatus_documento: true } : {}),
+      actions: SHOW_GRID_ACTIONS,
+    }),
     [columnVisibilityModel, esCotizacion]
   );
   const vendedoresPorId = useMemo(() => {
@@ -1389,7 +1408,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                     void abrirDrawerProduccion(params.row as CotizacionListado);
                   }}
                 >
-                  <PrecisionManufacturingIcon fontSize="small" />
+                  <BuildIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
@@ -1695,6 +1714,211 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const visibleIds = new Set(filteredRows.map((row) => Number(row.id)));
     setSelectedDocumentIds((prev) => prev.filter((id) => visibleIds.has(id)));
   }, [canBulkDuplicate, filteredRows]);
+
+  const {
+    contextMenuRow: contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu: closeGridContextMenu,
+    rowSlotProps: gridContextMenuRowSlotProps,
+  } = useGridContextMenu(filteredRows, {
+    onOpen: (row) => {
+      setFocusedDocumentId(Number(row.id));
+      setHighlightedDocumentId(null);
+    },
+  });
+
+  const gridContextMenuActions = useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    const rowId = Number(contextMenuRow.id);
+    const facturaTimbrada = tipoDocumento !== 'factura' || isFacturaTimbrada(contextMenuRow?.estatus_documento);
+    const canApplySaldoNc =
+      (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') &&
+      Number(contextMenuRow?.saldo ?? 0) > 0 &&
+      String(contextMenuRow?.estatus_documento ?? '').toLowerCase() !== 'cancelado';
+
+    return [
+      {
+        id: 'editar',
+        label: 'Editar',
+        icon: <EditIcon fontSize="small" />,
+        onClick: () => {
+          setFocusedDocumentId(rowId);
+          setHighlightedDocumentId(null);
+          navigate(resolveDocumentoFormPath(tipoDocumento, rowId, modulo));
+        },
+      },
+      {
+        id: 'duplicar',
+        label: 'Duplicar',
+        icon: <ContentCopyIcon fontSize="small" />,
+        hidden: !hasAction('duplicar'),
+        disabled: loading,
+        onClick: () => {
+          void handleDuplicarCotizacion(rowId);
+        },
+      },
+      {
+        id: 'separator-workflow',
+        type: 'separator',
+      },
+      {
+        id: 'enviar-produccion',
+        label: 'Enviar a producción',
+        icon: <PlaylistAddCheckIcon fontSize="small" />,
+        hidden: !hasAction('enviar_produccion'),
+        disabled: loading,
+        onClick: () => abrirDialogoProduccion(contextMenuRow),
+      },
+      {
+        id: 'ver-produccion',
+        label: 'Ver producción',
+        icon: <BuildIcon fontSize="small" />,
+        hidden: !hasAction('ver_produccion'),
+        disabled: loading,
+        onClick: () => {
+          void abrirDrawerProduccion(contextMenuRow);
+        },
+      },
+      {
+        id: 'aplicar-pago',
+        label: 'Aplicar pago',
+        icon: <AccountBalanceWalletIcon fontSize="small" />,
+        hidden: !(hasAction('aplicar_pago') && tipoDocumento === 'factura'),
+        disabled: loading || Number(contextMenuRow?.saldo ?? 0) <= 0,
+        onClick: () => navigate(`${basePath}/${rowId}?abrirPagos=1`),
+      },
+      {
+        id: 'aplicar-saldo',
+        label: 'Aplicar saldo',
+        icon: <LinkIcon fontSize="small" />,
+        hidden: !canApplySaldoNc,
+        disabled: loading || Number(contextMenuRow?.contacto_principal_id ?? 0) <= 0,
+        onClick: () => {
+          setAplicarSaldoNcDrawer({
+            open: true,
+            documentoId: rowId,
+            contactoId: Number(contextMenuRow?.contacto_principal_id ?? 0) || null,
+            saldo: Number(contextMenuRow?.saldo ?? 0),
+            tipoDocumento,
+          });
+        },
+      },
+      {
+        id: 'separator-pdf',
+        type: 'separator',
+      },
+      {
+        id: 'ver-pdf',
+        label: 'Ver / Imprimir PDF',
+        icon: <PrintIcon fontSize="small" />,
+        onClick: () => {
+          abrirDocumentoPdfEnNuevaVentana(rowId, tipoDocumento).catch((err) => {
+            setError(err?.message || 'No se pudo generar el PDF');
+          });
+        },
+      },
+      {
+        id: 'descargar-pdf',
+        label: 'Descargar PDF',
+        icon: <DownloadIcon fontSize="small" />,
+        onClick: () => {
+          descargarDocumentoPdfEnNavegador(rowId, tipoDocumento).catch((err) => {
+            setError(err?.message || 'No se pudo descargar el PDF');
+          });
+        },
+      },
+      {
+        id: 'enviar-correo-cotizacion',
+        label: 'Enviar por correo',
+        icon: <EmailIcon fontSize="small" />,
+        hidden: !(hasAction('enviar_email') && tipoDocumento === 'cotizacion'),
+        disabled: loading,
+        onClick: () => abrirDialogoEnviarCotizacion(contextMenuRow),
+      },
+      {
+        id: 'enviar-correo-factura',
+        label: 'Enviar factura por correo',
+        icon: <EmailIcon fontSize="small" />,
+        hidden: !(hasAction('enviar_email') && tipoDocumento === 'factura'),
+        disabled: loading || !facturaTimbrada,
+        onClick: () => {
+          const emailInicial = obtenerEmailDocumento(contextMenuRow);
+          setEnviarDialog({ open: true, id: rowId, email: emailInicial, enviando: false, error: null });
+        },
+      },
+      {
+        id: 'enviar-whatsapp',
+        label: 'Enviar por WhatsApp',
+        icon: <WhatsAppIcon fontSize="small" />,
+        hidden: !hasAction('enviar_whatsapp'),
+        disabled: loading || (tipoDocumento === 'factura' && !facturaTimbrada),
+        onClick: () => {
+          console.info('[CFDI WhatsApp] Abrir modal de envio', {
+            documentoId: rowId,
+            tipoDocumento,
+            folio: formatearFolioDocumento(contextMenuRow?.serie ?? '', Number(contextMenuRow?.numero ?? 0)) || String(rowId),
+          });
+          setEnviarWhatsappDialog({ open: true, id: rowId });
+        },
+      },
+      {
+        id: 'timbrar',
+        label: 'Timbrar CFDI',
+        icon: <NotificationsActiveIcon fontSize="small" />,
+        hidden: !(hasAction('timbrar') && (tipoDocumento !== 'nota_credito' || esNotaCreditoTimbrable(contextMenuRow?.motivo_nc))),
+        disabled: loading || timbrandoId === contextMenuRow.id,
+        onClick: async () => {
+          try {
+            setTimbrandoId(rowId);
+            await timbrarDocumentoCfdi(rowId, tipoDocumento);
+            await load();
+            if (tipoDocumento === 'factura') {
+              const emailInicial = obtenerEmailDocumento(contextMenuRow);
+              setEnviarDialog({ open: true, id: rowId, email: emailInicial, enviando: false, error: null });
+            }
+          } catch (err: any) {
+            setError(err?.message || 'No se pudo timbrar el documento');
+          } finally {
+            setTimbrandoId(null);
+          }
+        },
+      },
+      {
+        id: 'separator-danger',
+        type: 'separator',
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar',
+        icon: <DeleteIcon fontSize="small" />,
+        shortcut: 'Del',
+        destructive: true,
+        disabled: deletingId === contextMenuRow.id || loading,
+        onClick: () => {
+          void handleRequestDelete(rowId);
+        },
+      },
+    ];
+  }, [
+    abrirDialogoEnviarCotizacion,
+    abrirDialogoProduccion,
+    abrirDrawerProduccion,
+    basePath,
+    contextMenuRow,
+    deletingId,
+    handleDuplicarCotizacion,
+    handleRequestDelete,
+    hasAction,
+    load,
+    loading,
+    modulo,
+    navigate,
+    obtenerEmailDocumento,
+    setError,
+    timbrandoId,
+    tipoDocumento,
+  ]);
 
   const resumenTotales = useMemo(() => {
     if (!enableFilters) {
@@ -2290,6 +2514,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             setHighlightedDocumentId(null);
             navigate(resolveDocumentoFormPath(tipoDocumento, params.id, modulo));
           }}
+          {...(gridContextMenuRowSlotProps ? { slotProps: { row: gridContextMenuRowSlotProps } } : {})}
           getRowClassName={(params) => {
             const rowId = Number(params.id);
             const classNames = [];
@@ -2306,7 +2531,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           }}
           columnVisibilityModel={effectiveColumnVisibilityModel}
           onColumnVisibilityModelChange={(model) => {
-            const nextModel = esCotizacion ? { ...model, estatus_documento: true } : model;
+            const nextModel = {
+              ...model,
+              ...(esCotizacion ? { estatus_documento: true } : {}),
+              actions: SHOW_GRID_ACTIONS,
+            };
             setColumnVisibilityModel(nextModel);
             const current = {
               columnVisibilityModel: nextModel,
@@ -2404,6 +2633,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             ),
           }}
         />
+          <GridContextMenu
+            actions={gridContextMenuActions}
+            anchorPosition={contextMenuPosition}
+            open={Boolean(contextMenuRow)}
+            onClose={closeGridContextMenu}
+          />
         </Box>
       </Paper>
 

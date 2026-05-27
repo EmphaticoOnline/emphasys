@@ -48,6 +48,26 @@ const camposBase: Partial<Record<DocumentoField, DocumentoFieldRule>> = {
 
 const withOverrides = <T extends object>(base: T, overrides: Partial<T> = {}): T => ({ ...base, ...overrides });
 
+const seccionesDocumentoMonetario: Partial<Record<DocumentoSectionKey, DocumentoSectionRule>> = {
+  ...seccionesBase,
+  partidas: withOverrides(seccionesBase.partidas ?? { label: 'Partidas' }, { visible: false }),
+  totales: withOverrides(seccionesBase.totales ?? { label: 'Totales' }, { visible: false }),
+};
+
+const camposDocumentoMonetario: Partial<Record<DocumentoField, DocumentoFieldRule>> = {
+  ...camposBase,
+  partidas: { ...camposBase.partidas, required: false, visible: false },
+  subtotal: { ...camposBase.subtotal, readOnly: false, visible: true },
+  iva: { ...camposBase.iva, readOnly: true, visible: false },
+  total: { ...camposBase.total, readOnly: false, visible: true },
+  forma_pago: { ...camposBase.forma_pago, visible: true, required: false, section: 'encabezado' },
+  metodo_pago: { ...camposBase.metodo_pago, visible: false, required: false },
+  serie: { ...camposBase.serie, visible: true, required: false },
+  numero: { ...camposBase.numero, visible: true, required: false },
+  moneda: { ...camposBase.moneda, required: true },
+  tipo_cambio: { ...camposBase.tipo_cambio, visible: true },
+};
+
 export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
   cotizacion: {
     tipo: 'cotizacion',
@@ -636,6 +656,147 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       requiereTipoCambio: false,
     },
     estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
+  },
+  pago_cliente: {
+    tipo: 'pago_cliente',
+    label: 'Pago de cliente',
+    descripcion: 'Documento monetario simple de pago recibido.',
+    modulo: 'finanzas',
+    naturalezaSaldo: 'abono',
+    esDocumentoMonetario: true,
+    requiereCuentaFinanciera: true,
+    usaPartidas: false,
+    textos: {
+      nuevo: 'Nuevo pago de cliente',
+      editar: 'Editar pago de cliente',
+      guardado: 'Pago de cliente guardado',
+      cargando: 'Cargando pago de cliente...',
+      singular: 'pago de cliente',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: true,
+      accionesDisponibles: [],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: false,
+      tratamientoFiscal: false,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: null,
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Cliente',
+        tiposPermitidos: ['Cliente'],
+      },
+      vendedor: {
+        visible: false,
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        visible: false,
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'No inventariable',
+        tiposPermitidos: ['No inventariable'],
+      },
+    },
+    secciones: { ...seccionesDocumentoMonetario },
+    campos: { ...camposDocumentoMonetario },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado', 'pagado'],
+  },
+  pago_proveedor: {
+    tipo: 'pago_proveedor',
+    label: 'Pago a proveedor',
+    descripcion: 'Documento monetario simple de pago emitido a proveedor.',
+    modulo: 'finanzas',
+    naturalezaSaldo: 'abono',
+    esDocumentoMonetario: true,
+    requiereCuentaFinanciera: true,
+    usaPartidas: false,
+    textos: {
+      nuevo: 'Nuevo pago a proveedor',
+      editar: 'Editar pago a proveedor',
+      guardado: 'Pago a proveedor guardado',
+      cargando: 'Cargando pago a proveedor...',
+      singular: 'pago a proveedor',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: true,
+      accionesDisponibles: [],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: false,
+      tratamientoFiscal: false,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: null,
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        label: 'Proveedor',
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Proveedor',
+        tiposPermitidos: ['Proveedor'],
+      },
+      vendedor: {
+        visible: false,
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        visible: false,
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'No inventariable',
+        tiposPermitidos: ['No inventariable'],
+      },
+    },
+    secciones: { ...seccionesDocumentoMonetario },
+    campos: { ...camposDocumentoMonetario },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado', 'pagado'],
   },
 };
 

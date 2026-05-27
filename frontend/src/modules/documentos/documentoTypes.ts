@@ -129,6 +129,11 @@ export type DocumentoTypeConfig = {
   tipo: TipoDocumento;
   label: string;
   descripcion?: string;
+  modulo?: 'ventas' | 'compras' | 'finanzas';
+  naturalezaSaldo?: 'cargo' | 'abono' | 'neutro';
+  esDocumentoMonetario?: boolean;
+  requiereCuentaFinanciera?: boolean;
+  usaPartidas?: boolean;
   secciones?: Partial<Record<DocumentoSectionKey, DocumentoSectionRule>>;
   campos?: Partial<Record<DocumentoField, DocumentoFieldRule>>;
   fiscales?: DocumentoFiscalRules;

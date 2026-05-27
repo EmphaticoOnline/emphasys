@@ -39,6 +39,9 @@ export interface CotizacionDocumento {
   contacto_principal_id: number | null;
   agente_id?: number | null;
   moneda: string | null;
+  tipo_cambio?: number | null;
+  cuenta_financiera_id?: number | null;
+  finanzas_operacion_id?: number | null;
   observaciones?: string | null;
   subtotal: number;
   descuento_global?: number;
@@ -122,6 +125,9 @@ export interface CotizacionCrearPayload {
   agente_id?: number | null;
   fecha_documento: string;
   moneda: string | null;
+  tipo_cambio?: number | null;
+  cuenta_financiera_id?: number | null;
+  finanzas_operacion_id?: number | null;
   observaciones?: string | null;
   subtotal: number;
   descuento_global?: number;
@@ -140,6 +146,12 @@ export interface CotizacionCrearPayload {
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
   tratamiento_impuestos?: TratamientoImpuestos | null;
+  aplicaciones_documento?: Array<{
+    documento_destino_id: number;
+    monto: number;
+    monto_moneda_documento: number;
+    fecha_aplicacion?: string | null;
+  }>;
 }
 
 export interface CotizacionPartidaPayload {

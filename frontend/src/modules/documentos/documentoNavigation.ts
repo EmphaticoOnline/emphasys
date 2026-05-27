@@ -3,6 +3,11 @@ import type { TipoDocumento } from '../../types/documentos.types';
 
 export type DocumentoModulo = 'ventas' | 'compras';
 
+const DOCUMENTO_ROUTE_MODULE: Partial<Record<TipoDocumento, DocumentoModulo>> = {
+  pago_cliente: 'ventas',
+  pago_proveedor: 'compras',
+};
+
 export type GeneratedDocumentFocus = {
   documentoId: number;
   tipoDocumento: TipoDocumento;
@@ -18,11 +23,12 @@ export function resolveDocumentoModulo(pathname?: string | null): DocumentoModul
   return pathname?.startsWith('/compras') ? 'compras' : 'ventas';
 }
 
-export function resolveDocumentosListPath(tipoDocumento: TipoDocumento, modulo: DocumentoModulo = 'ventas'): string {
-  return `/${modulo}/${tipoDocumento}`;
+export function resolveDocumentosListPath(tipoDocumento: TipoDocumento, modulo?: DocumentoModulo): string {
+  const resolvedModulo = modulo ?? DOCUMENTO_ROUTE_MODULE[tipoDocumento] ?? 'ventas';
+  return `/${resolvedModulo}/${tipoDocumento}`;
 }
 
-export function resolveDocumentoFormPath(tipoDocumento: TipoDocumento, documentoId: number | string, modulo: DocumentoModulo = 'ventas'): string {
+export function resolveDocumentoFormPath(tipoDocumento: TipoDocumento, documentoId: number | string, modulo?: DocumentoModulo): string {
   return `${resolveDocumentosListPath(tipoDocumento, modulo)}/${documentoId}`;
 }
 
@@ -48,7 +54,7 @@ export function navigateToGeneratedDocument(
     pathname?: string;
   }
 ): void {
-  const modulo = options.modulo ?? resolveDocumentoModulo(options.pathname);
+  const modulo = options.modulo ?? DOCUMENTO_ROUTE_MODULE[options.tipoDocumento] ?? resolveDocumentoModulo(options.pathname);
   navigate(resolveDocumentosListPath(options.tipoDocumento, modulo), {
     state: {
       generatedDocumentFocus: buildGeneratedDocumentFocus(options.documentoId, options.tipoDocumento, modulo),

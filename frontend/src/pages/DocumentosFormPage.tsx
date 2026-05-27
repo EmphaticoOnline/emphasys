@@ -28,6 +28,12 @@ import {
   Chip,
   Tabs,
   Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 
 import Grid from '@mui/material/Grid';
@@ -81,7 +87,7 @@ import { OperacionDialog } from '../modules/finanzas/OperacionDialog';
 import { getDocumentoOrigenFinancieroConfig } from '../modules/finanzas/documentoOrigenFinanciero';
 import { DEFAULT_ESTADO_SEGUIMIENTO } from '../modules/cotizaciones/estadoSeguimiento';
 import { crearContacto, getContacto } from '../services/contactos.api';
-import { fetchCuentas, fetchResumenAnticiposDocumento, fetchSaldoDocumento } from '../services/finanzasService';
+import { fetchCuentas, fetchEstadoCuenta, fetchResumenAnticiposDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
 import { resolvePrecioDocumento } from '../services/preciosService';
 import { normalizarTelefonoMx } from '../utils/telefono';
@@ -94,7 +100,8 @@ import {
   fetchCamposPartida,
 } from '../services/camposDinamicosService';
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
-import type { Concepto, DocumentoAnticipoResumen, FinanzasCuenta } from '../types/finanzas';
+import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
+import { NumericFormat } from 'react-number-format';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -215,6 +222,24 @@ const campoEncabezadoSx = {
   },
 } as const;
 
+const compactTableCellSx = {
+  py: 1,
+  px: 1.5,
+  fontSize: 13,
+} as const;
+
+const getCuentaFinancieraDisplayLabel = (cuenta: FinanzasCuenta) => {
+  const raw = String(cuenta.identificador ?? '').trim();
+  const sanitized = raw
+    .replace(/\b(clabe|clave|cuenta|cta\.?|numero|num\.?)(\s|:|-)*\d[\d\s-]*/gi, '')
+    .replace(/(^|\s|-|\/)(\d[\d\s-]{3,})(?=$|\s|-|\/)/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/[\s\-/:,]+$/g, '')
+    .trim();
+
+  return sanitized || raw || `Cuenta ${cuenta.id}`;
+};
+
 const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
   { label: 'Operación estándar', value: 'normal' },
   { label: 'Nota de venta', value: 'sin_iva' },
@@ -254,9 +279,11 @@ const DESCRIPCIONES_FORMULARIO: Record<string, string> = {
   pedido: 'Captura el encabezado y las partidas del pedido.',
   remision: 'Captura el encabezado y las partidas de la remisión.',
   nota_credito_compra: 'Captura una nota de crédito de compra o devolución a proveedor.',
+  pago_cliente: 'Captura un documento monetario simple de pago recibido.',
+  pago_proveedor: 'Captura un documento monetario simple de pago a proveedor.',
 };
 
-const TIPOS_DOCUMENTO_CON_SALDO = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'];
+const TIPOS_DOCUMENTO_CON_SALDO = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra', 'pago_cliente', 'pago_proveedor'];
 const MOTIVOS_NOTA_CREDITO = ['devolucion', 'bonificacion', 'otro'] as const;
 type MotivoNotaCredito = typeof MOTIVOS_NOTA_CREDITO[number];
 
@@ -388,6 +415,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     widgetOrigenDocumento,
     widgetTratamientoFiscal,
     widgetPagosDrawer,
+    esDocumentoMonetario,
+    requiereCuentaFinanciera,
+    usaPartidas,
     partidasMostrarImagenes,
     partidasMostrarEsParteOportunidad,
     partidasMostrarMontoOportunidad,
@@ -427,6 +457,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     agente_id: null,
     fecha_documento: defaultFecha(),
     moneda: 'MXN',
+    tipo_cambio: 1,
+    cuenta_financiera_id: null,
+    finanzas_operacion_id: null,
     observaciones: '',
     subtotal: 0,
     descuento_global: 0,
@@ -444,6 +477,20 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     metodo_pago: '',
     codigo_postal_receptor: '',
   });
+
+  const syncDocumentoMonetarioTotals = useCallback((value: string | number | null | undefined) => {
+    const amount = typeof value === 'number'
+      ? Math.max(0, value || 0)
+      : Math.max(0, Number(String(value ?? '').replace(/,/g, '')) || 0);
+    setForm((prev) => ({
+      ...prev,
+      subtotal: amount,
+      descuento_global: 0,
+      descuento: 0,
+      iva: 0,
+      total: amount,
+    }));
+  }, []);
 
   const [partidas, setPartidas] = useState<PartidaForm[]>([emptyPartida()]);
   const [expandedObs, setExpandedObs] = useState<boolean[]>([false]);
@@ -488,6 +535,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const [anticiposResumen, setAnticiposResumen] = useState<DocumentoAnticipoResumen | null>(null);
   const [cuentasFinancieras, setCuentasFinancieras] = useState<FinanzasCuenta[]>([]);
   const [loadingAnticiposResumen, setLoadingAnticiposResumen] = useState(false);
+  const [documentosCargoMonetarios, setDocumentosCargoMonetarios] = useState<EstadoCuentaItem[]>([]);
+  const [loadingDocumentosCargoMonetarios, setLoadingDocumentosCargoMonetarios] = useState(false);
+  const [montosAplicacionMonetaria, setMontosAplicacionMonetaria] = useState<Record<number, string>>({});
+  const [autoApplyingDocumentoMonetario, setAutoApplyingDocumentoMonetario] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
@@ -524,8 +575,8 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const totalAnticipadoRegistrado = Number(anticiposResumen?.total_anticipado ?? 0);
   const hasAnticiposRegistrados = Number(anticiposResumen?.cantidad_operaciones ?? 0) > 0 || totalAnticipadoRegistrado > 0;
   const tienePartidaValida = useMemo(
-    () => partidas.some((partida) => Number(partida.cantidad ?? 0) > 0 && Number(partida.precio_unitario ?? 0) > 0),
-    [partidas]
+    () => !usaPartidas || partidas.some((partida) => Number(partida.cantidad ?? 0) > 0 && Number(partida.precio_unitario ?? 0) > 0),
+    [partidas, usaPartidas]
   );
   const motivoNotaCredito = (form.motivo_nc ?? 'otro') as MotivoNotaCredito;
   const isNotaCreditoManual = isNotaCredito && motivoNotaCredito === 'otro';
@@ -746,6 +797,40 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     [form.moneda]
   );
 
+  const tiposDocumentoCargoMonetario = useMemo(
+    () => (moduloDocumento === 'compras' ? ['factura_compra'] : ['factura']),
+    [moduloDocumento]
+  );
+
+  const sanitizeCurrencyInput = useCallback((rawValue: string) => {
+    const normalized = String(rawValue ?? '').replace(/,/g, '.').replace(/[^0-9.]/g, '');
+    if (!normalized) return '';
+
+    const parts = normalized.split('.');
+    const integerPart = (parts[0] ?? '').replace(/^0+(?=\d)/, '');
+    const decimalDigits = parts.slice(1).join('').slice(0, 2);
+    const hasDecimalPoint = normalized.includes('.');
+
+    if (hasDecimalPoint) {
+      if (normalized.endsWith('.') && decimalDigits.length === 0) {
+        return `${integerPart || '0'}.`;
+      }
+      return `${integerPart || '0'}.${decimalDigits}`;
+    }
+
+    return integerPart || '0';
+  }, []);
+
+  const totalAplicacionMonetariaCapturado = useMemo(
+    () => Object.values(montosAplicacionMonetaria).reduce((acc, value) => acc + (Number(value) || 0), 0),
+    [montosAplicacionMonetaria]
+  );
+
+  const saldoDisponibleDocumentoMonetario = useMemo(
+    () => Math.max(0, Number(documentoActualId ? saldoDocumento : form.total || 0) - totalAplicacionMonetariaCapturado),
+    [documentoActualId, form.total, saldoDocumento, totalAplicacionMonetariaCapturado]
+  );
+
   const decimalFormatter = useMemo(
     () => new Intl.NumberFormat('es-MX', {
       minimumFractionDigits: 2,
@@ -905,6 +990,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   };
 
   const recalcTotales = (partidasList: PartidaForm[], descuentoGlobalOverride?: number | null) => {
+    if (!usaPartidas) {
+      return;
+    }
     if (isNotaCredito && !partidasList.some((partida) => !esPartidaPlaceholder(partida))) {
       setForm((prev) => {
         const subtotal = Number(prev.subtotal ?? 0);
@@ -942,6 +1030,19 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   );
 
   const discountSummary = useMemo(() => {
+    if (!usaPartidas) {
+      const subtotal = Number(form.subtotal ?? 0);
+      const iva = Number(form.iva ?? 0);
+      const total = Number(form.total ?? (subtotal + iva));
+      return {
+        subtotalBruto: subtotal,
+        descuentoPartidas: 0,
+        descuentoGlobal: 0,
+        subtotalNeto: subtotal,
+        iva,
+        total,
+      };
+    }
     if (isNotaCredito && !partidas.some((partida) => !esPartidaPlaceholder(partida))) {
       const subtotal = Number(form.subtotal ?? 0);
       const iva = Number(form.iva ?? 0);
@@ -981,7 +1082,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       iva: 0,
       total: 0,
     });
-  }, [form.descuento_global, form.iva, form.subtotal, form.total, isNotaCredito, partidas]);
+  }, [form.descuento_global, form.iva, form.subtotal, form.total, isNotaCredito, partidas, usaPartidas]);
 
   const resumenFinanciero = usaGeneracionEspecialNotaCredito ? resumenNotaCreditoEspecial : discountSummary;
   const mostrarResumenFinanciero = !usaCapturaEspecialNotaCredito || usaGeneracionEspecialNotaCredito;
@@ -1459,6 +1560,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         agente_id: (doc as any).agente_id ?? null,
         fecha_documento: normalizeCivilDate(doc.fecha_documento) || defaultFecha(),
         moneda: doc.moneda || 'MXN',
+        tipo_cambio: (doc as any).tipo_cambio ?? 1,
+        cuenta_financiera_id: (doc as any).cuenta_financiera_id ?? null,
+        finanzas_operacion_id: (doc as any).finanzas_operacion_id ?? null,
         observaciones: doc.observaciones || '',
         subtotal: doc.subtotal || 0,
         descuento_global: (doc as any).descuento_global || 0,
@@ -1564,7 +1668,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           impuestos_calculados: impuestosCalc,
         }, (doc as any).descuento_global ?? 0);
       });
-      let nextPartidas = mapped.length ? mapped : [emptyPartida()];
+      let nextPartidas = usaPartidas ? (mapped.length ? mapped : [emptyPartida()]) : [emptyPartida()];
       if ((doc as any).tratamiento_impuestos === 'sin_iva') {
         nextPartidas = aplicarTratamientoEnLista(nextPartidas, 'sin_iva');
       }
@@ -1578,18 +1682,24 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       // Carga valores dinámicos ya capturados
       const [valoresDocResp, valoresPartidasResp] = await Promise.all([
         fetchCamposDocumento(Number(documentoActualId)),
-        Promise.all(nextPartidas.map((p) => (p.id ? fetchCamposPartida(p.id) : Promise.resolve([] as CampoValorGuardado[])))),
+        usaPartidas
+          ? Promise.all(nextPartidas.map((p) => (p.id ? fetchCamposPartida(p.id) : Promise.resolve([] as CampoValorGuardado[]))))
+          : Promise.resolve([] as CampoValorGuardado[][]),
       ]);
 
       const bucketDoc = mapValoresToRecord(valoresDocResp || []);
       setValoresCamposDocumento(bucketDoc);
       prefetchOpcionesLista(camposDocumento.campos, bucketDoc, camposDocumento.loadOptions);
 
-      const bucketsPartidas = nextPartidas.map((_, idx) => mapValoresToRecord(valoresPartidasResp[idx] || []));
+      const bucketsPartidas = usaPartidas
+        ? nextPartidas.map((_, idx) => mapValoresToRecord(valoresPartidasResp[idx] || []))
+        : [{}];
       setValoresCamposPartidas(bucketsPartidas.length ? bucketsPartidas : [{}]);
-      bucketsPartidas.forEach((bucket) => {
-        prefetchOpcionesLista(camposPartida.campos, bucket, camposPartida.loadOptions);
-      });
+      if (usaPartidas) {
+        bucketsPartidas.forEach((bucket) => {
+          prefetchOpcionesLista(camposPartida.campos, bucket, camposPartida.loadOptions);
+        });
+      }
 
       setError(null);
     } catch (e) {
@@ -1622,6 +1732,30 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     }
   }, [anticipoConfig, documentoActualId]);
 
+  const loadDocumentosCargoMonetarios = useCallback(async (documentIdOverride?: number | null) => {
+    if (!esDocumentoMonetario || !form.contacto_principal_id) {
+      setDocumentosCargoMonetarios([]);
+      return;
+    }
+
+    try {
+      setLoadingDocumentosCargoMonetarios(true);
+      const estadoCuenta = await fetchEstadoCuenta(Number(form.contacto_principal_id));
+      const documentos = (estadoCuenta ?? [])
+        .filter((item) => item.origen === 'documento' && Number(item.saldo ?? 0) > 0)
+        .filter((item) => tiposDocumentoCargoMonetario.includes(String(item.tipo ?? '').trim().toLowerCase()))
+        .filter((item) => Number(item.id) !== Number(documentIdOverride ?? documentoActualId ?? 0))
+        .filter((item) => !form.moneda || String(item.moneda ?? '').trim().toUpperCase() === String(form.moneda ?? '').trim().toUpperCase())
+        .sort((a, b) => String(a.fecha ?? '').localeCompare(String(b.fecha ?? '')));
+      setDocumentosCargoMonetarios(documentos);
+    } catch (err) {
+      console.error('No se pudo cargar el estado de cuenta del documento monetario', err);
+      setDocumentosCargoMonetarios([]);
+    } finally {
+      setLoadingDocumentosCargoMonetarios(false);
+    }
+  }, [documentoActualId, esDocumentoMonetario, form.contacto_principal_id, form.moneda, tiposDocumentoCargoMonetario]);
+
   const loadCuentasFinancieras = useCallback(async () => {
     try {
       const data = await fetchCuentas();
@@ -1639,6 +1773,27 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     loadDocumento();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentoActualId, tipoDocumento]);
+
+  useEffect(() => {
+    if (!esDocumentoMonetario) {
+      setDocumentosCargoMonetarios([]);
+      setMontosAplicacionMonetaria({});
+      return;
+    }
+    if (!form.contacto_principal_id) {
+      setDocumentosCargoMonetarios([]);
+      setMontosAplicacionMonetaria({});
+      return;
+    }
+    void loadDocumentosCargoMonetarios();
+  }, [esDocumentoMonetario, form.contacto_principal_id, form.moneda, loadDocumentosCargoMonetarios]);
+
+  useEffect(() => {
+    if (!requiereCuentaFinanciera || cuentasFinancieras.length > 0) {
+      return;
+    }
+    void loadCuentasFinancieras();
+  }, [cuentasFinancieras.length, loadCuentasFinancieras, requiereCuentaFinanciera]);
 
   useEffect(() => {
     if (!isNotaCreditoDevolucion && !isNotaCreditoBonificacion) {
@@ -2106,8 +2261,13 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       }
     }
 
+    if (requiereCuentaFinanciera && !form.cuenta_financiera_id) {
+      setSnackbar({ open: true, message: 'Selecciona la cuenta, caja o banco del documento monetario', severity: 'error' });
+      return false;
+    }
+
     return true;
-  }, [documentoActualId, documentosOrigenSeleccionados.length, form, getNotaCreditoManualTotalActual, hasAnticiposRegistrados, isNotaCredito, isNotaCreditoBonificacion, isNotaCreditoDevolucion, isNotaCreditoManual, preparacionNotaCredito, tienePartidaValida, tipoDocumento, totalAnticipadoRegistrado, usaGeneracionEspecialNotaCredito, valoresEspecialesNotaCredito]);
+  }, [documentoActualId, documentosOrigenSeleccionados.length, form, getNotaCreditoManualTotalActual, hasAnticiposRegistrados, isNotaCredito, isNotaCreditoBonificacion, isNotaCreditoDevolucion, isNotaCreditoManual, preparacionNotaCredito, requiereCuentaFinanciera, tienePartidaValida, tipoDocumento, totalAnticipadoRegistrado, usaGeneracionEspecialNotaCredito, valoresEspecialesNotaCredito]);
 
   const persistDocumento = useCallback(async (options?: {
     context?: 'save' | 'anticipo' | 'exit';
@@ -2126,6 +2286,20 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       const calculoNotaCreditoManual = isNotaCreditoManual
         ? await recalcularNotaCreditoManual(totalNotaCreditoManual, form.tratamiento_impuestos)
         : null;
+      const aplicacionesDocumento = esDocumentoMonetario
+        ? documentosCargoMonetarios
+            .map((item) => {
+              const monto = Number(montosAplicacionMonetaria[item.id] ?? 0);
+              if (!(monto > 0)) return null;
+              return {
+                documento_destino_id: Number(item.id),
+                monto,
+                monto_moneda_documento: monto,
+                fecha_aplicacion: normalizeCivilDate(form.fecha_documento) || defaultFecha(),
+              };
+            })
+            .filter(Boolean) as NonNullable<CotizacionCrearPayload['aplicaciones_documento']>
+        : [];
       const payload: CotizacionCrearPayload & { conversacion_id: number | null } = {
         ...form,
         tipo_documento: tipoDocumento,
@@ -2140,6 +2314,10 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         conversacion_id: conversacionId ? Number(conversacionId) : null,
         usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
         estado_seguimiento: isCotizacion ? (form.estado_seguimiento ?? DEFAULT_ESTADO_SEGUIMIENTO) : null,
+        tipo_cambio: form.tipo_cambio ?? 1,
+        cuenta_financiera_id: form.cuenta_financiera_id ?? null,
+        finanzas_operacion_id: form.finanzas_operacion_id ?? null,
+        aplicaciones_documento: aplicacionesDocumento,
         tratamiento_impuestos: ['factura', 'nota_credito', 'nota_credito_compra'].includes(tipoDocumento) ? form.tratamiento_impuestos || 'normal' : 'normal',
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
@@ -2216,7 +2394,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
 
       setDocumentoPersistidoId(docId);
 
-      const partidasPayload: CotizacionPartidaPayload[] = isNotaCreditoManual
+      const partidasPayload: CotizacionPartidaPayload[] = !usaPartidas
+        ? []
+        : isNotaCreditoManual
         ? [await construirPartidaTecnicaNotaCredito(calculoNotaCreditoManual ?? undefined)]
         : partidas.filter((p) => !esPartidaPlaceholder(p)).map((p) => ({
         producto_id: p.producto_id,
@@ -2250,7 +2430,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
           monto: Number(imp.monto ?? 0),
         })),
       }));
-      const partidasGuardadas = await replacePartidas(docId, tipoDocumento, partidasPayload);
+      const partidasGuardadas = usaPartidas ? await replacePartidas(docId, tipoDocumento, partidasPayload) : [];
 
       const valoresDocumento = Object.values(valoresCamposDocumento).filter(tieneValorCapturado);
       if (valoresDocumento.length) {
@@ -2278,6 +2458,15 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       }
 
       void loadAnticiposResumen(docId);
+
+      if (esDocumentoMonetario) {
+        const saldoActualizado = await fetchSaldoDocumento(docId).catch(() => null);
+        if (saldoActualizado) {
+          setSaldoDocumento(Number(saldoActualizado.saldo ?? 0));
+        }
+        setMontosAplicacionMonetaria({});
+        void loadDocumentosCargoMonetarios(docId);
+      }
 
       if (showSuccessMessage) {
         setSnackbar({ open: true, message: textos.guardado, severity: 'success' });
@@ -2313,17 +2502,59 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     partidasMostrarEsParteOportunidad,
     partidasMostrarImagenes,
     sessionUserId,
+    esDocumentoMonetario,
     textos.guardado,
     tieneValorCapturado,
     tipoDocumento,
+    usaPartidas,
     validarDocumentoAntesDePersistir,
     valoresCamposDocumento,
     valoresCamposPartidas,
+    loadDocumentosCargoMonetarios,
+    montosAplicacionMonetaria,
+    documentosCargoMonetarios,
   ]);
 
   const handleSave = async () => {
     await persistDocumento({ context: 'save', navigateAfterSave: true, showSuccessMessage: true });
   };
+
+  const handleApplyDocumentoMonetario = useCallback((documentoCargo: EstadoCuentaItem) => {
+    const montoActual = Number(montosAplicacionMonetaria[documentoCargo.id] ?? 0);
+    const saldoCargo = Number(documentoCargo.saldo ?? 0);
+    const disponibleFila = saldoDisponibleDocumentoMonetario + montoActual;
+    const monto = Math.min(disponibleFila, saldoCargo);
+
+    if (!(monto > 0)) {
+      setSnackbar({ open: true, message: 'No hay saldo disponible para preparar esta aplicación', severity: 'error' });
+      return;
+    }
+
+    setMontosAplicacionMonetaria((prev) => ({
+      ...prev,
+      [documentoCargo.id]: String(Number(monto.toFixed(2))),
+    }));
+  }, [montosAplicacionMonetaria, saldoDisponibleDocumentoMonetario]);
+
+  const handleAutoApplyDocumentoMonetario = useCallback(async () => {
+    if (!documentosCargoMonetarios.length || saldoDisponibleDocumentoMonetario <= 0) return;
+    setAutoApplyingDocumentoMonetario(true);
+    try {
+      const nextMontos: Record<number, string> = {};
+      let disponible = Number(documentoActualId ? saldoDocumento : form.total || 0);
+      for (const documentoCargo of documentosCargoMonetarios) {
+        if (disponible <= 0) break;
+        const saldoCargo = Number(documentoCargo.saldo ?? 0);
+        const monto = Math.min(disponible, saldoCargo);
+        if (monto <= 0) continue;
+        nextMontos[documentoCargo.id] = String(Number(monto.toFixed(2)));
+        disponible -= monto;
+      }
+      setMontosAplicacionMonetaria(nextMontos);
+    } finally {
+      setAutoApplyingDocumentoMonetario(false);
+    }
+  }, [documentoActualId, documentosCargoMonetarios, form.total, saldoDocumento, saldoDisponibleDocumentoMonetario]);
 
   const resolverPrecioAutomaticoPartida = useCallback(async (
     index: number,
@@ -2971,6 +3202,268 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
             </Stack>
           ) : (
             <>
+              {esDocumentoMonetario ? (
+                <>
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Autocomplete<ContactoAutocompleteOption>
+                        fullWidth
+                        options={contactos}
+                        loading={contactos.length === 0}
+                        getOptionLabel={(option) => option.nombre || ''}
+                        filterOptions={(options, state) => {
+                          const filtered = filterContactoOptions(options, state);
+                          const inputValue = state.inputValue.trim();
+
+                          if (!inputValue) {
+                            return filtered;
+                          }
+
+                          const normalizedInput = inputValue.toLocaleLowerCase();
+                          const hasExactMatch = options.some((option) => {
+                            if ('kind' in option && option.kind === 'create') return false;
+                            return (option.nombre || '').trim().toLocaleLowerCase() === normalizedInput;
+                          });
+
+                          if (hasExactMatch) {
+                            return filtered;
+                          }
+
+                          return [
+                            {
+                              kind: 'create',
+                              id: -1,
+                              nombre: `➕ Crear cliente "${inputValue}"`,
+                              inputValue,
+                            },
+                            ...filtered,
+                          ];
+                        }}
+                        isOptionEqualToValue={(option, value) => {
+                          const optionIsCreate = 'kind' in option && option.kind === 'create';
+                          const valueIsCreate = !!value && 'kind' in value && value.kind === 'create';
+                          if (optionIsCreate || valueIsCreate) {
+                            return optionIsCreate && valueIsCreate && option.id === value.id;
+                          }
+                          return option?.id === value?.id;
+                        }}
+                        value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
+                        onChange={(_, value) => {
+                          if (value && 'kind' in value && value.kind === 'create') {
+                            setCrearClienteOpen(true);
+                            setCrearClienteNombre(value.inputValue);
+                            setCrearClienteTipo(contactoDefaultTipoContacto);
+                            setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
+                            return;
+                          }
+                          handleClienteSelect((value as Contacto | null) ?? null);
+                        }}
+                        renderOption={(props, option) => {
+                          const { key, ...rest } = props;
+                          return (
+                            <li {...rest} key={option.id ?? key}>
+                              {option.nombre || ''}
+                            </li>
+                          );
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...(params as any)}
+                            fullWidth
+                            label={contactoLabel}
+                            required
+                            size="small"
+                            InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                            inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
+                            sx={{
+                              '& .MuiInputBase-input': {
+                                fontSize: 13,
+                                fontWeight: 400,
+                                lineHeight: 1.4375,
+                              },
+                            }}
+                          />
+                        )}
+                      />
+                    </Grid>
+                    {!usaCapturaEspecialNotaCredito && (
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Autocomplete
+                          fullWidth
+                          options={vendedores}
+                          loading={vendedores.length === 0}
+                          getOptionLabel={(option) => option.nombre || ''}
+                          value={vendedores.find((c) => c.id === form.agente_id) || null}
+                          onChange={(_, value) => setForm((prev) => ({ ...prev, agente_id: value?.id ?? null }))}
+                          renderOption={(props, option) => {
+                            const { key, ...rest } = props;
+                            return (
+                              <li {...rest} key={option.id ?? key}>
+                                {option.nombre || ''}
+                              </li>
+                            );
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...(params as any)}
+                              fullWidth
+                              label="Vendedor"
+                              size="small"
+                              InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                              inputProps={{ ...params.inputProps }}
+                              sx={campoEncabezadoSx}
+                            />
+                          )}
+                        />
+                      </Grid>
+                    )}
+                    {!usaCapturaEspecialNotaCredito && (
+                      <Grid size={{ xs: 12, md: 2 }}>
+                        <TextField
+                          label="Fecha documento"
+                          type="date"
+                          value={form.fecha_documento}
+                          onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
+                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                          inputProps={{ style: { fontSize: 13 } }}
+                          fullWidth
+                          size="small"
+                        />
+                      </Grid>
+                    )}
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <NumericFormat
+                        customInput={TextField}
+                        label="Monto"
+                        value={Number(form.total ?? 0)}
+                        onValueChange={(values) => syncDocumentoMonetarioTotals(values.floatValue ?? 0)}
+                        thousandSeparator="," 
+                        decimalSeparator="."
+                        decimalScale={2}
+                        fixedDecimalScale
+                        allowNegative={false}
+                        prefix="$"
+                        fullWidth
+                        size="small"
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        inputProps={{ inputMode: 'decimal', style: { textAlign: 'right', fontSize: 13 } }}
+                        sx={campoEncabezadoSx}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid size={{ xs: 12, md: 2 }}>
+                      <TextField
+                        select
+                        label="Moneda"
+                        value={form.moneda || 'MXN'}
+                        onChange={(e) => setForm((prev) => ({ ...prev, moneda: e.target.value || 'MXN', tipo_cambio: (e.target.value || 'MXN') === 'MXN' ? 1 : (prev.tipo_cambio ?? 1) }))}
+                        fullWidth
+                        size="small"
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        sx={campoEncabezadoSx}
+                      >
+                        <MenuItem value="MXN">MXN</MenuItem>
+                        <MenuItem value="USD">USD</MenuItem>
+                        <MenuItem value="EUR">EUR</MenuItem>
+                      </TextField>
+                    </Grid>
+                    {requiereCuentaFinanciera && (
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <TextField
+                          select
+                          label="Cuenta / caja / banco"
+                          value={form.cuenta_financiera_id ?? ''}
+                          onChange={(e) => setForm((prev) => ({ ...prev, cuenta_financiera_id: Number(e.target.value) || null }))}
+                          fullWidth
+                          size="small"
+                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                          sx={campoEncabezadoSx}
+                        >
+                          <MenuItem value="">Selecciona una cuenta</MenuItem>
+                          {cuentasFinancieras.map((cuenta) => (
+                            <MenuItem key={cuenta.id} value={cuenta.id}>
+                              {getCuentaFinancieraDisplayLabel(cuenta)}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                    )}
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <TextField
+                        label="Referencia / observaciones"
+                        value={form.observaciones || ''}
+                        onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
+                        fullWidth
+                        size="small"
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        inputProps={{ style: { fontSize: 13 } }}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Box
+                        sx={{
+                          width: '100%',
+                          minWidth: 0,
+                          '& .MuiAutocomplete-root': {
+                            width: '100%',
+                            minWidth: 0,
+                          },
+                          '& .MuiInputBase-root': {
+                            minHeight: 40,
+                          },
+                          '& .MuiInputBase-input': {
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          },
+                        }}
+                      >
+                        <DocumentoDatosFiscalesTab
+                          values={fiscalValues}
+                          onChange={(changes) => setForm((prev) => ({ ...prev, ...changes }))}
+                          disabled={saving || loading}
+                          visibleFields={{
+                            forma_pago: true,
+                            rfc_receptor: false,
+                            nombre_receptor: false,
+                            regimen_fiscal_receptor: false,
+                            uso_cfdi: false,
+                            metodo_pago: false,
+                            codigo_postal_receptor: false,
+                          }}
+                          showCatalogNote={false}
+                          compact
+                        />
+                      </Box>
+                    </Grid>
+                  </Grid>
+
+                  {(form.moneda || 'MXN') !== 'MXN' && (
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid size={{ xs: 12, md: 2 }}>
+                        <NumericFormat
+                          customInput={TextField}
+                          label="Tipo de cambio"
+                          value={Number(form.tipo_cambio ?? 1)}
+                          onValueChange={(values) => setForm((prev) => ({ ...prev, tipo_cambio: values.floatValue && values.floatValue > 0 ? values.floatValue : 1 }))}
+                          thousandSeparator="," 
+                          decimalSeparator="."
+                          decimalScale={4}
+                          fixedDecimalScale={false}
+                          allowNegative={false}
+                          fullWidth
+                          size="small"
+                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                          inputProps={{ inputMode: 'decimal', style: { textAlign: 'right', fontSize: 13 } }}
+                          sx={campoEncabezadoSx}
+                        />
+                      </Grid>
+                    </Grid>
+                  )}
+                </>
+              ) : (
               <Grid container spacing={2} alignItems="center">
                 <Grid size={{ xs: 12, md: 5 }}>
                   <Autocomplete<ContactoAutocompleteOption>
@@ -3229,25 +3722,55 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     />
                   </Grid>
                 )}
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    label="Observaciones"
-                    value={form.observaciones || ''}
-                    onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
-                    fullWidth
-                    size="small"
-                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                    inputProps={{ style: { fontSize: 13 } }}
-                  />
-                </Grid>
-                {!usaCapturaEspecialNotaCredito && (
+                {!esDocumentoMonetario && (
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      label="Observaciones"
+                      value={form.observaciones || ''}
+                      onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
+                      fullWidth
+                      size="small"
+                      InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                      inputProps={{ style: { fontSize: 13 } }}
+                    />
+                  </Grid>
+                )}
+                {!esDocumentoMonetario && !usaPartidas && (
+                  <>
+                    <Grid size={{ xs: 12, md: 2 }}>
+                      <TextField
+                        label="Subtotal"
+                        type="number"
+                        value={form.subtotal ?? 0}
+                        onChange={(e) => syncDocumentoMonetarioTotals(e.target.value)}
+                        fullWidth
+                        size="small"
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        inputProps={{ min: 0, step: '0.01', style: { textAlign: 'right', fontSize: 13 } }}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 2 }}>
+                      <TextField
+                        label="Total"
+                        type="number"
+                        value={form.total ?? 0}
+                        onChange={(e) => syncDocumentoMonetarioTotals(e.target.value)}
+                        fullWidth
+                        size="small"
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        inputProps={{ min: 0, step: '0.01', style: { textAlign: 'right', fontSize: 13 } }}
+                      />
+                    </Grid>
+                  </>
+                )}
+                {!usaCapturaEspecialNotaCredito && !esDocumentoMonetario && (
                 <Grid size={{ xs: 12, md: 2 }}>
                   <TextField
                     label="Descuento global %"
                     type="number"
                     value={form.descuento_global ?? 0}
                     onChange={(e) => handleDescuentoGlobalChange(e.target.value)}
-                    disabled={permiteCapturaManualSinPartidas}
+                    disabled={!usaPartidas || permiteCapturaManualSinPartidas}
                     fullWidth
                     size="small"
                     InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -3256,6 +3779,97 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                 </Grid>
                 )}
               </Grid>
+              )}
+
+              {esDocumentoMonetario && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }}>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                        Aplicaciones del pago
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip label={`Disponible para aplicar: ${formatter.format(saldoDisponibleDocumentoMonetario)}`} variant="outlined" color={saldoDisponibleDocumentoMonetario > 0 ? 'success' : 'default'} />
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => { void handleAutoApplyDocumentoMonetario(); }}
+                        disabled={autoApplyingDocumentoMonetario || !form.contacto_principal_id || saldoDisponibleDocumentoMonetario <= 0 || documentosCargoMonetarios.length === 0}
+                      >
+                        {autoApplyingDocumentoMonetario ? 'Distribuyendo...' : 'Distribuir automaticamente'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+
+                  {!form.contacto_principal_id ? (
+                    <Alert severity="info">Selecciona un {contactoLabel.toLowerCase()} para cargar documentos de cargo pendientes.</Alert>
+                  ) : loadingDocumentosCargoMonetarios ? (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CircularProgress size={18} />
+                      <Typography variant="body2" color="text.secondary">Cargando estado de cuenta...</Typography>
+                    </Stack>
+                  ) : documentosCargoMonetarios.length === 0 ? (
+                    <Alert severity="info">No hay documentos de cargo con saldo disponibles para este contacto y moneda.</Alert>
+                  ) : (
+                    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={compactTableCellSx}>Folio</TableCell>
+                            <TableCell sx={compactTableCellSx}>Fecha</TableCell>
+                            <TableCell align="right" sx={compactTableCellSx}>Saldo pendiente</TableCell>
+                            <TableCell sx={compactTableCellSx}>Monto a aplicar</TableCell>
+                            <TableCell align="center" sx={compactTableCellSx}>Acción</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {documentosCargoMonetarios.map((item) => (
+                            <TableRow key={item.id} hover>
+                              <TableCell sx={compactTableCellSx}>{formatearFolioDocumento(item.serie || '', item.numero || 0) || '—'}</TableCell>
+                              <TableCell sx={compactTableCellSx}>{normalizeCivilDate(item.fecha) || '—'}</TableCell>
+                              <TableCell align="right" sx={compactTableCellSx}>{formatter.format(Number(item.saldo || 0))}</TableCell>
+                              <TableCell sx={{ width: 220 }}>
+                                <NumericFormat
+                                  customInput={TextField}
+                                  size="small"
+                                  fullWidth
+                                  value={montosAplicacionMonetaria[item.id] ?? ''}
+                                  thousandSeparator="," 
+                                  decimalSeparator="."
+                                  decimalScale={2}
+                                  fixedDecimalScale
+                                  allowNegative={false}
+                                  prefix="$"
+                                  onValueChange={(values) => setMontosAplicacionMonetaria((prev) => ({
+                                    ...prev,
+                                    [item.id]: values.value,
+                                  }))}
+                                  inputProps={{ inputMode: 'decimal', style: { textAlign: 'right', fontSize: 13 } }}
+                                  sx={{
+                                    ...campoEncabezadoSx,
+                                    '& .MuiOutlinedInput-root': { minHeight: 38 },
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell align="center" sx={compactTableCellSx}>
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  onClick={() => { handleApplyDocumentoMonetario(item); }}
+                                  disabled={saldoDisponibleDocumentoMonetario + (Number(montosAplicacionMonetaria[item.id] ?? 0) || 0) <= 0}
+                                >
+                                  Aplicar todo
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </Box>
+              )}
 
               {isNotaCreditoManual && (
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 1.5 }}>
@@ -3564,9 +4178,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                 </Box>
               )}
 
-              {!usaCapturaEspecialNotaCredito && <Divider />}
+              {!usaCapturaEspecialNotaCredito && usaPartidas && <Divider />}
 
-              {!usaCapturaEspecialNotaCredito && (
+              {!usaCapturaEspecialNotaCredito && usaPartidas && (
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
                 <Typography variant="h6" color="#1d2f68" fontWeight={700}>
                   Partidas
@@ -3577,7 +4191,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
               </Stack>
               )}
 
-              {!usaCapturaEspecialNotaCredito && (
+              {!usaCapturaEspecialNotaCredito && usaPartidas && (
               <Stack spacing={1}>
                 {partidas.map((partida, index) => (
                   <React.Fragment key={index}>
@@ -3971,9 +4585,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
               </Stack>
               )}
 
-              {mostrarResumenFinanciero && <Divider />}
+              {mostrarResumenFinanciero && usaPartidas && <Divider />}
 
-              {mostrarResumenFinanciero && (
+              {mostrarResumenFinanciero && usaPartidas && (
               <Box
                 ref={resumenFinancieroRef}
                 sx={{
@@ -4030,7 +4644,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                 ))}
               </Box>
               )}
-              {partidasMostrarMontoOportunidad && (
+              {usaPartidas && partidasMostrarMontoOportunidad && (
                 <Stack direction="row" justifyContent="flex-end">
                   <TextField
                     label="Monto oportunidad"
@@ -4046,7 +4660,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         </Paper>
       )}
 
-      {mostrarResumenFinancieroStickyVisible && (
+      {mostrarResumenFinancieroStickyVisible && usaPartidas && (
         <Paper
           elevation={8}
           sx={{

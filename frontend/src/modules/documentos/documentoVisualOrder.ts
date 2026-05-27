@@ -11,6 +11,8 @@ const DOCUMENTO_VISUAL_PRIORITY: Record<string, number> = {
   orden_entrega: 40,
   remision: 50,
   factura: 60,
+  pago_cliente: 70,
+  pago_proveedor: 70,
 };
 
 export function compareDocumentoVisualOrder<T extends DocumentoOrdenable>(a: T, b: T): number {

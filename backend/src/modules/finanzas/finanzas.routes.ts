@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireEmpresaActiva } from '../auth/auth.middleware';
 import {
-  getAplicacionesPorOperacion,
   deleteAplicacion,
   deleteCuenta,
   deleteOperacion,
@@ -12,7 +11,6 @@ import {
   getEstadoCuentaContacto,
   getOperaciones,
   getReporteAging,
-  getDisponibleOperacion,
   getOperacion,
   getReporteAgingResumen,
   getResumenAnticiposDocumento,
@@ -41,9 +39,7 @@ router.post('/documentos/:id/aplicar-anticipos', postAplicarAnticiposDocumento);
 router.get('/contactos/:id/estado-cuenta', getEstadoCuentaContacto);
 router.get('/reportes/aging', getReporteAging);
 router.get('/reportes/aging-resumen', getReporteAgingResumen);
-router.get('/finanzas_operaciones/:id/disponible', getDisponibleOperacion);
 router.get('/finanzas_operaciones/:id', getOperacion);
-router.get('/finanzas_operaciones/:id/aplicaciones', getAplicacionesPorOperacion);
 
 router.get('/cuentas', getCuentas);
 router.post('/cuentas', postCuenta);

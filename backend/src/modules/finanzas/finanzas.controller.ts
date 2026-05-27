@@ -20,9 +20,7 @@ import {
   obtenerSaldoDocumento,
   obtenerReporteAging,
   obtenerReporteAgingResumen,
-  obtenerDisponibleOperacion,
   obtenerOperacionPorId,
-  listarAplicacionesPorOperacion,
   listarAnticiposDisponiblesDocumentoOrigen,
   obtenerResumenAnticiposDocumento,
 } from './finanzas.repository';
@@ -49,20 +47,6 @@ export async function getReporteAgingResumen(req: Request, res: Response) {
   }
 }
 
-export async function getDisponibleOperacion(req: Request, res: Response) {
-  const empresaId = req.context?.empresaId as number;
-  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
-  const operacionId = Number(req.params.id);
-  if (!Number.isFinite(operacionId)) return res.status(400).json({ message: 'operacionId inválido' });
-  try {
-    const row = await obtenerDisponibleOperacion(operacionId, empresaId);
-    if (!row) return res.status(404).json({ message: 'Operación no encontrada' });
-    res.json(row);
-  } catch (err: any) {
-    res.status(400).json({ message: err.message || 'No se pudo obtener disponible de la operación' });
-  }
-}
-
 export async function getOperacion(req: Request, res: Response) {
   const empresaId = req.context?.empresaId as number;
   if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
@@ -74,19 +58,6 @@ export async function getOperacion(req: Request, res: Response) {
     res.json(row);
   } catch (err: any) {
     res.status(400).json({ message: err.message || 'No se pudo obtener la operación' });
-  }
-}
-
-export async function getAplicacionesPorOperacion(req: Request, res: Response) {
-  const empresaId = req.context?.empresaId as number;
-  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
-  const operacionId = Number(req.params.id);
-  if (!Number.isFinite(operacionId)) return res.status(400).json({ message: 'operacionId inválido' });
-  try {
-    const rows = await listarAplicacionesPorOperacion(operacionId, empresaId);
-    res.json(rows);
-  } catch (err: any) {
-    res.status(400).json({ message: err.message || 'No se pudo obtener aplicaciones de la operación' });
   }
 }
 

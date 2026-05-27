@@ -31,6 +31,16 @@ const REGLAS_DOCUMENTO_ORIGEN_FINANCIERO: Partial<Record<TipoDocumento, ReglaDoc
     tipoMovimiento: 'Retiro',
     naturaleza: 'pago_proveedor',
   },
+  pago_cliente: {
+    flujo: 'ventas',
+    tipoMovimiento: 'Deposito',
+    naturaleza: 'cobro_cliente',
+  },
+  pago_proveedor: {
+    flujo: 'compras',
+    tipoMovimiento: 'Retiro',
+    naturaleza: 'pago_proveedor',
+  },
 };
 
 function normalizarTipoDocumento(tipoDocumento: string | null | undefined): TipoDocumento | null {

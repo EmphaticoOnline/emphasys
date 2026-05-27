@@ -21,6 +21,8 @@ export type Documento = {
   fecha_documento: string;
   contacto_principal_id: number | null;
   agente_id?: number | null;
+  tipo_cambio?: number | null;
+  finanzas_operacion_id?: number | null;
   subtotal: number;
   descuento_global?: number;
   descuento?: number;
@@ -81,6 +83,8 @@ const CAMPOS_DOCUMENTO = [
   'metodo_pago',
   'codigo_postal_receptor',
   'moneda',
+  'tipo_cambio',
+  'finanzas_operacion_id',
   'observaciones',
   'producto_resumen',
   'estado_seguimiento',
@@ -410,6 +414,7 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
   const docQuery = `
     SELECT
       d.*,
+      fo.cuenta_id AS cuenta_financiera_id,
       c.nombre AS cliente_nombre,
       c.email AS cliente_email,
       c.telefono AS cliente_telefono,
@@ -421,6 +426,7 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
       d.metodo_pago,
       d.codigo_postal_receptor
     FROM documentos d
+    LEFT JOIN finanzas_operaciones fo ON fo.id = d.finanzas_operacion_id AND fo.empresa_id = d.empresa_id
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     LEFT JOIN contactos_domicilios cd ON cd.contacto_id = c.id AND cd.es_principal = true
     WHERE d.empresa_id = $1 AND d.id = $2
@@ -514,6 +520,7 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   cotizacion: 'COT',
   factura: 'FAC',
   nota_credito: 'NCR',
+  pago_cliente: 'PCL',
   orden_servicio: 'OS',
   pedido: 'PED',
   remision: 'REM',
@@ -522,6 +529,7 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   orden_compra: 'OC',
   recepcion: 'REC',
   nota_credito_compra: 'NCC',
+  pago_proveedor: 'PPR',
   factura_compra: 'FCO',
 };
 

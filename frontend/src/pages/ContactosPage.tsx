@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Chip, IconButton, InputAdornment, ListItemIcon, Menu, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type {
@@ -20,15 +20,13 @@ import ClearIcon from '@mui/icons-material/Clear';
 import { fetchContactosPaginados, fetchVendedores } from '../services/contactosService.js';
 import { eliminarContacto } from '../services/contactos.api';
 import type { Contacto } from '../types/contactos.types';
+import { GridContextMenu } from '../components/grids/GridContextMenu';
+import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { useGridContextMenu } from '../hooks/useGridContextMenu';
 
 type ContactoRow = Contacto & {
   vendedor_nombre?: string | null;
-};
-
-type ContextMenuState = {
-  mouseX: number;
-  mouseY: number;
-  rowId: number | string;
 };
 
 export default function ContactosPage() {
@@ -44,7 +42,6 @@ export default function ContactosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<GridRowSelectionModel>([]);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const lastSearchRef = useRef('');
 
   const STORAGE_KEY = 'contactos_grid_state';
@@ -79,12 +76,10 @@ export default function ContactosPage() {
   const isTodosActivo = selectedTipos.length === 0;
 
   const handleEditarContacto = (contactoId: number | string) => {
-    setContextMenu(null);
     navigate(`/contactos/${contactoId}`);
   };
 
   const handleEliminarContacto = async (contactoId: number | string) => {
-    setContextMenu(null);
     const confirmed = window.confirm('¿Eliminar el contacto?');
     if (!confirmed) return;
     try {
@@ -95,21 +90,6 @@ export default function ContactosPage() {
       const message = err instanceof Error ? err.message : 'No se pudo eliminar';
       setError(message);
     }
-  };
-
-  const handleRowContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const rowId = event.currentTarget.getAttribute('data-id');
-    if (!rowId) return;
-
-    setSelectedRowIds([rowId]);
-    setContextMenu({
-      mouseX: event.clientX + 2,
-      mouseY: event.clientY - 6,
-      rowId,
-    });
   };
 
   const handleToggleTipo = (tipo: string) => {
@@ -222,9 +202,46 @@ export default function ContactosPage() {
   }, [columnOrder, columns]);
 
   const effectiveColumnVisibilityModel = useMemo(
-    () => ({ ...columnVisibilityModel, actions: true }),
+    () => ({ ...columnVisibilityModel, actions: SHOW_GRID_ACTIONS }),
     [columnVisibilityModel]
   );
+
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    rowSlotProps,
+  } = useGridContextMenu(contactos, {
+    onOpen: (row) => {
+      setSelectedRowIds([row.id]);
+    },
+  });
+
+  const contextMenuActions = useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'editar',
+        label: 'Editar contacto',
+        icon: <EditIcon fontSize="small" />,
+        shortcut: 'Enter',
+        onClick: () => handleEditarContacto(contextMenuRow.id),
+      },
+      {
+        id: 'separator-primary',
+        type: 'separator',
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar',
+        icon: <DeleteIcon fontSize="small" />,
+        shortcut: 'Del',
+        destructive: true,
+        onClick: () => handleEliminarContacto(contextMenuRow.id),
+      },
+    ];
+  }, [contextMenuRow]);
 
   useEffect(() => {
     setSelectedRowIds((prev) => prev.filter((rowId) => contactos.some((contacto) => String(contacto.id) === String(rowId))));
@@ -232,7 +249,7 @@ export default function ContactosPage() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.key !== 'Delete' && event.key !== 'Backspace') || selectedRowIds.length === 0) {
+      if (selectedRowIds.length === 0) {
         return;
       }
 
@@ -246,6 +263,16 @@ export default function ContactosPage() {
         target instanceof HTMLSelectElement ||
         (target instanceof HTMLElement && target.isContentEditable)
       ) {
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleEditarContacto(selectedRowId);
+        return;
+      }
+
+      if (event.key !== 'Delete' && event.key !== 'Backspace') {
         return;
       }
 
@@ -412,7 +439,7 @@ export default function ContactosPage() {
             onFilterModelChange={setFilterModel}
             columnVisibilityModel={effectiveColumnVisibilityModel}
             onColumnVisibilityModelChange={(model) =>
-              setColumnVisibilityModel({ ...model, actions: true })
+              setColumnVisibilityModel({ ...model, actions: SHOW_GRID_ACTIONS })
             }
             onColumnWidthChange={(params) =>
               setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }))
@@ -433,11 +460,7 @@ export default function ContactosPage() {
               event.defaultMuiPrevented = true;
               handleEditarContacto(params.id);
             }}
-            slotProps={{
-              row: {
-                onContextMenu: handleRowContextMenu,
-              },
-            }}
+            {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
             localeText={esES.components.MuiDataGrid.defaultProps.localeText}
             hideFooterSelectedRowCount
             sx={{
@@ -487,39 +510,12 @@ export default function ContactosPage() {
               },
             }}
           />
-          <Menu
-            open={Boolean(contextMenu)}
-            onClose={() => setContextMenu(null)}
-            anchorReference="anchorPosition"
-            {...(contextMenu
-              ? {
-                  anchorPosition: { top: contextMenu.mouseY, left: contextMenu.mouseX },
-                }
-              : {})}
-          >
-            <MenuItem
-              onClick={() => {
-                if (contextMenu) handleEditarContacto(contextMenu.rowId);
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 30, color: 'inherit' }}>
-                <EditIcon fontSize="small" />
-              </ListItemIcon>
-              Editar contacto
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                if (contextMenu) {
-                  void handleEliminarContacto(contextMenu.rowId);
-                }
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 30, color: 'inherit' }}>
-                <DeleteIcon fontSize="small" />
-              </ListItemIcon>
-              Eliminar
-            </MenuItem>
-          </Menu>
+          <GridContextMenu
+            actions={contextMenuActions}
+            anchorPosition={contextMenuPosition}
+            open={Boolean(contextMenuRow)}
+            onClose={closeContextMenu}
+          />
         </Box>
       </Box>
     </Box>

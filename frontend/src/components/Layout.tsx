@@ -32,6 +32,7 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import DescriptionIcon from '@mui/icons-material/Description';
 import BuildIcon from '@mui/icons-material/Build';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { compareDocumentoVisualOrder } from '../modules/documentos/documentoVisualOrder';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchParametrosSistema } from '../services/parametrosService';
@@ -40,6 +41,13 @@ import { apiFetch } from '../services/apiFetch';
 interface LayoutProps {
   children: React.ReactNode;
 }
+
+type DocumentoTabDef = { label: string; value: string; icon?: string | null };
+
+const NAVIGATION_DOCUMENT_OVERRIDES: Record<'ventas' | 'compras', DocumentoTabDef[]> = {
+  ventas: [{ value: 'pago_cliente', label: 'Pagos', icon: 'AccountBalanceWallet' }],
+  compras: [{ value: 'pago_proveedor', label: 'Pagos Proveedor', icon: 'AccountBalanceWallet' }],
+};
 
 type ActividadRecordatorio = {
   id: number;
@@ -104,6 +112,7 @@ export default function Layout({ children }: LayoutProps) {
       Warehouse: WarehouseIcon,
       Description: DescriptionIcon,
       Build: BuildIcon,
+      AccountBalanceWallet: AccountBalanceWalletIcon,
     }),
     []
   );
@@ -123,8 +132,23 @@ export default function Layout({ children }: LayoutProps) {
         ]);
 
         const sortDocs = (docs: typeof ventas) => [...docs].sort(compareDocumentoVisualOrder);
+        const mergeNavigationDocs = (docs: typeof ventas, modulo: 'ventas' | 'compras'): DocumentoTabDef[] => {
+          const base = sortDocs(docs).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }));
+          NAVIGATION_DOCUMENT_OVERRIDES[modulo].forEach((extra) => {
+            const index = base.findIndex((tab) => tab.value === extra.value);
+            if (index >= 0) {
+              base[index] = { ...base[index], ...extra };
+            } else {
+              base.push(extra);
+            }
+          });
+          return base.sort((a, b) => compareDocumentoVisualOrder(
+            { codigo: a.value, nombre: a.label },
+            { codigo: b.value, nombre: b.label }
+          ));
+        };
 
-        const ventasOrdenadas = sortDocs(ventas).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }));
+        const ventasOrdenadas = mergeNavigationDocs(ventas, 'ventas');
         const mostrarModuloProduccion = modulos
           .flatMap((modulo) => modulo.parametros)
           .some((parametro) => parametro.clave === 'mostrar_modulo_produccion' && toBoolean(parametro.valor_resuelto));
@@ -142,9 +166,7 @@ export default function Layout({ children }: LayoutProps) {
           if (!combinadas.find((t) => t.value === extra.value)) combinadas.push(extra);
         });
         setVentasTabs(combinadas);
-        setComprasTabs(
-          sortDocs(compras).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }))
-        );
+        setComprasTabs(mergeNavigationDocs(compras, 'compras'));
       } catch (err) {
         console.error('No se pudieron cargar los tabs de ventas', err);
         setVentasTabs([]);

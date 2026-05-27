@@ -2,6 +2,7 @@ export type TipoDocumento =
   | 'cotizacion'
   | 'factura'
   | 'nota_credito'
+  | 'pago_cliente'
   | 'orden_servicio'
   | 'pedido'
   | 'remision'
@@ -10,4 +11,5 @@ export type TipoDocumento =
   | 'orden_compra'
   | 'recepcion'
   | 'nota_credito_compra'
+  | 'pago_proveedor'
   | 'factura_compra';

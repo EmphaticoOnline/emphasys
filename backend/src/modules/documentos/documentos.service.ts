@@ -2,15 +2,26 @@ import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import type { TipoDocumento } from '../../types/documentos';
 import { calcularImpuestosPartida } from '../impuestos/impuestos.service';
+import { crearAplicacionEnTransaccion, upsertOperacionDocumentoEnTransaccion } from '../finanzas/finanzas.repository';
 import { OPORTUNIDAD_ESTADOS_SEGUIMIENTO, normalizarEstadoSeguimientoCotizacion } from './cotizacion-status';
 import { actualizarDocumentoRepository, crearDocumentoRepository, obtenerDocumentoRepository, reemplazarPartidasRepository, type PartidaInput } from './documentos.repository';
 
 type DocumentoCrearPayload = Record<string, any> & {
   agente_id?: number | null;
+  aplicaciones_documento?: AplicacionDocumentoPayload[];
+  cuenta_financiera_id?: number | null;
   conversacion_id?: number | null;
   documento_origen_id?: number | null;
   contacto_principal_id?: number | null;
+  finanzas_operacion_id?: number | null;
   usuario_creacion_id?: number | null;
+};
+
+type AplicacionDocumentoPayload = {
+  documento_destino_id?: number | null;
+  monto?: number | null;
+  monto_moneda_documento?: number | null;
+  fecha_aplicacion?: string | null;
 };
 
 type DuplicarCotizacionResult = {
@@ -95,6 +106,95 @@ const currentCivilDate = (date = new Date()) => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+const TIPOS_DOCUMENTO_MONETARIOS = new Set<TipoDocumento>(['pago_cliente', 'pago_proveedor']);
+
+function esDocumentoMonetario(tipoDocumento: TipoDocumento) {
+  return TIPOS_DOCUMENTO_MONETARIOS.has(tipoDocumento);
+}
+
+function normalizarAplicacionesDocumento(payload: DocumentoCrearPayload): AplicacionDocumentoPayload[] {
+  if (!Array.isArray(payload.aplicaciones_documento)) {
+    return [];
+  }
+
+  return payload.aplicaciones_documento
+    .map((aplicacion) => ({
+      documento_destino_id: Number(aplicacion?.documento_destino_id ?? 0) || null,
+      monto: Number(aplicacion?.monto ?? 0) || 0,
+      monto_moneda_documento: Number(aplicacion?.monto_moneda_documento ?? aplicacion?.monto ?? 0) || 0,
+      fecha_aplicacion: aplicacion?.fecha_aplicacion ?? null,
+    }))
+    .filter((aplicacion) => Number(aplicacion.documento_destino_id ?? 0) > 0 && Number(aplicacion.monto ?? 0) > 0 && Number(aplicacion.monto_moneda_documento ?? 0) > 0);
+}
+
+async function sincronizarDocumentoMonetarioConTesoreria(
+  documento: Record<string, any>,
+  payload: DocumentoCrearPayload,
+  empresaId: number,
+  tipoDocumento: TipoDocumento,
+  client: PoolClient
+) {
+  if (!esDocumentoMonetario(tipoDocumento)) {
+    return documento;
+  }
+
+  const cuentaFinancieraId = Number(payload.cuenta_financiera_id ?? 0);
+  if (!cuentaFinancieraId) {
+    throw new Error('VALIDATION_ERROR: La cuenta financiera es obligatoria para documentos monetarios.');
+  }
+
+  const tipoMovimiento = tipoDocumento === 'pago_cliente' ? 'Deposito' : 'Retiro';
+  const operacion = await upsertOperacionDocumentoEnTransaccion(
+    client,
+    {
+      cuenta_id: cuentaFinancieraId,
+      fecha: String(payload.fecha_documento ?? documento.fecha_documento ?? currentCivilDate()),
+      tipo_movimiento: tipoMovimiento,
+      monto: Number(documento.total ?? payload.total ?? 0),
+      documento_origen_id: Number(documento.id),
+      referencia: String(payload.referencia ?? documento.referencia ?? documento.numero ?? '').trim() || null,
+      observaciones: payload.observaciones ?? documento.observaciones ?? null,
+    },
+    empresaId,
+    Number(documento.finanzas_operacion_id ?? payload.finanzas_operacion_id ?? 0) || null
+  );
+
+  if (Number(documento.finanzas_operacion_id ?? 0) !== Number(operacion.id)) {
+    await client.query(
+      `UPDATE documentos
+          SET finanzas_operacion_id = $1
+        WHERE id = $2
+          AND empresa_id = $3`,
+      [operacion.id, documento.id, empresaId]
+    );
+    documento.finanzas_operacion_id = operacion.id;
+  }
+
+  await client.query(
+    `DELETE FROM aplicaciones_saldo
+      WHERE empresa_id = $1
+        AND documento_origen_id = $2`,
+    [empresaId, documento.id]
+  );
+
+  const aplicaciones = normalizarAplicacionesDocumento(payload);
+  for (const aplicacion of aplicaciones) {
+    await crearAplicacionEnTransaccion(
+      client,
+      {
+        documento_origen_id: Number(documento.id),
+        documento_destino_id: Number(aplicacion.documento_destino_id),
+        monto: Number(aplicacion.monto),
+        monto_moneda_documento: Number(aplicacion.monto_moneda_documento),
+        fecha_aplicacion: aplicacion.fecha_aplicacion ?? payload.fecha_documento ?? documento.fecha_documento ?? null,
+      },
+      empresaId
+    );
+  }
+
+  return documento;
+}
 
 /**
  * Asigna agente_id (si no viene en el payload) con las reglas definidas.
@@ -400,6 +500,8 @@ export async function crearDocumentoService(
 
     const created = await crearDocumentoRepository(data, empresaId, tipoDocumento, client);
 
+  await sincronizarDocumentoMonetarioConTesoreria(created, data, empresaId, tipoDocumento, client);
+
     if (tipoDocumento === 'cotizacion' && created?.id) {
       await asegurarOportunidadParaCotizacion(
         {
@@ -416,6 +518,35 @@ export async function crearDocumentoService(
     await client.query('COMMIT');
 
     return created;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function actualizarDocumentoService(
+  documentoId: number,
+  payload: DocumentoCrearPayload,
+  empresaId: number,
+  tipoDocumento: TipoDocumento
+) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const actualizado = await actualizarDocumentoRepository(documentoId, payload, empresaId, tipoDocumento, client);
+    if (!actualizado) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await sincronizarDocumentoMonetarioConTesoreria(actualizado, payload, empresaId, tipoDocumento, client);
+
+    await client.query('COMMIT');
+    return actualizado;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

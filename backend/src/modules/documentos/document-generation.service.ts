@@ -399,6 +399,7 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   cotizacion: "COT",
   factura: "FAC",
   nota_credito: "NCR",
+  pago_cliente: "PCL",
   orden_servicio: "OS",
   pedido: "PED",
   remision: "REM",
@@ -407,6 +408,7 @@ const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
   orden_compra: "OC",
   recepcion: "REC",
   nota_credito_compra: "NCC",
+  pago_proveedor: "PPR",
   factura_compra: "FCO",
 };
 
