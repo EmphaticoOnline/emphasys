@@ -99,6 +99,7 @@ import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicaci
 import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
 import { DocumentoWhatsappDialog } from '../modules/documentos/DocumentoWhatsappDialog';
 import { GridContextMenu } from '../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
@@ -497,6 +498,40 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const gridContainerRef = React.useRef<HTMLDivElement | null>(null);
   const consumedFocusNonceRef = React.useRef<string | null>(null);
 
+  const {
+    contextMenuRow: contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu: closeGridContextMenu,
+    openContextMenuForRow,
+    rowSlotProps: gridContextMenuRowSlotProps,
+  } = useGridContextMenu(rows, {
+    onOpen: (row) => {
+      setFocusedDocumentId(Number(row.id));
+      setHighlightedDocumentId(null);
+    },
+  });
+
+  const contextMenuTriggerColumn = useMemo<GridColDef>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      headerAlign: 'center',
+      align: 'center',
+      headerClassName: 'finanzas-header',
+      renderCell: (params: GridRenderCellParams) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row as CotizacionListado)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
   const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = resolveDocumentosListPath(tipoDocumento, modulo);
   const {
@@ -556,6 +591,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const effectiveColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
     () => ({
       ...columnVisibilityModel,
+      menu: true,
       ...(esCotizacion ? { estatus_documento: true } : {}),
       actions: SHOW_GRID_ACTIONS,
     }),
@@ -995,17 +1031,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     row?.contacto_email ?? row?.email_contacto ?? row?.cliente_email ?? row?.email_cliente ?? row?.email ?? '';
 
   const obtenerTelefonoDocumento = useCallback((row: any) => {
+    const telefonoListado = row?.cliente_telefono ?? row?.telefono_cliente ?? row?.contacto_telefono ?? row?.telefono_contacto ?? row?.telefono ?? row?.celular ?? '';
+    if (telefonoListado) {
+      return telefonoListado;
+    }
+
     const contactoPrincipalId = Number(row?.contacto_principal_id ?? 0);
     const contacto = contactos.find((item) => item.id === contactoPrincipalId);
     return (
       contacto?.telefono ??
       contacto?.telefono_secundario ??
-      row?.contacto_telefono ??
-      row?.telefono_contacto ??
-      row?.cliente_telefono ??
-      row?.telefono_cliente ??
-      row?.telefono ??
-      row?.celular ??
       ''
     );
   }, [contactos]);
@@ -1623,10 +1658,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
   const columns: GridColDef[] = useMemo(
     () =>
-      baseColumns.map((col) =>
+      [contextMenuTriggerColumn, ...baseColumns].map((col) =>
         columnWidths[col.field] != null ? { ...col, width: Number(columnWidths[col.field]) } : col
       ) as GridColDef[],
-    [baseColumns, columnWidths]
+    [baseColumns, columnWidths, contextMenuTriggerColumn]
   );
 
   const filteredRows = useMemo(() => {
@@ -1714,18 +1749,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const visibleIds = new Set(filteredRows.map((row) => Number(row.id)));
     setSelectedDocumentIds((prev) => prev.filter((id) => visibleIds.has(id)));
   }, [canBulkDuplicate, filteredRows]);
-
-  const {
-    contextMenuRow: contextMenuRow,
-    anchorPosition: contextMenuPosition,
-    closeContextMenu: closeGridContextMenu,
-    rowSlotProps: gridContextMenuRowSlotProps,
-  } = useGridContextMenu(filteredRows, {
-    onOpen: (row) => {
-      setFocusedDocumentId(Number(row.id));
-      setHighlightedDocumentId(null);
-    },
-  });
 
   const gridContextMenuActions = useMemo<GridContextMenuAction[]>(() => {
     if (!contextMenuRow) return [];
@@ -2533,6 +2556,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           onColumnVisibilityModelChange={(model) => {
             const nextModel = {
               ...model,
+              menu: true,
               ...(esCotizacion ? { estatus_documento: true } : {}),
               actions: SHOW_GRID_ACTIONS,
             };

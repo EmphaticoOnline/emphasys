@@ -12,6 +12,7 @@ export interface CotizacionListado {
   contacto_principal_id: number | null;
   agente_id?: number | null;
   nombre_cliente: string | null;
+  cliente_telefono?: string | null;
   subtotal: number;
   descuento_global?: number;
   descuento?: number;

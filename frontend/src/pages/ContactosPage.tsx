@@ -21,6 +21,7 @@ import { fetchContactosPaginados, fetchVendedores } from '../services/contactosS
 import { eliminarContacto } from '../services/contactos.api';
 import type { Contacto } from '../types/contactos.types';
 import { GridContextMenu } from '../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
@@ -178,9 +179,42 @@ export default function ContactosPage() {
     stored.columnOrder || baseColumns.map((c) => c.field)
   );
 
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(contactos, {
+    onOpen: (row) => {
+      setSelectedRowIds([row.id]);
+    },
+  });
+
+  const contextMenuTriggerColumn = useMemo<GridColDef>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      headerClassName: 'finanzas-header',
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row as ContactoRow)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
   const columns: GridColDef[] = useMemo(
     () =>
-      baseColumns.map((col) => {
+      [contextMenuTriggerColumn, ...baseColumns].map((col) => {
         const savedWidth = columnWidths[col.field];
         if (savedWidth !== undefined) {
           const { flex, ...rest } = col;
@@ -189,33 +223,23 @@ export default function ContactosPage() {
         return col;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [columnWidths, vendedorNombre]
+    [columnWidths, vendedorNombre, contextMenuTriggerColumn]
   );
 
   const orderedColumns = useMemo(() => {
     const map = new Map(columns.map((c) => [c.field, c]));
+    const menuColumn = map.get('menu');
     const ordered = columnOrder
       .map((field) => map.get(field))
-      .filter((c): c is GridColDef => Boolean(c));
-    const remaining = columns.filter((c) => !columnOrder.includes(c.field));
-    return [...ordered, ...remaining];
+      .filter((c): c is GridColDef => c != null && c.field !== 'menu');
+    const remaining = columns.filter((c) => !columnOrder.includes(c.field) && c.field !== 'menu');
+    return [...(menuColumn ? [menuColumn] : []), ...ordered, ...remaining];
   }, [columnOrder, columns]);
 
   const effectiveColumnVisibilityModel = useMemo(
-    () => ({ ...columnVisibilityModel, actions: SHOW_GRID_ACTIONS }),
+    () => ({ ...columnVisibilityModel, menu: true, actions: SHOW_GRID_ACTIONS }),
     [columnVisibilityModel]
   );
-
-  const {
-    contextMenuRow,
-    anchorPosition: contextMenuPosition,
-    closeContextMenu,
-    rowSlotProps,
-  } = useGridContextMenu(contactos, {
-    onOpen: (row) => {
-      setSelectedRowIds([row.id]);
-    },
-  });
 
   const contextMenuActions = useMemo<GridContextMenuAction[]>(() => {
     if (!contextMenuRow) return [];
@@ -439,7 +463,7 @@ export default function ContactosPage() {
             onFilterModelChange={setFilterModel}
             columnVisibilityModel={effectiveColumnVisibilityModel}
             onColumnVisibilityModelChange={(model) =>
-              setColumnVisibilityModel({ ...model, actions: SHOW_GRID_ACTIONS })
+              setColumnVisibilityModel({ ...model, menu: true, actions: SHOW_GRID_ACTIONS })
             }
             onColumnWidthChange={(params) =>
               setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }))

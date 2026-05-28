@@ -391,6 +391,7 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
       d.agente_id,
       c.nombre AS nombre_cliente,
       c.email AS contacto_email,
+      c.telefono AS cliente_telefono,
       ${selectSeguimiento}
       d.subtotal,
       d.iva,
