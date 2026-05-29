@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Chip, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { esES } from '@mui/x-data-grid/locales';
+import { Box, IconButton } from '@mui/material';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import type {
   GridColDef,
   GridRowSelectionModel,
@@ -15,24 +15,20 @@ import type {
 } from '@mui/x-data-grid';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
-import SearchIcon from '@mui/icons-material/Search';
-import ClearIcon from '@mui/icons-material/Clear';
 import { fetchContactosPaginados, fetchVendedores } from '../services/contactosService.js';
 import { eliminarContacto } from '../services/contactos.api';
-import type { Contacto } from '../types/contactos.types';
-import { GridContextMenu } from '../components/grids/GridContextMenu';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
-import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
-
-type ContactoRow = Contacto & {
-  vendedor_nombre?: string | null;
-};
+import ContactosDesktopView from '../components/contactos/ContactosDesktopView';
+import ContactosMobileView from '../components/contactos/ContactosMobileView';
+import type { ContactoRow } from '../components/contactos/ContactosView.types';
 
 export default function ContactosPage() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [contactos, setContactos] = useState<ContactoRow[]>([]);
   const [vendedores, setVendedores] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -374,143 +370,88 @@ export default function ContactosPage() {
 
   if (error) return <div>Error: {error}</div>;
 
-  return (
-    <Box sx={{ width: '100%', px: 3, py: 0, display: 'flex', justifyContent: 'center' }}>
-      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 1 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 260 }}>
-            <Box>
-              <Typography variant="h5" fontWeight={600} color="#1d2f68">Contactos</Typography>
-              <Typography variant="body2" color="#4b5563">Gestiona y consulta tus contactos registrados.</Typography>
-            </Box>
-            <TextField
-              size="small"
-              placeholder="Buscar por nombre, email o teléfono"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              sx={{ maxWidth: 360 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-                endAdornment: searchTerm ? (
-                  <InputAdornment position="end">
-                    <IconButton aria-label="Borrar búsqueda" size="small" onClick={() => setSearchTerm('')} edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ) : null,
-              }}
-            />
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {tiposOpciones.map((tipo) => {
-                const selected = tipo === 'Todos' ? isTodosActivo : selectedTipos.includes(tipo);
-                return (
-                  <Chip
-                    key={tipo}
-                    label={tipo}
-                    clickable
-                    onClick={() => handleToggleTipo(tipo)}
-                    color={selected ? 'primary' : 'default'}
-                    variant={selected ? 'filled' : 'outlined'}
-                    size="small"
-                  />
-                );
-              })}
-            </Stack>
-          </Box>
-          <Button
-            variant="contained"
-            onClick={() => navigate('/contactos/nuevo')}
-            sx={{
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              backgroundColor: '#1d2f68',
-              color: '#ffffff',
-              '&:hover': { backgroundColor: '#162551' },
-              alignSelf: 'flex-end',
-            }}
-          >
-            + NUEVO
-          </Button>
-        </Box>
+  const commonViewProps = {
+    searchTerm,
+    onSearchTermChange: setSearchTerm,
+    onClearSearch: () => setSearchTerm(''),
+    tiposOpciones,
+    selectedTipos,
+    isTodosActivo,
+    onToggleTipo: handleToggleTipo,
+    onCreateContacto: () => navigate('/contactos/nuevo'),
+  };
 
-        <Box sx={{ width: '100%', backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          <DataGrid
-            rows={contactos}
-            columns={orderedColumns}
-            rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
-            columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
-            autoHeight
-            pagination
-            paginationMode="server"
-            rowCount={rowCount}
-            loading={loading}
-            paginationModel={{ page, pageSize }}
-            pageSizeOptions={[25, 50, 100]}
-            onPaginationModelChange={(model) => {
-              if (model.pageSize !== pageSize) {
-                setPageSize(Math.min(model.pageSize, 100));
-                setPage(0);
-              } else {
-                setPage(model.page);
-              }
-            }}
-            density={density}
-            sortModel={sortModel}
-            onSortModelChange={setSortModel}
-            filterModel={filterModel}
-            onFilterModelChange={setFilterModel}
-            columnVisibilityModel={effectiveColumnVisibilityModel}
-            onColumnVisibilityModelChange={(model) =>
-              setColumnVisibilityModel({ ...model, menu: true, actions: SHOW_GRID_ACTIONS })
-            }
-            onColumnWidthChange={(params) =>
-              setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }))
-            }
-            onColumnOrderChange={({ column, targetIndex }) => {
-              setColumnOrder((prev) => {
-                const next = prev.filter((f) => f !== column.field);
-                next.splice(targetIndex, 0, column.field);
-                return next;
-              });
-            }}
-            rowSelectionModel={selectedRowIds}
-            onRowSelectionModelChange={(selectionModel) => {
-              const lastSelectedId = selectionModel[selectionModel.length - 1];
-              setSelectedRowIds(selectionModel.length > 1 && lastSelectedId !== undefined ? [lastSelectedId] : selectionModel);
-            }}
-            onRowDoubleClick={(params, event) => {
-              event.defaultMuiPrevented = true;
-              handleEditarContacto(params.id);
-            }}
-            {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
-            localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-            hideFooterSelectedRowCount
-            sx={[
-              standardDataGridSx,
-              {
-                '--DataGrid-overlayHeight': '200px',
-                '& .MuiDataGrid-cell': {
-                  display: 'flex',
-                  alignItems: 'center',
-                },
-                '& .MuiDataGrid-row': {
-                  cursor: 'default',
-                },
-              },
-            ]}
-          />
-          <GridContextMenu
-            actions={contextMenuActions}
-            anchorPosition={contextMenuPosition}
-            open={Boolean(contextMenuRow)}
-            onClose={closeContextMenu}
-          />
-        </Box>
-      </Box>
-    </Box>
+  const desktopView = (
+    <ContactosDesktopView
+      {...commonViewProps}
+      contactos={contactos}
+      orderedColumns={orderedColumns}
+      rowCount={rowCount}
+      loading={loading}
+      paginationModel={{ page, pageSize }}
+      density={density}
+      sortModel={sortModel}
+      onSortModelChange={setSortModel}
+      filterModel={filterModel}
+      onFilterModelChange={setFilterModel}
+      columnVisibilityModel={effectiveColumnVisibilityModel}
+      onColumnVisibilityModelChange={(model) =>
+        setColumnVisibilityModel({ ...model, menu: true, actions: SHOW_GRID_ACTIONS })
+      }
+      onPaginationModelChange={(model) => {
+        if (model.pageSize !== pageSize) {
+          setPageSize(Math.min(model.pageSize, 100));
+          setPage(0);
+        } else {
+          setPage(model.page);
+        }
+      }}
+      onColumnWidthChange={(params) =>
+        setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }))
+      }
+      onColumnOrderChange={({ column, targetIndex }) => {
+        setColumnOrder((prev) => {
+          const next = prev.filter((field) => field !== column.field);
+          next.splice(targetIndex, 0, column.field);
+          return next;
+        });
+      }}
+      selectedRowIds={selectedRowIds}
+      onRowSelectionModelChange={(selectionModel) => {
+        const lastSelectedId = selectionModel[selectionModel.length - 1];
+        setSelectedRowIds(selectionModel.length > 1 && lastSelectedId !== undefined ? [lastSelectedId] : selectionModel);
+      }}
+      onRowDoubleClick={(params, event) => {
+        event.defaultMuiPrevented = true;
+        handleEditarContacto(params.id);
+      }}
+      slotProps={rowSlotProps ? { row: rowSlotProps } : undefined}
+      contextMenuActions={contextMenuActions}
+      contextMenuPosition={contextMenuPosition}
+      contextMenuOpen={Boolean(contextMenuRow)}
+      onCloseContextMenu={closeContextMenu}
+    />
   );
+
+  const mobileView = (
+    <ContactosMobileView
+      {...commonViewProps}
+      contactos={contactos}
+      rowCount={rowCount}
+      loading={loading}
+      page={page}
+      pageSize={pageSize}
+      onPageChange={setPage}
+      onPageSizeChange={(nextPageSize) => {
+        setPageSize(Math.min(nextPageSize, 100));
+        setPage(0);
+      }}
+      onEditContacto={handleEditarContacto}
+      onDeleteContacto={(contactoId) => {
+        void handleEliminarContacto(contactoId);
+      }}
+    />
+  );
+
+  return <Box sx={{ width: '100%' }}>{isMobile ? mobileView : desktopView}</Box>;
 }
