@@ -28,6 +28,12 @@ import SearchIcon from '@mui/icons-material/Search';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import { GridContextMenu } from '../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
+import { useGridContextMenu } from '../hooks/useGridContextMenu';
 import {
   listEtapasProduccion,
   listSeguimientosProduccion,
@@ -204,7 +210,49 @@ export default function ProduccionPage() {
     ];
   }, [advanceDialog.row, etapas]);
 
-  const columns = React.useMemo<GridColDef<SeguimientoProduccionRow>[]>(() => [
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(filteredRows);
+
+  const contextMenuActions = React.useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'actualizar-avance',
+        label: 'Actualizar avance',
+        icon: <PlaylistAddCheckIcon fontSize="small" />,
+        onClick: () => openAdvanceDialog(contextMenuRow),
+      },
+    ];
+  }, [contextMenuRow, openAdvanceDialog]);
+
+  const contextMenuTriggerColumn = React.useMemo<GridColDef<SeguimientoProduccionRow>>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      headerClassName: 'finanzas-header',
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<SeguimientoProduccionRow>) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
+  const baseColumns = React.useMemo<GridColDef<SeguimientoProduccionRow>[]>(() => [
     {
       field: 'documento',
       headerName: 'Documento',
@@ -296,6 +344,11 @@ export default function ProduccionPage() {
     },
   ], [openAdvanceDialog]);
 
+  const columns = React.useMemo<GridColDef<SeguimientoProduccionRow>[]>(
+    () => [contextMenuTriggerColumn, ...baseColumns],
+    [baseColumns, contextMenuTriggerColumn]
+  );
+
   return (
     <Container maxWidth={false} sx={{ py: 2 }}>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
@@ -336,9 +389,11 @@ export default function ProduccionPage() {
             autoHeight
             density="standard"
             rowHeight={42}
-            columnHeaderHeight={52}
+            columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
             loading={loading || savingAdvance}
             disableRowSelectionOnClick
+            columnVisibilityModel={{ menu: true, acciones: SHOW_GRID_ACTIONS }}
+            {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
             hideFooterPagination
             hideFooterSelectedRowCount
             initialState={{
@@ -350,43 +405,26 @@ export default function ProduccionPage() {
               ...esES.components.MuiDataGrid.defaultProps.localeText,
               noRowsLabel: 'No hay seguimientos en producción',
             }}
-            sx={{
-              width: '100%',
-              '--DataGrid-overlayHeight': '200px',
-              '& .MuiDataGrid-cell': {
-                display: 'flex',
-                alignItems: 'center',
+            sx={[
+              standardDataGridSx,
+              {
+                width: '100%',
+                '--DataGrid-overlayHeight': '200px',
+                '& .MuiDataGrid-cell': {
+                  display: 'flex',
+                  alignItems: 'center',
+                },
               },
-              '& .MuiDataGrid-row:nth-of-type(even)': {
-                backgroundColor: 'rgba(0, 120, 70, 0.05)',
-              },
-              '& .finanzas-header': {
-                backgroundColor: '#1d2f68 !important',
-                color: '#ffffff !important',
-                fontWeight: 600,
-              },
-              '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
-                color: '#ffffff !important',
-                fontWeight: 600,
-              },
-              '& .finanzas-header .MuiDataGrid-sortIcon': {
-                color: '#ffffff !important',
-              },
-              '& .finanzas-header .MuiDataGrid-menuIcon': {
-                color: '#ffffff !important',
-              },
-              '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
-                color: '#ffffff !important',
-              },
-              '& .finanzas-header .MuiIconButton-root': {
-                color: '#ffffff !important',
-              },
-              '& .MuiDataGrid-columnSeparator': {
-                color: 'rgba(255,255,255,0.25) !important',
-              },
-            }}
+            ]}
           />
         </Paper>
+
+        <GridContextMenu
+          actions={contextMenuActions}
+          anchorPosition={contextMenuPosition}
+          open={Boolean(contextMenuRow && contextMenuPosition)}
+          onClose={closeContextMenu}
+        />
       </Box>
 
       <Dialog open={advanceDialog.open} onClose={closeAdvanceDialog} maxWidth="sm" fullWidth>

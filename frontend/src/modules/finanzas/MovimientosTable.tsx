@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Chip, IconButton, Paper, Stack, Typography, Tooltip, TextField, InputAdornment } from '@mui/material';
+import { Chip, IconButton, Paper, Stack, Typography, Tooltip, TextField, InputAdornment } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -9,6 +9,11 @@ import { DataGrid, GridToolbarContainer } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams, GridSortModel } from '@mui/x-data-grid';
 import type { FinanzasOperacion } from '../../types/finanzas';
+import { GridContextMenu } from '../../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
+import { useGridContextMenu } from '../../hooks/useGridContextMenu';
 
 export type FinanzasSearchToolbarProps = {
   value: string;
@@ -185,6 +190,108 @@ export function MovimientosTable({
     );
   }, [operaciones, ledgerById, effectiveSearch]);
 
+  const handleEditRow = React.useCallback(
+    (row: Row) => {
+      if (!onEdit) return;
+
+      if (row.es_transferencia && onEditTransferencia) {
+        onEditTransferencia(row);
+        return;
+      }
+
+      onEdit(row);
+    },
+    [onEdit, onEditTransferencia]
+  );
+
+  const handleDeleteRow = React.useCallback(
+    (row: Row) => {
+      if (!onDelete) return;
+
+      if (row.es_transferencia && onDeleteTransferencia) {
+        onDeleteTransferencia(row);
+        return;
+      }
+
+      onDelete(row);
+    },
+    [onDelete, onDeleteTransferencia]
+  );
+
+  const canViewRowDetail = React.useCallback(
+    (row: Row) => Boolean(onView) && row.naturaleza_operacion === 'cobro_cliente',
+    [onView]
+  );
+
+  const handleViewRow = React.useCallback(
+    (row: Row) => {
+      if (!canViewRowDetail(row) || !onView) return;
+      onView(row);
+    },
+    [canViewRowDetail, onView]
+  );
+
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(rows);
+
+  const contextMenuActions = React.useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'editar',
+        label: 'Editar',
+        icon: <EditIcon fontSize="small" />,
+        hidden: !onEdit,
+        onClick: () => handleEditRow(contextMenuRow),
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar',
+        icon: <DeleteIcon fontSize="small" />,
+        hidden: !onDelete,
+        destructive: true,
+        onClick: () => handleDeleteRow(contextMenuRow),
+      },
+      {
+        id: 'separator-detalle',
+        type: 'separator',
+      },
+      {
+        id: 'ver-detalle',
+        label: 'Ver detalle',
+        icon: <VisibilityIcon fontSize="small" />,
+        disabled: !canViewRowDetail(contextMenuRow),
+        onClick: () => handleViewRow(contextMenuRow),
+      },
+    ];
+  }, [canViewRowDetail, contextMenuRow, handleDeleteRow, handleEditRow, handleViewRow, onDelete, onEdit]);
+
+  const contextMenuTriggerColumn = React.useMemo<GridColDef<Row>>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<Row>) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
   const renderEstadoChip = (estado?: string) => {
     const value = estado || 'pendiente';
     const color = value === 'conciliado' ? 'success' : value === 'cotejado' ? 'info' : 'default';
@@ -193,6 +300,7 @@ export function MovimientosTable({
 
   const columns = React.useMemo<GridColDef<Row>[]>(
     () => [
+      contextMenuTriggerColumn,
       {
         field: 'fecha',
         headerName: 'Fecha',
@@ -295,17 +403,13 @@ export function MovimientosTable({
         headerAlign: 'center',
         headerClassName: 'finanzas-header',
         renderCell: (params: GridRenderCellParams<Row>) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: '100%' }}>
+          <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5} sx={{ width: '100%' }}>
             {onEdit && (
               <Tooltip title="Editar">
                 <span>
                   <IconButton
                     size="small"
-                    onClick={() =>
-                      params.row.es_transferencia && onEditTransferencia
-                        ? onEditTransferencia(params.row)
-                        : onEdit(params.row)
-                    }
+                    onClick={() => handleEditRow(params.row)}
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -319,11 +423,7 @@ export function MovimientosTable({
                   <IconButton
                     size="small"
                     color="error"
-                    onClick={() =>
-                      params.row.es_transferencia && onDeleteTransferencia
-                        ? onDeleteTransferencia(params.row)
-                        : onDelete(params.row)
-                    }
+                    onClick={() => handleDeleteRow(params.row)}
                   >
                     <DeleteIcon fontSize="small" />
                   </IconButton>
@@ -335,14 +435,14 @@ export function MovimientosTable({
               <span>
                 <IconButton
                   size="small"
-                  disabled={!onView || params.row.naturaleza_operacion !== 'cobro_cliente'}
-                  onClick={() => onView && onView(params.row)}
+                  disabled={!canViewRowDetail(params.row)}
+                  onClick={() => handleViewRow(params.row)}
                 >
                   <VisibilityIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
-          </Box>
+          </Stack>
         ),
       },
       {
@@ -357,7 +457,7 @@ export function MovimientosTable({
         renderCell: (params: GridRenderCellParams<Row>) => renderEstadoChip(params.value as string),
       },
     ],
-    [formatter, onDelete, onEdit, onView, onEditTransferencia, onDeleteTransferencia, columnWidths]
+    [canViewRowDetail, columnWidths, contextMenuTriggerColumn, formatter, handleDeleteRow, handleEditRow, handleViewRow, onDelete, onEdit]
   );
 
   return (
@@ -365,8 +465,8 @@ export function MovimientosTable({
       <DataGrid<Row>
     rows={rows}
     columns={columns}
-  density="compact"
-  rowHeight={40}
+  density="standard"
+  rowHeight={42}
   columnHeaderHeight={42}
   columnBufferPx={2}
         loading={!!loading}
@@ -375,6 +475,8 @@ export function MovimientosTable({
         localeText={esES.components.MuiDataGrid.defaultProps.localeText}
         hideFooterPagination
         disableRowSelectionOnClick
+        columnVisibilityModel={{ menu: true, acciones: SHOW_GRID_ACTIONS }}
+        {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
         onColumnWidthChange={(params) => {
           if (!params.colDef?.field || typeof params.width !== 'number') return;
           setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }));
@@ -402,7 +504,6 @@ export function MovimientosTable({
             display: 'flex',
             alignItems: 'center',
             fontSize: 13,
-            py: 0.5,
           },
           '& .MuiDataGrid-columnHeaders': {
             fontSize: 13,
@@ -415,6 +516,15 @@ export function MovimientosTable({
           },
           '& .MuiDataGrid-row:nth-of-type(even)': {
             backgroundColor: 'rgba(0, 120, 70, 0.05)',
+          },
+          '& .MuiDataGrid-row:hover': {
+            backgroundColor: 'rgba(15, 23, 42, 0.04)',
+          },
+          '& .MuiDataGrid-row.Mui-selected': {
+            backgroundColor: 'rgba(29, 47, 104, 0.08)',
+          },
+          '& .MuiDataGrid-row.Mui-selected:hover': {
+            backgroundColor: 'rgba(29, 47, 104, 0.12)',
           },
           '& .finanzas-header': {
             backgroundColor: '#1d2f68 !important',
@@ -442,6 +552,13 @@ export function MovimientosTable({
           },
         }}
         getRowId={(row) => row.id}
+      />
+
+      <GridContextMenu
+        actions={contextMenuActions}
+        anchorPosition={contextMenuPosition}
+        open={Boolean(contextMenuRow && contextMenuPosition)}
+        onClose={closeContextMenu}
       />
     </Paper>
   );

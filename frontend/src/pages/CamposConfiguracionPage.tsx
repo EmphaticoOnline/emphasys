@@ -37,6 +37,12 @@ import {
   type TipoDocumento,
 } from '../services/camposDinamicosService';
 import type { CampoConfiguracion, TipoDatoCampo } from '../types/camposDinamicos';
+import { GridContextMenu } from '../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
+import { useGridContextMenu } from '../hooks/useGridContextMenu';
 
 type FormState = {
   nombre: string;
@@ -219,7 +225,59 @@ export default function CamposConfiguracionPage() {
     return base;
   }, [rows, form.entidad_tipo_id, form.tipo_documento, editing]);
 
-  const columns: GridColDef[] = [
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(rows);
+
+  const contextMenuActions = useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'editar',
+        label: 'Editar campo',
+        icon: <EditIcon fontSize="small" />,
+        onClick: () => handleEdit(contextMenuRow),
+      },
+      {
+        id: 'separator-primary',
+        type: 'separator',
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar',
+        icon: <DeleteIcon fontSize="small" />,
+        destructive: true,
+        onClick: () => setConfirmDelete(contextMenuRow),
+      },
+    ];
+  }, [contextMenuRow]);
+
+  const contextMenuTriggerColumn = useMemo<GridColDef>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<CampoConfiguracion>) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
+  const baseColumns: GridColDef[] = [
     { field: 'nombre', headerName: 'Nombre', flex: 1, minWidth: 160 },
     { field: 'clave', headerName: 'Clave', width: 140, renderCell: (p) => p.row.clave || '—' },
     {
@@ -304,6 +362,8 @@ export default function CamposConfiguracionPage() {
       ),
     },
   ];
+
+  const columns = useMemo<GridColDef[]>(() => [contextMenuTriggerColumn, ...baseColumns], [contextMenuTriggerColumn]);
 
   const handleEdit = (row: CampoConfiguracion) => {
     setEditing(row);
@@ -438,15 +498,27 @@ export default function CamposConfiguracionPage() {
         <DataGrid
           rows={rows}
           columns={columns}
+          rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
           loading={loading}
-          density="compact"
+          density="standard"
           autoHeight
           getRowId={(row) => row.id}
           disableRowSelectionOnClick
+          columnVisibilityModel={{ menu: true, actions: SHOW_GRID_ACTIONS }}
+          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
+          sx={standardDataGridSx}
           pageSizeOptions={[10, 25, 50, 100]}
           localeText={{ noRowsLabel: loading ? 'Cargando…' : 'Sin registros' }}
         />
       </Box>
+
+      <GridContextMenu
+        actions={contextMenuActions}
+        anchorPosition={contextMenuPosition}
+        open={Boolean(contextMenuRow && contextMenuPosition)}
+        onClose={closeContextMenu}
+      />
 
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? 'Editar campo' : 'Nuevo campo'}</DialogTitle>

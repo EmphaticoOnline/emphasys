@@ -17,6 +17,7 @@ import {
   AlternateEmailRounded,
   ViewListRounded,
   GridViewRounded,
+  TagRounded,
 } from '@mui/icons-material';
 
 const opciones = [
@@ -97,6 +98,12 @@ const opciones = [
     descripcion: 'Configura los layouts de PDF por empresa o por serie.',
     icono: PictureAsPdfRounded,
     path: '/configuracion/formatos-impresion',
+  },
+  {
+    titulo: 'Series de documentos',
+    descripcion: 'Administra series por tipo de documento y sus asignaciones por usuario.',
+    icono: TagRounded,
+    path: '/configuracion/series-documento',
   },
   {
     titulo: 'Correo SMTP',

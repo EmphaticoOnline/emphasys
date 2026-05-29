@@ -5,6 +5,10 @@ export async function fetchUsuarios(): Promise<Usuario[]> {
   return apiFetch<Usuario[]>('/api/usuarios');
 }
 
+export async function fetchUsuariosHabilitados(): Promise<Usuario[]> {
+  return apiFetch<Usuario[]>('/api/usuarios/habilitados');
+}
+
 export async function fetchUsuario(id: number): Promise<UsuarioDetalle> {
   return apiFetch<UsuarioDetalle>(`/api/usuarios/${id}`);
 }

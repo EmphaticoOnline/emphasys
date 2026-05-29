@@ -49,9 +49,20 @@ function normalizarPdfDescarga(blob: Blob, filename: string): PdfDescarga {
   return { blob: file, filename: nombreSeguro };
 }
 
-export function getDocumentos(tipo: TipoDocumento): Promise<CotizacionListado[]> {
+export function getDocumentos(tipo: TipoDocumento, options?: { search?: string | null }): Promise<CotizacionListado[]> {
   const base = getBasePath(tipo);
-  const url = withTipoQuery(base, tipo);
+  const params = new URLSearchParams();
+  if (shouldAppendTipoQuery(tipo)) {
+    params.set('tipo_documento', tipo);
+  }
+
+  const search = options?.search?.trim();
+  if (search) {
+    params.set('search', search);
+  }
+
+  const query = params.toString();
+  const url = query ? `${base}?${query}` : base;
   return apiFetch(url);
 }
 

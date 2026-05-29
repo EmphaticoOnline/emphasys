@@ -7,6 +7,7 @@ import {
   sanitizarCamposCotizacion,
 } from './cotizacion-status';
 import { obtenerOCrearProductoTecnicoNcComercialRepository } from '../productos/productos.repository';
+import { reservarNumeroParaSerieExistente, resolverSerieDocumento, resolverYReservarSerieDocumento } from './series-documento.service';
 
 export type Documento = {
   id: number;
@@ -344,7 +345,7 @@ const normalizarImagenPartida = (data: PartidaInput, permiteImagen: boolean) => 
   };
 };
 
-export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number) {
+export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number, search?: string | null) {
   const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
   const selectSaldo = esFactura ? 'COALESCE(ds.saldo, 0) AS saldo' : 'NULL::numeric AS saldo';
@@ -380,6 +381,48 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
        NULL::text AS estado_seguimiento,
        NULL::text AS comentario_seguimiento,`;
 
+  const searchTerm = String(search ?? '').trim();
+  const values: Array<number | string> = [empresaId, tipoDocumento.toLowerCase()];
+  const whereClauses = ['d.empresa_id = $1', 'LOWER(d.tipo_documento) = $2'];
+
+  if (searchTerm) {
+    values.push(`%${searchTerm}%`);
+    const searchIdx = values.length;
+    const saldoSearchExpr = esFactura ? 'COALESCE(ds.saldo, 0)::text' : "''";
+
+    whereClauses.push(`(
+      CONCAT(COALESCE(d.serie, ''), COALESCE(d.numero::text, '')) ILIKE $${searchIdx}
+      OR COALESCE(d.serie, '') ILIKE $${searchIdx}
+      OR COALESCE(d.numero::text, '') ILIKE $${searchIdx}
+      OR COALESCE(c.nombre, '') ILIKE $${searchIdx}
+      OR COALESCE(c.email, '') ILIKE $${searchIdx}
+      OR COALESCE(c.telefono, '') ILIKE $${searchIdx}
+      OR COALESCE(c.telefono_secundario, '') ILIKE $${searchIdx}
+      OR COALESCE(cdf.rfc, c.rfc, d.rfc_receptor, '') ILIKE $${searchIdx}
+      OR COALESCE(d.nombre_receptor, '') ILIKE $${searchIdx}
+      OR COALESCE(con.nombre_concepto, '') ILIKE $${searchIdx}
+      OR COALESCE(d.subtotal::text, '') ILIKE $${searchIdx}
+      OR COALESCE(d.total::text, '') ILIKE $${searchIdx}
+      OR ${saldoSearchExpr} ILIKE $${searchIdx}
+      OR COALESCE(d.fecha_documento::text, '') ILIKE $${searchIdx}
+      OR COALESCE(d.estatus_documento, '') ILIKE $${searchIdx}
+      OR COALESCE(d.producto_resumen, '') ILIKE $${searchIdx}
+      OR EXISTS (
+        SELECT 1
+          FROM documentos_partidas dp
+          LEFT JOIN productos p ON p.id = dp.producto_id
+         WHERE dp.documento_id = d.id
+           AND (
+             COALESCE(p.clave, '') ILIKE $${searchIdx}
+             OR COALESCE(p.descripcion, '') ILIKE $${searchIdx}
+             OR COALESCE(dp.descripcion_alterna, '') ILIKE $${searchIdx}
+             OR COALESCE(dp.observaciones, '') ILIKE $${searchIdx}
+             OR COALESCE(dp.comentarios_internos, '') ILIKE $${searchIdx}
+           )
+      )
+    )`);
+  }
+
   const query = `
     SELECT
       d.id,
@@ -396,6 +439,7 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
       d.subtotal,
       d.iva,
       d.total,
+      d.tratamiento_impuestos,
       ${selectDeleteWarning}
       d.estatus_documento,
       ${selectSaldo}
@@ -403,10 +447,12 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
     ${joinSaldo}
     ${joinDeleteWarning}
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
-    WHERE d.empresa_id = $1 AND LOWER(d.tipo_documento) = $2
+    LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
+    LEFT JOIN conceptos con ON con.id = d.concepto_id AND con.empresa_id = d.empresa_id
+    WHERE ${whereClauses.join(' AND ')}
     ORDER BY d.fecha_documento DESC, d.id DESC
   `;
-  const { rows } = await pool.query(query, [empresaId, tipoDocumento.toLowerCase()]);
+  const { rows } = await pool.query(query, values);
   return rows;
 }
 
@@ -517,23 +563,6 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
   return { documento, partidas };
 }
 
-const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
-  cotizacion: 'COT',
-  factura: 'FAC',
-  nota_credito: 'NCR',
-  pago_cliente: 'PCL',
-  orden_servicio: 'OS',
-  pedido: 'PED',
-  remision: 'REM',
-  orden_entrega: 'ODE',
-  requisicion: 'REQ',
-  orden_compra: 'OC',
-  recepcion: 'REC',
-  nota_credito_compra: 'NCC',
-  pago_proveedor: 'PPR',
-  factura_compra: 'FCO',
-};
-
 export async function crearDocumentoRepository(
   data: DocumentoInput,
   empresaId: number,
@@ -601,22 +630,15 @@ export async function crearDocumentoRepository(
     }
   }
 
-  // Asigna número secuencial si no viene en la petición
-  let numero = dataConDefaults.numero;
-  if (numero === undefined || numero === null) {
-    const { rows } = await executor.query(
-      `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
-       FROM documentos
-       WHERE empresa_id = $1
-         AND LOWER(tipo_documento) = LOWER($2)
-         AND COALESCE(serie, '') = COALESCE($3, '')`,
-      [empresaId, tipoDocumentoDb, dataConDefaults.serie ?? SERIE_DEFAULTS[tipoDocumentoNormalizado] ?? '']
-    );
-    numero = rows[0]?.next_numero ?? 1;
-  }
-
-  // Serie por defecto por tipo de documento (evita null / constraint de NOT NULL)
-  const serie = dataConDefaults.serie ?? SERIE_DEFAULTS[tipoDocumentoNormalizado] ?? 'DOC';
+  const serieResuelta = await resolverYReservarSerieDocumento({
+    empresaId,
+    tipoDocumento: tipoDocumentoDb,
+    usuarioId: Number(dataConDefaults.usuario_creacion_id ?? 0) || null,
+    tratamientoImpuestos: dataConDefaults.tratamiento_impuestos,
+    client: executor,
+  });
+  const numero = serieResuelta.numero;
+  const serie = serieResuelta.serie;
 
   const valores: any[] = [empresaId, tipoDocumentoDb, estatus, serie, numero];
 
@@ -676,9 +698,23 @@ export async function actualizarDocumentoRepository(
 
   // Traer valores actuales para comparar serie/número
   const { rows: currentRows } = await executor.query(
-    `SELECT id, serie, numero, tipo_documento, estado_seguimiento, estatus_documento, documento_origen_id
-       FROM documentos
-      WHERE id = $1 AND empresa_id = $2 ${tipoDocumento ? 'AND LOWER(tipo_documento) = LOWER($3)' : ''}
+    `SELECT d.id,
+            d.serie,
+            d.numero,
+            d.tipo_documento,
+            d.estado_seguimiento,
+            d.estatus_documento,
+            d.documento_origen_id,
+            d.usuario_creacion_id,
+            d.tratamiento_impuestos,
+            EXISTS (
+              SELECT 1
+                FROM documentos_cfdi dc
+               WHERE dc.documento_id = d.id
+               LIMIT 1
+            ) AS esta_timbrado
+       FROM documentos d
+      WHERE d.id = $1 AND d.empresa_id = $2 ${tipoDocumento ? 'AND LOWER(d.tipo_documento) = LOWER($3)' : ''}
       LIMIT 1`,
     tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]
   );
@@ -690,6 +726,14 @@ export async function actualizarDocumentoRepository(
   const serieNueva = dataToUpdate.serie ?? serieActual;
   const tipoDestino = (dataToUpdate.tipo_documento ?? current.tipo_documento) as TipoDocumento;
   const tipoDestinoNormalizado = String(tipoDestino ?? '').toLowerCase() as TipoDocumento;
+  const tipoActualNormalizado = String(current.tipo_documento ?? '').toLowerCase() as TipoDocumento;
+  const serieFueEnviadaExplicitamente = Object.prototype.hasOwnProperty.call(dataToUpdate, 'serie');
+  const serieExplicitaNormalizada = serieFueEnviadaExplicitamente
+    ? (dataToUpdate.serie == null ? null : String(dataToUpdate.serie).trim() || null)
+    : null;
+  const serieFueCambiadaManualmente = serieFueEnviadaExplicitamente && serieExplicitaNormalizada !== serieActual;
+  const documentoEstaTimbrado = Boolean(current.esta_timbrado)
+    || String(current.estatus_documento ?? '').trim().toLowerCase() === 'timbrado';
 
   if (tipoDestinoNormalizado === 'cotizacion') {
     dataToUpdate = sanitizarCamposCotizacion(dataToUpdate);
@@ -706,17 +750,49 @@ export async function actualizarDocumentoRepository(
     }
   }
 
+  if (!serieFueCambiadaManualmente && !documentoEstaTimbrado) {
+    const usuarioActual = Number(current.usuario_creacion_id ?? 0) || null;
+    const usuarioNuevo = Object.prototype.hasOwnProperty.call(dataToUpdate, 'usuario_creacion_id')
+      ? Number(dataToUpdate.usuario_creacion_id ?? 0) || null
+      : usuarioActual;
+    const tratamientoActual = current.tratamiento_impuestos ?? null;
+    const tratamientoNuevo = Object.prototype.hasOwnProperty.call(dataToUpdate, 'tratamiento_impuestos')
+      ? dataToUpdate.tratamiento_impuestos ?? null
+      : tratamientoActual;
+
+    const criterioSerieCambio = tipoActualNormalizado !== tipoDestinoNormalizado
+      || usuarioActual !== usuarioNuevo
+      || tratamientoActual !== tratamientoNuevo;
+
+    if (criterioSerieCambio) {
+      const serieResuelta = await resolverSerieDocumento({
+        empresaId,
+        tipoDocumento: tipoDestinoNormalizado,
+        usuarioId: usuarioNuevo,
+        tratamientoImpuestos: tratamientoNuevo,
+        client: executor,
+      });
+
+      if (serieResuelta.serie !== serieActual) {
+        dataToUpdate.serie = serieResuelta.serie;
+        dataToUpdate.numero = await reservarNumeroParaSerieExistente({
+          empresaId,
+          tipoDocumento: tipoDestinoNormalizado,
+          serie: serieResuelta.serie,
+          client: executor,
+        });
+      }
+    }
+  }
+
   // Si cambió la serie, reasignar número secuencial para esa serie
   if (serieNueva !== serieActual) {
-    const { rows: nextRows } = await executor.query(
-      `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
-         FROM documentos
-        WHERE empresa_id = $1
-          AND LOWER(tipo_documento) = LOWER($2)
-          AND COALESCE(serie, '') = COALESCE($3, '')`,
-      [empresaId, tipoDestino, serieNueva ?? '']
-    );
-    dataToUpdate.numero = nextRows[0]?.next_numero ?? 1;
+    dataToUpdate.numero = await reservarNumeroParaSerieExistente({
+      empresaId,
+      tipoDocumento: tipoDestino,
+      serie: String(serieNueva ?? ''),
+      client: executor,
+    });
   }
 
   const entries = CAMPOS_DOCUMENTO.filter((campo) => {

@@ -24,6 +24,7 @@ import { GridContextMenu } from '../components/grids/GridContextMenu';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
 
 type ContactoRow = Contacto & {
@@ -173,7 +174,7 @@ export default function ContactosPage() {
   const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>(
     stored.columnVisibilityModel || {}
   );
-  const [density, setDensity] = useState<GridDensity>(stored.density || 'compact');
+  const [density] = useState<GridDensity>('standard');
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(stored.columnWidths || {});
   const [columnOrder, setColumnOrder] = useState<string[]>(
     stored.columnOrder || baseColumns.map((c) => c.field)
@@ -440,6 +441,8 @@ export default function ContactosPage() {
           <DataGrid
             rows={contactos}
             columns={orderedColumns}
+            rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+            columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
             autoHeight
             pagination
             paginationMode="server"
@@ -456,7 +459,6 @@ export default function ContactosPage() {
               }
             }}
             density={density}
-            onDensityChange={setDensity}
             sortModel={sortModel}
             onSortModelChange={setSortModel}
             filterModel={filterModel}
@@ -487,52 +489,19 @@ export default function ContactosPage() {
             {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
             localeText={esES.components.MuiDataGrid.defaultProps.localeText}
             hideFooterSelectedRowCount
-            sx={{
-              '--DataGrid-overlayHeight': '200px',
-              '& .MuiDataGrid-cell': {
-                display: 'flex',
-                alignItems: 'center',
+            sx={[
+              standardDataGridSx,
+              {
+                '--DataGrid-overlayHeight': '200px',
+                '& .MuiDataGrid-cell': {
+                  display: 'flex',
+                  alignItems: 'center',
+                },
+                '& .MuiDataGrid-row': {
+                  cursor: 'default',
+                },
               },
-              '& .MuiDataGrid-row': {
-                cursor: 'default',
-              },
-              '& .MuiDataGrid-row:nth-of-type(even)': {
-                backgroundColor: 'rgba(0, 120, 70, 0.05)',
-              },
-              '& .MuiDataGrid-row:hover': {
-                backgroundColor: 'rgba(15, 23, 42, 0.04)',
-              },
-              '& .MuiDataGrid-row.Mui-selected': {
-                backgroundColor: 'rgba(29, 47, 104, 0.08)',
-              },
-              '& .MuiDataGrid-row.Mui-selected:hover': {
-                backgroundColor: 'rgba(29, 47, 104, 0.12)',
-              },
-              '& .finanzas-header': {
-                backgroundColor: '#1d2f68 !important',
-                color: '#ffffff !important',
-                fontWeight: 600,
-              },
-              '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
-                color: '#ffffff !important',
-                fontWeight: 600,
-              },
-              '& .finanzas-header .MuiDataGrid-sortIcon': {
-                color: '#ffffff !important',
-              },
-              '& .finanzas-header .MuiDataGrid-menuIcon': {
-                color: '#ffffff !important',
-              },
-              '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
-                color: '#ffffff !important',
-              },
-              '& .finanzas-header .MuiIconButton-root': {
-                color: '#ffffff !important',
-              },
-              '& .MuiDataGrid-columnSeparator': {
-                color: 'rgba(255,255,255,0.25) !important',
-              },
-            }}
+            ]}
           />
           <GridContextMenu
             actions={contextMenuActions}

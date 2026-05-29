@@ -34,6 +34,12 @@ import {
   updateProducto,
 } from '../services/productosService';
 import { esES } from '@mui/x-data-grid/locales';
+import { GridContextMenu } from '../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
+import { useGridContextMenu } from '../hooks/useGridContextMenu';
 
 export default function ProductosPage() {
   const navigate = useNavigate();
@@ -115,6 +121,59 @@ export default function ProductosPage() {
     return String(value);
   };
 
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(filteredProductos);
+
+  const contextMenuActions = useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'editar',
+        label: 'Editar producto',
+        icon: <EditIcon fontSize="small" />,
+        onClick: () => navigate(`/productos/${contextMenuRow.id}`),
+      },
+      {
+        id: 'separator-primary',
+        type: 'separator',
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar',
+        icon: <DeleteIcon fontSize="small" />,
+        destructive: true,
+        onClick: () => void handleDelete(contextMenuRow),
+      },
+    ];
+  }, [contextMenuRow, navigate]);
+
+  const contextMenuTriggerColumn = useMemo<GridColDef>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      headerClassName: 'finanzas-header',
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<Producto>) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
   const columns: GridColDef[] = useMemo(() => {
     const mapped: GridColDef[] = productoColumns.map((col) => {
       const base: GridColDef = {
@@ -155,8 +214,8 @@ export default function ProductosPage() {
       ),
     });
 
-    return mapped;
-  }, [navigate, handleDelete]);
+    return [contextMenuTriggerColumn, ...mapped];
+  }, [navigate, handleDelete, contextMenuTriggerColumn]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -221,46 +280,26 @@ export default function ProductosPage() {
         <DataGrid
           rows={filteredProductos}
           columns={columns}
+          rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
           autoHeight
-          density="compact"
+          density="standard"
           loading={loading}
           disableRowSelectionOnClick
+          columnVisibilityModel={{ menu: true, actions: SHOW_GRID_ACTIONS }}
           onRowClick={(params: GridRowParams) => navigate(`/productos/${params.id}`)}
+          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-          sx={{
-            '--DataGrid-overlayHeight': '200px',
-            '& .MuiDataGrid-cell': {
-              display: 'flex',
-              alignItems: 'center',
+          sx={[
+            standardDataGridSx,
+            {
+              '--DataGrid-overlayHeight': '200px',
+              '& .MuiDataGrid-cell': {
+                display: 'flex',
+                alignItems: 'center',
+              },
             },
-            '& .MuiDataGrid-row:nth-of-type(even)': {
-              backgroundColor: 'rgba(0, 120, 70, 0.05)',
-            },
-            '& .finanzas-header': {
-              backgroundColor: '#1d2f68 !important',
-              color: '#ffffff !important',
-              fontWeight: 600,
-            },
-            '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
-              color: '#ffffff !important',
-              fontWeight: 600,
-            },
-            '& .finanzas-header .MuiDataGrid-sortIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header .MuiDataGrid-menuIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header .MuiIconButton-root': {
-              color: '#ffffff !important',
-            },
-            '& .MuiDataGrid-columnSeparator': {
-              color: 'rgba(255,255,255,0.25) !important',
-            },
-          }}
+          ]}
           slots={{
             noRowsOverlay: () => (
               <Stack height="100%" alignItems="center" justifyContent="center" spacing={1} sx={{ py: 3 }}>
@@ -284,6 +323,13 @@ export default function ProductosPage() {
           hideFooterSelectedRowCount
         />
       </Paper>
+
+      <GridContextMenu
+        actions={contextMenuActions}
+        anchorPosition={contextMenuPosition}
+        open={Boolean(contextMenuRow && contextMenuPosition)}
+        onClose={closeContextMenu}
+      />
     </Box>
   );
 }

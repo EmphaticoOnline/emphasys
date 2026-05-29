@@ -36,6 +36,12 @@ import {
   updatePrecioLista,
   type PrecioLista,
 } from '../../services/preciosListasService';
+import { GridContextMenu } from '../../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
+import { useGridContextMenu } from '../../hooks/useGridContextMenu';
 
 type FormState = {
   nombre: string;
@@ -217,7 +223,55 @@ export default function ListasPreciosPage() {
     }
   }, []);
 
-  const columns = React.useMemo<GridColDef<PrecioLista>[]>(() => [
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(filteredRows);
+
+  const contextMenuActions = React.useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'editar',
+        label: 'Editar lista',
+        icon: <EditIcon fontSize="small" />,
+        onClick: () => handleEdit(contextMenuRow),
+      },
+      {
+        id: 'toggle-activo',
+        label: contextMenuRow.activo ? 'Desactivar' : 'Activar',
+        icon: contextMenuRow.activo ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />,
+        onClick: () => void handleToggleActivo(contextMenuRow),
+      },
+    ];
+  }, [contextMenuRow, handleEdit, handleToggleActivo]);
+
+  const contextMenuTriggerColumn = React.useMemo<GridColDef<PrecioLista>>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      align: 'center',
+      headerAlign: 'center',
+      headerClassName: 'finanzas-header',
+      renderCell: (params: GridRenderCellParams<PrecioLista>) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
+  const baseColumns = React.useMemo<GridColDef<PrecioLista>[]>(() => [
     {
       field: 'orden',
       headerName: 'Orden',
@@ -300,6 +354,8 @@ export default function ListasPreciosPage() {
     },
   ], [handleEdit, handleToggleActivo]);
 
+  const columns = React.useMemo<GridColDef<PrecioLista>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [baseColumns, contextMenuTriggerColumn]);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
@@ -345,10 +401,12 @@ export default function ListasPreciosPage() {
           autoHeight
           density="standard"
           rowHeight={42}
-          columnHeaderHeight={52}
+          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
           getRowId={(row) => row.id}
           loading={loading || saving}
           disableRowSelectionOnClick
+          columnVisibilityModel={{ menu: true, acciones: SHOW_GRID_ACTIONS }}
+          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
           pageSizeOptions={[10, 25, 50]}
           initialState={{
             sorting: {
@@ -362,41 +420,24 @@ export default function ListasPreciosPage() {
             ...esES.components.MuiDataGrid.defaultProps.localeText,
             noRowsLabel: loading ? 'Cargando listas de precios...' : 'No hay listas de precios registradas.',
           }}
-          sx={{
-            width: '100%',
-            '--DataGrid-overlayHeight': '200px',
-            '& .MuiDataGrid-cell': {
-              display: 'flex',
-              alignItems: 'center',
+          sx={[
+            standardDataGridSx,
+            {
+              width: '100%',
+              '--DataGrid-overlayHeight': '200px',
+              '& .MuiDataGrid-cell': {
+                display: 'flex',
+                alignItems: 'center',
+              },
             },
-            '& .MuiDataGrid-row:nth-of-type(even)': {
-              backgroundColor: 'rgba(0, 120, 70, 0.05)',
-            },
-            '& .finanzas-header': {
-              backgroundColor: '#1d2f68 !important',
-              color: '#ffffff !important',
-              fontWeight: 600,
-            },
-            '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
-              color: '#ffffff !important',
-              fontWeight: 600,
-            },
-            '& .finanzas-header .MuiDataGrid-sortIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header .MuiDataGrid-menuIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header .MuiIconButton-root': {
-              color: '#ffffff !important',
-            },
-            '& .MuiDataGrid-columnSeparator': {
-              color: 'rgba(255,255,255,0.25) !important',
-            },
-          }}
+          ]}
+        />
+
+        <GridContextMenu
+          actions={contextMenuActions}
+          anchorPosition={contextMenuPosition}
+          open={Boolean(contextMenuRow && contextMenuPosition)}
+          onClose={closeContextMenu}
         />
       </Paper>
 

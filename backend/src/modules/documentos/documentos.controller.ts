@@ -310,7 +310,8 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
     if (!empresaId) return res.status(400).json({ message: 'empresaId no disponible en contexto' });
 
     const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
-    const data = await listarDocumentosRepository(tipo, Number(empresaId));
+    const search = typeof req.query.search === 'string' ? req.query.search : null;
+    const data = await listarDocumentosRepository(tipo, Number(empresaId), search);
     res.json(data);
   } catch (error) {
     console.error(`Error al listar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
@@ -345,6 +346,7 @@ const buildCrearHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =>
       ...(req.body || {}),
       tipo_documento: tipo,
       estatus_documento: 'Borrador',
+      usuario_creacion_id: req.body?.usuario_creacion_id ?? req.auth?.userId ?? null,
     };
 
     const created = await crearDocumentoService(payload, Number(empresaId), tipo);

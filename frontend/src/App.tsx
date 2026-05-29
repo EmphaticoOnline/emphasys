@@ -24,6 +24,7 @@ import DocumentosConfiguracionPage from './pages/configuracion/DocumentosConfigu
 import ConceptosConfigPage from './pages/configuracion/ConceptosPage';
 import EmpresaImpuestosDefaultPage from './pages/configuracion/EmpresaImpuestosDefaultPage';
 import FormatosImpresionPage from './pages/configuracion/FormatosImpresionPage';
+import SeriesDocumentosPage from './pages/configuracion/SeriesDocumentosPage';
 import ConfiguracionCorreoPage from './pages/configuracion/ConfiguracionCorreoPage';
 import CfdiPacConfigPage from './pages/configuracion/CfdiPacConfigPage';
 import WhatsappEtiquetasPage from './pages/configuracion/WhatsappEtiquetasPage';
@@ -88,6 +89,7 @@ export default function App() {
               <Route path="/configuracion/conceptos" element={<ConceptosConfigPage />} />
               <Route path="/configuracion/empresa/impuestos-default" element={<EmpresaImpuestosDefaultPage />} />
               <Route path="/configuracion/formatos-impresion" element={<FormatosImpresionPage />} />
+              <Route path="/configuracion/series-documento" element={<SeriesDocumentosPage />} />
               <Route path="/configuracion/correo" element={<ConfiguracionCorreoPage />} />
               <Route path="/configuracion/cfdi-pac" element={<CfdiPacConfigPage />} />
               <Route path="/configuracion/whatsapp-etiquetas" element={<WhatsappEtiquetasPage />} />

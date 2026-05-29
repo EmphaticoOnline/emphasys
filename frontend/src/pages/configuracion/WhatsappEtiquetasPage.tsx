@@ -35,6 +35,12 @@ import {
   fetchWhatsappEtiquetas,
   type WhatsappEtiquetaAdmin,
 } from '../../services/whatsappEtiquetasService';
+import { GridContextMenu } from '../../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
+import { useGridContextMenu } from '../../hooks/useGridContextMenu';
 
 type FormState = {
   nombre: string;
@@ -213,7 +219,66 @@ export default function WhatsappEtiquetasPage() {
     }
   };
 
-  const columns: GridColDef<WhatsappEtiquetaAdmin>[] = [
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(filteredRows);
+
+  const contextMenuActions = React.useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'editar',
+        label: 'Editar etiqueta',
+        icon: <EditIcon fontSize="small" />,
+        onClick: () => handleEdit(contextMenuRow),
+      },
+      {
+        id: 'toggle-activo',
+        label: contextMenuRow.activo ? 'Archivar' : 'Reactivar',
+        icon: contextMenuRow.activo ? <ArchiveIcon fontSize="small" /> : <RestoreIcon fontSize="small" />,
+        onClick: () => void handleToggleActivo(contextMenuRow),
+      },
+      {
+        id: 'separator-primary',
+        type: 'separator',
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar',
+        icon: <DeleteIcon fontSize="small" />,
+        destructive: true,
+        disabled: (contextMenuRow.uso_count ?? 0) > 0,
+        onClick: () => handleRequestDelete(contextMenuRow),
+      },
+    ];
+  }, [contextMenuRow]);
+
+  const contextMenuTriggerColumn = React.useMemo<GridColDef<WhatsappEtiquetaAdmin>>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<WhatsappEtiquetaAdmin>) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
+  const baseColumns: GridColDef<WhatsappEtiquetaAdmin>[] = [
     {
       field: 'nombre',
       headerName: 'Nombre',
@@ -301,6 +366,8 @@ export default function WhatsappEtiquetasPage() {
     },
   ];
 
+  const columns = React.useMemo<GridColDef<WhatsappEtiquetaAdmin>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [contextMenuTriggerColumn]);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
@@ -385,11 +452,16 @@ export default function WhatsappEtiquetasPage() {
         <DataGrid
           rows={filteredRows}
           columns={columns}
+          rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
           loading={loading}
           autoHeight
-          density="compact"
+          density="standard"
           disableRowSelectionOnClick
           getRowId={(row) => row.id}
+          columnVisibilityModel={{ menu: true, actions: SHOW_GRID_ACTIONS }}
+          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
+          sx={standardDataGridSx}
           pageSizeOptions={[10, 25, 50]}
           localeText={{
             ...esES.components.MuiDataGrid.defaultProps.localeText,
@@ -397,6 +469,13 @@ export default function WhatsappEtiquetasPage() {
           }}
         />
       </Box>
+
+      <GridContextMenu
+        actions={contextMenuActions}
+        anchorPosition={contextMenuPosition}
+        open={Boolean(contextMenuRow && contextMenuPosition)}
+        onClose={closeContextMenu}
+      />
 
       <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="xs">
         <DialogTitle>{editing ? 'Editar etiqueta' : 'Nueva etiqueta'}</DialogTitle>

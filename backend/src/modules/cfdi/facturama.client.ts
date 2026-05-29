@@ -4,8 +4,7 @@ import type { FacturamaConfig, FacturamaStampResponse } from './cfdi.types';
 import { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
 export { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
 
-const DEFAULT_BASE_URL = 'https://apisandbox.facturama.mx';
-const DEFAULT_STAMP_PATH = '/3/cfdis';
+const MISSING_ACTIVE_CONFIG_MESSAGE = 'No existe una configuración PAC activa en core.cfdi_pac_config. Configure Facturama antes de intentar timbrar.';
 
 function tryDecodeBase64(value: string | undefined | null): string | null {
   if (!value) return null;
@@ -14,20 +13,6 @@ function tryDecodeBase64(value: string | undefined | null): string | null {
   } catch (_) {
     return value;
   }
-}
-
-function getEnvConfig(): FacturamaConfig {
-  const username = process.env.FACTURAMA_USER || process.env.FACTURAMA_USERNAME;
-  const password = process.env.FACTURAMA_PASSWORD;
-  const baseUrl = process.env.FACTURAMA_BASE_URL || DEFAULT_BASE_URL;
-  const stampPath = process.env.FACTURAMA_STAMP_PATH || DEFAULT_STAMP_PATH;
-
-  return {
-    baseUrl,
-    username: username || '',
-    password: password || '',
-    stampPath,
-  };
 }
 
 async function getActiveDatabaseConfig(): Promise<FacturamaConfig | null> {
@@ -50,10 +35,10 @@ async function getActiveDatabaseConfig(): Promise<FacturamaConfig | null> {
   if (!row) return null;
 
   return {
-    baseUrl: row.base_url || DEFAULT_BASE_URL,
+    baseUrl: row.base_url || '',
     username: row.username || '',
     password: row.password || '',
-    stampPath: row.stamp_path || DEFAULT_STAMP_PATH,
+    stampPath: row.stamp_path || '',
   };
 }
 
@@ -62,13 +47,13 @@ export class FacturamaClient {
   private readonly stampPath: string;
 
   constructor(private readonly config: FacturamaConfig) {
-    if (!config.username || !config.password) {
-      throw new Error('Credenciales de Facturama no configuradas. Define FACTURAMA_USER y FACTURAMA_PASSWORD.');
+    if (!config.baseUrl || !config.username || !config.password || !config.stampPath) {
+      throw new Error(MISSING_ACTIVE_CONFIG_MESSAGE);
     }
 
-    this.stampPath = config.stampPath || DEFAULT_STAMP_PATH;
+    this.stampPath = config.stampPath;
     this.http = axios.create({
-      baseURL: config.baseUrl || DEFAULT_BASE_URL,
+      baseURL: config.baseUrl,
       auth: {
         username: config.username,
         password: config.password,
@@ -76,21 +61,13 @@ export class FacturamaClient {
     });
   }
 
-  static fromEnv(): FacturamaClient {
-    return new FacturamaClient(getEnvConfig());
-  }
-
   static async fromDatabaseOrEnv(): Promise<FacturamaClient> {
-    try {
-      const databaseConfig = await getActiveDatabaseConfig();
-      if (databaseConfig) {
-        return new FacturamaClient(databaseConfig);
-      }
-    } catch (error) {
-      console.warn('[facturama] No se pudo cargar configuración activa desde core.cfdi_pac_config. Se usará .env como fallback.', error);
+    const databaseConfig = await getActiveDatabaseConfig();
+    if (!databaseConfig) {
+      throw new Error(MISSING_ACTIVE_CONFIG_MESSAGE);
     }
 
-    return FacturamaClient.fromEnv();
+    return new FacturamaClient(databaseConfig);
   }
 
   async stampXml(xml: string): Promise<{ xmlTimbrado: string; response: FacturamaStampResponse; uuid?: string; pdfUrl?: string; xmlUrl?: string; }> {

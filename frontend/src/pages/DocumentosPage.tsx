@@ -61,7 +61,7 @@ import EmailIcon from '@mui/icons-material/Email';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import LinkIcon from '@mui/icons-material/Link';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import NoteAddIcon from '@mui/icons-material/NoteAdd';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
@@ -102,6 +102,7 @@ import { GridContextMenu } from '../components/grids/GridContextMenu';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
 import {
   navigateToGeneratedDocument,
@@ -327,6 +328,28 @@ const esNotaCreditoTimbrable = (motivoNc: unknown): boolean => {
   return normalized === 'bonificacion' || normalized === 'devolucion' || normalized === 'otro';
 };
 
+const esDocumentoFiscalPorTratamiento = (tipoDocumento: TipoDocumento, tratamientoImpuestos: unknown): boolean => {
+  const tipoNormalizado = normalizeTipoDocumento(tipoDocumento);
+  if (tipoNormalizado !== 'factura' && tipoNormalizado !== 'nota_credito') {
+    return false;
+  }
+
+  return String(tratamientoImpuestos ?? 'normal').trim().toLowerCase() !== 'sin_iva';
+};
+
+const puedeTimbrarCfdiDocumento = (tipoDocumento: TipoDocumento, row?: Partial<CotizacionListado> | null): boolean => {
+  const tipoNormalizado = normalizeTipoDocumento(tipoDocumento);
+  if (!esDocumentoFiscalPorTratamiento(tipoNormalizado, row?.tratamiento_impuestos)) {
+    return false;
+  }
+
+  if (tipoNormalizado === 'nota_credito') {
+    return esNotaCreditoTimbrable(row?.motivo_nc);
+  }
+
+  return tipoNormalizado === 'factura';
+};
+
 export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -439,6 +462,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [opcionesGeneracion, setOpcionesGeneracion] = useState<Record<number, OpcionGeneracionResponse[]>>({});
   const [tieneOpcionesGeneracion, setTieneOpcionesGeneracion] = useState<boolean | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [menuAnchorPosition, setMenuAnchorPosition] = useState<{ top: number; left: number } | null>(null);
   const [menuDocumentoId, setMenuDocumentoId] = useState<number | null>(null);
   const [menuLoading, setMenuLoading] = useState(false);
   const [generacionDialog, setGeneracionDialog] = useState<{
@@ -467,6 +491,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     tipoDocumento: TipoDocumento | null;
   }>({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [actualizandoEstatusId, setActualizandoEstatusId] = useState<number | null>(null);
   const [estatusMenu, setEstatusMenu] = useState<{ anchorEl: HTMLElement | null; rowId: number | null; currentValue: string }>({
@@ -508,6 +533,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     onOpen: (row) => {
       setFocusedDocumentId(Number(row.id));
       setHighlightedDocumentId(null);
+      if (tieneOpcionesGeneracion && token && empresaId) {
+        void loadOpcionesGeneracion(Number(row.id)).catch((err) => {
+          console.warn('No se pudieron precargar opciones de generación para el menú contextual', err);
+        });
+      }
     },
   });
 
@@ -661,43 +691,58 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     return true;
   };
 
-  const handleOpenMenuGenerar = async (event: React.MouseEvent<HTMLElement>, documentoId: number) => {
-    event.stopPropagation();
-    if (!requireAuthData()) return;
-
+  const loadOpcionesGeneracion = async (documentoId: number) => {
     const cached = opcionesGeneracion[documentoId];
-    setMenuDocumentoId(documentoId);
-    setMenuAnchor(event.currentTarget);
-
     if (cached) {
-      if (cached.length === 0) {
-        setMenuAnchor(null);
-        setMenuDocumentoId(null);
-        setSnackbar({ open: true, message: 'No hay opciones de generación para este documento', severity: 'info' });
-      }
-      return;
+      return cached;
     }
 
+    setMenuLoading(true);
     try {
-      setMenuLoading(true);
       const opciones = await getOpcionesGeneracion(documentoId, token!, empresaId!);
       setOpcionesGeneracion((prev) => ({ ...prev, [documentoId]: opciones }));
-      if (!opciones || opciones.length === 0) {
-        setMenuAnchor(null);
-        setMenuDocumentoId(null);
-        setSnackbar({ open: true, message: 'No hay opciones de generación para este documento', severity: 'info' });
-      }
-    } catch (err: any) {
-      setMenuAnchor(null);
-      setMenuDocumentoId(null);
-      setSnackbar({ open: true, message: err?.message || 'No se pudieron cargar las opciones de generación', severity: 'error' });
+      return opciones;
     } finally {
       setMenuLoading(false);
     }
   };
 
+  const openMenuGenerar = async (documentoId: number, options?: { anchorEl?: HTMLElement | null; anchorPosition?: { top: number; left: number } | null }) => {
+    if (!requireAuthData()) return;
+
+    setMenuDocumentoId(documentoId);
+    setMenuAnchor(options?.anchorEl ?? null);
+    setMenuAnchorPosition(options?.anchorPosition ?? null);
+
+    try {
+      const opciones = await loadOpcionesGeneracion(documentoId);
+      if (!opciones || opciones.length === 0) {
+        setMenuAnchor(null);
+        setMenuAnchorPosition(null);
+        setMenuDocumentoId(null);
+        setSnackbar({ open: true, message: 'No hay opciones de generación para este documento', severity: 'info' });
+      }
+    } catch (err: any) {
+      setMenuAnchor(null);
+      setMenuAnchorPosition(null);
+      setMenuDocumentoId(null);
+      setSnackbar({ open: true, message: err?.message || 'No se pudieron cargar las opciones de generación', severity: 'error' });
+    }
+  };
+
+  const handleOpenMenuGenerar = async (event: React.MouseEvent<HTMLElement>, documentoId: number) => {
+    event.stopPropagation();
+    await openMenuGenerar(documentoId, { anchorEl: event.currentTarget, anchorPosition: null });
+  };
+
+  const handleOpenMenuGenerarDesdeContexto = async (documentoId: number) => {
+    closeGridContextMenu();
+    await openMenuGenerar(documentoId, { anchorEl: null, anchorPosition: contextMenuPosition });
+  };
+
   const closeMenu = () => {
     setMenuAnchor(null);
+    setMenuAnchorPosition(null);
     setMenuDocumentoId(null);
   };
 
@@ -708,6 +753,83 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const closeSeguimientoMenu = () => {
     setSeguimientoMenu({ anchorEl: null, rowId: null, currentValue: null });
   };
+
+  const handlePrepararGeneracion = async (documentoId: number, tipoDestino: string) => {
+    if (!requireAuthData()) return;
+    closeMenu();
+    setGeneracionDialog({
+      open: true,
+      loading: true,
+      documentoId,
+      documentoIds: [documentoId],
+      tipoDestino,
+      data: null,
+      cantidades: {},
+      enviando: false,
+    });
+
+    try {
+      const data = await prepararGeneracion(documentoId, tipoDestino as any, token!, empresaId!);
+      const cantidades = data.partidas.reduce<Record<number, number>>((acc, p) => {
+        acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
+        return acc;
+      }, {});
+      setGeneracionDialog({
+        open: true,
+        loading: false,
+        documentoId,
+        documentoIds: [documentoId],
+        tipoDestino,
+        data,
+        cantidades,
+        enviando: false,
+      });
+    } catch (err: any) {
+      setGeneracionDialog({
+        open: false,
+        loading: false,
+        documentoId: null,
+        documentoIds: [],
+        tipoDestino: null,
+        data: null,
+        cantidades: {},
+        enviando: false,
+      });
+      setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la generación', severity: 'error' });
+    }
+  };
+
+  const contextMenuGenerationActions = useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow || !tieneOpcionesGeneracion) {
+      return [];
+    }
+
+    const rowId = Number(contextMenuRow.id);
+    const opciones = opcionesGeneracion[rowId];
+
+    if (!opciones) {
+      return menuLoading
+        ? [
+            {
+              id: 'generacion-loading',
+              label: 'Cargando opciones de generación...',
+              icon: <CircularProgress size={16} />,
+              disabled: true,
+            },
+          ]
+        : [];
+    }
+
+    return opciones.map((op) => ({
+      id: `generar-${op.tipo_documento_destino}`,
+      label: `Generar ${op.nombre || op.tipo_documento_destino}`,
+      icon: <NoteAddIcon fontSize="small" />,
+      disabled: loading,
+      onClick: () => {
+        void handlePrepararGeneracion(rowId, op.tipo_documento_destino);
+      },
+    }));
+  }, [contextMenuRow, handlePrepararGeneracion, loading, menuLoading, opcionesGeneracion, tieneOpcionesGeneracion]);
 
   const handleOpenEstatusMenu = (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => {
     event.preventDefault();
@@ -782,48 +904,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
   const handleSeleccionarOpcion = async (tipoDestino: string) => {
     if (!menuDocumentoId) return;
-    if (!requireAuthData()) return;
-    closeMenu();
-    setGeneracionDialog({
-      open: true,
-      loading: true,
-      documentoId: menuDocumentoId,
-      documentoIds: [menuDocumentoId],
-      tipoDestino,
-      data: null,
-      cantidades: {},
-      enviando: false,
-    });
-
-    try {
-      const data = await prepararGeneracion(menuDocumentoId, tipoDestino as any, token!, empresaId!);
-      const cantidades = data.partidas.reduce<Record<number, number>>((acc, p) => {
-        acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
-        return acc;
-      }, {});
-      setGeneracionDialog({
-        open: true,
-        loading: false,
-        documentoId: menuDocumentoId,
-        documentoIds: [menuDocumentoId],
-        tipoDestino,
-        data,
-        cantidades,
-        enviando: false,
-      });
-    } catch (err: any) {
-      setGeneracionDialog({
-        open: false,
-        loading: false,
-        documentoId: null,
-        documentoIds: [],
-        tipoDestino: null,
-        data: null,
-        cantidades: {},
-        enviando: false,
-      });
-      setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la generación', severity: 'error' });
-    }
+    await handlePrepararGeneracion(menuDocumentoId, tipoDestino);
   };
 
   const handlePrepararConsolidacionNotaCredito = async () => {
@@ -993,7 +1074,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const load = async () => {
     try {
       setLoading(true);
-      const data = await getDocumentos(tipoDocumento);
+      const data = await getDocumentos(tipoDocumento, { search: debouncedSearch });
       setRows(data);
       setError(null);
 
@@ -1024,8 +1105,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const formatFecha = (value: any) => formatCivilDate(value);
 
   useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
+
+  useEffect(() => {
     load();
-  }, [tipoDocumento]);
+  }, [tipoDocumento, debouncedSearch]);
 
   const obtenerEmailDocumento = (row: any) =>
     row?.contacto_email ?? row?.email_contacto ?? row?.cliente_email ?? row?.email_cliente ?? row?.email ?? '';
@@ -1377,7 +1466,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       headerClassName: 'finanzas-header',
       align: 'center',
       renderCell: (params: GridRenderCellParams) => {
-        const facturaTimbrada = tipoDocumento !== 'factura' || isFacturaTimbrada(params.row?.estatus_documento);
+        const documentoPuedeTimbrarCfdi = puedeTimbrarCfdiDocumento(tipoDocumento, params.row as CotizacionListado);
+        const facturaTimbrada = !documentoPuedeTimbrarCfdi || isFacturaTimbrada(params.row?.estatus_documento);
         const mensajeFacturaNoTimbrada = 'La factura debe estar timbrada antes de enviarse.';
 
         return (
@@ -1457,7 +1547,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   disabled={loading || menuLoading}
                   onClick={(e) => handleOpenMenuGenerar(e, Number(params.row.id))}
                 >
-                  <AutoAwesomeIcon fontSize="small" />
+                  <NoteAddIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
@@ -1549,7 +1639,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {hasAction('timbrar') && (tipoDocumento !== 'nota_credito' || esNotaCreditoTimbrable(params.row?.motivo_nc)) && (
+          {hasAction('timbrar') && documentoPuedeTimbrarCfdi && (
             <Tooltip title="Timbrar CFDI">
               <span>
                 <IconButton
@@ -1579,12 +1669,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             </Tooltip>
           )}
           {hasAction('enviar_email') && tipoDocumento === 'factura' && (
-            <Tooltip title={facturaTimbrada ? 'Enviar factura por correo' : mensajeFacturaNoTimbrada}>
+            <Tooltip title={facturaTimbrada ? 'Enviar por correo' : mensajeFacturaNoTimbrada}>
               <span>
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading || !facturaTimbrada}
+                  disabled={loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada)}
                   onClick={(e) => {
                     e.stopPropagation();
                     const emailInicial = obtenerEmailDocumento(params.row);
@@ -1597,12 +1687,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             </Tooltip>
           )}
           {hasAction('enviar_whatsapp') && (
-            <Tooltip title={tipoDocumento === 'factura' && !facturaTimbrada ? mensajeFacturaNoTimbrada : 'Enviar por WhatsApp'}>
+            <Tooltip title={documentoPuedeTimbrarCfdi && !facturaTimbrada ? mensajeFacturaNoTimbrada : 'Enviar por WhatsApp'}>
               <span>
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading || (tipoDocumento === 'factura' && !facturaTimbrada)}
+                  disabled={loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada)}
                   onClick={(e) => {
                     e.stopPropagation();
                     console.info('[CFDI WhatsApp] Abrir modal de envio', {
@@ -1714,31 +1804,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       }
     }
 
-    const q = search.trim().toLowerCase();
-    if (!q) return result;
-
-    return result.filter((row) => {
-      const folio = `${row?.serie ?? ''}${row?.numero ?? ''}`.toLowerCase();
-  const folioAlt = String((row as any)?.folio ?? '').toLowerCase();
-  const cliente = String((row as any)?.nombre_cliente ?? (row as any)?.cliente_nombre ?? '').toLowerCase();
-      const subtotal = String(row?.subtotal ?? '').toLowerCase();
-      const total = String(row?.total ?? '').toLowerCase();
-      const saldo = String(row?.saldo ?? '').toLowerCase();
-      const fecha = String(row?.fecha_documento ?? '').toLowerCase();
-      const status = String(row?.[statusField] ?? '').toLowerCase();
-
-      return (
-        folio.includes(q) ||
-        folioAlt.includes(q) ||
-        cliente.includes(q) ||
-        subtotal.includes(q) ||
-        total.includes(q) ||
-        saldo.includes(q) ||
-        fecha.includes(q) ||
-        status.includes(q)
-      );
-    });
-  }, [rows, search, soloPendientes, isFacturaConSaldo, enableFilters, quickFilter, filtrosCotizacion, showAgentFilter, statusField]);
+    return result;
+  }, [rows, soloPendientes, isFacturaConSaldo, enableFilters, quickFilter, filtrosCotizacion, showAgentFilter, statusField]);
 
   useEffect(() => {
     if (!canBulkDuplicate) {
@@ -1754,7 +1821,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     if (!contextMenuRow) return [];
 
     const rowId = Number(contextMenuRow.id);
-    const facturaTimbrada = tipoDocumento !== 'factura' || isFacturaTimbrada(contextMenuRow?.estatus_documento);
+    const documentoPuedeTimbrarCfdi = puedeTimbrarCfdiDocumento(tipoDocumento, contextMenuRow);
+    const facturaTimbrada = !documentoPuedeTimbrarCfdi || isFacturaTimbrada(contextMenuRow?.estatus_documento);
     const canApplySaldoNc =
       (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') &&
       Number(contextMenuRow?.saldo ?? 0) > 0 &&
@@ -1785,6 +1853,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         id: 'separator-workflow',
         type: 'separator',
       },
+      ...contextMenuGenerationActions,
       {
         id: 'enviar-produccion',
         label: 'Enviar a producción',
@@ -1861,10 +1930,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       },
       {
         id: 'enviar-correo-factura',
-        label: 'Enviar factura por correo',
+        label: 'Enviar por correo',
         icon: <EmailIcon fontSize="small" />,
         hidden: !(hasAction('enviar_email') && tipoDocumento === 'factura'),
-        disabled: loading || !facturaTimbrada,
+        disabled: loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada),
         onClick: () => {
           const emailInicial = obtenerEmailDocumento(contextMenuRow);
           setEnviarDialog({ open: true, id: rowId, email: emailInicial, enviando: false, error: null });
@@ -1875,7 +1944,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         label: 'Enviar por WhatsApp',
         icon: <WhatsAppIcon fontSize="small" />,
         hidden: !hasAction('enviar_whatsapp'),
-        disabled: loading || (tipoDocumento === 'factura' && !facturaTimbrada),
+        disabled: loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada),
         onClick: () => {
           console.info('[CFDI WhatsApp] Abrir modal de envio', {
             documentoId: rowId,
@@ -1889,7 +1958,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         id: 'timbrar',
         label: 'Timbrar CFDI',
         icon: <NotificationsActiveIcon fontSize="small" />,
-        hidden: !(hasAction('timbrar') && (tipoDocumento !== 'nota_credito' || esNotaCreditoTimbrable(contextMenuRow?.motivo_nc))),
+        hidden: !(hasAction('timbrar') && documentoPuedeTimbrarCfdi),
         disabled: loading || timbrandoId === contextMenuRow.id,
         onClick: async () => {
           try {
@@ -1928,6 +1997,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     abrirDialogoProduccion,
     abrirDrawerProduccion,
     basePath,
+    contextMenuGenerationActions,
     contextMenuRow,
     deletingId,
     handleDuplicarCotizacion,
@@ -1935,6 +2005,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     hasAction,
     load,
     loading,
+    menuLoading,
     modulo,
     navigate,
     obtenerEmailDocumento,
@@ -2104,7 +2175,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         <TextField
           size="small"
           fullWidth
-          placeholder="Buscar folio, cliente, monto, referencia..."
+          placeholder="Buscar folio, cliente, RFC, teléfono, correo, concepto, producto..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           InputProps={{
@@ -2504,8 +2575,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           checkboxSelection={canBulkDuplicate}
           autoHeight
           density="standard"
-          rowHeight={42}
-          columnHeaderHeight={52}
+          rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
           loading={loading}
           disableRowSelectionOnClick
           rowSelectionModel={selectedDocumentIds}
@@ -2581,62 +2652,38 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             });
           }}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-          sx={{
-            width: '100%',
-            '--DataGrid-overlayHeight': '200px',
-            '& .MuiDataGrid-cell': {
-              display: 'flex',
-              alignItems: 'center',
-            },
-            '& .MuiDataGrid-row:nth-of-type(even)': {
-              backgroundColor: 'rgba(0, 120, 70, 0.05)',
-            },
-            '& .documento-focus-row': {
-              backgroundColor: 'rgba(29, 47, 104, 0.10) !important',
-            },
-            '& .documento-focus-row .MuiDataGrid-cell': {
-              borderTop: '1px solid rgba(29, 47, 104, 0.24)',
-              borderBottom: '1px solid rgba(29, 47, 104, 0.24)',
-            },
-            '& .documento-focus-row .MuiDataGrid-cell:first-of-type': {
-              borderLeft: '3px solid #1d2f68',
-            },
-            '& .documento-focus-row--recent': {
-              animation: 'documentoFocusPulse 2.4s ease-out 1',
-            },
-            '@keyframes documentoFocusPulse': {
-              '0%': {
-                backgroundColor: 'rgba(56, 189, 248, 0.24)',
+          sx={[
+            standardDataGridSx,
+            {
+              width: '100%',
+              '--DataGrid-overlayHeight': '200px',
+              '& .MuiDataGrid-cell': {
+                display: 'flex',
+                alignItems: 'center',
               },
-              '100%': {
-                backgroundColor: 'rgba(29, 47, 104, 0.10)',
+              '& .documento-focus-row': {
+                backgroundColor: 'rgba(29, 47, 104, 0.10) !important',
+              },
+              '& .documento-focus-row .MuiDataGrid-cell': {
+                borderTop: '1px solid rgba(29, 47, 104, 0.24)',
+                borderBottom: '1px solid rgba(29, 47, 104, 0.24)',
+              },
+              '& .documento-focus-row .MuiDataGrid-cell:first-of-type': {
+                borderLeft: '3px solid #1d2f68',
+              },
+              '& .documento-focus-row--recent': {
+                animation: 'documentoFocusPulse 2.4s ease-out 1',
+              },
+              '@keyframes documentoFocusPulse': {
+                '0%': {
+                  backgroundColor: 'rgba(56, 189, 248, 0.24)',
+                },
+                '100%': {
+                  backgroundColor: 'rgba(29, 47, 104, 0.10)',
+                },
               },
             },
-            '& .finanzas-header': {
-              backgroundColor: '#1d2f68 !important',
-              color: '#ffffff !important',
-              fontWeight: 600,
-            },
-            '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
-              color: '#ffffff !important',
-              fontWeight: 600,
-            },
-            '& .finanzas-header .MuiDataGrid-sortIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header .MuiDataGrid-menuIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header .MuiIconButton-root': {
-              color: '#ffffff !important',
-            },
-            '& .MuiDataGrid-columnSeparator': {
-              color: 'rgba(255,255,255,0.25) !important',
-            },
-          }}
+          ]}
           hideFooterPagination
           hideFooterSelectedRowCount
           slots={{
@@ -2706,7 +2753,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </Menu>
       )}
 
-      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+      <Menu
+        anchorEl={menuAnchor}
+        anchorReference={menuAnchorPosition ? 'anchorPosition' : 'anchorEl'}
+        {...(menuAnchorPosition ? { anchorPosition: menuAnchorPosition } : {})}
+        open={Boolean(menuAnchor) || Boolean(menuAnchorPosition)}
+        onClose={closeMenu}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
         {menuLoading && (
           <MenuItem disabled>
             <ListItemIcon>

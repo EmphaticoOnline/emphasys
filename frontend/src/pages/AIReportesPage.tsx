@@ -18,6 +18,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import { apiFetch } from '../api/apiClient';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useSession } from '../session/useSession';
 
 type ResultadoFila = Record<string, unknown>;
@@ -287,36 +288,23 @@ export default function AIReportesPage() {
         ) : (
           <Box sx={{ height: 520 }}>
             <DataGrid
-              density="compact"
+              density="standard"
               rows={rows}
               columns={columns}
+              rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+              columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
               disableRowSelectionOnClick
               localeText={{
                 ...esES.components.MuiDataGrid.defaultProps.localeText,
                 noRowsLabel: 'No hay registros',
               }}
-              sx={{
-                border: '1px solid',
-                borderColor: 'divider',
-                '& .MuiDataGrid-columnHeaders': {
-                  backgroundColor: '#1e2a5a',
-                  color: '#ffffff',
-                  fontWeight: 600,
+              sx={[
+                standardDataGridSx,
+                {
+                  border: '1px solid',
+                  borderColor: 'divider',
                 },
-                '& .MuiDataGrid-columnHeaderTitle': {
-                  color: '#ffffff',
-                  fontWeight: 600,
-                },
-                '& .MuiDataGrid-sortIcon': {
-                  color: '#ffffff',
-                },
-                '& .MuiDataGrid-menuIcon': {
-                  color: '#ffffff',
-                },
-                '& .MuiDataGrid-columnSeparator': {
-                  color: 'rgba(255,255,255,0.25)',
-                },
-              }}
+              ]}
               getRowHeight={() => 'auto'}
             />
           </Box>

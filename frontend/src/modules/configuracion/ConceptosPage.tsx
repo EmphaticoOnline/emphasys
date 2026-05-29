@@ -29,6 +29,12 @@ import { DataGrid, type GridColDef, type GridValueGetter } from '@mui/x-data-gri
 import { esES } from '@mui/x-data-grid/locales';
 import type { Concepto } from '../../types/finanzas';
 import { actualizarConcepto, crearConcepto, eliminarConcepto, fetchConceptos } from '../../services/conceptosService';
+import { GridContextMenu } from '../../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
+import { useGridContextMenu } from '../../hooks/useGridContextMenu';
 
 interface FormState {
   id?: number;
@@ -177,7 +183,58 @@ export default function ConceptosPage() {
     }
   };
 
-  const columns: GridColDef<Concepto>[] = useMemo(() => [
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(conceptos);
+
+  const contextMenuActions = useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'editar',
+        label: 'Editar concepto',
+        icon: <EditIcon fontSize="small" />,
+        onClick: () => handleOpenDialog(contextMenuRow),
+      },
+      {
+        id: 'separator-primary',
+        type: 'separator',
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar',
+        icon: <DeleteIcon fontSize="small" />,
+        destructive: true,
+        onClick: () => void handleDelete(contextMenuRow),
+      },
+    ];
+  }, [contextMenuRow]);
+
+  const contextMenuTriggerColumn = useMemo<GridColDef<Concepto>>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      align: 'center',
+      headerAlign: 'center',
+      headerClassName: 'finanzas-header',
+      renderCell: (params) => <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />,
+    }),
+    [openContextMenuForRow]
+  );
+
+  const baseColumns: GridColDef<Concepto>[] = useMemo(() => [
     {
       field: 'nombre_concepto',
       headerName: 'Nombre del concepto',
@@ -242,6 +299,8 @@ export default function ConceptosPage() {
     },
   ], []);
 
+  const columns = useMemo<GridColDef<Concepto>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [baseColumns, contextMenuTriggerColumn]);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -278,10 +337,14 @@ export default function ConceptosPage() {
         <DataGrid
           rows={conceptos}
           columns={columns}
+          rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
           autoHeight
-          density="compact"
+          density="standard"
           loading={loading}
           disableRowSelectionOnClick
+          columnVisibilityModel={{ menu: true, acciones: SHOW_GRID_ACTIONS }}
+          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
           initialState={{
             sorting: {
@@ -291,40 +354,16 @@ export default function ConceptosPage() {
               ],
             },
           }}
-          sx={{
-            '--DataGrid-overlayHeight': '200px',
-            '& .MuiDataGrid-cell': {
-              display: 'flex',
-              alignItems: 'center',
+          sx={[
+            standardDataGridSx,
+            {
+              '--DataGrid-overlayHeight': '200px',
+              '& .MuiDataGrid-cell': {
+                display: 'flex',
+                alignItems: 'center',
+              },
             },
-            '& .MuiDataGrid-row:nth-of-type(even)': {
-              backgroundColor: 'rgba(0, 120, 70, 0.05)',
-            },
-            '& .finanzas-header': {
-              backgroundColor: '#1d2f68 !important',
-              color: '#ffffff !important',
-              fontWeight: 600,
-            },
-            '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
-              color: '#ffffff !important',
-              fontWeight: 600,
-            },
-            '& .finanzas-header .MuiDataGrid-sortIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header .MuiDataGrid-menuIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
-              color: '#ffffff !important',
-            },
-            '& .finanzas-header .MuiIconButton-root': {
-              color: '#ffffff !important',
-            },
-            '& .MuiDataGrid-columnSeparator': {
-              color: 'rgba(255,255,255,0.25) !important',
-            },
-          }}
+          ]}
           slots={{
             noRowsOverlay: () => (
               <Stack height="100%" alignItems="center" justifyContent="center" spacing={1} sx={{ py: 3 }}>
@@ -338,6 +377,13 @@ export default function ConceptosPage() {
           hideFooterSelectedRowCount
         />
       </Paper>
+
+      <GridContextMenu
+        actions={contextMenuActions}
+        anchorPosition={contextMenuPosition}
+        open={Boolean(contextMenuRow && contextMenuPosition)}
+        onClose={closeContextMenu}
+      />
 
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>{form.id ? 'Editar concepto' : 'Nuevo concepto'}</DialogTitle>

@@ -28,6 +28,7 @@ import { fetchProductos } from '../services/productosService';
 import { fetchAlmacenes, crearMovimientoManual } from '../services/inventarioService';
 import type { Producto } from '../types/producto';
 import type { Almacen, CrearMovimientoManualPayload, MovimientoPartidaPayload } from '../types/inventario';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT } from '../components/grids/standardDataGridSx';
 
 type TipoMovimiento = 'entrada' | 'salida' | 'transferencia';
 
@@ -40,6 +41,30 @@ type Partida = {
 };
 
 const tipoMovimientoOptions: TipoMovimiento[] = ['entrada', 'salida', 'transferencia'];
+
+const inventoryTableSx = {
+  '& .MuiTableCell-root': {
+    borderBottom: '1px solid #e5e7eb',
+    height: STANDARD_DATA_GRID_ROW_HEIGHT,
+    py: 0,
+    px: 1.25,
+    verticalAlign: 'middle',
+  },
+  '& .MuiTableHead-root .MuiTableCell-root': {
+    backgroundColor: '#1d2f68',
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: 600,
+    height: STANDARD_DATA_GRID_HEADER_HEIGHT,
+    py: 0,
+  },
+  '& .MuiTableBody-root .MuiTableRow-root:nth-of-type(even)': {
+    backgroundColor: 'rgba(0, 120, 70, 0.05)',
+  },
+  '& .MuiTableBody-root .MuiTableRow-root:hover': {
+    backgroundColor: 'rgba(15, 23, 42, 0.04)',
+  },
+} as const;
 
 export default function InventarioMovimientoFormPage() {
   const navigate = useNavigate();
@@ -286,9 +311,9 @@ export default function InventarioMovimientoFormPage() {
           {formError && <Alert severity="error">{formError}</Alert>}
 
           <TableContainer>
-            <Table size="small">
+            <Table size="small" sx={inventoryTableSx}>
               <TableHead>
-                <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                <TableRow>
                   <TableCell width={60}>#</TableCell>
                   <TableCell>Producto</TableCell>
                   {showOrigen && <TableCell>Almacén origen</TableCell>}

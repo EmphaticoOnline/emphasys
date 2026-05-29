@@ -6,6 +6,7 @@ import {
   crearUsuario,
   desactivarUsuario,
   listarUsuarios,
+  listarUsuariosHabilitadosPorEmpresa,
   obtenerContactoBasico,
   obtenerUsuarioPorId,
   obtenerUsuarioEmpresasYRoles,
@@ -34,6 +35,19 @@ export async function getUsuarios(_req: Request, res: Response) {
   } catch (error) {
     console.error('Error al obtener usuarios:', error);
     res.status(500).json({ message: 'Error al obtener usuarios' });
+  }
+}
+
+export async function getUsuariosHabilitados(req: Request, res: Response) {
+  try {
+    const empresaId = Number(req.context?.empresaId ?? 0);
+    if (!empresaId) return res.status(400).json({ message: 'Empresa no disponible en el contexto' });
+
+    const usuarios = await listarUsuariosHabilitadosPorEmpresa(empresaId);
+    res.json(usuarios);
+  } catch (error) {
+    console.error('Error al obtener usuarios habilitados por empresa:', error);
+    res.status(500).json({ message: 'Error al obtener usuarios habilitados' });
   }
 }
 

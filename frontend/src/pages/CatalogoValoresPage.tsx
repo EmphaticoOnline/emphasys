@@ -35,6 +35,12 @@ import {
 import { fetchCamposConfiguracion } from '../services/camposDinamicosService';
 import type { CampoConfiguracion } from '../types/camposDinamicos';
 import { fetchPreciosListas, type PrecioLista } from '../services/preciosListasService';
+import { GridContextMenu } from '../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
+import { useGridContextMenu } from '../hooks/useGridContextMenu';
 
 function useTipoCatalogo(tipoId: number | null) {
   const [tipo, setTipo] = useState<{ id: number; nombre: string | null; entidad_tipo_id: number; entidad_tipo_codigo: string | null } | null>(null);
@@ -279,7 +285,65 @@ export default function CatalogoValoresPage() {
     return map;
   }, [rows]);
 
-  const columns: GridColDef[] = useMemo(
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(rows);
+
+  const contextMenuActions = useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'toggle-activo',
+        label: contextMenuRow.activo ? 'Desactivar' : 'Activar',
+        icon: contextMenuRow.activo ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />,
+        onClick: () => void handleToggleActivo(contextMenuRow),
+      },
+      {
+        id: 'editar',
+        label: 'Editar valor',
+        icon: <EditIcon fontSize="small" />,
+        onClick: () => openEdit(contextMenuRow),
+      },
+      {
+        id: 'separator-primary',
+        type: 'separator',
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar',
+        icon: <DeleteIcon fontSize="small" />,
+        destructive: true,
+        onClick: () => openDeleteConfirm(contextMenuRow),
+      },
+    ];
+  }, [contextMenuRow]);
+
+  const contextMenuTriggerColumn = useMemo<GridColDef>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<CatalogoValor>) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
+  const baseColumns: GridColDef[] = useMemo(
     () => [
       {
         field: 'clave',
@@ -349,6 +413,8 @@ export default function CatalogoValoresPage() {
     ],
     [parentLookup]
   );
+
+  const columns = useMemo<GridColDef[]>(() => [contextMenuTriggerColumn, ...baseColumns], [baseColumns, contextMenuTriggerColumn]);
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -482,32 +548,35 @@ export default function CatalogoValoresPage() {
         <DataGrid
           rows={rows}
           columns={columns}
+          rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
           loading={loading}
-          density="compact"
+          density="standard"
           autoHeight
           getRowId={(row) => row.id}
           disableRowSelectionOnClick
+          columnVisibilityModel={{ menu: true, actions: SHOW_GRID_ACTIONS }}
+          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
           hideFooterPagination={rows.length < 50}
           pageSizeOptions={[10, 25, 50, 100]}
           localeText={{ noRowsLabel: loading ? 'Cargando…' : 'Sin registros' }}
-          sx={{
-            '& .MuiDataGrid-columnHeaders': {
-              backgroundColor: '#f6f8fa',
-              borderBottom: '1px solid #e5e7eb',
-              fontWeight: 700,
+          sx={[
+            standardDataGridSx,
+            {
+              '& .MuiDataGrid-cell': {
+                borderBottom: '1px solid #f0f1f3',
+              },
             },
-            '& .MuiDataGrid-cell': {
-              borderBottom: '1px solid #f0f1f3',
-            },
-            '& .MuiDataGrid-row:nth-of-type(odd)': {
-              backgroundColor: '#f9fafb',
-            },
-            '& .MuiDataGrid-row:hover': {
-              backgroundColor: '#eef2f7',
-            },
-          }}
+          ]}
         />
       </Box>
+
+      <GridContextMenu
+        actions={contextMenuActions}
+        anchorPosition={contextMenuPosition}
+        open={Boolean(contextMenuRow && contextMenuPosition)}
+        onClose={closeContextMenu}
+      />
 
       <Dialog open={confirmDeleteOpen} onClose={handleCloseDeleteConfirm} maxWidth="xs" fullWidth>
         <DialogTitle>Eliminar valor</DialogTitle>

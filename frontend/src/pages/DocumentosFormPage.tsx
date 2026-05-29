@@ -1387,12 +1387,6 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     setForm((prev) => ({
       ...prev,
       tratamiento_impuestos: valor,
-      serie:
-        valor === 'sin_iva'
-          ? 'N'
-          : isOperacionEstandar(valor)
-          ? 'FAC'
-          : prev.serie ?? null,
     }));
 
     const newSeq = ++previewGlobalSeqRef.current;

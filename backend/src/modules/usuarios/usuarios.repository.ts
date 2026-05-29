@@ -36,6 +36,28 @@ export async function listarUsuarios(): Promise<Usuario[]> {
   return rows;
 }
 
+export async function listarUsuariosHabilitadosPorEmpresa(empresaId: number): Promise<Usuario[]> {
+  const { rows } = await pool.query<Usuario>(
+    `SELECT u.id,
+            u.nombre,
+            u.email,
+            u.activo,
+            u.es_superadmin,
+            u.vendedor_contacto_id,
+            c.nombre AS vendedor_contacto_nombre,
+            u.created_at
+       FROM core.usuarios_empresas ue
+       JOIN core.usuarios u ON u.id = ue.usuario_id
+       LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id
+      WHERE ue.empresa_id = $1
+        AND ue.activo = true
+        AND u.activo = true
+      ORDER BY u.nombre`,
+    [empresaId]
+  );
+  return rows;
+}
+
 export async function obtenerUsuarioPorId(id: number): Promise<UsuarioDetalle | null> {
   const { rows } = await pool.query<Usuario>(
     `SELECT u.id,

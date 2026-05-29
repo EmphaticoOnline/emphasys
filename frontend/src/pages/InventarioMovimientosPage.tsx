@@ -28,8 +28,39 @@ import { useNavigate } from 'react-router-dom';
 
 import type { MovimientoDetalle, MovimientoListadoItem } from '../types/inventario';
 import { listarMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
+import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT } from '../components/grids/standardDataGridSx';
 
 dayjs.locale('es');
+
+const inventoryTableSx = {
+  '& .MuiTableCell-root': {
+    borderBottom: '1px solid #e5e7eb',
+    height: STANDARD_DATA_GRID_ROW_HEIGHT,
+    py: 0,
+    px: 1.25,
+    verticalAlign: 'middle',
+  },
+  '& .MuiTableHead-root .MuiTableCell-root': {
+    backgroundColor: '#1d2f68',
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: 600,
+    height: STANDARD_DATA_GRID_HEADER_HEIGHT,
+    py: 0,
+  },
+  '& .MuiTableBody-root .MuiTableRow-root:nth-of-type(even)': {
+    backgroundColor: 'rgba(0, 120, 70, 0.05)',
+  },
+  '& .MuiTableBody-root .MuiTableRow-root:hover': {
+    backgroundColor: 'rgba(15, 23, 42, 0.04)',
+  },
+  '& .MuiTableBody-root .MuiTableRow-root.Mui-selected': {
+    backgroundColor: 'rgba(29, 47, 104, 0.08)',
+  },
+  '& .MuiTableBody-root .MuiTableRow-root.Mui-selected:hover': {
+    backgroundColor: 'rgba(29, 47, 104, 0.12)',
+  },
+} as const;
 
 export default function InventarioMovimientosPage() {
   const navigate = useNavigate();
@@ -132,9 +163,9 @@ export default function InventarioMovimientosPage() {
           <Typography variant="subtitle1" fontWeight={700}>Movimientos</Typography>
           {listError && <Alert severity="error">{listError}</Alert>}
           <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
+            <Table size="small" sx={inventoryTableSx}>
               <TableHead>
-                <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                <TableRow>
                   <TableCell>Fecha</TableCell>
                   <TableCell>Tipo</TableCell>
                   <TableCell>Observaciones</TableCell>
@@ -203,9 +234,9 @@ export default function InventarioMovimientosPage() {
             <Typography variant="body2" color="text.secondary">Selecciona un movimiento para ver sus partidas.</Typography>
           )}
           <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
+            <Table size="small" sx={inventoryTableSx}>
               <TableHead>
-                <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                <TableRow>
                   <TableCell>Producto</TableCell>
                   <TableCell>Almacén origen</TableCell>
                   <TableCell>Almacén destino</TableCell>

@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import { requireAuth, requireEmpresaActiva } from '../auth/auth.middleware';
 import {
   deleteUsuario,
   getUsuario,
   getUsuarios,
+  getUsuariosHabilitados,
   postUsuario,
   postUsuarioEmpresas,
   postUsuarioRoles,
@@ -13,6 +15,7 @@ import {
 const router = Router();
 
 router.get('/', getUsuarios);
+router.get('/habilitados', requireAuth, requireEmpresaActiva, getUsuariosHabilitados);
 router.get('/:id', getUsuario);
 router.get('/:id/empresas', getUsuarioEmpresas);
 router.post('/', postUsuario);

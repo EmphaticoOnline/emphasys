@@ -167,7 +167,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       fiscalTab: true,
     },
     defaults: {
-      serie: 'FAC',
+      serie: null,
       estadoSeguimiento: null,
     },
     relatedEntities: {
@@ -196,8 +196,8 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     },
     campos: {
       ...camposBase,
-      serie: { ...camposBase.serie, visible: true, required: true },
-      numero: { ...camposBase.numero, visible: true, required: true },
+      serie: { ...camposBase.serie, visible: false, required: false },
+      numero: { ...camposBase.numero, visible: false, required: false },
       rfc_receptor: { ...camposBase.rfc_receptor, visible: true, required: true },
       nombre_receptor: { ...camposBase.nombre_receptor, visible: true, required: false },
       moneda: { ...camposBase.moneda, required: true },
@@ -247,7 +247,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       fiscalTab: true,
     },
     defaults: {
-      serie: 'NCR',
+      serie: null,
       estadoSeguimiento: null,
     },
     relatedEntities: {
@@ -277,8 +277,8 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     campos: {
       ...camposBase,
       partidas: { ...camposBase.partidas, required: false },
-      serie: { ...camposBase.serie, visible: true, required: true },
-      numero: { ...camposBase.numero, visible: true, required: true },
+      serie: { ...camposBase.serie, visible: false, required: false },
+      numero: { ...camposBase.numero, visible: false, required: false },
       subtotal: { ...camposBase.subtotal, readOnly: false },
       iva: { ...camposBase.iva, readOnly: false },
       total: { ...camposBase.total, readOnly: true },
@@ -610,7 +610,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       fiscalTab: false,
     },
     defaults: {
-      serie: 'NCC',
+      serie: null,
       estadoSeguimiento: null,
     },
     relatedEntities: {
@@ -639,8 +639,8 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     campos: {
       ...camposBase,
       partidas: { ...camposBase.partidas, required: false },
-      serie: { ...camposBase.serie, visible: true, required: true },
-      numero: { ...camposBase.numero, visible: true, required: true },
+      serie: { ...camposBase.serie, visible: false, required: false },
+      numero: { ...camposBase.numero, visible: false, required: false },
       subtotal: { ...camposBase.subtotal, readOnly: false },
       iva: { ...camposBase.iva, readOnly: false },
       total: { ...camposBase.total, readOnly: true },

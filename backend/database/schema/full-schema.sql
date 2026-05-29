@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-20T18:47:59.703Z
+-- Generated at: 2026-05-29T19:39:36.586Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict tuzUmLFF8HiQjhsMLz1CfXoQjmxENauGEGnpoHIRHJLhZL8vw62AsnIH7XIvgSz
+\restrict oh4y2hgiBUJwuEfVULssEYC29pAdRdJRhqhCxohy0AazyalJTZ4jbxT3SSPxFJA
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -2011,7 +2011,9 @@ CREATE TABLE core.tipos_documento (
     orden integer DEFAULT 0,
     activo boolean DEFAULT true,
     created_at timestamp without time zone DEFAULT now(),
-    modulo character varying(30)
+    modulo character varying(30),
+    naturaleza_saldo character varying(20),
+    CONSTRAINT chk_tipos_documento_naturaleza_saldo CHECK (((naturaleza_saldo)::text = ANY ((ARRAY['cargo'::character varying, 'abono'::character varying, 'none'::character varying])::text[])))
 );
 
 
@@ -2083,6 +2085,13 @@ COMMENT ON COLUMN core.tipos_documento.created_at IS 'Fecha y hora de creación 
 --
 
 COMMENT ON COLUMN core.tipos_documento.modulo IS 'Módulo al que pertenece el documento (ventas o compras).';
+
+
+--
+-- Name: COLUMN tipos_documento.naturaleza_saldo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.tipos_documento.naturaleza_saldo IS 'Define comportamiento financiero del documento: cargo, abono o none.';
 
 
 --
@@ -3713,7 +3722,7 @@ COMMENT ON COLUMN public.aplicaciones_saldo.documento_origen_id IS 'Origen de la
 -- Name: COLUMN aplicaciones_saldo.documento_destino_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.aplicaciones_saldo.documento_destino_id IS 'Documento que recibe la aplicación de saldo (normalmente una factura).';
+COMMENT ON COLUMN public.aplicaciones_saldo.documento_destino_id IS 'Documento que recibe la aplicación de saldo (factura, factura_compra, etc.).';
 
 
 --
@@ -4159,7 +4168,11 @@ CREATE TABLE public.documentos (
     estado_seguimiento text DEFAULT 'borrador'::text,
     comentario_seguimiento text,
     producto_resumen text,
-    oportunidad_id integer
+    oportunidad_id integer,
+    motivo_nc character varying(20),
+    concepto_id integer,
+    finanzas_operacion_id integer,
+    CONSTRAINT chk_documentos_motivo_nc CHECK (((motivo_nc IS NULL) OR ((motivo_nc)::text = ANY ((ARRAY['devolucion'::character varying, 'bonificacion'::character varying, 'otro'::character varying])::text[]))))
 );
 
 
@@ -4175,6 +4188,20 @@ COMMENT ON TABLE public.documentos IS 'Tabla universal de documentos del ERP (co
 --
 
 COMMENT ON COLUMN public.documentos.tratamiento_impuestos IS 'Define el tratamiento fiscal del documento. Valores esperados: normal, sin_iva, tasa_cero, exento. Determina cómo se calculan los impuestos.';
+
+
+--
+-- Name: COLUMN documentos.motivo_nc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.motivo_nc IS 'Motivo de la nota de crédito. Valores esperados: devolucion, bonificacion, otro.';
+
+
+--
+-- Name: COLUMN documentos.concepto_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.concepto_id IS 'Concepto contable/comercial asociado al documento. Utilizado para contabilización y clasificación.';
 
 
 --
@@ -4748,36 +4775,38 @@ ALTER SEQUENCE public.documentos_partidas_vinculos_id_seq OWNED BY public.docume
 
 CREATE VIEW public.documentos_saldo AS
  SELECT d.id,
-     d.empresa_id,
-     d.tipo_documento,
-     d.moneda,
-     d.tipo_cambio,
-     d.total,
+    d.empresa_id,
+    d.tipo_documento,
+    d.moneda,
+    d.tipo_cambio,
+    d.total,
         CASE
-            WHEN (lower(COALESCE(d.tipo_documento, ''::text)) = ANY (ARRAY['nota_credito'::text, 'nota_credito_compra'::text])) THEN GREATEST((0)::numeric, (abs(COALESCE(d.total, (0)::numeric)) - COALESCE(origen.aplicado_origen_moneda, (0)::numeric)))
-            ELSE GREATEST((0)::numeric, (COALESCE(d.total, (0)::numeric) - COALESCE(destino.aplicado_destino_moneda, (0)::numeric)))
+            WHEN ((td.naturaleza_saldo)::text = 'abono'::text) THEN GREATEST((0)::numeric, (abs(COALESCE(d.total, (0)::numeric)) - COALESCE(origen.aplicado_origen_moneda, (0)::numeric)))
+            WHEN ((td.naturaleza_saldo)::text = 'cargo'::text) THEN GREATEST((0)::numeric, (COALESCE(d.total, (0)::numeric) - COALESCE(destino.aplicado_destino_moneda, (0)::numeric)))
+            ELSE (0)::numeric
         END AS saldo
-    FROM ((public.documentos d
-      LEFT JOIN ( SELECT a.documento_destino_id AS documento_id,
-                a.empresa_id,
-                sum(COALESCE(a.monto_moneda_documento, (0)::numeric)) AS aplicado_destino_moneda
-              FROM public.aplicaciones_saldo a
-             WHERE (a.documento_destino_id IS NOT NULL)
-             GROUP BY a.documento_destino_id, a.empresa_id) destino ON (((destino.documento_id = d.id) AND (destino.empresa_id = d.empresa_id))))
-      LEFT JOIN ( SELECT a.documento_origen_id AS documento_id,
-                a.empresa_id,
-                sum((COALESCE(a.monto, (0)::numeric) / NULLIF(abs(COALESCE(doc.tipo_cambio, (1)::numeric)), (0)::numeric))) AS aplicado_origen_moneda
-              FROM (public.aplicaciones_saldo a
-                 JOIN public.documentos doc ON (((doc.id = a.documento_origen_id) AND (doc.empresa_id = a.empresa_id))))
-             WHERE (a.documento_origen_id IS NOT NULL)
-             GROUP BY a.documento_origen_id, a.empresa_id) origen ON (((origen.documento_id = d.id) AND (origen.empresa_id = d.empresa_id))));
+   FROM (((public.documentos d
+     JOIN core.tipos_documento td ON ((lower((td.codigo)::text) = lower((d.tipo_documento)::text))))
+     LEFT JOIN ( SELECT a.documento_destino_id AS documento_id,
+            a.empresa_id,
+            sum(COALESCE(a.monto_moneda_documento, (0)::numeric)) AS aplicado_destino_moneda
+           FROM public.aplicaciones_saldo a
+          WHERE (a.documento_destino_id IS NOT NULL)
+          GROUP BY a.documento_destino_id, a.empresa_id) destino ON (((destino.documento_id = d.id) AND (destino.empresa_id = d.empresa_id))))
+     LEFT JOIN ( SELECT a.documento_origen_id AS documento_id,
+            a.empresa_id,
+            sum((COALESCE(a.monto, (0)::numeric) / NULLIF(abs(COALESCE(doc.tipo_cambio, (1)::numeric)), (0)::numeric))) AS aplicado_origen_moneda
+           FROM (public.aplicaciones_saldo a
+             JOIN public.documentos doc ON (((doc.id = a.documento_origen_id) AND (doc.empresa_id = a.empresa_id))))
+          WHERE (a.documento_origen_id IS NOT NULL)
+          GROUP BY a.documento_origen_id, a.empresa_id) origen ON (((origen.documento_id = d.id) AND (origen.empresa_id = d.empresa_id))));
 
 
 --
 -- Name: VIEW documentos_saldo; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.documentos_saldo IS 'Saldo financiero por documento: cargos restan aplicaciones recibidas; abonos restan aplicaciones emitidas desde el origen.';
+COMMENT ON VIEW public.documentos_saldo IS 'Vista universal de saldos documentales basada en naturaleza_saldo.';
 
 
 --
@@ -5639,6 +5668,10 @@ CREATE TABLE public.series_documento (
     layout_id integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    descripcion text,
+    es_fiscal boolean DEFAULT false NOT NULL,
+    activa boolean DEFAULT true NOT NULL,
+    ultimo_numero integer DEFAULT 0 NOT NULL,
     CONSTRAINT chk_series_tipo_lower CHECK ((tipo_documento = lower(tipo_documento)))
 );
 
@@ -5697,13 +5730,6 @@ COMMENT ON COLUMN public.series_documento.created_at IS 'Fecha de creación de l
 --
 
 COMMENT ON COLUMN public.series_documento.updated_at IS 'Fecha de última actualización de la serie';
-
-
---
--- Name: CONSTRAINT chk_series_tipo_lower ON series_documento; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON CONSTRAINT chk_series_tipo_lower ON public.series_documento IS 'Asegura que tipo_documento esté en minúsculas para evitar inconsistencias';
 
 
 --
@@ -5798,6 +5824,38 @@ CREATE SEQUENCE public.unidades_id_seq
 --
 
 ALTER SEQUENCE public.unidades_id_seq OWNED BY public.unidades.id;
+
+
+--
+-- Name: usuarios_series_documento; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.usuarios_series_documento (
+    id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    serie_documento_id integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: usuarios_series_documento_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.usuarios_series_documento_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: usuarios_series_documento_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.usuarios_series_documento_id_seq OWNED BY public.usuarios_series_documento.id;
 
 
 --
@@ -6062,12 +6120,12 @@ CREATE TABLE sat.periodicidades (
 CREATE TABLE sat.productos_servicios (
     id text NOT NULL,
     texto text NOT NULL,
-    iva_trasladado integer NOT NULL,
-    ieps_trasladado integer NOT NULL,
+    iva_trasladado text NOT NULL,
+    ieps_trasladado text NOT NULL,
     complemento text NOT NULL,
     vigencia_desde text NOT NULL,
     vigencia_hasta text NOT NULL,
-    estimulo_frontera integer NOT NULL,
+    estimulo_frontera text NOT NULL,
     similares text NOT NULL,
     search_vector tsvector
 );
@@ -7064,6 +7122,13 @@ ALTER TABLE ONLY public.unidades ALTER COLUMN id SET DEFAULT nextval('public.uni
 
 
 --
+-- Name: usuarios_series_documento id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usuarios_series_documento ALTER COLUMN id SET DEFAULT nextval('public.usuarios_series_documento_id_seq'::regclass);
+
+
+--
 -- Name: unidades id; Type: DEFAULT; Schema: sat; Owner: -
 --
 
@@ -7812,29 +7877,6 @@ ALTER TABLE ONLY public.productos
 
 
 --
--- Name: series_documento uq_series_documento_empresa_nombre; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.series_documento
-    ADD CONSTRAINT uq_series_documento_empresa_nombre UNIQUE (empresa_id, serie);
-
-
---
--- Name: series_documento uq_series_documento_empresa_tipo_nombre; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.series_documento
-    ADD CONSTRAINT uq_series_documento_empresa_tipo_nombre UNIQUE (empresa_id, tipo_documento, serie);
-
-
---
--- Name: CONSTRAINT uq_series_documento_empresa_tipo_nombre ON series_documento; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON CONSTRAINT uq_series_documento_empresa_tipo_nombre ON public.series_documento IS 'Evita duplicar nombres de serie por empresa y tipo de documento';
-
-
---
 -- Name: series_documento uq_series_documento_empresa_tipo_serie; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7848,6 +7890,22 @@ ALTER TABLE ONLY public.series_documento
 
 ALTER TABLE ONLY public.unidades
     ADD CONSTRAINT uq_unidad_empresa UNIQUE (empresa_id, clave);
+
+
+--
+-- Name: usuarios_series_documento uq_usuarios_series_documento; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usuarios_series_documento
+    ADD CONSTRAINT uq_usuarios_series_documento UNIQUE (usuario_id, serie_documento_id);
+
+
+--
+-- Name: usuarios_series_documento usuarios_series_documento_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usuarios_series_documento
+    ADD CONSTRAINT usuarios_series_documento_pkey PRIMARY KEY (id);
 
 
 --
@@ -9136,10 +9194,24 @@ CREATE INDEX idx_documentos_cfdi_uuid ON public.documentos_cfdi USING btree (uui
 
 
 --
+-- Name: idx_documentos_concepto_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_concepto_id ON public.documentos USING btree (concepto_id);
+
+
+--
 -- Name: idx_documentos_estado_seguimiento; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_documentos_estado_seguimiento ON public.documentos USING btree (estado_seguimiento);
+
+
+--
+-- Name: idx_documentos_motivo_nc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_motivo_nc ON public.documentos USING btree (motivo_nc);
 
 
 --
@@ -9374,6 +9446,13 @@ COMMENT ON INDEX public.idx_series_documento_empresa_tipo IS 'Optimiza búsqueda
 
 
 --
+-- Name: idx_series_documento_empresa_tipo_activa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_series_documento_empresa_tipo_activa ON public.series_documento USING btree (empresa_id, tipo_documento, activa);
+
+
+--
 -- Name: idx_series_documento_layout; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9385,6 +9464,13 @@ CREATE INDEX idx_series_documento_layout ON public.series_documento USING btree 
 --
 
 COMMENT ON INDEX public.idx_series_documento_layout IS 'Optimiza consultas por plantilla asociada';
+
+
+--
+-- Name: idx_usuarios_series_documento_usuario; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_usuarios_series_documento_usuario ON public.usuarios_series_documento USING btree (usuario_id);
 
 
 --
@@ -10197,6 +10283,14 @@ ALTER TABLE ONLY produccion.seguimientos
 
 
 --
+-- Name: documentos documentos_finanzas_operacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos
+    ADD CONSTRAINT documentos_finanzas_operacion_id_fkey FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id);
+
+
+--
 -- Name: aplicaciones_saldo fk_aplicaciones_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10362,6 +10456,14 @@ ALTER TABLE ONLY public.documentos_partidas_vinculos
 
 ALTER TABLE ONLY public.documentos_cfdi
     ADD CONSTRAINT fk_documentos_cfdi_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: documentos fk_documentos_concepto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos
+    ADD CONSTRAINT fk_documentos_concepto FOREIGN KEY (concepto_id) REFERENCES public.conceptos(id) ON DELETE RESTRICT;
 
 
 --
@@ -10709,6 +10811,22 @@ ALTER TABLE ONLY public.unidades
 
 
 --
+-- Name: usuarios_series_documento fk_usuarios_series_documento_serie; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usuarios_series_documento
+    ADD CONSTRAINT fk_usuarios_series_documento_serie FOREIGN KEY (serie_documento_id) REFERENCES public.series_documento(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: usuarios_series_documento fk_usuarios_series_documento_usuario; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usuarios_series_documento
+    ADD CONSTRAINT fk_usuarios_series_documento_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
 -- Name: config config_empresa_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
@@ -10744,5 +10862,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict tuzUmLFF8HiQjhsMLz1CfXoQjmxENauGEGnpoHIRHJLhZL8vw62AsnIH7XIvgSz
+\unrestrict oh4y2hgiBUJwuEfVULssEYC29pAdRdJRhqhCxohy0AazyalJTZ4jbxT3SSPxFJA
 

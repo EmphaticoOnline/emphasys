@@ -11,6 +11,7 @@ import type {
 import { calcularImpuestosPartida } from "../impuestos/impuestos.service";
 import { actualizarTotales, asegurarOportunidadParaCotizacion } from "./documentos.service";
 import { sanitizarCamposCotizacion } from "./cotizacion-status";
+import { reservarNumeroParaSerieExistente, resolverYReservarSerieDocumento } from "./series-documento.service";
 
 class ServiceError extends Error {
   code: string;
@@ -30,6 +31,7 @@ type DocumentoGeneracionRow = {
   tipo_documento: TipoDocumento;
   serie: string | null;
   numero: number | null;
+  tratamiento_impuestos?: string | null;
   contacto_principal_id: number | null;
   fecha_documento: Date | string | null;
   moneda: string | null;
@@ -227,6 +229,7 @@ async function cargarDocumentosOrigen(
             tipo_documento,
             serie,
             numero,
+          tratamiento_impuestos,
             contacto_principal_id,
             fecha_documento,
             moneda,
@@ -394,23 +397,6 @@ function construirRespuestaPreparacion(
     }),
   };
 }
-
-const SERIE_DEFAULTS: Record<TipoDocumento, string> = {
-  cotizacion: "COT",
-  factura: "FAC",
-  nota_credito: "NCR",
-  pago_cliente: "PCL",
-  orden_servicio: "OS",
-  pedido: "PED",
-  remision: "REM",
-  orden_entrega: "ODE",
-  requisicion: "REQ",
-  orden_compra: "OC",
-  recepcion: "REC",
-  nota_credito_compra: "NCC",
-  pago_proveedor: "PPR",
-  factura_compra: "FCO",
-};
 
 async function aplicarConversionComercialDesdeCotizacion(
   documentoOrigenId: number,
@@ -605,8 +591,6 @@ export class DocumentGenerationService {
       const origenesUnicosPartidas = Array.from(new Set(partidasOrigen.map((partida) => Number(partida.documento_id))));
       const documentoOrigenUnicoId = origenesUnicosPartidas.length === 1 ? origenesUnicosPartidas[0] : null;
 
-      // Determinar serie y número secuencial del documento destino usando la misma lógica que creación estándar
-      const serieDestino = datos_encabezado?.serie ?? SERIE_DEFAULTS[tipo_documento_destino] ?? "DOC";
       const camposCotizacion: { estado_seguimiento: string } | null = tipo_documento_destino === "cotizacion"
         ? sanitizarCamposCotizacion({ estado_seguimiento: undefined as string | undefined }, { applyDefaults: true }) as { estado_seguimiento: string }
         : null;
@@ -633,6 +617,18 @@ export class DocumentGenerationService {
         if (String(documentoDestinoExistente.tipo_documento).toLowerCase() !== String(tipo_documento_destino).toLowerCase()) {
           throw new ServiceError("DOCUMENTO_INVALIDO", "El documento destino no coincide con el tipo solicitado", 400);
         }
+
+        const serieDestino = datos_encabezado?.serie
+          ? String(datos_encabezado.serie).trim()
+          : String(documentoDestinoExistente.serie ?? '').trim();
+        const numeroDestino = datos_encabezado?.serie && serieDestino !== String(documentoDestinoExistente.serie ?? '').trim()
+          ? await reservarNumeroParaSerieExistente({
+              empresaId,
+              tipoDocumento: tipo_documento_destino,
+              serie: serieDestino,
+              client,
+            })
+          : Number(documentoDestinoExistente.numero ?? 0) || null;
 
         await client.query(
           `DELETE FROM documentos_partidas_impuestos
@@ -672,27 +668,28 @@ export class DocumentGenerationService {
         const { rows: documentoDestinoActualizadoRows } = await client.query(
           `UPDATE documentos
               SET serie = $3,
-                  fecha_documento = $4,
-                  contacto_principal_id = $5,
-                  agente_id = $6,
-                  moneda = $7,
-                  tipo_cambio = $8,
+                  numero = $4,
+                  fecha_documento = $5,
+                  contacto_principal_id = $6,
+                  agente_id = $7,
+                  moneda = $8,
+                  tipo_cambio = $9,
                   subtotal = 0,
                   iva = 0,
                   total = 0,
-                  descuento_global = $9,
-                  observaciones = $10,
-                  motivo_nc = $11,
-                  concepto_id = $12,
-                  producto_resumen = $13,
-                  documento_origen_id = $14,
-                  rfc_receptor = $15,
-                  nombre_receptor = $16,
-                  regimen_fiscal_receptor = $17,
-                  uso_cfdi = $18,
-                  forma_pago = $19,
-                  metodo_pago = $20,
-                  codigo_postal_receptor = $21
+                  descuento_global = $10,
+                  observaciones = $11,
+                  motivo_nc = $12,
+                  concepto_id = $13,
+                  producto_resumen = $14,
+                  documento_origen_id = $15,
+                  rfc_receptor = $16,
+                  nombre_receptor = $17,
+                  regimen_fiscal_receptor = $18,
+                  uso_cfdi = $19,
+                  forma_pago = $20,
+                  metodo_pago = $21,
+                  codigo_postal_receptor = $22
             WHERE id = $1
               AND empresa_id = $2
             RETURNING *`,
@@ -700,6 +697,7 @@ export class DocumentGenerationService {
             documentoDestinoExistenteId,
             empresaId,
             serieDestino,
+            numeroDestino,
             fechaDocumento,
             contactoPrincipalIdDestino,
             documentoOrigen.agente_id ?? documentoDestinoExistente.agente_id ?? null,
@@ -723,6 +721,22 @@ export class DocumentGenerationService {
 
         documentoDestino = documentoDestinoActualizadoRows[0];
       } else {
+        const tratamientoDestino = ['factura', 'nota_credito'].includes(String(tipo_documento_destino).toLowerCase())
+          ? (datos_encabezado?.uso_cfdi
+              ? 'normal'
+              : String(documentoOrigen.tratamiento_impuestos ?? 'normal').toLowerCase() === 'sin_iva'
+                ? 'sin_iva'
+                : 'normal')
+          : 'normal';
+        const serieResuelta = await resolverYReservarSerieDocumento({
+          empresaId,
+          tipoDocumento: tipo_documento_destino,
+          usuarioId: usuarioId ?? null,
+          tratamientoImpuestos: tratamientoDestino,
+          client,
+        });
+        const serieDestino = serieResuelta.serie;
+        const nextNumero = serieResuelta.numero;
         const contactoPrincipalIdDestino = Number(
           datos_encabezado?.contacto_principal_id
           ?? documentoOrigen.contacto_principal_id
@@ -735,15 +749,6 @@ export class DocumentGenerationService {
           empresaId,
           client
         );
-        const { rows: numeroRows } = await client.query(
-          `SELECT COALESCE(MAX(numero), 0) + 1 AS next_numero
-             FROM documentos
-            WHERE empresa_id = $1
-              AND LOWER(tipo_documento) = LOWER($2)
-              AND COALESCE(serie, '') = COALESCE($3, '')`,
-          [empresaId, tipo_documento_destino, serieDestino]
-        );
-        const nextNumero = numeroRows[0]?.next_numero ?? 1;
         const columnasCotizacion = camposCotizacion ? ",\n            estado_seguimiento" : "";
         const valoresCotizacion = camposCotizacion ? ",\n            $19" : "";
 

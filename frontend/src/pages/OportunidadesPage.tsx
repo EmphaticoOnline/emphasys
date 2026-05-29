@@ -49,6 +49,11 @@ import { useParams } from 'react-router-dom';
 import { apiFetch } from '../services/apiFetch';
 import { eliminarOportunidad as eliminarOportunidadService } from '../services/oportunidadesService';
 import { loadSession } from '../session/sessionStorage';
+import { GridContextMenu } from '../components/grids/GridContextMenu';
+import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
+import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
+import { useGridContextMenu } from '../hooks/useGridContextMenu';
 
 dayjs.locale('es');
 
@@ -1273,7 +1278,61 @@ export default function OportunidadesPage() {
     };
   }, [loadingSeguimientoResumen, seguimientoResumenByOportunidad]);
 
-  const columns = useMemo<GridColDef<Oportunidad>[]>(() => [
+  const {
+    contextMenuRow,
+    anchorPosition: contextMenuPosition,
+    closeContextMenu,
+    openContextMenuForRow,
+    rowSlotProps,
+  } = useGridContextMenu(filteredOportunidades);
+
+  const contextMenuActions = useMemo<GridContextMenuAction[]>(() => {
+    if (!contextMenuRow) return [];
+
+    return [
+      {
+        id: 'abrir-seguimiento',
+        label: 'Abrir seguimiento',
+        icon: <AssignmentOutlinedIcon fontSize="small" />,
+        onClick: () => openSeguimientoDrawer(contextMenuRow),
+      },
+      {
+        id: 'separator-primary',
+        type: 'separator',
+      },
+      {
+        id: 'eliminar',
+        label: 'Eliminar oportunidad',
+        icon: <DeleteOutlineIcon fontSize="small" />,
+        destructive: true,
+        disabled: savingOperacionId === contextMenuRow.id,
+        onClick: () => handleOpenDeleteDialog(contextMenuRow),
+      },
+    ];
+  }, [contextMenuRow, handleOpenDeleteDialog, openSeguimientoDrawer, savingOperacionId]);
+
+  const contextMenuTriggerColumn = useMemo<GridColDef<Oportunidad>>(
+    () => ({
+      field: 'menu',
+      headerName: '',
+      width: 42,
+      minWidth: 42,
+      maxWidth: 42,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      resizable: false,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params: GridRenderCellParams<Oportunidad>) => (
+        <GridContextMenuTrigger onOpen={(event) => openContextMenuForRow(event, params.row)} />
+      ),
+    }),
+    [openContextMenuForRow]
+  );
+
+  const baseColumns = useMemo<GridColDef<Oportunidad>[]>(() => [
     {
       field: 'folio',
       headerName: 'Folio',
@@ -1571,6 +1630,20 @@ export default function OportunidadesPage() {
     },
   ], [getColumnWidth, getSeguimientoChipPresentation, handleOpenDateDialog, handleOpenObservacionesDialog, handleOpenStatusMenu, openSeguimientoDrawer, savingOperacionId, updatingStatusId]);
 
+  const columns = useMemo<GridColDef<Oportunidad>[]>(
+    () => [contextMenuTriggerColumn, ...baseColumns],
+    [baseColumns, contextMenuTriggerColumn]
+  );
+
+  const effectiveColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
+    () => ({
+      ...columnVisibilityModel,
+      menu: true,
+      acciones: SHOW_GRID_ACTIONS,
+    }),
+    [columnVisibilityModel]
+  );
+
   const handleGuardarActividad = useCallback(async () => {
     const oportunidad = createActividadDialog.oportunidad;
 
@@ -1726,9 +1799,9 @@ export default function OportunidadesPage() {
     setAppliedFilters(INITIAL_ADVANCED_FILTERS);
   };
 
-  const handleOpenDeleteDialog = (row: Oportunidad) => {
+  function handleOpenDeleteDialog(row: Oportunidad) {
     setDeleteDialog({ open: true, row });
-  };
+  }
 
   const handleCloseDeleteDialog = () => {
     if (savingOperacionId !== null) {
@@ -2281,15 +2354,21 @@ export default function OportunidadesPage() {
                   rows={filteredOportunidades}
                   columns={columns}
                   getRowId={(row) => row.id}
-                  columnVisibilityModel={columnVisibilityModel}
+                  columnVisibilityModel={effectiveColumnVisibilityModel}
                   columnHeaderHeight={34}
                   rowHeight={40}
                   loading={loading}
                   disableRowSelectionOnClick
+                  {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
                   hideFooterPagination
                   onColumnVisibilityModelChange={(model) => {
-                    setColumnVisibilityModel(model);
-                    localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(model));
+                    const nextModel = {
+                      ...model,
+                      menu: true,
+                      acciones: SHOW_GRID_ACTIONS,
+                    };
+                    setColumnVisibilityModel(nextModel);
+                    localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(nextModel));
                   }}
                   onColumnWidthChange={(params: GridColumnResizeParams) => {
                     setColumnWidths((prev) => {
@@ -2316,11 +2395,11 @@ export default function OportunidadesPage() {
                       color: '#ffffff',
                     },
                     '& .MuiDataGrid-columnHeader': {
-                      backgroundColor: '#1e2a5a',
+                      backgroundColor: '#1d2f68',
                       color: '#ffffff',
                     },
                     '& .MuiDataGrid-columnHeaderTitle': {
-                      fontWeight: 700,
+                      fontWeight: 600,
                       color: '#ffffff',
                     },
                     '& .MuiDataGrid-sortIcon': {
@@ -2354,12 +2433,25 @@ export default function OportunidadesPage() {
                       backgroundColor: 'rgba(0, 120, 70, 0.05)',
                     },
                     '& .MuiDataGrid-row:hover': {
-                      backgroundColor: 'rgba(0,0,0,0.04)',
+                      backgroundColor: 'rgba(15, 23, 42, 0.04)',
+                    },
+                    '& .MuiDataGrid-row.Mui-selected': {
+                      backgroundColor: 'rgba(29, 47, 104, 0.08)',
+                    },
+                    '& .MuiDataGrid-row.Mui-selected:hover': {
+                      backgroundColor: 'rgba(29, 47, 104, 0.12)',
                     },
                   }}
                 />
               </Box>
             </PaperCard>
+
+            <GridContextMenu
+              actions={contextMenuActions}
+              anchorPosition={contextMenuPosition}
+              open={Boolean(contextMenuRow && contextMenuPosition)}
+              onClose={closeContextMenu}
+            />
 
             <Drawer
               anchor="right"
