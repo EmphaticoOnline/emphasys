@@ -16,7 +16,6 @@ import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
-import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import MainMenu, { MainMenuItems, MainMenuLogo } from './Menu.js';
 import EmpresaSelector from './EmpresaSelector.js';
@@ -37,6 +36,7 @@ import { compareDocumentoVisualOrder } from '../modules/documentos/documentoVisu
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchParametrosSistema } from '../services/parametrosService';
 import { apiFetch } from '../services/apiFetch';
+import { useResponsiveMainMenuMode } from '../hooks/useResponsiveMainMenuMode.js';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -89,7 +89,15 @@ export default function Layout({ children }: LayoutProps) {
   const userName = session.user?.nombre || 'Usuario';
   const empresaId = session.empresaActivaId;
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const moduleNavSlotRef = React.useRef<HTMLDivElement | null>(null);
+  const moduleNavProbeRef = React.useRef<HTMLDivElement | null>(null);
+  const useCompactNavigation = useResponsiveMainMenuMode({
+    availableRef: moduleNavSlotRef,
+    contentRef: moduleNavProbeRef,
+    enterCompactPx: 24,
+    exitCompactPx: 48,
+  });
 
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
@@ -394,9 +402,9 @@ export default function Layout({ children }: LayoutProps) {
           width: '100%',
           background: '#1d2f68',
           color: '#fff',
-          position: { xs: 'sticky', md: 'static' },
-          top: { xs: 0, md: 'auto' },
-          zIndex: { xs: theme.zIndex.appBar, md: 'auto' },
+          position: 'sticky',
+          top: 0,
+          zIndex: theme.zIndex.appBar,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -405,23 +413,35 @@ export default function Layout({ children }: LayoutProps) {
           boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 }, flex: 1, minWidth: 0 }}>
-          {isMobile ? (
-            <>
-              <IconButton color="inherit" onClick={() => setDrawerOpen(true)} aria-label="Abrir menú">
-                <MenuIcon />
-              </IconButton>
-              <Box sx={{ minWidth: 0, '& img': { height: 34 } }}>
-                <MainMenuLogo />
-              </Box>
-            </>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 }, flex: '0 0 auto', minWidth: 0 }}>
+          <MainMenuLogo />
+        </Box>
+
+        <Box
+          ref={moduleNavSlotRef}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            flex: 1,
+            minWidth: 0,
+            height: '100%',
+            overflow: 'hidden',
+          }}
+        >
+          {useCompactNavigation ? (
+            <IconButton color="inherit" onClick={() => setDrawerOpen(true)} aria-label="Abrir menú">
+              <MenuIcon />
+            </IconButton>
           ) : (
-            <MainMenu selectedSection={selectedSection} onSelect={handleSectionChange} />
+            <MainMenuItems selectedSection={selectedSection} onSelect={handleSectionChange} />
           )}
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          {!isMobile ? <EmpresaSelector /> : null}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: '0 0 auto' }}>
+          <Box sx={{ minWidth: 220, flex: '0 0 auto', visibility: useCompactNavigation ? 'hidden' : 'visible' }}>
+            <EmpresaSelector />
+          </Box>
           <Tooltip title={userName}>
             <IconButton
               onClick={handleUserMenuOpen}
@@ -477,7 +497,7 @@ export default function Layout({ children }: LayoutProps) {
       <Drawer anchor="left" open={drawerOpen} onClose={handleDrawerClose}>
         <Box sx={{ width: 280, p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <MainMenuLogo />
-          {isMobile ? (
+          {useCompactNavigation ? (
             <>
               <Box
                 sx={{
@@ -527,6 +547,23 @@ export default function Layout({ children }: LayoutProps) {
           <MainMenuItems selectedSection={selectedSection} onSelect={handleDrawerSelect} variant="vertical" />
         </Box>
       </Drawer>
+
+      <Box
+        ref={moduleNavProbeRef}
+        aria-hidden="true"
+        sx={{
+          position: 'absolute',
+          left: -10000,
+          top: 0,
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          width: 'max-content',
+          height: 'auto',
+          overflow: 'hidden',
+        }}
+      >
+        <MainMenuItems selectedSection={selectedSection} onSelect={handleSectionChange} />
+      </Box>
 
   <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: { xs: 1.5, md: 2 } }}>
         <Box

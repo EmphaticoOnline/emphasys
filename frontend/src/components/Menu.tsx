@@ -56,6 +56,7 @@ export function MainMenuItems({ selectedSection, onSelect, variant = 'horizontal
         gap: isVertical ? 0.75 : 1.1,
         height: '100%',
         minWidth: 0,
+        flexWrap: 'nowrap',
         flexDirection: isVertical ? 'column' : 'row',
       }}
     >
@@ -68,6 +69,7 @@ export function MainMenuItems({ selectedSection, onSelect, variant = 'horizontal
             onClick={(e) => handleMenuClick(idx, e)}
             sx={{
               height: isVertical ? 'auto' : '100%',
+              flexShrink: 0,
               alignItems: 'center',
               justifyContent: isVertical ? 'flex-start' : 'center',
               color: isVertical ? (active ? azul : '#334155') : active ? '#fff' : grisInactivo,
@@ -87,6 +89,7 @@ export function MainMenuItems({ selectedSection, onSelect, variant = 'horizontal
               minWidth: 0,
               width: isVertical ? '100%' : 'auto',
               textAlign: isVertical ? 'left' : 'center',
+              whiteSpace: 'nowrap',
             }}
           >
             {menu.label}
@@ -105,15 +108,12 @@ export default function MainMenu({ selectedSection, onSelect }: MainMenuProps) {
         alignItems: 'center',
         gap: 2,
         color: '#fff',
-        flex: 1,
-        minWidth: 0,
+        flex: '0 0 auto',
+        width: 'max-content',
+        minWidth: 'max-content',
         height: '100%',
-        overflowX: 'auto',
+        overflow: 'hidden',
         whiteSpace: 'nowrap',
-        scrollbarWidth: 'thin',
-        '&::-webkit-scrollbar': { height: 6 },
-        '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: 999 },
-        '&::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
       }}
     >
       <MainMenuLogo />

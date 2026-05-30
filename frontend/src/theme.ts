@@ -1,5 +1,8 @@
 import { createTheme } from '@mui/material/styles';
 
+const mobileEditableInputMediaQuery = '@media (max-width:899.95px)';
+const mobileEditableInputFontSize = '16px !important';
+
 const theme = createTheme({
   palette: {
     primary: {
@@ -16,6 +19,60 @@ const theme = createTheme({
       styleOverrides: {
         body: {
           backgroundColor: '#eef1f4',
+        },
+      },
+    },
+    MuiInputBase: {
+      styleOverrides: {
+        input: {
+          [mobileEditableInputMediaQuery]: {
+            fontSize: mobileEditableInputFontSize,
+          },
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        input: {
+          [mobileEditableInputMediaQuery]: {
+            fontSize: mobileEditableInputFontSize,
+          },
+        },
+      },
+    },
+    MuiFilledInput: {
+      styleOverrides: {
+        input: {
+          [mobileEditableInputMediaQuery]: {
+            fontSize: mobileEditableInputFontSize,
+          },
+        },
+      },
+    },
+    MuiInput: {
+      styleOverrides: {
+        input: {
+          [mobileEditableInputMediaQuery]: {
+            fontSize: mobileEditableInputFontSize,
+          },
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        select: {
+          [mobileEditableInputMediaQuery]: {
+            fontSize: mobileEditableInputFontSize,
+          },
+        },
+      },
+    },
+    MuiAutocomplete: {
+      styleOverrides: {
+        input: {
+          [mobileEditableInputMediaQuery]: {
+            fontSize: mobileEditableInputFontSize,
+          },
         },
       },
     },

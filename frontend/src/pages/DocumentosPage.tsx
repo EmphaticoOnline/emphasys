@@ -38,7 +38,8 @@ import {
   FormControlLabel,
   Checkbox,
 } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import type {
   GridColDef,
   GridRowParams,
@@ -110,6 +111,8 @@ import {
   resolveDocumentoFormPath,
   resolveDocumentosListPath,
 } from '../modules/documentos/documentoNavigation';
+import DocumentosDesktopView from '../components/documentos/DocumentosDesktopView';
+import DocumentosMobileView from '../components/documentos/DocumentosMobileView';
 
 const formatCivilDate = (value: unknown) => {
   const raw = String(value ?? '').trim();
@@ -155,6 +158,15 @@ const formatProductionDateTime = (value: string | null | undefined) => {
     hour12: true,
   }).format(parsed);
 };
+
+const compactEditableInputFontSize = { xs: 16, md: 13 } as const;
+
+const compactFilterFieldSx = {
+  '& .MuiInputLabel-root': { fontSize: 13 },
+  '& .MuiInputBase-input': { fontSize: compactEditableInputFontSize, py: 1.15 },
+  '& .MuiAutocomplete-input': { fontSize: compactEditableInputFontSize },
+  '& .MuiSelect-select': { fontSize: compactEditableInputFontSize },
+} as const;
 
 function normalizeHexColor(color: string | null | undefined) {
   const raw = String(color ?? '').trim();
@@ -351,6 +363,8 @@ const puedeTimbrarCfdiDocumento = (tipoDocumento: TipoDocumento, row?: Partial<C
 };
 
 export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPageProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -2139,374 +2153,487 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     }
   };
 
-  return (
-    <Container maxWidth={false} sx={{ py: 2 }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-        <Stack spacing={0.5}>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            {textos.titulo}
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            {textos.descripcion}
-          </Typography>
+  const filtersContent = enableFilters ? (
+    <Stack spacing={1.25}>
+      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ xs: 'stretch', lg: 'center' }} justifyContent="space-between">
+        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+          {[{ value: 'todos', label: 'Todos' }, ...statusOptions].map((item) => {
+            const selected = quickFilter === item.value;
+            return (
+              <Chip
+                key={item.value}
+                label={item.label}
+                clickable
+                onClick={() => setQuickFilter(item.value)}
+                size="small"
+                variant={selected ? 'filled' : 'outlined'}
+                sx={{
+                  height: 28,
+                  borderRadius: 1.5,
+                  fontSize: 12,
+                  fontWeight: selected ? 700 : 600,
+                  px: 0.35,
+                  color: selected ? '#1d2f68' : '#4b5563',
+                  backgroundColor: selected ? '#e8eefc' : '#fff',
+                  borderColor: selected ? '#9db1ea' : '#d1d5db',
+                  '&:hover': {
+                    backgroundColor: selected ? '#dce6fb' : '#f8fafc',
+                  },
+                  '& .MuiChip-label': {
+                    px: 1.2,
+                  },
+                }}
+              />
+            );
+          })}
         </Stack>
-        <Stack direction="row" spacing={1}>
-          {false && tipoDocumento === 'cotizacion' && (
-            <Button variant="outlined" startIcon={<TableViewIcon />} onClick={() => navigate('/ventas/cotizaciones-grid')}>
-              Vista Excel
-            </Button>
-          )}
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={load} disabled={loading}>
-            Recargar
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => navigate(`${basePath}/nuevo`)}
-            sx={{ textTransform: 'uppercase', fontWeight: 700, backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
-          >
-            Nuevo
-          </Button>
-        </Stack>
-      </Toolbar>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
-        <TextField
-          size="small"
-          fullWidth
-          placeholder="Buscar folio, cliente, RFC, teléfono, correo, concepto, producto..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
-              </InputAdornment>
-            ),
-            endAdornment:
-              search && (
-                <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearch('')} aria-label="Limpiar búsqueda">
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ),
-          }}
-        />
-        {isFacturaConSaldo && (
-          <FormControlLabel
-            control={<Checkbox checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} />}
-            label="Solo pendientes"
-          />
-        )}
+        <Badge color="primary" badgeContent={hayFiltrosActivos ? filtrosActivosCount : 0} invisible={!hayFiltrosActivos}>
+          <Button
+            variant={filtersOpen || hayFiltrosActivos ? 'contained' : 'outlined'}
+            startIcon={<FilterAltOutlinedIcon />}
+            endIcon={filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            onClick={() => setFiltersOpen((prev) => !prev)}
+            sx={{
+              alignSelf: { xs: 'flex-start', lg: 'center' },
+              minWidth: 132,
+              fontWeight: 700,
+              textTransform: 'none',
+              backgroundColor: filtersOpen || hayFiltrosActivos ? '#1d2f68' : undefined,
+              '&:hover': {
+                backgroundColor: filtersOpen || hayFiltrosActivos ? '#162551' : undefined,
+              },
+            }}
+          >
+            Filtrar
+          </Button>
+        </Badge>
       </Stack>
 
-      {enableFilters && (
-        <Stack spacing={1.25}>
-          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} alignItems={{ xs: 'stretch', lg: 'center' }} justifyContent="space-between">
-            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-              {[{ value: 'todos', label: 'Todos' }, ...statusOptions].map((item) => {
-                const selected = quickFilter === item.value;
-                return (
-                  <Chip
-                    key={item.value}
-                    label={item.label}
-                    clickable
-                    onClick={() => setQuickFilter(item.value)}
-                    size="small"
-                    variant={selected ? 'filled' : 'outlined'}
-                    sx={{
-                      height: 28,
-                      borderRadius: 1.5,
-                      fontSize: 12,
-                      fontWeight: selected ? 700 : 600,
-                      px: 0.35,
-                      color: selected ? '#1d2f68' : '#4b5563',
-                      backgroundColor: selected ? '#e8eefc' : '#fff',
-                      borderColor: selected ? '#9db1ea' : '#d1d5db',
-                      '&:hover': {
-                        backgroundColor: selected ? '#dce6fb' : '#f8fafc',
-                      },
-                      '& .MuiChip-label': {
-                        px: 1.2,
+      <Collapse in={filtersOpen} timeout="auto" unmountOnExit={false}>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: { xs: 1.25, sm: 1.5 },
+            borderRadius: 2,
+            borderColor: '#dbe3f4',
+            backgroundColor: '#f8fafc',
+          }}
+        >
+          <Stack spacing={1.25}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>
+              Filtros avanzados
+            </Typography>
+
+            <Grid container spacing={1.25}>
+              <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                    label="Fecha desde"
+                    value={filtrosCotizacion.fechaDesde ? dayjs(filtrosCotizacion.fechaDesde) : null}
+                    onChange={(value) => setFiltrosCotizacion((prev) => ({ ...prev, fechaDesde: value ? value.format('YYYY-MM-DD') : '' }))}
+                    slotProps={{
+                      textField: {
+                        size: 'small',
+                        fullWidth: true,
+                        sx: compactFilterFieldSx,
+                        InputLabelProps: { shrink: true },
+                        InputProps: filtrosCotizacion.fechaDesde
+                          ? {
+                              endAdornment: (
+                                <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, fechaDesde: '' }))}>
+                                  <CloseIcon fontSize="small" />
+                                </IconButton>
+                              ),
+                            }
+                          : {},
                       },
                     }}
                   />
-                );
-              })}
-            </Stack>
+                </LocalizationProvider>
+              </Grid>
 
-            <Badge color="primary" badgeContent={hayFiltrosActivos ? filtrosActivosCount : 0} invisible={!hayFiltrosActivos}>
-              <Button
-                variant={filtersOpen || hayFiltrosActivos ? 'contained' : 'outlined'}
-                startIcon={<FilterAltOutlinedIcon />}
-                endIcon={filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                onClick={() => setFiltersOpen((prev) => !prev)}
-                sx={{
-                  alignSelf: { xs: 'flex-start', lg: 'center' },
-                  minWidth: 132,
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  backgroundColor: filtersOpen || hayFiltrosActivos ? '#1d2f68' : undefined,
-                  '&:hover': {
-                    backgroundColor: filtersOpen || hayFiltrosActivos ? '#162551' : undefined,
-                  },
-                }}
-              >
-                Filtrar
-              </Button>
-            </Badge>
-          </Stack>
+              <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                    label="Fecha hasta"
+                    value={filtrosCotizacion.fechaHasta ? dayjs(filtrosCotizacion.fechaHasta) : null}
+                    onChange={(value) => setFiltrosCotizacion((prev) => ({ ...prev, fechaHasta: value ? value.format('YYYY-MM-DD') : '' }))}
+                    slotProps={{
+                      textField: {
+                        size: 'small',
+                        fullWidth: true,
+                        sx: compactFilterFieldSx,
+                        InputLabelProps: { shrink: true },
+                        InputProps: filtrosCotizacion.fechaHasta
+                          ? {
+                              endAdornment: (
+                                <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, fechaHasta: '' }))}>
+                                  <CloseIcon fontSize="small" />
+                                </IconButton>
+                              ),
+                            }
+                          : {},
+                      },
+                    }}
+                  />
+                </LocalizationProvider>
+              </Grid>
 
-          <Collapse in={filtersOpen} timeout="auto" unmountOnExit={false}>
-            <Paper
-              variant="outlined"
-              sx={{
-                p: { xs: 1.25, sm: 1.5 },
-                borderRadius: 2,
-                borderColor: '#dbe3f4',
-                backgroundColor: '#f8fafc',
-              }}
-            >
-              <Stack spacing={1.25}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>
-                  Filtros avanzados
-                </Typography>
-
-                <Grid container spacing={1.25}>
-                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <DatePicker
-                        label="Fecha desde"
-                        value={filtrosCotizacion.fechaDesde ? dayjs(filtrosCotizacion.fechaDesde) : null}
-                        onChange={(value) => setFiltrosCotizacion((prev) => ({ ...prev, fechaDesde: value ? value.format('YYYY-MM-DD') : '' }))}
-                        slotProps={{
-                          textField: {
-                            size: 'small',
-                            fullWidth: true,
-                            sx: {
-                              '& .MuiInputLabel-root': { fontSize: 13 },
-                              '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
-                            },
-                            InputLabelProps: { shrink: true },
-                            InputProps: filtrosCotizacion.fechaDesde
-                              ? {
-                                  endAdornment: (
-                                    <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, fechaDesde: '' }))}>
-                                      <CloseIcon fontSize="small" />
-                                    </IconButton>
-                                  ),
-                                }
-                              : {},
-                          },
-                        }}
-                      />
-                    </LocalizationProvider>
-                  </Grid>
-
-                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <DatePicker
-                        label="Fecha hasta"
-                        value={filtrosCotizacion.fechaHasta ? dayjs(filtrosCotizacion.fechaHasta) : null}
-                        onChange={(value) => setFiltrosCotizacion((prev) => ({ ...prev, fechaHasta: value ? value.format('YYYY-MM-DD') : '' }))}
-                        slotProps={{
-                          textField: {
-                            size: 'small',
-                            fullWidth: true,
-                            sx: {
-                              '& .MuiInputLabel-root': { fontSize: 13 },
-                              '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
-                            },
-                            InputLabelProps: { shrink: true },
-                            InputProps: filtrosCotizacion.fechaHasta
-                              ? {
-                                  endAdornment: (
-                                    <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, fechaHasta: '' }))}>
-                                      <CloseIcon fontSize="small" />
-                                    </IconButton>
-                                  ),
-                                }
-                              : {},
-                          },
-                        }}
-                      />
-                    </LocalizationProvider>
-                  </Grid>
-
-                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
-                    <Autocomplete
-                      size="small"
-                      options={contactos}
-                      value={contactos.find((contacto) => contacto.id === filtrosCotizacion.clienteId) ?? null}
-                      onChange={(_, value) => setFiltrosCotizacion((prev) => ({ ...prev, clienteId: value?.id ?? null }))}
-                      getOptionLabel={(option) => option?.nombre || ''}
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          size="small"
-                          label={contactoLabel}
-                          placeholder="Todos"
-                          InputLabelProps={{ ...(params.InputLabelProps as any), shrink: true }}
-                          sx={{
-                            '& .MuiInputLabel-root': { fontSize: 13 },
-                            '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
-                          }}
-                          InputProps={{
-                            ...params.InputProps,
-                            endAdornment: (
-                              <>
-                                {filtrosCotizacion.clienteId ? (
-                                  <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, clienteId: null }))}>
-                                    <CloseIcon fontSize="small" />
-                                  </IconButton>
-                                ) : null}
-                                {params.InputProps.endAdornment}
-                              </>
-                            ),
-                          }}
-                        />
-                      )}
-                      sx={{ width: '100%', '& .MuiAutocomplete-input': { fontSize: 13 } }}
-                    />
-                  </Grid>
-
-                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+              <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
+                <Autocomplete
+                  size="small"
+                  options={contactos}
+                  value={contactos.find((contacto) => contacto.id === filtrosCotizacion.clienteId) ?? null}
+                  onChange={(_, value) => setFiltrosCotizacion((prev) => ({ ...prev, clienteId: value?.id ?? null }))}
+                  getOptionLabel={(option) => option?.nombre || ''}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderInput={(params) => (
                     <TextField
+                      {...params}
                       size="small"
-                      label="Monto mínimo"
-                      type="number"
-                      value={filtrosCotizacion.montoMin}
-                      onChange={(e) => setFiltrosCotizacion((prev) => ({ ...prev, montoMin: e.target.value }))}
-                      fullWidth
-                      sx={{
-                        '& .MuiInputLabel-root': { fontSize: 13 },
-                        '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
-                      }}
-                      InputLabelProps={{ shrink: true }}
-                      inputProps={{ min: 0, step: 0.01, style: { fontSize: 13 } }}
-                      InputProps={filtrosCotizacion.montoMin ? {
+                      label={contactoLabel}
+                      placeholder="Todos"
+                      InputLabelProps={{ ...(params.InputLabelProps as any), shrink: true }}
+                      sx={compactFilterFieldSx}
+                      InputProps={{
+                        ...params.InputProps,
                         endAdornment: (
-                          <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, montoMin: '' }))}>
-                            <CloseIcon fontSize="small" />
-                          </IconButton>
+                          <>
+                            {filtrosCotizacion.clienteId ? (
+                              <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, clienteId: null }))}>
+                                <CloseIcon fontSize="small" />
+                              </IconButton>
+                            ) : null}
+                            {params.InputProps.endAdornment}
+                          </>
                         ),
-                      } : {}}
-                    />
-                  </Grid>
-
-                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
-                    <TextField
-                      size="small"
-                      label="Monto máximo"
-                      type="number"
-                      value={filtrosCotizacion.montoMax}
-                      onChange={(e) => setFiltrosCotizacion((prev) => ({ ...prev, montoMax: e.target.value }))}
-                      fullWidth
-                      sx={{
-                        '& .MuiInputLabel-root': { fontSize: 13 },
-                        '& .MuiInputBase-input': { fontSize: 13, py: 1.15 },
                       }}
-                      InputLabelProps={{ shrink: true }}
-                      inputProps={{ min: 0, step: 0.01, style: { fontSize: 13 } }}
-                      InputProps={filtrosCotizacion.montoMax ? {
-                        endAdornment: (
-                          <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, montoMax: '' }))}>
-                            <CloseIcon fontSize="small" />
-                          </IconButton>
-                        ),
-                      } : {}}
                     />
-                  </Grid>
-
-                  {showAgentFilter && (
-                    <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
-                      <Autocomplete
-                        fullWidth
-                        options={vendedores}
-                        loading={loading && vendedores.length === 0}
-                        getOptionLabel={(option) => option.nombre || ''}
-                        value={vendedores.find((contacto) => contacto.id === filtrosCotizacion.agenteId) || null}
-                        onChange={(_, value) => setFiltrosCotizacion((prev) => ({ ...prev, agenteId: value?.id ?? null }))}
-                        renderOption={(props, option) => {
-                          const { key, ...rest } = props;
-                          return (
-                            <li {...rest} key={option.id ?? key}>
-                              {option.nombre || ''}
-                            </li>
-                          );
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...(params as any)}
-                            fullWidth
-                            label="Agente de ventas"
-                            size="small"
-                            InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                            inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
-                          />
-                        )}
-                      />
-                    </Grid>
                   )}
+                  sx={{ width: '100%', ...compactFilterFieldSx }}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+                <TextField
+                  size="small"
+                  label="Monto mínimo"
+                  type="number"
+                  value={filtrosCotizacion.montoMin}
+                  onChange={(e) => setFiltrosCotizacion((prev) => ({ ...prev, montoMin: e.target.value }))}
+                  fullWidth
+                  sx={compactFilterFieldSx}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: 0, step: 0.01 }}
+                  InputProps={filtrosCotizacion.montoMin ? {
+                    endAdornment: (
+                      <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, montoMin: '' }))}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    ),
+                  } : {}}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+                <TextField
+                  size="small"
+                  label="Monto máximo"
+                  type="number"
+                  value={filtrosCotizacion.montoMax}
+                  onChange={(e) => setFiltrosCotizacion((prev) => ({ ...prev, montoMax: e.target.value }))}
+                  fullWidth
+                  sx={compactFilterFieldSx}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: 0, step: 0.01 }}
+                  InputProps={filtrosCotizacion.montoMax ? {
+                    endAdornment: (
+                      <IconButton size="small" onClick={() => setFiltrosCotizacion((prev) => ({ ...prev, montoMax: '' }))}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    ),
+                  } : {}}
+                />
+              </Grid>
+
+              {showAgentFilter && (
+                <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
+                  <Autocomplete
+                    fullWidth
+                    options={vendedores}
+                    loading={loading && vendedores.length === 0}
+                    getOptionLabel={(option) => option.nombre || ''}
+                    value={vendedores.find((contacto) => contacto.id === filtrosCotizacion.agenteId) || null}
+                    onChange={(_, value) => setFiltrosCotizacion((prev) => ({ ...prev, agenteId: value?.id ?? null }))}
+                    renderOption={(props, option) => {
+                      const { key, ...rest } = props;
+                      return (
+                        <li {...rest} key={option.id ?? key}>
+                          {option.nombre || ''}
+                        </li>
+                      );
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...(params as any)}
+                        fullWidth
+                        label="Agente de ventas"
+                        size="small"
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        inputProps={{ ...params.inputProps }}
+                        sx={compactFilterFieldSx}
+                      />
+                    )}
+                  />
                 </Grid>
+              )}
+            </Grid>
 
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
-                  <Button variant="text" onClick={handleLimpiarFiltros}>
-                    Limpiar
-                  </Button>
-                  <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}>
-                    Aplicar filtros
-                  </Button>
-                </Stack>
-              </Stack>
-            </Paper>
-          </Collapse>
-        </Stack>
-      )}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
+              <Button variant="text" onClick={handleLimpiarFiltros}>
+                Limpiar
+              </Button>
+              <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}>
+                Aplicar filtros
+              </Button>
+            </Stack>
+          </Stack>
+        </Paper>
+      </Collapse>
+    </Stack>
+  ) : null;
 
-      {enableFilters && resumenTotales && (
-        <Box
+  const summaryContent = enableFilters && resumenTotales ? (
+    <Box
+      sx={{
+        display: 'grid',
+        gap: 1,
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, minmax(0, 1fr))',
+          lg: 'repeat(6, minmax(0, 1fr))',
+        },
+      }}
+    >
+      {[
+        { label: 'Total general', value: resumenTotales.general, color: '#2563eb' },
+        ...statusOptions.map((status) => ({
+          label: status.label,
+          value: Number(resumenTotales.porEstado[status.value] ?? 0),
+          color: status.textColor || '#374151',
+        })),
+      ].map((item) => (
+        <Paper
+          key={item.label}
+          variant="outlined"
           sx={{
-            display: 'grid',
-            gap: 1,
-            gridTemplateColumns: {
-              xs: '1fr',
-              sm: 'repeat(2, minmax(0, 1fr))',
-              lg: 'repeat(6, minmax(0, 1fr))',
-            },
+            px: 1,
+            py: 0.8,
+            borderRadius: 1.5,
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
           }}
         >
-          {[
-            { label: 'Total general', value: resumenTotales.general, color: '#2563eb' },
-            ...statusOptions.map((status) => ({
-              label: status.label,
-              value: Number(resumenTotales.porEstado[status.value] ?? 0),
-              color: status.textColor || '#374151',
-            })),
-          ].map((item) => (
-            <Paper
-              key={item.label}
-              variant="outlined"
-              sx={{
-                px: 1,
-                py: 0.8,
-                borderRadius: 1.5,
-                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
-              }}
-            >
-              <Typography sx={{ color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
-                {item.label}
-              </Typography>
-              <Typography sx={{ color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
-                {currency.format(item.value)}
-              </Typography>
-            </Paper>
-          ))}
-        </Box>
-      )}
+          <Typography sx={{ color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
+            {item.label}
+          </Typography>
+          <Typography sx={{ color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
+            {currency.format(item.value)}
+          </Typography>
+        </Paper>
+      ))}
+    </Box>
+  ) : null;
+
+  const selectionContent = canBulkDuplicate && selectedDocumentIds.length > 0 ? (
+    <Paper
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        px: 2,
+        py: 1.25,
+        display: 'flex',
+        alignItems: { xs: 'stretch', sm: 'center' },
+        justifyContent: 'space-between',
+        gap: 1,
+        flexDirection: { xs: 'column', sm: 'row' },
+      }}
+    >
+      <Typography variant="body2" sx={{ fontWeight: 700, color: '#1f2937' }}>
+        {selectedDocumentIds.length} documento{selectedDocumentIds.length === 1 ? '' : 's'} seleccionado{selectedDocumentIds.length === 1 ? '' : 's'}
+      </Typography>
+      <Stack direction="row" spacing={1}>
+        <Button variant="text" onClick={() => setSelectedDocumentIds([])} disabled={bulkDuplicating}>
+          Limpiar selección
+        </Button>
+        {bulkNotaCreditoDestino && selectedDocumentIds.length > 1 && (
+          <Button
+            variant="outlined"
+            startIcon={<ReceiptLongIcon />}
+            onClick={() => {
+              void handlePrepararConsolidacionNotaCredito();
+            }}
+          >
+            Consolidar nota de crédito
+          </Button>
+        )}
+        <Button
+          variant="contained"
+          startIcon={<ContentCopyIcon />}
+          onClick={() => {
+            void handleDuplicarSeleccionados();
+          }}
+          disabled={bulkDuplicating}
+          sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
+        >
+          Duplicar seleccionados
+        </Button>
+      </Stack>
+    </Paper>
+  ) : null;
+
+  const extraActionsContent = false && tipoDocumento === 'cotizacion' ? (
+    <Button variant="outlined" startIcon={<TableViewIcon />} onClick={() => navigate('/ventas/cotizaciones-grid')}>
+      Vista Excel
+    </Button>
+  ) : null;
+
+  const desktopView = (
+    <DocumentosDesktopView
+      title={textos.titulo}
+      description={textos.descripcion}
+      searchTerm={search}
+      onSearchTermChange={setSearch}
+      onClearSearch={() => setSearch('')}
+      onRefresh={load}
+      onCreateDocumento={() => navigate(`${basePath}/nuevo`)}
+      isLoading={loading}
+      showPendingToggle={isFacturaConSaldo}
+      soloPendientes={soloPendientes}
+      onSoloPendientesChange={setSoloPendientes}
+      filtersContent={filtersContent}
+      summaryContent={summaryContent}
+      selectionContent={selectionContent}
+      extraActionsContent={extraActionsContent}
+      rows={filteredRows}
+      columns={columns}
+      canBulkDuplicate={canBulkDuplicate}
+      selectedDocumentIds={selectedDocumentIds}
+      onSelectedDocumentIdsChange={setSelectedDocumentIds}
+      onCellClick={(params, event) => {
+        if (params.field !== 'estatus_documento' && params.field !== 'estado_seguimiento') return;
+        (event as any).defaultMuiPrevented = true;
+        event.preventDefault();
+        event.stopPropagation();
+        if (params.field === 'estatus_documento') {
+          handleOpenEstatusMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado);
+          return;
+        }
+        if (params.field === 'estado_seguimiento' && esCotizacion) {
+          handleOpenSeguimientoMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado);
+          return;
+        }
+        if (params.field === 'actions') {
+          return;
+        }
+      }}
+      onRowClick={(params: GridRowParams, event) => {
+        if ((event as any).defaultMuiPrevented) return;
+        setFocusedDocumentId(Number(params.id));
+        setHighlightedDocumentId(null);
+        navigate(resolveDocumentoFormPath(tipoDocumento, params.id, modulo));
+      }}
+      slotProps={gridContextMenuRowSlotProps ? { row: gridContextMenuRowSlotProps } : undefined}
+      getRowClassName={(params) => {
+        const rowId = Number(params.id);
+        const classNames = [];
+
+        if (rowId === focusedDocumentId) {
+          classNames.push('documento-focus-row');
+        }
+
+        if (rowId === highlightedDocumentId) {
+          classNames.push('documento-focus-row--recent');
+        }
+
+        return classNames.join(' ');
+      }}
+      columnVisibilityModel={effectiveColumnVisibilityModel}
+      onColumnVisibilityModelChange={(model) => {
+        const nextModel = {
+          ...model,
+          menu: true,
+          ...(esCotizacion ? { estatus_documento: true } : {}),
+          actions: SHOW_GRID_ACTIONS,
+        };
+        setColumnVisibilityModel(nextModel);
+        const current = {
+          columnVisibilityModel: nextModel,
+          columnWidths,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+      }}
+      onColumnWidthChange={(params: GridColumnResizeParams) => {
+        setColumnWidths((prev) => {
+          const next = { ...prev, [params.colDef.field]: params.width };
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              columnVisibilityModel,
+              columnWidths: next,
+            })
+          );
+          return next;
+        });
+      }}
+      contextMenuActions={gridContextMenuActions}
+      contextMenuPosition={contextMenuPosition}
+      contextMenuOpen={Boolean(contextMenuRow)}
+      onCloseContextMenu={closeGridContextMenu}
+    />
+  );
+
+  const mobileView = (
+    <DocumentosMobileView
+      title={textos.titulo}
+      description={textos.descripcion}
+      searchTerm={search}
+      onSearchTermChange={setSearch}
+      onClearSearch={() => setSearch('')}
+      onRefresh={load}
+      onCreateDocumento={() => navigate(`${basePath}/nuevo`)}
+      isLoading={loading}
+      showPendingToggle={isFacturaConSaldo}
+      soloPendientes={soloPendientes}
+      onSoloPendientesChange={setSoloPendientes}
+      filtersContent={filtersContent}
+      summaryContent={summaryContent}
+      selectionContent={selectionContent}
+      extraActionsContent={extraActionsContent}
+      rows={filteredRows}
+      canBulkDuplicate={canBulkDuplicate}
+      selectedDocumentIds={selectedDocumentIds}
+      onSelectedDocumentIdsChange={setSelectedDocumentIds}
+      onOpenDocumento={(id) => {
+        setFocusedDocumentId(Number(id));
+        setHighlightedDocumentId(null);
+        navigate(resolveDocumentoFormPath(tipoDocumento, id, modulo));
+      }}
+      onOpenContextMenu={openContextMenuForRow}
+      contextMenuActions={gridContextMenuActions}
+      contextMenuPosition={contextMenuPosition}
+      contextMenuOpen={Boolean(contextMenuRow)}
+      onCloseContextMenu={closeGridContextMenu}
+      formatFolio={(row) => formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0)) || String(row.id)}
+      formatDate={formatCivilDate}
+      currency={currency}
+    />
+  );
+
+  return (
+    <Container maxWidth={false} sx={{ py: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+        {isMobile ? mobileView : desktopView}
 
       <Dialog open={Boolean(error)} onClose={() => setError(null)} fullWidth maxWidth="xs">
         <DialogTitle>Error</DialogTitle>
@@ -2519,199 +2646,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           </Button>
         </DialogActions>
       </Dialog>
-
-      {canBulkDuplicate && selectedDocumentIds.length > 0 && (
-        <Paper
-          variant="outlined"
-          sx={{
-            borderRadius: 2,
-            px: 2,
-            py: 1.25,
-            display: 'flex',
-            alignItems: { xs: 'stretch', sm: 'center' },
-            justifyContent: 'space-between',
-            gap: 1,
-            flexDirection: { xs: 'column', sm: 'row' },
-          }}
-        >
-          <Typography variant="body2" sx={{ fontWeight: 700, color: '#1f2937' }}>
-            {selectedDocumentIds.length} documento{selectedDocumentIds.length === 1 ? '' : 's'} seleccionado{selectedDocumentIds.length === 1 ? '' : 's'}
-          </Typography>
-          <Stack direction="row" spacing={1}>
-            <Button variant="text" onClick={() => setSelectedDocumentIds([])} disabled={bulkDuplicating}>
-              Limpiar selección
-            </Button>
-            {bulkNotaCreditoDestino && selectedDocumentIds.length > 1 && (
-              <Button
-                variant="outlined"
-                startIcon={<ReceiptLongIcon />}
-                onClick={() => {
-                  void handlePrepararConsolidacionNotaCredito();
-                }}
-              >
-                Consolidar nota de crédito
-              </Button>
-            )}
-            <Button
-              variant="contained"
-              startIcon={<ContentCopyIcon />}
-              onClick={() => {
-                void handleDuplicarSeleccionados();
-              }}
-              disabled={bulkDuplicating}
-              sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
-            >
-              Duplicar seleccionados
-            </Button>
-          </Stack>
-        </Paper>
-      )}
-
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
-        <Box ref={gridContainerRef}>
-        <DataGrid
-          rows={filteredRows}
-          columns={columns}
-          checkboxSelection={canBulkDuplicate}
-          autoHeight
-          density="standard"
-          rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
-          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
-          loading={loading}
-          disableRowSelectionOnClick
-          rowSelectionModel={selectedDocumentIds}
-          onRowSelectionModelChange={(selectionModel) => {
-            setSelectedDocumentIds(selectionModel.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0));
-          }}
-          // @ts-expect-error Deshabilitamos el reordenamiento para mantener el orden fijo de columnas
-          disableColumnReorder
-          onCellClick={(params, event) => {
-            if (params.field !== 'estatus_documento' && params.field !== 'estado_seguimiento') return;
-            (event as any).defaultMuiPrevented = true;
-            event.preventDefault();
-            event.stopPropagation();
-            if (params.field === 'estatus_documento') {
-              handleOpenEstatusMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado);
-              return;
-            }
-            if (params.field === 'estado_seguimiento' && esCotizacion) {
-              handleOpenSeguimientoMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado);
-              return;
-            }
-            if (params.field === 'actions') {
-              return;
-            }
-          }}
-          onRowClick={(params: GridRowParams, event) => {
-            if ((event as any).defaultMuiPrevented) return;
-            setFocusedDocumentId(Number(params.id));
-            setHighlightedDocumentId(null);
-            navigate(resolveDocumentoFormPath(tipoDocumento, params.id, modulo));
-          }}
-          {...(gridContextMenuRowSlotProps ? { slotProps: { row: gridContextMenuRowSlotProps } } : {})}
-          getRowClassName={(params) => {
-            const rowId = Number(params.id);
-            const classNames = [];
-
-            if (rowId === focusedDocumentId) {
-              classNames.push('documento-focus-row');
-            }
-
-            if (rowId === highlightedDocumentId) {
-              classNames.push('documento-focus-row--recent');
-            }
-
-            return classNames.join(' ');
-          }}
-          columnVisibilityModel={effectiveColumnVisibilityModel}
-          onColumnVisibilityModelChange={(model) => {
-            const nextModel = {
-              ...model,
-              menu: true,
-              ...(esCotizacion ? { estatus_documento: true } : {}),
-              actions: SHOW_GRID_ACTIONS,
-            };
-            setColumnVisibilityModel(nextModel);
-            const current = {
-              columnVisibilityModel: nextModel,
-              columnWidths,
-            };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-          }}
-          onColumnWidthChange={(params: GridColumnResizeParams) => {
-            setColumnWidths((prev) => {
-              const next = { ...prev, [params.colDef.field]: params.width };
-              localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify({
-                  columnVisibilityModel,
-                  columnWidths: next,
-                })
-              );
-              return next;
-            });
-          }}
-          localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-          sx={[
-            standardDataGridSx,
-            {
-              width: '100%',
-              '--DataGrid-overlayHeight': '200px',
-              '& .MuiDataGrid-cell': {
-                display: 'flex',
-                alignItems: 'center',
-              },
-              '& .documento-focus-row': {
-                backgroundColor: 'rgba(29, 47, 104, 0.10) !important',
-              },
-              '& .documento-focus-row .MuiDataGrid-cell': {
-                borderTop: '1px solid rgba(29, 47, 104, 0.24)',
-                borderBottom: '1px solid rgba(29, 47, 104, 0.24)',
-              },
-              '& .documento-focus-row .MuiDataGrid-cell:first-of-type': {
-                borderLeft: '3px solid #1d2f68',
-              },
-              '& .documento-focus-row--recent': {
-                animation: 'documentoFocusPulse 2.4s ease-out 1',
-              },
-              '@keyframes documentoFocusPulse': {
-                '0%': {
-                  backgroundColor: 'rgba(56, 189, 248, 0.24)',
-                },
-                '100%': {
-                  backgroundColor: 'rgba(29, 47, 104, 0.10)',
-                },
-              },
-            },
-          ]}
-          hideFooterPagination
-          hideFooterSelectedRowCount
-          slots={{
-            noRowsOverlay: () => (
-              <Stack height="100%" alignItems="center" justifyContent="center" spacing={1} sx={{ py: 3 }}>
-                <Typography variant="body2" color="text.secondary">
-                  {loading ? 'Cargando documentos...' : 'No hay documentos registrados.'}
-                </Typography>
-              </Stack>
-            ),
-            loadingOverlay: () => (
-              <Stack height="100%" alignItems="center" justifyContent="center" spacing={1} sx={{ py: 3 }}>
-                <CircularProgress size={22} />
-                <Typography variant="body2" color="text.secondary">
-                  Cargando documentos...
-                </Typography>
-              </Stack>
-            ),
-          }}
-        />
-          <GridContextMenu
-            actions={gridContextMenuActions}
-            anchorPosition={contextMenuPosition}
-            open={Boolean(contextMenuRow)}
-            onClose={closeGridContextMenu}
-          />
-        </Box>
-      </Paper>
 
       <Menu
         anchorEl={estatusMenu.anchorEl}

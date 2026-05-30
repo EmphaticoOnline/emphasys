@@ -281,6 +281,11 @@ async function validarFlujosOrigenDestino(
   }
 }
 
+function requiereValidacionDeFlujoOrigenDestino(tipoDestino: TipoDocumento) {
+  const tipoDestinoNormalizado = String(tipoDestino ?? '').toLowerCase();
+  return !['nota_credito', 'nota_credito_compra'].includes(tipoDestinoNormalizado);
+}
+
 function validarCompatibilidadConsolidada(documentosOrigen: DocumentoGeneracionRow[], tipoDestino: TipoDocumento) {
   if (documentosOrigen.length <= 1) return;
 
@@ -517,7 +522,9 @@ export class DocumentGenerationService {
       }
 
       validarCompatibilidadConsolidada(documentosOrigen, tipoDestino);
-      await validarFlujosOrigenDestino(documentosOrigen, tipoDestino, empresaId, client);
+      if (requiereValidacionDeFlujoOrigenDestino(tipoDestino)) {
+        await validarFlujosOrigenDestino(documentosOrigen, tipoDestino, empresaId, client);
+      }
 
       const partidas = await cargarPartidasOrigen(idsNormalizados, client);
       const cantidadesGeneradas = await cargarCantidadesGeneradas(idsNormalizados, client);
@@ -552,7 +559,9 @@ export class DocumentGenerationService {
       }
 
       validarCompatibilidadConsolidada(documentosOrigen, tipo_documento_destino);
-      await validarFlujosOrigenDestino(documentosOrigen, tipo_documento_destino, empresaId, client);
+      if (requiereValidacionDeFlujoOrigenDestino(tipo_documento_destino)) {
+        await validarFlujosOrigenDestino(documentosOrigen, tipo_documento_destino, empresaId, client);
+      }
 
       const documentoOrigen = documentosOrigen[0];
       const esConsolidado = documentosOrigen.length > 1;
