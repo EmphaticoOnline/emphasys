@@ -58,11 +58,14 @@ import preciosRouter from "./modules/precios/precios.routes";
 import uploadsRouter from "./modules/uploads/uploads.routes";
 import crmOportunidadesRouter from "./crm/oportunidades.routes";
 import produccionRouter from "./modules/produccion/produccion.routes";
+import gridPreferencesRouter from "./modules/grid-preferences/grid-preferences.routes";
+import versionRouter from "./routes/version.routes";
+import { FRONTEND_BUILD_VERSION } from "./config/version";
 
 const app = express();
 
 app.use(express.json());
-console.log("=== BUILD VERSION 2 ===");
+console.log(`[version] Emphasys Web build: ${FRONTEND_BUILD_VERSION}`);
 
 // Static uploads (logos, etc.)
 const uploadsDir = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : path.resolve(process.cwd(), "uploads");
@@ -151,10 +154,12 @@ app.use("/api/conceptos", conceptosRouter);
 app.use("/api/precios-listas", preciosListasRouter);
 app.use("/api/precios", preciosRouter);
 app.use("/api/produccion", produccionRouter);
+app.use("/api/grid-preferences", gridPreferencesRouter);
 app.use("/api/inventario", inventarioRouter);
 app.use("/api/almacenes", almacenesRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/crm", crmOportunidadesRouter);
+app.use("/api/version", versionRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });
