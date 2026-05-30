@@ -10,7 +10,6 @@ import {
   STANDARD_DATA_GRID_ROW_HEIGHT,
   standardDataGridSx,
 } from '../grids/standardDataGridSx';
-import { SHOW_GRID_ACTIONS } from '../grids/gridUxFlags';
 import type { ProductosDesktopViewProps } from './ProductosView.types';
 
 export default function ProductosDesktopView({
@@ -20,6 +19,12 @@ export default function ProductosDesktopView({
   error,
   onClearError,
   onRowClick,
+  sortModel,
+  onSortModelChange,
+  columnVisibilityModel,
+  onColumnVisibilityModelChange,
+  onColumnWidthChange,
+  onColumnOrderChange,
   slotProps,
   contextMenuActions,
   contextMenuPosition,
@@ -100,7 +105,12 @@ export default function ProductosDesktopView({
           density="standard"
           loading={loading}
           disableRowSelectionOnClick
-          columnVisibilityModel={{ menu: true, actions: SHOW_GRID_ACTIONS }}
+          sortModel={sortModel}
+          onSortModelChange={onSortModelChange}
+          columnVisibilityModel={columnVisibilityModel}
+          onColumnVisibilityModelChange={onColumnVisibilityModelChange}
+          onColumnWidthChange={onColumnWidthChange}
+          onColumnOrderChange={onColumnOrderChange}
           onRowClick={onRowClick}
           {...(slotProps ? { slotProps } : {})}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}

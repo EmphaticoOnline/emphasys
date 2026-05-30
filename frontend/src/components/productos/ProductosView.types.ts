@@ -1,4 +1,13 @@
-import type { DataGridProps, GridColDef, GridRowId, GridRowParams } from '@mui/x-data-grid';
+import type {
+  DataGridProps,
+  GridColDef,
+  GridColumnOrderChangeParams,
+  GridColumnResizeParams,
+  GridColumnVisibilityModel,
+  GridRowId,
+  GridRowParams,
+  GridSortModel,
+} from '@mui/x-data-grid';
 import type { Producto } from '../../types/producto';
 import type { GridContextMenuAction } from '../grids/GridContextMenu';
 
@@ -17,6 +26,12 @@ export interface ProductosDesktopViewProps extends ProductosViewCommonProps {
   error: string | null;
   onClearError: () => void;
   onRowClick: (params: GridRowParams) => void;
+  sortModel: GridSortModel;
+  onSortModelChange: (model: GridSortModel) => void;
+  columnVisibilityModel: GridColumnVisibilityModel;
+  onColumnVisibilityModelChange: (model: GridColumnVisibilityModel) => void;
+  onColumnWidthChange: (params: GridColumnResizeParams) => void;
+  onColumnOrderChange: (params: GridColumnOrderChangeParams) => void;
   slotProps?: DataGridProps['slotProps'];
   contextMenuActions: GridContextMenuAction[];
   contextMenuPosition: { top: number; left: number } | null;

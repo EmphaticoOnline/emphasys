@@ -19,7 +19,10 @@ import {
 } from '../services/productosService';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
+import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
+import { useDeviceProfile } from '../hooks/useDeviceProfile';
+import { useGridPreferences } from '../hooks/useGridPreferences';
 import ProductosDesktopView from '../components/productos/ProductosDesktopView';
 import ProductosMobileView from '../components/productos/ProductosMobileView';
 
@@ -27,6 +30,7 @@ export default function ProductosPage() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const perfilDispositivo = useDeviceProfile();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -34,6 +38,29 @@ export default function ProductosPage() {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
+
+  const {
+    loadingPreferences,
+    sortModel,
+    setSortModel,
+    columnVisibilityModel,
+    setColumnVisibilityModel,
+    setColumnWidths,
+    columnOrder,
+    setColumnOrder,
+    applySavedWidthsToColumns,
+    persistExternalFilters,
+  } = useGridPreferences<{ searchTerm: string }>({
+    pantalla: 'productos.list',
+    perfilDispositivo,
+    defaultSortModel: [],
+    defaultColumnVisibilityModel: {},
+    defaultColumnOrder: [],
+    defaultExternalFilters: { searchTerm: '' },
+    onLoadExternalFilters: (value) => {
+      setSearch(String(value.searchTerm ?? ''));
+    },
+  });
 
   const formatter = useMemo(
     () =>
@@ -71,6 +98,10 @@ export default function ProductosPage() {
   useEffect(() => {
     loadProductos();
   }, []);
+
+  useEffect(() => {
+    persistExternalFilters({ searchTerm: search });
+  }, [persistExternalFilters, search]);
 
   const handleDelete = async (producto: Producto) => {
     const confirmed = window.confirm(`¿Eliminar el producto "${producto.descripcion}"?`);
@@ -198,8 +229,28 @@ export default function ProductosPage() {
       ),
     });
 
-    return [contextMenuTriggerColumn, ...mapped];
-  }, [navigate, handleDelete, contextMenuTriggerColumn]);
+    return applySavedWidthsToColumns([contextMenuTriggerColumn, ...mapped]);
+  }, [navigate, handleDelete, contextMenuTriggerColumn, applySavedWidthsToColumns]);
+
+  const orderedColumns = useMemo(() => {
+    if (!columnOrder.length) {
+      return columns;
+    }
+
+    const map = new Map(columns.map((column) => [column.field, column]));
+    const menuColumn = map.get('menu');
+    const ordered = columnOrder
+      .map((field) => map.get(field))
+      .filter((column): column is GridColDef => Boolean(column && column.field !== 'menu'));
+    const remaining = columns.filter((column) => !columnOrder.includes(column.field) && column.field !== 'menu');
+
+    return [...(menuColumn ? [menuColumn] : []), ...ordered, ...remaining];
+  }, [columnOrder, columns]);
+
+  const effectiveColumnVisibilityModel = useMemo(
+    () => ({ ...columnVisibilityModel, menu: true, actions: SHOW_GRID_ACTIONS }),
+    [columnVisibilityModel]
+  );
 
   const commonViewProps = {
     searchTerm: search,
@@ -213,11 +264,28 @@ export default function ProductosPage() {
     <ProductosDesktopView
       {...commonViewProps}
       productos={filteredProductos}
-      columns={columns}
-      loading={loading}
+      columns={orderedColumns}
+      loading={loading || loadingPreferences}
       error={error}
       onClearError={() => setError(null)}
       onRowClick={(params: GridRowParams) => navigate(`/productos/${params.id}`)}
+      sortModel={sortModel}
+      onSortModelChange={setSortModel}
+      columnVisibilityModel={effectiveColumnVisibilityModel}
+      onColumnVisibilityModelChange={(model) =>
+        setColumnVisibilityModel({ ...model, menu: true, actions: SHOW_GRID_ACTIONS })
+      }
+      onColumnWidthChange={(params) => {
+        setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }));
+      }}
+      onColumnOrderChange={({ column, targetIndex }) => {
+        setColumnOrder((prev) => {
+          const seed = prev.length ? prev : orderedColumns.map((item) => item.field);
+          const next = seed.filter((field) => field !== column.field);
+          next.splice(targetIndex, 0, column.field);
+          return next;
+        });
+      }}
       slotProps={rowSlotProps ? { row: rowSlotProps } : undefined}
       contextMenuActions={contextMenuActions}
       contextMenuPosition={contextMenuPosition}
