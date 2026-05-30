@@ -54,11 +54,10 @@ import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigg
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
+import { useDeviceProfile } from '../hooks/useDeviceProfile';
+import { useGridPreferences } from '../hooks/useGridPreferences';
 
 dayjs.locale('es');
-
-const COLUMN_VISIBILITY_STORAGE_KEY = 'oportunidades_column_visibility';
-const COLUMN_WIDTHS_STORAGE_KEY = 'oportunidades_column_widths';
 
 const DEFAULT_COLUMN_WIDTHS = {
   folio: 150,
@@ -613,6 +612,7 @@ function getDeleteOportunidadErrorMessage(error: unknown) {
 
 export default function OportunidadesPage() {
   const { id: oportunidadIdParam } = useParams();
+  const perfilDispositivo = useDeviceProfile();
   const session = useMemo(() => loadSession(), []);
   const sessionUserId = session.user?.id ?? null;
   const [oportunidades, setOportunidades] = useState<Oportunidad[]>([]);
@@ -633,8 +633,6 @@ export default function OportunidadesPage() {
     value: '',
   });
   const [observacionesDialog, setObservacionesDialog] = useState<ObservacionesDialogState>({ open: false, rowId: null, value: '' });
-  const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>({});
-  const [columnWidths, setColumnWidths] = useState<Partial<Record<OportunidadColumnField, number>>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroEstatus, setFiltroEstatus] = useState<StatusFilter>('todas');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -650,6 +648,40 @@ export default function OportunidadesPage() {
   const [savingActividad, setSavingActividad] = useState(false);
   const [createActividadDialog, setCreateActividadDialog] = useState<CreateActividadDialogState>(EMPTY_CREATE_ACTIVIDAD_DIALOG);
   const [realizarActividadDialog, setRealizarActividadDialog] = useState<RealizarActividadDialogState>(EMPTY_REALIZAR_ACTIVIDAD_DIALOG);
+
+  const {
+    loadingPreferences,
+    sortModel,
+    setSortModel,
+    columnVisibilityModel,
+    setColumnVisibilityModel,
+    columnWidths,
+    setColumnWidths,
+    persistExternalFilters,
+  } = useGridPreferences<{
+    searchTerm: string;
+    filtroEstatus: StatusFilter;
+    appliedFilters: AdvancedFilters;
+  }>({
+    pantalla: 'crm.oportunidades.list',
+    perfilDispositivo,
+    defaultSortModel: [{ field: 'fecha_creacion', sort: 'desc' }],
+    defaultColumnVisibilityModel: {},
+    defaultExternalFilters: {
+      searchTerm: '',
+      filtroEstatus: 'todas',
+      appliedFilters: INITIAL_ADVANCED_FILTERS,
+    },
+    onLoadExternalFilters: (value) => {
+      setSearchTerm(String(value.searchTerm ?? ''));
+      setFiltroEstatus((value.filtroEstatus as StatusFilter) ?? 'todas');
+      if (value.appliedFilters && typeof value.appliedFilters === 'object') {
+        const merged = { ...INITIAL_ADVANCED_FILTERS, ...(value.appliedFilters as AdvancedFilters) };
+        setAppliedFilters(merged);
+        setDraftFilters(merged);
+      }
+    },
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -681,26 +713,12 @@ export default function OportunidadesPage() {
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
-    if (!saved) return;
-
-    try {
-      setColumnVisibilityModel(JSON.parse(saved) as GridColumnVisibilityModel);
-    } catch (err) {
-      console.warn('No se pudo restaurar la visibilidad de columnas de oportunidades', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    const savedWidths = localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY);
-    if (!savedWidths) return;
-
-    try {
-      setColumnWidths(JSON.parse(savedWidths) as Partial<Record<OportunidadColumnField, number>>);
-    } catch (err) {
-      console.warn('No se pudo restaurar el ancho de columnas de oportunidades', err);
-    }
-  }, []);
+    persistExternalFilters({
+      searchTerm,
+      filtroEstatus,
+      appliedFilters,
+    });
+  }, [persistExternalFilters, searchTerm, filtroEstatus, appliedFilters]);
 
   const loadSeguimientoResumen = useCallback(async () => {
     setLoadingSeguimientoResumen(true);
@@ -2355,12 +2373,14 @@ export default function OportunidadesPage() {
                   columns={columns}
                   getRowId={(row) => row.id}
                   columnVisibilityModel={effectiveColumnVisibilityModel}
+                  sortModel={sortModel}
                   columnHeaderHeight={34}
                   rowHeight={40}
-                  loading={loading}
+                  loading={loading || loadingPreferences}
                   disableRowSelectionOnClick
                   {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
                   hideFooterPagination
+                  onSortModelChange={(model) => setSortModel(model)}
                   onColumnVisibilityModelChange={(model) => {
                     const nextModel = {
                       ...model,
@@ -2368,19 +2388,9 @@ export default function OportunidadesPage() {
                       acciones: SHOW_GRID_ACTIONS,
                     };
                     setColumnVisibilityModel(nextModel);
-                    localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(nextModel));
                   }}
                   onColumnWidthChange={(params: GridColumnResizeParams) => {
-                    setColumnWidths((prev) => {
-                      const next = { ...prev, [params.colDef.field]: params.width };
-                      localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(next));
-                      return next;
-                    });
-                  }}
-                  initialState={{
-                    sorting: {
-                      sortModel: [{ field: 'fecha_creacion', sort: 'desc' }],
-                    },
+                    setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }));
                   }}
                   localeText={{
                     ...esES.components.MuiDataGrid.defaultProps.localeText,
