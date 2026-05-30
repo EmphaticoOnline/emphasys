@@ -46,6 +46,7 @@ import type {
   GridRenderCellParams,
   GridColumnVisibilityModel,
   GridColumnResizeParams,
+  GridSortModel,
 } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
@@ -105,6 +106,8 @@ import type { GridContextMenuAction } from '../components/grids/GridContextMenu'
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
+import { useDeviceProfile } from '../hooks/useDeviceProfile';
+import { useGridPreferences } from '../hooks/useGridPreferences';
 import {
   navigateToGeneratedDocument,
   parseGeneratedDocumentFocus,
@@ -365,6 +368,7 @@ const puedeTimbrarCfdiDocumento = (tipoDocumento: TipoDocumento, row?: Partial<C
 export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPageProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const perfilDispositivo = useDeviceProfile();
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -431,8 +435,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [timbrandoId, setTimbrandoId] = useState<number | null>(null);
-  const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>({});
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   type SnackbarSeverity = 'success' | 'error' | 'info' | 'warning';
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: SnackbarSeverity }>(
     { open: false, message: '', severity: 'success' }
@@ -538,6 +540,47 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const consumedFocusNonceRef = React.useRef<string | null>(null);
 
   const {
+    loadingPreferences,
+    sortModel,
+    setSortModel,
+    columnVisibilityModel,
+    setColumnVisibilityModel,
+    setColumnWidths,
+    columnOrder,
+    setColumnOrder,
+    applySavedWidthsToColumns,
+    persistExternalFilters,
+  } = useGridPreferences<{
+    search: string;
+    soloPendientes: boolean;
+    quickFilter: QuickFilter;
+    filtrosCotizacion: typeof FILTROS_COTIZACION_INICIALES;
+  }>({
+    pantalla: `${modulo}.${tipoDocumento}.list`,
+    perfilDispositivo,
+    defaultSortModel: [],
+    defaultColumnVisibilityModel: {},
+    defaultColumnOrder: [],
+    defaultExternalFilters: {
+      search: '',
+      soloPendientes: false,
+      quickFilter: 'todos',
+      filtrosCotizacion: FILTROS_COTIZACION_INICIALES,
+    },
+    onLoadExternalFilters: (value) => {
+      setSearch(String(value.search ?? ''));
+      setSoloPendientes(Boolean(value.soloPendientes));
+      setQuickFilter((value.quickFilter as QuickFilter) ?? 'todos');
+      if (value.filtrosCotizacion && typeof value.filtrosCotizacion === 'object') {
+        setFiltrosCotizacion({
+          ...FILTROS_COTIZACION_INICIALES,
+          ...(value.filtrosCotizacion as typeof FILTROS_COTIZACION_INICIALES),
+        });
+      }
+    },
+  });
+
+  const {
     contextMenuRow: contextMenuRow,
     anchorPosition: contextMenuPosition,
     closeContextMenu: closeGridContextMenu,
@@ -576,7 +619,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     [openContextMenuForRow]
   );
 
-  const STORAGE_KEY = `documentos-${tipoDocumento}-grid-preferencias`;
   const basePath = resolveDocumentosListPath(tipoDocumento, modulo);
   const {
     filtroAgente: configuredAgentFilter,
@@ -657,18 +699,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     if (s === 0) return 'Pagado';
     if (s < t) return 'Parcial';
     return 'Pendiente';
-  }, []);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored);
-      if (parsed?.columnVisibilityModel) setColumnVisibilityModel(parsed.columnVisibilityModel);
-      if (parsed?.columnWidths) setColumnWidths(parsed.columnWidths);
-    } catch (err) {
-      console.warn('No se pudo leer preferencias de columnas', err);
-    }
   }, []);
 
   useEffect(() => {
@@ -1761,12 +1791,24 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   ]);
 
   const columns: GridColDef[] = useMemo(
-    () =>
-      [contextMenuTriggerColumn, ...baseColumns].map((col) =>
-        columnWidths[col.field] != null ? { ...col, width: Number(columnWidths[col.field]) } : col
-      ) as GridColDef[],
-    [baseColumns, columnWidths, contextMenuTriggerColumn]
+    () => applySavedWidthsToColumns([contextMenuTriggerColumn, ...baseColumns]) as GridColDef[],
+    [applySavedWidthsToColumns, baseColumns, contextMenuTriggerColumn]
   );
+
+  const orderedColumns = useMemo(() => {
+    if (!columnOrder.length) {
+      return columns;
+    }
+
+    const map = new Map(columns.map((column) => [column.field, column]));
+    const menuColumn = map.get('menu');
+    const ordered = columnOrder
+      .map((field) => map.get(field))
+      .filter((column): column is GridColDef => Boolean(column && column.field !== 'menu'));
+    const remaining = columns.filter((column) => !columnOrder.includes(column.field) && column.field !== 'menu');
+
+    return [...(menuColumn ? [menuColumn] : []), ...ordered, ...remaining];
+  }, [columnOrder, columns]);
 
   const filteredRows = useMemo(() => {
     let result = [...rows];
@@ -2078,6 +2120,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const handleAplicarFiltros = useCallback(() => {
     setFiltersOpen(false);
   }, []);
+
+  useEffect(() => {
+    persistExternalFilters({
+      search,
+      soloPendientes,
+      quickFilter,
+      filtrosCotizacion,
+    });
+  }, [persistExternalFilters, search, soloPendientes, quickFilter, filtrosCotizacion]);
 
   useEffect(() => {
     if (!generatedDocumentFocus) return;
@@ -2507,7 +2558,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       onClearSearch={() => setSearch('')}
       onRefresh={load}
       onCreateDocumento={() => navigate(`${basePath}/nuevo`)}
-      isLoading={loading}
+      isLoading={loading || loadingPreferences}
       showPendingToggle={isFacturaConSaldo}
       soloPendientes={soloPendientes}
       onSoloPendientesChange={setSoloPendientes}
@@ -2516,7 +2567,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       selectionContent={selectionContent}
       extraActionsContent={extraActionsContent}
       rows={filteredRows}
-      columns={columns}
+      columns={orderedColumns}
       canBulkDuplicate={canBulkDuplicate}
       selectedDocumentIds={selectedDocumentIds}
       onSelectedDocumentIdsChange={setSelectedDocumentIds}
@@ -2559,6 +2610,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         return classNames.join(' ');
       }}
       columnVisibilityModel={effectiveColumnVisibilityModel}
+      sortModel={sortModel as GridSortModel}
+      onSortModelChange={setSortModel}
       onColumnVisibilityModelChange={(model) => {
         const nextModel = {
           ...model,
@@ -2567,22 +2620,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           actions: SHOW_GRID_ACTIONS,
         };
         setColumnVisibilityModel(nextModel);
-        const current = {
-          columnVisibilityModel: nextModel,
-          columnWidths,
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
       }}
       onColumnWidthChange={(params: GridColumnResizeParams) => {
-        setColumnWidths((prev) => {
-          const next = { ...prev, [params.colDef.field]: params.width };
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-              columnVisibilityModel,
-              columnWidths: next,
-            })
-          );
+        setColumnWidths((prev) => ({ ...prev, [params.colDef.field]: params.width }));
+      }}
+      onColumnOrderChange={({ column, targetIndex }) => {
+        setColumnOrder((prev) => {
+          const seed = prev.length ? prev : orderedColumns.map((item) => item.field);
+          const next = seed.filter((field) => field !== column.field);
+          next.splice(targetIndex, 0, column.field);
           return next;
         });
       }}

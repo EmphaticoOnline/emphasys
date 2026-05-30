@@ -1,10 +1,12 @@
 import type * as React from 'react';
 import type {
   DataGridProps,
+  GridColumnOrderChangeParams,
   GridColDef,
   GridColumnResizeParams,
   GridColumnVisibilityModel,
   GridRowParams,
+  GridSortModel,
 } from '@mui/x-data-grid';
 import type { CotizacionListado } from '../../types/cotizacion';
 import type { GridContextMenuAction } from '../grids/GridContextMenu';
@@ -38,8 +40,11 @@ export interface DocumentosDesktopViewProps extends DocumentosViewCommonProps {
   slotProps?: DataGridProps['slotProps'];
   getRowClassName?: DataGridProps['getRowClassName'];
   columnVisibilityModel: GridColumnVisibilityModel;
+  sortModel: GridSortModel;
+  onSortModelChange: (model: GridSortModel) => void;
   onColumnVisibilityModelChange: (model: GridColumnVisibilityModel) => void;
   onColumnWidthChange: (params: GridColumnResizeParams) => void;
+  onColumnOrderChange: (params: GridColumnOrderChangeParams) => void;
   contextMenuActions: GridContextMenuAction[];
   contextMenuPosition: { top: number; left: number } | null;
   contextMenuOpen: boolean;

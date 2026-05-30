@@ -40,8 +40,11 @@ export default function DocumentosDesktopView({
   slotProps,
   getRowClassName,
   columnVisibilityModel,
+  sortModel,
+  onSortModelChange,
   onColumnVisibilityModelChange,
   onColumnWidthChange,
+  onColumnOrderChange,
   contextMenuActions,
   contextMenuPosition,
   contextMenuOpen,
@@ -128,7 +131,8 @@ export default function DocumentosDesktopView({
                   .filter((value) => Number.isInteger(value) && value > 0)
               );
             }}
-            disableColumnReorder
+            sortModel={sortModel}
+            onSortModelChange={onSortModelChange}
             onCellClick={onCellClick}
             onRowClick={onRowClick}
             {...(slotProps ? { slotProps } : {})}
@@ -136,6 +140,7 @@ export default function DocumentosDesktopView({
             columnVisibilityModel={columnVisibilityModel}
             onColumnVisibilityModelChange={onColumnVisibilityModelChange}
             onColumnWidthChange={onColumnWidthChange}
+            onColumnOrderChange={onColumnOrderChange}
             localeText={esES.components.MuiDataGrid.defaultProps.localeText}
             sx={[
               standardDataGridSx,
