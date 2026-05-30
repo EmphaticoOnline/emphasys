@@ -21,6 +21,8 @@ import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigg
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
+import { useDeviceProfile } from '../hooks/useDeviceProfile';
+import { useGridPreferences } from '../hooks/useGridPreferences';
 import ContactosDesktopView from '../components/contactos/ContactosDesktopView';
 import ContactosMobileView from '../components/contactos/ContactosMobileView';
 import type { ContactoRow } from '../components/contactos/ContactosView.types';
@@ -29,6 +31,7 @@ export default function ContactosPage() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const perfilDispositivo = useDeviceProfile();
   const [contactos, setContactos] = useState<ContactoRow[]>([]);
   const [vendedores, setVendedores] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,26 +44,6 @@ export default function ContactosPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<GridRowSelectionModel>([]);
   const lastSearchRef = useRef('');
-
-  const STORAGE_KEY = 'contactos_grid_state';
-
-  const readStoredState = () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return {} as any;
-      return JSON.parse(raw) as {
-        sortModel?: GridSortModel;
-        filterModel?: GridFilterModel;
-        columnVisibilityModel?: GridColumnVisibilityModel;
-        columnWidths?: Record<string, number>;
-        columnOrder?: string[];
-        density?: GridDensity;
-      };
-    } catch (e) {
-      console.warn('No se pudo leer estado de la tabla', e);
-      return {} as any;
-    }
-  };
 
   const vendedorNombre = useMemo(() => {
     const map = new Map<number, string>();
@@ -163,18 +146,33 @@ export default function ContactosPage() {
     },
   ];
 
-  const stored = readStoredState();
-
-  const [sortModel, setSortModel] = useState<GridSortModel>(stored.sortModel || []);
-  const [filterModel, setFilterModel] = useState<GridFilterModel>(stored.filterModel || { items: [] });
-  const [columnVisibilityModel, setColumnVisibilityModel] = useState<GridColumnVisibilityModel>(
-    stored.columnVisibilityModel || {}
-  );
   const [density] = useState<GridDensity>('standard');
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(stored.columnWidths || {});
-  const [columnOrder, setColumnOrder] = useState<string[]>(
-    stored.columnOrder || baseColumns.map((c) => c.field)
-  );
+  const {
+    loadingPreferences,
+    sortModel,
+    setSortModel,
+    filterModel,
+    setFilterModel,
+    columnVisibilityModel,
+    setColumnVisibilityModel,
+    setColumnWidths,
+    columnOrder,
+    setColumnOrder,
+    applySavedWidthsToColumns,
+    persistExternalFilters,
+  } = useGridPreferences<{ searchTerm: string; selectedTipos: string[] }>({
+    pantalla: 'contactos.list',
+    perfilDispositivo,
+    defaultSortModel: [],
+    defaultFilterModel: { items: [] },
+    defaultColumnVisibilityModel: {},
+    defaultColumnOrder: ['menu', ...baseColumns.map((column) => column.field)],
+    defaultExternalFilters: { searchTerm: '', selectedTipos: [] },
+    onLoadExternalFilters: (value) => {
+      setSearchTerm(String(value.searchTerm ?? ''));
+      setSelectedTipos(Array.isArray(value.selectedTipos) ? value.selectedTipos.filter((item): item is string => typeof item === 'string') : []);
+    },
+  });
 
   const {
     contextMenuRow,
@@ -210,17 +208,9 @@ export default function ContactosPage() {
   );
 
   const columns: GridColDef[] = useMemo(
-    () =>
-      [contextMenuTriggerColumn, ...baseColumns].map((col) => {
-        const savedWidth = columnWidths[col.field];
-        if (savedWidth !== undefined) {
-          const { flex, ...rest } = col;
-          return { ...rest, width: savedWidth } as GridColDef;
-        }
-        return col;
-      }),
+    () => applySavedWidthsToColumns([contextMenuTriggerColumn, ...baseColumns]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [columnWidths, vendedorNombre, contextMenuTriggerColumn]
+    [applySavedWidthsToColumns, vendedorNombre, contextMenuTriggerColumn]
   );
 
   const orderedColumns = useMemo(() => {
@@ -357,16 +347,8 @@ export default function ContactosPage() {
   }, []);
 
   useEffect(() => {
-    const stateToPersist = {
-      sortModel,
-      filterModel,
-      columnVisibilityModel,
-      columnWidths,
-      columnOrder,
-      density,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToPersist));
-  }, [sortModel, filterModel, columnVisibilityModel, columnWidths, columnOrder, density]);
+    persistExternalFilters({ searchTerm, selectedTipos });
+  }, [persistExternalFilters, searchTerm, selectedTipos]);
 
   if (error) return <div>Error: {error}</div>;
 
@@ -387,7 +369,7 @@ export default function ContactosPage() {
       contactos={contactos}
       orderedColumns={orderedColumns}
       rowCount={rowCount}
-      loading={loading}
+      loading={loading || loadingPreferences}
       paginationModel={{ page, pageSize }}
       density={density}
       sortModel={sortModel}

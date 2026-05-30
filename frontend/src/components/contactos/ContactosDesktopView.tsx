@@ -1,9 +1,8 @@
 import { Box, Button, Chip, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { esES } from '@mui/x-data-grid/locales';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import { GridContextMenu } from '../grids/GridContextMenu';
+import { EmphasysDataGrid } from '../grids/EmphasysDataGrid';
 import {
   STANDARD_DATA_GRID_HEADER_HEIGHT,
   STANDARD_DATA_GRID_ROW_HEIGHT,
@@ -108,7 +107,7 @@ export default function ContactosDesktopView({
         </Box>
 
         <Box sx={{ width: '100%', backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          <DataGrid
+          <EmphasysDataGrid
             rows={contactos}
             columns={orderedColumns}
             rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
@@ -134,7 +133,6 @@ export default function ContactosDesktopView({
             onRowSelectionModelChange={onRowSelectionModelChange}
             onRowDoubleClick={onRowDoubleClick}
             {...(slotProps ? { slotProps } : {})}
-            localeText={esES.components.MuiDataGrid.defaultProps.localeText}
             hideFooterSelectedRowCount
             sx={[
               standardDataGridSx,
