@@ -4,7 +4,7 @@ import type {
   GridColDef,
   GridColumnOrderChangeParams,
   GridColumnVisibilityModel,
-  GridColumnWidthChangeParams,
+  GridColumnResizeParams,
   GridDensity,
   GridFilterModel,
   GridPaginationModel,
@@ -46,7 +46,7 @@ export interface ContactosDesktopViewProps extends ContactosViewCommonProps {
   columnVisibilityModel: GridColumnVisibilityModel;
   onColumnVisibilityModelChange: (model: GridColumnVisibilityModel) => void;
   onPaginationModelChange: (model: GridPaginationModel) => void;
-  onColumnWidthChange: (params: GridColumnWidthChangeParams) => void;
+  onColumnWidthChange: (params: GridColumnResizeParams) => void;
   onColumnOrderChange: (params: GridColumnOrderChangeParams) => void;
   selectedRowIds: GridRowSelectionModel;
   onRowSelectionModelChange: (selectionModel: GridRowSelectionModel) => void;

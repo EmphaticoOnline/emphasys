@@ -3,6 +3,7 @@ import type {
   GridColDef,
   GridColumnVisibilityModel,
   GridFilterModel,
+  GridValidRowModel,
   GridSortModel,
 } from '@mui/x-data-grid';
 import type {
@@ -37,7 +38,7 @@ type UseGridPreferencesResult<TExternalFilters extends Record<string, unknown>> 
   setColumnWidths: (updater: (prev: Record<string, number>) => Record<string, number>) => void;
   columnOrder: string[];
   setColumnOrder: (updater: (prev: string[]) => string[]) => void;
-  applySavedWidthsToColumns: <TRow>(columns: GridColDef<TRow>[]) => GridColDef<TRow>[];
+  applySavedWidthsToColumns: <TRow extends GridValidRowModel>(columns: GridColDef<TRow>[]) => GridColDef<TRow>[];
   persistExternalFilters: (value: TExternalFilters) => void;
 };
 
@@ -77,8 +78,10 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
 
       setSortModelState(Array.isArray(next.sortModel) ? (next.sortModel as GridSortModel) : defaultSortModel);
       setFilterModelState(
-        next.filterModel && typeof next.filterModel === 'object'
-          ? (next.filterModel as GridFilterModel)
+        next.filterModel
+        && typeof next.filterModel === 'object'
+        && Array.isArray((next.filterModel as { items?: unknown }).items)
+          ? (next.filterModel as unknown as GridFilterModel)
           : defaultFilterModel
       );
       setColumnVisibilityModelState(
@@ -163,7 +166,7 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
   ]);
 
   const applySavedWidthsToColumns = useCallback(
-    <TRow,>(columns: GridColDef<TRow>[]): GridColDef<TRow>[] =>
+    <TRow extends GridValidRowModel,>(columns: GridColDef<TRow>[]): GridColDef<TRow>[] =>
       columns.map((column) => {
         const savedWidth = columnWidths[column.field];
         if (savedWidth === undefined) {

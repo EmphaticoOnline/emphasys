@@ -7,8 +7,8 @@ export type GridPreferencesPayload = {
   columnWidths?: Record<string, number>;
   columnVisibilityModel?: Record<string, boolean>;
   columnOrder?: string[];
-  sortModel?: unknown[];
-  filterModel?: Record<string, unknown>;
+  sortModel?: unknown;
+  filterModel?: unknown;
   externalFilters?: Record<string, unknown>;
 };
 

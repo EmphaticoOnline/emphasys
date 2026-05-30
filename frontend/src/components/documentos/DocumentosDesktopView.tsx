@@ -136,7 +136,7 @@ export default function DocumentosDesktopView({
             onCellClick={onCellClick}
             onRowClick={onRowClick}
             {...(slotProps ? { slotProps } : {})}
-            getRowClassName={getRowClassName}
+            {...(getRowClassName ? { getRowClassName } : {})}
             columnVisibilityModel={columnVisibilityModel}
             onColumnVisibilityModelChange={onColumnVisibilityModelChange}
             onColumnWidthChange={onColumnWidthChange}
