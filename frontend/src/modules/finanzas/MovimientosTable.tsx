@@ -14,6 +14,8 @@ import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTr
 import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
+import { useDeviceProfile } from '../../hooks/useDeviceProfile';
+import { useGridPreferences } from '../../hooks/useGridPreferences';
 
 export type FinanzasSearchToolbarProps = {
   value: string;
@@ -99,7 +101,7 @@ export function MovimientosTable({
   onSearchChange,
   showToolbar = true,
 }: MovimientosTableProps) {
-  const STORAGE_KEY = 'finanzas.movimientos.gridPrefs';
+  const perfilDispositivo = useDeviceProfile();
 
   type Row = FinanzasOperacion & {
     runningSaldo: number;
@@ -123,35 +125,30 @@ export function MovimientosTable({
   const handleSearchChange = onSearchChange ?? setSearch;
 
   const defaultSort: GridSortModel = [{ field: 'fecha', sort: 'desc' }];
-  const [sortModel, setSortModel] = React.useState<GridSortModel>(defaultSort);
-  const [columnWidths, setColumnWidths] = React.useState<Record<string, number>>({});
-  const [prefsLoaded, setPrefsLoaded] = React.useState(false);
+  const {
+    loadingPreferences,
+    sortModel,
+    setSortModel,
+    columnVisibilityModel,
+    setColumnVisibilityModel,
+    columnWidths,
+    setColumnWidths,
+    persistExternalFilters,
+  } = useGridPreferences<{ searchTerm: string }>({
+    pantalla: 'finanzas.movimientos',
+    perfilDispositivo,
+    defaultSortModel: defaultSort,
+    defaultColumnVisibilityModel: {},
+    defaultExternalFilters: { searchTerm: '' },
+    onLoadExternalFilters: (value) => {
+      if (onSearchChange) return;
+      setSearch(String(value.searchTerm ?? ''));
+    },
+  });
 
-  // Load persisted preferences (sort model, column widths)
   React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { sortModel?: GridSortModel; columnWidths?: Record<string, number> };
-        if (parsed.sortModel) setSortModel(parsed.sortModel);
-        if (parsed.columnWidths) setColumnWidths(parsed.columnWidths);
-      }
-    } catch (err) {
-      console.warn('No se pudieron cargar preferencias de la tabla de movimientos', err);
-    } finally {
-      setPrefsLoaded(true);
-    }
-  }, []);
-
-  // Persist preferences
-  React.useEffect(() => {
-    if (!prefsLoaded) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sortModel, columnWidths }));
-    } catch (err) {
-      console.warn('No se pudieron guardar preferencias de la tabla de movimientos', err);
-    }
-  }, [sortModel, columnWidths, prefsLoaded]);
+    persistExternalFilters({ searchTerm: effectiveSearch });
+  }, [persistExternalFilters, effectiveSearch]);
 
   // Precompute ledger saldo per operación id using chronological order
   const ledgerById = React.useMemo(() => {
@@ -469,13 +466,16 @@ export function MovimientosTable({
   rowHeight={42}
   columnHeaderHeight={42}
   columnBufferPx={2}
-        loading={!!loading}
+        loading={!!loading || loadingPreferences}
         sortModel={sortModel}
         onSortModelChange={(model) => setSortModel(model.length ? model : defaultSort)}
         localeText={esES.components.MuiDataGrid.defaultProps.localeText}
         hideFooterPagination
         disableRowSelectionOnClick
-        columnVisibilityModel={{ menu: true, acciones: SHOW_GRID_ACTIONS }}
+        columnVisibilityModel={{ ...columnVisibilityModel, menu: true, acciones: SHOW_GRID_ACTIONS }}
+        onColumnVisibilityModelChange={(model) => {
+          setColumnVisibilityModel({ ...model, menu: true, acciones: SHOW_GRID_ACTIONS });
+        }}
         {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
         onColumnWidthChange={(params) => {
           if (!params.colDef?.field || typeof params.width !== 'number') return;
