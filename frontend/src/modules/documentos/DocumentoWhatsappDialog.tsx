@@ -129,7 +129,8 @@ export function DocumentoWhatsappDialog({
   const handleEnviar = async () => {
     const telefonoFinal = telefono.trim();
     const esFacturaCfdi = documento?.tipoDocumento === 'factura';
-    const esCotizacion = documento?.tipoDocumento === 'cotizacion';
+    const esDocumentoConPDF = documento?.tipoDocumento === 'cotizacion' || documento?.tipoDocumento === 'orden_servicio';
+    const tipoDocumento = documento?.tipoDocumento ?? 'cotizacion';
 
     if (!telefonoFinal) {
       const message = 'Captura un teléfono para continuar.';
@@ -145,7 +146,6 @@ export function DocumentoWhatsappDialog({
       setResultadoEnvio({ severity: 'error', message });
       console.warn('[CFDI WhatsApp] Envio cancelado por plantilla no resuelta', {
         documentoId: documento?.id ?? null,
-        plantillaId,
       });
       return;
     }
@@ -155,9 +155,10 @@ export function DocumentoWhatsappDialog({
           telefono: telefonoFinal,
           tipoPlantilla: plantillaSeleccionada.tipo,
         }
-      : esCotizacion
+      : esDocumentoConPDF
         ? {
             telefono: telefonoFinal,
+            tipo_documento: tipoDocumento,
           }
         : {
             telefono: telefonoFinal,
@@ -166,7 +167,7 @@ export function DocumentoWhatsappDialog({
 
     const endpoint = esFacturaCfdi && documento?.id
       ? `/api/facturas/${documento.id}/enviar-whatsapp-cfdi`
-      : esCotizacion && documento?.id
+      : esDocumentoConPDF && documento?.id
         ? `/api/documentos/${documento.id}/enviar-whatsapp-cotizacion`
         : '/api/whatsapp/enviar-plantilla';
 
@@ -201,15 +202,15 @@ export function DocumentoWhatsappDialog({
         severity: 'success',
         message: esFacturaCfdi
           ? 'Template, PDF y XML enviados correctamente por WhatsApp.'
-          : esCotizacion
-            ? 'Cotización enviada correctamente por WhatsApp.'
+          : esDocumentoConPDF
+            ? `${documento?.tipoDocumentoLabel || 'Documento'} enviado correctamente por WhatsApp.`
             : 'Plantilla enviada correctamente por WhatsApp.',
       });
     } catch (error: any) {
       const message = error?.message || (esFacturaCfdi
         ? 'No se pudo enviar el CFDI por WhatsApp.'
-        : esCotizacion
-          ? 'No se pudo enviar la cotización por WhatsApp.'
+        : esDocumentoConPDF
+          ? `No se pudo enviar ${documento?.tipoDocumentoLabel?.toLowerCase() || 'el documento'} por WhatsApp.`
           : 'No se pudo enviar la plantilla por WhatsApp.');
       console.error('[CFDI WhatsApp] Error envio WhatsApp documento', {
         documentoId: documento?.id ?? null,

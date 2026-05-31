@@ -8,6 +8,7 @@ export type User = {
   nombre: string;
   email: string;
   es_superadmin?: boolean;
+  ruta_inicio?: string | null;
   vendedor_contacto_id?: number | null;
   vendedor_contacto_nombre?: string | null;
 };

@@ -20,6 +20,30 @@ const ensure = (condition: any, message: string): void => {
   if (!condition) throw new CfdiValidationError(message);
 };
 
+/**
+ * Lanza CfdiValidationError si el documento tiene un intento de cancelación
+ * en estado externo_ok_interno_pendiente (CFDI cancelado en SAT, pendiente de
+ * sincronización interna). No tiene sentido timbrar en ese estado.
+ */
+async function assertDocumentoSinCancelacionPendiente(documentoId: number, empresaId: number): Promise<void> {
+  const { rows } = await pool.query<{ pendiente: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM public.documentos_cancelacion_intentos
+        WHERE documento_id = $1
+          AND empresa_id   = $2
+          AND estado       = 'externo_ok_interno_pendiente'
+        LIMIT 1
+     ) AS pendiente`,
+    [documentoId, empresaId]
+  );
+  if (rows[0]?.pendiente) {
+    throw new CfdiValidationError(
+      'No se puede timbrar: el documento tiene una cancelación CFDI pendiente de sincronización interna'
+    );
+  }
+}
+
 export class CfdiService {
   constructor(private readonly builder = new CfdiBuilder()) {}
 
@@ -28,6 +52,8 @@ export class CfdiService {
   }
 
   async timbrarDocumento(documentoId: number, empresaId: number): Promise<TimbrarFacturaResult> {
+    await assertDocumentoSinCancelacionPendiente(documentoId, empresaId);
+
     const data = await this.obtenerDocumentoTimbrable(documentoId, empresaId);
     this.validarDatos(data);
 
@@ -38,7 +64,19 @@ export class CfdiService {
     const { xml } = this.builder.build(data, buildOptions);
 
     const facturama = await FacturamaClient.fromDatabaseOrEnv();
-    const { xmlTimbrado, response } = await facturama.stampXml(xml);
+
+    let xmlTimbrado: string;
+    let response: FacturamaStampResponse;
+    try {
+      const stamped = await facturama.stampXml(xml);
+      xmlTimbrado = stamped.xmlTimbrado;
+      response = stamped.response;
+    } catch (error: any) {
+      if (error?.isFacturamaValidation && typeof error?.message === 'string' && error.message.trim()) {
+        throw new CfdiValidationError(error.message.trim());
+      }
+      throw error;
+    }
 
     if (!xmlTimbrado || !xmlTimbrado.trim()) {
       throw new CfdiValidationError('Facturama no regresó XML timbrado.');
@@ -67,7 +105,7 @@ export class CfdiService {
       `SELECT d.id, d.empresa_id, d.tipo_documento, d.motivo_nc, d.documento_origen_id,
               d.serie, d.numero, d.fecha_documento, d.moneda, d.subtotal, d.iva, d.total,
               d.forma_pago, d.metodo_pago, d.uso_cfdi, d.rfc_receptor, d.nombre_receptor, d.regimen_fiscal_receptor, d.codigo_postal_receptor,
-              e.razon_social, e.rfc, e.regimen_fiscal, e.codigo_postal_id
+              e.razon_social, e.rfc, e.regimen_fiscal_id AS regimen_fiscal, e.codigo_postal_id
          FROM documentos d
          JOIN core.empresas e ON e.id = d.empresa_id
         WHERE d.id = $1

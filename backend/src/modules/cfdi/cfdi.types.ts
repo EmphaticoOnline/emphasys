@@ -100,6 +100,7 @@ export interface FacturamaConfig {
   baseUrl: string;
   username: string;
   password: string;
+  modo?: 'sandbox' | 'produccion';
   stampPath?: string;
 }
 

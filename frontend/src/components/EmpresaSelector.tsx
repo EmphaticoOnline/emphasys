@@ -1,7 +1,9 @@
+import { useNavigate } from 'react-router-dom';
 import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { useSession } from '../session/useSession';
 import type { Empresa } from '../session/sessionTypes';
+import { resolveRutaInicio } from '../utils/rutaInicio';
 
 interface EmpresaSelectorProps {
   variant?: 'header' | 'panel';
@@ -9,6 +11,7 @@ interface EmpresaSelectorProps {
 }
 
 export default function EmpresaSelector({ variant = 'header', fullWidth = false }: EmpresaSelectorProps) {
+  const navigate = useNavigate();
   const { session, setSession } = useSession();
   const empresas: Empresa[] = session.empresas ?? [];
   const empresaActivaId = session.empresaActivaId ?? '';
@@ -16,13 +19,14 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
 
   if (!empresas || empresas.length <= 1) return null;
 
-  const handleChange = (event: SelectChangeEvent<string>) => {
+  const handleChange = async (event: SelectChangeEvent<string>) => {
     const nextId = event.target.value;
     const parsedId = nextId ? Number(nextId) : null;
     // Solo recargar si realmente cambió
     if (parsedId !== session.empresaActivaId) {
-      setSession({ ...session, empresaActivaId: parsedId });
-      window.location.reload();
+      const nextSession = { ...session, empresaActivaId: parsedId };
+      setSession(nextSession);
+      navigate(await resolveRutaInicio(nextSession), { replace: true });
     }
   };
 

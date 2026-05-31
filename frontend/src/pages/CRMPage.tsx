@@ -4,20 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import ActividadesPage from './ActividadesPage';
 import LeadsPage from './LeadsPage';
 import OportunidadesPage from './OportunidadesPage';
+import { CRM_TABS } from '../components/crmNavigation';
 
-type CrmTabKey = 'actividades' | 'oportunidades' | 'conversaciones';
-
-type CrmTabConfig = {
-  key: CrmTabKey;
-  label: string;
-  path: string;
-};
-
-const CRM_TABS: CrmTabConfig[] = [
-  { key: 'actividades', label: 'Actividades', path: '/crm/actividades' },
-  { key: 'oportunidades', label: 'Oportunidades', path: '/crm/oportunidades' },
-  { key: 'conversaciones', label: 'Conversaciones', path: '/crm/conversaciones' },
-];
+type CrmTabKey = (typeof CRM_TABS)[number]['key'];
 
 const CRM_TAB_STYLE = {
   minHeight: 0,

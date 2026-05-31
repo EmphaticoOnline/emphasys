@@ -7,6 +7,7 @@ export type Usuario = {
   email: string;
   activo: boolean;
   es_superadmin: boolean;
+  ruta_inicio: string | null;
   vendedor_contacto_id: number | null;
   vendedor_contacto_nombre?: string | null;
   created_at: string;
@@ -26,6 +27,7 @@ export async function listarUsuarios(): Promise<Usuario[]> {
             u.email,
             u.activo,
             u.es_superadmin,
+            u.ruta_inicio,
             u.vendedor_contacto_id,
             c.nombre AS vendedor_contacto_nombre,
             u.created_at
@@ -43,6 +45,7 @@ export async function listarUsuariosHabilitadosPorEmpresa(empresaId: number): Pr
             u.email,
             u.activo,
             u.es_superadmin,
+            u.ruta_inicio,
             u.vendedor_contacto_id,
             c.nombre AS vendedor_contacto_nombre,
             u.created_at
@@ -65,6 +68,7 @@ export async function obtenerUsuarioPorId(id: number): Promise<UsuarioDetalle | 
       u.email,
       u.activo,
       u.es_superadmin,
+      u.ruta_inicio,
       u.vendedor_contacto_id,
       c.nombre AS vendedor_contacto_nombre,
       u.created_at
@@ -119,26 +123,28 @@ export async function crearUsuario(data: {
   password: string;
   es_superadmin?: boolean;
   activo?: boolean;
+  ruta_inicio?: string | null;
   vendedor_contacto_id?: number | null;
 }): Promise<Usuario> {
   const password_hash = await bcrypt.hash(data.password, SALT_ROUNDS);
   const { rows } = await pool.query<Usuario>(
     `WITH inserted AS (
-        INSERT INTO core.usuarios (nombre, email, password_hash, es_superadmin, activo, vendedor_contacto_id)
-        VALUES ($1, lower($2), $3, $4, $5, $6)
-        RETURNING id, nombre, email, activo, es_superadmin, vendedor_contacto_id, created_at
+        INSERT INTO core.usuarios (nombre, email, password_hash, es_superadmin, activo, ruta_inicio, vendedor_contacto_id)
+        VALUES ($1, lower($2), $3, $4, $5, $6, $7)
+        RETURNING id, nombre, email, activo, es_superadmin, ruta_inicio, vendedor_contacto_id, created_at
      )
      SELECT i.id,
             i.nombre,
             i.email,
             i.activo,
             i.es_superadmin,
+            i.ruta_inicio,
             i.vendedor_contacto_id,
             c.nombre AS vendedor_contacto_nombre,
             i.created_at
        FROM inserted i
        LEFT JOIN public.contactos c ON c.id = i.vendedor_contacto_id`,
-    [data.nombre.trim(), data.email.trim(), password_hash, Boolean(data.es_superadmin), data.activo ?? true, data.vendedor_contacto_id ?? null]
+    [data.nombre.trim(), data.email.trim(), password_hash, Boolean(data.es_superadmin), data.activo ?? true, data.ruta_inicio ?? null, data.vendedor_contacto_id ?? null]
   );
   return rows[0];
 }
@@ -149,6 +155,7 @@ export async function actualizarUsuario(id: number, data: {
   password?: string;
   es_superadmin?: boolean;
   activo?: boolean;
+  ruta_inicio?: string | null;
   vendedor_contacto_id?: number | null;
 }): Promise<Usuario | null> {
   const updates: string[] = [];
@@ -176,6 +183,10 @@ export async function actualizarUsuario(id: number, data: {
     updates.push(`activo = $${idx++}`);
     values.push(Boolean(data.activo));
   }
+  if (data.ruta_inicio !== undefined) {
+    updates.push(`ruta_inicio = $${idx++}`);
+    values.push(data.ruta_inicio ?? null);
+  }
   if (data.vendedor_contacto_id !== undefined) {
     updates.push(`vendedor_contacto_id = $${idx++}`);
     values.push(data.vendedor_contacto_id ?? null);
@@ -189,15 +200,16 @@ export async function actualizarUsuario(id: number, data: {
         UPDATE core.usuarios
            SET ${updates.join(', ')}
          WHERE id = $${idx}
-      RETURNING id, nombre, email, activo, es_superadmin, vendedor_contacto_id, created_at
+      RETURNING id, nombre, email, activo, es_superadmin, ruta_inicio, vendedor_contacto_id, created_at
      )
      SELECT u.id,
             u.nombre,
             u.email,
             u.activo,
             u.es_superadmin,
-        u.vendedor_contacto_id,
-        c.nombre AS vendedor_contacto_nombre,
+            u.ruta_inicio,
+            u.vendedor_contacto_id,
+            c.nombre AS vendedor_contacto_nombre,
             u.created_at
        FROM updated u
      LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id`,
@@ -213,6 +225,7 @@ async function obtenerUsuarioSimple(id: number): Promise<Usuario | null> {
       u.email,
       u.activo,
       u.es_superadmin,
+      u.ruta_inicio,
       u.vendedor_contacto_id,
       c.nombre AS vendedor_contacto_nombre,
       u.created_at
@@ -302,7 +315,7 @@ export async function desactivarUsuario(id: number): Promise<Usuario | null> {
     `UPDATE core.usuarios
         SET activo = false
       WHERE id = $1
-      RETURNING id, nombre, email, activo, es_superadmin, created_at`,
+      RETURNING id, nombre, email, activo, es_superadmin, ruta_inicio, created_at`,
     [id]
   );
   return rows[0] ?? null;

@@ -12,10 +12,16 @@ import {
   obtenerUsuarioEmpresasYRoles,
   usuarioTieneRelaciones,
 } from './usuarios.repository';
+import { esRutaInicioPermitida, normalizarRutaInicio } from './rutaInicio';
 
 type VendedorContactoIdParseResult = {
   vendedorContactoId?: number | null;
   error?: string;
+};
+
+type RutaInicioParseResult = {
+	rutaInicio?: string | null;
+	error?: string;
 };
 
 function parseVendedorContactoId(value: unknown): VendedorContactoIdParseResult {
@@ -26,6 +32,16 @@ function parseVendedorContactoId(value: unknown): VendedorContactoIdParseResult 
     return { error: 'vendedor_contacto_id inválido' };
   }
   return { vendedorContactoId };
+}
+
+function parseRutaInicio(value: unknown): RutaInicioParseResult {
+  const rutaInicio = normalizarRutaInicio(value);
+  if (rutaInicio === undefined) return { rutaInicio: undefined };
+  if (rutaInicio === null) return { rutaInicio: null };
+  if (!esRutaInicioPermitida(rutaInicio)) {
+    return { error: 'ruta_inicio inválida' };
+  }
+  return { rutaInicio };
 }
 
 export async function getUsuarios(_req: Request, res: Response) {
@@ -80,9 +96,12 @@ export async function getUsuarioEmpresas(req: Request, res: Response) {
 export async function postUsuario(req: Request, res: Response) {
   try {
     const { nombre, email, password, es_superadmin = false, activo = true } = req.body || {};
-  const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
-  if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
-  const vendedorContactoId = contactoParse.vendedorContactoId;
+    const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
+    if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
+    const rutaParse = parseRutaInicio((req.body as { ruta_inicio?: unknown })?.ruta_inicio);
+    if (rutaParse.error) return res.status(400).json({ message: rutaParse.error });
+    const vendedorContactoId = contactoParse.vendedorContactoId;
+    const rutaInicio = rutaParse.rutaInicio;
     if (!nombre || String(nombre).trim() === '') return res.status(400).json({ message: 'El nombre es obligatorio' });
     if (!email || String(email).trim() === '') return res.status(400).json({ message: 'El email es obligatorio' });
     if (!password || String(password).length < 6) return res.status(400).json({ message: 'El password es obligatorio (mínimo 6 caracteres)' });
@@ -96,7 +115,7 @@ export async function postUsuario(req: Request, res: Response) {
     }
 
     try {
-      const nuevo = await crearUsuario({ nombre, email, password, es_superadmin, activo, vendedor_contacto_id: vendedorContactoId });
+      const nuevo = await crearUsuario({ nombre, email, password, es_superadmin, activo, ruta_inicio: rutaInicio, vendedor_contacto_id: vendedorContactoId });
       res.status(201).json(nuevo);
     } catch (err: any) {
       if (err?.code === '23505') return res.status(409).json({ message: 'Ya existe un usuario con ese email' });
@@ -115,9 +134,12 @@ export async function putUsuario(req: Request, res: Response) {
     if (!Number.isFinite(id)) return res.status(400).json({ message: 'id inválido' });
 
     const { nombre, email, password, es_superadmin, activo } = req.body || {};
-  const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
-  if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
-  const vendedorContactoId = contactoParse.vendedorContactoId;
+    const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
+    if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
+    const rutaParse = parseRutaInicio((req.body as { ruta_inicio?: unknown })?.ruta_inicio);
+    if (rutaParse.error) return res.status(400).json({ message: rutaParse.error });
+    const vendedorContactoId = contactoParse.vendedorContactoId;
+    const rutaInicio = rutaParse.rutaInicio;
     if (email !== undefined && String(email).trim() === '') return res.status(400).json({ message: 'El email no puede estar vacío' });
     if (nombre !== undefined && String(nombre).trim() === '') return res.status(400).json({ message: 'El nombre no puede estar vacío' });
     if (password !== undefined && String(password).length < 6) return res.status(400).json({ message: 'El password debe tener al menos 6 caracteres' });
@@ -131,7 +153,7 @@ export async function putUsuario(req: Request, res: Response) {
     }
 
     try {
-      const actualizado = await actualizarUsuario(id, { nombre, email, password, es_superadmin, activo, vendedor_contacto_id: vendedorContactoId });
+      const actualizado = await actualizarUsuario(id, { nombre, email, password, es_superadmin, activo, ruta_inicio: rutaInicio, vendedor_contacto_id: vendedorContactoId });
       if (!actualizado) return res.status(404).json({ message: 'Usuario no encontrado' });
       res.json(actualizado);
     } catch (err: any) {

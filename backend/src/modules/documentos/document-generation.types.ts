@@ -26,11 +26,13 @@ export interface PrepararGeneracionResponse {
     documento_id: number;
     tipo_documento: TipoDocumento;
     folio: string | null;
+    tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
   } | null;
   documentos_origen: Array<{
     documento_id: number;
     tipo_documento: TipoDocumento;
     folio: string | null;
+    tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
   }>;
   es_consolidado: boolean;
   tipo_documento_destino: TipoDocumento;
@@ -53,6 +55,7 @@ export interface DatosEncabezadoGeneracion {
   forma_pago?: string | null;
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
+  tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
 }
 
 export interface GenerarDocumentoPartidaInput {

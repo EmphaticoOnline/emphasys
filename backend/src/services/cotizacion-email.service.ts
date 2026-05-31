@@ -13,16 +13,19 @@ import {
 } from '../crm/conversaciones.service';
 import { COTIZACION_ESTATUS_DOCUMENTO_ENVIADO } from '../modules/documentos/cotizacion-status';
 
-type EnviarCotizacionEmailInput = {
+type TipoDocumentoEnviable = 'cotizacion' | 'orden_servicio';
+
+type EnviarDocumentoEmailInput = {
   documentoId: number;
   empresaId: number;
   usuarioId?: number | null;
   to: string;
   subject: string;
   message: string;
+  tipoDocumento?: TipoDocumentoEnviable;
 };
 
-type DocumentoCotizacionEmail = {
+type DocumentoEmail = {
   id: number;
   empresa_id: number;
   contacto_id: number | null;
@@ -34,18 +37,46 @@ type DocumentoCotizacionEmail = {
   estado_seguimiento: string | null;
 };
 
+const DOCUMENTO_LABELS: Record<TipoDocumentoEnviable, string> = {
+  cotizacion: 'Cotización',
+  orden_servicio: 'Orden de servicio',
+};
+
+const PLANTILLA_EMAIL_FALLBACK: Record<TipoDocumentoEnviable, string> = {
+  cotizacion: 'cotizacion',
+  orden_servicio: 'cotizacion',
+};
+
+const ARCHIVO_ADJUNTO_PREFIX: Record<TipoDocumentoEnviable, string> = {
+  cotizacion: 'Cotizacion',
+  orden_servicio: 'OrdenDeServicio',
+};
+
+const esTipoDocumentoEnviable = (value: string): value is TipoDocumentoEnviable =>
+  value === 'cotizacion' || value === 'orden_servicio';
+
 export class CotizacionEmailService {
-  public static async enviarCotizacion(input: EnviarCotizacionEmailInput) {
+  public static async enviarCotizacion(input: Omit<EnviarDocumentoEmailInput, 'tipoDocumento'>) {
+    return CotizacionEmailService.enviarDocumento({ ...input, tipoDocumento: 'cotizacion' });
+  }
+
+  public static async enviarDocumento(input: EnviarDocumentoEmailInput) {
+    const tipoDocumento = input.tipoDocumento ?? 'cotizacion';
+    if (!esTipoDocumentoEnviable(tipoDocumento)) {
+      throw new Error('Tipo de documento no soportado para envío por correo');
+    }
+
     const to = input.to.trim();
     const subject = input.subject.trim();
     const message = input.message?.trim() || '';
+    const documentoLabel = DOCUMENTO_LABELS[tipoDocumento];
 
     if (!to) {
       throw new Error('El correo destino es obligatorio');
     }
 
-    const documento = await CotizacionEmailService.obtenerCotizacion(input.documentoId, input.empresaId);
-    const pdfBuffer = await CotizacionEmailService.generarPdf(input.documentoId, input.empresaId);
+    const documento = await CotizacionEmailService.obtenerDocumento(input.documentoId, input.empresaId, tipoDocumento);
+    const pdfBuffer = await CotizacionEmailService.generarPdf(input.documentoId, input.empresaId, tipoDocumento);
     const smtpConfig = await getConfiguracionEmailPrivada(documento.empresa_id, input.usuarioId ?? null);
 
     if (!smtpConfig) {
@@ -60,10 +91,13 @@ export class CotizacionEmailService {
     const from = smtpConfig.email_remitente || smtpConfig.smtp_user || null;
     const nombreRemitente = smtpConfig.nombre_remitente?.trim() || smtpConfig.email_remitente || smtpConfig.smtp_user || 'Tu asesor';
     const cliente = documento.cliente_nombre?.trim() || 'cliente';
-    const plantilla = await obtenerPlantillaEmail(documento.empresa_id, 'cotizacion');
+    const plantilla = await obtenerPlantillaEmail(documento.empresa_id, tipoDocumento)
+      || (PLANTILLA_EMAIL_FALLBACK[tipoDocumento] !== tipoDocumento
+        ? await obtenerPlantillaEmail(documento.empresa_id, PLANTILLA_EMAIL_FALLBACK[tipoDocumento])
+        : null);
 
     if (!plantilla) {
-      throw new Error('No hay plantilla de correo configurada para cotización');
+      throw new Error(`No hay plantilla de correo configurada para ${documentoLabel.toLowerCase()}`);
     }
 
     const mensajePlantilla = CotizacionEmailService.renderTemplate(message, {
@@ -99,7 +133,7 @@ export class CotizacionEmailService {
           html: htmlBody,
           attachments: [
             {
-              filename: `Cotizacion-${folio}.pdf`,
+              filename: `${ARCHIVO_ADJUNTO_PREFIX[tipoDocumento]}-${folio}.pdf`,
               content: pdfBuffer,
               contentType: 'application/pdf',
             },
@@ -124,11 +158,11 @@ export class CotizacionEmailService {
         await actualizarConversacionSaliente(conversacionId, documento.empresa_id);
       }
 
-      await CotizacionEmailService.actualizarEstatusDocumento(documento.id, documento.empresa_id, COTIZACION_ESTATUS_DOCUMENTO_ENVIADO);
+      await CotizacionEmailService.actualizarEstatusDocumento(documento.id, documento.empresa_id, COTIZACION_ESTATUS_DOCUMENTO_ENVIADO, tipoDocumento);
 
       return {
         ok: true,
-        message: 'Cotización enviada correctamente por correo',
+        message: `${documentoLabel} enviada correctamente por correo`,
         messageId: response.messageId ?? null,
       };
     } catch (error) {
@@ -155,8 +189,8 @@ export class CotizacionEmailService {
     }
   }
 
-  private static async obtenerCotizacion(documentoId: number, empresaId: number): Promise<DocumentoCotizacionEmail> {
-    const { rows } = await pool.query<DocumentoCotizacionEmail>(
+  private static async obtenerDocumento(documentoId: number, empresaId: number, tipoDocumento: TipoDocumentoEnviable): Promise<DocumentoEmail> {
+    const { rows } = await pool.query<DocumentoEmail>(
       `SELECT d.id,
               d.empresa_id,
               d.contacto_principal_id AS contacto_id,
@@ -170,36 +204,36 @@ export class CotizacionEmailService {
          LEFT JOIN contactos c ON c.id = d.contacto_principal_id
         WHERE d.id = $1
           AND d.empresa_id = $2
-          AND LOWER(d.tipo_documento) = 'cotizacion'
+          AND LOWER(d.tipo_documento) = $3
         LIMIT 1`,
-      [documentoId, empresaId]
+      [documentoId, empresaId, tipoDocumento]
     );
 
     const documento = rows[0] ?? null;
     if (!documento) {
-      throw new Error('Cotización no encontrada');
+      throw new Error(`${DOCUMENTO_LABELS[tipoDocumento]} no encontrada`);
     }
 
     return documento;
   }
 
-  private static async generarPdf(documentoId: number, empresaId: number): Promise<Buffer> {
-    const data = await obtenerDocumentoRepository(documentoId, empresaId, 'cotizacion');
+  private static async generarPdf(documentoId: number, empresaId: number, tipoDocumento: TipoDocumentoEnviable): Promise<Buffer> {
+    const data = await obtenerDocumentoRepository(documentoId, empresaId, tipoDocumento);
     if (!data) {
-      throw new Error('Cotización no encontrada para generar PDF');
+      throw new Error(`${DOCUMENTO_LABELS[tipoDocumento]} no encontrada para generar PDF`);
     }
 
     return generarDocumentoPDF(data, empresaId);
   }
 
-  private static async actualizarEstatusDocumento(documentoId: number, empresaId: number, estatus: string) {
+  private static async actualizarEstatusDocumento(documentoId: number, empresaId: number, estatus: string, tipoDocumento: TipoDocumentoEnviable) {
     await pool.query(
       `UPDATE documentos
           SET estatus_documento = $1
         WHERE id = $2
           AND empresa_id = $3
-          AND LOWER(tipo_documento) = 'cotizacion'`,
-      [estatus, documentoId, empresaId]
+          AND LOWER(tipo_documento) = $4`,
+      [estatus, documentoId, empresaId, tipoDocumento]
     );
   }
 

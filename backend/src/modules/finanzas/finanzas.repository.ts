@@ -815,6 +815,22 @@ async function crearAplicacionTx(
   }
 
   // 1) Bloquear destino primero
+  // Verificar que ninguno de los dos documentos tenga cancelación CFDI pendiente
+  const { rows: pendientesRows } = await client.query<{ documento_id: number }>(
+    `SELECT documento_id
+       FROM public.documentos_cancelacion_intentos
+      WHERE documento_id = ANY($1::int[])
+        AND empresa_id   = $2
+        AND estado       = 'externo_ok_interno_pendiente'
+      LIMIT 1`,
+    [[documentoOrigenId, documentoDestinoId], empresaId]
+  );
+  if (pendientesRows.length > 0) {
+    const errPend = new Error('No se puede aplicar saldo: uno de los documentos tiene una cancelación CFDI pendiente de sincronización interna');
+    (errPend as any).status = 409;
+    throw errPend;
+  }
+
   const destinoQuery = `
     SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
     FROM documentos d

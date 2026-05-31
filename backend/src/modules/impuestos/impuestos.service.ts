@@ -39,7 +39,6 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
       tratamientoImpuestos,
       estatusDocumento,
       documentoId,
-      tipoDocumento,
     } = partida;
 
     console.log('[impuestos] base partida', subtotalPartida);
@@ -96,11 +95,8 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
       executor
     );
 
-    // Recalcular totales sólo para facturas y facturas de compra
-    const tiposConTotales = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'];
-    if (tiposConTotales.includes(tipoDocumento?.toLowerCase?.() ?? '')) {
-      await actualizarTotales(documentoId, executor);
-    }
+    // Recalcular totales del documento para mantener consistencia en cualquier tipo documental.
+    await actualizarTotales(documentoId, executor);
     if (ownedClient) {
       await executor.query('COMMIT');
     }

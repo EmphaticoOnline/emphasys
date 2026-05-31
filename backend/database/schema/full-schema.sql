@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-29T19:39:36.586Z
+-- Generated at: 2026-05-30T15:38:02.378Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict oh4y2hgiBUJwuEfVULssEYC29pAdRdJRhqhCxohy0AazyalJTZ4jbxT3SSPxFJA
+\restrict FTv97peuO9k2mfhtPlBJYdIFaUwsqq7CIAAQLfnf1ypaSrCWltcD0xzxnQTiWVo
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -48,6 +48,13 @@ CREATE SCHEMA inventario;
 --
 
 COMMENT ON SCHEMA inventario IS 'Módulo de inventario del ERP. Contiene movimientos, partidas y existencias por producto y almacén.';
+
+
+--
+-- Name: mantenimiento; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA mantenimiento;
 
 
 --
@@ -2127,7 +2134,8 @@ CREATE TABLE core.usuarios (
     activo boolean DEFAULT true,
     es_superadmin boolean DEFAULT false,
     created_at timestamp without time zone DEFAULT now(),
-    vendedor_contacto_id integer
+    vendedor_contacto_id integer,
+    ruta_inicio text
 );
 
 
@@ -2192,6 +2200,13 @@ COMMENT ON COLUMN core.usuarios.es_superadmin IS 'Usuario administrador global d
 --
 
 COMMENT ON COLUMN core.usuarios.created_at IS 'Fecha de creación del usuario';
+
+
+--
+-- Name: COLUMN usuarios.ruta_inicio; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.usuarios.ruta_inicio IS 'Ruta inicial sugerida al iniciar sesión';
 
 
 --
@@ -9061,10 +9076,31 @@ CREATE INDEX idx_conceptos_rubro_presupuesto ON public.conceptos USING btree (em
 
 
 --
+-- Name: idx_contactos_email_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contactos_email_trgm ON public.contactos USING gin (email sat.gin_trgm_ops) WHERE (email IS NOT NULL);
+
+
+--
+-- Name: idx_contactos_nombre_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contactos_nombre_trgm ON public.contactos USING gin (nombre sat.gin_trgm_ops);
+
+
+--
 -- Name: idx_contactos_precio_lista; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_contactos_precio_lista ON public.contactos USING btree (precio_lista_id);
+
+
+--
+-- Name: idx_contactos_telefono_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contactos_telefono_trgm ON public.contactos USING gin (telefono sat.gin_trgm_ops) WHERE (telefono IS NOT NULL);
 
 
 --
@@ -9236,6 +9272,20 @@ COMMENT ON INDEX public.idx_documentos_partidas_campos_empresa_partida_campo IS 
 
 
 --
+-- Name: idx_documentos_partidas_comentarios_internos_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_comentarios_internos_trgm ON public.documentos_partidas USING gin (comentarios_internos sat.gin_trgm_ops) WHERE (comentarios_internos IS NOT NULL);
+
+
+--
+-- Name: idx_documentos_partidas_descripcion_alterna_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_descripcion_alterna_trgm ON public.documentos_partidas USING gin (descripcion_alterna sat.gin_trgm_ops) WHERE (descripcion_alterna IS NOT NULL);
+
+
+--
 -- Name: idx_documentos_partidas_impuestos_partida_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9247,6 +9297,13 @@ CREATE INDEX idx_documentos_partidas_impuestos_partida_id ON public.documentos_p
 --
 
 COMMENT ON INDEX public.idx_documentos_partidas_impuestos_partida_id IS 'Optimiza consultas que filtran por partida_id (cálculo y lectura de impuestos por partida).';
+
+
+--
+-- Name: idx_documentos_partidas_observaciones_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_observaciones_trgm ON public.documentos_partidas USING gin (observaciones sat.gin_trgm_ops) WHERE (observaciones IS NOT NULL);
 
 
 --
@@ -9415,6 +9472,20 @@ CREATE INDEX idx_precios_listas_empresa ON public.precios_listas USING btree (em
 --
 
 CREATE INDEX idx_precios_producto ON public.precios USING btree (producto_id);
+
+
+--
+-- Name: idx_productos_clave_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_productos_clave_trgm ON public.productos USING gin (clave sat.gin_trgm_ops);
+
+
+--
+-- Name: idx_productos_descripcion_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_productos_descripcion_trgm ON public.productos USING gin (descripcion sat.gin_trgm_ops);
 
 
 --
@@ -10862,5 +10933,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict oh4y2hgiBUJwuEfVULssEYC29pAdRdJRhqhCxohy0AazyalJTZ4jbxT3SSPxFJA
+\unrestrict FTv97peuO9k2mfhtPlBJYdIFaUwsqq7CIAAQLfnf1ypaSrCWltcD0xzxnQTiWVo
 

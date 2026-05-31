@@ -61,6 +61,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import EmailIcon from '@mui/icons-material/Email';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import CancelIcon from '@mui/icons-material/Cancel';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import LinkIcon from '@mui/icons-material/Link';
 import NoteAddIcon from '@mui/icons-material/NoteAdd';
@@ -87,7 +88,7 @@ import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, getDocumentos, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, getDocumentos, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
 import { fetchAnticiposDisponiblesDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
@@ -352,6 +353,22 @@ const esDocumentoFiscalPorTratamiento = (tipoDocumento: TipoDocumento, tratamien
   return String(tratamientoImpuestos ?? 'normal').trim().toLowerCase() !== 'sin_iva';
 };
 
+type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
+
+const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
+  { label: 'Operación estándar', value: 'normal' },
+  { label: 'Nota de venta', value: 'sin_iva' },
+  { label: 'Operación tasa cero', value: 'tasa_cero' },
+  { label: 'Operación exenta', value: 'exento' },
+];
+
+const normalizarTratamiento = (value: unknown): TratamientoImpuestos => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return (['normal', 'sin_iva', 'tasa_cero', 'exento'] as const).includes(normalized as TratamientoImpuestos)
+    ? (normalized as TratamientoImpuestos)
+    : 'normal';
+};
+
 const puedeTimbrarCfdiDocumento = (tipoDocumento: TipoDocumento, row?: Partial<CotizacionListado> | null): boolean => {
   const tipoNormalizado = normalizeTipoDocumento(tipoDocumento);
   if (!esDocumentoFiscalPorTratamiento(tipoNormalizado, row?.tratamiento_impuestos)) {
@@ -394,6 +411,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   }, [modulo]);
 
   const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
+  const tipoDocumentoPermiteCorreo = tipoDocumento === 'cotizacion' || tipoDocumento === 'orden_servicio';
+  const tipoDocumentoPermiteWhatsapp = tipoDocumento === 'cotizacion' || tipoDocumento === 'orden_servicio' || tipoDocumento === 'factura';
 
   const textos = useMemo(() => {
     const match = tiposDocumento.find((t) => t.codigo === tipoDocumento);
@@ -435,10 +454,28 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [timbrandoId, setTimbrandoId] = useState<number | null>(null);
+  const [cancelandoId, setCancelandoId] = useState<number | null>(null);
   type SnackbarSeverity = 'success' | 'error' | 'info' | 'warning';
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: SnackbarSeverity }>(
     { open: false, message: '', severity: 'success' }
   );
+  const [cancelarDialog, setCancelarDialog] = useState<{
+    open: boolean;
+    id: number | null;
+    motivoCancelacion: string;
+    motivoSat: string;
+    uuidSustitucion: string;
+    enviando: boolean;
+    error: string | null;
+  }>({
+    open: false,
+    id: null,
+    motivoCancelacion: '',
+    motivoSat: '02',
+    uuidSustitucion: '',
+    enviando: false,
+    error: null,
+  });
   const [enviarDialog, setEnviarDialog] = useState<{
     open: boolean;
     id: number | null;
@@ -489,8 +526,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     tipoDestino: string | null;
     data: PrepararGeneracionResponse | null;
     cantidades: Record<number, number>;
+    tratamientoImpuestos: TratamientoImpuestos;
     enviando: boolean;
-  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
+  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
   const [aplicarAnticiposDialog, setAplicarAnticiposDialog] = useState<{
     open: boolean;
     documentoOrigenId: number | null;
@@ -809,6 +847,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       tipoDestino,
       data: null,
       cantidades: {},
+      tratamientoImpuestos: 'normal',
       enviando: false,
     });
 
@@ -818,6 +857,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
         return acc;
       }, {});
+      const tratamientoInicial = normalizarTratamiento(data.documento_origen?.tratamiento_impuestos);
       setGeneracionDialog({
         open: true,
         loading: false,
@@ -826,6 +866,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         tipoDestino,
         data,
         cantidades,
+        tratamientoImpuestos: tratamientoInicial,
         enviando: false,
       });
     } catch (err: any) {
@@ -837,6 +878,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         tipoDestino: null,
         data: null,
         cantidades: {},
+        tratamientoImpuestos: 'normal',
         enviando: false,
       });
       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la generación', severity: 'error' });
@@ -987,6 +1029,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       tipoDestino: bulkNotaCreditoDestino,
       data: null,
       cantidades: {},
+      tratamientoImpuestos: 'normal',
       enviando: false,
     });
 
@@ -996,6 +1039,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
         return acc;
       }, {});
+      const tratamientosOrigen = Array.from(new Set((data.documentos_origen ?? []).map((doc) => normalizarTratamiento(doc.tratamiento_impuestos))));
+      const tratamientoInicial = tratamientosOrigen.length === 1 ? tratamientosOrigen[0] : normalizarTratamiento(data.documento_origen?.tratamiento_impuestos);
       setGeneracionDialog({
         open: true,
         loading: false,
@@ -1004,10 +1049,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         tipoDestino: bulkNotaCreditoDestino,
         data,
         cantidades,
+        tratamientoImpuestos: tratamientoInicial,
         enviando: false,
       });
     } catch (err: any) {
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la consolidación', severity: 'error' });
     }
   };
@@ -1096,13 +1142,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         ? { documento_origen_ids: generacionDialog.documentoIds }
         : { documento_origen_id: generacionDialog.documentoId ?? undefined }),
       tipo_documento_destino: generacionDialog.tipoDestino as any,
+      datos_encabezado: {
+        tratamiento_impuestos: generacionDialog.tratamientoImpuestos,
+      },
       partidas,
     };
 
     try {
       setGeneracionDialog((prev) => ({ ...prev, enviando: true }));
       const result = await generarDocumentoDesdeOrigen(payload, token!, empresaId!);
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
       setSnackbar({ open: true, message: 'Documento generado correctamente', severity: 'success' });
       await handlePostGeneration({
         documentoOrigenId: generacionDialog.documentoId ?? generacionDialog.documentoIds[0] ?? 0,
@@ -1200,15 +1249,76 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const abrirDialogoEnviarCotizacion = (row: CotizacionListado) => {
     const folio = formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0));
     const emailInicial = obtenerEmailDocumento(row);
+    const esCotizacion = tipoDocumento === 'cotizacion';
+    const etiquetaDocumento = esCotizacion ? 'Cotizacion' : documentoTypeConfig.label;
+    const textoDocumento = esCotizacion ? 'cotizacion' : documentoTypeConfig.textos.singular;
     setEnviarCotizacionDialog({
       open: true,
       id: Number(row.id),
       email: emailInicial,
-      subject: `Cotizacion ${folio}`,
-      message: `Se adjunta la cotizacion ${folio}.`,
+      subject: `${etiquetaDocumento} ${folio}`,
+      message: `Se adjunta la ${textoDocumento} ${folio}.`,
       enviando: false,
       error: emailInicial ? null : 'El cliente no tiene correo registrado. Captura uno para continuar.',
     });
+  };
+
+  const abrirDialogoCancelar = (row: CotizacionListado) => {
+    setCancelarDialog({
+      open: true,
+      id: Number(row.id),
+      motivoCancelacion: '',
+      motivoSat: '02',
+      uuidSustitucion: '',
+      enviando: false,
+      error: null,
+    });
+  };
+
+  const cerrarDialogoCancelar = () => {
+    if (cancelarDialog.enviando) return;
+    setCancelarDialog({
+      open: false,
+      id: null,
+      motivoCancelacion: '',
+      motivoSat: '02',
+      uuidSustitucion: '',
+      enviando: false,
+      error: null,
+    });
+  };
+
+  const confirmarCancelacion = async () => {
+    const documentoId = Number(cancelarDialog.id ?? 0);
+    if (!Number.isFinite(documentoId) || documentoId <= 0) return;
+
+    const motivoSat = String(cancelarDialog.motivoSat ?? '').trim();
+    const uuidSustitucion = String(cancelarDialog.uuidSustitucion ?? '').trim();
+    if (motivoSat === '01' && !uuidSustitucion) {
+      setCancelarDialog((prev) => ({ ...prev, error: 'El UUID de sustitución es obligatorio cuando el motivo SAT es 01.' }));
+      return;
+    }
+
+    try {
+      setCancelandoId(documentoId);
+      setCancelarDialog((prev) => ({ ...prev, enviando: true, error: null }));
+
+      await cancelarDocumento(documentoId, tipoDocumento, {
+        motivo_cancelacion: cancelarDialog.motivoCancelacion.trim() || null,
+        motivo_sat: motivoSat || null,
+        uuid_sustitucion: uuidSustitucion || null,
+      });
+
+      cerrarDialogoCancelar();
+      setSnackbar({ open: true, message: 'Documento cancelado correctamente', severity: 'success' });
+      await load();
+    } catch (err: any) {
+      const message = err?.message || 'No se pudo cancelar el documento';
+      setCancelarDialog((prev) => ({ ...prev, enviando: false, error: message }));
+      setSnackbar({ open: true, message, severity: 'error' });
+    } finally {
+      setCancelandoId(null);
+    }
   };
 
   const abrirDialogoProduccion = (row: CotizacionListado) => {
@@ -1513,6 +1623,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         const documentoPuedeTimbrarCfdi = puedeTimbrarCfdiDocumento(tipoDocumento, params.row as CotizacionListado);
         const facturaTimbrada = !documentoPuedeTimbrarCfdi || isFacturaTimbrada(params.row?.estatus_documento);
         const mensajeFacturaNoTimbrada = 'La factura debe estar timbrada antes de enviarse.';
+        const estatusDocumentoNormalizado = String(params.row?.estatus_documento ?? '').trim().toLowerCase();
+        const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
 
         return (
         <Stack direction="row" spacing={0.5} alignItems="center">
@@ -1626,7 +1738,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               <DownloadIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          {hasAction('enviar_email') && tipoDocumento === 'cotizacion' && (
+          {hasAction('enviar_email') && tipoDocumentoPermiteCorreo && (
             <Tooltip title="Enviar por correo">
               <span>
                 <IconButton
@@ -1712,6 +1824,21 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
+          <Tooltip title={documentoCancelado ? 'Documento ya cancelado' : 'Cancelar documento'}>
+            <span>
+              <IconButton
+                size="small"
+                color="error"
+                disabled={loading || documentoCancelado || cancelandoId === Number(params.row?.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  abrirDialogoCancelar(params.row as CotizacionListado);
+                }}
+              >
+                <CancelIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
           {hasAction('enviar_email') && tipoDocumento === 'factura' && (
             <Tooltip title={facturaTimbrada ? 'Enviar por correo' : mensajeFacturaNoTimbrada}>
               <span>
@@ -1730,7 +1857,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {hasAction('enviar_whatsapp') && (
+          {hasAction('enviar_whatsapp') && tipoDocumentoPermiteWhatsapp && (
             <Tooltip title={documentoPuedeTimbrarCfdi && !facturaTimbrada ? mensajeFacturaNoTimbrada : 'Enviar por WhatsApp'}>
               <span>
                 <IconButton
@@ -1785,9 +1912,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     contactoLabelLower,
     vendedoresPorId,
     abrirDialogoProduccion,
+    abrirDialogoCancelar,
     abrirDrawerProduccion,
     esCotizacion,
     hasAction,
+    cancelandoId,
   ]);
 
   const columns: GridColDef[] = useMemo(
@@ -1883,6 +2012,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') &&
       Number(contextMenuRow?.saldo ?? 0) > 0 &&
       String(contextMenuRow?.estatus_documento ?? '').toLowerCase() !== 'cancelado';
+    const estatusDocumentoNormalizado = String(contextMenuRow?.estatus_documento ?? '').trim().toLowerCase();
+    const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
 
     return [
       {
@@ -1980,7 +2111,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         id: 'enviar-correo-cotizacion',
         label: 'Enviar por correo',
         icon: <EmailIcon fontSize="small" />,
-        hidden: !(hasAction('enviar_email') && tipoDocumento === 'cotizacion'),
+        hidden: !(hasAction('enviar_email') && tipoDocumentoPermiteCorreo),
         disabled: loading,
         onClick: () => abrirDialogoEnviarCotizacion(contextMenuRow),
       },
@@ -1999,7 +2130,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         id: 'enviar-whatsapp',
         label: 'Enviar por WhatsApp',
         icon: <WhatsAppIcon fontSize="small" />,
-        hidden: !hasAction('enviar_whatsapp'),
+        hidden: !(hasAction('enviar_whatsapp') && tipoDocumentoPermiteWhatsapp),
         disabled: loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada),
         onClick: () => {
           console.info('[CFDI WhatsApp] Abrir modal de envio', {
@@ -2033,6 +2164,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         },
       },
       {
+        id: 'cancelar-documento',
+        label: 'Cancelar documento',
+        icon: <CancelIcon fontSize="small" />,
+        destructive: true,
+        disabled: loading || documentoCancelado || cancelandoId === rowId,
+        onClick: () => abrirDialogoCancelar(contextMenuRow),
+      },
+      {
         id: 'separator-danger',
         type: 'separator',
       },
@@ -2064,10 +2203,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     menuLoading,
     modulo,
     navigate,
+    abrirDialogoCancelar,
     obtenerEmailDocumento,
     setError,
     timbrandoId,
     tipoDocumento,
+    cancelandoId,
   ]);
 
   const resumenTotales = useMemo(() => {
@@ -2821,7 +2962,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
       <Dialog
         open={generacionDialog.open}
-        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false })}
+        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false })}
         fullWidth
         maxWidth="md"
       >
@@ -2841,6 +2982,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   ? `${generacionDialog.data.documentos_origen.length} documentos consolidados`
                   : (generacionDialog.data.documento_origen?.folio || generacionDialog.data.documento_origen?.documento_id)} · Destino: {generacionDialog.tipoDestino}
               </Typography>
+              <TextField
+                select
+                label="Tratamiento fiscal"
+                size="small"
+                value={generacionDialog.tratamientoImpuestos}
+                onChange={(event) => setGeneracionDialog((prev) => ({
+                  ...prev,
+                  tratamientoImpuestos: normalizarTratamiento(event.target.value),
+                }))}
+              >
+                {TRATAMIENTO_OPCIONES.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -2876,7 +3033,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
           <Button
-            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false })}
+            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false })}
             disabled={generacionDialog.enviando}
           >
             Cancelar
@@ -2946,17 +3103,80 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </DialogActions>
       </Dialog>
 
+      <Dialog open={cancelarDialog.open} onClose={cerrarDialogoCancelar} fullWidth maxWidth="sm">
+        <DialogTitle>Cancelar documento</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <DialogContentText>
+              Captura los datos de cancelación para enviar la solicitud.
+            </DialogContentText>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Motivo de cancelación"
+              multiline
+              minRows={3}
+              value={cancelarDialog.motivoCancelacion}
+              onChange={(event) => setCancelarDialog((prev) => ({ ...prev, motivoCancelacion: event.target.value, error: null }))}
+            />
+            <TextField
+              select
+              fullWidth
+              label="Motivo SAT"
+              value={cancelarDialog.motivoSat}
+              onChange={(event) => setCancelarDialog((prev) => ({ ...prev, motivoSat: event.target.value, error: null }))}
+            >
+              <MenuItem value="01">01 - Comprobante emitido con errores con relación</MenuItem>
+              <MenuItem value="02">02 - Comprobante emitido con errores sin relación</MenuItem>
+              <MenuItem value="03">03 - No se llevó a cabo la operación</MenuItem>
+              <MenuItem value="04">04 - Operación nominativa relacionada en factura global</MenuItem>
+            </TextField>
+            {cancelarDialog.motivoSat === '01' && (
+              <TextField
+                fullWidth
+                label="UUID sustitución"
+                value={cancelarDialog.uuidSustitucion}
+                onChange={(event) => setCancelarDialog((prev) => ({ ...prev, uuidSustitucion: event.target.value, error: null }))}
+                error={Boolean(cancelarDialog.error)}
+                helperText={cancelarDialog.error || 'Obligatorio cuando el motivo SAT es 01'}
+              />
+            )}
+            {cancelarDialog.motivoSat !== '01' && cancelarDialog.error ? (
+              <Alert severity="error" variant="outlined">{cancelarDialog.error}</Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={cerrarDialogoCancelar} disabled={cancelarDialog.enviando}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              void confirmarCancelacion();
+            }}
+            disabled={cancelarDialog.enviando}
+            startIcon={cancelarDialog.enviando ? <CircularProgress size={16} color="inherit" /> : <CancelIcon fontSize="small" />}
+          >
+            {cancelarDialog.enviando ? 'Cancelando...' : 'Cancelar documento'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog
         open={enviarCotizacionDialog.open}
         onClose={() => !enviarCotizacionDialog.enviando && setEnviarCotizacionDialog({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null })}
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Enviar cotización por correo</DialogTitle>
+        <DialogTitle>{tipoDocumento === 'orden_servicio' ? 'Enviar orden de servicio por correo' : 'Enviar cotización por correo'}</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              Confirma el correo del cliente y ajusta el mensaje antes de enviar la cotización en PDF.
+              {tipoDocumento === 'orden_servicio'
+                ? 'Confirma el correo del cliente y ajusta el mensaje antes de enviar la orden de servicio en PDF.'
+                : 'Confirma el correo del cliente y ajusta el mensaje antes de enviar la cotización en PDF.'}
             </DialogContentText>
             <TextField
               autoFocus
@@ -3005,12 +3225,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   to: email,
                   subject: enviarCotizacionDialog.subject.trim(),
                   message: enviarCotizacionDialog.message.trim(),
+                  tipoDocumento,
                 });
                 await load();
-                setSnackbar({ open: true, message: 'Cotización enviada correctamente', severity: 'success' });
+                setSnackbar({ open: true, message: `${documentoTypeConfig.label} enviada correctamente`, severity: 'success' });
                 setEnviarCotizacionDialog({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null });
               } catch (err: any) {
-                const msg = err?.message || 'No se pudo enviar la cotización';
+                const msg = err?.message || `No se pudo enviar ${documentoTypeConfig.textos.singular}`;
                 setEnviarCotizacionDialog((prev) => ({ ...prev, enviando: false, error: msg }));
                 setSnackbar({ open: true, message: msg, severity: 'error' });
               }

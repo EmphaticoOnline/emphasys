@@ -15,6 +15,8 @@ import {
   saveGridPreferences,
 } from '../services/gridPreferencesService';
 
+const SESSION_STORAGE_KEY = 'emphasys.session';
+
 type UseGridPreferencesParams<TExternalFilters extends Record<string, unknown>> = {
   pantalla: string;
   perfilDispositivo: GridDeviceProfile;
@@ -44,6 +46,30 @@ type UseGridPreferencesResult<TExternalFilters extends Record<string, unknown>> 
 
 const SAVE_DEBOUNCE_MS = 700;
 
+function getSessionScopeKey(): string {
+  try {
+    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return 'anonymous:0';
+    const parsed = JSON.parse(raw) as {
+      user?: { id?: number | string };
+      empresaActivaId?: number | string;
+    };
+    const userId = Number(parsed?.user?.id ?? 0);
+    const empresaId = Number(parsed?.empresaActivaId ?? 0);
+    return `${userId}:${empresaId}`;
+  } catch {
+    return 'anonymous:0';
+  }
+}
+
+function toStableString(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export function useGridPreferences<TExternalFilters extends Record<string, unknown> = Record<string, unknown>>(
   params: UseGridPreferencesParams<TExternalFilters>
 ): UseGridPreferencesResult<TExternalFilters> {
@@ -65,9 +91,45 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
   const [columnWidths, setColumnWidthsState] = useState<Record<string, number>>({});
   const [columnOrder, setColumnOrderState] = useState<string[]>(defaultColumnOrder);
   const [externalFilters, setExternalFilters] = useState<TExternalFilters | undefined>(defaultExternalFilters);
+  const [sessionScopeKey, setSessionScopeKey] = useState<string>(() => getSessionScopeKey());
 
   const hasHydratedRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
+  const lastSavedPayloadRef = useRef<string>('');
+  const defaultSortModelRef = useRef<GridSortModel>(defaultSortModel);
+  const defaultFilterModelRef = useRef<GridFilterModel>(defaultFilterModel);
+  const defaultColumnVisibilityModelRef = useRef<GridColumnVisibilityModel>(defaultColumnVisibilityModel);
+  const defaultColumnOrderRef = useRef<string[]>(defaultColumnOrder);
+  const defaultExternalFiltersRef = useRef<TExternalFilters | undefined>(defaultExternalFilters);
+  const onLoadExternalFiltersRef = useRef<typeof onLoadExternalFilters>(onLoadExternalFilters);
+
+  useEffect(() => {
+    defaultSortModelRef.current = defaultSortModel;
+    defaultFilterModelRef.current = defaultFilterModel;
+    defaultColumnVisibilityModelRef.current = defaultColumnVisibilityModel;
+    defaultColumnOrderRef.current = defaultColumnOrder;
+    defaultExternalFiltersRef.current = defaultExternalFilters;
+    onLoadExternalFiltersRef.current = onLoadExternalFilters;
+  }, [
+    defaultColumnOrder,
+    defaultColumnVisibilityModel,
+    defaultExternalFilters,
+    defaultFilterModel,
+    defaultSortModel,
+    onLoadExternalFilters,
+  ]);
+
+  useEffect(() => {
+    setSessionScopeKey(getSessionScopeKey());
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== SESSION_STORAGE_KEY) return;
+      setSessionScopeKey(getSessionScopeKey());
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const loadPreferences = useCallback(async () => {
     setLoadingPreferences(true);
@@ -76,51 +138,70 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
       const stored = await fetchGridPreferences(pantalla, perfilDispositivo);
       const next = stored ?? {};
 
-      setSortModelState(Array.isArray(next.sortModel) ? (next.sortModel as GridSortModel) : defaultSortModel);
+      const defaultSort = defaultSortModelRef.current;
+      const defaultFilter = defaultFilterModelRef.current;
+      const defaultVisibility = defaultColumnVisibilityModelRef.current;
+      const defaultOrder = defaultColumnOrderRef.current;
+      const defaultExternal = defaultExternalFiltersRef.current;
+
+      setSortModelState(Array.isArray(next.sortModel) ? (next.sortModel as GridSortModel) : defaultSort);
       setFilterModelState(
         next.filterModel
         && typeof next.filterModel === 'object'
         && Array.isArray((next.filterModel as { items?: unknown }).items)
           ? (next.filterModel as unknown as GridFilterModel)
-          : defaultFilterModel
+          : defaultFilter
       );
       setColumnVisibilityModelState(
         next.columnVisibilityModel && typeof next.columnVisibilityModel === 'object'
           ? (next.columnVisibilityModel as GridColumnVisibilityModel)
-          : defaultColumnVisibilityModel
+          : defaultVisibility
       );
       setColumnWidthsState(
         next.columnWidths && typeof next.columnWidths === 'object'
           ? (next.columnWidths as Record<string, number>)
           : {}
       );
-      setColumnOrderState(Array.isArray(next.columnOrder) ? (next.columnOrder as string[]) : defaultColumnOrder);
+      setColumnOrderState(Array.isArray(next.columnOrder) ? (next.columnOrder as string[]) : defaultOrder);
 
       const storedExternalFilters =
         next.externalFilters && typeof next.externalFilters === 'object'
           ? (next.externalFilters as TExternalFilters)
-          : defaultExternalFilters;
+          : defaultExternal;
 
       setExternalFilters(storedExternalFilters);
-      if (storedExternalFilters && onLoadExternalFilters) {
-        onLoadExternalFilters(storedExternalFilters);
+      if (storedExternalFilters && onLoadExternalFiltersRef.current) {
+        onLoadExternalFiltersRef.current(storedExternalFilters);
       }
+
+      const initialPayload: GridPreferencesPayload = {
+        version: 1,
+        sortModel: Array.isArray(next.sortModel) ? next.sortModel : defaultSort,
+        filterModel:
+          next.filterModel
+          && typeof next.filterModel === 'object'
+          && Array.isArray((next.filterModel as { items?: unknown }).items)
+            ? next.filterModel
+            : defaultFilter,
+        columnVisibilityModel:
+          next.columnVisibilityModel && typeof next.columnVisibilityModel === 'object'
+            ? next.columnVisibilityModel
+            : defaultVisibility,
+        columnWidths:
+          next.columnWidths && typeof next.columnWidths === 'object'
+            ? next.columnWidths
+            : {},
+        columnOrder: Array.isArray(next.columnOrder) ? next.columnOrder : defaultOrder,
+        externalFilters: (storedExternalFilters ?? {}) as Record<string, unknown>,
+      };
+      lastSavedPayloadRef.current = toStableString(initialPayload);
     } catch (error) {
       console.error('No se pudieron cargar preferencias de grid', error);
     } finally {
       hasHydratedRef.current = true;
       setLoadingPreferences(false);
     }
-  }, [
-    defaultColumnOrder,
-    defaultColumnVisibilityModel,
-    defaultExternalFilters,
-    defaultFilterModel,
-    defaultSortModel,
-    onLoadExternalFilters,
-    pantalla,
-    perfilDispositivo,
-  ]);
+  }, [pantalla, perfilDispositivo, sessionScopeKey]);
 
   useEffect(() => {
     void loadPreferences();
@@ -143,10 +224,16 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
       externalFilters: externalFilters ?? {},
     };
 
+    const nextPayloadString = toStableString(payload);
+    if (nextPayloadString === lastSavedPayloadRef.current) {
+      return;
+    }
+
     saveTimeoutRef.current = window.setTimeout(() => {
       void saveGridPreferences(pantalla, perfilDispositivo, payload).catch((error) => {
         console.error('No se pudieron guardar preferencias de grid', error);
       });
+      lastSavedPayloadRef.current = nextPayloadString;
     }, SAVE_DEBOUNCE_MS);
 
     return () => {
@@ -200,8 +287,13 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
   }, []);
 
   const persistExternalFilters = useCallback((value: TExternalFilters) => {
+    const next = toStableString(value);
+    const current = toStableString(externalFilters);
+    if (next === current) {
+      return;
+    }
     setExternalFilters(value);
-  }, []);
+  }, [externalFilters]);
 
   return useMemo(
     () => ({

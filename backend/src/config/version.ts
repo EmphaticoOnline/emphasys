@@ -1,0 +1,1 @@
+export const FRONTEND_BUILD_VERSION = "2026.05.30.007";

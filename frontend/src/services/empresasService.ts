@@ -28,3 +28,27 @@ export async function updateEmpresa(id: number, payload: EmpresaPayload): Promis
 export async function deleteEmpresa(id: number): Promise<Empresa> {
   return apiFetch<Empresa>(`${BASE_URL}/${id}`, { method: 'DELETE' });
 }
+
+export type RegistrarEmpresaCsdResponse = {
+  message: string;
+  cfdi_csd_registrado_facturama: boolean;
+  cfdi_csd_fecha_actualizacion: string | null;
+  facturamaResponse?: any;
+};
+
+export async function registrarEmpresaCsdFacturama(
+  empresaId: number,
+  cerFile: File,
+  keyFile: File,
+  password: string
+): Promise<RegistrarEmpresaCsdResponse> {
+  const formData = new FormData();
+  formData.append('cer', cerFile);
+  formData.append('key', keyFile);
+  formData.append('password', password);
+
+  return apiFetch<RegistrarEmpresaCsdResponse>(`/api/cfdi/empresas/${empresaId}/csd`, {
+    method: 'POST',
+    body: formData,
+  });
+}

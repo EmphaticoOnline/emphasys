@@ -254,9 +254,20 @@ const getCuentaFinancieraDisplayLabel = (cuenta: FinanzasCuenta) => {
 const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
   { label: 'Operación estándar', value: 'normal' },
   { label: 'Nota de venta', value: 'sin_iva' },
-  { label: 'Operación a tasa 0%', value: 'tasa_cero' },
+  { label: 'Operación tasa cero', value: 'tasa_cero' },
   { label: 'Operación exenta', value: 'exento' },
 ];
+
+const TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL = new Set<TipoDocumento>([
+  'factura',
+  'nota_credito',
+  'nota_credito_compra',
+  'cotizacion',
+  'pedido',
+  'orden_servicio',
+  'remision',
+  'orden_entrega',
+]);
 
 const emptyPartida = (): PartidaForm => ({
   producto_id: null,
@@ -1107,6 +1118,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
   const resumenFinanciero = usaGeneracionEspecialNotaCredito ? resumenNotaCreditoEspecial : discountSummary;
   const mostrarResumenFinanciero = !usaCapturaEspecialNotaCredito || usaGeneracionEspecialNotaCredito;
   const mostrarResumenFinancieroStickyVisible = mostrarResumenFinancieroSticky || usaGeneracionEspecialNotaCredito;
+  const ocultarIvaPorTratamiento = String(form.tratamiento_impuestos ?? 'normal').toLowerCase() === 'sin_iva';
 
   const recalcularNotaCreditoManual = useCallback(async (montoTotal: number, tratamiento: TratamientoImpuestos | null | undefined) => {
     const total = Number.isFinite(montoTotal) ? Math.max(0, Number(montoTotal)) : 0;
@@ -2341,7 +2353,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         cuenta_financiera_id: form.cuenta_financiera_id ?? null,
         finanzas_operacion_id: form.finanzas_operacion_id ?? null,
         aplicaciones_documento: aplicacionesDocumento,
-        tratamiento_impuestos: ['factura', 'nota_credito', 'nota_credito_compra'].includes(tipoDocumento) ? form.tratamiento_impuestos || 'normal' : 'normal',
+        tratamiento_impuestos: TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL.has(tipoDocumento) ? form.tratamiento_impuestos || 'normal' : 'normal',
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
         regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
@@ -5330,7 +5342,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                           { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
                           { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
                           { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
-                          { label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' },
+                          ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
                           { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
                         ].map((item) => (
                           <Paper
@@ -5397,7 +5409,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
                   { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
                   { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
-                  { label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' },
+                  ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
                   { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
                 ].map((item) => (
                   <Paper
@@ -5483,7 +5495,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                 ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: '#9a3412' }]
                 : []),
               { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
-              { label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' },
+              ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
               { label: 'Total', value: resumenFinanciero.total, tone: '#111827', strong: true },
             ].map((item) => (
               <Box

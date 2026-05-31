@@ -16,9 +16,11 @@ import { agregarPartidaService, reemplazarPartidasService } from './documentos-p
 import { actualizarCotizacionService, actualizarDocumentoService, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
 import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeEliminarCotizacion } from './documentos-delete.service';
+import { cancelarDocumentoService, DocumentoCancelValidationError } from './documentos-cancel.service';
 import { formatearFolioDocumento } from '../../utils/documentos';
 import { obtenerJwtSecret } from '../auth/auth.service';
 import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
+import { resolverTipoPlantillaWhatsapp } from '../../whatsapp/whatsapp-template-type.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -60,6 +62,15 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   pago_proveedor: 'pago proveedor',
   factura_compra: 'factura de compra',
 };
+
+const TIPOS_DOCUMENTO_ENVIO = new Set<TipoDocumento>(['cotizacion', 'orden_servicio']);
+const CARPETAS_PUBLICAS_POR_TIPO: Partial<Record<TipoDocumento, string>> = {
+  cotizacion: 'cotizaciones',
+  orden_servicio: 'ordenes-servicio',
+};
+
+const esTipoDocumentoEnviable = (value: TipoDocumento): value is 'cotizacion' | 'orden_servicio' =>
+  TIPOS_DOCUMENTO_ENVIO.has(value);
 
 type RecursoFacturaPublico = 'pdf' | 'xml';
 
@@ -280,25 +291,26 @@ async function generarFacturaPublicLinks(req: Request, documentoId: number, empr
   return links;
 }
 
-async function generarCotizacionPublicLinks(req: Request, documentoId: number, empresaId: number) {
-  const result = await obtenerDocumentoRepository(documentoId, empresaId, 'cotizacion');
+async function generarDocumentoPublicLinks(req: Request, documentoId: number, empresaId: number, tipoDocumento: TipoDocumento) {
+  const carpetaPublica = CARPETAS_PUBLICAS_POR_TIPO[tipoDocumento] ?? tipoDocumento;
+  const result = await obtenerDocumentoRepository(documentoId, empresaId, tipoDocumento);
   if (!result) {
-    throw buildHttpError(404, 'Cotización no encontrada');
+    throw buildHttpError(404, `${nombreDocumento[tipoDocumento] ?? tipoDocumento} no encontrado`);
   }
 
-  const { buffer: pdfBuffer, filename: pdfFilename } = await obtenerDocumentoPdfData(documentoId, empresaId, 'cotizacion');
+  const { buffer: pdfBuffer, filename: pdfFilename } = await obtenerDocumentoPdfData(documentoId, empresaId, tipoDocumento);
 
   const uploadsDir = process.env.UPLOADS_DIR
     ? path.resolve(process.env.UPLOADS_DIR)
     : path.resolve(process.cwd(), 'uploads');
-  const cotizacionUploadsDir = path.join(uploadsDir, 'cotizaciones', String(documentoId));
+  const documentoUploadsDir = path.join(uploadsDir, carpetaPublica, String(documentoId));
 
-  await fs.mkdir(cotizacionUploadsDir, { recursive: true });
-  await fs.writeFile(path.join(cotizacionUploadsDir, pdfFilename), pdfBuffer);
+  await fs.mkdir(documentoUploadsDir, { recursive: true });
+  await fs.writeFile(path.join(documentoUploadsDir, pdfFilename), pdfBuffer);
 
   const baseUrl = resolverBaseUrlPublica(req);
   return {
-    pdfUrl: `${baseUrl}/uploads/cotizaciones/${documentoId}/${pdfFilename}`,
+    pdfUrl: `${baseUrl}/uploads/${carpetaPublica}/${documentoId}/${pdfFilename}`,
     pdfFilename,
     expiresAt: null,
   };
@@ -605,7 +617,7 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
 export const obtenerCotizacionPDF = buildPdfHandler('cotizacion');
 export const obtenerFacturaPDF = buildPdfHandler('factura', true);
 
-const permiteArchivoImagen = (req: Request) => (req.baseUrl || '').toLowerCase().includes('/documentos');
+const permiteArchivoImagen = (_req: Request) => true;
 
 const limpiarArchivoImagenPartida = (partida: any, permitir: boolean) => {
   if (permitir || !partida || typeof partida !== 'object') return partida;
@@ -651,9 +663,14 @@ export async function enviarCotizacionPorCorreo(req: Request, res: Response) {
   try {
     const documentoId = Number(req.params.id);
     const empresaId = req.context?.empresaId;
+    const tipoDocumento = resolverTipoDocumentoRequest(req, 'cotizacion');
 
     if (Number.isNaN(documentoId) || !empresaId) {
       return res.status(400).json({ message: 'ID o empresaId inválido' });
+    }
+
+    if (!esTipoDocumentoEnviable(tipoDocumento)) {
+      return res.status(400).json({ message: 'Tipo de documento no soportado para envío por correo' });
     }
 
     const to = String(req.body?.to ?? '').trim();
@@ -665,18 +682,19 @@ export async function enviarCotizacionPorCorreo(req: Request, res: Response) {
     }
 
     const { CotizacionEmailService } = await import('../../services/cotizacion-email.service');
-    const result = await CotizacionEmailService.enviarCotizacion({
+    const result = await CotizacionEmailService.enviarDocumento({
       documentoId,
       empresaId: Number(empresaId),
       usuarioId: req.auth?.userId ?? null,
       to,
       subject,
       message,
+      tipoDocumento,
     });
 
     return res.json(result);
   } catch (error) {
-    const message = (error as Error)?.message ?? 'Error al enviar la cotización';
+    const message = (error as Error)?.message ?? 'Error al enviar el documento';
     const status = message.includes('obligatorio') || message.includes('no encontrada') || message.includes('No hay configuración SMTP')
       ? 400
       : 502;
@@ -806,7 +824,7 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) 
     const documentoId = Number(req.params.id);
     const empresaId = req.context?.empresaId;
     const telefono = String(req.body?.telefono ?? '').trim();
-    const tipoPlantilla = String(req.body?.tipoPlantilla ?? req.body?.tipo ?? '').trim();
+    const tipoPlantilla = resolverTipoPlantillaWhatsapp('cfdi', 'factura');
 
     if (Number.isNaN(documentoId) || !empresaId) {
       return res.status(400).json({ message: 'ID o empresaId inválido' });
@@ -814,10 +832,6 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) 
 
     if (!telefono) {
       return res.status(400).json({ message: 'telefono es requerido' });
-    }
-
-    if (!tipoPlantilla) {
-      return res.status(400).json({ message: 'tipoPlantilla es requerido' });
     }
 
     await assertFacturaTimbrada(documentoId, Number(empresaId));
@@ -898,6 +912,7 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
     const documentoId = Number(req.params.id);
     const empresaId = req.context?.empresaId;
     const telefono = String(req.body?.telefono ?? '').trim();
+    const tipoDocumento = resolverTipoDocumentoRequest(req, 'cotizacion');
 
     if (Number.isNaN(documentoId) || !empresaId) {
       return res.status(400).json({ message: 'ID o empresaId inválido' });
@@ -907,25 +922,32 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
       return res.status(400).json({ message: 'telefono es requerido' });
     }
 
-    const documento = await obtenerDocumentoRepository(documentoId, Number(empresaId), 'cotizacion');
-    if (!documento) {
-      return res.status(404).json({ message: 'Cotización no encontrada' });
+    if (!esTipoDocumentoEnviable(tipoDocumento)) {
+      return res.status(400).json({ message: 'Tipo de documento no soportado para envío por WhatsApp' });
     }
 
-    const documentoCotizacion = documento.documento as any;
-    const nombreCliente = String(documentoCotizacion?.nombre_receptor ?? documentoCotizacion?.cliente_nombre ?? 'Cliente').trim() || 'Cliente';
-    const folioCotizacion = formatearFolioDocumento(documentoCotizacion?.serie ?? '', Number(documentoCotizacion?.numero ?? 0)) || String(documentoId);
-    const links = await generarCotizacionPublicLinks(req, documentoId, Number(empresaId));
-    const templateParams = [nombreCliente, folioCotizacion];
+    const documento = await obtenerDocumentoRepository(documentoId, Number(empresaId), tipoDocumento);
+    if (!documento) {
+      return res.status(404).json({ message: `${nombreDocumento[tipoDocumento] ?? tipoDocumento} no encontrado` });
+    }
 
-    console.info('[WhatsApp Cotizacion] Inicio de envio', {
+    const documentoData = documento.documento as any;
+    const nombreCliente = String(documentoData?.nombre_receptor ?? documentoData?.cliente_nombre ?? 'Cliente').trim() || 'Cliente';
+    const folioDocumento = formatearFolioDocumento(documentoData?.serie ?? '', Number(documentoData?.numero ?? 0)) || String(documentoId);
+    const links = await generarDocumentoPublicLinks(req, documentoId, Number(empresaId), tipoDocumento);
+    const templateParams = [nombreCliente, folioDocumento];
+    const tipoDocumentoLabel = nombreDocumento[tipoDocumento] ?? tipoDocumento;
+    const tipoPlantilla = resolverTipoPlantillaWhatsapp('documento_pdf', tipoDocumento);
+
+    console.info('[WhatsApp Documento] Inicio de envio', {
       documentoId,
       empresaId,
       telefono,
-      template: 'envio_cotizacion',
+      tipoDocumento,
+      tipoPlantilla,
     });
 
-    console.info('[WhatsApp Cotizacion] Enviando template+PDF por Gupshup', {
+    console.info('[WhatsApp Documento] Enviando template+PDF por Gupshup', {
       documentoId,
       empresaId,
       telefono,
@@ -937,13 +959,13 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
     const templateDocumentResponse = await sendTemplateDocumentMessage(
       Number(empresaId),
       telefono,
-      'envio_cotizacion',
+      tipoPlantilla,
       templateParams,
       links.pdfUrl,
       links.pdfFilename
     );
 
-    console.info('[WhatsApp Cotizacion] Respuesta Gupshup template+PDF', {
+    console.info('[WhatsApp Documento] Respuesta Gupshup template+PDF', {
       documentoId,
       empresaId,
       telefono,
@@ -956,14 +978,16 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
       template: templateDocumentResponse,
       expiresAt: links.expiresAt,
       pdfUrl: links.pdfUrl,
+      tipoDocumento,
+      tipoDocumentoLabel,
     });
   } catch (error) {
     const status = (error as any)?.status;
     if (status) {
       return res.status(status).json({ error: (error as Error).message });
     }
-    console.error('[WhatsApp Cotizacion] Error en envio por WhatsApp', error);
-    return res.status(500).json({ message: 'No se pudo enviar la cotización por WhatsApp' });
+    console.error('[WhatsApp Documento] Error en envio por WhatsApp', error);
+    return res.status(500).json({ message: 'No se pudo enviar el documento por WhatsApp' });
   }
 }
 
@@ -978,6 +1002,10 @@ export async function agregarPartida(req: Request, res: Response) {
     if (!partida) return res.status(404).json({ message: 'Documento no encontrado' });
     res.status(201).json(partida);
   } catch (error) {
+    const message = (error as Error)?.message ?? '';
+    if (message.startsWith('VALIDATION_ERROR')) {
+      return res.status(400).json({ ok: false, error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
+    }
     console.error('Error al agregar partida', error);
     res.status(500).json({ message: 'Error al agregar partida' });
   }
@@ -995,6 +1023,10 @@ export async function reemplazarPartidas(req: Request, res: Response) {
     if (!inserted) return res.status(404).json({ message: 'Documento no encontrado' });
     res.json(inserted);
   } catch (error) {
+    const message = (error as Error)?.message ?? '';
+    if (message.startsWith('VALIDATION_ERROR')) {
+      return res.status(400).json({ ok: false, error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
+    }
     console.error('Error al reemplazar partidas', error);
     res.status(500).json({ message: 'Error al reemplazar partidas' });
   }
@@ -1035,5 +1067,36 @@ export async function timbrarDocumentoCfdi(req: Request, res: Response) {
     }
     console.error('Error al timbrar documento CFDI', error);
     res.status(500).json({ message: 'Error al timbrar el documento' });
+  }
+}
+
+export async function cancelarDocumento(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    const usuarioId = req.auth?.userId;
+
+    if (!Number.isFinite(documentoId) || !empresaId || !usuarioId) {
+      return res.status(400).json({ message: 'ID, empresa o usuario inválido' });
+    }
+
+    const result = await cancelarDocumentoService({
+      documentoId,
+      empresaId: Number(empresaId),
+      usuarioId: Number(usuarioId),
+      esSuperadmin: Boolean(req.auth?.esSuperadmin),
+      motivoCancelacion: req.body?.motivo_cancelacion,
+      motivoSat: req.body?.motivo_sat,
+      uuidSustitucion: req.body?.uuid_sustitucion,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error instanceof DocumentoCancelValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    console.error('Error al cancelar documento', error);
+    return res.status(500).json({ message: 'Error al cancelar documento' });
   }
 }

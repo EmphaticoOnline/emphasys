@@ -23,6 +23,11 @@ export type Empresa = {
   certificado_csd: string | null;
   llave_privada_csd: string | null;
   password_csd: string | null;
+  cfdi_csd_registrado_facturama: boolean;
+  cfdi_csd_fecha_actualizacion: string | null;
+  cfdi_csd_cer_path: string | null;
+  cfdi_csd_key_path: string | null;
+  cfdi_csd_password_encrypted: string | null;
   codigo_postal: string | null;
   regimen_fiscal: string | null;
   activo: boolean;
@@ -51,6 +56,11 @@ export type EmpresaPayload = Partial<
     | "certificado_csd"
     | "llave_privada_csd"
     | "password_csd"
+    | "cfdi_csd_registrado_facturama"
+    | "cfdi_csd_fecha_actualizacion"
+    | "cfdi_csd_cer_path"
+    | "cfdi_csd_key_path"
+    | "cfdi_csd_password_encrypted"
     | "codigo_postal"
     | "regimen_fiscal"
     | "activo"
@@ -79,6 +89,10 @@ function sanitizePayload(payload: EmpresaPayload): EmpresaPayload {
     "certificado_csd",
     "llave_privada_csd",
     "password_csd",
+    "cfdi_csd_fecha_actualizacion",
+    "cfdi_csd_cer_path",
+    "cfdi_csd_key_path",
+    "cfdi_csd_password_encrypted",
     "codigo_postal",
     "regimen_fiscal",
   ];
@@ -96,6 +110,10 @@ function sanitizePayload(payload: EmpresaPayload): EmpresaPayload {
 
   if (payload.activo !== undefined) {
     clean.activo = Boolean(payload.activo);
+  }
+
+  if (payload.cfdi_csd_registrado_facturama !== undefined) {
+    clean.cfdi_csd_registrado_facturama = Boolean(payload.cfdi_csd_registrado_facturama);
   }
 
   return clean;
@@ -276,6 +294,11 @@ export async function actualizarEmpresa(id: number, payload: EmpresaPayload): Pr
     "certificado_csd",
     "llave_privada_csd",
     "password_csd",
+    "cfdi_csd_registrado_facturama",
+    "cfdi_csd_fecha_actualizacion",
+    "cfdi_csd_cer_path",
+    "cfdi_csd_key_path",
+    "cfdi_csd_password_encrypted",
     "codigo_postal",
     "regimen_fiscal",
     "activo",

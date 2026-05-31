@@ -45,6 +45,7 @@ type DocumentoCotizacion = {
   codigo_postal_receptor?: string | null;
   nombre_receptor?: string | null;
   observaciones?: string | null;
+  tratamiento_impuestos?: string | null;
   total?: number | null;
   subtotal?: number | null;
   iva?: number | null;
@@ -1262,12 +1263,13 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         pageHeight: doc.page.height,
         estaTimbrado,
       });
+      const ocultarIvaPorTratamiento = String(documento?.tratamiento_impuestos ?? 'normal').toLowerCase() === 'sin_iva';
       // Totales se renderizarán en el pie de página
       const totalRows: Array<[string, number | null | undefined]> = [
         ['Subtotal bruto', subtotalBrutoDocumento],
         ['Descuentos', descuentoTotalDocumento],
         ['Subtotal neto', subtotalNetoDocumento],
-        ['IVA', documento?.iva],
+        ...(ocultarIvaPorTratamiento ? [] : [['IVA', documento?.iva] as [string, number | null | undefined]]),
         ['Total', documento?.total],
       ];
 

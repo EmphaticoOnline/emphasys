@@ -14,6 +14,7 @@ import {
   duplicarDocumentosMasivo,
   reemplazarPartidas,
   eliminarCotizacion,
+  cancelarDocumento,
   obtenerCotizacionPDF,
   calcularImpuestosPreviewHandler,
 } from './documentos.controller';
@@ -65,6 +66,9 @@ router.put('/:id/partidas', requireAuth, requireEmpresaActiva, reemplazarPartida
 
 // POST /api/documentos/:id/timbrar-cfdi
 router.post('/:id/timbrar-cfdi', requireAuth, requireEmpresaActiva, timbrarDocumentoCfdi);
+
+// POST /api/documentos/:id/cancelar
+router.post('/:id/cancelar', requireAuth, requireEmpresaActiva, cancelarDocumento);
 
 // POST /api/documentos/calcular-impuestos (preview sin persistir)
 router.post('/calcular-impuestos', requireAuth, requireEmpresaActiva, calcularImpuestosPreviewHandler);

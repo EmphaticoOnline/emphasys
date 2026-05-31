@@ -11,6 +11,10 @@ import {
 import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
 import { getEmpresaActivaId } from "../shared/context/empresa";
+import {
+  DEFAULT_WHATSAPP_TEMPLATE_ACTION,
+  resolverTipoPlantillaWhatsapp,
+} from "../whatsapp/whatsapp-template-type.service";
 import { obtenerRolesDeUsuarioEnEmpresa, obtenerUsuarioPorId } from "../modules/auth/auth.service";
 import {
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappRepo,
@@ -1232,7 +1236,15 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "telefono es requerido" });
     }
 
-    const tipoPlantilla = String(tipo || "reactivacion");
+    const accionPlantilla = String(tipo ?? DEFAULT_WHATSAPP_TEMPLATE_ACTION).trim() || DEFAULT_WHATSAPP_TEMPLATE_ACTION;
+    let tipoPlantilla: string;
+
+    try {
+      tipoPlantilla = resolverTipoPlantillaWhatsapp(accionPlantilla);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+
     const respuesta = await sendTemplateMessage(Number(empresaId), String(telefono), tipoPlantilla);
 
     console.info('[WhatsApp Template Controller] Respuesta de sendTemplateMessage', {

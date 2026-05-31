@@ -19,124 +19,34 @@ import {
   GridViewRounded,
   TagRounded,
 } from '@mui/icons-material';
+import { CONFIGURACION_OPTIONS } from './configuracion/configuracionNavigation';
 
-const opciones = [
-  {
-    titulo: 'Empresas',
-    descripcion: 'Configura empresas y sus parámetros generales.',
-    icono: BusinessRounded,
-    path: '/configuracion/empresas',
-  },
-  {
-    titulo: 'Usuarios',
-    descripcion: 'Gestiona cuentas de acceso y credenciales.',
-    icono: GroupRounded,
-    path: '/configuracion/usuarios',
-  },
-  {
-    titulo: 'Roles',
-    descripcion: 'Define roles y permisos para los usuarios.',
-    icono: ShieldRounded,
-    path: '/configuracion/roles',
-  },
-  {
-    titulo: 'Catálogos configurables',
-    descripcion: 'Administra catálogos basados en core.catalogos_tipos y core.catalogos.',
-    icono: CategoryRounded,
-    path: '/configuracion/catalogos',
-  },
-  {
-    titulo: 'Campos dinámicos',
-    descripcion: 'Configura campos dinámicos y sus dependencias.',
-    icono: TuneRounded,
-    path: '/configuracion/campos',
-  },
-  {
-    titulo: 'Listas de precios',
-    descripcion: 'Administra catálogos de listas de precios de venta y compra por empresa.',
-    icono: ViewListRounded,
-    path: '/configuracion/listas-precios',
-  },
-  {
-    titulo: 'Administración de precios',
-    descripcion: 'Captura masiva de precios por producto y por lista de precios activa.',
-    icono: GridViewRounded,
-    path: '/configuracion/precios',
-  },
-  {
-    titulo: 'Documentos y flujo',
-    descripcion: 'Activa tipos de documento y define las transiciones entre ellos.',
-    icono: SchemaRounded,
-    path: '/configuracion/documentos',
-  },
-  {
-    titulo: 'Parámetros del sistema',
-    descripcion: 'Ajusta preferencias y configuraciones globales.',
-    icono: SettingsRounded,
-    path: '/configuracion/parametros',
-  },
-  {
-    titulo: 'Opciones de parámetros',
-    descripcion: 'Gestiona opciones para parámetros tipo dropdown.',
-    icono: SettingsRounded,
-    path: '/configuracion/parametros-opciones',
-  },
-  {
-    titulo: 'Conceptos',
-    descripcion: 'Administra el catálogo de conceptos financieros.',
-    icono: ReceiptLongRounded,
-    path: '/configuracion/conceptos',
-  },
-  {
-    titulo: 'Impuestos por default',
-    descripcion: 'Define los impuestos predeterminados por empresa.',
-    icono: PercentRounded,
-    path: '/configuracion/empresa/impuestos-default',
-  },
-  {
-    titulo: 'Formatos de impresión',
-    descripcion: 'Configura los layouts de PDF por empresa o por serie.',
-    icono: PictureAsPdfRounded,
-    path: '/configuracion/formatos-impresion',
-  },
-  {
-    titulo: 'Series de documentos',
-    descripcion: 'Administra series por tipo de documento y sus asignaciones por usuario.',
-    icono: TagRounded,
-    path: '/configuracion/series-documento',
-  },
-  {
-    titulo: 'Correo SMTP',
-    descripcion: 'Configura envío de correos por empresa y por usuario, y prueba la conexión SMTP.',
-    icono: AlternateEmailRounded,
-    path: '/configuracion/correo',
-  },
-  {
-    titulo: 'PAC CFDI',
-    descripcion: 'Administra la configuración global del PAC CFDI para sandbox y productivo.',
-    icono: CloudRounded,
-    path: '/configuracion/cfdi-pac',
-    soloSuperadmin: true,
-  },
-  {
-    titulo: 'Etiquetas de WhatsApp',
-    descripcion: 'Administra el catálogo de etiquetas para conversaciones y leads.',
-    icono: LabelRounded,
-    path: '/configuracion/whatsapp-etiquetas',
-  },
-  {
-    titulo: 'Etapas de producción',
-    descripcion: 'Configura nombres, colores, secuencia y activación de las etapas operativas.',
-    icono: SchemaRounded,
-    path: '/configuracion/produccion-etapas',
-  },
-];
+const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
+  Empresas: BusinessRounded,
+  Usuarios: GroupRounded,
+  Roles: ShieldRounded,
+  'Catálogos configurables': CategoryRounded,
+  'Campos dinámicos': TuneRounded,
+  'Listas de precios': ViewListRounded,
+  'Administración de precios': GridViewRounded,
+  'Documentos y flujo': SchemaRounded,
+  'Parámetros del sistema': SettingsRounded,
+  'Opciones de parámetros': SettingsRounded,
+  Conceptos: ReceiptLongRounded,
+  'Impuestos por default': PercentRounded,
+  'Formatos de impresión': PictureAsPdfRounded,
+  'Series de documentos': TagRounded,
+  'Correo SMTP': AlternateEmailRounded,
+  'PAC CFDI': CloudRounded,
+  'Etiquetas de WhatsApp': LabelRounded,
+  'Etapas de producción': SchemaRounded,
+};
 
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
   const isSuperadmin = Boolean((window.localStorage.getItem('emphasys.session') && JSON.parse(window.localStorage.getItem('emphasys.session') || '{}')?.user?.es_superadmin));
 
-  const opcionesVisibles = opciones.filter((opcion) => !(opcion as any).soloSuperadmin || isSuperadmin);
+  const opcionesVisibles = CONFIGURACION_OPTIONS.filter((opcion) => !opcion.soloSuperadmin || isSuperadmin);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -161,7 +71,7 @@ export default function ConfiguracionPage() {
         }}
       >
         {opcionesVisibles.map((opcion) => {
-          const Icono = opcion.icono ?? SchemaRounded;
+          const Icono = ICONOS_POR_TITULO[opcion.titulo] ?? SchemaRounded;
 
           return (
             <Card
@@ -169,10 +79,7 @@ export default function ConfiguracionPage() {
               elevation={0}
               sx={{ border: '1px solid #e5e7eb', borderRadius: 2, height: '100%' }}
             >
-              <CardActionArea
-                sx={{ height: '100%' }}
-                onClick={opcion.path ? () => navigate(opcion.path!) : undefined}
-              >
+              <CardActionArea sx={{ height: '100%' }} onClick={opcion.path ? () => navigate(opcion.path) : undefined}>
                 <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                   <Stack direction="row" alignItems="center" spacing={1.5}>
                     <Box

@@ -1,0 +1,3160 @@
+diff --git a/backend/database/schema/full-schema.sql b/backend/database/schema/full-schema.sql
+index f57a1a8..14c1ea7 100644
+--- a/backend/database/schema/full-schema.sql
++++ b/backend/database/schema/full-schema.sql
+@@ -1,11 +1,11 @@
+ -- Full schema export
+ -- Database: emphasys
+--- Generated at: 2026-05-29T19:39:36.586Z
++-- Generated at: 2026-05-30T15:38:02.378Z
+ --
+ -- PostgreSQL database dump
+ --
+ 
+-\restrict oh4y2hgiBUJwuEfVULssEYC29pAdRdJRhqhCxohy0AazyalJTZ4jbxT3SSPxFJA
++\restrict FTv97peuO9k2mfhtPlBJYdIFaUwsqq7CIAAQLfnf1ypaSrCWltcD0xzxnQTiWVo
+ 
+ -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+ -- Dumped by pg_dump version 18.0
+@@ -50,6 +50,13 @@ CREATE SCHEMA inventario;
+ COMMENT ON SCHEMA inventario IS 'Módulo de inventario del ERP. Contiene movimientos, partidas y existencias por producto y almacén.';
+ 
+ 
++--
++-- Name: mantenimiento; Type: SCHEMA; Schema: -; Owner: -
++--
++
++CREATE SCHEMA mantenimiento;
++
++
+ --
+ -- Name: produccion; Type: SCHEMA; Schema: -; Owner: -
+ --
+@@ -2127,7 +2134,8 @@ CREATE TABLE core.usuarios (
+     activo boolean DEFAULT true,
+     es_superadmin boolean DEFAULT false,
+     created_at timestamp without time zone DEFAULT now(),
+-    vendedor_contacto_id integer
++    vendedor_contacto_id integer,
++    ruta_inicio text
+ );
+ 
+ 
+@@ -2194,6 +2202,13 @@ COMMENT ON COLUMN core.usuarios.es_superadmin IS 'Usuario administrador global d
+ COMMENT ON COLUMN core.usuarios.created_at IS 'Fecha de creación del usuario';
+ 
+ 
++--
++-- Name: COLUMN usuarios.ruta_inicio; Type: COMMENT; Schema: core; Owner: -
++--
++
++COMMENT ON COLUMN core.usuarios.ruta_inicio IS 'Ruta inicial sugerida al iniciar sesión';
++
++
+ --
+ -- Name: usuarios_empresas; Type: TABLE; Schema: core; Owner: -
+ --
+@@ -9060,6 +9075,20 @@ CREATE INDEX idx_conceptos_orden ON public.conceptos USING btree (empresa_id, or
+ CREATE INDEX idx_conceptos_rubro_presupuesto ON public.conceptos USING btree (empresa_id, rubro_presupuesto_id);
+ 
+ 
++--
++-- Name: idx_contactos_email_trgm; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_contactos_email_trgm ON public.contactos USING gin (email sat.gin_trgm_ops) WHERE (email IS NOT NULL);
++
++
++--
++-- Name: idx_contactos_nombre_trgm; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_contactos_nombre_trgm ON public.contactos USING gin (nombre sat.gin_trgm_ops);
++
++
+ --
+ -- Name: idx_contactos_precio_lista; Type: INDEX; Schema: public; Owner: -
+ --
+@@ -9067,6 +9096,13 @@ CREATE INDEX idx_conceptos_rubro_presupuesto ON public.conceptos USING btree (em
+ CREATE INDEX idx_contactos_precio_lista ON public.contactos USING btree (precio_lista_id);
+ 
+ 
++--
++-- Name: idx_contactos_telefono_trgm; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_contactos_telefono_trgm ON public.contactos USING gin (telefono sat.gin_trgm_ops) WHERE (telefono IS NOT NULL);
++
++
+ --
+ -- Name: idx_dc_documento; Type: INDEX; Schema: public; Owner: -
+ --
+@@ -9235,6 +9271,20 @@ CREATE UNIQUE INDEX idx_documentos_partidas_campos_empresa_partida_campo ON publ
+ COMMENT ON INDEX public.idx_documentos_partidas_campos_empresa_partida_campo IS 'Índice único que soporta el UPSERT del motor de campos dinámicos sobre partidas (empresa_id, partida_id, campo_id).';
+ 
+ 
++--
++-- Name: idx_documentos_partidas_comentarios_internos_trgm; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_documentos_partidas_comentarios_internos_trgm ON public.documentos_partidas USING gin (comentarios_internos sat.gin_trgm_ops) WHERE (comentarios_internos IS NOT NULL);
++
++
++--
++-- Name: idx_documentos_partidas_descripcion_alterna_trgm; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_documentos_partidas_descripcion_alterna_trgm ON public.documentos_partidas USING gin (descripcion_alterna sat.gin_trgm_ops) WHERE (descripcion_alterna IS NOT NULL);
++
++
+ --
+ -- Name: idx_documentos_partidas_impuestos_partida_id; Type: INDEX; Schema: public; Owner: -
+ --
+@@ -9249,6 +9299,13 @@ CREATE INDEX idx_documentos_partidas_impuestos_partida_id ON public.documentos_p
+ COMMENT ON INDEX public.idx_documentos_partidas_impuestos_partida_id IS 'Optimiza consultas que filtran por partida_id (cálculo y lectura de impuestos por partida).';
+ 
+ 
++--
++-- Name: idx_documentos_partidas_observaciones_trgm; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_documentos_partidas_observaciones_trgm ON public.documentos_partidas USING gin (observaciones sat.gin_trgm_ops) WHERE (observaciones IS NOT NULL);
++
++
+ --
+ -- Name: idx_documentos_partidas_precio_editado_manual; Type: INDEX; Schema: public; Owner: -
+ --
+@@ -9417,6 +9474,20 @@ CREATE INDEX idx_precios_listas_empresa ON public.precios_listas USING btree (em
+ CREATE INDEX idx_precios_producto ON public.precios USING btree (producto_id);
+ 
+ 
++--
++-- Name: idx_productos_clave_trgm; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_productos_clave_trgm ON public.productos USING gin (clave sat.gin_trgm_ops);
++
++
++--
++-- Name: idx_productos_descripcion_trgm; Type: INDEX; Schema: public; Owner: -
++--
++
++CREATE INDEX idx_productos_descripcion_trgm ON public.productos USING gin (descripcion sat.gin_trgm_ops);
++
++
+ --
+ -- Name: idx_productos_impuestos_producto; Type: INDEX; Schema: public; Owner: -
+ --
+@@ -10862,5 +10933,5 @@ ALTER TABLE ONLY whatsapp.plantillas
+ -- PostgreSQL database dump complete
+ --
+ 
+-\unrestrict oh4y2hgiBUJwuEfVULssEYC29pAdRdJRhqhCxohy0AazyalJTZ4jbxT3SSPxFJA
++\unrestrict FTv97peuO9k2mfhtPlBJYdIFaUwsqq7CIAAQLfnf1ypaSrCWltcD0xzxnQTiWVo
+ 
+diff --git a/backend/src/app.ts b/backend/src/app.ts
+index b303223..f128d1e 100644
+--- a/backend/src/app.ts
++++ b/backend/src/app.ts
+@@ -60,6 +60,7 @@ import crmOportunidadesRouter from "./crm/oportunidades.routes";
+ import produccionRouter from "./modules/produccion/produccion.routes";
+ import gridPreferencesRouter from "./modules/grid-preferences/grid-preferences.routes";
+ import versionRouter from "./routes/version.routes";
++import cfdiCsdRouter from "./modules/cfdi/cfdi-csd.routes";
+ import { FRONTEND_BUILD_VERSION } from "./config/version";
+ 
+ const app = express();
+@@ -160,6 +161,7 @@ app.use("/api/almacenes", almacenesRouter);
+ app.use("/api/uploads", uploadsRouter);
+ app.use("/api/crm", crmOportunidadesRouter);
+ app.use("/api/version", versionRouter);
++app.use("/api/cfdi", cfdiCsdRouter);
+ 
+ app.get("/health", (_req, res) => {
+   res.json({ status: "ok", service: "emphasys-api" });
+diff --git a/backend/src/crm/conversaciones.controller.ts b/backend/src/crm/conversaciones.controller.ts
+index 0b559e0..d847a6a 100644
+--- a/backend/src/crm/conversaciones.controller.ts
++++ b/backend/src/crm/conversaciones.controller.ts
+@@ -11,6 +11,10 @@ import {
+ import pool from "../config/database";
+ import { normalizarTelefono } from "../utils/telefono";
+ import { getEmpresaActivaId } from "../shared/context/empresa";
++import {
++  DEFAULT_WHATSAPP_TEMPLATE_ACTION,
++  resolverTipoPlantillaWhatsapp,
++} from "../whatsapp/whatsapp-template-type.service";
+ import { obtenerRolesDeUsuarioEnEmpresa, obtenerUsuarioPorId } from "../modules/auth/auth.service";
+ import {
+   listarEtiquetasWhatsapp as listarEtiquetasWhatsappRepo,
+@@ -1232,7 +1236,15 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
+       return res.status(400).json({ message: "telefono es requerido" });
+     }
+ 
+-    const tipoPlantilla = String(tipo || "reactivacion");
++    const accionPlantilla = String(tipo ?? DEFAULT_WHATSAPP_TEMPLATE_ACTION).trim() || DEFAULT_WHATSAPP_TEMPLATE_ACTION;
++    let tipoPlantilla: string;
++
++    try {
++      tipoPlantilla = resolverTipoPlantillaWhatsapp(accionPlantilla);
++    } catch (error) {
++      return res.status(400).json({ message: (error as Error).message });
++    }
++
+     const respuesta = await sendTemplateMessage(Number(empresaId), String(telefono), tipoPlantilla);
+ 
+     console.info('[WhatsApp Template Controller] Respuesta de sendTemplateMessage', {
+diff --git a/backend/src/modules/auth/auth.controller.ts b/backend/src/modules/auth/auth.controller.ts
+index fd0189c..ccf101a 100644
+--- a/backend/src/modules/auth/auth.controller.ts
++++ b/backend/src/modules/auth/auth.controller.ts
+@@ -50,6 +50,7 @@ export async function login(req: Request, res: Response) {
+         nombre: userPublico.nombre,
+         email: userPublico.email,
+         es_superadmin: userPublico.es_superadmin,
++        ruta_inicio: userPublico.ruta_inicio,
+         vendedor_contacto_id: userPublico.vendedor_contacto_id,
+         vendedor_contacto_nombre: userPublico.vendedor_contacto_nombre,
+       },
+@@ -96,6 +97,7 @@ export async function me(req: Request, res: Response) {
+         nombre: usuario.nombre,
+         email: usuario.email,
+         es_superadmin: usuario.es_superadmin,
++        ruta_inicio: usuario.ruta_inicio,
+         vendedor_contacto_id: usuario.vendedor_contacto_id,
+         vendedor_contacto_nombre: usuario.vendedor_contacto_nombre,
+       },
+diff --git a/backend/src/modules/auth/auth.service.ts b/backend/src/modules/auth/auth.service.ts
+index 69daef6..38f9ef6 100644
+--- a/backend/src/modules/auth/auth.service.ts
++++ b/backend/src/modules/auth/auth.service.ts
+@@ -16,6 +16,7 @@ export interface UsuarioConPassword {
+   password_hash: string;
+   activo: boolean;
+   es_superadmin: boolean;
++  ruta_inicio: string | null;
+   vendedor_contacto_id: number | null;
+   vendedor_contacto_nombre: string | null;
+ }
+@@ -26,6 +27,7 @@ export interface UsuarioPublico {
+   email: string;
+   activo: boolean;
+   es_superadmin: boolean;
++  ruta_inicio: string | null;
+   vendedor_contacto_id: number | null;
+   vendedor_contacto_nombre: string | null;
+ }
+@@ -72,13 +74,14 @@ export function construirPayloadToken(usuario: UsuarioPublico): AuthTokenPayload
+   };
+ }
+ 
+-export function mapearUsuarioPublico<T extends { id: number; nombre: string; email: string; es_superadmin: boolean; activo?: boolean; vendedor_contacto_id?: number | null; vendedor_contacto_nombre?: string | null }>(usuario: T): UsuarioPublico {
++export function mapearUsuarioPublico<T extends { id: number; nombre: string; email: string; es_superadmin: boolean; activo?: boolean; ruta_inicio?: string | null; vendedor_contacto_id?: number | null; vendedor_contacto_nombre?: string | null }>(usuario: T): UsuarioPublico {
+   return {
+     id: usuario.id,
+     nombre: usuario.nombre,
+     email: usuario.email,
+     es_superadmin: usuario.es_superadmin,
+     activo: usuario.activo ?? true,
++    ruta_inicio: usuario.ruta_inicio ?? null,
+     vendedor_contacto_id: usuario.vendedor_contacto_id ?? null,
+     vendedor_contacto_nombre: usuario.vendedor_contacto_nombre ?? null,
+   };
+@@ -96,6 +99,7 @@ export async function obtenerUsuarioPorEmail(email: string): Promise<UsuarioConP
+       u.password_hash,
+       u.activo,
+       u.es_superadmin,
++      u.ruta_inicio,
+       u.vendedor_contacto_id,
+       c.nombre AS vendedor_contacto_nombre
+        FROM core.usuarios u
+@@ -115,6 +119,7 @@ export async function obtenerUsuarioPorId(id: number): Promise<UsuarioPublico |
+       u.email,
+       u.activo,
+       u.es_superadmin,
++      u.ruta_inicio,
+       u.vendedor_contacto_id,
+       c.nombre AS vendedor_contacto_nombre
+        FROM core.usuarios u
+diff --git a/backend/src/modules/cfdi/cfdi.service.ts b/backend/src/modules/cfdi/cfdi.service.ts
+index 40f90b8..d43ff3f 100644
+--- a/backend/src/modules/cfdi/cfdi.service.ts
++++ b/backend/src/modules/cfdi/cfdi.service.ts
+@@ -38,7 +38,19 @@ export class CfdiService {
+     const { xml } = this.builder.build(data, buildOptions);
+ 
+     const facturama = await FacturamaClient.fromDatabaseOrEnv();
+-    const { xmlTimbrado, response } = await facturama.stampXml(xml);
++
++    let xmlTimbrado: string;
++    let response: FacturamaStampResponse;
++    try {
++      const stamped = await facturama.stampXml(xml);
++      xmlTimbrado = stamped.xmlTimbrado;
++      response = stamped.response;
++    } catch (error: any) {
++      if (error?.isFacturamaValidation && typeof error?.message === 'string' && error.message.trim()) {
++        throw new CfdiValidationError(error.message.trim());
++      }
++      throw error;
++    }
+ 
+     if (!xmlTimbrado || !xmlTimbrado.trim()) {
+       throw new CfdiValidationError('Facturama no regresó XML timbrado.');
+@@ -67,7 +79,7 @@ export class CfdiService {
+       `SELECT d.id, d.empresa_id, d.tipo_documento, d.motivo_nc, d.documento_origen_id,
+               d.serie, d.numero, d.fecha_documento, d.moneda, d.subtotal, d.iva, d.total,
+               d.forma_pago, d.metodo_pago, d.uso_cfdi, d.rfc_receptor, d.nombre_receptor, d.regimen_fiscal_receptor, d.codigo_postal_receptor,
+-              e.razon_social, e.rfc, e.regimen_fiscal, e.codigo_postal_id
++              e.razon_social, e.rfc, e.regimen_fiscal_id AS regimen_fiscal, e.codigo_postal_id
+          FROM documentos d
+          JOIN core.empresas e ON e.id = d.empresa_id
+         WHERE d.id = $1
+diff --git a/backend/src/modules/cfdi/cfdi.types.ts b/backend/src/modules/cfdi/cfdi.types.ts
+index 0982e15..7187660 100644
+--- a/backend/src/modules/cfdi/cfdi.types.ts
++++ b/backend/src/modules/cfdi/cfdi.types.ts
+@@ -100,6 +100,7 @@ export interface FacturamaConfig {
+   baseUrl: string;
+   username: string;
+   password: string;
++  modo?: 'sandbox' | 'produccion';
+   stampPath?: string;
+ }
+ 
+diff --git a/backend/src/modules/cfdi/facturama.client.ts b/backend/src/modules/cfdi/facturama.client.ts
+index aa1fff1..aa93d10 100644
+--- a/backend/src/modules/cfdi/facturama.client.ts
++++ b/backend/src/modules/cfdi/facturama.client.ts
+@@ -6,6 +6,33 @@ export { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
+ 
+ const MISSING_ACTIVE_CONFIG_MESSAGE = 'No existe una configuración PAC activa en core.cfdi_pac_config. Configure Facturama antes de intentar timbrar.';
+ 
++function normalizeFacturamaModelState(modelState: any): string[] {
++  if (!modelState || typeof modelState !== 'object') return [];
++
++  return Object.entries(modelState).flatMap(([field, value]) => {
++    if (Array.isArray(value)) {
++      return value
++        .map((msg) => String(msg || '').trim())
++        .filter((msg) => msg.length > 0)
++        .map((msg) => (field ? `${field}: ${msg}` : msg));
++    }
++
++    const msg = String(value || '').trim();
++    if (!msg) return [];
++    return [field ? `${field}: ${msg}` : msg];
++  });
++}
++
++function buildFacturamaUserMessage(respData: any): string | null {
++  const message = String(respData?.Message || '').trim();
++  const modelStateLines = normalizeFacturamaModelState(respData?.ModelState);
++
++  if (!message && modelStateLines.length === 0) return null;
++  if (!message) return modelStateLines.join('\n');
++  if (modelStateLines.length === 0) return message;
++  return `${message}\n${modelStateLines.join('\n')}`;
++}
++
+ function tryDecodeBase64(value: string | undefined | null): string | null {
+   if (!value) return null;
+   try {
+@@ -20,11 +47,13 @@ async function getActiveDatabaseConfig(): Promise<FacturamaConfig | null> {
+     base_url: string;
+     username: string;
+     password: string;
++    modo: 'sandbox' | 'produccion';
+     stamp_path: string;
+   }>(
+     `SELECT base_url,
+             username,
+             password,
++            modo,
+             stamp_path
+        FROM core.cfdi_pac_config
+       WHERE activo = TRUE
+@@ -38,6 +67,7 @@ async function getActiveDatabaseConfig(): Promise<FacturamaConfig | null> {
+     baseUrl: row.base_url || '',
+     username: row.username || '',
+     password: row.password || '',
++    modo: row.modo,
+     stampPath: row.stamp_path || '',
+   };
+ }
+@@ -70,6 +100,63 @@ export class FacturamaClient {
+     return new FacturamaClient(databaseConfig);
+   }
+ 
++  private resolveApiLiteBaseUrl(): string {
++    if (this.config.modo === 'produccion') {
++      return 'https://api.facturama.mx';
++    }
++
++    if (this.config.modo === 'sandbox') {
++      return 'https://apisandbox.facturama.mx';
++    }
++
++    const normalized = (this.config.baseUrl || '').toLowerCase();
++    if (normalized.includes('apisandbox.facturama.mx')) {
++      return 'https://apisandbox.facturama.mx';
++    }
++
++    return 'https://api.facturama.mx';
++  }
++
++  getMultiemisorCsdEndpoint(): string {
++    return `${this.resolveApiLiteBaseUrl()}/api-lite/csds`;
++  }
++
++  async registerMultiemisorCsd(payload: {
++    Rfc: string;
++    Certificate: string;
++    PrivateKey: string;
++    PrivateKeyPassword: string;
++  }): Promise<any> {
++    try {
++      const endpoint = this.getMultiemisorCsdEndpoint();
++      const response = await axios.post(endpoint, payload, {
++        auth: {
++          username: this.config.username,
++          password: this.config.password,
++        },
++        headers: {
++          'Content-Type': 'application/json',
++          Accept: 'application/json',
++        },
++      });
++
++      return response.data;
++    } catch (error: any) {
++      if (axios.isAxiosError(error)) {
++        const respData = error.response?.data;
++        const userMessage = buildFacturamaUserMessage(respData);
++
++        const facturamaError: any = new Error(userMessage || error.message || 'Error al registrar CSD en Facturama');
++        facturamaError.statusCode = error.response?.status;
++        facturamaError.facturamaResponse = respData;
++        facturamaError.isFacturamaValidation = Boolean(userMessage);
++        throw facturamaError;
++      }
++
++      throw error;
++    }
++  }
++
+   async stampXml(xml: string): Promise<{ xmlTimbrado: string; response: FacturamaStampResponse; uuid?: string; pdfUrl?: string; xmlUrl?: string; }> {
+     const jsonPayload = convertXmlCfdiToFacturamaJson(xml);
+     console.log('===== FACTURAMA PAYLOAD START =====');
+@@ -126,6 +213,13 @@ export class FacturamaClient {
+           if (modelState !== undefined) {
+             console.error('[facturama] response.data.ModelState:', JSON.stringify(modelState, null, 2));
+           }
++
++          const userMessage = buildFacturamaUserMessage(respData);
++          if (userMessage) {
++            const facturamaError: any = new Error(userMessage);
++            facturamaError.isFacturamaValidation = true;
++            throw facturamaError;
++          }
+         }
+       }
+       throw error;
+diff --git a/backend/src/modules/documentos/document-generation.service.ts b/backend/src/modules/documentos/document-generation.service.ts
+index a881aea..6aa52b7 100644
+--- a/backend/src/modules/documentos/document-generation.service.ts
++++ b/backend/src/modules/documentos/document-generation.service.ts
+@@ -81,12 +81,35 @@ const TIPOS_DOCUMENTO_CON_DATOS_FISCALES = new Set<TipoDocumento>([
+   "nota_credito_compra",
+ ]);
+ 
++type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
++
+ const normalizarCampoFiscal = (value: unknown) => {
+   if (value === undefined || value === null) return null;
+   const normalized = String(value).trim();
+   return normalized ? normalized : null;
+ };
+ 
++const TRATAMIENTOS_IMPUESTOS_VALIDOS = new Set<TratamientoImpuestos>(['normal', 'sin_iva', 'tasa_cero', 'exento']);
++
++const normalizarTratamientoImpuestos = (value: unknown): TratamientoImpuestos => {
++  const normalized = String(value ?? '').trim().toLowerCase();
++  return TRATAMIENTOS_IMPUESTOS_VALIDOS.has(normalized as TratamientoImpuestos)
++    ? (normalized as TratamientoImpuestos)
++    : 'normal';
++};
++
++const resolverTratamientoDestino = (
++  documentoOrigen: DocumentoGeneracionRow,
++  datosEncabezado?: GenerarDocumentoPayload['datos_encabezado']
++) : TratamientoImpuestos => {
++  const tratamientoExplicito = normalizarCampoFiscal(datosEncabezado?.tratamiento_impuestos);
++  if (tratamientoExplicito && TRATAMIENTOS_IMPUESTOS_VALIDOS.has(tratamientoExplicito as TratamientoImpuestos)) {
++    return tratamientoExplicito as TratamientoImpuestos;
++  }
++
++  return normalizarTratamientoImpuestos(documentoOrigen.tratamiento_impuestos);
++};
++
+ const estatusDocumentoEsInactivo = (estatusDocumento: string | null | undefined) => {
+   const estatusNormalizado = String(estatusDocumento ?? "").trim().toLowerCase();
+   return estatusNormalizado === "cancelado" || estatusNormalizado === "cancelada";
+@@ -371,6 +394,7 @@ function construirRespuestaPreparacion(
+     documento_id: Number(documento.id),
+     tipo_documento: documento.tipo_documento,
+     folio: buildFolio(documento.serie, documento.numero),
++    tratamiento_impuestos: normalizarTratamientoImpuestos(documento.tratamiento_impuestos),
+   }));
+ 
+   return {
+@@ -607,6 +631,7 @@ export class DocumentGenerationService {
+       const descuentoGlobalDocumento = esConsolidado
+         ? 0
+         : Math.min(100, Math.max(0, Number(documentoOrigen.descuento_global ?? 0) || 0));
++      const tratamientoDestino = resolverTratamientoDestino(documentoOrigen, datos_encabezado);
+       let documentoDestino: any;
+ 
+       if (esEdicionDocumentoDestino) {
+@@ -698,7 +723,8 @@ export class DocumentGenerationService {
+                   uso_cfdi = $19,
+                   forma_pago = $20,
+                   metodo_pago = $21,
+-                  codigo_postal_receptor = $22
++                  codigo_postal_receptor = $22,
++                  tratamiento_impuestos = $23
+             WHERE id = $1
+               AND empresa_id = $2
+             RETURNING *`,
+@@ -725,18 +751,12 @@ export class DocumentGenerationService {
+             datosFiscalesDocumento.forma_pago,
+             datosFiscalesDocumento.metodo_pago,
+             datosFiscalesDocumento.codigo_postal_receptor,
++            tratamientoDestino,
+           ]
+         );
+ 
+         documentoDestino = documentoDestinoActualizadoRows[0];
+       } else {
+-        const tratamientoDestino = ['factura', 'nota_credito'].includes(String(tipo_documento_destino).toLowerCase())
+-          ? (datos_encabezado?.uso_cfdi
+-              ? 'normal'
+-              : String(documentoOrigen.tratamiento_impuestos ?? 'normal').toLowerCase() === 'sin_iva'
+-                ? 'sin_iva'
+-                : 'normal')
+-          : 'normal';
+         const serieResuelta = await resolverYReservarSerieDocumento({
+           empresaId,
+           tipoDocumento: tipo_documento_destino,
+@@ -759,7 +779,7 @@ export class DocumentGenerationService {
+           client
+         );
+         const columnasCotizacion = camposCotizacion ? ",\n            estado_seguimiento" : "";
+-        const valoresCotizacion = camposCotizacion ? ",\n            $19" : "";
++        const valoresCotizacion = camposCotizacion ? ",\n            $27" : "";
+ 
+         const { rows: insertDocRows } = await client.query(
+           `INSERT INTO documentos (
+@@ -791,6 +811,7 @@ export class DocumentGenerationService {
+               forma_pago,
+               metodo_pago,
+               codigo_postal_receptor,
++              tratamiento_impuestos,
+               usuario_creacion_id${columnasCotizacion}
+             ) VALUES (
+               $1, $2, 'Borrador', $3, $4, $5,
+@@ -810,7 +831,8 @@ export class DocumentGenerationService {
+               $22,
+               $23,
+               $24,
+-              $25${valoresCotizacion}
++              $25,
++              $26${valoresCotizacion}
+             )
+             RETURNING *`,
+           [
+@@ -838,6 +860,7 @@ export class DocumentGenerationService {
+             datosFiscalesDocumento.forma_pago,
+             datosFiscalesDocumento.metodo_pago,
+             datosFiscalesDocumento.codigo_postal_receptor,
++            tratamientoDestino,
+             usuarioId ?? null,
+             ...(camposCotizacion ? [camposCotizacion.estado_seguimiento] : []),
+           ]
+diff --git a/backend/src/modules/documentos/document-generation.types.ts b/backend/src/modules/documentos/document-generation.types.ts
+index 6ee60c7..a0d66dd 100644
+--- a/backend/src/modules/documentos/document-generation.types.ts
++++ b/backend/src/modules/documentos/document-generation.types.ts
+@@ -26,11 +26,13 @@ export interface PrepararGeneracionResponse {
+     documento_id: number;
+     tipo_documento: TipoDocumento;
+     folio: string | null;
++    tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
+   } | null;
+   documentos_origen: Array<{
+     documento_id: number;
+     tipo_documento: TipoDocumento;
+     folio: string | null;
++    tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
+   }>;
+   es_consolidado: boolean;
+   tipo_documento_destino: TipoDocumento;
+@@ -53,6 +55,7 @@ export interface DatosEncabezadoGeneracion {
+   forma_pago?: string | null;
+   metodo_pago?: string | null;
+   codigo_postal_receptor?: string | null;
++  tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
+ }
+ 
+ export interface GenerarDocumentoPartidaInput {
+diff --git a/backend/src/modules/documentos/documentos.controller.ts b/backend/src/modules/documentos/documentos.controller.ts
+index b6d65bf..8132326 100644
+--- a/backend/src/modules/documentos/documentos.controller.ts
++++ b/backend/src/modules/documentos/documentos.controller.ts
+@@ -19,6 +19,7 @@ import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeE
+ import { formatearFolioDocumento } from '../../utils/documentos';
+ import { obtenerJwtSecret } from '../auth/auth.service';
+ import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
++import { resolverTipoPlantillaWhatsapp } from '../../whatsapp/whatsapp-template-type.service';
+ 
+ const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
+   const t = (valor ?? fallback) as any;
+@@ -61,6 +62,15 @@ const nombreDocumento: Record<TipoDocumento, string> = {
+   factura_compra: 'factura de compra',
+ };
+ 
++const TIPOS_DOCUMENTO_ENVIO = new Set<TipoDocumento>(['cotizacion', 'orden_servicio']);
++const CARPETAS_PUBLICAS_POR_TIPO: Partial<Record<TipoDocumento, string>> = {
++  cotizacion: 'cotizaciones',
++  orden_servicio: 'ordenes-servicio',
++};
++
++const esTipoDocumentoEnviable = (value: TipoDocumento): value is 'cotizacion' | 'orden_servicio' =>
++  TIPOS_DOCUMENTO_ENVIO.has(value);
++
+ type RecursoFacturaPublico = 'pdf' | 'xml';
+ 
+ type FacturaPublicLinkTokenPayload = {
+@@ -280,25 +290,26 @@ async function generarFacturaPublicLinks(req: Request, documentoId: number, empr
+   return links;
+ }
+ 
+-async function generarCotizacionPublicLinks(req: Request, documentoId: number, empresaId: number) {
+-  const result = await obtenerDocumentoRepository(documentoId, empresaId, 'cotizacion');
++async function generarDocumentoPublicLinks(req: Request, documentoId: number, empresaId: number, tipoDocumento: TipoDocumento) {
++  const carpetaPublica = CARPETAS_PUBLICAS_POR_TIPO[tipoDocumento] ?? tipoDocumento;
++  const result = await obtenerDocumentoRepository(documentoId, empresaId, tipoDocumento);
+   if (!result) {
+-    throw buildHttpError(404, 'Cotización no encontrada');
++    throw buildHttpError(404, `${nombreDocumento[tipoDocumento] ?? tipoDocumento} no encontrado`);
+   }
+ 
+-  const { buffer: pdfBuffer, filename: pdfFilename } = await obtenerDocumentoPdfData(documentoId, empresaId, 'cotizacion');
++  const { buffer: pdfBuffer, filename: pdfFilename } = await obtenerDocumentoPdfData(documentoId, empresaId, tipoDocumento);
+ 
+   const uploadsDir = process.env.UPLOADS_DIR
+     ? path.resolve(process.env.UPLOADS_DIR)
+     : path.resolve(process.cwd(), 'uploads');
+-  const cotizacionUploadsDir = path.join(uploadsDir, 'cotizaciones', String(documentoId));
++  const documentoUploadsDir = path.join(uploadsDir, carpetaPublica, String(documentoId));
+ 
+-  await fs.mkdir(cotizacionUploadsDir, { recursive: true });
+-  await fs.writeFile(path.join(cotizacionUploadsDir, pdfFilename), pdfBuffer);
++  await fs.mkdir(documentoUploadsDir, { recursive: true });
++  await fs.writeFile(path.join(documentoUploadsDir, pdfFilename), pdfBuffer);
+ 
+   const baseUrl = resolverBaseUrlPublica(req);
+   return {
+-    pdfUrl: `${baseUrl}/uploads/cotizaciones/${documentoId}/${pdfFilename}`,
++    pdfUrl: `${baseUrl}/uploads/${carpetaPublica}/${documentoId}/${pdfFilename}`,
+     pdfFilename,
+     expiresAt: null,
+   };
+@@ -605,7 +616,7 @@ const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => a
+ export const obtenerCotizacionPDF = buildPdfHandler('cotizacion');
+ export const obtenerFacturaPDF = buildPdfHandler('factura', true);
+ 
+-const permiteArchivoImagen = (req: Request) => (req.baseUrl || '').toLowerCase().includes('/documentos');
++const permiteArchivoImagen = (_req: Request) => true;
+ 
+ const limpiarArchivoImagenPartida = (partida: any, permitir: boolean) => {
+   if (permitir || !partida || typeof partida !== 'object') return partida;
+@@ -651,11 +662,16 @@ export async function enviarCotizacionPorCorreo(req: Request, res: Response) {
+   try {
+     const documentoId = Number(req.params.id);
+     const empresaId = req.context?.empresaId;
++    const tipoDocumento = resolverTipoDocumentoRequest(req, 'cotizacion');
+ 
+     if (Number.isNaN(documentoId) || !empresaId) {
+       return res.status(400).json({ message: 'ID o empresaId inválido' });
+     }
+ 
++    if (!esTipoDocumentoEnviable(tipoDocumento)) {
++      return res.status(400).json({ message: 'Tipo de documento no soportado para envío por correo' });
++    }
++
+     const to = String(req.body?.to ?? '').trim();
+     const subject = String(req.body?.subject ?? '').trim();
+     const message = String(req.body?.message ?? '').trim();
+@@ -665,18 +681,19 @@ export async function enviarCotizacionPorCorreo(req: Request, res: Response) {
+     }
+ 
+     const { CotizacionEmailService } = await import('../../services/cotizacion-email.service');
+-    const result = await CotizacionEmailService.enviarCotizacion({
++    const result = await CotizacionEmailService.enviarDocumento({
+       documentoId,
+       empresaId: Number(empresaId),
+       usuarioId: req.auth?.userId ?? null,
+       to,
+       subject,
+       message,
++      tipoDocumento,
+     });
+ 
+     return res.json(result);
+   } catch (error) {
+-    const message = (error as Error)?.message ?? 'Error al enviar la cotización';
++    const message = (error as Error)?.message ?? 'Error al enviar el documento';
+     const status = message.includes('obligatorio') || message.includes('no encontrada') || message.includes('No hay configuración SMTP')
+       ? 400
+       : 502;
+@@ -806,7 +823,7 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response)
+     const documentoId = Number(req.params.id);
+     const empresaId = req.context?.empresaId;
+     const telefono = String(req.body?.telefono ?? '').trim();
+-    const tipoPlantilla = String(req.body?.tipoPlantilla ?? req.body?.tipo ?? '').trim();
++    const tipoPlantilla = resolverTipoPlantillaWhatsapp('cfdi', 'factura');
+ 
+     if (Number.isNaN(documentoId) || !empresaId) {
+       return res.status(400).json({ message: 'ID o empresaId inválido' });
+@@ -816,10 +833,6 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response)
+       return res.status(400).json({ message: 'telefono es requerido' });
+     }
+ 
+-    if (!tipoPlantilla) {
+-      return res.status(400).json({ message: 'tipoPlantilla es requerido' });
+-    }
+-
+     await assertFacturaTimbrada(documentoId, Number(empresaId));
+ 
+     const factura = await obtenerDocumentoRepository(documentoId, Number(empresaId), 'factura');
+@@ -898,6 +911,7 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
+     const documentoId = Number(req.params.id);
+     const empresaId = req.context?.empresaId;
+     const telefono = String(req.body?.telefono ?? '').trim();
++    const tipoDocumento = resolverTipoDocumentoRequest(req, 'cotizacion');
+ 
+     if (Number.isNaN(documentoId) || !empresaId) {
+       return res.status(400).json({ message: 'ID o empresaId inválido' });
+@@ -907,25 +921,32 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
+       return res.status(400).json({ message: 'telefono es requerido' });
+     }
+ 
+-    const documento = await obtenerDocumentoRepository(documentoId, Number(empresaId), 'cotizacion');
++    if (!esTipoDocumentoEnviable(tipoDocumento)) {
++      return res.status(400).json({ message: 'Tipo de documento no soportado para envío por WhatsApp' });
++    }
++
++    const documento = await obtenerDocumentoRepository(documentoId, Number(empresaId), tipoDocumento);
+     if (!documento) {
+-      return res.status(404).json({ message: 'Cotización no encontrada' });
++      return res.status(404).json({ message: `${nombreDocumento[tipoDocumento] ?? tipoDocumento} no encontrado` });
+     }
+ 
+-    const documentoCotizacion = documento.documento as any;
+-    const nombreCliente = String(documentoCotizacion?.nombre_receptor ?? documentoCotizacion?.cliente_nombre ?? 'Cliente').trim() || 'Cliente';
+-    const folioCotizacion = formatearFolioDocumento(documentoCotizacion?.serie ?? '', Number(documentoCotizacion?.numero ?? 0)) || String(documentoId);
+-    const links = await generarCotizacionPublicLinks(req, documentoId, Number(empresaId));
+-    const templateParams = [nombreCliente, folioCotizacion];
++    const documentoData = documento.documento as any;
++    const nombreCliente = String(documentoData?.nombre_receptor ?? documentoData?.cliente_nombre ?? 'Cliente').trim() || 'Cliente';
++    const folioDocumento = formatearFolioDocumento(documentoData?.serie ?? '', Number(documentoData?.numero ?? 0)) || String(documentoId);
++    const links = await generarDocumentoPublicLinks(req, documentoId, Number(empresaId), tipoDocumento);
++    const templateParams = [nombreCliente, folioDocumento];
++    const tipoDocumentoLabel = nombreDocumento[tipoDocumento] ?? tipoDocumento;
++    const tipoPlantilla = resolverTipoPlantillaWhatsapp('documento_pdf', tipoDocumento);
+ 
+-    console.info('[WhatsApp Cotizacion] Inicio de envio', {
++    console.info('[WhatsApp Documento] Inicio de envio', {
+       documentoId,
+       empresaId,
+       telefono,
+-      template: 'envio_cotizacion',
++      tipoDocumento,
++      tipoPlantilla,
+     });
+ 
+-    console.info('[WhatsApp Cotizacion] Enviando template+PDF por Gupshup', {
++    console.info('[WhatsApp Documento] Enviando template+PDF por Gupshup', {
+       documentoId,
+       empresaId,
+       telefono,
+@@ -937,13 +958,13 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
+     const templateDocumentResponse = await sendTemplateDocumentMessage(
+       Number(empresaId),
+       telefono,
+-      'envio_cotizacion',
++      tipoPlantilla,
+       templateParams,
+       links.pdfUrl,
+       links.pdfFilename
+     );
+ 
+-    console.info('[WhatsApp Cotizacion] Respuesta Gupshup template+PDF', {
++    console.info('[WhatsApp Documento] Respuesta Gupshup template+PDF', {
+       documentoId,
+       empresaId,
+       telefono,
+@@ -956,14 +977,16 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
+       template: templateDocumentResponse,
+       expiresAt: links.expiresAt,
+       pdfUrl: links.pdfUrl,
++      tipoDocumento,
++      tipoDocumentoLabel,
+     });
+   } catch (error) {
+     const status = (error as any)?.status;
+     if (status) {
+       return res.status(status).json({ error: (error as Error).message });
+     }
+-    console.error('[WhatsApp Cotizacion] Error en envio por WhatsApp', error);
+-    return res.status(500).json({ message: 'No se pudo enviar la cotización por WhatsApp' });
++    console.error('[WhatsApp Documento] Error en envio por WhatsApp', error);
++    return res.status(500).json({ message: 'No se pudo enviar el documento por WhatsApp' });
+   }
+ }
+ 
+diff --git a/backend/src/modules/documentos/documentos.pdf.ts b/backend/src/modules/documentos/documentos.pdf.ts
+index e8fdd1f..5560a32 100644
+--- a/backend/src/modules/documentos/documentos.pdf.ts
++++ b/backend/src/modules/documentos/documentos.pdf.ts
+@@ -45,6 +45,7 @@ type DocumentoCotizacion = {
+   codigo_postal_receptor?: string | null;
+   nombre_receptor?: string | null;
+   observaciones?: string | null;
++  tratamiento_impuestos?: string | null;
+   total?: number | null;
+   subtotal?: number | null;
+   iva?: number | null;
+@@ -1262,12 +1263,13 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
+         pageHeight: doc.page.height,
+         estaTimbrado,
+       });
++      const ocultarIvaPorTratamiento = String(documento?.tratamiento_impuestos ?? 'normal').toLowerCase() === 'sin_iva';
+       // Totales se renderizarán en el pie de página
+       const totalRows: Array<[string, number | null | undefined]> = [
+         ['Subtotal bruto', subtotalBrutoDocumento],
+         ['Descuentos', descuentoTotalDocumento],
+         ['Subtotal neto', subtotalNetoDocumento],
+-        ['IVA', documento?.iva],
++        ...(ocultarIvaPorTratamiento ? [] : [['IVA', documento?.iva] as [string, number | null | undefined]]),
+         ['Total', documento?.total],
+       ];
+ 
+diff --git a/backend/src/modules/documentos/documentos.repository.ts b/backend/src/modules/documentos/documentos.repository.ts
+index 769e369..45da765 100644
+--- a/backend/src/modules/documentos/documentos.repository.ts
++++ b/backend/src/modules/documentos/documentos.repository.ts
+@@ -863,7 +863,7 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
+     );
+     const docRow = docRows[0];
+     if (!docRow) return null;
+-    const permiteImagen = String(docRow.tipo_documento ?? '').toLowerCase() === 'cotizacion';
++    const permiteImagen = true;
+     const imagen = normalizarImagenPartida(data, permiteImagen);
+ 
+     const campos: string[] = ['documento_id'];
+@@ -955,7 +955,7 @@ export async function reemplazarPartidasRepository(
+     if (!docRow) {
+       return null;
+     }
+-    const permiteImagen = String(docRow.tipo_documento ?? '').toLowerCase() === 'cotizacion';
++    const permiteImagen = true;
+     const usaProductoTecnicoNc = ['nota_credito', 'nota_credito_compra'].includes(String(docRow.tipo_documento ?? '').toLowerCase());
+ 
+     if (ownedClient) {
+diff --git a/backend/src/modules/impuestos/impuestos.service.ts b/backend/src/modules/impuestos/impuestos.service.ts
+index 667de31..a9a73c4 100644
+--- a/backend/src/modules/impuestos/impuestos.service.ts
++++ b/backend/src/modules/impuestos/impuestos.service.ts
+@@ -39,7 +39,6 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
+       tratamientoImpuestos,
+       estatusDocumento,
+       documentoId,
+-      tipoDocumento,
+     } = partida;
+ 
+     console.log('[impuestos] base partida', subtotalPartida);
+@@ -96,11 +95,8 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
+       executor
+     );
+ 
+-    // Recalcular totales sólo para facturas y facturas de compra
+-    const tiposConTotales = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'];
+-    if (tiposConTotales.includes(tipoDocumento?.toLowerCase?.() ?? '')) {
+-      await actualizarTotales(documentoId, executor);
+-    }
++    // Recalcular totales del documento para mantener consistencia en cualquier tipo documental.
++    await actualizarTotales(documentoId, executor);
+     if (ownedClient) {
+       await executor.query('COMMIT');
+     }
+diff --git a/backend/src/modules/usuarios/usuarios.controller.ts b/backend/src/modules/usuarios/usuarios.controller.ts
+index a7c213f..0443987 100644
+--- a/backend/src/modules/usuarios/usuarios.controller.ts
++++ b/backend/src/modules/usuarios/usuarios.controller.ts
+@@ -12,12 +12,18 @@ import {
+   obtenerUsuarioEmpresasYRoles,
+   usuarioTieneRelaciones,
+ } from './usuarios.repository';
++import { esRutaInicioPermitida, normalizarRutaInicio } from './rutaInicio';
+ 
+ type VendedorContactoIdParseResult = {
+   vendedorContactoId?: number | null;
+   error?: string;
+ };
+ 
++type RutaInicioParseResult = {
++	rutaInicio?: string | null;
++	error?: string;
++};
++
+ function parseVendedorContactoId(value: unknown): VendedorContactoIdParseResult {
+   if (value === undefined) return { vendedorContactoId: undefined };
+   if (value === null) return { vendedorContactoId: null };
+@@ -28,6 +34,16 @@ function parseVendedorContactoId(value: unknown): VendedorContactoIdParseResult
+   return { vendedorContactoId };
+ }
+ 
++function parseRutaInicio(value: unknown): RutaInicioParseResult {
++  const rutaInicio = normalizarRutaInicio(value);
++  if (rutaInicio === undefined) return { rutaInicio: undefined };
++  if (rutaInicio === null) return { rutaInicio: null };
++  if (!esRutaInicioPermitida(rutaInicio)) {
++    return { error: 'ruta_inicio inválida' };
++  }
++  return { rutaInicio };
++}
++
+ export async function getUsuarios(_req: Request, res: Response) {
+   try {
+     const usuarios = await listarUsuarios();
+@@ -80,9 +96,12 @@ export async function getUsuarioEmpresas(req: Request, res: Response) {
+ export async function postUsuario(req: Request, res: Response) {
+   try {
+     const { nombre, email, password, es_superadmin = false, activo = true } = req.body || {};
+-  const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
+-  if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
+-  const vendedorContactoId = contactoParse.vendedorContactoId;
++    const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
++    if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
++    const rutaParse = parseRutaInicio((req.body as { ruta_inicio?: unknown })?.ruta_inicio);
++    if (rutaParse.error) return res.status(400).json({ message: rutaParse.error });
++    const vendedorContactoId = contactoParse.vendedorContactoId;
++    const rutaInicio = rutaParse.rutaInicio;
+     if (!nombre || String(nombre).trim() === '') return res.status(400).json({ message: 'El nombre es obligatorio' });
+     if (!email || String(email).trim() === '') return res.status(400).json({ message: 'El email es obligatorio' });
+     if (!password || String(password).length < 6) return res.status(400).json({ message: 'El password es obligatorio (mínimo 6 caracteres)' });
+@@ -96,7 +115,7 @@ export async function postUsuario(req: Request, res: Response) {
+     }
+ 
+     try {
+-      const nuevo = await crearUsuario({ nombre, email, password, es_superadmin, activo, vendedor_contacto_id: vendedorContactoId });
++      const nuevo = await crearUsuario({ nombre, email, password, es_superadmin, activo, ruta_inicio: rutaInicio, vendedor_contacto_id: vendedorContactoId });
+       res.status(201).json(nuevo);
+     } catch (err: any) {
+       if (err?.code === '23505') return res.status(409).json({ message: 'Ya existe un usuario con ese email' });
+@@ -115,9 +134,12 @@ export async function putUsuario(req: Request, res: Response) {
+     if (!Number.isFinite(id)) return res.status(400).json({ message: 'id inválido' });
+ 
+     const { nombre, email, password, es_superadmin, activo } = req.body || {};
+-  const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
+-  if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
+-  const vendedorContactoId = contactoParse.vendedorContactoId;
++    const contactoParse = parseVendedorContactoId((req.body as { vendedor_contacto_id?: unknown })?.vendedor_contacto_id);
++    if (contactoParse.error) return res.status(400).json({ message: contactoParse.error });
++    const rutaParse = parseRutaInicio((req.body as { ruta_inicio?: unknown })?.ruta_inicio);
++    if (rutaParse.error) return res.status(400).json({ message: rutaParse.error });
++    const vendedorContactoId = contactoParse.vendedorContactoId;
++    const rutaInicio = rutaParse.rutaInicio;
+     if (email !== undefined && String(email).trim() === '') return res.status(400).json({ message: 'El email no puede estar vacío' });
+     if (nombre !== undefined && String(nombre).trim() === '') return res.status(400).json({ message: 'El nombre no puede estar vacío' });
+     if (password !== undefined && String(password).length < 6) return res.status(400).json({ message: 'El password debe tener al menos 6 caracteres' });
+@@ -131,7 +153,7 @@ export async function putUsuario(req: Request, res: Response) {
+     }
+ 
+     try {
+-      const actualizado = await actualizarUsuario(id, { nombre, email, password, es_superadmin, activo, vendedor_contacto_id: vendedorContactoId });
++      const actualizado = await actualizarUsuario(id, { nombre, email, password, es_superadmin, activo, ruta_inicio: rutaInicio, vendedor_contacto_id: vendedorContactoId });
+       if (!actualizado) return res.status(404).json({ message: 'Usuario no encontrado' });
+       res.json(actualizado);
+     } catch (err: any) {
+diff --git a/backend/src/modules/usuarios/usuarios.repository.ts b/backend/src/modules/usuarios/usuarios.repository.ts
+index 91b2f72..2c4ae0a 100644
+--- a/backend/src/modules/usuarios/usuarios.repository.ts
++++ b/backend/src/modules/usuarios/usuarios.repository.ts
+@@ -7,6 +7,7 @@ export type Usuario = {
+   email: string;
+   activo: boolean;
+   es_superadmin: boolean;
++  ruta_inicio: string | null;
+   vendedor_contacto_id: number | null;
+   vendedor_contacto_nombre?: string | null;
+   created_at: string;
+@@ -26,6 +27,7 @@ export async function listarUsuarios(): Promise<Usuario[]> {
+             u.email,
+             u.activo,
+             u.es_superadmin,
++            u.ruta_inicio,
+             u.vendedor_contacto_id,
+             c.nombre AS vendedor_contacto_nombre,
+             u.created_at
+@@ -43,6 +45,7 @@ export async function listarUsuariosHabilitadosPorEmpresa(empresaId: number): Pr
+             u.email,
+             u.activo,
+             u.es_superadmin,
++            u.ruta_inicio,
+             u.vendedor_contacto_id,
+             c.nombre AS vendedor_contacto_nombre,
+             u.created_at
+@@ -65,6 +68,7 @@ export async function obtenerUsuarioPorId(id: number): Promise<UsuarioDetalle |
+       u.email,
+       u.activo,
+       u.es_superadmin,
++      u.ruta_inicio,
+       u.vendedor_contacto_id,
+       c.nombre AS vendedor_contacto_nombre,
+       u.created_at
+@@ -119,26 +123,28 @@ export async function crearUsuario(data: {
+   password: string;
+   es_superadmin?: boolean;
+   activo?: boolean;
++  ruta_inicio?: string | null;
+   vendedor_contacto_id?: number | null;
+ }): Promise<Usuario> {
+   const password_hash = await bcrypt.hash(data.password, SALT_ROUNDS);
+   const { rows } = await pool.query<Usuario>(
+     `WITH inserted AS (
+-        INSERT INTO core.usuarios (nombre, email, password_hash, es_superadmin, activo, vendedor_contacto_id)
+-        VALUES ($1, lower($2), $3, $4, $5, $6)
+-        RETURNING id, nombre, email, activo, es_superadmin, vendedor_contacto_id, created_at
++        INSERT INTO core.usuarios (nombre, email, password_hash, es_superadmin, activo, ruta_inicio, vendedor_contacto_id)
++        VALUES ($1, lower($2), $3, $4, $5, $6, $7)
++        RETURNING id, nombre, email, activo, es_superadmin, ruta_inicio, vendedor_contacto_id, created_at
+      )
+      SELECT i.id,
+             i.nombre,
+             i.email,
+             i.activo,
+             i.es_superadmin,
++            i.ruta_inicio,
+             i.vendedor_contacto_id,
+             c.nombre AS vendedor_contacto_nombre,
+             i.created_at
+        FROM inserted i
+        LEFT JOIN public.contactos c ON c.id = i.vendedor_contacto_id`,
+-    [data.nombre.trim(), data.email.trim(), password_hash, Boolean(data.es_superadmin), data.activo ?? true, data.vendedor_contacto_id ?? null]
++    [data.nombre.trim(), data.email.trim(), password_hash, Boolean(data.es_superadmin), data.activo ?? true, data.ruta_inicio ?? null, data.vendedor_contacto_id ?? null]
+   );
+   return rows[0];
+ }
+@@ -149,6 +155,7 @@ export async function actualizarUsuario(id: number, data: {
+   password?: string;
+   es_superadmin?: boolean;
+   activo?: boolean;
++  ruta_inicio?: string | null;
+   vendedor_contacto_id?: number | null;
+ }): Promise<Usuario | null> {
+   const updates: string[] = [];
+@@ -176,6 +183,10 @@ export async function actualizarUsuario(id: number, data: {
+     updates.push(`activo = $${idx++}`);
+     values.push(Boolean(data.activo));
+   }
++  if (data.ruta_inicio !== undefined) {
++    updates.push(`ruta_inicio = $${idx++}`);
++    values.push(data.ruta_inicio ?? null);
++  }
+   if (data.vendedor_contacto_id !== undefined) {
+     updates.push(`vendedor_contacto_id = $${idx++}`);
+     values.push(data.vendedor_contacto_id ?? null);
+@@ -189,15 +200,16 @@ export async function actualizarUsuario(id: number, data: {
+         UPDATE core.usuarios
+            SET ${updates.join(', ')}
+          WHERE id = $${idx}
+-      RETURNING id, nombre, email, activo, es_superadmin, vendedor_contacto_id, created_at
++      RETURNING id, nombre, email, activo, es_superadmin, ruta_inicio, vendedor_contacto_id, created_at
+      )
+      SELECT u.id,
+             u.nombre,
+             u.email,
+             u.activo,
+             u.es_superadmin,
+-        u.vendedor_contacto_id,
+-        c.nombre AS vendedor_contacto_nombre,
++            u.ruta_inicio,
++            u.vendedor_contacto_id,
++            c.nombre AS vendedor_contacto_nombre,
+             u.created_at
+        FROM updated u
+      LEFT JOIN public.contactos c ON c.id = u.vendedor_contacto_id`,
+@@ -213,6 +225,7 @@ async function obtenerUsuarioSimple(id: number): Promise<Usuario | null> {
+       u.email,
+       u.activo,
+       u.es_superadmin,
++      u.ruta_inicio,
+       u.vendedor_contacto_id,
+       c.nombre AS vendedor_contacto_nombre,
+       u.created_at
+@@ -302,7 +315,7 @@ export async function desactivarUsuario(id: number): Promise<Usuario | null> {
+     `UPDATE core.usuarios
+         SET activo = false
+       WHERE id = $1
+-      RETURNING id, nombre, email, activo, es_superadmin, created_at`,
++      RETURNING id, nombre, email, activo, es_superadmin, ruta_inicio, created_at`,
+     [id]
+   );
+   return rows[0] ?? null;
+diff --git a/backend/src/services/cotizacion-email.service.ts b/backend/src/services/cotizacion-email.service.ts
+index 7225a42..2c70335 100644
+--- a/backend/src/services/cotizacion-email.service.ts
++++ b/backend/src/services/cotizacion-email.service.ts
+@@ -13,16 +13,19 @@ import {
+ } from '../crm/conversaciones.service';
+ import { COTIZACION_ESTATUS_DOCUMENTO_ENVIADO } from '../modules/documentos/cotizacion-status';
+ 
+-type EnviarCotizacionEmailInput = {
++type TipoDocumentoEnviable = 'cotizacion' | 'orden_servicio';
++
++type EnviarDocumentoEmailInput = {
+   documentoId: number;
+   empresaId: number;
+   usuarioId?: number | null;
+   to: string;
+   subject: string;
+   message: string;
++  tipoDocumento?: TipoDocumentoEnviable;
+ };
+ 
+-type DocumentoCotizacionEmail = {
++type DocumentoEmail = {
+   id: number;
+   empresa_id: number;
+   contacto_id: number | null;
+@@ -34,18 +37,46 @@ type DocumentoCotizacionEmail = {
+   estado_seguimiento: string | null;
+ };
+ 
++const DOCUMENTO_LABELS: Record<TipoDocumentoEnviable, string> = {
++  cotizacion: 'Cotización',
++  orden_servicio: 'Orden de servicio',
++};
++
++const PLANTILLA_EMAIL_FALLBACK: Record<TipoDocumentoEnviable, string> = {
++  cotizacion: 'cotizacion',
++  orden_servicio: 'cotizacion',
++};
++
++const ARCHIVO_ADJUNTO_PREFIX: Record<TipoDocumentoEnviable, string> = {
++  cotizacion: 'Cotizacion',
++  orden_servicio: 'OrdenDeServicio',
++};
++
++const esTipoDocumentoEnviable = (value: string): value is TipoDocumentoEnviable =>
++  value === 'cotizacion' || value === 'orden_servicio';
++
+ export class CotizacionEmailService {
+-  public static async enviarCotizacion(input: EnviarCotizacionEmailInput) {
++  public static async enviarCotizacion(input: Omit<EnviarDocumentoEmailInput, 'tipoDocumento'>) {
++    return CotizacionEmailService.enviarDocumento({ ...input, tipoDocumento: 'cotizacion' });
++  }
++
++  public static async enviarDocumento(input: EnviarDocumentoEmailInput) {
++    const tipoDocumento = input.tipoDocumento ?? 'cotizacion';
++    if (!esTipoDocumentoEnviable(tipoDocumento)) {
++      throw new Error('Tipo de documento no soportado para envío por correo');
++    }
++
+     const to = input.to.trim();
+     const subject = input.subject.trim();
+     const message = input.message?.trim() || '';
++    const documentoLabel = DOCUMENTO_LABELS[tipoDocumento];
+ 
+     if (!to) {
+       throw new Error('El correo destino es obligatorio');
+     }
+ 
+-    const documento = await CotizacionEmailService.obtenerCotizacion(input.documentoId, input.empresaId);
+-    const pdfBuffer = await CotizacionEmailService.generarPdf(input.documentoId, input.empresaId);
++    const documento = await CotizacionEmailService.obtenerDocumento(input.documentoId, input.empresaId, tipoDocumento);
++    const pdfBuffer = await CotizacionEmailService.generarPdf(input.documentoId, input.empresaId, tipoDocumento);
+     const smtpConfig = await getConfiguracionEmailPrivada(documento.empresa_id, input.usuarioId ?? null);
+ 
+     if (!smtpConfig) {
+@@ -60,10 +91,13 @@ export class CotizacionEmailService {
+     const from = smtpConfig.email_remitente || smtpConfig.smtp_user || null;
+     const nombreRemitente = smtpConfig.nombre_remitente?.trim() || smtpConfig.email_remitente || smtpConfig.smtp_user || 'Tu asesor';
+     const cliente = documento.cliente_nombre?.trim() || 'cliente';
+-    const plantilla = await obtenerPlantillaEmail(documento.empresa_id, 'cotizacion');
++    const plantilla = await obtenerPlantillaEmail(documento.empresa_id, tipoDocumento)
++      || (PLANTILLA_EMAIL_FALLBACK[tipoDocumento] !== tipoDocumento
++        ? await obtenerPlantillaEmail(documento.empresa_id, PLANTILLA_EMAIL_FALLBACK[tipoDocumento])
++        : null);
+ 
+     if (!plantilla) {
+-      throw new Error('No hay plantilla de correo configurada para cotización');
++      throw new Error(`No hay plantilla de correo configurada para ${documentoLabel.toLowerCase()}`);
+     }
+ 
+     const mensajePlantilla = CotizacionEmailService.renderTemplate(message, {
+@@ -99,7 +133,7 @@ export class CotizacionEmailService {
+           html: htmlBody,
+           attachments: [
+             {
+-              filename: `Cotizacion-${folio}.pdf`,
++              filename: `${ARCHIVO_ADJUNTO_PREFIX[tipoDocumento]}-${folio}.pdf`,
+               content: pdfBuffer,
+               contentType: 'application/pdf',
+             },
+@@ -124,11 +158,11 @@ export class CotizacionEmailService {
+         await actualizarConversacionSaliente(conversacionId, documento.empresa_id);
+       }
+ 
+-      await CotizacionEmailService.actualizarEstatusDocumento(documento.id, documento.empresa_id, COTIZACION_ESTATUS_DOCUMENTO_ENVIADO);
++      await CotizacionEmailService.actualizarEstatusDocumento(documento.id, documento.empresa_id, COTIZACION_ESTATUS_DOCUMENTO_ENVIADO, tipoDocumento);
+ 
+       return {
+         ok: true,
+-        message: 'Cotización enviada correctamente por correo',
++        message: `${documentoLabel} enviada correctamente por correo`,
+         messageId: response.messageId ?? null,
+       };
+     } catch (error) {
+@@ -155,8 +189,8 @@ export class CotizacionEmailService {
+     }
+   }
+ 
+-  private static async obtenerCotizacion(documentoId: number, empresaId: number): Promise<DocumentoCotizacionEmail> {
+-    const { rows } = await pool.query<DocumentoCotizacionEmail>(
++  private static async obtenerDocumento(documentoId: number, empresaId: number, tipoDocumento: TipoDocumentoEnviable): Promise<DocumentoEmail> {
++    const { rows } = await pool.query<DocumentoEmail>(
+       `SELECT d.id,
+               d.empresa_id,
+               d.contacto_principal_id AS contacto_id,
+@@ -170,36 +204,36 @@ export class CotizacionEmailService {
+          LEFT JOIN contactos c ON c.id = d.contacto_principal_id
+         WHERE d.id = $1
+           AND d.empresa_id = $2
+-          AND LOWER(d.tipo_documento) = 'cotizacion'
++          AND LOWER(d.tipo_documento) = $3
+         LIMIT 1`,
+-      [documentoId, empresaId]
++      [documentoId, empresaId, tipoDocumento]
+     );
+ 
+     const documento = rows[0] ?? null;
+     if (!documento) {
+-      throw new Error('Cotización no encontrada');
++      throw new Error(`${DOCUMENTO_LABELS[tipoDocumento]} no encontrada`);
+     }
+ 
+     return documento;
+   }
+ 
+-  private static async generarPdf(documentoId: number, empresaId: number): Promise<Buffer> {
+-    const data = await obtenerDocumentoRepository(documentoId, empresaId, 'cotizacion');
++  private static async generarPdf(documentoId: number, empresaId: number, tipoDocumento: TipoDocumentoEnviable): Promise<Buffer> {
++    const data = await obtenerDocumentoRepository(documentoId, empresaId, tipoDocumento);
+     if (!data) {
+-      throw new Error('Cotización no encontrada para generar PDF');
++      throw new Error(`${DOCUMENTO_LABELS[tipoDocumento]} no encontrada para generar PDF`);
+     }
+ 
+     return generarDocumentoPDF(data, empresaId);
+   }
+ 
+-  private static async actualizarEstatusDocumento(documentoId: number, empresaId: number, estatus: string) {
++  private static async actualizarEstatusDocumento(documentoId: number, empresaId: number, estatus: string, tipoDocumento: TipoDocumentoEnviable) {
+     await pool.query(
+       `UPDATE documentos
+           SET estatus_documento = $1
+         WHERE id = $2
+           AND empresa_id = $3
+-          AND LOWER(tipo_documento) = 'cotizacion'`,
+-      [estatus, documentoId, empresaId]
++          AND LOWER(tipo_documento) = $4`,
++      [estatus, documentoId, empresaId, tipoDocumento]
+     );
+   }
+ 
+diff --git a/backend/src/services/empresasService.ts b/backend/src/services/empresasService.ts
+index 0045693..cd2daee 100644
+--- a/backend/src/services/empresasService.ts
++++ b/backend/src/services/empresasService.ts
+@@ -23,6 +23,11 @@ export type Empresa = {
+   certificado_csd: string | null;
+   llave_privada_csd: string | null;
+   password_csd: string | null;
++  cfdi_csd_registrado_facturama: boolean;
++  cfdi_csd_fecha_actualizacion: string | null;
++  cfdi_csd_cer_path: string | null;
++  cfdi_csd_key_path: string | null;
++  cfdi_csd_password_encrypted: string | null;
+   codigo_postal: string | null;
+   regimen_fiscal: string | null;
+   activo: boolean;
+@@ -51,6 +56,11 @@ export type EmpresaPayload = Partial<
+     | "certificado_csd"
+     | "llave_privada_csd"
+     | "password_csd"
++    | "cfdi_csd_registrado_facturama"
++    | "cfdi_csd_fecha_actualizacion"
++    | "cfdi_csd_cer_path"
++    | "cfdi_csd_key_path"
++    | "cfdi_csd_password_encrypted"
+     | "codigo_postal"
+     | "regimen_fiscal"
+     | "activo"
+@@ -79,6 +89,10 @@ function sanitizePayload(payload: EmpresaPayload): EmpresaPayload {
+     "certificado_csd",
+     "llave_privada_csd",
+     "password_csd",
++    "cfdi_csd_fecha_actualizacion",
++    "cfdi_csd_cer_path",
++    "cfdi_csd_key_path",
++    "cfdi_csd_password_encrypted",
+     "codigo_postal",
+     "regimen_fiscal",
+   ];
+@@ -98,6 +112,10 @@ function sanitizePayload(payload: EmpresaPayload): EmpresaPayload {
+     clean.activo = Boolean(payload.activo);
+   }
+ 
++  if (payload.cfdi_csd_registrado_facturama !== undefined) {
++    clean.cfdi_csd_registrado_facturama = Boolean(payload.cfdi_csd_registrado_facturama);
++  }
++
+   return clean;
+ }
+ 
+@@ -276,6 +294,11 @@ export async function actualizarEmpresa(id: number, payload: EmpresaPayload): Pr
+     "certificado_csd",
+     "llave_privada_csd",
+     "password_csd",
++    "cfdi_csd_registrado_facturama",
++    "cfdi_csd_fecha_actualizacion",
++    "cfdi_csd_cer_path",
++    "cfdi_csd_key_path",
++    "cfdi_csd_password_encrypted",
+     "codigo_postal",
+     "regimen_fiscal",
+     "activo",
+diff --git a/backend/src/types/express.d.ts b/backend/src/types/express.d.ts
+index 3cd6ccf..fb0385b 100644
+--- a/backend/src/types/express.d.ts
++++ b/backend/src/types/express.d.ts
+@@ -11,6 +11,11 @@ declare global {
+         empresaNombre?: string;
+       };
+       file?: MulterFile;
++      files?:
++        | MulterFile[]
++        | {
++            [fieldname: string]: MulterFile[];
++          };
+     }
+   }
+ }
+diff --git a/frontend/src/components/EmpresaSelector.tsx b/frontend/src/components/EmpresaSelector.tsx
+index 2782d18..c53b62e 100644
+--- a/frontend/src/components/EmpresaSelector.tsx
++++ b/frontend/src/components/EmpresaSelector.tsx
+@@ -1,7 +1,9 @@
++import { useNavigate } from 'react-router-dom';
+ import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+ import type { SelectChangeEvent } from '@mui/material';
+ import { useSession } from '../session/useSession';
+ import type { Empresa } from '../session/sessionTypes';
++import { resolveRutaInicio } from '../utils/rutaInicio';
+ 
+ interface EmpresaSelectorProps {
+   variant?: 'header' | 'panel';
+@@ -9,6 +11,7 @@ interface EmpresaSelectorProps {
+ }
+ 
+ export default function EmpresaSelector({ variant = 'header', fullWidth = false }: EmpresaSelectorProps) {
++  const navigate = useNavigate();
+   const { session, setSession } = useSession();
+   const empresas: Empresa[] = session.empresas ?? [];
+   const empresaActivaId = session.empresaActivaId ?? '';
+@@ -16,13 +19,14 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false
+ 
+   if (!empresas || empresas.length <= 1) return null;
+ 
+-  const handleChange = (event: SelectChangeEvent<string>) => {
++  const handleChange = async (event: SelectChangeEvent<string>) => {
+     const nextId = event.target.value;
+     const parsedId = nextId ? Number(nextId) : null;
+     // Solo recargar si realmente cambió
+     if (parsedId !== session.empresaActivaId) {
+-      setSession({ ...session, empresaActivaId: parsedId });
+-      window.location.reload();
++      const nextSession = { ...session, empresaActivaId: parsedId };
++      setSession(nextSession);
++      navigate(await resolveRutaInicio(nextSession), { replace: true });
+     }
+   };
+ 
+diff --git a/frontend/src/components/Layout.tsx b/frontend/src/components/Layout.tsx
+index 1570a31..f401f12 100644
+--- a/frontend/src/components/Layout.tsx
++++ b/frontend/src/components/Layout.tsx
+@@ -16,8 +16,9 @@ import MenuItem from '@mui/material/MenuItem';
+ import Menu from '@mui/material/Menu';
+ import Divider from '@mui/material/Divider';
+ import Button from '@mui/material/Button';
++import useMediaQuery from '@mui/material/useMediaQuery';
+ import { useTheme } from '@mui/material/styles';
+-import MainMenu, { MainMenuItems, MainMenuLogo } from './Menu.js';
++import { MainMenuItems, MainMenuLogo } from './Menu.js';
+ import EmpresaSelector from './EmpresaSelector.js';
+ import { MODULE_TABS, MODULE_DESCRIPTIONS } from './navigationData.js';
+ import { useSession } from '../session/useSession';
+@@ -32,6 +33,8 @@ import WarehouseIcon from '@mui/icons-material/Warehouse';
+ import DescriptionIcon from '@mui/icons-material/Description';
+ import BuildIcon from '@mui/icons-material/Build';
+ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
++import VersionUpdateDrawer from './VersionUpdateDrawer';
++import { useVersionUpdateNotice } from '../hooks/useVersionUpdateNotice';
+ import { compareDocumentoVisualOrder } from '../modules/documentos/documentoVisualOrder';
+ import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
+ import { fetchParametrosSistema } from '../services/parametrosService';
+@@ -89,15 +92,20 @@ export default function Layout({ children }: LayoutProps) {
+   const userName = session.user?.nombre || 'Usuario';
+   const empresaId = session.empresaActivaId;
+   const theme = useTheme();
++  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
++  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
++  const { version: systemVersion, open: versionDrawerOpen, dismiss: dismissVersionDrawer, updateNow: updateNowVersion } = useVersionUpdateNotice();
+ 
+   const moduleNavSlotRef = React.useRef<HTMLDivElement | null>(null);
+   const moduleNavProbeRef = React.useRef<HTMLDivElement | null>(null);
+-  const useCompactNavigation = useResponsiveMainMenuMode({
++  const useCompactNavigationByWidth = useResponsiveMainMenuMode({
+     availableRef: moduleNavSlotRef,
+     contentRef: moduleNavProbeRef,
+     enterCompactPx: 24,
+     exitCompactPx: 48,
+   });
++  const useCompactNavigation = isMobile || useCompactNavigationByWidth;
++  const reserveEmpresaSlotForTabletCompact = isTablet && useCompactNavigation;
+ 
+   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+   const menuOpen = Boolean(anchorEl);
+@@ -414,7 +422,14 @@ export default function Layout({ children }: LayoutProps) {
+         }}
+       >
+         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 }, flex: '0 0 auto', minWidth: 0 }}>
+-          <MainMenuLogo />
++          {useCompactNavigation ? (
++            <IconButton color="inherit" onClick={() => setDrawerOpen(true)} aria-label="Abrir menú principal">
++              <MenuIcon />
++            </IconButton>
++          ) : null}
++          <Box sx={{ minWidth: 0, '& img': { height: { xs: useCompactNavigation ? 34 : 44, md: 44 } } }}>
++            <MainMenuLogo />
++          </Box>
+         </Box>
+ 
+         <Box
+@@ -429,17 +444,21 @@ export default function Layout({ children }: LayoutProps) {
+             overflow: 'hidden',
+           }}
+         >
+-          {useCompactNavigation ? (
+-            <IconButton color="inherit" onClick={() => setDrawerOpen(true)} aria-label="Abrir menú">
+-              <MenuIcon />
+-            </IconButton>
+-          ) : (
++          {useCompactNavigation ? null : (
+             <MainMenuItems selectedSection={selectedSection} onSelect={handleSectionChange} />
+           )}
+         </Box>
+ 
+         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: '0 0 auto' }}>
+-          <Box sx={{ minWidth: 220, flex: '0 0 auto', visibility: useCompactNavigation ? 'hidden' : 'visible' }}>
++          <Box
++            sx={{
++              minWidth: 220,
++              flex: '0 0 auto',
++              display: useCompactNavigation && !reserveEmpresaSlotForTabletCompact ? 'none' : 'block',
++              visibility: reserveEmpresaSlotForTabletCompact ? 'hidden' : 'visible',
++              pointerEvents: reserveEmpresaSlotForTabletCompact ? 'none' : 'auto',
++            }}
++          >
+             <EmpresaSelector />
+           </Box>
+           <Tooltip title={userName}>
+@@ -478,6 +497,15 @@ export default function Layout({ children }: LayoutProps) {
+               },
+             }}
+           >
++            <Box sx={{ px: 2, py: 1.25 }}>
++              <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3 }}>
++                Versión:
++              </Typography>
++              <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 600 }}>
++                {systemVersion || 'Cargando...'}
++              </Typography>
++            </Box>
++            <Divider />
+             <MenuItem onClick={handleUserMenuClose}>Perfil</MenuItem>
+             <MenuItem onClick={handleUserMenuClose}>Cambiar contraseña</MenuItem>
+             <Divider />
+@@ -548,6 +576,8 @@ export default function Layout({ children }: LayoutProps) {
+         </Box>
+       </Drawer>
+ 
++      <VersionUpdateDrawer open={versionDrawerOpen} version={systemVersion} onClose={dismissVersionDrawer} onUpdateNow={updateNowVersion} />
++
+       <Box
+         ref={moduleNavProbeRef}
+         aria-hidden="true"
+@@ -565,7 +595,7 @@ export default function Layout({ children }: LayoutProps) {
+         <MainMenuItems selectedSection={selectedSection} onSelect={handleSectionChange} />
+       </Box>
+ 
+-  <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: { xs: 1.5, md: 2 } }}>
++      <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: { xs: 1.5, md: 2 } }}>
+         <Box
+           component="main"
+           sx={{
+diff --git a/frontend/src/components/documentos/DocumentosDesktopView.tsx b/frontend/src/components/documentos/DocumentosDesktopView.tsx
+index 9b45c1f..cacbc49 100644
+--- a/frontend/src/components/documentos/DocumentosDesktopView.tsx
++++ b/frontend/src/components/documentos/DocumentosDesktopView.tsx
+@@ -1,10 +1,14 @@
+-import { Box, Button, Checkbox, CircularProgress, FormControlLabel, IconButton, InputAdornment, Paper, Stack, TextField, Toolbar, Typography } from '@mui/material';
++import * as React from 'react';
++import { Box, Button, Checkbox, CircularProgress, Divider, Drawer, FormControlLabel, IconButton, InputAdornment, Paper, Stack, TextField, Toolbar, Typography } from '@mui/material';
++import useMediaQuery from '@mui/material/useMediaQuery';
++import { useTheme } from '@mui/material/styles';
+ import { DataGrid } from '@mui/x-data-grid';
+ import { esES } from '@mui/x-data-grid/locales';
+ import RefreshIcon from '@mui/icons-material/Refresh';
+ import AddIcon from '@mui/icons-material/Add';
+ import SearchIcon from '@mui/icons-material/Search';
+ import CloseIcon from '@mui/icons-material/Close';
++import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
+ import { GridContextMenu } from '../grids/GridContextMenu';
+ import {
+   STANDARD_DATA_GRID_HEADER_HEIGHT,
+@@ -50,6 +54,11 @@ export default function DocumentosDesktopView({
+   contextMenuOpen,
+   onCloseContextMenu,
+ }: DocumentosDesktopViewProps) {
++  const theme = useTheme();
++  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
++  const [filtersSummaryDrawerOpen, setFiltersSummaryDrawerOpen] = React.useState(false);
++  const showInlineFiltersSummary = !isTablet;
++
+   return (
+     <>
+       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+@@ -63,6 +72,16 @@ export default function DocumentosDesktopView({
+         </Stack>
+         <Stack direction="row" spacing={1}>
+           {extraActionsContent}
++          {isTablet ? (
++            <Button
++              variant="outlined"
++              startIcon={<FilterAltOutlinedIcon />}
++              onClick={() => setFiltersSummaryDrawerOpen(true)}
++              sx={{ textTransform: 'none', fontWeight: 700 }}
++            >
++              Filtros y Resumen
++            </Button>
++          ) : null}
+           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={onRefresh} disabled={isLoading}>
+             Recargar
+           </Button>
+@@ -107,10 +126,72 @@ export default function DocumentosDesktopView({
+         ) : null}
+       </Stack>
+ 
+-      {filtersContent}
+-      {summaryContent}
++      {showInlineFiltersSummary ? filtersContent : null}
++      {showInlineFiltersSummary ? summaryContent : null}
+       {selectionContent}
+ 
++      <Drawer
++        anchor="bottom"
++        open={filtersSummaryDrawerOpen}
++        onClose={() => setFiltersSummaryDrawerOpen(false)}
++        PaperProps={{
++          sx: {
++            borderTopLeftRadius: 20,
++            borderTopRightRadius: 20,
++            maxHeight: '82vh',
++            pb: 'calc(16px + env(safe-area-inset-bottom, 0px))',
++          },
++        }}
++      >
++        <Box sx={{ px: 2, pt: 1.25, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
++          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
++            <Box sx={{ width: 44, height: 5, borderRadius: 999, backgroundColor: '#cbd5e1' }} />
++          </Box>
++
++          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
++            <Box>
++              <Typography variant="subtitle1" fontWeight={800} color="#1d2f68">
++                Filtros y Resumen
++              </Typography>
++              <Typography variant="body2" color="#4b5563">
++                Consulta filtros y totales sin salir del grid.
++              </Typography>
++            </Box>
++            <IconButton aria-label="Cerrar panel" onClick={() => setFiltersSummaryDrawerOpen(false)}>
++              <CloseIcon />
++            </IconButton>
++          </Box>
++
++          {showPendingToggle ? (
++            <FormControlLabel
++              control={<Checkbox checked={soloPendientes} onChange={(event) => onSoloPendientesChange(event.target.checked)} />}
++              label="Solo pendientes"
++            />
++          ) : null}
++
++          {filtersContent ? (
++            <Stack spacing={1.25}>
++              <Typography variant="subtitle2" fontWeight={800} color="#1f2937">
++                Filtros
++              </Typography>
++              {filtersContent}
++            </Stack>
++          ) : null}
++
++          {summaryContent ? (
++            <>
++              <Divider />
++              <Stack spacing={1.25}>
++                <Typography variant="subtitle2" fontWeight={800} color="#1f2937">
++                  Resumen
++                </Typography>
++                {summaryContent}
++              </Stack>
++            </>
++          ) : null}
++        </Box>
++      </Drawer>
++
+       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
+         <Box>
+           <DataGrid
+diff --git a/frontend/src/components/navigationData.ts b/frontend/src/components/navigationData.ts
+index bcfb551..408bb92 100644
+--- a/frontend/src/components/navigationData.ts
++++ b/frontend/src/components/navigationData.ts
+@@ -1,7 +1,7 @@
+ export const MAIN_MENUS = [
+   { label: 'Catálogos' },
+-  { label: 'CRM' },
+   { label: 'Ventas' },
++  { label: 'CRM' },
+   { label: 'Compras' },
+   { label: 'Finanzas' },
+   { label: 'Inventarios' },
+@@ -30,3 +30,13 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
+   Informes: 'Explora reportes y respuestas ad-hoc sobre tu negocio.',
+   Configuración: 'Configura catálogos del sistema, usuarios, roles y empresas.',
+ };
++
++export const MAIN_MENU_LINKS = [
++  { label: 'Contactos', path: '/contactos', description: 'Gestiona y consulta tus contactos registrados.' },
++  { label: 'Productos', path: '/productos', description: 'Administra el catálogo de productos y servicios.' },
++  { label: 'CRM', path: '/crm', description: 'Gestiona conversaciones y oportunidades comerciales desde un solo módulo.' },
++  { label: 'Finanzas', path: '/finanzas', description: 'Supervisa cuentas, movimientos y conciliaciones bancarias.' },
++  { label: 'Movimientos de inventario', path: '/inventario/movimientos', description: 'Consulta y registra los movimientos de inventario.' },
++  { label: 'Pregúntale a tu negocio', path: '/informes/ia', description: 'Explora reportes y respuestas ad-hoc sobre tu negocio.' },
++  { label: 'Configuración', path: '/configuracion', description: 'Configura catálogos del sistema, usuarios, roles y empresas.' },
++] as const;
+diff --git a/frontend/src/hooks/useGridPreferences.ts b/frontend/src/hooks/useGridPreferences.ts
+index e59e8cf..ff0a2a0 100644
+--- a/frontend/src/hooks/useGridPreferences.ts
++++ b/frontend/src/hooks/useGridPreferences.ts
+@@ -15,6 +15,8 @@ import {
+   saveGridPreferences,
+ } from '../services/gridPreferencesService';
+ 
++const SESSION_STORAGE_KEY = 'emphasys.session';
++
+ type UseGridPreferencesParams<TExternalFilters extends Record<string, unknown>> = {
+   pantalla: string;
+   perfilDispositivo: GridDeviceProfile;
+@@ -44,6 +46,30 @@ type UseGridPreferencesResult<TExternalFilters extends Record<string, unknown>>
+ 
+ const SAVE_DEBOUNCE_MS = 700;
+ 
++function getSessionScopeKey(): string {
++  try {
++    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
++    if (!raw) return 'anonymous:0';
++    const parsed = JSON.parse(raw) as {
++      user?: { id?: number | string };
++      empresaActivaId?: number | string;
++    };
++    const userId = Number(parsed?.user?.id ?? 0);
++    const empresaId = Number(parsed?.empresaActivaId ?? 0);
++    return `${userId}:${empresaId}`;
++  } catch {
++    return 'anonymous:0';
++  }
++}
++
++function toStableString(value: unknown): string {
++  try {
++    return JSON.stringify(value) ?? '';
++  } catch {
++    return '';
++  }
++}
++
+ export function useGridPreferences<TExternalFilters extends Record<string, unknown> = Record<string, unknown>>(
+   params: UseGridPreferencesParams<TExternalFilters>
+ ): UseGridPreferencesResult<TExternalFilters> {
+@@ -65,9 +91,45 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
+   const [columnWidths, setColumnWidthsState] = useState<Record<string, number>>({});
+   const [columnOrder, setColumnOrderState] = useState<string[]>(defaultColumnOrder);
+   const [externalFilters, setExternalFilters] = useState<TExternalFilters | undefined>(defaultExternalFilters);
++  const [sessionScopeKey, setSessionScopeKey] = useState<string>(() => getSessionScopeKey());
+ 
+   const hasHydratedRef = useRef(false);
+   const saveTimeoutRef = useRef<number | null>(null);
++  const lastSavedPayloadRef = useRef<string>('');
++  const defaultSortModelRef = useRef<GridSortModel>(defaultSortModel);
++  const defaultFilterModelRef = useRef<GridFilterModel>(defaultFilterModel);
++  const defaultColumnVisibilityModelRef = useRef<GridColumnVisibilityModel>(defaultColumnVisibilityModel);
++  const defaultColumnOrderRef = useRef<string[]>(defaultColumnOrder);
++  const defaultExternalFiltersRef = useRef<TExternalFilters | undefined>(defaultExternalFilters);
++  const onLoadExternalFiltersRef = useRef<typeof onLoadExternalFilters>(onLoadExternalFilters);
++
++  useEffect(() => {
++    defaultSortModelRef.current = defaultSortModel;
++    defaultFilterModelRef.current = defaultFilterModel;
++    defaultColumnVisibilityModelRef.current = defaultColumnVisibilityModel;
++    defaultColumnOrderRef.current = defaultColumnOrder;
++    defaultExternalFiltersRef.current = defaultExternalFilters;
++    onLoadExternalFiltersRef.current = onLoadExternalFilters;
++  }, [
++    defaultColumnOrder,
++    defaultColumnVisibilityModel,
++    defaultExternalFilters,
++    defaultFilterModel,
++    defaultSortModel,
++    onLoadExternalFilters,
++  ]);
++
++  useEffect(() => {
++    setSessionScopeKey(getSessionScopeKey());
++
++    const handleStorage = (event: StorageEvent) => {
++      if (event.key !== SESSION_STORAGE_KEY) return;
++      setSessionScopeKey(getSessionScopeKey());
++    };
++
++    window.addEventListener('storage', handleStorage);
++    return () => window.removeEventListener('storage', handleStorage);
++  }, []);
+ 
+   const loadPreferences = useCallback(async () => {
+     setLoadingPreferences(true);
+@@ -76,51 +138,70 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
+       const stored = await fetchGridPreferences(pantalla, perfilDispositivo);
+       const next = stored ?? {};
+ 
+-      setSortModelState(Array.isArray(next.sortModel) ? (next.sortModel as GridSortModel) : defaultSortModel);
++      const defaultSort = defaultSortModelRef.current;
++      const defaultFilter = defaultFilterModelRef.current;
++      const defaultVisibility = defaultColumnVisibilityModelRef.current;
++      const defaultOrder = defaultColumnOrderRef.current;
++      const defaultExternal = defaultExternalFiltersRef.current;
++
++      setSortModelState(Array.isArray(next.sortModel) ? (next.sortModel as GridSortModel) : defaultSort);
+       setFilterModelState(
+         next.filterModel
+         && typeof next.filterModel === 'object'
+         && Array.isArray((next.filterModel as { items?: unknown }).items)
+           ? (next.filterModel as unknown as GridFilterModel)
+-          : defaultFilterModel
++          : defaultFilter
+       );
+       setColumnVisibilityModelState(
+         next.columnVisibilityModel && typeof next.columnVisibilityModel === 'object'
+           ? (next.columnVisibilityModel as GridColumnVisibilityModel)
+-          : defaultColumnVisibilityModel
++          : defaultVisibility
+       );
+       setColumnWidthsState(
+         next.columnWidths && typeof next.columnWidths === 'object'
+           ? (next.columnWidths as Record<string, number>)
+           : {}
+       );
+-      setColumnOrderState(Array.isArray(next.columnOrder) ? (next.columnOrder as string[]) : defaultColumnOrder);
++      setColumnOrderState(Array.isArray(next.columnOrder) ? (next.columnOrder as string[]) : defaultOrder);
+ 
+       const storedExternalFilters =
+         next.externalFilters && typeof next.externalFilters === 'object'
+           ? (next.externalFilters as TExternalFilters)
+-          : defaultExternalFilters;
++          : defaultExternal;
+ 
+       setExternalFilters(storedExternalFilters);
+-      if (storedExternalFilters && onLoadExternalFilters) {
+-        onLoadExternalFilters(storedExternalFilters);
++      if (storedExternalFilters && onLoadExternalFiltersRef.current) {
++        onLoadExternalFiltersRef.current(storedExternalFilters);
+       }
++
++      const initialPayload: GridPreferencesPayload = {
++        version: 1,
++        sortModel: Array.isArray(next.sortModel) ? next.sortModel : defaultSort,
++        filterModel:
++          next.filterModel
++          && typeof next.filterModel === 'object'
++          && Array.isArray((next.filterModel as { items?: unknown }).items)
++            ? next.filterModel
++            : defaultFilter,
++        columnVisibilityModel:
++          next.columnVisibilityModel && typeof next.columnVisibilityModel === 'object'
++            ? next.columnVisibilityModel
++            : defaultVisibility,
++        columnWidths:
++          next.columnWidths && typeof next.columnWidths === 'object'
++            ? next.columnWidths
++            : {},
++        columnOrder: Array.isArray(next.columnOrder) ? next.columnOrder : defaultOrder,
++        externalFilters: (storedExternalFilters ?? {}) as Record<string, unknown>,
++      };
++      lastSavedPayloadRef.current = toStableString(initialPayload);
+     } catch (error) {
+       console.error('No se pudieron cargar preferencias de grid', error);
+     } finally {
+       hasHydratedRef.current = true;
+       setLoadingPreferences(false);
+     }
+-  }, [
+-    defaultColumnOrder,
+-    defaultColumnVisibilityModel,
+-    defaultExternalFilters,
+-    defaultFilterModel,
+-    defaultSortModel,
+-    onLoadExternalFilters,
+-    pantalla,
+-    perfilDispositivo,
+-  ]);
++  }, [pantalla, perfilDispositivo, sessionScopeKey]);
+ 
+   useEffect(() => {
+     void loadPreferences();
+@@ -143,10 +224,16 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
+       externalFilters: externalFilters ?? {},
+     };
+ 
++    const nextPayloadString = toStableString(payload);
++    if (nextPayloadString === lastSavedPayloadRef.current) {
++      return;
++    }
++
+     saveTimeoutRef.current = window.setTimeout(() => {
+       void saveGridPreferences(pantalla, perfilDispositivo, payload).catch((error) => {
+         console.error('No se pudieron guardar preferencias de grid', error);
+       });
++      lastSavedPayloadRef.current = nextPayloadString;
+     }, SAVE_DEBOUNCE_MS);
+ 
+     return () => {
+@@ -200,8 +287,13 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
+   }, []);
+ 
+   const persistExternalFilters = useCallback((value: TExternalFilters) => {
++    const next = toStableString(value);
++    const current = toStableString(externalFilters);
++    if (next === current) {
++      return;
++    }
+     setExternalFilters(value);
+-  }, []);
++  }, [externalFilters]);
+ 
+   return useMemo(
+     () => ({
+diff --git a/frontend/src/modules/documentos/DocumentoWhatsappDialog.tsx b/frontend/src/modules/documentos/DocumentoWhatsappDialog.tsx
+index 00dc3cb..ec20014 100644
+--- a/frontend/src/modules/documentos/DocumentoWhatsappDialog.tsx
++++ b/frontend/src/modules/documentos/DocumentoWhatsappDialog.tsx
+@@ -129,7 +129,8 @@ export function DocumentoWhatsappDialog({
+   const handleEnviar = async () => {
+     const telefonoFinal = telefono.trim();
+     const esFacturaCfdi = documento?.tipoDocumento === 'factura';
+-    const esCotizacion = documento?.tipoDocumento === 'cotizacion';
++    const esDocumentoConPDF = documento?.tipoDocumento === 'cotizacion' || documento?.tipoDocumento === 'orden_servicio';
++    const tipoDocumento = documento?.tipoDocumento ?? 'cotizacion';
+ 
+     if (!telefonoFinal) {
+       const message = 'Captura un teléfono para continuar.';
+@@ -145,7 +146,6 @@ export function DocumentoWhatsappDialog({
+       setResultadoEnvio({ severity: 'error', message });
+       console.warn('[CFDI WhatsApp] Envio cancelado por plantilla no resuelta', {
+         documentoId: documento?.id ?? null,
+-        plantillaId,
+       });
+       return;
+     }
+@@ -155,9 +155,10 @@ export function DocumentoWhatsappDialog({
+           telefono: telefonoFinal,
+           tipoPlantilla: plantillaSeleccionada.tipo,
+         }
+-      : esCotizacion
++      : esDocumentoConPDF
+         ? {
+             telefono: telefonoFinal,
++            tipo_documento: tipoDocumento,
+           }
+         : {
+             telefono: telefonoFinal,
+@@ -166,7 +167,7 @@ export function DocumentoWhatsappDialog({
+ 
+     const endpoint = esFacturaCfdi && documento?.id
+       ? `/api/facturas/${documento.id}/enviar-whatsapp-cfdi`
+-      : esCotizacion && documento?.id
++      : esDocumentoConPDF && documento?.id
+         ? `/api/documentos/${documento.id}/enviar-whatsapp-cotizacion`
+         : '/api/whatsapp/enviar-plantilla';
+ 
+@@ -201,15 +202,15 @@ export function DocumentoWhatsappDialog({
+         severity: 'success',
+         message: esFacturaCfdi
+           ? 'Template, PDF y XML enviados correctamente por WhatsApp.'
+-          : esCotizacion
+-            ? 'Cotización enviada correctamente por WhatsApp.'
++          : esDocumentoConPDF
++            ? `${documento?.tipoDocumentoLabel || 'Documento'} enviado correctamente por WhatsApp.`
+             : 'Plantilla enviada correctamente por WhatsApp.',
+       });
+     } catch (error: any) {
+       const message = error?.message || (esFacturaCfdi
+         ? 'No se pudo enviar el CFDI por WhatsApp.'
+-        : esCotizacion
+-          ? 'No se pudo enviar la cotización por WhatsApp.'
++        : esDocumentoConPDF
++          ? `No se pudo enviar ${documento?.tipoDocumentoLabel?.toLowerCase() || 'el documento'} por WhatsApp.`
+           : 'No se pudo enviar la plantilla por WhatsApp.');
+       console.error('[CFDI WhatsApp] Error envio WhatsApp documento', {
+         documentoId: documento?.id ?? null,
+diff --git a/frontend/src/modules/documentos/documentoTypeConfig.ts b/frontend/src/modules/documentos/documentoTypeConfig.ts
+index 3345494..a970146 100644
+--- a/frontend/src/modules/documentos/documentoTypeConfig.ts
++++ b/frontend/src/modules/documentos/documentoTypeConfig.ts
+@@ -94,7 +94,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
+     widgets: {
+       pagosDrawer: false,
+       origenDocumento: true,
+-      tratamientoFiscal: false,
++      tratamientoFiscal: true,
+       fiscalTab: false,
+     },
+     defaults: {
+@@ -318,7 +318,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
+       filtroAgente: false,
+       mostrarSaldo: false,
+       tiposContactoPermitidos: ['Cliente'],
+-      accionesDisponibles: ['enviar_email'],
++      accionesDisponibles: ['enviar_email', 'enviar_whatsapp'],
+     },
+     partidas: {
+       mostrarImagenes: true,
+@@ -328,7 +328,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
+     widgets: {
+       pagosDrawer: false,
+       origenDocumento: false,
+-      tratamientoFiscal: false,
++      tratamientoFiscal: true,
+       fiscalTab: false,
+     },
+     defaults: {
+@@ -402,7 +402,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
+     widgets: {
+       pagosDrawer: false,
+       origenDocumento: false,
+-      tratamientoFiscal: false,
++      tratamientoFiscal: true,
+       fiscalTab: false,
+     },
+     defaults: {
+@@ -471,7 +471,77 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
+     widgets: {
+       pagosDrawer: false,
+       origenDocumento: false,
+-      tratamientoFiscal: false,
++      tratamientoFiscal: true,
++      fiscalTab: false,
++    },
++    defaults: {
++      serie: null,
++      estadoSeguimiento: null,
++    },
++    relatedEntities: {
++      contacto: {
++        creationMode: 'inline',
++        captureMode: 'simple',
++        defaultTipoContacto: 'Cliente',
++        tiposPermitidos: ['Cliente'],
++      },
++      vendedor: {
++        creationMode: 'disabled',
++        captureMode: 'simple',
++        defaultTipoVendedor: 'Vendedor',
++        tiposPermitidos: ['Vendedor'],
++      },
++      producto: {
++        creationMode: 'disabled',
++        captureMode: 'simple',
++        defaultTipoProducto: 'Inventariable',
++        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
++      },
++    },
++    secciones: { ...seccionesBase },
++    campos: {
++      ...camposBase,
++      serie: { ...camposBase.serie, visible: false },
++      numero: { ...camposBase.numero, visible: false },
++      moneda: { ...camposBase.moneda, required: true },
++      tipo_cambio: { ...camposBase.tipo_cambio, visible: false },
++      observaciones: { ...camposBase.observaciones, required: false },
++    },
++    fiscales: {
++      requiereDatosFiscales: false,
++      requiereMetodoPago: false,
++      requiereFormaPago: false,
++      requiereUsoCfdi: false,
++      requiereRegimenFiscal: false,
++      requiereTipoCambio: false,
++    },
++    estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
++  },
++  orden_entrega: {
++    tipo: 'orden_entrega',
++    label: 'Orden de entrega',
++    descripcion: 'Documento para control de entrega de mercancía o servicio.',
++    textos: {
++      nuevo: 'Nueva orden de entrega',
++      editar: 'Editar orden de entrega',
++      guardado: 'Orden de entrega guardada',
++      cargando: 'Cargando orden de entrega...',
++      singular: 'orden de entrega',
++    },
++    features: {
++      filtroAgente: false,
++      mostrarSaldo: false,
++      accionesDisponibles: [],
++    },
++    partidas: {
++      mostrarImagenes: false,
++      mostrarEsParteOportunidad: false,
++      mostrarMontoOportunidad: false,
++    },
++    widgets: {
++      pagosDrawer: false,
++      origenDocumento: false,
++      tratamientoFiscal: true,
+       fiscalTab: false,
+     },
+     defaults: {
+diff --git a/frontend/src/pages/CRMPage.tsx b/frontend/src/pages/CRMPage.tsx
+index ed011c1..4fd8bed 100644
+--- a/frontend/src/pages/CRMPage.tsx
++++ b/frontend/src/pages/CRMPage.tsx
+@@ -4,20 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
+ import ActividadesPage from './ActividadesPage';
+ import LeadsPage from './LeadsPage';
+ import OportunidadesPage from './OportunidadesPage';
++import { CRM_TABS } from '../components/crmNavigation';
+ 
+-type CrmTabKey = 'actividades' | 'oportunidades' | 'conversaciones';
+-
+-type CrmTabConfig = {
+-  key: CrmTabKey;
+-  label: string;
+-  path: string;
+-};
+-
+-const CRM_TABS: CrmTabConfig[] = [
+-  { key: 'actividades', label: 'Actividades', path: '/crm/actividades' },
+-  { key: 'oportunidades', label: 'Oportunidades', path: '/crm/oportunidades' },
+-  { key: 'conversaciones', label: 'Conversaciones', path: '/crm/conversaciones' },
+-];
++type CrmTabKey = (typeof CRM_TABS)[number]['key'];
+ 
+ const CRM_TAB_STYLE = {
+   minHeight: 0,
+diff --git a/frontend/src/pages/ConfiguracionPage.tsx b/frontend/src/pages/ConfiguracionPage.tsx
+index e1e5416..8f389b9 100644
+--- a/frontend/src/pages/ConfiguracionPage.tsx
++++ b/frontend/src/pages/ConfiguracionPage.tsx
+@@ -19,124 +19,34 @@ import {
+   GridViewRounded,
+   TagRounded,
+ } from '@mui/icons-material';
++import { CONFIGURACION_OPTIONS } from './configuracion/configuracionNavigation';
+ 
+-const opciones = [
+-  {
+-    titulo: 'Empresas',
+-    descripcion: 'Configura empresas y sus parámetros generales.',
+-    icono: BusinessRounded,
+-    path: '/configuracion/empresas',
+-  },
+-  {
+-    titulo: 'Usuarios',
+-    descripcion: 'Gestiona cuentas de acceso y credenciales.',
+-    icono: GroupRounded,
+-    path: '/configuracion/usuarios',
+-  },
+-  {
+-    titulo: 'Roles',
+-    descripcion: 'Define roles y permisos para los usuarios.',
+-    icono: ShieldRounded,
+-    path: '/configuracion/roles',
+-  },
+-  {
+-    titulo: 'Catálogos configurables',
+-    descripcion: 'Administra catálogos basados en core.catalogos_tipos y core.catalogos.',
+-    icono: CategoryRounded,
+-    path: '/configuracion/catalogos',
+-  },
+-  {
+-    titulo: 'Campos dinámicos',
+-    descripcion: 'Configura campos dinámicos y sus dependencias.',
+-    icono: TuneRounded,
+-    path: '/configuracion/campos',
+-  },
+-  {
+-    titulo: 'Listas de precios',
+-    descripcion: 'Administra catálogos de listas de precios de venta y compra por empresa.',
+-    icono: ViewListRounded,
+-    path: '/configuracion/listas-precios',
+-  },
+-  {
+-    titulo: 'Administración de precios',
+-    descripcion: 'Captura masiva de precios por producto y por lista de precios activa.',
+-    icono: GridViewRounded,
+-    path: '/configuracion/precios',
+-  },
+-  {
+-    titulo: 'Documentos y flujo',
+-    descripcion: 'Activa tipos de documento y define las transiciones entre ellos.',
+-    icono: SchemaRounded,
+-    path: '/configuracion/documentos',
+-  },
+-  {
+-    titulo: 'Parámetros del sistema',
+-    descripcion: 'Ajusta preferencias y configuraciones globales.',
+-    icono: SettingsRounded,
+-    path: '/configuracion/parametros',
+-  },
+-  {
+-    titulo: 'Opciones de parámetros',
+-    descripcion: 'Gestiona opciones para parámetros tipo dropdown.',
+-    icono: SettingsRounded,
+-    path: '/configuracion/parametros-opciones',
+-  },
+-  {
+-    titulo: 'Conceptos',
+-    descripcion: 'Administra el catálogo de conceptos financieros.',
+-    icono: ReceiptLongRounded,
+-    path: '/configuracion/conceptos',
+-  },
+-  {
+-    titulo: 'Impuestos por default',
+-    descripcion: 'Define los impuestos predeterminados por empresa.',
+-    icono: PercentRounded,
+-    path: '/configuracion/empresa/impuestos-default',
+-  },
+-  {
+-    titulo: 'Formatos de impresión',
+-    descripcion: 'Configura los layouts de PDF por empresa o por serie.',
+-    icono: PictureAsPdfRounded,
+-    path: '/configuracion/formatos-impresion',
+-  },
+-  {
+-    titulo: 'Series de documentos',
+-    descripcion: 'Administra series por tipo de documento y sus asignaciones por usuario.',
+-    icono: TagRounded,
+-    path: '/configuracion/series-documento',
+-  },
+-  {
+-    titulo: 'Correo SMTP',
+-    descripcion: 'Configura envío de correos por empresa y por usuario, y prueba la conexión SMTP.',
+-    icono: AlternateEmailRounded,
+-    path: '/configuracion/correo',
+-  },
+-  {
+-    titulo: 'PAC CFDI',
+-    descripcion: 'Administra la configuración global del PAC CFDI para sandbox y productivo.',
+-    icono: CloudRounded,
+-    path: '/configuracion/cfdi-pac',
+-    soloSuperadmin: true,
+-  },
+-  {
+-    titulo: 'Etiquetas de WhatsApp',
+-    descripcion: 'Administra el catálogo de etiquetas para conversaciones y leads.',
+-    icono: LabelRounded,
+-    path: '/configuracion/whatsapp-etiquetas',
+-  },
+-  {
+-    titulo: 'Etapas de producción',
+-    descripcion: 'Configura nombres, colores, secuencia y activación de las etapas operativas.',
+-    icono: SchemaRounded,
+-    path: '/configuracion/produccion-etapas',
+-  },
+-];
++const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
++  Empresas: BusinessRounded,
++  Usuarios: GroupRounded,
++  Roles: ShieldRounded,
++  'Catálogos configurables': CategoryRounded,
++  'Campos dinámicos': TuneRounded,
++  'Listas de precios': ViewListRounded,
++  'Administración de precios': GridViewRounded,
++  'Documentos y flujo': SchemaRounded,
++  'Parámetros del sistema': SettingsRounded,
++  'Opciones de parámetros': SettingsRounded,
++  Conceptos: ReceiptLongRounded,
++  'Impuestos por default': PercentRounded,
++  'Formatos de impresión': PictureAsPdfRounded,
++  'Series de documentos': TagRounded,
++  'Correo SMTP': AlternateEmailRounded,
++  'PAC CFDI': CloudRounded,
++  'Etiquetas de WhatsApp': LabelRounded,
++  'Etapas de producción': SchemaRounded,
++};
+ 
+ export default function ConfiguracionPage() {
+   const navigate = useNavigate();
+   const isSuperadmin = Boolean((window.localStorage.getItem('emphasys.session') && JSON.parse(window.localStorage.getItem('emphasys.session') || '{}')?.user?.es_superadmin));
+ 
+-  const opcionesVisibles = opciones.filter((opcion) => !(opcion as any).soloSuperadmin || isSuperadmin);
++  const opcionesVisibles = CONFIGURACION_OPTIONS.filter((opcion) => !opcion.soloSuperadmin || isSuperadmin);
+ 
+   return (
+     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+@@ -161,7 +71,7 @@ export default function ConfiguracionPage() {
+         }}
+       >
+         {opcionesVisibles.map((opcion) => {
+-          const Icono = opcion.icono ?? SchemaRounded;
++          const Icono = ICONOS_POR_TITULO[opcion.titulo] ?? SchemaRounded;
+ 
+           return (
+             <Card
+@@ -169,10 +79,7 @@ export default function ConfiguracionPage() {
+               elevation={0}
+               sx={{ border: '1px solid #e5e7eb', borderRadius: 2, height: '100%' }}
+             >
+-              <CardActionArea
+-                sx={{ height: '100%' }}
+-                onClick={opcion.path ? () => navigate(opcion.path!) : undefined}
+-              >
++              <CardActionArea sx={{ height: '100%' }} onClick={opcion.path ? () => navigate(opcion.path) : undefined}>
+                 <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                   <Stack direction="row" alignItems="center" spacing={1.5}>
+                     <Box
+diff --git a/frontend/src/pages/DocumentosFormPage.tsx b/frontend/src/pages/DocumentosFormPage.tsx
+index 3fe0bf0..ad638ed 100644
+--- a/frontend/src/pages/DocumentosFormPage.tsx
++++ b/frontend/src/pages/DocumentosFormPage.tsx
+@@ -254,10 +254,21 @@ const getCuentaFinancieraDisplayLabel = (cuenta: FinanzasCuenta) => {
+ const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
+   { label: 'Operación estándar', value: 'normal' },
+   { label: 'Nota de venta', value: 'sin_iva' },
+-  { label: 'Operación a tasa 0%', value: 'tasa_cero' },
++  { label: 'Operación tasa cero', value: 'tasa_cero' },
+   { label: 'Operación exenta', value: 'exento' },
+ ];
+ 
++const TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL = new Set<TipoDocumento>([
++  'factura',
++  'nota_credito',
++  'nota_credito_compra',
++  'cotizacion',
++  'pedido',
++  'orden_servicio',
++  'remision',
++  'orden_entrega',
++]);
++
+ const emptyPartida = (): PartidaForm => ({
+   producto_id: null,
+   descripcion_alterna: '',
+@@ -1107,6 +1118,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
+   const resumenFinanciero = usaGeneracionEspecialNotaCredito ? resumenNotaCreditoEspecial : discountSummary;
+   const mostrarResumenFinanciero = !usaCapturaEspecialNotaCredito || usaGeneracionEspecialNotaCredito;
+   const mostrarResumenFinancieroStickyVisible = mostrarResumenFinancieroSticky || usaGeneracionEspecialNotaCredito;
++  const ocultarIvaPorTratamiento = String(form.tratamiento_impuestos ?? 'normal').toLowerCase() === 'sin_iva';
+ 
+   const recalcularNotaCreditoManual = useCallback(async (montoTotal: number, tratamiento: TratamientoImpuestos | null | undefined) => {
+     const total = Number.isFinite(montoTotal) ? Math.max(0, Number(montoTotal)) : 0;
+@@ -2341,7 +2353,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
+         cuenta_financiera_id: form.cuenta_financiera_id ?? null,
+         finanzas_operacion_id: form.finanzas_operacion_id ?? null,
+         aplicaciones_documento: aplicacionesDocumento,
+-        tratamiento_impuestos: ['factura', 'nota_credito', 'nota_credito_compra'].includes(tipoDocumento) ? form.tratamiento_impuestos || 'normal' : 'normal',
++        tratamiento_impuestos: TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL.has(tipoDocumento) ? form.tratamiento_impuestos || 'normal' : 'normal',
+         rfc_receptor: form.rfc_receptor?.trim() || null,
+         nombre_receptor: form.nombre_receptor?.trim() || null,
+         regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
+@@ -5330,7 +5342,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
+                           { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
+                           { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
+                           { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+-                          { label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' },
++                          ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
+                           { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
+                         ].map((item) => (
+                           <Paper
+@@ -5397,7 +5409,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
+                   { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
+                   { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
+                   { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+-                  { label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' },
++                  ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
+                   { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
+                 ].map((item) => (
+                   <Paper
+@@ -5483,7 +5495,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
+                 ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: '#9a3412' }]
+                 : []),
+               { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+-              { label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' },
++              ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
+               { label: 'Total', value: resumenFinanciero.total, tone: '#111827', strong: true },
+             ].map((item) => (
+               <Box
+diff --git a/frontend/src/pages/DocumentosPage.tsx b/frontend/src/pages/DocumentosPage.tsx
+index 1a4b630..4a42a32 100644
+--- a/frontend/src/pages/DocumentosPage.tsx
++++ b/frontend/src/pages/DocumentosPage.tsx
+@@ -352,6 +352,22 @@ const esDocumentoFiscalPorTratamiento = (tipoDocumento: TipoDocumento, tratamien
+   return String(tratamientoImpuestos ?? 'normal').trim().toLowerCase() !== 'sin_iva';
+ };
+ 
++type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
++
++const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
++  { label: 'Operación estándar', value: 'normal' },
++  { label: 'Nota de venta', value: 'sin_iva' },
++  { label: 'Operación tasa cero', value: 'tasa_cero' },
++  { label: 'Operación exenta', value: 'exento' },
++];
++
++const normalizarTratamiento = (value: unknown): TratamientoImpuestos => {
++  const normalized = String(value ?? '').trim().toLowerCase();
++  return (['normal', 'sin_iva', 'tasa_cero', 'exento'] as const).includes(normalized as TratamientoImpuestos)
++    ? (normalized as TratamientoImpuestos)
++    : 'normal';
++};
++
+ const puedeTimbrarCfdiDocumento = (tipoDocumento: TipoDocumento, row?: Partial<CotizacionListado> | null): boolean => {
+   const tipoNormalizado = normalizeTipoDocumento(tipoDocumento);
+   if (!esDocumentoFiscalPorTratamiento(tipoNormalizado, row?.tratamiento_impuestos)) {
+@@ -394,6 +410,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+   }, [modulo]);
+ 
+   const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
++  const tipoDocumentoPermiteCorreo = tipoDocumento === 'cotizacion' || tipoDocumento === 'orden_servicio';
++  const tipoDocumentoPermiteWhatsapp = tipoDocumento === 'cotizacion' || tipoDocumento === 'orden_servicio' || tipoDocumento === 'factura';
+ 
+   const textos = useMemo(() => {
+     const match = tiposDocumento.find((t) => t.codigo === tipoDocumento);
+@@ -489,8 +507,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+     tipoDestino: string | null;
+     data: PrepararGeneracionResponse | null;
+     cantidades: Record<number, number>;
++    tratamientoImpuestos: TratamientoImpuestos;
+     enviando: boolean;
+-  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
++  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
+   const [aplicarAnticiposDialog, setAplicarAnticiposDialog] = useState<{
+     open: boolean;
+     documentoOrigenId: number | null;
+@@ -809,6 +828,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+       tipoDestino,
+       data: null,
+       cantidades: {},
++      tratamientoImpuestos: 'normal',
+       enviando: false,
+     });
+ 
+@@ -818,6 +838,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
+         return acc;
+       }, {});
++      const tratamientoInicial = normalizarTratamiento(data.documento_origen?.tratamiento_impuestos);
+       setGeneracionDialog({
+         open: true,
+         loading: false,
+@@ -826,6 +847,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         tipoDestino,
+         data,
+         cantidades,
++        tratamientoImpuestos: tratamientoInicial,
+         enviando: false,
+       });
+     } catch (err: any) {
+@@ -837,6 +859,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         tipoDestino: null,
+         data: null,
+         cantidades: {},
++        tratamientoImpuestos: 'normal',
+         enviando: false,
+       });
+       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la generación', severity: 'error' });
+@@ -987,6 +1010,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+       tipoDestino: bulkNotaCreditoDestino,
+       data: null,
+       cantidades: {},
++      tratamientoImpuestos: 'normal',
+       enviando: false,
+     });
+ 
+@@ -996,6 +1020,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
+         return acc;
+       }, {});
++      const tratamientosOrigen = Array.from(new Set((data.documentos_origen ?? []).map((doc) => normalizarTratamiento(doc.tratamiento_impuestos))));
++      const tratamientoInicial = tratamientosOrigen.length === 1 ? tratamientosOrigen[0] : normalizarTratamiento(data.documento_origen?.tratamiento_impuestos);
+       setGeneracionDialog({
+         open: true,
+         loading: false,
+@@ -1004,10 +1030,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         tipoDestino: bulkNotaCreditoDestino,
+         data,
+         cantidades,
++        tratamientoImpuestos: tratamientoInicial,
+         enviando: false,
+       });
+     } catch (err: any) {
+-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
++      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
+       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la consolidación', severity: 'error' });
+     }
+   };
+@@ -1096,13 +1123,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         ? { documento_origen_ids: generacionDialog.documentoIds }
+         : { documento_origen_id: generacionDialog.documentoId ?? undefined }),
+       tipo_documento_destino: generacionDialog.tipoDestino as any,
++      datos_encabezado: {
++        tratamiento_impuestos: generacionDialog.tratamientoImpuestos,
++      },
+       partidas,
+     };
+ 
+     try {
+       setGeneracionDialog((prev) => ({ ...prev, enviando: true }));
+       const result = await generarDocumentoDesdeOrigen(payload, token!, empresaId!);
+-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false });
++      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
+       setSnackbar({ open: true, message: 'Documento generado correctamente', severity: 'success' });
+       await handlePostGeneration({
+         documentoOrigenId: generacionDialog.documentoId ?? generacionDialog.documentoIds[0] ?? 0,
+@@ -1200,12 +1230,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+   const abrirDialogoEnviarCotizacion = (row: CotizacionListado) => {
+     const folio = formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0));
+     const emailInicial = obtenerEmailDocumento(row);
++    const esCotizacion = tipoDocumento === 'cotizacion';
++    const etiquetaDocumento = esCotizacion ? 'Cotizacion' : documentoTypeConfig.label;
++    const textoDocumento = esCotizacion ? 'cotizacion' : documentoTypeConfig.textos.singular;
+     setEnviarCotizacionDialog({
+       open: true,
+       id: Number(row.id),
+       email: emailInicial,
+-      subject: `Cotizacion ${folio}`,
+-      message: `Se adjunta la cotizacion ${folio}.`,
++      subject: `${etiquetaDocumento} ${folio}`,
++      message: `Se adjunta la ${textoDocumento} ${folio}.`,
+       enviando: false,
+       error: emailInicial ? null : 'El cliente no tiene correo registrado. Captura uno para continuar.',
+     });
+@@ -1626,7 +1659,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+               <DownloadIcon fontSize="small" />
+             </IconButton>
+           </Tooltip>
+-          {hasAction('enviar_email') && tipoDocumento === 'cotizacion' && (
++          {hasAction('enviar_email') && tipoDocumentoPermiteCorreo && (
+             <Tooltip title="Enviar por correo">
+               <span>
+                 <IconButton
+@@ -1730,7 +1763,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+               </span>
+             </Tooltip>
+           )}
+-          {hasAction('enviar_whatsapp') && (
++          {hasAction('enviar_whatsapp') && tipoDocumentoPermiteWhatsapp && (
+             <Tooltip title={documentoPuedeTimbrarCfdi && !facturaTimbrada ? mensajeFacturaNoTimbrada : 'Enviar por WhatsApp'}>
+               <span>
+                 <IconButton
+@@ -1980,7 +2013,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         id: 'enviar-correo-cotizacion',
+         label: 'Enviar por correo',
+         icon: <EmailIcon fontSize="small" />,
+-        hidden: !(hasAction('enviar_email') && tipoDocumento === 'cotizacion'),
++        hidden: !(hasAction('enviar_email') && tipoDocumentoPermiteCorreo),
+         disabled: loading,
+         onClick: () => abrirDialogoEnviarCotizacion(contextMenuRow),
+       },
+@@ -1999,7 +2032,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         id: 'enviar-whatsapp',
+         label: 'Enviar por WhatsApp',
+         icon: <WhatsAppIcon fontSize="small" />,
+-        hidden: !hasAction('enviar_whatsapp'),
++        hidden: !(hasAction('enviar_whatsapp') && tipoDocumentoPermiteWhatsapp),
+         disabled: loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada),
+         onClick: () => {
+           console.info('[CFDI WhatsApp] Abrir modal de envio', {
+@@ -2821,7 +2854,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+ 
+       <Dialog
+         open={generacionDialog.open}
+-        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false })}
++        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false })}
+         fullWidth
+         maxWidth="md"
+       >
+@@ -2841,6 +2874,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+                   ? `${generacionDialog.data.documentos_origen.length} documentos consolidados`
+                   : (generacionDialog.data.documento_origen?.folio || generacionDialog.data.documento_origen?.documento_id)} · Destino: {generacionDialog.tipoDestino}
+               </Typography>
++              <TextField
++                select
++                label="Tratamiento fiscal"
++                size="small"
++                value={generacionDialog.tratamientoImpuestos}
++                onChange={(event) => setGeneracionDialog((prev) => ({
++                  ...prev,
++                  tratamientoImpuestos: normalizarTratamiento(event.target.value),
++                }))}
++              >
++                {TRATAMIENTO_OPCIONES.map((option) => (
++                  <MenuItem key={option.value} value={option.value}>
++                    {option.label}
++                  </MenuItem>
++                ))}
++              </TextField>
+               <Table size="small">
+                 <TableHead>
+                   <TableRow>
+@@ -2876,7 +2925,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         </DialogContent>
+         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+           <Button
+-            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, enviando: false })}
++            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false })}
+             disabled={generacionDialog.enviando}
+           >
+             Cancelar
+@@ -2952,11 +3001,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+         fullWidth
+         maxWidth="sm"
+       >
+-        <DialogTitle>Enviar cotización por correo</DialogTitle>
++        <DialogTitle>{tipoDocumento === 'orden_servicio' ? 'Enviar orden de servicio por correo' : 'Enviar cotización por correo'}</DialogTitle>
+         <DialogContent sx={{ pt: 1 }}>
+           <Stack spacing={2} sx={{ pt: 1 }}>
+             <DialogContentText>
+-              Confirma el correo del cliente y ajusta el mensaje antes de enviar la cotización en PDF.
++              {tipoDocumento === 'orden_servicio'
++                ? 'Confirma el correo del cliente y ajusta el mensaje antes de enviar la orden de servicio en PDF.'
++                : 'Confirma el correo del cliente y ajusta el mensaje antes de enviar la cotización en PDF.'}
+             </DialogContentText>
+             <TextField
+               autoFocus
+@@ -3005,12 +3056,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
+                   to: email,
+                   subject: enviarCotizacionDialog.subject.trim(),
+                   message: enviarCotizacionDialog.message.trim(),
++                  tipoDocumento,
+                 });
+                 await load();
+-                setSnackbar({ open: true, message: 'Cotización enviada correctamente', severity: 'success' });
++                setSnackbar({ open: true, message: `${documentoTypeConfig.label} enviada correctamente`, severity: 'success' });
+                 setEnviarCotizacionDialog({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null });
+               } catch (err: any) {
+-                const msg = err?.message || 'No se pudo enviar la cotización';
++                const msg = err?.message || `No se pudo enviar ${documentoTypeConfig.textos.singular}`;
+                 setEnviarCotizacionDialog((prev) => ({ ...prev, enviando: false, error: msg }));
+                 setSnackbar({ open: true, message: msg, severity: 'error' });
+               }
+diff --git a/frontend/src/pages/LoginPage.tsx b/frontend/src/pages/LoginPage.tsx
+index 9ac4d71..fba0301 100644
+--- a/frontend/src/pages/LoginPage.tsx
++++ b/frontend/src/pages/LoginPage.tsx
+@@ -4,6 +4,7 @@ import { Box, Button, TextField, Typography, Stack } from "@mui/material";
+ import { login } from "../services/authService";
+ import { useSession } from "../session/useSession";
+ import type { Empresa } from "../session/sessionTypes";
++import { resolveRutaInicio } from "../utils/rutaInicio";
+ 
+ export default function LoginPage() {
+   const navigate = useNavigate();
+@@ -20,10 +21,9 @@ export default function LoginPage() {
+     setLoading(true);
+ 
+     try {
+-  const { token, user, empresas } = await login(email, password);
+-
+-  const empresasList: Empresa[] = empresas ?? [];
+-  const empresaActivaId = empresasList.length === 1 ? empresasList[0]?.id ?? null : null;
++      const { token, user, empresas } = await login(email, password);
++      const empresasList: Empresa[] = empresas ?? [];
++      const empresaActivaId = empresasList.length === 1 ? empresasList[0]?.id ?? null : null;
+ 
+       setSession({
+         token,
+@@ -33,7 +33,7 @@ export default function LoginPage() {
+       });
+ 
+       if (empresaActivaId) {
+-        navigate("/");
++        navigate(await resolveRutaInicio({ token, user, empresas: empresasList, empresaActivaId }), { replace: true });
+       } else {
+         navigate("/seleccionar-empresa");
+       }
+diff --git a/frontend/src/pages/SeleccionEmpresaPage.tsx b/frontend/src/pages/SeleccionEmpresaPage.tsx
+index c64ab93..6065a44 100644
+--- a/frontend/src/pages/SeleccionEmpresaPage.tsx
++++ b/frontend/src/pages/SeleccionEmpresaPage.tsx
+@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
+ import { Box, Typography, List, ListItemButton, ListItemText, Card, CardActionArea } from "@mui/material";
+ import { useSession } from "../session/useSession";
+ import type { Empresa } from "../session/sessionTypes";
++import { resolveRutaInicio } from "../utils/rutaInicio";
+ 
+ export default function SeleccionEmpresaPage() {
+   const navigate = useNavigate();
+@@ -19,15 +20,21 @@ export default function SeleccionEmpresaPage() {
+     if (empresas.length === 1) {
+       const unica = empresas[0];
+       if (unica) {
+-        setSession({ ...session, empresaActivaId: unica.id });
+-        navigate("/", { replace: true });
++        const nextSession = { ...session, empresaActivaId: unica.id };
++        setSession(nextSession);
++        void (async () => {
++          navigate(await resolveRutaInicio(nextSession), { replace: true });
++        })();
+       }
+     }
+   }, [session, empresas, navigate, setSession]);
+ 
+   const handleSelect = (empresa: Empresa) => {
+-    setSession({ ...session, empresaActivaId: empresa.id });
+-    navigate("/", { replace: true });
++    const nextSession = { ...session, empresaActivaId: empresa.id };
++    setSession(nextSession);
++    void (async () => {
++      navigate(await resolveRutaInicio(nextSession), { replace: true });
++    })();
+   };
+ 
+   if (!session.token) return null;
+diff --git a/frontend/src/pages/configuracion/EmpresasPage.tsx b/frontend/src/pages/configuracion/EmpresasPage.tsx
+index 8392abe..a1cfa15 100644
+--- a/frontend/src/pages/configuracion/EmpresasPage.tsx
++++ b/frontend/src/pages/configuracion/EmpresasPage.tsx
+@@ -30,7 +30,7 @@ import AddIcon from '@mui/icons-material/Add';
+ import EditIcon from '@mui/icons-material/Edit';
+ import DeleteIcon from '@mui/icons-material/DeleteOutline';
+ import ReplayIcon from '@mui/icons-material/Replay';
+-import { createEmpresa, deleteEmpresa, fetchEmpresas, updateEmpresa } from '../../services/empresasService';
++import { createEmpresa, deleteEmpresa, fetchEmpresa, fetchEmpresas, registrarEmpresaCsdFacturama, updateEmpresa } from '../../services/empresasService';
+ import { buildAssetUrl, fetchEmpresaAsset, uploadEmpresaAsset } from '../../services/empresasAssetsService';
+ import type { Empresa, EmpresaPayload } from '../../types/empresa';
+ import { apiFetch } from '../../services/apiFetch';
+@@ -92,6 +92,12 @@ export default function EmpresasPage() {
+   const [logoFile, setLogoFile] = useState<File | null>(null);
+   const [logoAsset, setLogoAsset] = useState<{ ruta: string } | null>(null);
+   const [uploadingLogo, setUploadingLogo] = useState(false);
++  const [csdCerFile, setCsdCerFile] = useState<File | null>(null);
++  const [csdKeyFile, setCsdKeyFile] = useState<File | null>(null);
++  const [csdPassword, setCsdPassword] = useState('');
++  const [csdSubmitting, setCsdSubmitting] = useState(false);
++  const [csdError, setCsdError] = useState<string | null>(null);
++  const [csdSuccess, setCsdSuccess] = useState<string | null>(null);
+ 
+   const resetLogoState = () => {
+     setLogoLoading(false);
+@@ -101,6 +107,15 @@ export default function EmpresasPage() {
+     setLogoAsset(null);
+   };
+ 
++  const resetCsdState = () => {
++    setCsdCerFile(null);
++    setCsdKeyFile(null);
++    setCsdPassword('');
++    setCsdSubmitting(false);
++    setCsdError(null);
++    setCsdSuccess(null);
++  };
++
+   const tituloDialogo = editId ? 'Editar empresa' : 'Crear empresa';
+ 
+   const faltantes = useMemo(() => {
+@@ -146,6 +161,7 @@ export default function EmpresasPage() {
+     if (regimenOptions.length === 0) {
+       void loadRegimenesOptions();
+     }
++    resetCsdState();
+     setDialogOpen(true);
+   };
+ 
+@@ -162,6 +178,7 @@ export default function EmpresasPage() {
+       void loadRegimenesOptions();
+     }
+     resetLogoState();
++    resetCsdState();
+     void loadLogoAsset(empresa.id);
+     setDialogOpen(true);
+   };
+@@ -170,6 +187,7 @@ export default function EmpresasPage() {
+     setDialogOpen(false);
+     setFormError(null);
+     resetLogoState();
++    resetCsdState();
+   };
+ 
+   const handleChange = (campo: keyof EmpresaPayload, value: any) => {
+@@ -439,6 +457,77 @@ export default function EmpresasPage() {
+     }
+   };
+ 
++  const handleCsdFileChange = (kind: 'cer' | 'key', file?: File) => {
++    if (!file) {
++      if (kind === 'cer') setCsdCerFile(null);
++      if (kind === 'key') setCsdKeyFile(null);
++      return;
++    }
++
++    const expectedExtension = kind === 'cer' ? '.cer' : '.key';
++    if (!file.name.toLowerCase().endsWith(expectedExtension)) {
++      setCsdError(`El archivo ${kind.toUpperCase()} debe tener extensión ${expectedExtension}`);
++      if (kind === 'cer') setCsdCerFile(null);
++      if (kind === 'key') setCsdKeyFile(null);
++      return;
++    }
++
++    setCsdError(null);
++    setCsdSuccess(null);
++    if (kind === 'cer') setCsdCerFile(file);
++    if (kind === 'key') setCsdKeyFile(file);
++  };
++
++  const handleRegistrarCsd = async () => {
++    if (!editId) {
++      setCsdError('Guarda primero la empresa para registrar su CSD');
++      return;
++    }
++
++    if (!csdCerFile) {
++      setCsdError('Selecciona el archivo .cer');
++      return;
++    }
++
++    if (!csdKeyFile) {
++      setCsdError('Selecciona el archivo .key');
++      return;
++    }
++
++    if (!csdPassword.trim()) {
++      setCsdError('Ingresa la contraseña del CSD');
++      return;
++    }
++
++    setCsdSubmitting(true);
++    setCsdError(null);
++    setCsdSuccess(null);
++
++    try {
++      const response = await registrarEmpresaCsdFacturama(editId, csdCerFile, csdKeyFile, csdPassword.trim());
++      setCsdSuccess('✅ CSD registrado correctamente');
++
++      const refreshedEmpresa = await fetchEmpresa(editId);
++      setForm((prev) => ({ ...prev, ...refreshedEmpresa }));
++      loadEmpresas();
++
++      if (response.message && response.message !== 'CSD registrado correctamente') {
++        setCsdSuccess(`✅ ${response.message}`);
++      }
++    } catch (err) {
++      setCsdError(err instanceof Error ? err.message : 'No se pudo registrar el CSD en Facturama');
++    } finally {
++      setCsdSubmitting(false);
++    }
++  };
++
++  const formatFechaCsd = (raw?: string | null) => {
++    if (!raw) return '—';
++    const date = new Date(raw);
++    if (Number.isNaN(date.getTime())) return raw;
++    return date.toLocaleString('es-MX');
++  };
++
+   return (
+     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+       <Toolbar disableGutters sx={{ justifyContent: 'space-between' }}>
+@@ -672,6 +761,83 @@ export default function EmpresasPage() {
+             value={form.sitio_web || ''}
+             onChange={(e) => handleChange('sitio_web', e.target.value)}
+           />
++          <Box sx={{ gridColumn: '1 / -1', border: '1px solid #e5e7eb', borderRadius: 1, p: 2, backgroundColor: '#fafafa' }}>
++            <Typography variant="h6" gutterBottom>
++              CSD Facturama Multiemisor
++            </Typography>
++            <Stack spacing={1} mb={2}>
++              <Typography variant="body2" color="text.secondary">
++                Registrado en Facturama: <strong>{form.cfdi_csd_registrado_facturama ? 'Sí' : 'No'}</strong>
++              </Typography>
++              <Typography variant="body2" color="text.secondary">
++                Fecha última actualización: <strong>{formatFechaCsd(form.cfdi_csd_fecha_actualizacion)}</strong>
++              </Typography>
++            </Stack>
++
++            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
++              <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
++                Archivo .cer
++                <input
++                  type="file"
++                  accept=".cer,application/pkix-cert"
++                  hidden
++                  onChange={(event) => handleCsdFileChange('cer', event.target.files?.[0])}
++                />
++              </Button>
++
++              <Typography variant="body2" sx={{ minWidth: 220 }}>
++                {csdCerFile ? csdCerFile.name : 'Sin archivo .cer'}
++              </Typography>
++
++              <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
++                Archivo .key
++                <input
++                  type="file"
++                  accept=".key,application/octet-stream"
++                  hidden
++                  onChange={(event) => handleCsdFileChange('key', event.target.files?.[0])}
++                />
++              </Button>
++
++              <Typography variant="body2" sx={{ minWidth: 220 }}>
++                {csdKeyFile ? csdKeyFile.name : 'Sin archivo .key'}
++              </Typography>
++            </Stack>
++
++            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mt={2} alignItems={{ xs: 'stretch', md: 'center' }}>
++              <TextField
++                label="Contraseña CSD"
++                type="password"
++                value={csdPassword}
++                onChange={(event) => setCsdPassword(event.target.value)}
++                sx={{ minWidth: { xs: '100%', md: 320 } }}
++              />
++              <Button
++                variant="contained"
++                onClick={handleRegistrarCsd}
++                disabled={!editId || csdSubmitting}
++                sx={{ textTransform: 'none' }}
++              >
++                {csdSubmitting ? 'Registrando...' : 'Registrar CSD en Facturama'}
++              </Button>
++            </Stack>
++
++            {csdSuccess && (
++              <Box mt={2}>
++                <Alert severity="success" onClose={() => setCsdSuccess(null)}>
++                  {csdSuccess}
++                </Alert>
++              </Box>
++            )}
++            {csdError && (
++              <Box mt={2}>
++                <Alert severity="error" onClose={() => setCsdError(null)}>
++                  {csdError}
++                </Alert>
++              </Box>
++            )}
++          </Box>
++
+           <Box sx={{ gridColumn: '1 / -1', border: '1px solid #e5e7eb', borderRadius: 1, p: 2, backgroundColor: '#fafafa' }}>
+             <Typography variant="h6" gutterBottom>
+               Imagen corporativa
+diff --git a/frontend/src/pages/configuracion/UsuariosPage.tsx b/frontend/src/pages/configuracion/UsuariosPage.tsx
+index d347f96..79626b8 100644
+--- a/frontend/src/pages/configuracion/UsuariosPage.tsx
++++ b/frontend/src/pages/configuracion/UsuariosPage.tsx
+@@ -8,9 +8,10 @@ import {
+   DialogActions,
+   DialogContent,
+   DialogTitle,
++  FormControl,
+   IconButton,
+   FormControlLabel,
+-  FormControl,
++  ListSubheader,
+   MenuItem,
+   Select,
+   Stack,
+@@ -33,6 +34,7 @@ import { useSession } from '../../session/useSession';
+ import type { Usuario, UsuarioPayload } from '../../types/usuario';
+ import type { Rol } from '../../types/rol';
+ import type { Contacto } from '../../types/contactos.types';
++import { buildRutaInicioOptions, type RutaInicioOption } from '../../utils/rutaInicio';
+ import {
+   asignarEmpresas,
+   asignarRoles,
+@@ -52,6 +54,7 @@ const emptyForm: UsuarioPayload & { password?: string } = {
+   es_superadmin: false,
+   activo: true,
+   vendedor_contacto_id: null,
++  ruta_inicio: null,
+ };
+ 
+ type RolesCache = Record<number, Rol[]>;
+@@ -78,6 +81,8 @@ export default function UsuariosPage() {
+   const [empresasSeleccionadas, setEmpresasSeleccionadas] = useState<{ empresa_id: number; activo: boolean }[]>([]);
+   const [vendedores, setVendedores] = useState<Contacto[]>([]);
+   const [vendedoresLoading, setVendedoresLoading] = useState(false);
++  const [rutaInicioOptions, setRutaInicioOptions] = useState<RutaInicioOption[]>([]);
++  const [rutaInicioLoading, setRutaInicioLoading] = useState(false);
+ 
+   const faltantes = useMemo(() => {
+     const missing: string[] = [];
+@@ -124,9 +129,38 @@ export default function UsuariosPage() {
+     void loadVendedores();
+   }, []);
+ 
++  useEffect(() => {
++    const loadRutaInicioOptions = async () => {
++      if (!session.token) {
++        setRutaInicioOptions([]);
++        return;
++      }
++
++      setRutaInicioLoading(true);
++      try {
++        const options = await buildRutaInicioOptions(session);
++        setRutaInicioOptions(options);
++      } catch (err) {
++        const msg = err instanceof Error ? err.message : 'No se pudieron cargar las rutas iniciales';
++        setFormError(msg);
++        setRutaInicioOptions([]);
++      } finally {
++        setRutaInicioLoading(false);
++      }
++    };
++
++    void loadRutaInicioOptions();
++  }, [session]);
++
++  useEffect(() => {
++    if (!form.ruta_inicio) return;
++    if (rutaInicioOptions.some((option) => option.path === form.ruta_inicio)) return;
++    setForm((prev) => ({ ...prev, ruta_inicio: null }));
++  }, [form.ruta_inicio, rutaInicioOptions]);
++
+   const handleOpenCreate = () => {
+     setEditId(null);
+-    setForm({ ...emptyForm, activo: true, es_superadmin: false, password: '', vendedor_contacto_id: null });
++    setForm({ ...emptyForm, activo: true, es_superadmin: false, password: '', vendedor_contacto_id: null, ruta_inicio: null });
+     setFormError(null);
+     setDialogOpen(true);
+     setEmpresasSeleccionadas([]);
+@@ -142,6 +176,7 @@ export default function UsuariosPage() {
+       es_superadmin: usuario.es_superadmin,
+       password: '',
+       vendedor_contacto_id: usuario.vendedor_contacto_id ?? null,
++      ruta_inicio: usuario.ruta_inicio ?? null,
+     });
+     setFormError(null);
+     setDialogOpen(true);
+@@ -154,6 +189,7 @@ export default function UsuariosPage() {
+       setForm((prev) => ({
+         ...prev,
+         vendedor_contacto_id: det.vendedor_contacto_id ?? prev.vendedor_contacto_id ?? null,
++        ruta_inicio: det.ruta_inicio ?? prev.ruta_inicio ?? null,
+       }));
+       setEmpresasSeleccionadas(empresasAsignadas);
+       const rolesMap: RolesSeleccionados = {};
+@@ -214,6 +250,7 @@ export default function UsuariosPage() {
+       es_superadmin: Boolean(form.es_superadmin),
+       activo: Boolean(form.activo),
+       vendedor_contacto_id: form.vendedor_contacto_id ?? null,
++      ruta_inicio: form.ruta_inicio ?? null,
+     };
+     if (!editId || (form.password && form.password.length > 0)) {
+       payload.password = form.password || '';
+@@ -447,6 +484,33 @@ export default function UsuariosPage() {
+             ))}
+           </TextField>
+ 
++          <TextField
++            select
++            label="Ruta inicial"
++            fullWidth
++            value={form.ruta_inicio ?? ''}
++            onChange={(e) => handleChange('ruta_inicio', e.target.value || null)}
++            helperText={rutaInicioLoading ? 'Cargando rutas disponibles...' : 'Opcional'}
++            disabled={rutaInicioLoading}
++          >
++            <MenuItem value="">
++              <em>Usar fallback actual</em>
++            </MenuItem>
++            {rutaInicioOptions.map((ruta, index) => {
++              const showGroupHeader = index === 0 || rutaInicioOptions[index - 1]?.group !== ruta.group;
++              return [
++                showGroupHeader ? (
++                  <ListSubheader key={`group-${ruta.group}`} disableSticky>
++                    {ruta.group}
++                  </ListSubheader>
++                ) : null,
++                <MenuItem key={ruta.path} value={ruta.path} title={ruta.description}>
++                  {ruta.label}
++                </MenuItem>,
++              ];
++            })}
++          </TextField>
++
+           <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2, mt: 1 }}>
+             <Typography variant="h6" fontWeight={700} color="#1d2f68" gutterBottom>
+               Empresas y roles
+diff --git a/frontend/src/services/documentGenerationService.ts b/frontend/src/services/documentGenerationService.ts
+index 1d88b67..3745c66 100644
+--- a/frontend/src/services/documentGenerationService.ts
++++ b/frontend/src/services/documentGenerationService.ts
+@@ -40,11 +40,13 @@ export interface PrepararGeneracionResponse {
+     documento_id: number;
+     tipo_documento: TipoDocumento;
+     folio: string | null;
++    tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
+   } | null;
+   documentos_origen: Array<{
+     documento_id: number;
+     tipo_documento: TipoDocumento;
+     folio: string | null;
++    tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
+   }>;
+   es_consolidado: boolean;
+   tipo_documento_destino: TipoDocumento;
+@@ -73,6 +75,7 @@ export interface DatosEncabezadoGeneracion {
+   forma_pago?: string | null;
+   metodo_pago?: string | null;
+   codigo_postal_receptor?: string | null;
++  tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
+ }
+ 
+ export interface GenerarDocumentoPayload {
+diff --git a/frontend/src/services/documentosService.ts b/frontend/src/services/documentosService.ts
+index f90518f..bb3318b 100644
+--- a/frontend/src/services/documentosService.ts
++++ b/frontend/src/services/documentosService.ts
+@@ -210,10 +210,12 @@ export function enviarCotizacionPorCorreo(id: number, payload: {
+   to: string;
+   subject?: string;
+   message?: string;
++  tipoDocumento?: TipoDocumento;
+ }) {
++  const body = payload.tipoDocumento ? { ...payload, tipo_documento: payload.tipoDocumento } : payload;
+   return apiFetch(`/api/documentos/${id}/enviar-email`, {
+     method: 'POST',
+-    body: payload as any,
++    body: body as any,
+   });
+ }
+ 
+diff --git a/frontend/src/services/empresasService.ts b/frontend/src/services/empresasService.ts
+index c82d911..272bb58 100644
+--- a/frontend/src/services/empresasService.ts
++++ b/frontend/src/services/empresasService.ts
+@@ -28,3 +28,27 @@ export async function updateEmpresa(id: number, payload: EmpresaPayload): Promis
+ export async function deleteEmpresa(id: number): Promise<Empresa> {
+   return apiFetch<Empresa>(`${BASE_URL}/${id}`, { method: 'DELETE' });
+ }
++
++export type RegistrarEmpresaCsdResponse = {
++  message: string;
++  cfdi_csd_registrado_facturama: boolean;
++  cfdi_csd_fecha_actualizacion: string | null;
++  facturamaResponse?: any;
++};
++
++export async function registrarEmpresaCsdFacturama(
++  empresaId: number,
++  cerFile: File,
++  keyFile: File,
++  password: string
++): Promise<RegistrarEmpresaCsdResponse> {
++  const formData = new FormData();
++  formData.append('cer', cerFile);
++  formData.append('key', keyFile);
++  formData.append('password', password);
++
++  return apiFetch<RegistrarEmpresaCsdResponse>(`/api/cfdi/empresas/${empresaId}/csd`, {
++    method: 'POST',
++    body: formData,
++  });
++}
+diff --git a/frontend/src/session/sessionTypes.ts b/frontend/src/session/sessionTypes.ts
+index 78fc30a..7fefa26 100644
+--- a/frontend/src/session/sessionTypes.ts
++++ b/frontend/src/session/sessionTypes.ts
+@@ -8,6 +8,7 @@ export type User = {
+   nombre: string;
+   email: string;
+   es_superadmin?: boolean;
++  ruta_inicio?: string | null;
+   vendedor_contacto_id?: number | null;
+   vendedor_contacto_nombre?: string | null;
+ };
+diff --git a/frontend/src/types/empresa.ts b/frontend/src/types/empresa.ts
+index d86d440..8062a9d 100644
+--- a/frontend/src/types/empresa.ts
++++ b/frontend/src/types/empresa.ts
+@@ -19,6 +19,11 @@ export interface Empresa {
+   certificado_csd?: string | null;
+   llave_privada_csd?: string | null;
+   password_csd?: string | null;
++  cfdi_csd_registrado_facturama?: boolean;
++  cfdi_csd_fecha_actualizacion?: string | null;
++  cfdi_csd_cer_path?: string | null;
++  cfdi_csd_key_path?: string | null;
++  cfdi_csd_password_encrypted?: string | null;
+   codigo_postal?: string | null;
+   regimen_fiscal?: string | null;
+   activo: boolean;
+diff --git a/frontend/src/types/usuario.ts b/frontend/src/types/usuario.ts
+index d8a8892..0f4f26b 100644
+--- a/frontend/src/types/usuario.ts
++++ b/frontend/src/types/usuario.ts
+@@ -4,6 +4,7 @@ export type Usuario = {
+   email: string;
+   activo: boolean;
+   es_superadmin: boolean;
++  ruta_inicio: string | null;
+   vendedor_contacto_id?: number | null;
+   vendedor_contacto_nombre?: string | null;
+   created_at: string;
+@@ -20,5 +21,6 @@ export type UsuarioPayload = {
+   password?: string;
+   es_superadmin?: boolean;
+   activo?: boolean;
++  ruta_inicio?: string | null;
+   vendedor_contacto_id?: number | null;
+ };

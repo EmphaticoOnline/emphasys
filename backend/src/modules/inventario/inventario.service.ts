@@ -269,6 +269,69 @@ async function obtenerPartidasMovimiento(movimientoId: number, empresaId: number
   return rows;
 }
 
+export async function revertirInventarioDocumentoEnTransaccion(
+  client: PoolClient,
+  documentoId: number,
+  empresaId: number,
+  usuarioId: number,
+  opciones?: { fecha?: Date | string; observaciones?: string | null }
+) {
+  const { rowCount: yaRevertido } = await client.query(
+    `SELECT 1 FROM inventario.movimientos WHERE documento_id = $1 AND empresa_id = $2 AND es_reversion = true LIMIT 1`,
+    [documentoId, empresaId]
+  );
+  if (yaRevertido && yaRevertido > 0) {
+    throw buildError('YA_REVERTIDO', 'El documento ya cuenta con un movimiento de reversión');
+  }
+
+  const movimientoOriginal = await obtenerMovimientoOriginal(documentoId, empresaId, client);
+  if (!movimientoOriginal) {
+    throw buildError('MOVIMIENTO_NO_ENCONTRADO', 'No existe un movimiento original para revertir');
+  }
+
+  const partidasOriginales = await obtenerPartidasMovimiento(movimientoOriginal.id, empresaId, client);
+  if (!partidasOriginales.length) {
+    throw buildError('SIN_PARTIDAS_ORIGINALES', 'El movimiento original no tiene partidas');
+  }
+
+  const partidas: MovimientoPartidaPayload[] = partidasOriginales.map((p) => {
+    const signoOriginal = Number(p.signo) || 0;
+    if (signoOriginal === 0) {
+      throw buildError('SIGNO_INVALIDO', `Signo inválido en partida del movimiento original (partida ${p.documento_partida_id ?? ''})`);
+    }
+    const signoInvertido: 1 | -1 = signoOriginal > 0 ? -1 : 1;
+
+    return {
+      documento_partida_id: p.documento_partida_id ?? undefined,
+      producto_id: p.producto_id,
+      almacen_id: p.almacen_id,
+      almacen_destino_id: p.almacen_destino_id,
+      cantidad: assertPositiveNumber(p.cantidad, 'CANTIDAD_INVALIDA', 'Cantidad inválida en partida original'),
+      signo: signoInvertido,
+      tipo_partida: p.tipo_partida,
+      costo_unitario: p.costo_unitario ?? null,
+    };
+  });
+
+  const movimientoId = await ejecutarAplicarMovimiento(
+    {
+      empresaId,
+      tipoMovimiento: movimientoOriginal.tipo_movimiento,
+      fecha: normalizarFecha(opciones?.fecha ?? new Date()),
+      usuarioId,
+      documentoId,
+      observaciones:
+        opciones?.observaciones ??
+        `Reversión del movimiento ${movimientoOriginal.id} generado por documento ${documentoId}`,
+      partidas,
+      esReversion: true,
+    },
+    client
+  );
+
+  return { movimientoId, partidas, tipoMovimiento: movimientoOriginal.tipo_movimiento };
+}
+
 function normalizarFecha(fecha?: Date | string): Date | string {
   if (!fecha) return new Date();
   if (fecha instanceof Date) return fecha;
@@ -372,62 +435,10 @@ export async function revertirInventarioDocumento(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    const { rowCount: yaRevertido } = await client.query(
-      `SELECT 1 FROM inventario.movimientos WHERE documento_id = $1 AND empresa_id = $2 AND es_reversion = true LIMIT 1`,
-      [documentoId, empresaId]
-    );
-    if (yaRevertido && yaRevertido > 0) {
-      throw buildError('YA_REVERTIDO', 'El documento ya cuenta con un movimiento de reversión');
-    }
-
-    const movimientoOriginal = await obtenerMovimientoOriginal(documentoId, empresaId, client);
-    if (!movimientoOriginal) {
-      throw buildError('MOVIMIENTO_NO_ENCONTRADO', 'No existe un movimiento original para revertir');
-    }
-
-    const partidasOriginales = await obtenerPartidasMovimiento(movimientoOriginal.id, empresaId, client);
-    if (!partidasOriginales.length) {
-      throw buildError('SIN_PARTIDAS_ORIGINALES', 'El movimiento original no tiene partidas');
-    }
-
-    const partidas: MovimientoPartidaPayload[] = partidasOriginales.map((p) => {
-      const signoOriginal = Number(p.signo) || 0;
-      if (signoOriginal === 0) {
-        throw buildError('SIGNO_INVALIDO', `Signo inválido en partida del movimiento original (partida ${p.documento_partida_id ?? ''})`);
-      }
-      const signoInvertido: 1 | -1 = signoOriginal > 0 ? -1 : 1;
-
-      return {
-        documento_partida_id: p.documento_partida_id ?? undefined,
-        producto_id: p.producto_id,
-        almacen_id: p.almacen_id,
-        almacen_destino_id: p.almacen_destino_id,
-        cantidad: assertPositiveNumber(p.cantidad, 'CANTIDAD_INVALIDA', 'Cantidad inválida en partida original'),
-        signo: signoInvertido,
-        tipo_partida: p.tipo_partida,
-        costo_unitario: p.costo_unitario ?? null,
-      };
-    });
-
-    const movimientoId = await ejecutarAplicarMovimiento(
-      {
-        empresaId,
-        tipoMovimiento: movimientoOriginal.tipo_movimiento,
-        fecha: normalizarFecha(opciones?.fecha ?? new Date()),
-        usuarioId,
-        documentoId,
-        observaciones:
-          opciones?.observaciones ??
-          `Reversión del movimiento ${movimientoOriginal.id} generado por documento ${documentoId}`,
-        partidas,
-        esReversion: true,
-      },
-      client
-    );
+    const result = await revertirInventarioDocumentoEnTransaccion(client, documentoId, empresaId, usuarioId, opciones);
 
     await client.query('COMMIT');
-    return { movimientoId, partidas, tipoMovimiento: movimientoOriginal.tipo_movimiento };
+    return result;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

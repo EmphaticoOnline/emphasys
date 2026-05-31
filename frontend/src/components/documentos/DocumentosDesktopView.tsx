@@ -1,10 +1,14 @@
-import { Box, Button, Checkbox, CircularProgress, FormControlLabel, IconButton, InputAdornment, Paper, Stack, TextField, Toolbar, Typography } from '@mui/material';
+import * as React from 'react';
+import { Box, Button, Checkbox, CircularProgress, Divider, Drawer, FormControlLabel, IconButton, InputAdornment, Paper, Stack, TextField, Toolbar, Typography } from '@mui/material';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
+import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import { GridContextMenu } from '../grids/GridContextMenu';
 import {
   STANDARD_DATA_GRID_HEADER_HEIGHT,
@@ -50,6 +54,11 @@ export default function DocumentosDesktopView({
   contextMenuOpen,
   onCloseContextMenu,
 }: DocumentosDesktopViewProps) {
+  const theme = useTheme();
+  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
+  const [filtersSummaryDrawerOpen, setFiltersSummaryDrawerOpen] = React.useState(false);
+  const showInlineFiltersSummary = !isTablet;
+
   return (
     <>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
@@ -63,6 +72,16 @@ export default function DocumentosDesktopView({
         </Stack>
         <Stack direction="row" spacing={1}>
           {extraActionsContent}
+          {isTablet ? (
+            <Button
+              variant="outlined"
+              startIcon={<FilterAltOutlinedIcon />}
+              onClick={() => setFiltersSummaryDrawerOpen(true)}
+              sx={{ textTransform: 'none', fontWeight: 700 }}
+            >
+              Filtros y Resumen
+            </Button>
+          ) : null}
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={onRefresh} disabled={isLoading}>
             Recargar
           </Button>
@@ -107,9 +126,71 @@ export default function DocumentosDesktopView({
         ) : null}
       </Stack>
 
-      {filtersContent}
-      {summaryContent}
+      {showInlineFiltersSummary ? filtersContent : null}
+      {showInlineFiltersSummary ? summaryContent : null}
       {selectionContent}
+
+      <Drawer
+        anchor="bottom"
+        open={filtersSummaryDrawerOpen}
+        onClose={() => setFiltersSummaryDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            maxHeight: '82vh',
+            pb: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+          },
+        }}
+      >
+        <Box sx={{ px: 2, pt: 1.25, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Box sx={{ width: 44, height: 5, borderRadius: 999, backgroundColor: '#cbd5e1' }} />
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+            <Box>
+              <Typography variant="subtitle1" fontWeight={800} color="#1d2f68">
+                Filtros y Resumen
+              </Typography>
+              <Typography variant="body2" color="#4b5563">
+                Consulta filtros y totales sin salir del grid.
+              </Typography>
+            </Box>
+            <IconButton aria-label="Cerrar panel" onClick={() => setFiltersSummaryDrawerOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {showPendingToggle ? (
+            <FormControlLabel
+              control={<Checkbox checked={soloPendientes} onChange={(event) => onSoloPendientesChange(event.target.checked)} />}
+              label="Solo pendientes"
+            />
+          ) : null}
+
+          {filtersContent ? (
+            <Stack spacing={1.25}>
+              <Typography variant="subtitle2" fontWeight={800} color="#1f2937">
+                Filtros
+              </Typography>
+              {filtersContent}
+            </Stack>
+          ) : null}
+
+          {summaryContent ? (
+            <>
+              <Divider />
+              <Stack spacing={1.25}>
+                <Typography variant="subtitle2" fontWeight={800} color="#1f2937">
+                  Resumen
+                </Typography>
+                {summaryContent}
+              </Stack>
+            </>
+          ) : null}
+        </Box>
+      </Drawer>
 
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
         <Box>

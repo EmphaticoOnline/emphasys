@@ -94,7 +94,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     widgets: {
       pagosDrawer: false,
       origenDocumento: true,
-      tratamientoFiscal: false,
+      tratamientoFiscal: true,
       fiscalTab: false,
     },
     defaults: {
@@ -318,7 +318,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       filtroAgente: false,
       mostrarSaldo: false,
       tiposContactoPermitidos: ['Cliente'],
-      accionesDisponibles: ['enviar_email'],
+      accionesDisponibles: ['enviar_email', 'enviar_whatsapp'],
     },
     partidas: {
       mostrarImagenes: true,
@@ -328,7 +328,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     widgets: {
       pagosDrawer: false,
       origenDocumento: false,
-      tratamientoFiscal: false,
+      tratamientoFiscal: true,
       fiscalTab: false,
     },
     defaults: {
@@ -402,7 +402,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     widgets: {
       pagosDrawer: false,
       origenDocumento: false,
-      tratamientoFiscal: false,
+      tratamientoFiscal: true,
       fiscalTab: false,
     },
     defaults: {
@@ -471,7 +471,77 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     widgets: {
       pagosDrawer: false,
       origenDocumento: false,
-      tratamientoFiscal: false,
+      tratamientoFiscal: true,
+      fiscalTab: false,
+    },
+    defaults: {
+      serie: null,
+      estadoSeguimiento: null,
+    },
+    relatedEntities: {
+      contacto: {
+        creationMode: 'inline',
+        captureMode: 'simple',
+        defaultTipoContacto: 'Cliente',
+        tiposPermitidos: ['Cliente'],
+      },
+      vendedor: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoVendedor: 'Vendedor',
+        tiposPermitidos: ['Vendedor'],
+      },
+      producto: {
+        creationMode: 'disabled',
+        captureMode: 'simple',
+        defaultTipoProducto: 'Inventariable',
+        tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
+      },
+    },
+    secciones: { ...seccionesBase },
+    campos: {
+      ...camposBase,
+      serie: { ...camposBase.serie, visible: false },
+      numero: { ...camposBase.numero, visible: false },
+      moneda: { ...camposBase.moneda, required: true },
+      tipo_cambio: { ...camposBase.tipo_cambio, visible: false },
+      observaciones: { ...camposBase.observaciones, required: false },
+    },
+    fiscales: {
+      requiereDatosFiscales: false,
+      requiereMetodoPago: false,
+      requiereFormaPago: false,
+      requiereUsoCfdi: false,
+      requiereRegimenFiscal: false,
+      requiereTipoCambio: false,
+    },
+    estatusPermitidos: ['borrador', 'emitido', 'cancelado'],
+  },
+  orden_entrega: {
+    tipo: 'orden_entrega',
+    label: 'Orden de entrega',
+    descripcion: 'Documento para control de entrega de mercancía o servicio.',
+    textos: {
+      nuevo: 'Nueva orden de entrega',
+      editar: 'Editar orden de entrega',
+      guardado: 'Orden de entrega guardada',
+      cargando: 'Cargando orden de entrega...',
+      singular: 'orden de entrega',
+    },
+    features: {
+      filtroAgente: false,
+      mostrarSaldo: false,
+      accionesDisponibles: [],
+    },
+    partidas: {
+      mostrarImagenes: false,
+      mostrarEsParteOportunidad: false,
+      mostrarMontoOportunidad: false,
+    },
+    widgets: {
+      pagosDrawer: false,
+      origenDocumento: false,
+      tratamientoFiscal: true,
       fiscalTab: false,
     },
     defaults: {

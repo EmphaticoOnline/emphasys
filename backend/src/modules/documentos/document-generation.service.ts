@@ -1,5 +1,33 @@
 import pool from "../../config/database";
 import type { PoolClient } from "pg";
+
+/**
+ * Lanza ServiceError si alguno de los documentos origen tiene un intento de
+ * cancelación en estado externo_ok_interno_pendiente. Generar un derivado desde
+ * un documento en ese estado resultaría en una inconsistencia fiscal.
+ */
+async function assertDocumentosSinCancelacionPendiente(
+  documentoIds: number[],
+  empresaId: number,
+  client: PoolClient
+): Promise<void> {
+  const { rows } = await client.query<{ documento_id: number }>(
+    `SELECT documento_id
+       FROM public.documentos_cancelacion_intentos
+      WHERE documento_id = ANY($1::int[])
+        AND empresa_id   = $2
+        AND estado       = 'externo_ok_interno_pendiente'
+      LIMIT 1`,
+    [documentoIds, empresaId]
+  );
+  if (rows.length > 0) {
+    throw new ServiceError(
+      'CANCELACION_PENDIENTE',
+      'No se puede generar un documento derivado: el documento origen tiene una cancelación CFDI pendiente de sincronización interna',
+      409
+    );
+  }
+}
 import type { TipoDocumento } from "../../types/documentos";
 import type {
   GenerarDocumentoPayload,
@@ -81,10 +109,33 @@ const TIPOS_DOCUMENTO_CON_DATOS_FISCALES = new Set<TipoDocumento>([
   "nota_credito_compra",
 ]);
 
+type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
+
 const normalizarCampoFiscal = (value: unknown) => {
   if (value === undefined || value === null) return null;
   const normalized = String(value).trim();
   return normalized ? normalized : null;
+};
+
+const TRATAMIENTOS_IMPUESTOS_VALIDOS = new Set<TratamientoImpuestos>(['normal', 'sin_iva', 'tasa_cero', 'exento']);
+
+const normalizarTratamientoImpuestos = (value: unknown): TratamientoImpuestos => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return TRATAMIENTOS_IMPUESTOS_VALIDOS.has(normalized as TratamientoImpuestos)
+    ? (normalized as TratamientoImpuestos)
+    : 'normal';
+};
+
+const resolverTratamientoDestino = (
+  documentoOrigen: DocumentoGeneracionRow,
+  datosEncabezado?: GenerarDocumentoPayload['datos_encabezado']
+) : TratamientoImpuestos => {
+  const tratamientoExplicito = normalizarCampoFiscal(datosEncabezado?.tratamiento_impuestos);
+  if (tratamientoExplicito && TRATAMIENTOS_IMPUESTOS_VALIDOS.has(tratamientoExplicito as TratamientoImpuestos)) {
+    return tratamientoExplicito as TratamientoImpuestos;
+  }
+
+  return normalizarTratamientoImpuestos(documentoOrigen.tratamiento_impuestos);
 };
 
 const estatusDocumentoEsInactivo = (estatusDocumento: string | null | undefined) => {
@@ -371,6 +422,7 @@ function construirRespuestaPreparacion(
     documento_id: Number(documento.id),
     tipo_documento: documento.tipo_documento,
     folio: buildFolio(documento.serie, documento.numero),
+    tratamiento_impuestos: normalizarTratamientoImpuestos(documento.tratamiento_impuestos),
   }));
 
   return {
@@ -559,7 +611,8 @@ export class DocumentGenerationService {
       }
 
       validarCompatibilidadConsolidada(documentosOrigen, tipo_documento_destino);
-      if (requiereValidacionDeFlujoOrigenDestino(tipo_documento_destino)) {
+  await assertDocumentosSinCancelacionPendiente(documentoOrigenIds, empresaId, client);
+  if (requiereValidacionDeFlujoOrigenDestino(tipo_documento_destino)) {
         await validarFlujosOrigenDestino(documentosOrigen, tipo_documento_destino, empresaId, client);
       }
 
@@ -607,6 +660,7 @@ export class DocumentGenerationService {
       const descuentoGlobalDocumento = esConsolidado
         ? 0
         : Math.min(100, Math.max(0, Number(documentoOrigen.descuento_global ?? 0) || 0));
+      const tratamientoDestino = resolverTratamientoDestino(documentoOrigen, datos_encabezado);
       let documentoDestino: any;
 
       if (esEdicionDocumentoDestino) {
@@ -698,7 +752,8 @@ export class DocumentGenerationService {
                   uso_cfdi = $19,
                   forma_pago = $20,
                   metodo_pago = $21,
-                  codigo_postal_receptor = $22
+                  codigo_postal_receptor = $22,
+                  tratamiento_impuestos = $23
             WHERE id = $1
               AND empresa_id = $2
             RETURNING *`,
@@ -725,18 +780,12 @@ export class DocumentGenerationService {
             datosFiscalesDocumento.forma_pago,
             datosFiscalesDocumento.metodo_pago,
             datosFiscalesDocumento.codigo_postal_receptor,
+            tratamientoDestino,
           ]
         );
 
         documentoDestino = documentoDestinoActualizadoRows[0];
       } else {
-        const tratamientoDestino = ['factura', 'nota_credito'].includes(String(tipo_documento_destino).toLowerCase())
-          ? (datos_encabezado?.uso_cfdi
-              ? 'normal'
-              : String(documentoOrigen.tratamiento_impuestos ?? 'normal').toLowerCase() === 'sin_iva'
-                ? 'sin_iva'
-                : 'normal')
-          : 'normal';
         const serieResuelta = await resolverYReservarSerieDocumento({
           empresaId,
           tipoDocumento: tipo_documento_destino,
@@ -759,7 +808,7 @@ export class DocumentGenerationService {
           client
         );
         const columnasCotizacion = camposCotizacion ? ",\n            estado_seguimiento" : "";
-        const valoresCotizacion = camposCotizacion ? ",\n            $19" : "";
+        const valoresCotizacion = camposCotizacion ? ",\n            $27" : "";
 
         const { rows: insertDocRows } = await client.query(
           `INSERT INTO documentos (
@@ -791,6 +840,7 @@ export class DocumentGenerationService {
               forma_pago,
               metodo_pago,
               codigo_postal_receptor,
+              tratamiento_impuestos,
               usuario_creacion_id${columnasCotizacion}
             ) VALUES (
               $1, $2, 'Borrador', $3, $4, $5,
@@ -810,7 +860,8 @@ export class DocumentGenerationService {
               $22,
               $23,
               $24,
-              $25${valoresCotizacion}
+              $25,
+              $26${valoresCotizacion}
             )
             RETURNING *`,
           [
@@ -838,6 +889,7 @@ export class DocumentGenerationService {
             datosFiscalesDocumento.forma_pago,
             datosFiscalesDocumento.metodo_pago,
             datosFiscalesDocumento.codigo_postal_receptor,
+            tratamientoDestino,
             usuarioId ?? null,
             ...(camposCotizacion ? [camposCotizacion.estado_seguimiento] : []),
           ]

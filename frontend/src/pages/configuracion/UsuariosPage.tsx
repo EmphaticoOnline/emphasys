@@ -8,9 +8,10 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
   FormControlLabel,
-  FormControl,
+  ListSubheader,
   MenuItem,
   Select,
   Stack,
@@ -33,6 +34,7 @@ import { useSession } from '../../session/useSession';
 import type { Usuario, UsuarioPayload } from '../../types/usuario';
 import type { Rol } from '../../types/rol';
 import type { Contacto } from '../../types/contactos.types';
+import { buildRutaInicioOptions, type RutaInicioOption } from '../../utils/rutaInicio';
 import {
   asignarEmpresas,
   asignarRoles,
@@ -52,6 +54,7 @@ const emptyForm: UsuarioPayload & { password?: string } = {
   es_superadmin: false,
   activo: true,
   vendedor_contacto_id: null,
+  ruta_inicio: null,
 };
 
 type RolesCache = Record<number, Rol[]>;
@@ -78,6 +81,8 @@ export default function UsuariosPage() {
   const [empresasSeleccionadas, setEmpresasSeleccionadas] = useState<{ empresa_id: number; activo: boolean }[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [vendedoresLoading, setVendedoresLoading] = useState(false);
+  const [rutaInicioOptions, setRutaInicioOptions] = useState<RutaInicioOption[]>([]);
+  const [rutaInicioLoading, setRutaInicioLoading] = useState(false);
 
   const faltantes = useMemo(() => {
     const missing: string[] = [];
@@ -124,9 +129,38 @@ export default function UsuariosPage() {
     void loadVendedores();
   }, []);
 
+  useEffect(() => {
+    const loadRutaInicioOptions = async () => {
+      if (!session.token) {
+        setRutaInicioOptions([]);
+        return;
+      }
+
+      setRutaInicioLoading(true);
+      try {
+        const options = await buildRutaInicioOptions(session);
+        setRutaInicioOptions(options);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'No se pudieron cargar las rutas iniciales';
+        setFormError(msg);
+        setRutaInicioOptions([]);
+      } finally {
+        setRutaInicioLoading(false);
+      }
+    };
+
+    void loadRutaInicioOptions();
+  }, [session]);
+
+  useEffect(() => {
+    if (!form.ruta_inicio) return;
+    if (rutaInicioOptions.some((option) => option.path === form.ruta_inicio)) return;
+    setForm((prev) => ({ ...prev, ruta_inicio: null }));
+  }, [form.ruta_inicio, rutaInicioOptions]);
+
   const handleOpenCreate = () => {
     setEditId(null);
-    setForm({ ...emptyForm, activo: true, es_superadmin: false, password: '', vendedor_contacto_id: null });
+    setForm({ ...emptyForm, activo: true, es_superadmin: false, password: '', vendedor_contacto_id: null, ruta_inicio: null });
     setFormError(null);
     setDialogOpen(true);
     setEmpresasSeleccionadas([]);
@@ -142,6 +176,7 @@ export default function UsuariosPage() {
       es_superadmin: usuario.es_superadmin,
       password: '',
       vendedor_contacto_id: usuario.vendedor_contacto_id ?? null,
+      ruta_inicio: usuario.ruta_inicio ?? null,
     });
     setFormError(null);
     setDialogOpen(true);
@@ -154,6 +189,7 @@ export default function UsuariosPage() {
       setForm((prev) => ({
         ...prev,
         vendedor_contacto_id: det.vendedor_contacto_id ?? prev.vendedor_contacto_id ?? null,
+        ruta_inicio: det.ruta_inicio ?? prev.ruta_inicio ?? null,
       }));
       setEmpresasSeleccionadas(empresasAsignadas);
       const rolesMap: RolesSeleccionados = {};
@@ -214,6 +250,7 @@ export default function UsuariosPage() {
       es_superadmin: Boolean(form.es_superadmin),
       activo: Boolean(form.activo),
       vendedor_contacto_id: form.vendedor_contacto_id ?? null,
+      ruta_inicio: form.ruta_inicio ?? null,
     };
     if (!editId || (form.password && form.password.length > 0)) {
       payload.password = form.password || '';
@@ -445,6 +482,33 @@ export default function UsuariosPage() {
                 {v.nombre}
               </MenuItem>
             ))}
+          </TextField>
+
+          <TextField
+            select
+            label="Ruta inicial"
+            fullWidth
+            value={form.ruta_inicio ?? ''}
+            onChange={(e) => handleChange('ruta_inicio', e.target.value || null)}
+            helperText={rutaInicioLoading ? 'Cargando rutas disponibles...' : 'Opcional'}
+            disabled={rutaInicioLoading}
+          >
+            <MenuItem value="">
+              <em>Usar fallback actual</em>
+            </MenuItem>
+            {rutaInicioOptions.map((ruta, index) => {
+              const showGroupHeader = index === 0 || rutaInicioOptions[index - 1]?.group !== ruta.group;
+              return [
+                showGroupHeader ? (
+                  <ListSubheader key={`group-${ruta.group}`} disableSticky>
+                    {ruta.group}
+                  </ListSubheader>
+                ) : null,
+                <MenuItem key={ruta.path} value={ruta.path} title={ruta.description}>
+                  {ruta.label}
+                </MenuItem>,
+              ];
+            })}
           </TextField>
 
           <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2, mt: 1 }}>

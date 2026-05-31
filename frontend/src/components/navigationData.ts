@@ -1,7 +1,7 @@
 export const MAIN_MENUS = [
   { label: 'Catálogos' },
-  { label: 'CRM' },
   { label: 'Ventas' },
+  { label: 'CRM' },
   { label: 'Compras' },
   { label: 'Finanzas' },
   { label: 'Inventarios' },
@@ -30,3 +30,13 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   Informes: 'Explora reportes y respuestas ad-hoc sobre tu negocio.',
   Configuración: 'Configura catálogos del sistema, usuarios, roles y empresas.',
 };
+
+export const MAIN_MENU_LINKS = [
+  { label: 'Contactos', path: '/contactos', description: 'Gestiona y consulta tus contactos registrados.' },
+  { label: 'Productos', path: '/productos', description: 'Administra el catálogo de productos y servicios.' },
+  { label: 'CRM', path: '/crm', description: 'Gestiona conversaciones y oportunidades comerciales desde un solo módulo.' },
+  { label: 'Finanzas', path: '/finanzas', description: 'Supervisa cuentas, movimientos y conciliaciones bancarias.' },
+  { label: 'Movimientos de inventario', path: '/inventario/movimientos', description: 'Consulta y registra los movimientos de inventario.' },
+  { label: 'Pregúntale a tu negocio', path: '/informes/ia', description: 'Explora reportes y respuestas ad-hoc sobre tu negocio.' },
+  { label: 'Configuración', path: '/configuracion', description: 'Configura catálogos del sistema, usuarios, roles y empresas.' },
+] as const;

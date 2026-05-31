@@ -210,10 +210,12 @@ export function enviarCotizacionPorCorreo(id: number, payload: {
   to: string;
   subject?: string;
   message?: string;
+  tipoDocumento?: TipoDocumento;
 }) {
+  const body = payload.tipoDocumento ? { ...payload, tipo_documento: payload.tipoDocumento } : payload;
   return apiFetch(`/api/documentos/${id}/enviar-email`, {
     method: 'POST',
-    body: payload as any,
+    body: body as any,
   });
 }
 
@@ -227,6 +229,21 @@ export function timbrarDocumentoCfdi(id: number, tipo: TipoDocumento) {
 
   return apiFetch(withTipoQuery(`/api/documentos/${id}/timbrar-cfdi`, tipo), {
     method: 'POST',
+  });
+}
+
+export function cancelarDocumento(
+  id: number,
+  tipo: TipoDocumento,
+  payload: {
+    motivo_cancelacion?: string | null;
+    motivo_sat?: string | null;
+    uuid_sustitucion?: string | null;
+  }
+) {
+  return apiFetch(withTipoQuery(`/api/documentos/${id}/cancelar`, tipo), {
+    method: 'POST',
+    body: payload as any,
   });
 }
 

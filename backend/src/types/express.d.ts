@@ -11,6 +11,11 @@ declare global {
         empresaNombre?: string;
       };
       file?: MulterFile;
+      files?:
+        | MulterFile[]
+        | {
+            [fieldname: string]: MulterFile[];
+          };
     }
   }
 }

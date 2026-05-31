@@ -16,8 +16,9 @@ import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
-import MainMenu, { MainMenuItems, MainMenuLogo } from './Menu.js';
+import { MainMenuItems, MainMenuLogo } from './Menu.js';
 import EmpresaSelector from './EmpresaSelector.js';
 import { MODULE_TABS, MODULE_DESCRIPTIONS } from './navigationData.js';
 import { useSession } from '../session/useSession';
@@ -32,6 +33,8 @@ import WarehouseIcon from '@mui/icons-material/Warehouse';
 import DescriptionIcon from '@mui/icons-material/Description';
 import BuildIcon from '@mui/icons-material/Build';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import VersionUpdateDrawer from './VersionUpdateDrawer';
+import { useVersionUpdateNotice } from '../hooks/useVersionUpdateNotice';
 import { compareDocumentoVisualOrder } from '../modules/documentos/documentoVisualOrder';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchParametrosSistema } from '../services/parametrosService';
@@ -89,15 +92,20 @@ export default function Layout({ children }: LayoutProps) {
   const userName = session.user?.nombre || 'Usuario';
   const empresaId = session.empresaActivaId;
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
+  const { version: systemVersion, open: versionDrawerOpen, dismiss: dismissVersionDrawer, updateNow: updateNowVersion } = useVersionUpdateNotice();
 
   const moduleNavSlotRef = React.useRef<HTMLDivElement | null>(null);
   const moduleNavProbeRef = React.useRef<HTMLDivElement | null>(null);
-  const useCompactNavigation = useResponsiveMainMenuMode({
+  const useCompactNavigationByWidth = useResponsiveMainMenuMode({
     availableRef: moduleNavSlotRef,
     contentRef: moduleNavProbeRef,
     enterCompactPx: 24,
     exitCompactPx: 48,
   });
+  const useCompactNavigation = isMobile || useCompactNavigationByWidth;
+  const reserveEmpresaSlotForTabletCompact = isTablet && useCompactNavigation;
 
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
@@ -414,7 +422,14 @@ export default function Layout({ children }: LayoutProps) {
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 }, flex: '0 0 auto', minWidth: 0 }}>
-          <MainMenuLogo />
+          {useCompactNavigation ? (
+            <IconButton color="inherit" onClick={() => setDrawerOpen(true)} aria-label="Abrir menú principal">
+              <MenuIcon />
+            </IconButton>
+          ) : null}
+          <Box sx={{ minWidth: 0, '& img': { height: { xs: useCompactNavigation ? 34 : 44, md: 44 } } }}>
+            <MainMenuLogo />
+          </Box>
         </Box>
 
         <Box
@@ -429,17 +444,21 @@ export default function Layout({ children }: LayoutProps) {
             overflow: 'hidden',
           }}
         >
-          {useCompactNavigation ? (
-            <IconButton color="inherit" onClick={() => setDrawerOpen(true)} aria-label="Abrir menú">
-              <MenuIcon />
-            </IconButton>
-          ) : (
+          {useCompactNavigation ? null : (
             <MainMenuItems selectedSection={selectedSection} onSelect={handleSectionChange} />
           )}
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: '0 0 auto' }}>
-          <Box sx={{ minWidth: 220, flex: '0 0 auto', visibility: useCompactNavigation ? 'hidden' : 'visible' }}>
+          <Box
+            sx={{
+              minWidth: 220,
+              flex: '0 0 auto',
+              display: useCompactNavigation && !reserveEmpresaSlotForTabletCompact ? 'none' : 'block',
+              visibility: reserveEmpresaSlotForTabletCompact ? 'hidden' : 'visible',
+              pointerEvents: reserveEmpresaSlotForTabletCompact ? 'none' : 'auto',
+            }}
+          >
             <EmpresaSelector />
           </Box>
           <Tooltip title={userName}>
@@ -478,6 +497,15 @@ export default function Layout({ children }: LayoutProps) {
               },
             }}
           >
+            <Box sx={{ px: 2, py: 1.25 }}>
+              <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3 }}>
+                Versión:
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                {systemVersion || 'Cargando...'}
+              </Typography>
+            </Box>
+            <Divider />
             <MenuItem onClick={handleUserMenuClose}>Perfil</MenuItem>
             <MenuItem onClick={handleUserMenuClose}>Cambiar contraseña</MenuItem>
             <Divider />
@@ -548,6 +576,8 @@ export default function Layout({ children }: LayoutProps) {
         </Box>
       </Drawer>
 
+      <VersionUpdateDrawer open={versionDrawerOpen} version={systemVersion} onClose={dismissVersionDrawer} onUpdateNow={updateNowVersion} />
+
       <Box
         ref={moduleNavProbeRef}
         aria-hidden="true"
@@ -565,7 +595,7 @@ export default function Layout({ children }: LayoutProps) {
         <MainMenuItems selectedSection={selectedSection} onSelect={handleSectionChange} />
       </Box>
 
-  <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: { xs: 1.5, md: 2 } }}>
+      <Box sx={{ flex: 1, minHeight: 0, background: '#eef1f4', py: 3, px: { xs: 1.5, md: 2 } }}>
         <Box
           component="main"
           sx={{

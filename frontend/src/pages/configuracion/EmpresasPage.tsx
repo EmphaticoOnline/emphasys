@@ -30,7 +30,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import ReplayIcon from '@mui/icons-material/Replay';
-import { createEmpresa, deleteEmpresa, fetchEmpresas, updateEmpresa } from '../../services/empresasService';
+import { createEmpresa, deleteEmpresa, fetchEmpresa, fetchEmpresas, registrarEmpresaCsdFacturama, updateEmpresa } from '../../services/empresasService';
 import { buildAssetUrl, fetchEmpresaAsset, uploadEmpresaAsset } from '../../services/empresasAssetsService';
 import type { Empresa, EmpresaPayload } from '../../types/empresa';
 import { apiFetch } from '../../services/apiFetch';
@@ -92,6 +92,12 @@ export default function EmpresasPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoAsset, setLogoAsset] = useState<{ ruta: string } | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [csdCerFile, setCsdCerFile] = useState<File | null>(null);
+  const [csdKeyFile, setCsdKeyFile] = useState<File | null>(null);
+  const [csdPassword, setCsdPassword] = useState('');
+  const [csdSubmitting, setCsdSubmitting] = useState(false);
+  const [csdError, setCsdError] = useState<string | null>(null);
+  const [csdSuccess, setCsdSuccess] = useState<string | null>(null);
 
   const resetLogoState = () => {
     setLogoLoading(false);
@@ -99,6 +105,15 @@ export default function EmpresasPage() {
     setLogoSuccess(null);
     setLogoFile(null);
     setLogoAsset(null);
+  };
+
+  const resetCsdState = () => {
+    setCsdCerFile(null);
+    setCsdKeyFile(null);
+    setCsdPassword('');
+    setCsdSubmitting(false);
+    setCsdError(null);
+    setCsdSuccess(null);
   };
 
   const tituloDialogo = editId ? 'Editar empresa' : 'Crear empresa';
@@ -146,6 +161,7 @@ export default function EmpresasPage() {
     if (regimenOptions.length === 0) {
       void loadRegimenesOptions();
     }
+    resetCsdState();
     setDialogOpen(true);
   };
 
@@ -162,6 +178,7 @@ export default function EmpresasPage() {
       void loadRegimenesOptions();
     }
     resetLogoState();
+    resetCsdState();
     void loadLogoAsset(empresa.id);
     setDialogOpen(true);
   };
@@ -170,6 +187,7 @@ export default function EmpresasPage() {
     setDialogOpen(false);
     setFormError(null);
     resetLogoState();
+    resetCsdState();
   };
 
   const handleChange = (campo: keyof EmpresaPayload, value: any) => {
@@ -439,6 +457,77 @@ export default function EmpresasPage() {
     }
   };
 
+  const handleCsdFileChange = (kind: 'cer' | 'key', file?: File) => {
+    if (!file) {
+      if (kind === 'cer') setCsdCerFile(null);
+      if (kind === 'key') setCsdKeyFile(null);
+      return;
+    }
+
+    const expectedExtension = kind === 'cer' ? '.cer' : '.key';
+    if (!file.name.toLowerCase().endsWith(expectedExtension)) {
+      setCsdError(`El archivo ${kind.toUpperCase()} debe tener extensión ${expectedExtension}`);
+      if (kind === 'cer') setCsdCerFile(null);
+      if (kind === 'key') setCsdKeyFile(null);
+      return;
+    }
+
+    setCsdError(null);
+    setCsdSuccess(null);
+    if (kind === 'cer') setCsdCerFile(file);
+    if (kind === 'key') setCsdKeyFile(file);
+  };
+
+  const handleRegistrarCsd = async () => {
+    if (!editId) {
+      setCsdError('Guarda primero la empresa para registrar su CSD');
+      return;
+    }
+
+    if (!csdCerFile) {
+      setCsdError('Selecciona el archivo .cer');
+      return;
+    }
+
+    if (!csdKeyFile) {
+      setCsdError('Selecciona el archivo .key');
+      return;
+    }
+
+    if (!csdPassword.trim()) {
+      setCsdError('Ingresa la contraseña del CSD');
+      return;
+    }
+
+    setCsdSubmitting(true);
+    setCsdError(null);
+    setCsdSuccess(null);
+
+    try {
+      const response = await registrarEmpresaCsdFacturama(editId, csdCerFile, csdKeyFile, csdPassword.trim());
+      setCsdSuccess('✅ CSD registrado correctamente');
+
+      const refreshedEmpresa = await fetchEmpresa(editId);
+      setForm((prev) => ({ ...prev, ...refreshedEmpresa }));
+      loadEmpresas();
+
+      if (response.message && response.message !== 'CSD registrado correctamente') {
+        setCsdSuccess(`✅ ${response.message}`);
+      }
+    } catch (err) {
+      setCsdError(err instanceof Error ? err.message : 'No se pudo registrar el CSD en Facturama');
+    } finally {
+      setCsdSubmitting(false);
+    }
+  };
+
+  const formatFechaCsd = (raw?: string | null) => {
+    if (!raw) return '—';
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+    return date.toLocaleString('es-MX');
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Toolbar disableGutters sx={{ justifyContent: 'space-between' }}>
@@ -672,6 +761,83 @@ export default function EmpresasPage() {
             value={form.sitio_web || ''}
             onChange={(e) => handleChange('sitio_web', e.target.value)}
           />
+          <Box sx={{ gridColumn: '1 / -1', border: '1px solid #e5e7eb', borderRadius: 1, p: 2, backgroundColor: '#fafafa' }}>
+            <Typography variant="h6" gutterBottom>
+              CSD Facturama Multiemisor
+            </Typography>
+            <Stack spacing={1} mb={2}>
+              <Typography variant="body2" color="text.secondary">
+                Registrado en Facturama: <strong>{form.cfdi_csd_registrado_facturama ? 'Sí' : 'No'}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Fecha última actualización: <strong>{formatFechaCsd(form.cfdi_csd_fecha_actualizacion)}</strong>
+              </Typography>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+              <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
+                Archivo .cer
+                <input
+                  type="file"
+                  accept=".cer,application/pkix-cert"
+                  hidden
+                  onChange={(event) => handleCsdFileChange('cer', event.target.files?.[0])}
+                />
+              </Button>
+
+              <Typography variant="body2" sx={{ minWidth: 220 }}>
+                {csdCerFile ? csdCerFile.name : 'Sin archivo .cer'}
+              </Typography>
+
+              <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
+                Archivo .key
+                <input
+                  type="file"
+                  accept=".key,application/octet-stream"
+                  hidden
+                  onChange={(event) => handleCsdFileChange('key', event.target.files?.[0])}
+                />
+              </Button>
+
+              <Typography variant="body2" sx={{ minWidth: 220 }}>
+                {csdKeyFile ? csdKeyFile.name : 'Sin archivo .key'}
+              </Typography>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mt={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+              <TextField
+                label="Contraseña CSD"
+                type="password"
+                value={csdPassword}
+                onChange={(event) => setCsdPassword(event.target.value)}
+                sx={{ minWidth: { xs: '100%', md: 320 } }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleRegistrarCsd}
+                disabled={!editId || csdSubmitting}
+                sx={{ textTransform: 'none' }}
+              >
+                {csdSubmitting ? 'Registrando...' : 'Registrar CSD en Facturama'}
+              </Button>
+            </Stack>
+
+            {csdSuccess && (
+              <Box mt={2}>
+                <Alert severity="success" onClose={() => setCsdSuccess(null)}>
+                  {csdSuccess}
+                </Alert>
+              </Box>
+            )}
+            {csdError && (
+              <Box mt={2}>
+                <Alert severity="error" onClose={() => setCsdError(null)}>
+                  {csdError}
+                </Alert>
+              </Box>
+            )}
+          </Box>
+
           <Box sx={{ gridColumn: '1 / -1', border: '1px solid #e5e7eb', borderRadius: 1, p: 2, backgroundColor: '#fafafa' }}>
             <Typography variant="h6" gutterBottom>
               Imagen corporativa

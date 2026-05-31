@@ -139,6 +139,31 @@ function estatusDocumentoEsInactivo(estatusDocumento: unknown) {
   return estatusNormalizado === 'cancelado' || estatusNormalizado === 'cancelada';
 }
 
+/**
+ * Devuelve true si el documento tiene un intento de cancelación en estado
+ * 'externo_ok_interno_pendiente', es decir: Facturama ya canceló el CFDI pero
+ * la transacción interna aún no se completó. El documento debe ser de solo lectura
+ * en este estado hasta que se resuelva el intento.
+ */
+async function documentoTieneCancelacionPendiente(
+  documentoId: number,
+  empresaId: number,
+  executor: Pick<import('pg').PoolClient, 'query'>
+): Promise<boolean> {
+  const { rows } = await executor.query<{ pendiente: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM public.documentos_cancelacion_intentos
+        WHERE documento_id = $1
+          AND empresa_id   = $2
+          AND estado       = 'externo_ok_interno_pendiente'
+        LIMIT 1
+     ) AS pendiente`,
+    [documentoId, empresaId]
+  );
+  return Boolean(rows[0]?.pendiente);
+}
+
 async function cotizacionTieneFacturaActivaDerivada(
   cotizacionId: number,
   empresaId: number,
@@ -721,6 +746,14 @@ export async function actualizarDocumentoRepository(
   const current = currentRows[0];
   if (!current) return null;
 
+  if (estatusDocumentoEsInactivo(current.estatus_documento)) {
+    throw new Error('VALIDATION_ERROR: El documento está cancelado y es de solo lectura');
+  }
+
+  if (await documentoTieneCancelacionPendiente(id, empresaId, executor)) {
+    throw new Error('VALIDATION_ERROR: El documento tiene una cancelación CFDI pendiente de sincronización y es de solo lectura');
+  }
+
   let dataToUpdate: DocumentoInput = { ...data };
   const serieActual = current.serie ?? null;
   const serieNueva = dataToUpdate.serie ?? serieActual;
@@ -858,12 +891,21 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
   const executor = client ?? (await pool.connect());
   try {
     const { rows: docRows } = await executor.query(
-      'SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1',
+      'SELECT tipo_documento, estatus_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1',
       [documentoId, empresaId]
     );
     const docRow = docRows[0];
     if (!docRow) return null;
-    const permiteImagen = String(docRow.tipo_documento ?? '').toLowerCase() === 'cotizacion';
+
+    if (estatusDocumentoEsInactivo(docRow.estatus_documento)) {
+      throw new Error('VALIDATION_ERROR: El documento está cancelado y es de solo lectura');
+    }
+
+    if (await documentoTieneCancelacionPendiente(documentoId, empresaId, executor)) {
+      throw new Error('VALIDATION_ERROR: El documento tiene una cancelación CFDI pendiente de sincronización y es de solo lectura');
+    }
+
+    const permiteImagen = true;
     const imagen = normalizarImagenPartida(data, permiteImagen);
 
     const campos: string[] = ['documento_id'];
@@ -948,14 +990,23 @@ export async function reemplazarPartidasRepository(
   const executor = client ?? (await pool.connect());
   try {
     const { rows: docRows } = await executor.query(
-      'SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1',
+      'SELECT tipo_documento, estatus_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1',
       [documentoId, empresaId]
     );
     const docRow = docRows[0];
     if (!docRow) {
       return null;
     }
-    const permiteImagen = String(docRow.tipo_documento ?? '').toLowerCase() === 'cotizacion';
+
+    if (estatusDocumentoEsInactivo(docRow.estatus_documento)) {
+      throw new Error('VALIDATION_ERROR: El documento está cancelado y es de solo lectura');
+    }
+
+    if (await documentoTieneCancelacionPendiente(documentoId, empresaId, executor)) {
+      throw new Error('VALIDATION_ERROR: El documento tiene una cancelación CFDI pendiente de sincronización y es de solo lectura');
+    }
+
+    const permiteImagen = true;
     const usaProductoTecnicoNc = ['nota_credito', 'nota_credito_compra'].includes(String(docRow.tipo_documento ?? '').toLowerCase());
 
     if (ownedClient) {

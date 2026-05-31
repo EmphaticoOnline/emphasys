@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Box, Typography, List, ListItemButton, ListItemText, Card, CardActionArea } from "@mui/material";
 import { useSession } from "../session/useSession";
 import type { Empresa } from "../session/sessionTypes";
+import { resolveRutaInicio } from "../utils/rutaInicio";
 
 export default function SeleccionEmpresaPage() {
   const navigate = useNavigate();
@@ -19,15 +20,21 @@ export default function SeleccionEmpresaPage() {
     if (empresas.length === 1) {
       const unica = empresas[0];
       if (unica) {
-        setSession({ ...session, empresaActivaId: unica.id });
-        navigate("/", { replace: true });
+        const nextSession = { ...session, empresaActivaId: unica.id };
+        setSession(nextSession);
+        void (async () => {
+          navigate(await resolveRutaInicio(nextSession), { replace: true });
+        })();
       }
     }
   }, [session, empresas, navigate, setSession]);
 
   const handleSelect = (empresa: Empresa) => {
-    setSession({ ...session, empresaActivaId: empresa.id });
-    navigate("/", { replace: true });
+    const nextSession = { ...session, empresaActivaId: empresa.id };
+    setSession(nextSession);
+    void (async () => {
+      navigate(await resolveRutaInicio(nextSession), { replace: true });
+    })();
   };
 
   if (!session.token) return null;

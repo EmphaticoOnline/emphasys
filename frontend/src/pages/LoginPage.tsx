@@ -4,6 +4,7 @@ import { Box, Button, TextField, Typography, Stack } from "@mui/material";
 import { login } from "../services/authService";
 import { useSession } from "../session/useSession";
 import type { Empresa } from "../session/sessionTypes";
+import { resolveRutaInicio } from "../utils/rutaInicio";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -20,10 +21,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-  const { token, user, empresas } = await login(email, password);
-
-  const empresasList: Empresa[] = empresas ?? [];
-  const empresaActivaId = empresasList.length === 1 ? empresasList[0]?.id ?? null : null;
+      const { token, user, empresas } = await login(email, password);
+      const empresasList: Empresa[] = empresas ?? [];
+      const empresaActivaId = empresasList.length === 1 ? empresasList[0]?.id ?? null : null;
 
       setSession({
         token,
@@ -33,7 +33,7 @@ export default function LoginPage() {
       });
 
       if (empresaActivaId) {
-        navigate("/");
+        navigate(await resolveRutaInicio({ token, user, empresas: empresasList, empresaActivaId }), { replace: true });
       } else {
         navigate("/seleccionar-empresa");
       }

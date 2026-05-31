@@ -16,6 +16,7 @@ export interface UsuarioConPassword {
   password_hash: string;
   activo: boolean;
   es_superadmin: boolean;
+  ruta_inicio: string | null;
   vendedor_contacto_id: number | null;
   vendedor_contacto_nombre: string | null;
 }
@@ -26,6 +27,7 @@ export interface UsuarioPublico {
   email: string;
   activo: boolean;
   es_superadmin: boolean;
+  ruta_inicio: string | null;
   vendedor_contacto_id: number | null;
   vendedor_contacto_nombre: string | null;
 }
@@ -72,13 +74,14 @@ export function construirPayloadToken(usuario: UsuarioPublico): AuthTokenPayload
   };
 }
 
-export function mapearUsuarioPublico<T extends { id: number; nombre: string; email: string; es_superadmin: boolean; activo?: boolean; vendedor_contacto_id?: number | null; vendedor_contacto_nombre?: string | null }>(usuario: T): UsuarioPublico {
+export function mapearUsuarioPublico<T extends { id: number; nombre: string; email: string; es_superadmin: boolean; activo?: boolean; ruta_inicio?: string | null; vendedor_contacto_id?: number | null; vendedor_contacto_nombre?: string | null }>(usuario: T): UsuarioPublico {
   return {
     id: usuario.id,
     nombre: usuario.nombre,
     email: usuario.email,
     es_superadmin: usuario.es_superadmin,
     activo: usuario.activo ?? true,
+    ruta_inicio: usuario.ruta_inicio ?? null,
     vendedor_contacto_id: usuario.vendedor_contacto_id ?? null,
     vendedor_contacto_nombre: usuario.vendedor_contacto_nombre ?? null,
   };
@@ -96,6 +99,7 @@ export async function obtenerUsuarioPorEmail(email: string): Promise<UsuarioConP
       u.password_hash,
       u.activo,
       u.es_superadmin,
+      u.ruta_inicio,
       u.vendedor_contacto_id,
       c.nombre AS vendedor_contacto_nombre
        FROM core.usuarios u
@@ -115,6 +119,7 @@ export async function obtenerUsuarioPorId(id: number): Promise<UsuarioPublico | 
       u.email,
       u.activo,
       u.es_superadmin,
+      u.ruta_inicio,
       u.vendedor_contacto_id,
       c.nombre AS vendedor_contacto_nombre
        FROM core.usuarios u
