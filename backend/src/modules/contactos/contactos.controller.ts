@@ -50,6 +50,9 @@ export async function crearContacto(req: Request, res: Response) {
     const data = { ...req.body };
 
     data.nombre = String(data.nombre).trim();
+    if ('nombre_contacto' in data) {
+      data.nombre_contacto = String(data.nombre_contacto ?? '').trim() || null;
+    }
 
     const telefonoRecibido = "telefono" in data ? data.telefono : undefined;
 
@@ -176,6 +179,14 @@ export async function actualizarContacto(req: Request, res: Response) {
 
     if (empresaId === undefined || empresaId === null || Number.isNaN(Number(empresaId))) {
       return res.status(400).json({ message: "empresaId es obligatorio" });
+    }
+
+    if ('nombre' in data) {
+      data.nombre = String(data.nombre ?? '').trim();
+    }
+
+    if ('nombre_contacto' in data) {
+      data.nombre_contacto = String(data.nombre_contacto ?? '').trim() || null;
     }
 
     if ("telefono" in data) {

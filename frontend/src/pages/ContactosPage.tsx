@@ -89,8 +89,22 @@ export default function ContactosPage() {
   };
 
   const baseColumns: GridColDef[] = [
-    { field: 'nombre', headerName: 'Nombre', flex: 1, minWidth: 180, headerClassName: 'finanzas-header' },
+    { field: 'nombre', headerName: 'Empresa', flex: 1, minWidth: 180, headerClassName: 'finanzas-header' },
+    { field: 'nombre_contacto', headerName: 'Contacto', flex: 1, minWidth: 180, headerClassName: 'finanzas-header' },
+    { field: 'telefono', headerName: 'Teléfono', width: 130, headerClassName: 'finanzas-header' },
     { field: 'email', headerName: 'Email', flex: 1, minWidth: 200, headerClassName: 'finanzas-header' },
+    { field: 'tipo_contacto', headerName: 'Tipo contacto', width: 150, headerClassName: 'finanzas-header' },
+    {
+      field: 'vendedor_id',
+      headerName: 'Vendedor(a)',
+      width: 160,
+      headerClassName: 'finanzas-header',
+      renderCell: (params: GridRenderCellParams) => {
+        const value = Number(params.value);
+        if (!value) return '';
+        return params.row?.vendedor_nombre || vendedorNombre.get(value) || String(params.value ?? '');
+      },
+    },
     {
       field: 'clasificacion',
       headerName: 'Clasificación',
@@ -105,20 +119,7 @@ export default function ContactosPage() {
       headerClassName: 'finanzas-header',
       renderCell: (params: GridRenderCellParams) => params.value || '',
     },
-    {
-      field: 'vendedor_id',
-      headerName: 'Vendedor(a)',
-      width: 160,
-      headerClassName: 'finanzas-header',
-      renderCell: (params: GridRenderCellParams) => {
-        const value = Number(params.value);
-        if (!value) return '';
-        return params.row?.vendedor_nombre || vendedorNombre.get(value) || String(params.value ?? '');
-      },
-    },
-    { field: 'telefono', headerName: 'Celular', width: 130, headerClassName: 'finanzas-header' },
     { field: 'telefono_secundario', headerName: 'Teléfono', width: 130, headerClassName: 'finanzas-header' },
-    { field: 'tipo_contacto', headerName: 'Tipo contacto', width: 150, headerClassName: 'finanzas-header' },
     {
       field: 'actions',
       headerName: 'Acciones',

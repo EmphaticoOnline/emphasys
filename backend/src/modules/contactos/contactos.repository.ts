@@ -16,6 +16,7 @@ type CatalogoValor = {
 
 const columnasPermitidasContacto = new Set([
   'nombre',
+  'nombre_contacto',
   'email',
   'telefono',
   'telefono_secundario',
@@ -274,6 +275,7 @@ export async function obtenerContactosPaginados(
     filtros.push(
       `(
         contactos.nombre ILIKE $${idx}
+        OR contactos.nombre_contacto ILIKE $${idx}
         OR contactos.email ILIKE $${idx}
         OR contactos.rfc ILIKE $${idx}
         OR cdf.rfc ILIKE $${idx}
@@ -415,6 +417,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
     `SELECT
         c.id,
         c.nombre,
+      c.nombre_contacto,
         c.rfc AS rfc_contacto,
         c.email,
         c.telefono,
@@ -468,6 +471,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
     contacto: {
       id: row.id,
       nombre: row.nombre,
+      nombre_contacto: row.nombre_contacto,
       rfc: row.rfc_fiscal ?? row.rfc_contacto,
       email: row.email,
       telefono: row.telefono,

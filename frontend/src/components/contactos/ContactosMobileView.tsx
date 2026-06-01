@@ -78,7 +78,7 @@ export default function ContactosMobileView({
           <TextField
             size="small"
             fullWidth
-            placeholder="Buscar por nombre, email o teléfono"
+            placeholder="Buscar por empresa, contacto, email o teléfono"
             value={searchTerm}
             onChange={(event) => onSearchTermChange(event.target.value)}
             InputProps={{
@@ -126,6 +126,7 @@ export default function ContactosMobileView({
           ) : (
             contactos.map((contacto) => {
               const detailItems = [
+                { label: 'Contacto', value: contacto.nombre_contacto },
                 { label: 'Tipo', value: contacto.tipo_contacto },
                 { label: 'Clasificación', value: contacto.clasificacion },
                 { label: 'Teléfono', value: contacto.telefono || contacto.telefono_secundario },
@@ -151,6 +152,11 @@ export default function ContactosMobileView({
                         <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ lineHeight: 1.2 }}>
                           {renderValue(contacto.nombre)}
                         </Typography>
+                        {hasValue(contacto.nombre_contacto) ? (
+                          <Typography variant="body2" color="#374151" sx={{ mt: 0.25, lineHeight: 1.3 }}>
+                            {renderValue(contacto.nombre_contacto)}
+                          </Typography>
+                        ) : null}
                         {subtitle ? (
                           <Typography variant="body2" color="#4b5563" sx={{ mt: 0.25, wordBreak: 'break-word', lineHeight: 1.3 }}>
                             {subtitle}

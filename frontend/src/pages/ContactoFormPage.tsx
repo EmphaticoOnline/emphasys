@@ -35,6 +35,7 @@ import { normalizarTelefonoMx } from '../utils/telefono';
 
 type FormState = {
   nombre: string;
+  nombre_contacto: string;
   tipo_contacto: string;
   clasificacion: string;
   origen_contacto: string;
@@ -63,6 +64,7 @@ type FormState = {
 
 const initialState: FormState = {
   nombre: '',
+  nombre_contacto: '',
   tipo_contacto: 'Cliente',
   clasificacion: '',
   origen_contacto: '',
@@ -268,6 +270,7 @@ function validarRFC(rfc: string) {
         if (!isMounted) return;
         setForm({
           nombre: contacto.nombre || '',
+          nombre_contacto: contacto.nombre_contacto || '',
           tipo_contacto: contacto.tipo_contacto || 'Cliente',
           clasificacion: contacto.clasificacion || '',
           origen_contacto: contacto.origen_contacto || '',
@@ -494,6 +497,7 @@ function validarRFC(rfc: string) {
 
     const payload = {
       nombre: form.nombre.trim(),
+      nombre_contacto: form.nombre_contacto.trim() || null,
       tipo_contacto: form.tipo_contacto,
       clasificacion: form.clasificacion.trim() || null,
       origen_contacto: form.origen_contacto.trim() || null,
@@ -635,10 +639,17 @@ function validarRFC(rfc: string) {
             {activeTab === 0 && (
               <Stack spacing={2}>
                 <TextField
-                  label="Nombre"
+                  label="Empresa"
                   value={form.nombre}
                   onChange={handleTextChange('nombre')}
                   required
+                  fullWidth
+                />
+
+                <TextField
+                  label="Contacto"
+                  value={form.nombre_contacto}
+                  onChange={handleTextChange('nombre_contacto')}
                   fullWidth
                 />
 

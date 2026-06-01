@@ -54,7 +54,7 @@ export default function ContactosDesktopView({
             </Box>
             <TextField
               size="small"
-              placeholder="Buscar por nombre, email o teléfono"
+              placeholder="Buscar por empresa, contacto, email o teléfono"
               value={searchTerm}
               onChange={(event) => onSearchTermChange(event.target.value)}
               sx={{ maxWidth: 360 }}
