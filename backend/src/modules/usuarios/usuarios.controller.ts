@@ -44,9 +44,12 @@ function parseRutaInicio(value: unknown): RutaInicioParseResult {
   return { rutaInicio };
 }
 
-export async function getUsuarios(_req: Request, res: Response) {
+export async function getUsuarios(req: Request, res: Response) {
   try {
-    const usuarios = await listarUsuarios();
+    const empresaId = Number(req.context?.empresaId ?? 0);
+    const usuarios = req.auth?.esSuperadmin
+      ? await listarUsuarios()
+      : await listarUsuariosHabilitadosPorEmpresa(empresaId);
     res.json(usuarios);
   } catch (error) {
     console.error('Error al obtener usuarios:', error);

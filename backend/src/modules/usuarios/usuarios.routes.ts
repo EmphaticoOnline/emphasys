@@ -14,7 +14,7 @@ import {
 
 const router = Router();
 
-router.get('/', getUsuarios);
+router.get('/', requireAuth, requireEmpresaActiva, getUsuarios);
 router.get('/habilitados', requireAuth, requireEmpresaActiva, getUsuariosHabilitados);
 router.get('/:id', getUsuario);
 router.get('/:id/empresas', getUsuarioEmpresas);
