@@ -18,8 +18,10 @@ import {
 } from "../crm/conversaciones.controller";
 import { listarPlantillasWhatsapp as listarPlantillasWhatsappRepo } from "./whatsapp-plantillas.service";
 
-export const whatsappWebhook = async (req: Request, res: Response) => whatsappWebhookHandler(req, res);
-
+export const whatsappWebhook = async (req: Request, res: Response) => {
+    console.log("WEBHOOK EJECUTADO", new Date().toISOString());
+    return whatsappWebhookHandler(req, res);
+};
 export const enviarWhatsapp = async (req: Request, res: Response) => enviarWhatsappHandler(req, res);
 
 export const listarConversacionesWhatsapp = async (req: Request, res: Response) => listarConversacionesWhatsappHandler(req, res);
