@@ -36,6 +36,8 @@ import { normalizarTelefonoMx } from '../utils/telefono';
 type FormState = {
   nombre: string;
   nombre_contacto: string;
+  interes_inicial: string;
+  observaciones: string;
   tipo_contacto: string;
   clasificacion: string;
   origen_contacto: string;
@@ -65,6 +67,8 @@ type FormState = {
 const initialState: FormState = {
   nombre: '',
   nombre_contacto: '',
+  interes_inicial: '',
+  observaciones: '',
   tipo_contacto: 'Cliente',
   clasificacion: '',
   origen_contacto: '',
@@ -271,6 +275,8 @@ function validarRFC(rfc: string) {
         setForm({
           nombre: contacto.nombre || '',
           nombre_contacto: contacto.nombre_contacto || '',
+          interes_inicial: contacto.interes_inicial || '',
+          observaciones: contacto.observaciones || '',
           tipo_contacto: contacto.tipo_contacto || 'Cliente',
           clasificacion: contacto.clasificacion || '',
           origen_contacto: contacto.origen_contacto || '',
@@ -498,6 +504,8 @@ function validarRFC(rfc: string) {
     const payload = {
       nombre: form.nombre.trim(),
       nombre_contacto: form.nombre_contacto.trim() || null,
+      interes_inicial: form.interes_inicial.trim() || null,
+      observaciones: form.observaciones.trim() || null,
       tipo_contacto: form.tipo_contacto,
       clasificacion: form.clasificacion.trim() || null,
       origen_contacto: form.origen_contacto.trim() || null,
@@ -776,6 +784,26 @@ function validarRFC(rfc: string) {
                   value={form.telefono_secundario}
                   onChange={handleTextChange('telefono_secundario')}
                   fullWidth
+                />
+
+                <TextField
+                  label="Interés inicial"
+                  value={form.interes_inicial}
+                  onChange={handleTextChange('interes_inicial')}
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  inputProps={{ maxLength: 500 }}
+                  helperText={`${form.interes_inicial.length}/500`}
+                />
+
+                <TextField
+                  label="Observaciones"
+                  value={form.observaciones}
+                  onChange={handleTextChange('observaciones')}
+                  fullWidth
+                  multiline
+                  minRows={5}
                 />
 
                 <FormControlLabel

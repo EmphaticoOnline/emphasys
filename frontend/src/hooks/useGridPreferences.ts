@@ -96,6 +96,8 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
   const hasHydratedRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
   const lastSavedPayloadRef = useRef<string>('');
+  const pendingPayloadRef = useRef<GridPreferencesPayload | null>(null);
+  const pendingPayloadStringRef = useRef<string>('');
   const defaultSortModelRef = useRef<GridSortModel>(defaultSortModel);
   const defaultFilterModelRef = useRef<GridFilterModel>(defaultFilterModel);
   const defaultColumnVisibilityModelRef = useRef<GridColumnVisibilityModel>(defaultColumnVisibilityModel);
@@ -226,14 +228,22 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
 
     const nextPayloadString = toStableString(payload);
     if (nextPayloadString === lastSavedPayloadRef.current) {
+      pendingPayloadRef.current = null;
+      pendingPayloadStringRef.current = '';
       return;
     }
+
+    pendingPayloadRef.current = payload;
+    pendingPayloadStringRef.current = nextPayloadString;
 
     saveTimeoutRef.current = window.setTimeout(() => {
       void saveGridPreferences(pantalla, perfilDispositivo, payload).catch((error) => {
         console.error('No se pudieron guardar preferencias de grid', error);
       });
       lastSavedPayloadRef.current = nextPayloadString;
+      pendingPayloadRef.current = null;
+      pendingPayloadStringRef.current = '';
+      saveTimeoutRef.current = null;
     }, SAVE_DEBOUNCE_MS);
 
     return () => {
@@ -251,6 +261,28 @@ export function useGridPreferences<TExternalFilters extends Record<string, unkno
     perfilDispositivo,
     sortModel,
   ]);
+
+  useEffect(() => {
+    return () => {
+      if (!hasHydratedRef.current) return;
+
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+
+      if (!pendingPayloadRef.current || pendingPayloadStringRef.current === lastSavedPayloadRef.current) {
+        return;
+      }
+
+      void saveGridPreferences(pantalla, perfilDispositivo, pendingPayloadRef.current).catch((error) => {
+        console.error('No se pudieron guardar preferencias de grid al desmontar', error);
+      });
+      lastSavedPayloadRef.current = pendingPayloadStringRef.current;
+      pendingPayloadRef.current = null;
+      pendingPayloadStringRef.current = '';
+    };
+  }, [pantalla, perfilDispositivo]);
 
   const applySavedWidthsToColumns = useCallback(
     <TRow extends GridValidRowModel,>(columns: GridColDef<TRow>[]): GridColDef<TRow>[] =>

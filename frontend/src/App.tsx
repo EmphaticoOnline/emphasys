@@ -63,6 +63,7 @@ export default function App() {
               <Route path="/productos/:id" element={<ProductoFormPage />} />
               <Route path="/crm" element={<CRMPage />} />
               <Route path="/crm/actividades" element={<CRMPage />} />
+              <Route path="/crm/actividades/nueva" element={<ActividadFormPage />} />
               <Route path="/crm/actividades/:id" element={<ActividadFormPage />} />
               <Route path="/crm/oportunidades" element={<CRMPage />} />
               <Route path="/crm/oportunidades/:id" element={<OportunidadDetallePage />} />

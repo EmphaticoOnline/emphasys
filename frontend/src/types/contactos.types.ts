@@ -10,6 +10,7 @@ export interface Contacto {
   precio_lista_nombre?: string | null;
   nombre: string;
   nombre_contacto?: string | null;
+  interes_inicial?: string | null;
   rfc?: string | null;
   email?: string | null;
   telefono?: string | null;

@@ -4,6 +4,7 @@ import { formatearFolioDocumento } from '../utils/documentos';
 
 type CrearActividadBody = {
   usuario_asignado_id?: unknown;
+  contacto_id?: unknown;
   oportunidad_id?: unknown;
   tipo_actividad?: unknown;
   fecha_programada?: unknown;
@@ -19,6 +20,7 @@ type ActualizarActividadBody = {
   tipo_actividad?: unknown;
   fecha_programada?: unknown;
   notas?: unknown;
+  contacto_id?: unknown;
   oportunidad_id?: unknown;
   recordatorio?: unknown;
   recordatorio_minutos?: unknown;
@@ -31,6 +33,7 @@ type ActividadRow = {
   empresa_id: number;
   usuario_asignado_id: number;
   usuario_creador_id: number;
+  contacto_id: number | null;
   oportunidad_id: number | null;
   tipo_actividad: string;
   fecha_programada: Date | string;
@@ -51,6 +54,7 @@ type ActividadListadoRow = {
   fecha_programada: Date | string;
   estatus: string;
   notas: string | null;
+  contacto_id: number | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
   oportunidad_nombre: string | null;
@@ -68,6 +72,7 @@ type ActividadListadoItem = {
   fecha_programada: Date | string;
   estatus: string;
   notas: string | null;
+  contacto_id: number | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
   oportunidad_nombre: string | null;
@@ -89,7 +94,9 @@ type ActividadOportunidadRow = {
   fecha_programada: Date | string;
   estatus: string;
   notas: string | null;
+  contacto_id: number | null;
   oportunidad_id: number | null;
+  cliente_nombre: string | null;
   resultado: string | null;
   fecha_realizacion: Date | string | null;
 };
@@ -99,7 +106,22 @@ type ActividadRecordatorioRow = {
   tipo_actividad: string;
   notas: string | null;
   fecha_programada: Date | string;
+  contacto_id: number | null;
   oportunidad_id: number | null;
+  cliente_nombre: string | null;
+};
+
+type ActividadExistenteRow = {
+  id: number;
+  contacto_id: number | null;
+};
+
+type OportunidadContactoRow = {
+  contacto_id: number | null;
+};
+
+type ContactoRow = {
+  id: number;
 };
 
 const TIPOS_ACTIVIDAD_VALIDOS = new Set(['llamada', 'whatsapp', 'visita', 'tarea']);
@@ -160,6 +182,7 @@ function serializeActividad(row: ActividadRow) {
     empresa_id: row.empresa_id,
     usuario_asignado_id: row.usuario_asignado_id,
     usuario_creador_id: row.usuario_creador_id,
+    contacto_id: row.contacto_id,
     oportunidad_id: row.oportunidad_id,
     tipo_actividad: row.tipo_actividad,
     fecha_programada: row.fecha_programada,
@@ -186,6 +209,7 @@ function serializeActividadListado(row: ActividadListadoRow): ActividadListadoIt
     fecha_programada: row.fecha_programada,
     estatus: row.estatus,
     notas: row.notas,
+    contacto_id: row.contacto_id,
     oportunidad_id: row.oportunidad_id,
     cliente_nombre: row.cliente_nombre,
     oportunidad_nombre: row.oportunidad_nombre,
@@ -202,7 +226,9 @@ function serializeActividadOportunidad(row: ActividadOportunidadRow) {
     fecha_programada: row.fecha_programada,
     estatus: row.estatus,
     notas: row.notas,
+    contacto_id: row.contacto_id,
     oportunidad_id: row.oportunidad_id,
+    cliente_nombre: row.cliente_nombre,
     resultado: row.resultado,
     fecha_realizacion: row.fecha_realizacion,
   };
@@ -214,8 +240,69 @@ function serializeActividadRecordatorio(row: ActividadRecordatorioRow) {
     tipo_actividad: row.tipo_actividad,
     notas: row.notas,
     fecha_programada: row.fecha_programada,
+    contacto_id: row.contacto_id,
     oportunidad_id: row.oportunidad_id,
+    cliente_nombre: row.cliente_nombre,
   };
+}
+
+async function obtenerContactoDesdeOportunidad(empresaId: number, oportunidadId: number) {
+  const { rows } = await pool.query<OportunidadContactoRow>(
+    `SELECT contacto_id
+     FROM crm.oportunidades_venta
+     WHERE id = $1
+       AND empresa_id = $2
+     LIMIT 1`,
+    [oportunidadId, empresaId]
+  );
+
+  return rows[0] ?? null;
+}
+
+async function validarContactoEmpresa(empresaId: number, contactoId: number) {
+  const { rows } = await pool.query<ContactoRow>(
+    `SELECT id
+     FROM public.contactos
+     WHERE id = $1
+       AND empresa_id = $2
+     LIMIT 1`,
+    [contactoId, empresaId]
+  );
+
+  return rows[0] ?? null;
+}
+
+async function obtenerActividadDetallada(empresaId: number, actividadId: number) {
+  const { rows } = await pool.query<ActividadRow>(
+    `SELECT
+       a.id,
+       a.empresa_id,
+       a.usuario_asignado_id,
+       a.usuario_creador_id,
+       a.contacto_id,
+       a.oportunidad_id,
+       a.tipo_actividad,
+       a.fecha_programada,
+       a.notas,
+       a.estatus,
+       a.fecha_realizacion,
+       a.resultado,
+       a.recordatorio,
+       a.recordatorio_minutos,
+       a.created_at,
+       a.updated_at,
+       c.nombre AS cliente_nombre
+     FROM crm.actividades a
+     LEFT JOIN public.contactos c
+       ON c.id = a.contacto_id
+      AND c.empresa_id = a.empresa_id
+     WHERE a.id = $1
+       AND a.empresa_id = $2
+     LIMIT 1`,
+    [actividadId, empresaId]
+  );
+
+  return rows[0] ?? null;
 }
 
 export async function listarRecordatoriosActividades(req: Request, res: Response) {
@@ -237,8 +324,13 @@ export async function listarRecordatoriosActividades(req: Request, res: Response
          a.tipo_actividad,
          a.notas,
          a.fecha_programada,
-         a.oportunidad_id
+         a.contacto_id,
+         a.oportunidad_id,
+         c.nombre AS cliente_nombre
        FROM crm.actividades a
+       LEFT JOIN public.contactos c
+         ON c.id = a.contacto_id
+        AND c.empresa_id = a.empresa_id
        WHERE a.empresa_id = $1
          AND a.usuario_asignado_id = $2
          AND a.estatus = 'pendiente'
@@ -311,6 +403,7 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
     const empresaId = req.context?.empresaId;
     const usuarioId = req.auth?.userId;
     const oportunidadIdRaw = req.query.oportunidad_id;
+    const contactoIdRaw = req.query.contacto_id;
 
     if (!empresaId) {
       return res.status(400).json({ message: 'empresaId no disponible en contexto' });
@@ -318,6 +411,10 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
 
     if (!usuarioId) {
       return res.status(401).json({ message: 'Usuario no autenticado' });
+    }
+
+    if (oportunidadIdRaw !== undefined && contactoIdRaw !== undefined) {
+      return res.status(400).json({ message: 'No puedes filtrar simultáneamente por oportunidad_id y contacto_id' });
     }
 
     if (oportunidadIdRaw !== undefined) {
@@ -329,19 +426,56 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
 
       const { rows } = await pool.query<ActividadOportunidadRow>(
         `SELECT
-           id,
-           tipo_actividad,
-           fecha_programada,
-           estatus,
-           notas,
-           oportunidad_id,
-           resultado,
-           fecha_realizacion
-         FROM crm.actividades
-         WHERE empresa_id = $1
-           AND oportunidad_id = $2
+           a.id,
+           a.tipo_actividad,
+           a.fecha_programada,
+           a.estatus,
+           a.notas,
+           a.contacto_id,
+           a.oportunidad_id,
+           c.nombre AS cliente_nombre,
+           a.resultado,
+           a.fecha_realizacion
+         FROM crm.actividades a
+         LEFT JOIN public.contactos c
+           ON c.id = a.contacto_id
+          AND c.empresa_id = a.empresa_id
+         WHERE a.empresa_id = $1
+           AND a.oportunidad_id = $2
          ORDER BY fecha_programada DESC, id DESC`,
         [Number(empresaId), oportunidadId]
+      );
+
+      return res.json(rows.map(serializeActividadOportunidad));
+    }
+
+    if (contactoIdRaw !== undefined) {
+      const contactoId = Number(contactoIdRaw);
+
+      if (!Number.isInteger(contactoId) || contactoId <= 0) {
+        return res.status(400).json({ message: 'contacto_id inválido' });
+      }
+
+      const { rows } = await pool.query<ActividadOportunidadRow>(
+        `SELECT
+           a.id,
+           a.tipo_actividad,
+           a.fecha_programada,
+           a.estatus,
+           a.notas,
+           a.contacto_id,
+           a.oportunidad_id,
+           c.nombre AS cliente_nombre,
+           a.resultado,
+           a.fecha_realizacion
+         FROM crm.actividades a
+         LEFT JOIN public.contactos c
+           ON c.id = a.contacto_id
+          AND c.empresa_id = a.empresa_id
+         WHERE a.empresa_id = $1
+           AND a.contacto_id = $2
+         ORDER BY a.fecha_programada DESC, a.id DESC`,
+        [Number(empresaId), contactoId]
       );
 
       return res.json(rows.map(serializeActividadOportunidad));
@@ -354,6 +488,7 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
          a.fecha_programada,
          a.estatus,
          a.notas,
+         a.contacto_id,
          a.oportunidad_id,
          c.nombre AS cliente_nombre,
          NULL::text AS oportunidad_nombre,
@@ -377,13 +512,13 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
        LEFT JOIN crm.oportunidades_venta o
          ON o.id = a.oportunidad_id
         AND o.empresa_id = a.empresa_id
+       LEFT JOIN public.contactos c
+         ON c.id = a.contacto_id
+        AND c.empresa_id = a.empresa_id
        LEFT JOIN documentos d
          ON d.id = o.cotizacion_principal_id
        LEFT JOIN documentos_partidas dp
          ON dp.documento_id = d.id
-       LEFT JOIN contactos c
-         ON c.id = o.contacto_id
-        AND c.empresa_id = a.empresa_id
        WHERE a.empresa_id = $1
          AND a.usuario_asignado_id = $2
          AND a.estatus IN ('pendiente', 'realizada')
@@ -393,6 +528,7 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
          a.fecha_programada,
          a.estatus,
          a.notas,
+         a.contacto_id,
          a.oportunidad_id,
          c.nombre,
          d.id,
@@ -422,6 +558,7 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
       empresaId: req.context?.empresaId,
       usuarioId: req.auth?.userId,
       oportunidadId: req.query.oportunidad_id,
+      contactoId: req.query.contacto_id,
       error,
     });
     return res.status(500).json({ message: 'Error al listar actividades' });
@@ -480,6 +617,12 @@ export async function crearActividad(req: Request, res: Response) {
       return res.status(400).json({ message: 'oportunidad_id debe ser un entero positivo' });
     }
 
+    const contactoId = parseOptionalPositiveInt(body.contacto_id);
+
+    if (contactoId === null) {
+      return res.status(400).json({ message: 'contacto_id debe ser un entero positivo' });
+    }
+
     const recordatorio = parseOptionalBoolean(body.recordatorio);
 
     if (body.recordatorio !== undefined && recordatorio === null) {
@@ -498,11 +641,36 @@ export async function crearActividad(req: Request, res: Response) {
         ? null
         : String(body.notas);
 
-    const { rows } = await pool.query<ActividadRow>(
+    let contactoIdFinal: number;
+
+    if (oportunidadId !== undefined) {
+      const oportunidad = await obtenerContactoDesdeOportunidad(Number(empresaId), oportunidadId);
+
+      if (!oportunidad?.contacto_id) {
+        return res.status(400).json({ message: 'oportunidad_id no corresponde a una oportunidad válida' });
+      }
+
+      contactoIdFinal = oportunidad.contacto_id;
+    } else {
+      if (contactoId === undefined) {
+        return res.status(400).json({ message: 'contacto_id es obligatorio cuando la actividad no está vinculada a una oportunidad' });
+      }
+
+      const contacto = await validarContactoEmpresa(Number(empresaId), contactoId);
+
+      if (!contacto) {
+        return res.status(400).json({ message: 'contacto_id no corresponde a un contacto válido' });
+      }
+
+      contactoIdFinal = contactoId;
+    }
+
+    const { rows } = await pool.query<Pick<ActividadRow, 'id'>>(
       `INSERT INTO crm.actividades (
          empresa_id,
          usuario_asignado_id,
          usuario_creador_id,
+         contacto_id,
          oportunidad_id,
          tipo_actividad,
          fecha_programada,
@@ -511,27 +679,13 @@ export async function crearActividad(req: Request, res: Response) {
          recordatorio,
          recordatorio_minutos
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendiente', COALESCE($8, FALSE), $9)
-       RETURNING
-         id,
-         empresa_id,
-         usuario_asignado_id,
-         usuario_creador_id,
-         oportunidad_id,
-         tipo_actividad,
-         fecha_programada,
-         notas,
-         estatus,
-         fecha_realizacion,
-         resultado,
-         recordatorio,
-         recordatorio_minutos,
-         created_at,
-         updated_at`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', COALESCE($9, FALSE), $10)
+       RETURNING id`,
       [
         Number(empresaId),
         usuarioAsignadoId,
         Number(usuarioCreadorId),
+        contactoIdFinal,
         oportunidadId ?? null,
         tipoActividad,
         fechaProgramada,
@@ -541,12 +695,19 @@ export async function crearActividad(req: Request, res: Response) {
       ]
     );
 
-    return res.status(201).json(serializeActividad(rows[0]));
+    const actividad = await obtenerActividadDetallada(Number(empresaId), rows[0].id);
+
+    if (!actividad) {
+      return res.status(500).json({ message: 'No se pudo recuperar la actividad creada' });
+    }
+
+    return res.status(201).json(serializeActividad(actividad));
   } catch (error) {
     console.error('Error al crear actividad:', {
       empresaId: req.context?.empresaId,
       usuarioCreadorId: req.auth?.userId,
       usuarioAsignadoId: req.body?.usuario_asignado_id,
+      contactoId: req.body?.contacto_id,
       oportunidadId: req.body?.oportunidad_id,
       tipoActividad: req.body?.tipo_actividad,
       error,
@@ -568,42 +729,13 @@ export async function obtenerActividadPorId(req: Request, res: Response) {
       return res.status(400).json({ message: 'id de actividad inválido' });
     }
 
-    const { rows } = await pool.query<ActividadRow>(
-      `SELECT
-         a.id,
-         a.empresa_id,
-         a.usuario_asignado_id,
-         a.usuario_creador_id,
-         a.oportunidad_id,
-         a.tipo_actividad,
-         a.fecha_programada,
-         a.notas,
-         a.estatus,
-         a.fecha_realizacion,
-         a.resultado,
-         a.recordatorio,
-         a.recordatorio_minutos,
-         a.created_at,
-         a.updated_at,
-         c.nombre AS cliente_nombre
-       FROM crm.actividades a
-       LEFT JOIN crm.oportunidades_venta o
-         ON o.id = a.oportunidad_id
-        AND o.empresa_id = a.empresa_id
-       LEFT JOIN contactos c
-         ON c.id = o.contacto_id
-        AND c.empresa_id = a.empresa_id
-       WHERE a.id = $1
-         AND a.empresa_id = $2
-       LIMIT 1`,
-      [actividadId, Number(empresaId)]
-    );
+    const actividad = await obtenerActividadDetallada(Number(empresaId), actividadId);
 
-    if (!rows.length) {
+    if (!actividad) {
       return res.status(404).json({ message: 'Actividad no encontrada' });
     }
 
-    return res.json(serializeActividad(rows[0]));
+    return res.json(serializeActividad(actividad));
   } catch (error) {
     console.error('Error al obtener actividad:', error);
     return res.status(500).json({ message: 'Error al obtener actividad' });
@@ -652,6 +784,12 @@ export async function actualizarActividad(req: Request, res: Response) {
       return res.status(400).json({ message: 'oportunidad_id debe ser un entero positivo' });
     }
 
+    const contactoId = parseOptionalPositiveInt(body.contacto_id);
+
+    if (contactoId === null) {
+      return res.status(400).json({ message: 'contacto_id debe ser un entero positivo' });
+    }
+
     const recordatorioProvided = Object.prototype.hasOwnProperty.call(body, 'recordatorio');
     const recordatorio = parseOptionalBoolean(body.recordatorio);
 
@@ -672,45 +810,71 @@ export async function actualizarActividad(req: Request, res: Response) {
         ? null
         : String(body.notas);
 
-    const { rows } = await pool.query<ActividadRow>(
+    const { rows: actividadExistenteRows } = await pool.query<ActividadExistenteRow>(
+      `SELECT id, contacto_id
+       FROM crm.actividades
+       WHERE id = $1
+         AND empresa_id = $2
+       LIMIT 1`,
+      [actividadId, Number(empresaId)]
+    );
+
+    if (!actividadExistenteRows.length) {
+      return res.status(404).json({ message: 'Actividad no encontrada' });
+    }
+
+    const actividadExistente = actividadExistenteRows[0];
+
+    let contactoIdFinal: number;
+
+    if (oportunidadId !== undefined) {
+      const oportunidad = await obtenerContactoDesdeOportunidad(Number(empresaId), oportunidadId);
+
+      if (!oportunidad?.contacto_id) {
+        return res.status(400).json({ message: 'oportunidad_id no corresponde a una oportunidad válida' });
+      }
+
+      contactoIdFinal = oportunidad.contacto_id;
+    } else if (contactoId !== undefined) {
+      const contacto = await validarContactoEmpresa(Number(empresaId), contactoId);
+
+      if (!contacto) {
+        return res.status(400).json({ message: 'contacto_id no corresponde a un contacto válido' });
+      }
+
+      contactoIdFinal = contactoId;
+    } else if (actividadExistente.contacto_id) {
+      contactoIdFinal = actividadExistente.contacto_id;
+    } else {
+      return res.status(400).json({ message: 'contacto_id es obligatorio cuando la actividad no está vinculada a una oportunidad' });
+    }
+
+    const { rows } = await pool.query<Pick<ActividadRow, 'id'>>(
       `UPDATE crm.actividades
        SET
          tipo_actividad = $1,
          fecha_programada = $2,
          notas = $3,
-         oportunidad_id = $4,
+         contacto_id = $4,
+         oportunidad_id = $5,
          recordatorio = CASE
-           WHEN $5::boolean THEN COALESCE($6, FALSE)
+           WHEN $6::boolean THEN COALESCE($7, FALSE)
            ELSE recordatorio
          END,
          recordatorio_minutos = CASE
-           WHEN $5::boolean AND COALESCE($6, FALSE) = FALSE THEN NULL
-           WHEN $7::boolean THEN $8
+           WHEN $6::boolean AND COALESCE($7, FALSE) = FALSE THEN NULL
+           WHEN $8::boolean THEN $9
            ELSE recordatorio_minutos
          END,
          updated_at = NOW()
-       WHERE id = $9
-         AND empresa_id = $10
-       RETURNING
-         id,
-         empresa_id,
-         usuario_asignado_id,
-         usuario_creador_id,
-         oportunidad_id,
-         tipo_actividad,
-         fecha_programada,
-         notas,
-         estatus,
-         fecha_realizacion,
-         resultado,
-         recordatorio,
-         recordatorio_minutos,
-         created_at,
-         updated_at`,
+       WHERE id = $10
+         AND empresa_id = $11
+       RETURNING id`,
       [
         tipoActividad,
         fechaProgramada,
         notas,
+        contactoIdFinal,
         oportunidadId ?? null,
         recordatorioProvided,
         recordatorio,
@@ -721,11 +885,13 @@ export async function actualizarActividad(req: Request, res: Response) {
       ]
     );
 
-    if (!rows.length) {
-      return res.status(404).json({ message: 'Actividad no encontrada' });
+    const actividad = await obtenerActividadDetallada(Number(empresaId), rows[0].id);
+
+    if (!actividad) {
+      return res.status(500).json({ message: 'No se pudo recuperar la actividad actualizada' });
     }
 
-    return res.json(serializeActividad(rows[0]));
+    return res.json(serializeActividad(actividad));
   } catch (error) {
     console.error('Error al actualizar actividad:', error);
     return res.status(500).json({ message: 'Error al actualizar actividad' });
@@ -781,7 +947,7 @@ export async function actualizarEstatusActividad(req: Request, res: Response) {
       return res.status(400).json({ message: 'resultado es obligatorio cuando la actividad se marca como realizada' });
     }
 
-    const { rows } = await pool.query<ActividadRow>(
+    const { rows } = await pool.query<Pick<ActividadRow, 'id'>>(
       `UPDATE crm.actividades
        SET
          estatus = $1::varchar,
@@ -790,26 +956,17 @@ export async function actualizarEstatusActividad(req: Request, res: Response) {
          updated_at = NOW()
        WHERE id = $3
          AND empresa_id = $4
-       RETURNING
-         id,
-         empresa_id,
-         usuario_asignado_id,
-         usuario_creador_id,
-         oportunidad_id,
-         tipo_actividad,
-         fecha_programada,
-         notas,
-         estatus,
-         fecha_realizacion,
-         resultado,
-         recordatorio,
-         recordatorio_minutos,
-         created_at,
-         updated_at`,
+       RETURNING id`,
       [nuevoEstatus, resultado || null, actividadId, Number(empresaId)]
     );
 
-    return res.json(serializeActividad(rows[0]));
+    const actividadActualizada = await obtenerActividadDetallada(Number(empresaId), rows[0].id);
+
+    if (!actividadActualizada) {
+      return res.status(500).json({ message: 'No se pudo recuperar la actividad actualizada' });
+    }
+
+    return res.json(serializeActividad(actividadActualizada));
   } catch (error) {
     console.error('Error al actualizar estatus de actividad:', error);
     return res.status(500).json({ message: 'Error al actualizar actividad' });

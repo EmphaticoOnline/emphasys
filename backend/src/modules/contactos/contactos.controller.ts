@@ -35,6 +35,13 @@ const normalizeTelefonoContacto = (value: any) => {
   return normalizarTelefono(rawValue);
 };
 
+const normalizeOptionalText = (value: any, maxLength?: number) => {
+  if (value === undefined) return undefined;
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return null;
+  return maxLength ? trimmed.slice(0, maxLength) : trimmed;
+};
+
 export async function crearContacto(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId;
@@ -52,6 +59,14 @@ export async function crearContacto(req: Request, res: Response) {
     data.nombre = String(data.nombre).trim();
     if ('nombre_contacto' in data) {
       data.nombre_contacto = String(data.nombre_contacto ?? '').trim() || null;
+    }
+
+    if ('interes_inicial' in data) {
+      data.interes_inicial = normalizeOptionalText(data.interes_inicial, 500);
+    }
+
+    if ('observaciones' in data) {
+      data.observaciones = normalizeOptionalText(data.observaciones);
     }
 
     const telefonoRecibido = "telefono" in data ? data.telefono : undefined;
@@ -124,6 +139,28 @@ export const getContactos = async (req: Request, res: Response) => {
   const searchRaw = req.query.search;
   const search = typeof searchRaw === 'string' ? searchRaw.trim() : undefined;
 
+    const origenContactoIdRaw = req.query.origen_contacto_id;
+    const vendedorIdRaw = req.query.vendedor_id;
+    const activoRaw = req.query.activo;
+    const fechaAltaDesdeRaw = req.query.fecha_alta_desde;
+    const fechaAltaHastaRaw = req.query.fecha_alta_hasta;
+    const interesInicialRaw = req.query.interes_inicial;
+    const observacionesRaw = req.query.observaciones;
+
+    const origenContactoId = typeof origenContactoIdRaw === 'string' && origenContactoIdRaw.trim() !== ''
+      ? Number(origenContactoIdRaw)
+      : undefined;
+    const vendedorId = typeof vendedorIdRaw === 'string' && vendedorIdRaw.trim() !== ''
+      ? Number(vendedorIdRaw)
+      : undefined;
+    const activo = activoRaw === 'activos' || activoRaw === 'inactivos' || activoRaw === 'todos'
+      ? activoRaw
+      : undefined;
+    const fechaAltaDesde = typeof fechaAltaDesdeRaw === 'string' ? fechaAltaDesdeRaw.trim() : undefined;
+    const fechaAltaHasta = typeof fechaAltaHastaRaw === 'string' ? fechaAltaHastaRaw.trim() : undefined;
+    const interesInicial = typeof interesInicialRaw === 'string' ? interesInicialRaw.trim() : undefined;
+    const observaciones = typeof observacionesRaw === 'string' ? observacionesRaw.trim() : undefined;
+
     const pageRaw = req.query.page;
     const limitRaw = req.query.limit;
     const page = typeof pageRaw === 'string' ? Number(pageRaw) : undefined;
@@ -135,7 +172,23 @@ export const getContactos = async (req: Request, res: Response) => {
         return res.status(400).json({ message: 'page y limit deben ser válidos (1-100)' });
       }
 
-      const result = await obtenerContactosPaginados(Number(empresaId), tipos, page, limit, search);
+      if (origenContactoId !== undefined && !Number.isFinite(origenContactoId)) {
+        return res.status(400).json({ message: 'origen_contacto_id debe ser numérico' });
+      }
+
+      if (vendedorId !== undefined && !Number.isFinite(vendedorId)) {
+        return res.status(400).json({ message: 'vendedor_id debe ser numérico' });
+      }
+
+      const result = await obtenerContactosPaginados(Number(empresaId), tipos, page, limit, search, {
+        origenContactoId,
+        vendedorId,
+        activo,
+        fechaAltaDesde,
+        fechaAltaHasta,
+        interesInicial,
+        observaciones,
+      });
       return res.json({ data: result.data, total: result.total, page, limit });
     }
 
@@ -187,6 +240,14 @@ export async function actualizarContacto(req: Request, res: Response) {
 
     if ('nombre_contacto' in data) {
       data.nombre_contacto = String(data.nombre_contacto ?? '').trim() || null;
+    }
+
+    if ('interes_inicial' in data) {
+      data.interes_inicial = normalizeOptionalText(data.interes_inicial, 500);
+    }
+
+    if ('observaciones' in data) {
+      data.observaciones = normalizeOptionalText(data.observaciones);
     }
 
     if ("telefono" in data) {

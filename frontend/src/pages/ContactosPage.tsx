@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, IconButton } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -13,9 +13,11 @@ import type {
   GridDensity,
   GridRenderCellParams,
 } from '@mui/x-data-grid';
+import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import { fetchContactosPaginados, fetchVendedores } from '../services/contactosService.js';
+import { obtenerCatalogosConfigurablesContacto } from '../services/contactos.api';
 import { eliminarContacto } from '../services/contactos.api';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
@@ -25,7 +27,33 @@ import { useDeviceProfile } from '../hooks/useDeviceProfile';
 import { useGridPreferences } from '../hooks/useGridPreferences';
 import ContactosDesktopView from '../components/contactos/ContactosDesktopView';
 import ContactosMobileView from '../components/contactos/ContactosMobileView';
-import type { ContactoRow } from '../components/contactos/ContactosView.types';
+import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
+import type {
+  ContactoActivoFilter,
+  ContactoOrigenOption,
+  ContactoRow,
+  ContactosAdvancedFiltersState,
+} from '../components/contactos/ContactosView.types';
+
+const TIPOS_CONTACTO_OPCIONES = ['Cliente', 'Proveedor', 'Vendedor', 'Lead'];
+
+const CONTACTOS_ADVANCED_FILTERS_INITIAL: ContactosAdvancedFiltersState = {
+  selectedTipos: [],
+  origenContactoId: null,
+  vendedorId: null,
+  activo: 'todos',
+  fechaAltaDesde: '',
+  fechaAltaHasta: '',
+  interesInicial: '',
+  observaciones: '',
+  filtersOpen: false,
+};
+
+const normalizeFilterLookup = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 export default function ContactosPage() {
   const navigate = useNavigate();
@@ -34,16 +62,18 @@ export default function ContactosPage() {
   const perfilDispositivo = useDeviceProfile();
   const [contactos, setContactos] = useState<ContactoRow[]>([]);
   const [vendedores, setVendedores] = useState<any[]>([]);
+  const [origenOptions, setOrigenOptions] = useState<ContactoOrigenOption[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedTipos, setSelectedTipos] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [rowCount, setRowCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<GridRowSelectionModel>([]);
-  const lastSearchRef = useRef('');
+  const [advancedFilters, setAdvancedFilters] = useState<ContactosAdvancedFiltersState>(CONTACTOS_ADVANCED_FILTERS_INITIAL);
+  const [seguimientoContacto, setSeguimientoContacto] = useState<ContactoRow | null>(null);
+  const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
 
   const vendedorNombre = useMemo(() => {
     const map = new Map<number, string>();
@@ -52,9 +82,6 @@ export default function ContactosPage() {
     });
     return map;
   }, [vendedores]);
-
-  const tiposOpciones = ['Todos', 'Cliente', 'Proveedor', 'Vendedor', 'Lead'];
-  const isTodosActivo = selectedTipos.length === 0;
 
   const handleEditarContacto = (contactoId: number | string) => {
     navigate(`/contactos/${contactoId}`);
@@ -73,20 +100,32 @@ export default function ContactosPage() {
     }
   };
 
-  const handleToggleTipo = (tipo: string) => {
-    if (tipo === 'Todos') {
-      setSelectedTipos([]);
-      return;
+  const handleVerActividades = (contacto: ContactoRow) => {
+    setSeguimientoContacto(contacto);
+    setSeguimientoDrawerOpen(true);
+  };
+
+  const closeSeguimientoDrawer = () => {
+    setSeguimientoDrawerOpen(false);
+  };
+
+  const seguimientoTarget = useMemo(() => {
+    if (!seguimientoContacto) {
+      return null;
     }
 
-    setSelectedTipos((prev) => {
-      const next = prev.filter((t) => t !== 'Todos');
-      if (next.includes(tipo)) {
-        return next.filter((t) => t !== tipo);
-      }
-      return [...next, tipo];
-    });
-  };
+    const contactoNombre = seguimientoContacto.nombre_contacto?.trim();
+    const empresaNombre = seguimientoContacto.nombre?.trim() || `Contacto #${seguimientoContacto.id}`;
+
+    return {
+      kind: 'contacto' as const,
+      id: seguimientoContacto.id,
+      title: contactoNombre || empresaNombre,
+      subtitle: contactoNombre && contactoNombre !== empresaNombre
+        ? empresaNombre
+        : seguimientoContacto.email?.trim() || seguimientoContacto.telefono?.trim() || 'Sin oportunidad',
+    };
+  }, [seguimientoContacto]);
 
   const baseColumns: GridColDef[] = [
     { field: 'nombre', headerName: 'Empresa', flex: 1, minWidth: 180, headerClassName: 'finanzas-header' },
@@ -116,6 +155,13 @@ export default function ContactosPage() {
       field: 'origen_contacto',
       headerName: 'Origen Contacto',
       width: 160,
+      headerClassName: 'finanzas-header',
+      renderCell: (params: GridRenderCellParams) => params.value || '',
+    },
+    {
+      field: 'interes_inicial',
+      headerName: 'Interés inicial',
+      width: 220,
       headerClassName: 'finanzas-header',
       renderCell: (params: GridRenderCellParams) => params.value || '',
     },
@@ -161,17 +207,25 @@ export default function ContactosPage() {
     setColumnOrder,
     applySavedWidthsToColumns,
     persistExternalFilters,
-  } = useGridPreferences<{ searchTerm: string; selectedTipos: string[] }>({
+  } = useGridPreferences<{
+    searchTerm: string;
+    advancedFilters: ContactosAdvancedFiltersState;
+  }>({
     pantalla: 'contactos.list',
     perfilDispositivo,
     defaultSortModel: [],
     defaultFilterModel: { items: [] },
-    defaultColumnVisibilityModel: {},
+    defaultColumnVisibilityModel: { origen_contacto: false, interes_inicial: false },
     defaultColumnOrder: ['menu', ...baseColumns.map((column) => column.field)],
-    defaultExternalFilters: { searchTerm: '', selectedTipos: [] },
+    defaultExternalFilters: { searchTerm: '', advancedFilters: CONTACTOS_ADVANCED_FILTERS_INITIAL },
     onLoadExternalFilters: (value) => {
       setSearchTerm(String(value.searchTerm ?? ''));
-      setSelectedTipos(Array.isArray(value.selectedTipos) ? value.selectedTipos.filter((item): item is string => typeof item === 'string') : []);
+      if (value.advancedFilters && typeof value.advancedFilters === 'object') {
+        setAdvancedFilters({
+          ...CONTACTOS_ADVANCED_FILTERS_INITIAL,
+          ...(value.advancedFilters as ContactosAdvancedFiltersState),
+        });
+      }
     },
   });
 
@@ -233,6 +287,16 @@ export default function ContactosPage() {
     if (!contextMenuRow) return [];
 
     return [
+      {
+        id: 'ver-actividades',
+        label: 'Ver actividades',
+        icon: <EventNoteOutlinedIcon fontSize="small" />,
+        onClick: () => handleVerActividades(contextMenuRow),
+      },
+      {
+        id: 'separator-schedule',
+        type: 'separator',
+      },
       {
         id: 'editar',
         label: 'Editar contacto',
@@ -304,25 +368,26 @@ export default function ContactosPage() {
   }, [searchTerm]);
 
   const loadContactos = () => {
-    setLoading(true);
-    if (lastSearchRef.current !== debouncedSearch) {
-      lastSearchRef.current = debouncedSearch;
-      if (page !== 0) {
-        setPage(0);
-        setLoading(false);
-        return;
-      }
+    if (loadingPreferences) {
+      return;
     }
-    const tiposParam = selectedTipos.length ? selectedTipos : undefined;
-    fetchContactosPaginados(
-      tiposParam
-        ? debouncedSearch
-          ? { page: page + 1, limit: pageSize, search: debouncedSearch, tipos: tiposParam }
-          : { page: page + 1, limit: pageSize, tipos: tiposParam }
-        : debouncedSearch
-          ? { page: page + 1, limit: pageSize, search: debouncedSearch }
-          : { page: page + 1, limit: pageSize }
-    )
+
+    setLoading(true);
+    const payload = {
+      page: page + 1,
+      limit: pageSize,
+      activo: advancedFilters.activo,
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(advancedFilters.selectedTipos.length ? { tipos: advancedFilters.selectedTipos } : {}),
+      ...(advancedFilters.origenContactoId != null ? { origenContactoId: advancedFilters.origenContactoId } : {}),
+      ...(advancedFilters.vendedorId != null ? { vendedorId: advancedFilters.vendedorId } : {}),
+      ...(advancedFilters.fechaAltaDesde ? { fechaAltaDesde: advancedFilters.fechaAltaDesde } : {}),
+      ...(advancedFilters.fechaAltaHasta ? { fechaAltaHasta: advancedFilters.fechaAltaHasta } : {}),
+      ...(advancedFilters.interesInicial ? { interesInicial: advancedFilters.interesInicial } : {}),
+      ...(advancedFilters.observaciones ? { observaciones: advancedFilters.observaciones } : {}),
+    };
+
+    fetchContactosPaginados(payload)
       .then((response) => {
         setContactos(response.data);
         setRowCount(response.total);
@@ -335,21 +400,61 @@ export default function ContactosPage() {
   useEffect(() => {
     loadContactos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, debouncedSearch, selectedTipos]);
+  }, [page, pageSize, debouncedSearch, advancedFilters, loadingPreferences]);
 
   useEffect(() => {
     setPage(0);
-  }, [selectedTipos]);
+  }, [
+    debouncedSearch,
+    advancedFilters.selectedTipos,
+    advancedFilters.origenContactoId,
+    advancedFilters.vendedorId,
+    advancedFilters.activo,
+    advancedFilters.fechaAltaDesde,
+    advancedFilters.fechaAltaHasta,
+    advancedFilters.interesInicial,
+    advancedFilters.observaciones,
+  ]);
 
   useEffect(() => {
-    fetchVendedores()
-      .then((data) => setVendedores(data))
+    Promise.all([fetchVendedores(), obtenerCatalogosConfigurablesContacto()])
+      .then(([vendedoresData, catalogosData]) => {
+        setVendedores(vendedoresData);
+
+        const origenTipo = (catalogosData.tipos || []).find((tipo) =>
+          normalizeFilterLookup(String(tipo.nombre || '')).includes('origen')
+        );
+
+        const nextOrigenOptions = (origenTipo?.valores || []).map((valor) => ({
+          id: valor.id,
+          clave: valor.clave,
+          descripcion: valor.descripcion,
+          label: valor.clave || valor.descripcion,
+        }));
+
+        setOrigenOptions(nextOrigenOptions);
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   useEffect(() => {
-    persistExternalFilters({ searchTerm, selectedTipos });
-  }, [persistExternalFilters, searchTerm, selectedTipos]);
+    persistExternalFilters({ searchTerm, advancedFilters });
+  }, [persistExternalFilters, searchTerm, advancedFilters]);
+
+  const advancedFiltersCount = useMemo(
+    () =>
+      [
+        advancedFilters.selectedTipos.length ? advancedFilters.selectedTipos.join(',') : '',
+        advancedFilters.origenContactoId,
+        advancedFilters.vendedorId,
+        advancedFilters.activo !== 'todos' ? advancedFilters.activo : '',
+        advancedFilters.fechaAltaDesde,
+        advancedFilters.fechaAltaHasta,
+        advancedFilters.interesInicial,
+        advancedFilters.observaciones,
+      ].filter((value) => value !== '' && value !== null && value !== undefined).length,
+    [advancedFilters]
+  );
 
   if (error) return <div>Error: {error}</div>;
 
@@ -357,11 +462,26 @@ export default function ContactosPage() {
     searchTerm,
     onSearchTermChange: setSearchTerm,
     onClearSearch: () => setSearchTerm(''),
-    tiposOpciones,
-    selectedTipos,
-    isTodosActivo,
-    onToggleTipo: handleToggleTipo,
     onCreateContacto: () => navigate('/contactos/nuevo'),
+    rowCount,
+    vendedores,
+    origenOptions,
+    tiposOpciones: TIPOS_CONTACTO_OPCIONES,
+    advancedFilters,
+    advancedFiltersCount,
+    onToggleFilters: () => setAdvancedFilters((prev) => ({ ...prev, filtersOpen: !prev.filtersOpen })),
+    onSelectedTiposChange: (selectedTipos: string[]) => setAdvancedFilters((prev) => ({ ...prev, selectedTipos })),
+    onOrigenContactoIdChange: (origenContactoId: number | null) => setAdvancedFilters((prev) => ({ ...prev, origenContactoId })),
+    onVendedorIdChange: (vendedorId: number | null) => setAdvancedFilters((prev) => ({ ...prev, vendedorId })),
+    onActivoChange: (activo: ContactoActivoFilter) => setAdvancedFilters((prev) => ({ ...prev, activo })),
+    onFechaAltaDesdeChange: (fechaAltaDesde: string) => setAdvancedFilters((prev) => ({ ...prev, fechaAltaDesde })),
+    onFechaAltaHastaChange: (fechaAltaHasta: string) => setAdvancedFilters((prev) => ({ ...prev, fechaAltaHasta })),
+    onInteresInicialChange: (interesInicial: string) => setAdvancedFilters((prev) => ({ ...prev, interesInicial })),
+    onObservacionesChange: (observaciones: string) => setAdvancedFilters((prev) => ({ ...prev, observaciones })),
+    onClearAdvancedFilters: () => setAdvancedFilters((prev) => ({
+      ...CONTACTOS_ADVANCED_FILTERS_INITIAL,
+      filtersOpen: prev.filtersOpen,
+    })),
   };
 
   const desktopView = (
@@ -430,11 +550,21 @@ export default function ContactosPage() {
         setPage(0);
       }}
       onEditContacto={handleEditarContacto}
+      onViewActividades={handleVerActividades}
       onDeleteContacto={(contactoId) => {
         void handleEliminarContacto(contactoId);
       }}
     />
   );
 
-  return <Box sx={{ width: '100%' }}>{isMobile ? mobileView : desktopView}</Box>;
+  return (
+    <Box sx={{ width: '100%' }}>
+      {isMobile ? mobileView : desktopView}
+      <ActividadSeguimientoDrawer
+        open={seguimientoDrawerOpen}
+        onClose={closeSeguimientoDrawer}
+        target={seguimientoTarget}
+      />
+    </Box>
+  );
 }

@@ -17,6 +17,7 @@ router.put('/:id/catalogos-configurables', requireAuth, requireEmpresaActiva, gu
 router.get('/:id', requireAuth, requireEmpresaActiva, getContactoPorId);
 router.post('/', requireAuth, requireEmpresaActiva, crearContacto);
 router.put('/:id', requireAuth, requireEmpresaActiva, actualizarContacto);
+router.patch('/:id', requireAuth, requireEmpresaActiva, actualizarContacto);
 router.delete('/:id', requireAuth, requireEmpresaActiva, eliminarContacto);
 
 export default router;

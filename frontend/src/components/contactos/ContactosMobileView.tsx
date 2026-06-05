@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { Box, Card, CardContent, Chip, CircularProgress, Fab, IconButton, InputAdornment, Menu, MenuItem, Stack, TablePagination, TextField, Typography } from '@mui/material';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import { Box, Card, CardContent, CircularProgress, Fab, IconButton, InputAdornment, Menu, MenuItem, Stack, TablePagination, TextField, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
@@ -7,6 +8,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import type { ContactosMobileViewProps } from './ContactosView.types';
+import ContactosAdvancedFilters from './ContactosAdvancedFilters';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -32,27 +34,42 @@ export default function ContactosMobileView({
   onPageChange,
   onPageSizeChange,
   onEditContacto,
+  onViewActividades,
   onDeleteContacto,
   searchTerm,
   onSearchTermChange,
   onClearSearch,
+  vendedores,
+  origenOptions,
   tiposOpciones,
-  selectedTipos,
-  isTodosActivo,
-  onToggleTipo,
+  advancedFilters,
+  advancedFiltersCount,
+  onToggleFilters,
+  onSelectedTiposChange,
+  onOrigenContactoIdChange,
+  onVendedorIdChange,
+  onActivoChange,
+  onFechaAltaDesdeChange,
+  onFechaAltaHastaChange,
+  onInteresInicialChange,
+  onObservacionesChange,
+  onClearAdvancedFilters,
   onCreateContacto,
 }: ContactosMobileViewProps) {
   const [menuAnchorEl, setMenuAnchorEl] = React.useState<null | HTMLElement>(null);
   const [menuContactoId, setMenuContactoId] = React.useState<number | string | null>(null);
+  const [menuContacto, setMenuContacto] = React.useState<ContactosMobileViewProps['contactos'][number] | null>(null);
 
-  const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, contactoId: number | string) => {
+  const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, contacto: ContactosMobileViewProps['contactos'][number]) => {
     setMenuAnchorEl(event.currentTarget);
-    setMenuContactoId(contactoId);
+    setMenuContactoId(contacto.id);
+    setMenuContacto(contacto);
   };
 
   const handleCloseMenu = () => {
     setMenuAnchorEl(null);
     setMenuContactoId(null);
+    setMenuContacto(null);
   };
 
   const handleEditSelected = () => {
@@ -67,6 +84,12 @@ export default function ContactosMobileView({
     handleCloseMenu();
   };
 
+  const handleViewActividadesSelected = () => {
+    if (!menuContacto) return;
+    onViewActividades(menuContacto);
+    handleCloseMenu();
+  };
+
   return (
     <Box sx={{ width: '100%', px: 2, py: 0, display: 'flex', justifyContent: 'center' }}>
       <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5, pb: 10 }}>
@@ -78,7 +101,7 @@ export default function ContactosMobileView({
           <TextField
             size="small"
             fullWidth
-            placeholder="Buscar por empresa, contacto, email o teléfono"
+            placeholder="Buscar por empresa, contacto, email, teléfono, interés u observaciones"
             value={searchTerm}
             onChange={(event) => onSearchTermChange(event.target.value)}
             InputProps={{
@@ -96,22 +119,24 @@ export default function ContactosMobileView({
               ) : null,
             }}
           />
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {tiposOpciones.map((tipo) => {
-              const selected = tipo === 'Todos' ? isTodosActivo : selectedTipos.includes(tipo);
-              return (
-                <Chip
-                  key={tipo}
-                  label={tipo}
-                  clickable
-                  onClick={() => onToggleTipo(tipo)}
-                  color={selected ? 'primary' : 'default'}
-                  variant={selected ? 'filled' : 'outlined'}
-                  size="small"
-                />
-              );
-            })}
-          </Stack>
+          <ContactosAdvancedFilters
+            rowCount={rowCount}
+            vendedores={vendedores}
+            origenOptions={origenOptions}
+            tiposOpciones={tiposOpciones}
+            filters={advancedFilters}
+            activeFiltersCount={advancedFiltersCount}
+            onToggleFilters={onToggleFilters}
+            onSelectedTiposChange={onSelectedTiposChange}
+            onOrigenContactoIdChange={onOrigenContactoIdChange}
+            onVendedorIdChange={onVendedorIdChange}
+            onActivoChange={onActivoChange}
+            onFechaAltaDesdeChange={onFechaAltaDesdeChange}
+            onFechaAltaHastaChange={onFechaAltaHastaChange}
+            onInteresInicialChange={onInteresInicialChange}
+            onObservacionesChange={onObservacionesChange}
+            onClearAdvancedFilters={onClearAdvancedFilters}
+          />
         </Box>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -166,7 +191,7 @@ export default function ContactosMobileView({
                       <IconButton
                         size="small"
                         aria-label="Abrir acciones"
-                        onClick={(event) => handleOpenMenu(event, contacto.id)}
+                        onClick={(event) => handleOpenMenu(event, contacto)}
                         sx={{ mt: -0.25, mr: -0.5 }}
                       >
                         <MoreVertIcon fontSize="small" />
@@ -231,6 +256,10 @@ export default function ContactosMobileView({
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
           transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         >
+          <MenuItem onClick={handleViewActividadesSelected}>
+            <AssignmentOutlinedIcon fontSize="small" />
+            <Typography component="span" sx={{ ml: 1 }}>Ver actividades</Typography>
+          </MenuItem>
           <MenuItem onClick={handleEditSelected}>
             <EditIcon fontSize="small" />
             <Typography component="span" sx={{ ml: 1 }}>Editar</Typography>

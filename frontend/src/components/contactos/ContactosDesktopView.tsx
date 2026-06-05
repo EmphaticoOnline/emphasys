@@ -1,4 +1,4 @@
-import { Box, Button, Chip, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import { GridContextMenu } from '../grids/GridContextMenu';
@@ -9,6 +9,7 @@ import {
   standardDataGridSx,
 } from '../grids/standardDataGridSx';
 import type { ContactosDesktopViewProps } from './ContactosView.types';
+import ContactosAdvancedFilters from './ContactosAdvancedFilters';
 
 export default function ContactosDesktopView({
   contactos,
@@ -37,10 +38,21 @@ export default function ContactosDesktopView({
   searchTerm,
   onSearchTermChange,
   onClearSearch,
+  vendedores,
+  origenOptions,
   tiposOpciones,
-  selectedTipos,
-  isTodosActivo,
-  onToggleTipo,
+  advancedFilters,
+  advancedFiltersCount,
+  onToggleFilters,
+  onSelectedTiposChange,
+  onOrigenContactoIdChange,
+  onVendedorIdChange,
+  onActivoChange,
+  onFechaAltaDesdeChange,
+  onFechaAltaHastaChange,
+  onInteresInicialChange,
+  onObservacionesChange,
+  onClearAdvancedFilters,
   onCreateContacto,
 }: ContactosDesktopViewProps) {
   return (
@@ -54,7 +66,7 @@ export default function ContactosDesktopView({
             </Box>
             <TextField
               size="small"
-              placeholder="Buscar por empresa, contacto, email o teléfono"
+              placeholder="Buscar por empresa, contacto, email, teléfono, interés u observaciones"
               value={searchTerm}
               onChange={(event) => onSearchTermChange(event.target.value)}
               sx={{ maxWidth: 360 }}
@@ -73,22 +85,6 @@ export default function ContactosDesktopView({
                 ) : null,
               }}
             />
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {tiposOpciones.map((tipo) => {
-                const selected = tipo === 'Todos' ? isTodosActivo : selectedTipos.includes(tipo);
-                return (
-                  <Chip
-                    key={tipo}
-                    label={tipo}
-                    clickable
-                    onClick={() => onToggleTipo(tipo)}
-                    color={selected ? 'primary' : 'default'}
-                    variant={selected ? 'filled' : 'outlined'}
-                    size="small"
-                  />
-                );
-              })}
-            </Stack>
           </Box>
           <Button
             variant="contained"
@@ -105,6 +101,25 @@ export default function ContactosDesktopView({
             + NUEVO
           </Button>
         </Box>
+
+        <ContactosAdvancedFilters
+          rowCount={rowCount}
+          vendedores={vendedores}
+          origenOptions={origenOptions}
+          tiposOpciones={tiposOpciones}
+          filters={advancedFilters}
+          activeFiltersCount={advancedFiltersCount}
+          onToggleFilters={onToggleFilters}
+          onSelectedTiposChange={onSelectedTiposChange}
+          onOrigenContactoIdChange={onOrigenContactoIdChange}
+          onVendedorIdChange={onVendedorIdChange}
+          onActivoChange={onActivoChange}
+          onFechaAltaDesdeChange={onFechaAltaDesdeChange}
+          onFechaAltaHastaChange={onFechaAltaHastaChange}
+          onInteresInicialChange={onInteresInicialChange}
+          onObservacionesChange={onObservacionesChange}
+          onClearAdvancedFilters={onClearAdvancedFilters}
+        />
 
         <Box sx={{ width: '100%', backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           <EmphasysDataGrid

@@ -17,6 +17,7 @@ type CatalogoValor = {
 const columnasPermitidasContacto = new Set([
   'nombre',
   'nombre_contacto',
+  'interes_inicial',
   'email',
   'telefono',
   'telefono_secundario',
@@ -54,6 +55,16 @@ type DatosFiscalesData = {
   forma_pago?: string | null;
   metodo_pago?: string | null;
   codigo_postal?: string | null;
+};
+
+type ContactosFiltrosAvanzados = {
+  origenContactoId?: number;
+  vendedorId?: number;
+  activo?: 'todos' | 'activos' | 'inactivos';
+  fechaAltaDesde?: string;
+  fechaAltaHasta?: string;
+  interesInicial?: string;
+  observaciones?: string;
 };
 
 const hasAnyValue = (data: Record<string, any> | undefined, keys: string[]) =>
@@ -257,22 +268,23 @@ export async function obtenerContactosPaginados(
   tipos: string[] | undefined,
   page: number,
   limit: number,
-  search?: string
+  search?: string,
+  advancedFilters: ContactosFiltrosAvanzados = {}
 ) {
   const tiposNormalizados = tipos?.map((tipo) => tipo.trim().toLowerCase()).filter(Boolean);
   const params: Array<number | string[] | string> = [empresaId];
-  const filtros: string[] = ['contactos.empresa_id = $1'];
+  const whereClauses: string[] = ['contactos.empresa_id = $1'];
 
   if (tiposNormalizados && tiposNormalizados.length) {
     params.push(tiposNormalizados);
-  filtros.push(`LOWER(contactos.tipo_contacto::text) = ANY($${params.length})`);
+    whereClauses.push(`LOWER(contactos.tipo_contacto::text) = ANY($${params.length})`);
   }
 
   if (search && search.trim()) {
     const term = `%${search.trim()}%`;
     params.push(term);
     const idx = params.length;
-    filtros.push(
+    whereClauses.push(
       `(
         contactos.nombre ILIKE $${idx}
         OR contactos.nombre_contacto ILIKE $${idx}
@@ -281,12 +293,65 @@ export async function obtenerContactosPaginados(
         OR cdf.rfc ILIKE $${idx}
         OR contactos.telefono ILIKE $${idx}
         OR contactos.telefono_secundario ILIKE $${idx}
+        OR COALESCE(contactos.interes_inicial, '') ILIKE $${idx}
+        OR COALESCE(contactos.observaciones, '') ILIKE $${idx}
         OR contactos.tipo_contacto::text ILIKE $${idx}
         OR contactos.vendedor_id::text ILIKE $${idx}
         OR vendedor.nombre ILIKE $${idx}
         OR c.descripcion ILIKE $${idx}
       )`
     );
+  }
+
+  if (Number.isFinite(advancedFilters.origenContactoId)) {
+    params.push(Number(advancedFilters.origenContactoId));
+    const idx = params.length;
+    whereClauses.push(
+      `EXISTS (
+        SELECT 1
+          FROM core.entidades_catalogos ec_origen
+          JOIN core.catalogos c_origen ON c_origen.id = ec_origen.catalogo_id
+          JOIN core.catalogos_tipos ct_origen ON ct_origen.id = c_origen.tipo_catalogo_id
+         WHERE ec_origen.empresa_id = contactos.empresa_id
+           AND ec_origen.entidad_id = contactos.id
+           AND ec_origen.entidad_tipo_id = (
+             SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+           )
+           AND ct_origen.nombre ILIKE '%origen%'
+           AND c_origen.id = $${idx}
+      )`
+    );
+  }
+
+  if (Number.isFinite(advancedFilters.vendedorId)) {
+    params.push(Number(advancedFilters.vendedorId));
+    whereClauses.push(`contactos.vendedor_id = $${params.length}`);
+  }
+
+  if (advancedFilters.activo === 'activos') {
+    whereClauses.push('contactos.activo = true');
+  } else if (advancedFilters.activo === 'inactivos') {
+    whereClauses.push('contactos.activo = false');
+  }
+
+  if (advancedFilters.fechaAltaDesde?.trim()) {
+    params.push(advancedFilters.fechaAltaDesde.trim());
+    whereClauses.push(`contactos.fecha_alta::date >= $${params.length}::date`);
+  }
+
+  if (advancedFilters.fechaAltaHasta?.trim()) {
+    params.push(advancedFilters.fechaAltaHasta.trim());
+    whereClauses.push(`contactos.fecha_alta::date <= $${params.length}::date`);
+  }
+
+  if (advancedFilters.interesInicial?.trim()) {
+    params.push(`%${advancedFilters.interesInicial.trim()}%`);
+    whereClauses.push(`COALESCE(contactos.interes_inicial, '') ILIKE $${params.length}`);
+  }
+
+  if (advancedFilters.observaciones?.trim()) {
+    params.push(`%${advancedFilters.observaciones.trim()}%`);
+    whereClauses.push(`COALESCE(contactos.observaciones, '') ILIKE $${params.length}`);
   }
 
   const offset = (page - 1) * limit;
@@ -353,7 +418,7 @@ export async function obtenerContactosPaginados(
           ORDER BY c3.orden NULLS LAST, c3.descripcion ASC
           LIMIT 1
        ) origen ON true
-       WHERE ${filtros.join(' AND ')}
+       WHERE ${whereClauses.join(' AND ')}
        ORDER BY contactos.id, contactos.nombre ASC
      ) base_contactos
      ORDER BY base_contactos.nombre ASC
@@ -417,7 +482,9 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
     `SELECT
         c.id,
         c.nombre,
-      c.nombre_contacto,
+        c.nombre_contacto,
+        c.interes_inicial,
+        c.observaciones,
         c.rfc AS rfc_contacto,
         c.email,
         c.telefono,
@@ -472,6 +539,8 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
       id: row.id,
       nombre: row.nombre,
       nombre_contacto: row.nombre_contacto,
+      interes_inicial: row.interes_inicial,
+      observaciones: row.observaciones,
       rfc: row.rfc_fiscal ?? row.rfc_contacto,
       email: row.email,
       telefono: row.telefono,

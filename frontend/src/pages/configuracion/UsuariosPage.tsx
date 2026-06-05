@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import InputAdornment from '@mui/material/InputAdornment';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import {
   Alert,
   Box,
@@ -66,6 +69,7 @@ export default function UsuariosPage() {
   const { session } = useSession();
   const empresas = session.empresas ?? [];
 
+  const [showPassword, setShowPassword] = useState(false);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -450,11 +454,25 @@ export default function UsuariosPage() {
           />
           <TextField
             label={editId ? 'Password (dejar en blanco para no cambiar)' : 'Password'}
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             fullWidth
             value={form.password || ''}
             onChange={(e) => handleChange('password', e.target.value)}
             helperText="Mínimo 6 caracteres"
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      edge="end"
+                      onClick={() => setShowPassword((v) => !v)}
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
           <FormControlLabel
             control={<Switch checked={Boolean(form.es_superadmin)} onChange={(e) => handleChange('es_superadmin', e.target.checked)} color="primary" />}

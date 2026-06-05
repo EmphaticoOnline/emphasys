@@ -18,6 +18,13 @@ export async function fetchContactosPaginados(options: {
   limit: number;
   tipos?: string[];
   search?: string;
+  origenContactoId?: number | null;
+  vendedorId?: number | null;
+  activo?: 'todos' | 'activos' | 'inactivos';
+  fechaAltaDesde?: string;
+  fechaAltaHasta?: string;
+  interesInicial?: string;
+  observaciones?: string;
 }): Promise<ContactosPaginadosResponse> {
   const params = new URLSearchParams();
   params.set('page', String(options.page));
@@ -27,6 +34,27 @@ export async function fetchContactosPaginados(options: {
   }
   if (options.search) {
     params.set('search', options.search);
+  }
+  if (options.origenContactoId) {
+    params.set('origen_contacto_id', String(options.origenContactoId));
+  }
+  if (options.vendedorId) {
+    params.set('vendedor_id', String(options.vendedorId));
+  }
+  if (options.activo && options.activo !== 'todos') {
+    params.set('activo', options.activo);
+  }
+  if (options.fechaAltaDesde) {
+    params.set('fecha_alta_desde', options.fechaAltaDesde);
+  }
+  if (options.fechaAltaHasta) {
+    params.set('fecha_alta_hasta', options.fechaAltaHasta);
+  }
+  if (options.interesInicial) {
+    params.set('interes_inicial', options.interesInicial);
+  }
+  if (options.observaciones) {
+    params.set('observaciones', options.observaciones);
   }
   return apiFetch(`/api/contactos?${params.toString()}`);
 }

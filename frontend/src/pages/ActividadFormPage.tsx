@@ -25,9 +25,12 @@ import {
 } from '@mui/material';
 import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { abrirCotizacionPdfEnNuevaVentana, getCotizacion } from '../services/cotizacionesService';
 import { apiFetch } from '../services/apiFetch';
+import { getContacto } from '../services/contactos.api';
+import { loadSession } from '../session/sessionStorage';
+import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import type { CotizacionPartida } from '../types/cotizacion';
 
 dayjs.locale('es');
@@ -37,6 +40,7 @@ type ActividadDetalle = {
   tipo_actividad: string;
   notas: string | null;
   fecha_programada: string;
+  contacto_id: number | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
   recordatorio: boolean | null;
@@ -47,9 +51,15 @@ type ActividadFormState = {
   tipo_actividad: string;
   notas: string;
   fecha_programada: string;
+  contacto_id: string;
   oportunidad_id: string;
   recordatorio: boolean;
   recordatorio_minutos: string;
+};
+
+type ContactoResumen = {
+  id: number;
+  nombre: string;
 };
 
 type OportunidadDetalle = {
@@ -99,6 +109,7 @@ async function guardarActividad(id: string, form: ActividadFormState) {
       tipo_actividad: form.tipo_actividad,
       notas: form.notas,
       fecha_programada: new Date(form.fecha_programada).toISOString(),
+      contacto_id: form.contacto_id ? Number(form.contacto_id) : null,
       oportunidad_id: form.oportunidad_id ? Number(form.oportunidad_id) : null,
       recordatorio: form.recordatorio,
       recordatorio_minutos: form.recordatorio && form.recordatorio_minutos.trim()
@@ -106,6 +117,33 @@ async function guardarActividad(id: string, form: ActividadFormState) {
         : null,
     },
   });
+}
+
+async function crearActividad(form: ActividadFormState, usuarioAsignadoId: number) {
+  return apiFetch<ActividadDetalle>('/api/crm/actividades', {
+    method: 'POST',
+    body: {
+      usuario_asignado_id: usuarioAsignadoId,
+      tipo_actividad: form.tipo_actividad,
+      notas: form.notas,
+      fecha_programada: new Date(form.fecha_programada).toISOString(),
+      contacto_id: form.contacto_id ? Number(form.contacto_id) : null,
+      oportunidad_id: form.oportunidad_id ? Number(form.oportunidad_id) : null,
+      recordatorio: form.recordatorio,
+      recordatorio_minutos: form.recordatorio && form.recordatorio_minutos.trim()
+        ? Number(form.recordatorio_minutos)
+        : null,
+    },
+  });
+}
+
+function normalizarContactoNombre(contacto: Contacto | ContactoDetalle) {
+  const base = 'contacto' in contacto ? contacto.contacto : contacto;
+  return base.nombre_contacto?.trim() || base.nombre?.trim() || `Contacto #${base.id}`;
+}
+
+function obtenerContactoBase(contacto: Contacto | ContactoDetalle): Contacto {
+  return 'contacto' in contacto ? contacto.contacto : contacto;
 }
 
 function formatDate(value: string | null) {
@@ -146,14 +184,27 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default function ActividadFormPage() {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+  const session = React.useMemo(() => loadSession(), []);
+  const sessionUserId = session.user?.id ?? null;
+  const contactoIdParam = React.useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('contacto_id');
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [location.search]);
+  const isCreateMode = !id;
   const [actividad, setActividad] = React.useState<ActividadDetalle | null>(null);
   const [oportunidad, setOportunidad] = React.useState<OportunidadDetalle | null>(null);
+  const [contacto, setContacto] = React.useState<ContactoResumen | null>(null);
   const [partidas, setPartidas] = React.useState<CotizacionPartida[]>([]);
   const [form, setForm] = React.useState<ActividadFormState>({
     tipo_actividad: 'llamada',
     notas: '',
     fecha_programada: '',
+    contacto_id: '',
     oportunidad_id: '',
     recordatorio: false,
     recordatorio_minutos: '',
@@ -164,32 +215,64 @@ export default function ActividadFormPage() {
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!id) return;
-
     let mounted = true;
 
     const load = async () => {
       try {
         setLoading(true);
-        const data = await fetchActividad(id);
-        const oportunidadData = data.oportunidad_id ? await fetchOportunidad(data.oportunidad_id) : null;
-        const cotizacion = oportunidadData?.cotizacion_principal_id
-          ? await getCotizacion(oportunidadData.cotizacion_principal_id)
-          : null;
+        if (id) {
+          const data = await fetchActividad(id);
+          const oportunidadData = data.oportunidad_id ? await fetchOportunidad(data.oportunidad_id) : null;
+          const cotizacion = oportunidadData?.cotizacion_principal_id
+            ? await getCotizacion(oportunidadData.cotizacion_principal_id)
+            : null;
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        setActividad(data);
-        setOportunidad(oportunidadData);
-        setPartidas(cotizacion?.partidas ?? []);
-        setForm({
-          tipo_actividad: data.tipo_actividad || 'llamada',
-          notas: data.notas ?? '',
-          fecha_programada: toDateTimeLocal(data.fecha_programada),
-          oportunidad_id: data.oportunidad_id ? String(data.oportunidad_id) : '',
-          recordatorio: Boolean(data.recordatorio),
-          recordatorio_minutos: data.recordatorio_minutos ? String(data.recordatorio_minutos) : '',
-        });
+          setActividad(data);
+          setOportunidad(oportunidadData);
+          setPartidas(cotizacion?.partidas ?? []);
+          setContacto(data.contacto_id
+            ? {
+              id: data.contacto_id,
+              nombre: data.cliente_nombre?.trim() || `Contacto #${data.contacto_id}`,
+            }
+            : null);
+          setForm({
+            tipo_actividad: data.tipo_actividad || 'llamada',
+            notas: data.notas ?? '',
+            fecha_programada: toDateTimeLocal(data.fecha_programada),
+            contacto_id: data.contacto_id ? String(data.contacto_id) : '',
+            oportunidad_id: data.oportunidad_id ? String(data.oportunidad_id) : '',
+            recordatorio: Boolean(data.recordatorio),
+            recordatorio_minutos: data.recordatorio_minutos ? String(data.recordatorio_minutos) : '',
+          });
+        } else {
+          const contactoData = contactoIdParam ? await getContacto(contactoIdParam) : null;
+
+          if (!mounted) return;
+
+          const contactoBase = contactoData ? obtenerContactoBase(contactoData) : null;
+          setActividad(null);
+          setOportunidad(null);
+          setPartidas([]);
+          setContacto(contactoBase
+            ? {
+              id: contactoBase.id,
+              nombre: normalizarContactoNombre(contactoData),
+            }
+            : null);
+          setForm({
+            tipo_actividad: 'llamada',
+            notas: '',
+            fecha_programada: '',
+            contacto_id: contactoBase ? String(contactoBase.id) : '',
+            oportunidad_id: '',
+            recordatorio: false,
+            recordatorio_minutos: '',
+          });
+        }
+
         setError(null);
       } catch (err) {
         if (!mounted) return;
@@ -206,7 +289,7 @@ export default function ActividadFormPage() {
     return () => {
       mounted = false;
     };
-  }, [id]);
+  }, [contactoIdParam, id]);
 
   const handleChange = (field: keyof ActividadFormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
@@ -215,11 +298,36 @@ export default function ActividadFormPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!id) return;
+    if (!form.fecha_programada) {
+      setError('Debes capturar la fecha programada');
+      return;
+    }
+
+    if (!form.contacto_id && !form.oportunidad_id) {
+      setError('Debe existir un contacto o una oportunidad para guardar la actividad');
+      return;
+    }
+
+    if (form.recordatorio) {
+      const minutos = Number(form.recordatorio_minutos.trim());
+      if (!form.recordatorio_minutos.trim() || !Number.isInteger(minutos) || minutos <= 0) {
+        setError('Debes capturar minutos antes con un entero positivo');
+        return;
+      }
+    }
+
+    if (!id && !sessionUserId) {
+      setError('No se pudo identificar al usuario actual');
+      return;
+    }
 
     try {
       setSaving(true);
-      await guardarActividad(id, form);
+      if (id) {
+        await guardarActividad(id, form);
+      } else {
+        await crearActividad(form, Number(sessionUserId));
+      }
       navigate('/crm/actividades');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la actividad');
@@ -261,10 +369,10 @@ export default function ActividadFormPage() {
       <Stack spacing={2}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
-            Editar actividad
+            {isCreateMode ? 'Nueva actividad' : 'Editar actividad'}
           </Typography>
           <Typography sx={{ color: '#475569', mt: 0.35 }}>
-            Ajusta los datos básicos de la actividad.
+            {isCreateMode ? 'Programa una nueva actividad comercial.' : 'Ajusta los datos básicos de la actividad.'}
           </Typography>
         </Box>
 
@@ -273,6 +381,30 @@ export default function ActividadFormPage() {
         <Grid container spacing={3} alignItems="flex-start">
           <Grid size={{ xs: 12, md: 5 }}>
             <Stack spacing={1.5}>
+              {contacto ? (
+                <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 3, borderColor: '#dbe3ee' }}>
+                  <Stack spacing={1}>
+                    <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+                      <Typography sx={{ color: '#334155' }}>
+                        Contacto: {contacto.nombre}
+                      </Typography>
+                      <Link
+                        component="button"
+                        type="button"
+                        underline="hover"
+                        onClick={() => navigate(`/contactos/${contacto.id}`)}
+                        sx={{ fontWeight: 600 }}
+                      >
+                        Abrir
+                      </Link>
+                    </Stack>
+                    <Typography sx={{ color: '#64748b', fontSize: 14 }}>
+                      Oportunidad: {form.oportunidad_id ? 'Ligada a oportunidad' : 'Sin oportunidad'}
+                    </Typography>
+                  </Stack>
+                </Paper>
+              ) : null}
+
               {actividad?.oportunidad_id ? (
                 <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 3, borderColor: '#dbe3ee' }}>
                   <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>

@@ -5,6 +5,9 @@ import {
   Button,
   CircularProgress,
   Divider,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   Drawer,
   IconButton,
   Snackbar,
@@ -21,6 +24,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import LinkIcon from '@mui/icons-material/Link';
+import AddIcon from '@mui/icons-material/Add';
 import {
   crearAplicacion,
   fetchAplicacionesDocumento,
@@ -35,6 +39,7 @@ import type {
 } from '../../types/finanzas';
 import type { TipoDocumento } from '../../types/documentos.types';
 import { formatearFolioDocumento } from '../../utils/documentos.utils';
+import DocumentosFormPage from '../../pages/DocumentosFormPage';
 
 const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -57,6 +62,8 @@ type DocumentoDrawerMeta = {
   folio: string;
   fechaDocumento: string;
   contactoNombre: string;
+  empresaId: number | null;
+  moneda: string;
 };
 
 const TIPOS_DOCUMENTO_ORIGEN_COMPATIBLES: Record<string, string[]> = {
@@ -83,6 +90,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
   const [montosDocumento, setMontosDocumento] = useState<Record<number, string>>({});
   const [applyingDocumentoId, setApplyingDocumentoId] = useState<number | null>(null);
   const [autoApplying, setAutoApplying] = useState(false);
+  const [openNuevoPago, setOpenNuevoPago] = useState(false);
   const [documentoMeta, setDocumentoMeta] = useState<DocumentoDrawerMeta | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'success' }
@@ -95,6 +103,10 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
 
   const tipoDocumentoNormalizado = String(tipoDocumento ?? '').toLowerCase();
   const esNotaCredito = tipoDocumentoNormalizado === 'nota_credito' || tipoDocumentoNormalizado === 'nota_credito_compra';
+  const tipoNuevoPago = useMemo<TipoDocumento | null>(() => {
+    if (esNotaCredito) return null;
+    return tipoDocumentoNormalizado === 'factura_compra' ? 'pago_proveedor' : 'pago_cliente';
+  }, [esNotaCredito, tipoDocumentoNormalizado]);
   const encabezadoPendientes = esNotaCredito ? 'Documentos de cargo pendientes' : 'Documentos de abono disponibles';
   const descripcionPendientes = esNotaCredito
     ? 'Selecciona un documento de cargo y aplica un monto al saldo disponible.'
@@ -117,7 +129,11 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     return saldoData;
   };
 
-  const loadDocumentosDisponibles = async (saldoActual: number, monedaSaldo: string) => {
+  const loadDocumentosDisponibles = async (
+    saldoActual: number,
+    monedaSaldo: string,
+    options?: { focusDocumentoId?: number | null }
+  ) => {
     if (!contactoId || saldoActual <= 0) {
       setDocumentosDisponibles([]);
       return;
@@ -130,7 +146,23 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
       .filter((item) => String(item.moneda ?? '').trim().toUpperCase() === String(monedaSaldo).trim().toUpperCase())
       .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-    setDocumentosDisponibles(documentos);
+    const focusDocumentoId = Number(options?.focusDocumentoId ?? 0);
+    const documentosOrdenados = focusDocumentoId > 0
+      ? [
+          ...documentos.filter((item) => Number(item.id) === focusDocumentoId),
+          ...documentos.filter((item) => Number(item.id) !== focusDocumentoId),
+        ]
+      : documentos;
+
+    setDocumentosDisponibles(documentosOrdenados);
+
+    if (focusDocumentoId > 0) {
+      const documentoCreado = documentosOrdenados.find((item) => Number(item.id) === focusDocumentoId);
+      if (documentoCreado && Number(documentoCreado.saldo ?? 0) > 0) {
+        const montoSugerido = Math.min(saldoActual, Number(documentoCreado.saldo ?? 0));
+        setMontosDocumento((prev) => ({ ...prev, [focusDocumentoId]: montoSugerido.toFixed(2) }));
+      }
+    }
   };
 
   const loadAll = async () => {
@@ -145,6 +177,8 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
         folio: formatearFolioDocumento(documentoData.documento?.serie || '', documentoData.documento?.numero || 0),
         fechaDocumento: documentoData.documento?.fecha_documento || '',
         contactoNombre: String((documentoData.documento as any)?.nombre_cliente || documentoData.documento?.nombre_receptor || '').trim(),
+        empresaId: Number(documentoData.documento?.empresa_id ?? 0) || null,
+        moneda: String(documentoData.documento?.moneda || saldoData?.moneda || 'MXN'),
       } : null);
       await loadDocumentosDisponibles(Number(saldoData?.saldo ?? saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
     } catch (err: any) {
@@ -159,6 +193,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
       setMontosDocumento({});
       setDocumentosDisponibles([]);
       setDocumentoMeta(null);
+      setOpenNuevoPago(false);
       return;
     }
     void loadAll();
@@ -253,6 +288,21 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
       setSnackbar({ open: true, message: err?.message || 'No se pudo aplicar automaticamente', severity: 'error' });
     } finally {
       setAutoApplying(false);
+    }
+  };
+
+  const handleNuevoPagoGuardado = async (nuevoDocumentoId: number) => {
+    try {
+      setOpenNuevoPago(false);
+      const saldoData = await refreshDocumentoFinanzas();
+      await loadDocumentosDisponibles(
+        Number(saldoData?.saldo ?? saldo ?? 0),
+        saldoData?.moneda ?? documentoMeta?.moneda ?? saldoDocumento?.moneda ?? 'MXN',
+        { focusDocumentoId: nuevoDocumentoId }
+      );
+      setSnackbar({ open: true, message: 'Pago creado. Ya puedes aplicarlo desde esta misma ventana.', severity: 'success' });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'El pago se guardo, pero no se pudo refrescar la lista.', severity: 'info' });
     }
   };
 
@@ -411,17 +461,30 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                     {descripcionPendientes}
                   </Typography>
                 </Box>
-                {esNotaCredito && documentosDisponibles.length > 0 && effectiveSaldo > 0 && (
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={handleAutoApplyNotaCredito}
-                    disabled={autoApplying}
-                    sx={{ textTransform: 'none' }}
-                  >
-                    {autoApplying ? 'Aplicando…' : 'Aplicar automaticamente'}
-                  </Button>
-                )}
+                <Stack direction="row" spacing={1}>
+                  {!esNotaCredito && tipoNuevoPago && (
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<AddIcon />}
+                      onClick={() => setOpenNuevoPago(true)}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Nuevo pago
+                    </Button>
+                  )}
+                  {esNotaCredito && documentosDisponibles.length > 0 && effectiveSaldo > 0 && (
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleAutoApplyNotaCredito}
+                      disabled={autoApplying}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      {autoApplying ? 'Aplicando…' : 'Aplicar automaticamente'}
+                    </Button>
+                  )}
+                </Stack>
               </Stack>
               <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
                 <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2, maxHeight: 340, boxShadow: 'none' }}>
@@ -439,8 +502,29 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                     <TableBody>
                       {documentosDisponibles.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} align="center" sx={{ py: 2, fontStyle: 'italic', color: 'text.secondary' }}>
-                            {emptyPendientes}
+                          <TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                            {!esNotaCredito && tipoNuevoPago ? (
+                              <Stack spacing={1.5} alignItems="center">
+                                <Typography variant="body1" fontWeight={600} color="#1f2937">
+                                  {emptyPendientes}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  Crea un pago sin salir de esta ventana y aplícalo enseguida.
+                                </Typography>
+                                <Button
+                                  variant="contained"
+                                  startIcon={<AddIcon />}
+                                  onClick={() => setOpenNuevoPago(true)}
+                                  sx={{ textTransform: 'none', px: 3 }}
+                                >
+                                  Nuevo pago
+                                </Button>
+                              </Stack>
+                            ) : (
+                              <Typography sx={{ fontStyle: 'italic' }}>
+                                {emptyPendientes}
+                              </Typography>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}
@@ -527,6 +611,37 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        {!esNotaCredito && tipoNuevoPago && openNuevoPago ? (
+          <Dialog
+            open={openNuevoPago}
+            onClose={() => setOpenNuevoPago(false)}
+            maxWidth="lg"
+            fullWidth
+            fullScreen={false}
+          >
+            <DialogTitle sx={{ pb: 0 }}>
+              {tipoNuevoPago === 'pago_proveedor' ? 'Nuevo pago a proveedor' : 'Nuevo pago de cliente'}
+            </DialogTitle>
+            <DialogContent sx={{ p: 0 }}>
+              <DocumentosFormPage
+                tipoDocumento={tipoNuevoPago}
+                embedded
+                initialValues={{
+                  empresa_id: documentoMeta?.empresaId ?? undefined,
+                  contacto_principal_id: contactoId,
+                  fecha_documento: new Date().toISOString().slice(0, 10),
+                  moneda: documentoMeta?.moneda || saldoDocumento?.moneda || 'MXN',
+                }}
+                lockedFields={{ contacto_principal_id: true }}
+                onEmbeddedClose={() => setOpenNuevoPago(false)}
+                onEmbeddedSaved={(savedDocumentoId) => {
+                  void handleNuevoPagoGuardado(savedDocumentoId);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        ) : null}
       </Box>
     </Drawer>
   );

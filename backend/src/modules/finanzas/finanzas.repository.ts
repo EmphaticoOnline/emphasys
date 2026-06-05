@@ -1024,8 +1024,34 @@ export async function eliminarOperacion(id: number, empresaId: number): Promise<
     const operacion = rows[0];
     if (!operacion) throw new Error('Operación no encontrada');
 
+    if (String(operacion.estado_conciliacion ?? '').toLowerCase() !== 'pendiente') {
+      throw new Error('No se puede eliminar la operación porque ya está cotejada o conciliada');
+    }
+
     const cuenta = await obtenerCuentaConLock(client, operacion.cuenta_id, empresaId);
     if (!cuenta) throw new Error('Cuenta no encontrada');
+
+    const { rows: documentoPagoRows } = await client.query<{
+      id: number;
+      estatus_documento: string | null;
+    }>(
+      `SELECT id, estatus_documento
+         FROM documentos
+        WHERE finanzas_operacion_id = $1
+          AND empresa_id = $2
+        LIMIT 1
+        FOR UPDATE`,
+      [id, empresaId]
+    );
+
+    const documentoPago = documentoPagoRows[0];
+    if (documentoPago) {
+      if (String(documentoPago.estatus_documento ?? '').toLowerCase() === 'timbrado') {
+        throw new Error('No se puede eliminar la operación porque el documento de pago asociado está timbrado');
+      }
+
+      await client.query('DELETE FROM documentos WHERE id = $1 AND empresa_id = $2', [documentoPago.id, empresaId]);
+    }
 
     const delta = operacion.tipo_movimiento === 'Deposito' ? -Number(operacion.monto) : Number(operacion.monto);
     const nuevoSaldo = Number(cuenta.saldo) + delta;

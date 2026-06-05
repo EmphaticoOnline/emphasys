@@ -291,6 +291,11 @@ const emptyPartida = (): PartidaForm => ({
 
 type DocumentosFormPageProps = {
   tipoDocumento?: TipoDocumento;
+  embedded?: boolean;
+  initialValues?: Partial<CotizacionCrearPayload>;
+  lockedFields?: Partial<Record<'contacto_principal_id' | 'fecha_documento' | 'moneda', boolean>>;
+  onEmbeddedClose?: () => void;
+  onEmbeddedSaved?: (documentoId: number) => void;
 };
 
 const DESCRIPCIONES_FORMULARIO: Record<string, string> = {
@@ -411,7 +416,14 @@ const filterConceptoOptions = createFilterOptions<ConceptoAutocompleteOption>({
   stringify: (option) => ('kind' in option && option.kind === 'create' ? option.inputValue : option.nombre_concepto || ''),
 });
 
-export default function DocumentosFormPage({ tipoDocumento: propTipo }: DocumentosFormPageProps) {
+export default function DocumentosFormPage({
+  tipoDocumento: propTipo,
+  embedded = false,
+  initialValues,
+  lockedFields,
+  onEmbeddedClose,
+  onEmbeddedSaved,
+}: DocumentosFormPageProps) {
   const { id, codigo } = useParams();
   const { session } = useSession();
   const theme = useTheme();
@@ -464,6 +476,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     }),
     [documentoConfig, tipoDocumento]
   );
+  const lockedContacto = Boolean(lockedFields?.contacto_principal_id);
+  const lockedFechaDocumento = Boolean(lockedFields?.fecha_documento);
+  const lockedMoneda = Boolean(lockedFields?.moneda);
 
   const productoFlowConfig = useMemo(
     () => ({
@@ -494,7 +509,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     usuario_creacion_id: sessionUserId ?? null,
     empresa_id: getEmpresaActivaId(),
     estado_seguimiento: (defaultEstadoSeguimiento ?? null) as NonNullable<CotizacionCrearPayload['estado_seguimiento']> | null,
-    tratamiento_impuestos: 'normal',
+    tratamiento_impuestos: 'sin_iva',
     rfc_receptor: '',
     nombre_receptor: '',
     regimen_fiscal_receptor: '',
@@ -502,6 +517,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
     forma_pago: '',
     metodo_pago: '',
     codigo_postal_receptor: '',
+    ...initialValues,
   });
 
   const syncDocumentoMonetarioTotals = useCallback((value: string | number | null | undefined) => {
@@ -2405,15 +2421,18 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         const docId = Number(resultado.documento_destino_id);
         setDocumentoPersistidoId(docId);
         const nextPath = resolveDocumentoFormPath(tipoDocumento, docId, moduloDocumento);
-        if (location.pathname !== nextPath) {
+        if (!embedded && location.pathname !== nextPath) {
           navigate(nextPath, { replace: true });
         }
         void loadAnticiposResumen(docId);
         if (showSuccessMessage) {
           setSnackbar({ open: true, message: textos.guardado, severity: 'success' });
         }
-        if (navigateAfterSave) {
+        if (navigateAfterSave && !embedded) {
           setTimeout(() => navigate(basePath), 400);
+        }
+        if (embedded) {
+          onEmbeddedSaved?.(docId);
         }
         return docId;
       }
@@ -2488,7 +2507,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
       }
 
       const nextPath = resolveDocumentoFormPath(tipoDocumento, docId, moduloDocumento);
-      if (location.pathname !== nextPath) {
+      if (!embedded && location.pathname !== nextPath) {
         navigate(nextPath, { replace: true });
       }
 
@@ -2507,8 +2526,12 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
         setSnackbar({ open: true, message: textos.guardado, severity: 'success' });
       }
 
-      if (navigateAfterSave) {
+      if (navigateAfterSave && !embedded) {
         setTimeout(() => navigate(basePath), 400);
+      }
+
+      if (embedded) {
+        onEmbeddedSaved?.(docId);
       }
 
       return docId;
@@ -3282,6 +3305,16 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                   {anticipoConfig.accionLabel}
                 </Button>
               ) : null}
+              {embedded && onEmbeddedClose ? (
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  onClick={onEmbeddedClose}
+                  disabled={saving || loading}
+                >
+                  Cerrar
+                </Button>
+              ) : null}
               {isEdit && documentoActualId && (
                 <Button
                   variant="outlined"
@@ -3441,7 +3474,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                           return option?.id === value?.id;
                         }}
                         value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
+                        disabled={lockedContacto}
                         onChange={(_, value) => {
+                          if (lockedContacto) return;
                           if (value && 'kind' in value && value.kind === 'create') {
                             setCrearClienteOpen(true);
                             setCrearClienteNombre(value.inputValue);
@@ -3466,6 +3501,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                             label={contactoLabel}
                             required
                             size="small"
+                            disabled={lockedContacto}
                             InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                             inputProps={{ ...params.inputProps }}
                             sx={campoEncabezadoSx}
@@ -3511,6 +3547,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                           type="date"
                           value={form.fecha_documento}
                           onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
+                          disabled={lockedFechaDocumento}
                           InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                           sx={campoEncabezadoSx}
                           fullWidth
@@ -3546,6 +3583,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                         label="Moneda"
                         value={form.moneda || 'MXN'}
                         onChange={(e) => setForm((prev) => ({ ...prev, moneda: e.target.value || 'MXN', tipo_cambio: (e.target.value || 'MXN') === 'MXN' ? 1 : (prev.tipo_cambio ?? 1) }))}
+                        disabled={lockedMoneda}
                         fullWidth
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -3695,7 +3733,9 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                       return option?.id === value?.id;
                     }}
                     value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
+                    disabled={lockedContacto}
                     onChange={(_, value) => {
+                      if (lockedContacto) return;
                       if (value && 'kind' in value && value.kind === 'create') {
                         setCrearClienteOpen(true);
                         setCrearClienteNombre(value.inputValue);
@@ -3720,6 +3760,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                         label={contactoLabel}
                         required
                         size="small"
+                        disabled={lockedContacto}
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                         inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
                         sx={{
@@ -3771,6 +3812,7 @@ export default function DocumentosFormPage({ tipoDocumento: propTipo }: Document
                     type="date"
                     value={form.fecha_documento}
                     onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
+                    disabled={lockedFechaDocumento}
                     InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                     inputProps={{ style: { fontSize: 13 } }}
                     fullWidth

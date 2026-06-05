@@ -8,6 +8,7 @@ import {
 } from './cotizacion-status';
 import { obtenerOCrearProductoTecnicoNcComercialRepository } from '../productos/productos.repository';
 import { reservarNumeroParaSerieExistente, resolverSerieDocumento, resolverYReservarSerieDocumento } from './series-documento.service';
+import { DocumentoDeleteValidationError } from './documentos-delete.service';
 
 export type Documento = {
   id: number;
@@ -1096,8 +1097,9 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
     const { rows: documentoRows } = await client.query<{
       tipo_documento: string | null;
       documento_origen_id: number | null;
+      finanzas_operacion_id: number | null;
     }>(
-      `SELECT tipo_documento, documento_origen_id
+      `SELECT tipo_documento, documento_origen_id, finanzas_operacion_id
          FROM documentos
         WHERE id = $1
           AND empresa_id = $2
@@ -1119,6 +1121,33 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
       : 'DELETE FROM documentos WHERE id = $1 AND empresa_id = $2';
 
     const result = await client.query(deleteDocumentoSql, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
+
+    if ((result.rowCount ?? 0) > 0 && documentoActual?.finanzas_operacion_id) {
+      const { rows: operacionRows } = await client.query<{
+        id: number;
+        estado_conciliacion: string | null;
+      }>(
+        `SELECT id, estado_conciliacion
+           FROM finanzas_operaciones
+          WHERE id = $1
+            AND empresa_id = $2
+          LIMIT 1
+          FOR UPDATE`,
+        [documentoActual.finanzas_operacion_id, empresaId]
+      );
+
+      const operacionFinanciera = operacionRows[0] ?? null;
+      if (!operacionFinanciera) {
+        throw new DocumentoDeleteValidationError(
+          'Operación financiera asociada no encontrada'
+        );
+      }
+
+      if (String(operacionFinanciera.estado_conciliacion ?? '').toLowerCase() !== 'pendiente') {
+      throw new DocumentoDeleteValidationError('No se puede eliminar el documento porque la operación financiera asociada ya está cotejada o conciliada');      }
+
+      await client.query('DELETE FROM finanzas_operaciones WHERE id = $1 AND empresa_id = $2', [operacionFinanciera.id, empresaId]);
+    }
 
     if (
       (result.rowCount ?? 0) > 0
