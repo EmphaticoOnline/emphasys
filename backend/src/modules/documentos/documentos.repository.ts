@@ -1125,9 +1125,12 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
     if ((result.rowCount ?? 0) > 0 && documentoActual?.finanzas_operacion_id) {
       const { rows: operacionRows } = await client.query<{
         id: number;
+        cuenta_id: number;
+        tipo_movimiento: string;
+        monto: number | string;
         estado_conciliacion: string | null;
       }>(
-        `SELECT id, estado_conciliacion
+        `SELECT id, cuenta_id, tipo_movimiento, monto, estado_conciliacion
            FROM finanzas_operaciones
           WHERE id = $1
             AND empresa_id = $2
@@ -1136,17 +1139,38 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
         [documentoActual.finanzas_operacion_id, empresaId]
       );
 
-      const operacionFinanciera = operacionRows[0] ?? null;
-      if (!operacionFinanciera) {
-        throw new DocumentoDeleteValidationError(
-          'Operación financiera asociada no encontrada'
-        );
+      const operacion = operacionRows[0] ?? null;
+      if (!operacion) {
+        throw new DocumentoDeleteValidationError('Operación financiera asociada no encontrada');
       }
 
-      if (String(operacionFinanciera.estado_conciliacion ?? '').toLowerCase() !== 'pendiente') {
-      throw new DocumentoDeleteValidationError('No se puede eliminar el documento porque la operación financiera asociada ya está cotejada o conciliada');      }
+      if (String(operacion.estado_conciliacion ?? '').toLowerCase() !== 'pendiente') {
+        throw new DocumentoDeleteValidationError('No se puede eliminar el documento porque la operación financiera asociada ya está cotejada o conciliada');
+      }
 
-      await client.query('DELETE FROM finanzas_operaciones WHERE id = $1 AND empresa_id = $2', [operacionFinanciera.id, empresaId]);
+      const { rows: cuentaRows } = await client.query<{
+        id: number;
+        saldo: number | string;
+      }>(
+        `SELECT id, saldo
+           FROM finanzas_cuentas
+          WHERE id = $1
+            AND empresa_id = $2
+          LIMIT 1
+          FOR UPDATE`,
+        [operacion.cuenta_id, empresaId]
+      );
+
+      const cuenta = cuentaRows[0] ?? null;
+      if (!cuenta) {
+        throw new DocumentoDeleteValidationError('Cuenta no encontrada');
+      }
+
+      const delta = operacion.tipo_movimiento === 'Deposito' ? -Number(operacion.monto) : Number(operacion.monto);
+      const nuevoSaldo = Number(cuenta.saldo) + delta;
+
+      await client.query('DELETE FROM finanzas_operaciones WHERE id = $1 AND empresa_id = $2', [operacion.id, empresaId]);
+      await client.query('UPDATE finanzas_cuentas SET saldo = $1 WHERE id = $2', [nuevoSaldo, cuenta.id]);
     }
 
     if (

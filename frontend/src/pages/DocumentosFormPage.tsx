@@ -4535,10 +4535,13 @@ export default function DocumentosFormPage({
                           key={index}
                           variant="outlined"
                           sx={{
-                            p: 1.25,
-                            borderRadius: 1.5,
-                            borderColor: '#dbe3f0',
+                            p: 1.5,
+                            borderRadius: 1.75,
+                            border: '1.5px solid',
+                            borderColor: '#96a7c7',
                             bgcolor: '#ffffff',
+                            boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
+                            mb: 1.5,
                           }}
                         >
                           <Stack spacing={1.25}>
@@ -4890,16 +4893,20 @@ export default function DocumentosFormPage({
                         <Paper
                           variant="outlined"
                           sx={{
-                            p: 1.25,
-                            borderRadius: 1.25,
-                            borderColor: '#e5e7eb',
+                            p: 1.75,
+                            borderRadius: 1.75,
+                            border: '1.75px solid',
+                            borderColor: '#96a7c7',
+                            bgcolor: '#ffffff',
+                            boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
                             display: 'grid',
                             gridTemplateColumns: {
                               xs: '1fr',
                               md: partidasGridTemplate,
                             },
-                            gap: { xs: 1, md: 1 },
+                            gap: { xs: 1, md: 1.25 },
                             alignItems: 'center',
+                            mb: 2,
                           }}
                         >
                           <Autocomplete<ProductoAutocompleteOption>
@@ -5205,7 +5212,6 @@ export default function DocumentosFormPage({
                           <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small">
                             <DeleteIcon fontSize="small" />
                           </IconButton>
-                        </Paper>
 
                         {camposPartida.campos.length > 0 && (
                           <Box
@@ -5246,7 +5252,7 @@ export default function DocumentosFormPage({
                         )}
 
                         {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
-                          <Box sx={{ gridColumn: { xs: '1', md: '2 / -1' }, mt: { xs: 0.5, md: 0.25 } }}>
+                          <Box sx={{ gridColumn: '1 / -1', mt: { xs: 0.5, md: 0.25 } }}>
                             <TextField
                               label="Observaciones de la partida"
                               placeholder="Texto adicional para impresión"
@@ -5261,6 +5267,7 @@ export default function DocumentosFormPage({
                             />
                           </Box>
                         )}
+                        </Paper>
                       </React.Fragment>
                     );
                   })()
