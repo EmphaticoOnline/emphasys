@@ -1,10 +1,11 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
-import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined';
 import CallOutlinedIcon from '@mui/icons-material/CallOutlined';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import EventRepeatOutlinedIcon from '@mui/icons-material/EventRepeatOutlined';
 import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import {
   Box,
@@ -36,6 +37,7 @@ export type ActivityCardProps = {
   actividad: ActividadResumen;
   onCompletar: (actividad: ActividadResumen) => void;
   onReprogramar?: (actividad: ActividadResumen, nuevaFechaProgramada: string) => void;
+  onCancelar?: (actividad: ActividadResumen) => void;
   onAbrir: (actividad: ActividadResumen) => void;
 };
 
@@ -147,7 +149,7 @@ function formatearTipoActividad(tipo: ActividadResumen['tipo']) {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-export default function ActivityCard({ actividad, onCompletar, onReprogramar, onAbrir }: ActivityCardProps) {
+export default function ActivityCard({ actividad, onCompletar, onReprogramar, onCancelar, onAbrir }: ActivityCardProps) {
   const [anclaPopover, setAnclaPopover] = useState<HTMLElement | null>(null);
   const [fechaReprogramada, setFechaReprogramada] = useState(obtenerFechaLocalParaInput(actividad.fecha_programada));
   const estaCompletada = actividad.estatus === 'realizada';
@@ -311,23 +313,29 @@ export default function ActivityCard({ actividad, onCompletar, onReprogramar, on
         <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>
           {!estaCompletada ? (
             <>
-              <Tooltip title="Completar">
+              <Tooltip title="Completar actividad">
                 <IconButton size="small" color="success" onClick={() => onCompletar(actividad)} aria-label="Completar actividad">
                   <CheckCircleOutlineOutlinedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title="Reprogramar">
-                <IconButton size="small" color="warning" onClick={abrirPopover} aria-label="Reprogramar actividad">
+              <Tooltip title="Reagendar actividad">
+                <IconButton size="small" color="warning" onClick={abrirPopover} aria-label="Reagendar actividad">
                   <AccessTimeOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title="Cancelar actividad">
+                <IconButton size="small" color="error" onClick={() => onCancelar?.(actividad)} aria-label="Cancelar actividad">
+                  <CancelOutlinedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </>
           ) : null}
 
-          <Tooltip title="Abrir">
-            <IconButton size="small" color="primary" onClick={() => onAbrir(actividad)} aria-label="Abrir actividad">
-              <ArrowForwardOutlinedIcon fontSize="small" />
+          <Tooltip title="Ver detalle">
+            <IconButton size="small" color="primary" onClick={() => onAbrir(actividad)} aria-label="Ver detalle">
+              <VisibilityOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Stack>

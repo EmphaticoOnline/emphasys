@@ -5,6 +5,7 @@ export type WhatsappTemplateType =
   | 'envio_cotizacion'
   | 'envio_orden_servicio'
   | 'envio_cfdi'
+  | 'envio_nota_venta'
   | 'reactivacion'
   | 'seguimiento';
 

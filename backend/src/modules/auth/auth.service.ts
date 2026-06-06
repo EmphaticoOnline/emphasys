@@ -191,3 +191,24 @@ export async function registrarUltimoLogin(usuarioId: number): Promise<void> {
     [usuarioId]
   );
 }
+
+export async function cambiarPasswordUsuario(userId: number, passwordActual: string, passwordNueva: string): Promise<void> {
+  const { rows } = await pool.query<{ password_hash: string }>(
+    `SELECT password_hash FROM core.usuarios WHERE id = $1 AND activo = true LIMIT 1`,
+    [userId]
+  );
+  const usuario = rows[0];
+  if (!usuario) throw new Error('Usuario no encontrado');
+
+  const actualValida = await validarPassword(passwordActual, usuario.password_hash);
+  if (!actualValida) throw new Error('La contraseña actual es incorrecta');
+
+  const esMisma = await bcrypt.compare(passwordNueva, usuario.password_hash);
+  if (esMisma) throw new Error('La nueva contraseña debe ser diferente a la actual');
+
+  const nuevoHash = await bcrypt.hash(passwordNueva, 10);
+  await pool.query(
+    `UPDATE core.usuarios SET password_hash = $1 WHERE id = $2`,
+    [nuevoHash, userId]
+  );
+}

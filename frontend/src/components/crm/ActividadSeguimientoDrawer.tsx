@@ -1,9 +1,14 @@
 import * as React from 'react';
+import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
 import AddTaskOutlinedIcon from '@mui/icons-material/AddTaskOutlined';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
@@ -19,14 +24,17 @@ import {
   InputAdornment,
   MenuItem,
   Paper,
+  Popover,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/apiFetch';
 import { loadSession } from '../../session/sessionStorage';
 
@@ -232,7 +240,37 @@ async function realizarActividad(actividadId: number, resultado: string) {
   });
 }
 
+async function reagendarActividad(actividad: Actividad, nuevaFecha: string) {
+  return apiFetch<Actividad>(`/api/crm/actividades/${actividad.id}`, {
+    method: 'PUT',
+    body: {
+      tipo_actividad: actividad.tipo_actividad,
+      notas: actividad.notas,
+      fecha_programada: new Date(nuevaFecha).toISOString(),
+      oportunidad_id: actividad.oportunidad_id,
+      recordatorio: false,
+      recordatorio_minutos: null,
+    } as any,
+  });
+}
+
+async function cancelarActividad(actividadId: number) {
+  return apiFetch<Actividad>(`/api/crm/actividades/${actividadId}`, {
+    method: 'PATCH',
+    body: { estatus: 'cancelada' } as any,
+  });
+}
+
+function obtenerFechaLocalParaInput(valor: string) {
+  if (!valor) return '';
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return '';
+  const desfase = fecha.getTimezoneOffset();
+  return new Date(fecha.getTime() - desfase * 60000).toISOString().slice(0, 16);
+}
+
 export default function ActividadSeguimientoDrawer({ open, onClose, target, onActivitiesChanged }: ActividadSeguimientoDrawerProps) {
+  const navigate = useNavigate();
   const session = React.useMemo(() => loadSession(), []);
   const sessionUserId = session.user?.id ?? null;
   const [seguimientoSearchTerm, setSeguimientoSearchTerm] = React.useState('');
@@ -241,6 +279,14 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
   const [savingActividad, setSavingActividad] = React.useState(false);
   const [createActividadDialog, setCreateActividadDialog] = React.useState<CreateActividadDialogState>(EMPTY_CREATE_ACTIVIDAD_DIALOG);
   const [realizarActividadDialog, setRealizarActividadDialog] = React.useState<RealizarActividadDialogState>(EMPTY_REALIZAR_ACTIVIDAD_DIALOG);
+
+  const [reagendarAnchorEl, setReagendarAnchorEl] = React.useState<HTMLElement | null>(null);
+  const [actividadPorReagendar, setActividadPorReagendar] = React.useState<Actividad | null>(null);
+  const [nuevaFechaReagendar, setNuevaFechaReagendar] = React.useState('');
+  const [savingReagendar, setSavingReagendar] = React.useState(false);
+
+  const [cancelarDialog, setCancelarDialog] = React.useState<{ open: boolean; actividad: Actividad | null; error: string | null }>({ open: false, actividad: null, error: null });
+  const [savingCancelar, setSavingCancelar] = React.useState(false);
 
   const normalizedSeguimientoSearchTerm = React.useMemo(
     () => normalizeActividadSearchValue(seguimientoSearchTerm),
@@ -372,6 +418,66 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
       error: null,
     });
   }, []);
+
+  const handleReagendarClick = React.useCallback((actividad: Actividad, event: React.MouseEvent<HTMLElement>) => {
+    setActividadPorReagendar(actividad);
+    setNuevaFechaReagendar(obtenerFechaLocalParaInput(actividad.fecha_programada));
+    setReagendarAnchorEl(event.currentTarget);
+  }, []);
+
+  const handleCloseReagendar = React.useCallback(() => {
+    setReagendarAnchorEl(null);
+    setActividadPorReagendar(null);
+    setNuevaFechaReagendar('');
+  }, []);
+
+  const handleConfirmReagendar = React.useCallback(async () => {
+    if (!actividadPorReagendar || !nuevaFechaReagendar) return;
+
+    setSavingReagendar(true);
+    try {
+      await reagendarActividad(actividadPorReagendar, nuevaFechaReagendar);
+      handleCloseReagendar();
+      await loadActividades();
+      await notifyActivitiesChanged();
+    } finally {
+      setSavingReagendar(false);
+    }
+  }, [actividadPorReagendar, nuevaFechaReagendar, handleCloseReagendar, loadActividades, notifyActivitiesChanged]);
+
+  const handleCancelarClick = React.useCallback((actividad: Actividad) => {
+    setCancelarDialog({ open: true, actividad, error: null });
+  }, []);
+
+  const handleCloseCancelar = React.useCallback(() => {
+    if (savingCancelar) return;
+    setCancelarDialog({ open: false, actividad: null, error: null });
+  }, [savingCancelar]);
+
+  const handleConfirmCancelar = React.useCallback(async () => {
+    if (!cancelarDialog.actividad) return;
+
+    setSavingCancelar(true);
+    try {
+      await cancelarActividad(cancelarDialog.actividad.id);
+      setCancelarDialog({ open: false, actividad: null, error: null });
+      await loadActividades();
+      await notifyActivitiesChanged();
+    } catch (err) {
+      setCancelarDialog((prev) => ({ ...prev, error: err instanceof Error ? err.message : 'No se pudo cancelar la actividad.' }));
+    } finally {
+      setSavingCancelar(false);
+    }
+  }, [cancelarDialog.actividad, loadActividades, notifyActivitiesChanged]);
+
+  const handleVerDetalle = React.useCallback((actividad: Actividad) => {
+    navigate(`/crm/actividades/${actividad.id}`, {
+      state: {
+        returnTo: '/contactos',
+        openDrawerContactoId: target?.id,
+      },
+    });
+  }, [navigate, target]);
 
   const completeActividad = React.useCallback(async (openNextDialog: boolean) => {
     const actividad = realizarActividadDialog.actividad;
@@ -575,17 +681,28 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
                           <Typography variant="body2" sx={{ color: '#334155' }}>
                             {actividad.notas || 'Sin notas'}
                           </Typography>
-                          <Box>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<CheckCircleOutlineIcon />}
-                              onClick={() => handleOpenRealizarActividadDialog(actividad)}
-                              sx={{ textTransform: 'none', fontWeight: 700 }}
-                            >
-                              Completar
-                            </Button>
-                          </Box>
+                          <Stack direction="row" spacing={0.25} alignItems="center">
+                            <Tooltip title="Completar actividad">
+                              <IconButton size="small" color="success" onClick={() => handleOpenRealizarActividadDialog(actividad)} aria-label="Completar actividad">
+                                <CheckCircleOutlineOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Reagendar actividad">
+                              <IconButton size="small" color="warning" onClick={(event) => handleReagendarClick(actividad, event)} aria-label="Reagendar actividad">
+                                <AccessTimeOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Cancelar actividad">
+                              <IconButton size="small" color="error" onClick={() => handleCancelarClick(actividad)} aria-label="Cancelar actividad">
+                                <CancelOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Ver detalle">
+                              <IconButton size="small" color="primary" onClick={() => handleVerDetalle(actividad)} aria-label="Ver detalle">
+                                <VisibilityOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                         </Stack>
                       </Paper>
                     );
@@ -654,6 +771,57 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
           </Box>
         </Box>
       </Drawer>
+
+      <Popover
+        open={Boolean(reagendarAnchorEl)}
+        anchorEl={reagendarAnchorEl}
+        onClose={handleCloseReagendar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Stack spacing={1.25} sx={{ p: 1.5, width: 260 }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+            Reagendar actividad
+          </Typography>
+          <TextField
+            label="Nueva fecha"
+            type="datetime-local"
+            size="small"
+            value={nuevaFechaReagendar}
+            onChange={(event) => setNuevaFechaReagendar(event.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+          <Stack direction="row" justifyContent="flex-end" spacing={1}>
+            <Button size="small" color="inherit" onClick={handleCloseReagendar} disabled={savingReagendar}>
+              Cancelar
+            </Button>
+            <Button size="small" variant="contained" onClick={() => { void handleConfirmReagendar(); }} disabled={!nuevaFechaReagendar || savingReagendar}>
+              {savingReagendar ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </Stack>
+        </Stack>
+      </Popover>
+
+      <Dialog open={cancelarDialog.open} onClose={handleCloseCancelar} fullWidth maxWidth="xs">
+        <DialogTitle>Cancelar actividad</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography sx={{ color: '#475569' }}>
+              ¿Estás seguro de que deseas cancelar esta actividad? Esta acción no se puede deshacer.
+            </Typography>
+            {cancelarDialog.error ? <Alert severity="error">{cancelarDialog.error}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCancelar} color="inherit" disabled={savingCancelar}>
+            Volver
+          </Button>
+          <Button onClick={() => { void handleConfirmCancelar(); }} variant="contained" color="error" disabled={savingCancelar}>
+            {savingCancelar ? 'Cancelando...' : 'Cancelar actividad'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={createActividadDialog.open} onClose={closeCreateActividadDialog} fullWidth maxWidth="sm">
         <DialogTitle>Programar actividad</DialogTitle>

@@ -20,7 +20,7 @@ import { cancelarDocumentoService, DocumentoCancelValidationError } from './docu
 import { formatearFolioDocumento } from '../../utils/documentos';
 import { obtenerJwtSecret } from '../auth/auth.service';
 import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
-import { resolverTipoPlantillaWhatsapp } from '../../whatsapp/whatsapp-template-type.service';
+import { resolverTipoPlantillaWhatsapp, type WhatsappTemplateType } from '../../whatsapp/whatsapp-template-type.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -824,7 +824,6 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) 
     const documentoId = Number(req.params.id);
     const empresaId = req.context?.empresaId;
     const telefono = String(req.body?.telefono ?? '').trim();
-    const tipoPlantilla = resolverTipoPlantillaWhatsapp('cfdi', 'factura');
 
     if (Number.isNaN(documentoId) || !empresaId) {
       return res.status(400).json({ message: 'ID o empresaId inválido' });
@@ -842,6 +841,8 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) 
     }
 
     const facturaDocumento = factura.documento as any;
+    const tratamiento = String(facturaDocumento?.tratamiento_impuestos ?? '').trim().toLowerCase();
+    const tipoPlantilla: WhatsappTemplateType = tratamiento === 'sin_iva' ? 'envio_nota_venta' : 'envio_cfdi';
     const nombreCliente = String(facturaDocumento?.nombre_receptor ?? facturaDocumento?.cliente_nombre ?? 'Cliente').trim() || 'Cliente';
     const folioFactura = formatearFolioDocumento(facturaDocumento?.serie ?? '', Number(facturaDocumento?.numero ?? 0)) || String(documentoId);
     const links = await generarFacturaPublicLinks(req, documentoId, Number(empresaId), true);

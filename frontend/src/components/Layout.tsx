@@ -35,6 +35,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import VersionUpdateDrawer from './VersionUpdateDrawer';
 import { useVersionUpdateNotice } from '../hooks/useVersionUpdateNotice';
+import ChangePasswordDialog from './ChangePasswordDialog';
 import { compareDocumentoVisualOrder } from '../modules/documentos/documentoVisualOrder';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchParametrosSistema } from '../services/parametrosService';
@@ -110,6 +111,7 @@ export default function Layout({ children }: LayoutProps) {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
   const [recordatoriosQueue, setRecordatoriosQueue] = React.useState<ActividadRecordatorio[]>([]);
   const [recordatorioActual, setRecordatorioActual] = React.useState<ActividadRecordatorio | null>(null);
   const recordatoriosProcesadosRef = React.useRef<Set<number>>(new Set());
@@ -507,7 +509,7 @@ export default function Layout({ children }: LayoutProps) {
             </Box>
             <Divider />
             <MenuItem onClick={handleUserMenuClose}>Perfil</MenuItem>
-            <MenuItem onClick={handleUserMenuClose}>Cambiar contraseña</MenuItem>
+            <MenuItem onClick={() => { handleUserMenuClose(); setChangePasswordOpen(true); }}>Cambiar contraseña</MenuItem>
             <Divider />
             <MenuItem
               onClick={() => {
@@ -552,7 +554,7 @@ export default function Layout({ children }: LayoutProps) {
                   <Button variant="text" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={handleDrawerClose}>
                     Perfil
                   </Button>
-                  <Button variant="text" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={handleDrawerClose}>
+                  <Button variant="text" sx={{ justifyContent: 'flex-start', textTransform: 'none' }} onClick={() => { handleDrawerClose(); setChangePasswordOpen(true); }}>
                     Cambiar contraseña
                   </Button>
                   <Button
@@ -577,6 +579,7 @@ export default function Layout({ children }: LayoutProps) {
       </Drawer>
 
       <VersionUpdateDrawer open={versionDrawerOpen} version={systemVersion} onClose={dismissVersionDrawer} onUpdateNow={updateNowVersion} />
+      <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
 
       <Box
         ref={moduleNavProbeRef}

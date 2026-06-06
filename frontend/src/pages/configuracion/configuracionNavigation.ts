@@ -93,6 +93,12 @@ export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
 		path: '/configuracion/whatsapp-etiquetas',
 	},
 	{
+		titulo: 'Plantillas de WhatsApp',
+		descripcion: 'Administra los registros de plantillas por empresa y tipo.',
+		path: '/configuracion/whatsapp-plantillas',
+		soloSuperadmin: true,
+	},
+	{
 		titulo: 'Etapas de producción',
 		descripcion: 'Configura nombres, colores, secuencia y activación de las etapas operativas.',
 		path: '/configuracion/produccion-etapas',

@@ -16,7 +16,20 @@ import {
   quitarEtiquetaConversacionWhatsapp as quitarEtiquetaConversacionWhatsappHandler,
   whatsappWebhook as whatsappWebhookHandler,
 } from "../crm/conversaciones.controller";
-import { listarPlantillasWhatsapp as listarPlantillasWhatsappRepo } from "./whatsapp-plantillas.service";
+import {
+  listarPlantillasWhatsapp as listarPlantillasWhatsappRepo,
+  crearPlantilla as crearPlantillaRepo,
+  actualizarPlantilla as actualizarPlantillaRepo,
+} from "./whatsapp-plantillas.service";
+
+const TIPOS_VALIDOS = [
+  "envio_cotizacion",
+  "envio_orden_servicio",
+  "envio_cfdi",
+  "envio_nota_venta",
+  "reactivacion",
+  "seguimiento",
+];
 
 export const whatsappWebhook = async (req: Request, res: Response) => {
     console.log("WEBHOOK EJECUTADO", new Date().toISOString());
@@ -56,6 +69,98 @@ export const listarPlantillasWhatsapp = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error listando plantillas de WhatsApp:", error);
     return res.status(500).json({ message: "No se pudieron obtener las plantillas" });
+  }
+};
+
+export const crearPlantillaController = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId;
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    const { nombre_interno, tipo, proveedor, provider_template_id, es_default, activa } = req.body as Record<string, unknown>;
+
+    if (!nombre_interno || typeof nombre_interno !== "string" || !nombre_interno.trim()) {
+      return res.status(400).json({ message: "nombre_interno es requerido" });
+    }
+    if (!tipo || typeof tipo !== "string" || !TIPOS_VALIDOS.includes(tipo)) {
+      return res.status(400).json({ message: `tipo debe ser uno de: ${TIPOS_VALIDOS.join(", ")}` });
+    }
+    if (!proveedor || typeof proveedor !== "string" || !proveedor.trim()) {
+      return res.status(400).json({ message: "proveedor es requerido" });
+    }
+    if (!provider_template_id || typeof provider_template_id !== "string" || !provider_template_id.trim()) {
+      return res.status(400).json({ message: "provider_template_id es requerido" });
+    }
+
+    const plantilla = await crearPlantillaRepo(empresaId, {
+      nombre_interno: nombre_interno.trim(),
+      tipo,
+      proveedor: (proveedor as string).trim(),
+      provider_template_id: (provider_template_id as string).trim(),
+      es_default: Boolean(es_default),
+      activa: activa === undefined ? true : Boolean(activa),
+    });
+
+    return res.status(201).json(plantilla);
+  } catch (error) {
+    console.error("Error creando plantilla de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo crear la plantilla" });
+  }
+};
+
+export const actualizarPlantillaController = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId;
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    const plantillaId = Number(req.params.id);
+    if (!Number.isFinite(plantillaId)) {
+      return res.status(400).json({ message: "id inválido" });
+    }
+
+    const body = req.body as Record<string, unknown>;
+    const payload: Record<string, unknown> = {};
+
+    if (body.nombre_interno !== undefined) {
+      if (typeof body.nombre_interno !== "string" || !body.nombre_interno.trim()) {
+        return res.status(400).json({ message: "nombre_interno no puede estar vacío" });
+      }
+      payload.nombre_interno = body.nombre_interno.trim();
+    }
+    if (body.tipo !== undefined) {
+      if (!TIPOS_VALIDOS.includes(body.tipo as string)) {
+        return res.status(400).json({ message: `tipo debe ser uno de: ${TIPOS_VALIDOS.join(", ")}` });
+      }
+      payload.tipo = body.tipo;
+    }
+    if (body.proveedor !== undefined) {
+      if (typeof body.proveedor !== "string" || !body.proveedor.trim()) {
+        return res.status(400).json({ message: "proveedor no puede estar vacío" });
+      }
+      payload.proveedor = body.proveedor.trim();
+    }
+    if (body.provider_template_id !== undefined) {
+      if (typeof body.provider_template_id !== "string" || !body.provider_template_id.trim()) {
+        return res.status(400).json({ message: "provider_template_id no puede estar vacío" });
+      }
+      payload.provider_template_id = body.provider_template_id.trim();
+    }
+    if (body.es_default !== undefined) payload.es_default = Boolean(body.es_default);
+    if (body.activa !== undefined) payload.activa = Boolean(body.activa);
+
+    const plantilla = await actualizarPlantillaRepo(empresaId, plantillaId, payload);
+    if (!plantilla) {
+      return res.status(404).json({ message: "Plantilla no encontrada" });
+    }
+
+    return res.status(200).json(plantilla);
+  } catch (error) {
+    console.error("Error actualizando plantilla de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo actualizar la plantilla" });
   }
 };
 

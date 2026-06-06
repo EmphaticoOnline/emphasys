@@ -1,4 +1,5 @@
 import type { User, Empresa } from "../session/sessionTypes";
+import { apiFetch } from "./apiFetch";
 
 const baseUrl = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL?.replace(/\/$/, "")) || "";
 
@@ -25,4 +26,11 @@ export async function login(email: string, password: string): Promise<LoginRespo
   }
 
   return resp.json();
+}
+
+export async function cambiarPassword(passwordActual: string, passwordNueva: string): Promise<void> {
+  await apiFetch<void>("/auth/change-password", {
+    method: "POST",
+    body: { passwordActual, passwordNueva } as any,
+  });
 }

@@ -28,6 +28,7 @@ import SeriesDocumentosPage from './pages/configuracion/SeriesDocumentosPage';
 import ConfiguracionCorreoPage from './pages/configuracion/ConfiguracionCorreoPage';
 import CfdiPacConfigPage from './pages/configuracion/CfdiPacConfigPage';
 import WhatsappEtiquetasPage from './pages/configuracion/WhatsappEtiquetasPage';
+import WhatsappPlantillasPage from './pages/configuracion/WhatsappPlantillasPage';
 import FinanzasPage from './pages/FinanzasPage';
 import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
@@ -94,6 +95,7 @@ export default function App() {
               <Route path="/configuracion/correo" element={<ConfiguracionCorreoPage />} />
               <Route path="/configuracion/cfdi-pac" element={<CfdiPacConfigPage />} />
               <Route path="/configuracion/whatsapp-etiquetas" element={<WhatsappEtiquetasPage />} />
+              <Route path="/configuracion/whatsapp-plantillas" element={<WhatsappPlantillasPage />} />
               <Route path="/configuracion/produccion-etapas" element={<ConfiguracionEtapasProduccionPage />} />
               <Route path="/configuracion/listas-precios" element={<ListasPreciosPage />} />
               <Route path="/configuracion/precios" element={<PreciosPage />} />

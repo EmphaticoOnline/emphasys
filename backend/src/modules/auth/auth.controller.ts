@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import {
+  cambiarPasswordUsuario,
   construirPayloadToken,
   generarToken,
   mapearUsuarioPublico,
@@ -107,6 +108,32 @@ export async function me(req: Request, res: Response) {
     });
   } catch (error) {
     console.error("Error en /auth/me:", error);
+    return res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+
+export async function changePassword(req: Request, res: Response) {
+  try {
+    const auth = req.auth;
+    if (!auth) return res.status(401).json({ message: "No autenticado" });
+
+    const { passwordActual, passwordNueva } = req.body;
+    if (!passwordActual || !passwordNueva) {
+      return res.status(400).json({ message: "passwordActual y passwordNueva son requeridos" });
+    }
+
+    await cambiarPasswordUsuario(auth.userId, passwordActual, passwordNueva);
+    return res.json({ message: "Contraseña actualizada correctamente" });
+  } catch (error: any) {
+    const erroresCliente = [
+      "La contraseña actual es incorrecta",
+      "La nueva contraseña debe ser diferente a la actual",
+      "Usuario no encontrado",
+    ];
+    if (erroresCliente.includes(error?.message)) {
+      return res.status(400).json({ message: error.message });
+    }
+    console.error("Error en /auth/change-password:", error);
     return res.status(500).json({ message: "Error interno del servidor" });
   }
 }

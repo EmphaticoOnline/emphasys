@@ -195,6 +195,9 @@ export default function ActividadFormPage() {
     const parsed = Number(raw);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }, [location.search]);
+  const locationState = location.state as { returnTo?: string; openDrawerContactoId?: number } | null;
+  const returnTo = locationState?.returnTo ?? '/crm/actividades';
+  const openDrawerContactoId = locationState?.openDrawerContactoId ?? null;
   const isCreateMode = !id;
   const [actividad, setActividad] = React.useState<ActividadDetalle | null>(null);
   const [oportunidad, setOportunidad] = React.useState<OportunidadDetalle | null>(null);
@@ -328,7 +331,7 @@ export default function ActividadFormPage() {
       } else {
         await crearActividad(form, Number(sessionUserId));
       }
-      navigate('/crm/actividades');
+      navigate(returnTo, { state: { openDrawerContactoId } });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la actividad');
     } finally {
@@ -501,7 +504,7 @@ export default function ActividadFormPage() {
                   ) : null}
 
                   <Stack direction="row" spacing={1.5} justifyContent="flex-end">
-                    <Button color="inherit" onClick={() => navigate('/crm/actividades')}>
+                    <Button color="inherit" onClick={() => navigate(returnTo, { state: { openDrawerContactoId } })}>
                       Cancelar
                     </Button>
                     <Button type="submit" variant="contained" disabled={saving}>

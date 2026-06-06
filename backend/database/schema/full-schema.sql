@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-05-30T15:38:02.378Z
+-- Generated at: 2026-06-06T18:58:46.400Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict FTv97peuO9k2mfhtPlBJYdIFaUwsqq7CIAAQLfnf1ypaSrCWltcD0xzxnQTiWVo
+\restrict 1Vocnx2JKt2OdbPTfBzwoUh2yCb29ZjUs1E7zfNoTAq1UjcfuBFJAtWA6r2YIf9
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -1116,7 +1116,12 @@ CREATE TABLE core.empresas (
     activo boolean DEFAULT true,
     created_at timestamp without time zone DEFAULT now(),
     codigo_postal character varying(10),
-    regimen_fiscal character varying(10)
+    regimen_fiscal character varying(10),
+    cfdi_csd_registrado_facturama boolean DEFAULT false NOT NULL,
+    cfdi_csd_fecha_actualizacion timestamp without time zone,
+    cfdi_csd_cer_path character varying,
+    cfdi_csd_key_path character varying,
+    cfdi_csd_password_encrypted text
 );
 
 
@@ -1279,6 +1284,41 @@ COMMENT ON COLUMN core.empresas.activo IS 'Indica si la empresa está activa';
 --
 
 COMMENT ON COLUMN core.empresas.created_at IS 'Fecha de creación del registro';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_registrado_facturama; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_registrado_facturama IS 'Indica si el CSD fue registrado exitosamente en Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_fecha_actualizacion; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_fecha_actualizacion IS 'Fecha de la ultima actualizacion del CSD en Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_cer_path; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_cer_path IS 'Ruta relativa en uploads del archivo .cer cargado para Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_key_path; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_key_path IS 'Ruta relativa en uploads del archivo .key cargado para Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_password_encrypted; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_password_encrypted IS 'Contrasena CSD cifrada para registro en Facturama Multiemisor';
 
 
 --
@@ -1764,6 +1804,42 @@ CREATE SEQUENCE core.entidades_tipos_id_seq
 --
 
 ALTER SEQUENCE core.entidades_tipos_id_seq OWNED BY core.entidades_tipos.id;
+
+
+--
+-- Name: grid_preferences; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.grid_preferences (
+    id bigint NOT NULL,
+    usuario_id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    pantalla text NOT NULL,
+    perfil_dispositivo text NOT NULL,
+    preferencias jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT grid_preferences_perfil_chk CHECK ((perfil_dispositivo = ANY (ARRAY['desktop'::text, 'tablet'::text, 'mobile'::text])))
+);
+
+
+--
+-- Name: grid_preferences_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.grid_preferences_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: grid_preferences_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.grid_preferences_id_seq OWNED BY core.grid_preferences.id;
 
 
 --
@@ -2343,7 +2419,8 @@ CREATE TABLE crm.actividades (
     recordatorio_minutos integer,
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now(),
-    recordatorio_disparado_at timestamp without time zone
+    recordatorio_disparado_at timestamp without time zone,
+    contacto_id integer
 );
 
 
@@ -2457,6 +2534,13 @@ COMMENT ON COLUMN crm.actividades.created_at IS 'Fecha y hora de creacion del re
 --
 
 COMMENT ON COLUMN crm.actividades.updated_at IS 'Fecha y hora de la ultima actualizacion del registro.';
+
+
+--
+-- Name: COLUMN actividades.contacto_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.actividades.contacto_id IS 'Contacto al que pertenece la actividad. En Fase 1 es nullable solo para permitir backfill y auditoria.';
 
 
 --
@@ -3914,7 +3998,9 @@ CREATE TABLE public.contactos (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     telefono_secundario character varying(15),
     codigo_legacy character varying(20),
-    precio_lista_id bigint
+    precio_lista_id bigint,
+    nombre_contacto character varying(150),
+    interes_inicial character varying(500)
 );
 
 
@@ -3923,6 +4009,20 @@ CREATE TABLE public.contactos (
 --
 
 COMMENT ON COLUMN public.contactos.precio_lista_id IS 'Lista de precios asignada directamente al contacto. Tiene prioridad sobre la lista derivada de campos configurables.';
+
+
+--
+-- Name: COLUMN contactos.nombre_contacto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contactos.nombre_contacto IS 'Nombre de la persona de contacto asociado a la empresa del contacto';
+
+
+--
+-- Name: COLUMN contactos.interes_inicial; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contactos.interes_inicial IS 'Interés inicial capturado para seguimiento comercial del contacto';
 
 
 --
@@ -4332,6 +4432,90 @@ CREATE SEQUENCE public.documentos_campos_id_seq
 --
 
 ALTER SEQUENCE public.documentos_campos_id_seq OWNED BY public.documentos_campos.id;
+
+
+--
+-- Name: documentos_cancelacion_intentos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.documentos_cancelacion_intentos (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    documento_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    estado character varying(40) NOT NULL,
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    cfdi_uuid character varying(36),
+    facturama_respuesta jsonb,
+    error_externo_mensaje text,
+    error_interno_mensaje text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT documentos_cancelacion_intentos_estado_check CHECK (((estado)::text = ANY ((ARRAY['iniciado'::character varying, 'error_externo'::character varying, 'externo_ok'::character varying, 'completado'::character varying, 'externo_ok_interno_pendiente'::character varying, 'error_interno'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE documentos_cancelacion_intentos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.documentos_cancelacion_intentos IS 'Seguimiento de intentos de cancelación de documentos (saga corta)';
+
+
+--
+-- Name: COLUMN documentos_cancelacion_intentos.estado; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_cancelacion_intentos.estado IS 'iniciado | error_externo | externo_ok | completado | externo_ok_interno_pendiente | error_interno';
+
+
+--
+-- Name: COLUMN documentos_cancelacion_intentos.cfdi_uuid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_cancelacion_intentos.cfdi_uuid IS 'UUID del CFDI que fue cancelado en Facturama (NULL si el documento no tenía CFDI timbrado)';
+
+
+--
+-- Name: COLUMN documentos_cancelacion_intentos.facturama_respuesta; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_cancelacion_intentos.facturama_respuesta IS 'Respuesta JSON devuelta por Facturama al cancelar el CFDI';
+
+
+--
+-- Name: COLUMN documentos_cancelacion_intentos.error_externo_mensaje; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_cancelacion_intentos.error_externo_mensaje IS 'Mensaje de error cuando Facturama rechazó la cancelación';
+
+
+--
+-- Name: COLUMN documentos_cancelacion_intentos.error_interno_mensaje; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_cancelacion_intentos.error_interno_mensaje IS 'Mensaje de error cuando la transacción interna falló';
+
+
+--
+-- Name: documentos_cancelacion_intentos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.documentos_cancelacion_intentos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: documentos_cancelacion_intentos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.documentos_cancelacion_intentos_id_seq OWNED BY public.documentos_cancelacion_intentos.id;
 
 
 --
@@ -6787,6 +6971,13 @@ ALTER TABLE ONLY core.entidades_tipos ALTER COLUMN id SET DEFAULT nextval('core.
 
 
 --
+-- Name: grid_preferences id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.grid_preferences ALTER COLUMN id SET DEFAULT nextval('core.grid_preferences_id_seq'::regclass);
+
+
+--
 -- Name: modulos modulo_id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -6994,6 +7185,13 @@ ALTER TABLE ONLY public.documentos ALTER COLUMN id SET DEFAULT nextval('public.d
 --
 
 ALTER TABLE ONLY public.documentos_campos ALTER COLUMN id SET DEFAULT nextval('public.documentos_campos_id_seq'::regclass);
+
+
+--
+-- Name: documentos_cancelacion_intentos id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_cancelacion_intentos ALTER COLUMN id SET DEFAULT nextval('public.documentos_cancelacion_intentos_id_seq'::regclass);
 
 
 --
@@ -7273,6 +7471,22 @@ ALTER TABLE ONLY core.entidades_tipos
 
 ALTER TABLE ONLY core.entidades_tipos
     ADD CONSTRAINT entidades_tipos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: grid_preferences grid_preferences_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.grid_preferences
+    ADD CONSTRAINT grid_preferences_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: grid_preferences grid_preferences_unique_scope; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.grid_preferences
+    ADD CONSTRAINT grid_preferences_unique_scope UNIQUE (usuario_id, empresa_id, pantalla, perfil_dispositivo);
 
 
 --
@@ -7673,6 +7887,14 @@ ALTER TABLE ONLY public.crm_ruteo_leads
 
 ALTER TABLE ONLY public.documentos_campos
     ADD CONSTRAINT documentos_campos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: documentos_cancelacion_intentos documentos_cancelacion_intentos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_cancelacion_intentos
+    ADD CONSTRAINT documentos_cancelacion_intentos_pkey PRIMARY KEY (id);
 
 
 --
@@ -8537,6 +8759,20 @@ COMMENT ON INDEX core.idx_etdt_origen IS 'Índice para consultas por tipo de doc
 
 
 --
+-- Name: idx_grid_preferences_lookup; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_grid_preferences_lookup ON core.grid_preferences USING btree (usuario_id, empresa_id, pantalla, perfil_dispositivo);
+
+
+--
+-- Name: idx_grid_preferences_updated_at; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_grid_preferences_updated_at ON core.grid_preferences USING btree (updated_at DESC);
+
+
+--
 -- Name: idx_parametros_empresa_empresa; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -8674,6 +8910,13 @@ COMMENT ON INDEX core.ux_catalogos_tipos_empresa_nombre IS 'Evita duplicar nombr
 --
 
 CREATE UNIQUE INDEX ux_cfdi_pac_config_activo_modo ON core.cfdi_pac_config USING btree (modo) WHERE (activo = true);
+
+
+--
+-- Name: idx_actividades_contacto; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_actividades_contacto ON crm.actividades USING btree (contacto_id);
 
 
 --
@@ -9083,6 +9326,13 @@ CREATE INDEX idx_contactos_email_trgm ON public.contactos USING gin (email sat.g
 
 
 --
+-- Name: idx_contactos_nombre_contacto_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contactos_nombre_contacto_trgm ON public.contactos USING gin (nombre_contacto sat.gin_trgm_ops) WHERE (nombre_contacto IS NOT NULL);
+
+
+--
 -- Name: idx_contactos_nombre_trgm; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9129,6 +9379,13 @@ CREATE INDEX idx_dc_empresa ON public.documentos_campos USING btree (empresa_id)
 --
 
 COMMENT ON INDEX public.idx_dc_empresa IS 'Optimiza consultas de campos dinámicos filtradas por empresa.';
+
+
+--
+-- Name: idx_dci_documento_empresa_estado; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_dci_documento_empresa_estado ON public.documentos_cancelacion_intentos USING btree (documento_id, empresa_id, estado);
 
 
 --
@@ -10114,6 +10371,22 @@ ALTER TABLE ONLY core.usuarios
 
 
 --
+-- Name: grid_preferences grid_preferences_empresa_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.grid_preferences
+    ADD CONSTRAINT grid_preferences_empresa_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: grid_preferences grid_preferences_usuario_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.grid_preferences
+    ADD CONSTRAINT grid_preferences_usuario_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
 -- Name: roles roles_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -10191,6 +10464,14 @@ ALTER TABLE ONLY crm.configuracion_email_usuario
 
 ALTER TABLE ONLY crm.email_plantillas
     ADD CONSTRAINT email_plantillas_empresa_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: actividades fk_actividades_contacto; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.actividades
+    ADD CONSTRAINT fk_actividades_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE RESTRICT;
 
 
 --
@@ -10354,6 +10635,30 @@ ALTER TABLE ONLY produccion.seguimientos
 
 
 --
+-- Name: documentos_cancelacion_intentos documentos_cancelacion_intentos_documento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_cancelacion_intentos
+    ADD CONSTRAINT documentos_cancelacion_intentos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: documentos_cancelacion_intentos documentos_cancelacion_intentos_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_cancelacion_intentos
+    ADD CONSTRAINT documentos_cancelacion_intentos_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: documentos_cancelacion_intentos documentos_cancelacion_intentos_usuario_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_cancelacion_intentos
+    ADD CONSTRAINT documentos_cancelacion_intentos_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
 -- Name: documentos documentos_finanzas_operacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10374,7 +10679,7 @@ ALTER TABLE ONLY public.aplicaciones_saldo
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT fk_aplicaciones_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -10933,5 +11238,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict FTv97peuO9k2mfhtPlBJYdIFaUwsqq7CIAAQLfnf1ypaSrCWltcD0xzxnQTiWVo
+\unrestrict 1Vocnx2JKt2OdbPTfBzwoUh2yCb29ZjUs1E7zfNoTAq1UjcfuBFJAtWA6r2YIf9
 

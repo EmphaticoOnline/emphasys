@@ -161,6 +161,13 @@ async function completarActividad(actividadId: number, resultado: string) {
   });
 }
 
+async function cancelarActividad(actividadId: number) {
+  return apiFetch(`/api/crm/actividades/${actividadId}`, {
+    method: 'PATCH',
+    body: { estatus: 'cancelada' },
+  });
+}
+
 async function fetchActividadDetalle(actividadId: number) {
   return apiFetch<ActividadDetalle>(`/api/crm/actividades/${actividadId}`);
 }
@@ -190,6 +197,11 @@ export default function ActividadesPage() {
   const [resultadoCompletar, setResultadoCompletar] = React.useState('');
   const [completing, setCompleting] = React.useState(false);
   const [completarError, setCompletarError] = React.useState<string | null>(null);
+
+  const [cancelarDialogOpen, setCancelarDialogOpen] = React.useState(false);
+  const [actividadPorCancelar, setActividadPorCancelar] = React.useState<ActividadResumen | null>(null);
+  const [canceling, setCanceling] = React.useState(false);
+  const [cancelarError, setCancelarError] = React.useState<string | null>(null);
 
   const loadActividades = React.useCallback(async () => {
     try {
@@ -270,6 +282,35 @@ export default function ActividadesPage() {
         setError(err instanceof Error ? err.message : 'No se pudo reprogramar la actividad');
       }
     })();
+  };
+
+  const handleCancelar = (actividad: ActividadResumen) => {
+    setActividadPorCancelar(actividad);
+    setCancelarError(null);
+    setCancelarDialogOpen(true);
+  };
+
+  const handleCloseCancelarDialog = () => {
+    if (canceling) return;
+    setCancelarDialogOpen(false);
+    setActividadPorCancelar(null);
+    setCancelarError(null);
+  };
+
+  const handleConfirmCancelar = async () => {
+    if (!actividadPorCancelar?.id) return;
+
+    try {
+      setCanceling(true);
+      setCancelarError(null);
+      await cancelarActividad(actividadPorCancelar.id);
+      handleCloseCancelarDialog();
+      await loadActividades();
+    } catch (err) {
+      setCancelarError(err instanceof Error ? err.message : 'No se pudo cancelar la actividad.');
+    } finally {
+      setCanceling(false);
+    }
   };
 
   const handleAbrir = (actividad: ActividadResumen) => {
@@ -460,6 +501,7 @@ export default function ActividadesPage() {
                           actividad={actividad}
                           onCompletar={handleCompletar}
                           onReprogramar={handleReprogramar}
+                          onCancelar={handleCancelar}
                           onAbrir={handleAbrir}
                         />
                       ))}
@@ -490,6 +532,26 @@ export default function ActividadesPage() {
       >
         <AddIcon />
       </Fab>
+
+      <Dialog open={cancelarDialogOpen} onClose={handleCloseCancelarDialog} fullWidth maxWidth="xs">
+        <DialogTitle>Cancelar actividad</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography sx={{ color: '#475569' }}>
+              ¿Estás seguro de que deseas cancelar esta actividad? Esta acción no se puede deshacer.
+            </Typography>
+            {cancelarError ? <Alert severity="error">{cancelarError}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCancelarDialog} color="inherit" disabled={canceling}>
+            Volver
+          </Button>
+          <Button onClick={handleConfirmCancelar} variant="contained" color="error" disabled={canceling}>
+            {canceling ? 'Cancelando...' : 'Cancelar actividad'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={completarDialogOpen} onClose={handleCloseCompletarDialog} fullWidth maxWidth="sm">
         <DialogTitle>Completar actividad</DialogTitle>

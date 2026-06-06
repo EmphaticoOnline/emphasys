@@ -11,6 +11,106 @@ export type WhatsappPlantilla = {
   activa: boolean;
 };
 
+export type PlantillaPayload = {
+  nombre_interno: string;
+  tipo: string;
+  proveedor: string;
+  provider_template_id: string;
+  es_default: boolean;
+  activa?: boolean;
+};
+
+export type PlantillaUpdatePayload = Partial<PlantillaPayload>;
+
+export async function crearPlantilla(
+  empresaId: number,
+  payload: PlantillaPayload
+): Promise<WhatsappPlantilla> {
+  const { nombre_interno, tipo, proveedor, provider_template_id, es_default, activa = true } = payload;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (es_default) {
+      await client.query(
+        `UPDATE whatsapp.plantillas
+            SET es_default = FALSE
+          WHERE empresa_id = $1 AND tipo = $2 AND es_default = TRUE`,
+        [empresaId, tipo]
+      );
+    }
+
+    const { rows } = await client.query<WhatsappPlantilla>(
+      `INSERT INTO whatsapp.plantillas
+         (empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa`,
+      [empresaId, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa]
+    );
+
+    await client.query("COMMIT");
+    return rows[0];
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function actualizarPlantilla(
+  empresaId: number,
+  plantillaId: number,
+  payload: PlantillaUpdatePayload
+): Promise<WhatsappPlantilla | null> {
+  const current = await obtenerPlantillaWhatsappPorId(empresaId, plantillaId);
+  if (!current) return null;
+
+  const nombre_interno = payload.nombre_interno ?? current.nombre_interno;
+  const tipo = payload.tipo ?? current.tipo;
+  const proveedor = payload.proveedor ?? current.proveedor;
+  const provider_template_id = payload.provider_template_id ?? current.provider_template_id;
+  const es_default = payload.es_default ?? current.es_default;
+  const activa = payload.activa ?? current.activa;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (es_default && !current.es_default) {
+      await client.query(
+        `UPDATE whatsapp.plantillas
+            SET es_default = FALSE
+          WHERE empresa_id = $1 AND tipo = $2 AND es_default = TRUE AND id <> $3`,
+        [empresaId, tipo, plantillaId]
+      );
+    }
+
+    const { rows } = await client.query<WhatsappPlantilla>(
+      `UPDATE whatsapp.plantillas
+          SET nombre_interno = $1,
+              tipo = $2,
+              proveedor = $3,
+              provider_template_id = $4,
+              es_default = $5,
+              activa = $6,
+              actualizado_en = NOW()
+        WHERE id = $7 AND empresa_id = $8
+        RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa`,
+      [nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, plantillaId, empresaId]
+    );
+
+    await client.query("COMMIT");
+    return rows[0] ?? null;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function listarPlantillasWhatsapp(
   empresaId: number,
   incluirInactivas = false

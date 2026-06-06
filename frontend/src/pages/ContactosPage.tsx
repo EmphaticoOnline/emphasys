@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Box, IconButton } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
@@ -57,6 +57,7 @@ const normalizeFilterLookup = (value: string) =>
 
 export default function ContactosPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const perfilDispositivo = useDeviceProfile();
@@ -74,6 +75,7 @@ export default function ContactosPage() {
   const [advancedFilters, setAdvancedFilters] = useState<ContactosAdvancedFiltersState>(CONTACTOS_ADVANCED_FILTERS_INITIAL);
   const [seguimientoContacto, setSeguimientoContacto] = useState<ContactoRow | null>(null);
   const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
+  const drawerReopenHandled = useRef(false);
 
   const vendedorNombre = useMemo(() => {
     const map = new Map<number, string>();
@@ -104,6 +106,17 @@ export default function ContactosPage() {
     setSeguimientoContacto(contacto);
     setSeguimientoDrawerOpen(true);
   };
+
+  const openDrawerContactoId = (location.state as { openDrawerContactoId?: number } | null)?.openDrawerContactoId ?? null;
+
+  useEffect(() => {
+    if (!openDrawerContactoId || drawerReopenHandled.current || contactos.length === 0) return;
+    const contacto = contactos.find((c) => c.id === openDrawerContactoId);
+    if (contacto) {
+      drawerReopenHandled.current = true;
+      handleVerActividades(contacto);
+    }
+  }, [contactos, openDrawerContactoId]);
 
   const closeSeguimientoDrawer = () => {
     setSeguimientoDrawerOpen(false);

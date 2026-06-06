@@ -15,8 +15,10 @@ import {
 	listarEtiquetasConversacionWhatsapp,
 	agregarEtiquetaConversacionWhatsapp,
 	quitarEtiquetaConversacionWhatsapp,
+	crearPlantillaController,
+	actualizarPlantillaController,
 } from "./whatsapp.controller";
-import { requireAuth, requireEmpresaActiva } from "../modules/auth/auth.middleware";
+import { requireAuth, requireEmpresaActiva, requireSuperadmin } from "../modules/auth/auth.middleware";
 
 const router = Router();
 
@@ -29,6 +31,8 @@ router.get("/reglas-seguimiento", requireAuth, requireEmpresaActiva, obtenerRegl
 router.get("/conversacion/:id", requireAuth, requireEmpresaActiva, obtenerConversacionWhatsapp);
 router.patch("/conversaciones/:id/etapa", requireAuth, requireEmpresaActiva, actualizarEtapaConversacion);
 router.get("/plantillas", requireAuth, requireEmpresaActiva, listarPlantillasWhatsapp);
+router.post("/plantillas", requireAuth, requireSuperadmin, requireEmpresaActiva, crearPlantillaController);
+router.put("/plantillas/:id", requireAuth, requireSuperadmin, requireEmpresaActiva, actualizarPlantillaController);
 router.get("/etiquetas", requireAuth, requireEmpresaActiva, listarEtiquetasWhatsapp);
 router.post("/etiquetas", requireAuth, requireEmpresaActiva, crearEtiquetaWhatsappController);
 router.patch("/etiquetas/:id", requireAuth, requireEmpresaActiva, actualizarEtiquetaWhatsappController);
