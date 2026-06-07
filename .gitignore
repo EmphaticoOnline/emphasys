@@ -23,3 +23,7 @@ Thumbs.db
 csd-pruebas/
 .local-deploy/
 .vscode/
+
+# Claude Code — ignorar configuración local (rutas específicas de máquina)
+# pero sí versionar .claude/memory/ para sincronizar contexto entre equipos
+.claude/settings.local.json

@@ -44,6 +44,8 @@ import {
   type ProductoArchivo,
 } from '../services/productosService';
 import { apiFetch } from '../services/apiFetch';
+import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
+import { PRODUCTOS_CAMPOS } from '../definitions/productos.fields';
 import { fetchUnidades, type Unidad } from '../services/unidadesService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
 
@@ -106,6 +108,8 @@ export default function ProductoFormPage() {
   const [archivosLoading, setArchivosLoading] = useState(false);
   const [archivosError, setArchivosError] = useState<string | null>(null);
   const [uploadingImagenes, setUploadingImagenes] = useState(false);
+  const [camposObligatorios, setCamposObligatorios] = useState<Set<string>>(new Set());
+  const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
   const [archivoActionId, setArchivoActionId] = useState<number | null>(null);
   const imagenesInputRef = React.useRef<HTMLInputElement | null>(null);
   const productosSatDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -189,6 +193,14 @@ export default function ProductoFormPage() {
       clearTimeout(productosSatDebounceRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchCamposObligatorios('productos', form.tipo_producto ?? 'Inventariable')
+      .then((campos) => { if (isMounted) setCamposObligatorios(new Set(campos)); })
+      .catch(() => { if (isMounted) setCamposObligatorios(new Set()); });
+    return () => { isMounted = false; };
+  }, [form.tipo_producto]);
 
   const buildSeleccionInicial = (
     tipos: CatalogoComercialTipo[],
@@ -274,7 +286,29 @@ export default function ProductoFormPage() {
     return Array.from(new Set(todos));
   };
 
+  const esCampoVacio = (campo: string): boolean => {
+    const value = (form as Record<string, unknown>)[campo];
+    if (typeof value === 'boolean') return false;
+    if (value === null || value === undefined) return true;
+    return !String(value).trim();
+  };
+
   const handleSubmit = async () => {
+    const errores = new Set<string>();
+    for (const campo of camposObligatorios) {
+      if (esCampoVacio(campo)) errores.add(campo);
+    }
+    if (errores.size > 0) {
+      setValidationErrors(errores);
+      const etiquetas = Array.from(errores).map(
+        (c) => PRODUCTOS_CAMPOS.find((d) => d.campo === c)?.etiqueta ?? c
+      );
+      setSnackbar({ open: true, message: `Campos obligatorios sin completar: ${etiquetas.join(', ')}.`, severity: 'error' });
+      setActiveTab(0);
+      return;
+    }
+    setValidationErrors(new Set());
+
     if (!form.clave.trim() || !form.descripcion.trim()) {
       setSnackbar({ open: true, message: 'Clave y descripción son obligatorias.', severity: 'error' });
       return;
@@ -439,6 +473,7 @@ export default function ProductoFormPage() {
                     value={form.clave}
                     onChange={(e) => handleChange('clave', e.target.value)}
                     required
+                    error={validationErrors.has('clave')}
                     fullWidth
                   />
                   <TextField
@@ -461,6 +496,7 @@ export default function ProductoFormPage() {
                   value={form.descripcion}
                   onChange={(e) => handleChange('descripcion', e.target.value)}
                   required
+                  error={validationErrors.has('descripcion')}
                   fullWidth
                   multiline
                   minRows={2}
@@ -491,6 +527,8 @@ export default function ProductoFormPage() {
                       {...(params as any)}
                       label="Clave SAT"
                       fullWidth
+                      required={camposObligatorios.has('clave_producto_sat')}
+                      error={validationErrors.has('clave_producto_sat')}
                       helperText="Busca por clave o descripción SAT"
                       InputProps={{
                         ...params.InputProps,
@@ -510,6 +548,8 @@ export default function ProductoFormPage() {
                     label="Clasificación"
                     value={form.clasificacion ?? ''}
                     onChange={(e) => handleChange('clasificacion', e.target.value)}
+                    required={camposObligatorios.has('clasificacion')}
+                    error={validationErrors.has('clasificacion')}
                     fullWidth
                   />
                   <TextField
@@ -519,7 +559,9 @@ export default function ProductoFormPage() {
                     onChange={(e) => handleChange('unidad_venta_id', e.target.value === '' ? null : Number(e.target.value))}
                     fullWidth
                     disabled={loadingUnidades}
-                    helperText={loadingUnidades ? 'Cargando unidades...' : 'Opcional'}
+                    required={camposObligatorios.has('unidad_venta_id')}
+                    error={validationErrors.has('unidad_venta_id')}
+                    helperText={loadingUnidades ? 'Cargando unidades...' : undefined}
                   >
                     {unidades.map((u) => (
                       <MenuItem key={u.id} value={u.id}>
@@ -536,7 +578,9 @@ export default function ProductoFormPage() {
                   onChange={(e) => handleChange('unidad_inventario_id', e.target.value === '' ? null : Number(e.target.value))}
                   fullWidth
                   disabled={loadingUnidades}
-                  helperText={loadingUnidades ? 'Cargando unidades...' : 'Opcional'}
+                  required={camposObligatorios.has('unidad_inventario_id')}
+                  error={validationErrors.has('unidad_inventario_id')}
+                  helperText={loadingUnidades ? 'Cargando unidades...' : undefined}
                 >
                   {unidades.map((u) => (
                     <MenuItem key={u.id} value={u.id}>

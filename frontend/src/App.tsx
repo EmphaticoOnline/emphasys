@@ -44,6 +44,7 @@ import ProduccionPage from './pages/ProduccionPage';
 import ConfiguracionEtapasProduccionPage from './pages/ConfiguracionEtapasProduccionPage';
 import ListasPreciosPage from './pages/configuracion/ListasPreciosPage';
 import PreciosPage from './pages/configuracion/PreciosPage';
+import CamposObligatoriosPage from './pages/configuracion/CamposObligatoriosPage';
 
 export default function App() {
   return (
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="/configuracion/produccion-etapas" element={<ConfiguracionEtapasProduccionPage />} />
               <Route path="/configuracion/listas-precios" element={<ListasPreciosPage />} />
               <Route path="/configuracion/precios" element={<PreciosPage />} />
+              <Route path="/configuracion/campos-obligatorios" element={<CamposObligatoriosPage />} />
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />

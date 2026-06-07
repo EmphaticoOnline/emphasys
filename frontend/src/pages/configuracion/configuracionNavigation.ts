@@ -103,4 +103,9 @@ export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
 		descripcion: 'Configura nombres, colores, secuencia y activación de las etapas operativas.',
 		path: '/configuracion/produccion-etapas',
 	},
+	{
+		titulo: 'Campos obligatorios',
+		descripcion: 'Define qué campos son obligatorios por entidad y tipo de contacto.',
+		path: '/configuracion/campos-obligatorios',
+	},
 ];

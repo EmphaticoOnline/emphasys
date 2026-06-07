@@ -40,6 +40,7 @@ import documentosCamposRouter from "./modules/documentos/documentos-campos.route
 import documentosPartidasCamposRouter from "./modules/documentos/documentos-partidas-campos.routes";
 import documentosEsquemaRouter from "./modules/documentos/documentos-esquema.routes";
 import parametrosSistemaRouter from "./modules/configuracion/parametros/parametros.routes";
+import camposObligatoriosRouter from "./modules/configuracion/campos-obligatorios/campos-obligatorios.routes";
 import empresasRoutes from "./routes/empresasRoutes";
 import aiReportesRoutes from "./routes/aiReportesRoutes";
 import rolesRouter from "./modules/roles/roles.routes";
@@ -108,6 +109,8 @@ app.use("/api", impuestosRouter);
 app.use("/api/configuracion/catalogos", configuracionCatalogosRouter);
 // parámetros del sistema
 app.use("/api", parametrosSistemaRouter);
+// campos obligatorios configurables
+app.use("/api", camposObligatoriosRouter);
 
 // tipos de entidades (core)
 app.use("/api/entidades-tipos", entidadesTiposRouter);

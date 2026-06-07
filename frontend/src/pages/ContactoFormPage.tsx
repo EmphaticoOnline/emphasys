@@ -32,6 +32,8 @@ import { fetchPreciosListas, type PrecioLista } from '../services/preciosListasS
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
 import { normalizarTelefonoMx } from '../utils/telefono';
+import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
+import { CONTACTOS_CAMPOS } from '../definitions/contactos.fields';
 
 type FormState = {
   nombre: string;
@@ -175,6 +177,9 @@ function validarRFC(rfc: string) {
   const [metodoOptions, setMetodoOptions] = useState<{ clave: string; nombre: string }[]>([]);
   const [metodoSearch, setMetodoSearch] = useState('');
 
+  const [camposObligatorios, setCamposObligatorios] = useState<Set<string>>(new Set());
+  const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+
   const debounceRefs = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const cpSatPrefetchDone = React.useRef(false);
 
@@ -257,6 +262,14 @@ function validarRFC(rfc: string) {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchCamposObligatorios('contactos', form.tipo_contacto)
+      .then((campos) => { if (isMounted) setCamposObligatorios(new Set(campos)); })
+      .catch(() => { if (isMounted) setCamposObligatorios(new Set()); });
+    return () => { isMounted = false; };
+  }, [form.tipo_contacto]);
 
   useEffect(() => {
     let isMounted = true;
@@ -488,6 +501,38 @@ function validarRFC(rfc: string) {
     return Array.from(new Set(todos));
   };
 
+  const CAMPO_TAB: Record<string, number> = {
+    nombre: 0, nombre_contacto: 0, clasificacion: 0, precio_lista_id: 0,
+    origen_contacto: 0, vendedor_id: 0, email: 0, telefono: 0,
+    telefono_secundario: 0, interes_inicial: 0, observaciones: 0,
+    calle: 1, numero_exterior: 1, numero_interior: 1, colonia: 1,
+    ciudad: 1, estado: 1, cp: 1, pais: 1, cp_sat: 1, colonia_sat: 1,
+    rfc_fiscal: 2, regimen_fiscal: 2, uso_cfdi: 2, forma_pago: 2, metodo_pago: 2,
+  };
+
+  const esCampoVacio = (campo: string): boolean => {
+    if (campo === 'clasificacion') {
+      const tipo = obtenerCatalogoTipo('clasificacion', catalogoTipoIds.clasificacion);
+      return !tipo || !(comercialSeleccionados[tipo.id]?.length);
+    }
+    if (campo === 'origen_contacto') {
+      const tipo = obtenerCatalogoTipo('origen', catalogoTipoIds.origen);
+      return !tipo || !(comercialSeleccionados[tipo.id]?.length);
+    }
+    const value = (form as Record<string, unknown>)[campo];
+    if (typeof value === 'boolean') return false;
+    return !String(value ?? '').trim();
+  };
+
+  const obtenerPrimerTabConError = (errores: Set<string>): number | null => {
+    let minTab: number | null = null;
+    for (const campo of errores) {
+      const tab = CAMPO_TAB[campo] ?? null;
+      if (tab !== null && (minTab === null || tab < minTab)) minTab = tab;
+    }
+    return minTab;
+  };
+
   const handleSwitchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, activo: event.target.checked }));
   };
@@ -498,6 +543,23 @@ function validarRFC(rfc: string) {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    const errores = new Set<string>();
+    for (const campo of camposObligatorios) {
+      if (esCampoVacio(campo)) errores.add(campo);
+    }
+    if (errores.size > 0) {
+      setValidationErrors(errores);
+      const primerTab = obtenerPrimerTabConError(errores);
+      if (primerTab !== null) setActiveTab(primerTab);
+      const etiquetas = Array.from(errores).map(
+        (c) => CONTACTOS_CAMPOS.find((d) => d.campo === c)?.etiqueta ?? c
+      );
+      setError(`Campos obligatorios sin completar: ${etiquetas.join(', ')}.`);
+      return;
+    }
+    setValidationErrors(new Set());
+
     setSaving(true);
     setError(null);
 
@@ -651,6 +713,7 @@ function validarRFC(rfc: string) {
                   value={form.nombre}
                   onChange={handleTextChange('nombre')}
                   required
+                  error={validationErrors.has('nombre')}
                   fullWidth
                 />
 
@@ -658,6 +721,8 @@ function validarRFC(rfc: string) {
                   label="Contacto"
                   value={form.nombre_contacto}
                   onChange={handleTextChange('nombre_contacto')}
+                  required={camposObligatorios.has('nombre_contacto')}
+                  error={validationErrors.has('nombre_contacto')}
                   fullWidth
                 />
 
@@ -682,7 +747,7 @@ function validarRFC(rfc: string) {
                     ? comercialSeleccionados[clasificacionTipo.id]?.[0] ?? ''
                     : '';
                   return (
-                    <FormControl fullWidth disabled={!clasificacionTipo}>
+                    <FormControl fullWidth disabled={!clasificacionTipo} required={camposObligatorios.has('clasificacion')} error={validationErrors.has('clasificacion')}>
                       <InputLabel id="clasificacion-label">Clasificación</InputLabel>
                       <Select
                         labelId="clasificacion-label"
@@ -710,7 +775,7 @@ function validarRFC(rfc: string) {
                   );
                 })()}
 
-                <FormControl fullWidth>
+                <FormControl fullWidth required={camposObligatorios.has('precio_lista_id')} error={validationErrors.has('precio_lista_id')}>
                   <InputLabel id="precio-lista-especifica-label">Lista de precios específica</InputLabel>
                   <Select
                     labelId="precio-lista-especifica-label"
@@ -738,7 +803,7 @@ function validarRFC(rfc: string) {
                     ? comercialSeleccionados[origenTipo.id]?.[0] ?? ''
                     : '';
                   return (
-                    <FormControl fullWidth disabled={!origenTipo}>
+                    <FormControl fullWidth disabled={!origenTipo} required={camposObligatorios.has('origen_contacto')} error={validationErrors.has('origen_contacto')}>
                       <InputLabel id="origen-contacto-label">Origen de contacto</InputLabel>
                       <Select
                         labelId="origen-contacto-label"
@@ -773,16 +838,20 @@ function validarRFC(rfc: string) {
                       {...(params as any)}
                       label="Vendedor"
                       fullWidth
+                      required={camposObligatorios.has('vendedor_id')}
+                      error={validationErrors.has('vendedor_id')}
                     />
                   )}
                 />
 
-                <TextField label="Email" value={form.email} onChange={handleTextChange('email')} fullWidth />
-                <TextField label="Teléfono" value={form.telefono} onChange={handleTextChange('telefono')} fullWidth />
+                <TextField label="Email" value={form.email} onChange={handleTextChange('email')} required={camposObligatorios.has('email')} error={validationErrors.has('email')} fullWidth />
+                <TextField label="Teléfono" value={form.telefono} onChange={handleTextChange('telefono')} required={camposObligatorios.has('telefono')} error={validationErrors.has('telefono')} fullWidth />
                 <TextField
                   label="Teléfono secundario"
                   value={form.telefono_secundario}
                   onChange={handleTextChange('telefono_secundario')}
+                  required={camposObligatorios.has('telefono_secundario')}
+                  error={validationErrors.has('telefono_secundario')}
                   fullWidth
                 />
 
@@ -790,6 +859,8 @@ function validarRFC(rfc: string) {
                   label="Interés inicial"
                   value={form.interes_inicial}
                   onChange={handleTextChange('interes_inicial')}
+                  required={camposObligatorios.has('interes_inicial')}
+                  error={validationErrors.has('interes_inicial')}
                   fullWidth
                   multiline
                   minRows={3}
@@ -801,6 +872,8 @@ function validarRFC(rfc: string) {
                   label="Observaciones"
                   value={form.observaciones}
                   onChange={handleTextChange('observaciones')}
+                  required={camposObligatorios.has('observaciones')}
+                  error={validationErrors.has('observaciones')}
                   fullWidth
                   multiline
                   minRows={5}
@@ -827,6 +900,8 @@ function validarRFC(rfc: string) {
                       label="Calle"
                       value={form.calle}
                       onChange={handleTextChange('calle')}
+                      required={camposObligatorios.has('calle')}
+                      error={validationErrors.has('calle')}
                       fullWidth
                     />
                   </Box>
@@ -834,12 +909,16 @@ function validarRFC(rfc: string) {
                     label="Número exterior"
                     value={form.numero_exterior}
                     onChange={handleTextChange('numero_exterior')}
+                    required={camposObligatorios.has('numero_exterior')}
+                    error={validationErrors.has('numero_exterior')}
                     fullWidth
                   />
                   <TextField
                     label="Número interior"
                     value={form.numero_interior}
                     onChange={handleTextChange('numero_interior')}
+                    required={camposObligatorios.has('numero_interior')}
+                    error={validationErrors.has('numero_interior')}
                     fullWidth
                   />
                 </Box>
@@ -854,10 +933,11 @@ function validarRFC(rfc: string) {
                     label="Código Postal SAT"
                     value={form.cp_sat}
                     onChange={handleCpSatChange}
+                    required={camposObligatorios.has('cp_sat')}
                     fullWidth
                     InputProps={{ endAdornment: cpSatLoading ? <CircularProgress size={18} /> : null }}
                     helperText={cpSatError || 'Al capturar 5 dígitos se cargan estado, ciudad y colonias SAT'}
-                    error={Boolean(cpSatError)}
+                    error={Boolean(cpSatError) || validationErrors.has('cp_sat')}
                   />
                   <Autocomplete
                     options={coloniasSatOptions}
@@ -874,6 +954,8 @@ function validarRFC(rfc: string) {
                         label="Colonia SAT"
                         size="medium"
                         fullWidth
+                        required={camposObligatorios.has('colonia_sat')}
+                        error={validationErrors.has('colonia_sat')}
                         InputProps={{
                           ...params.InputProps,
                           endAdornment: (
@@ -902,18 +984,24 @@ function validarRFC(rfc: string) {
                     value={form.ciudad}
                     fullWidth
                     onChange={handleTextChange('ciudad')}
+                    required={camposObligatorios.has('ciudad')}
+                    error={validationErrors.has('ciudad')}
                   />
                   <TextField
                     label="Estado"
                     value={form.estado}
                     fullWidth
                     onChange={handleTextChange('estado')}
+                    required={camposObligatorios.has('estado')}
+                    error={validationErrors.has('estado')}
                   />
                   <TextField
                     label="País"
                     value={form.pais}
                     fullWidth
                     onChange={handleTextChange('pais')}
+                    required={camposObligatorios.has('pais')}
+                    error={validationErrors.has('pais')}
                   />
                 </Box>
                 <Box
@@ -927,6 +1015,8 @@ function validarRFC(rfc: string) {
                     label="CP (manual)"
                     value={form.cp}
                     onChange={handleTextChange('cp')}
+                    required={camposObligatorios.has('cp')}
+                    error={validationErrors.has('cp')}
                     fullWidth
                   />
 
@@ -934,6 +1024,8 @@ function validarRFC(rfc: string) {
                     label="Colonia (manual)"
                     value={form.colonia}
                     onChange={handleTextChange('colonia')}
+                    required={camposObligatorios.has('colonia')}
+                    error={validationErrors.has('colonia')}
                     fullWidth
                   />
                 </Box>
@@ -953,6 +1045,7 @@ function validarRFC(rfc: string) {
                   <TextField
                     label="RFC"
                     value={form.rfc_fiscal}
+                    required={camposObligatorios.has('rfc_fiscal')}
                     onChange={(e) => {
                       const value = e.target.value.toUpperCase();
 
@@ -971,7 +1064,7 @@ function validarRFC(rfc: string) {
                         setRfcError(null);
                       }
                     }}
-                    error={Boolean(rfcError)}
+                    error={Boolean(rfcError) || validationErrors.has('rfc_fiscal')}
                     helperText={rfcError || ''}
                     fullWidth
                   />
@@ -997,6 +1090,8 @@ function validarRFC(rfc: string) {
                         {...(params as any)}
                         label="Régimen fiscal"
                         fullWidth
+                        required={camposObligatorios.has('regimen_fiscal')}
+                        error={validationErrors.has('regimen_fiscal')}
                         InputProps={{
                           ...params.InputProps,
                           endAdornment: (
@@ -1031,6 +1126,8 @@ function validarRFC(rfc: string) {
                         {...(params as any)}
                         label="Uso CFDI"
                         fullWidth
+                        required={camposObligatorios.has('uso_cfdi')}
+                        error={validationErrors.has('uso_cfdi')}
                         InputProps={{
                           ...params.InputProps,
                           endAdornment: (
@@ -1064,6 +1161,8 @@ function validarRFC(rfc: string) {
                         {...(params as any)}
                         label="Forma de pago"
                         fullWidth
+                        required={camposObligatorios.has('forma_pago')}
+                        error={validationErrors.has('forma_pago')}
                         InputProps={{
                           ...params.InputProps,
                           endAdornment: (
@@ -1097,6 +1196,8 @@ function validarRFC(rfc: string) {
                         {...(params as any)}
                         label="Método de pago"
                         fullWidth
+                        required={camposObligatorios.has('metodo_pago')}
+                        error={validationErrors.has('metodo_pago')}
                         InputProps={{
                           ...params.InputProps,
                           endAdornment: (

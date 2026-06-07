@@ -182,14 +182,13 @@ try {
   }
 
   function Invoke-Rsync {
-    param(
-      [string[]] $Args
-    )
+    param([string[]] $RsyncArgs)
     if ($usingWslRsync) {
-      & wsl rsync @Args
+      & wsl rsync @RsyncArgs
     } else {
-      & rsync @Args
+      & rsync @RsyncArgs
     }
+    if ($LASTEXITCODE -ne 0) { throw "rsync falló con código $LASTEXITCODE" }
   }
 
   function Try-RsyncOrFallback {
@@ -325,9 +324,9 @@ try {
   # =============================
   Write-Host "Sincronizando backend dist..."
   Try-RsyncOrFallback -Label "backend-dist" -RsyncBlock {
-    Invoke-Rsync -az --delete -e "ssh $sshOptsString" "$backendDist/" "${server}:$remotePath/dist/"
+    Invoke-Rsync -RsyncArgs @("-az", "--delete", "-e", "ssh $sshOptsString", "$backendDist/", "${server}:$remotePath/dist/")
   } -FallbackBlock {
-    Send-TarAndExtract -SourceDir $backendDist -RemoteTarget "$remotePath/dist" -Label "backend-dist"
+    Send-TarAndExtract -SourceDir $backendDistLocal -RemoteTarget "$remotePath/dist" -Label "backend-dist"
   }
 
   if (Test-Path (Join-Path $backendDistLocal "build-info.json")) {
@@ -339,9 +338,9 @@ try {
   # =============================
   Write-Host "Sincronizando frontend dist..."
   Try-RsyncOrFallback -Label "frontend-dist" -RsyncBlock {
-    Invoke-Rsync -az --delete -e "ssh $sshOptsString" "$frontendDist/" "${server}:$remotePath/frontend-dist/"
+    Invoke-Rsync -RsyncArgs @("-az", "--delete", "-e", "ssh $sshOptsString", "$frontendDist/", "${server}:$remotePath/frontend-dist/")
   } -FallbackBlock {
-    Send-TarAndExtract -SourceDir $frontendDist -RemoteTarget "$remotePath/frontend-dist" -Label "frontend-dist"
+    Send-TarAndExtract -SourceDir $frontendDistLocal -RemoteTarget "$remotePath/frontend-dist" -Label "frontend-dist"
   }
 
   if ($skipFrontend -ne "true" -and (Test-Path (Join-Path $frontendDistLocal "build-info.json"))) {
@@ -359,9 +358,10 @@ try {
   # =============================
   Write-Host "Sincronizando package.json y lock..."
   Try-RsyncOrFallback -Label "pkg-lock" -RsyncBlock {
-    Invoke-Rsync -az -e "ssh $sshOptsString" "$backendPkg" "$backendLockRsync" "${server}:$remotePath/"
+    Invoke-Rsync -RsyncArgs @("-az", "-e", "ssh $sshOptsString", "$backendPkg", "$backendLockRsync", "${server}:$remotePath/")
   } -FallbackBlock {
-    scp @sshOpts "$backendPkg" "${server}:$remotePath/package.json"
+    $pkgLocal = (Resolve-Path "$backendLocal/package.json").Path
+    scp @sshOpts "$pkgLocal" "${server}:$remotePath/package.json"
     scp @sshOpts "$backendLockLocal" "${server}:$remotePath/package-lock.json"
   }
 
@@ -369,7 +369,7 @@ try {
     Write-Host "Sincronizando .env..."
     Try-RsyncOrFallback -Label "env" -RsyncBlock {
       $envPath = Resolve-RsyncPath "$backendLocal/.env"
-      Invoke-Rsync -az -e "ssh $sshOptsString" "$envPath" "${server}:$remotePath/.env"
+      Invoke-Rsync -RsyncArgs @("-az", "-e", "ssh $sshOptsString", "$envPath", "${server}:$remotePath/.env")
     } -FallbackBlock {
       $envPathLocal = (Resolve-Path "$backendLocal/.env").Path
       scp @sshOpts "$envPathLocal" "${server}:$remotePath/.env"
@@ -378,9 +378,10 @@ try {
 
   Write-Host "Sincronizando ecosystem.config.js..."
   Try-RsyncOrFallback -Label "ecosystem" -RsyncBlock {
-    Invoke-Rsync -az -e "ssh $sshOptsString" "$pm2ConfigPath" "${server}:$remotePath/"
+    Invoke-Rsync -RsyncArgs @("-az", "-e", "ssh $sshOptsString", "$pm2ConfigPath", "${server}:$remotePath/")
   } -FallbackBlock {
-    scp @sshOpts "$pm2ConfigPath" "${server}:$remotePath/"
+    $pm2Local = (Resolve-Path $pm2Config).Path
+    scp @sshOpts "$pm2Local" "${server}:$remotePath/"
   }
 
   # =============================
