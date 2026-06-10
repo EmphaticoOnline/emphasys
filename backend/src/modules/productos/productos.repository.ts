@@ -280,10 +280,10 @@ export async function getProductosRepository(empresaId: number) {
       AND p.clave <> $2
     ORDER BY p.id
   `;
-  console.log('[BACK SQL DEBUG] getProductos SQL', query);
-  console.log('[BACK SQL DEBUG] getProductos params', [empresaId, PRODUCTO_TECNICO_NC_CLAVE]);
+  //console.log('[BACK SQL DEBUG] getProductos SQL', query);
+  //console.log('[BACK SQL DEBUG] getProductos params', [empresaId, PRODUCTO_TECNICO_NC_CLAVE]);
   const { rows } = await pool.query(query, [empresaId, PRODUCTO_TECNICO_NC_CLAVE]);
-  console.log('[BACK IVA DEBUG] getProductos rows', rows.map((r) => ({ id: r.id, iva_porcentaje: r.iva_porcentaje })));
+  //console.log('[BACK IVA DEBUG] getProductos rows', rows.map((r) => ({ id: r.id, iva_porcentaje: r.iva_porcentaje })));
   return rows;
 }
 
