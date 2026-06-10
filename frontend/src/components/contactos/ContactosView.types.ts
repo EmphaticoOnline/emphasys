@@ -89,6 +89,8 @@ export interface ContactosDesktopViewProps extends ContactosViewCommonProps {
   contextMenuPosition: { top: number; left: number } | null;
   contextMenuOpen: boolean;
   onCloseContextMenu: () => void;
+  onExport: () => void;
+  exportLoading?: boolean;
 }
 
 export interface ContactosMobileViewProps extends ContactosViewCommonProps {

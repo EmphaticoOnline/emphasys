@@ -4,6 +4,7 @@ import { esES } from '@mui/x-data-grid/locales';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import DownloadIcon from '@mui/icons-material/Download';
 import { GridContextMenu } from '../grids/GridContextMenu';
 import {
   STANDARD_DATA_GRID_HEADER_HEIGHT,
@@ -30,6 +31,8 @@ export default function ProductosDesktopView({
   contextMenuPosition,
   contextMenuOpen,
   onCloseContextMenu,
+  onExport,
+  exportLoading,
   searchTerm,
   onSearchTermChange,
   onClearSearch,
@@ -72,6 +75,14 @@ export default function ProductosDesktopView({
         <Stack direction="row" spacing={1} sx={{ alignSelf: 'flex-end' }}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={onRefresh} disabled={loading}>
             Recargar
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
+            onClick={onExport}
+            disabled={exportLoading}
+          >
+            Exportar
           </Button>
           <Button
             variant="contained"

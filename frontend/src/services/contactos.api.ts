@@ -1,5 +1,5 @@
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
-import { apiFetch } from './apiFetch';
+import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 
 export type CatalogoConfigurablesRespuesta = {
   entidad_tipo_id: number;
@@ -58,4 +58,17 @@ export async function guardarCatalogosConfigurablesContacto(contactoId: number, 
     method: 'PUT',
     body: { catalogoIds } as any,
   });
+}
+
+export type ExportContactoColumna = { field: string; headerName: string };
+
+export async function exportarContactos(payload: {
+  filters: Record<string, any>;
+  columns: ExportContactoColumna[];
+}): Promise<void> {
+  const { blob, filename } = await apiFetchBlob(`${BASE_URL}/exportar`, {
+    method: 'POST',
+    body: payload as any,
+  });
+  triggerBlobDownload(blob, filename);
 }

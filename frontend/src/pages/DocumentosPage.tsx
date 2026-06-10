@@ -88,7 +88,7 @@ import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, getDocumentos, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
 import { fetchAnticiposDisponiblesDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
@@ -547,6 +547,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [actualizandoEstatusId, setActualizandoEstatusId] = useState<number | null>(null);
   const [estatusMenu, setEstatusMenu] = useState<{ anchorEl: HTMLElement | null; rowId: number | null; currentValue: string }>({
     anchorEl: null,
@@ -2684,11 +2685,49 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     </Paper>
   ) : null;
 
-  const extraActionsContent = false && tipoDocumento === 'cotizacion' ? (
-    <Button variant="outlined" startIcon={<TableViewIcon />} onClick={() => navigate('/ventas/cotizaciones-grid')}>
-      Vista Excel
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      const exportColumns = orderedColumns
+        .filter(
+          (col) =>
+            col.field !== 'menu' &&
+            col.field !== 'actions' &&
+            effectiveColumnVisibilityModel[col.field] !== false
+        )
+        .map((col) => ({ field: col.field, headerName: String(col.headerName ?? col.field) }));
+      await exportarDocumentos({
+        filters: {
+          tipo_documento: tipoDocumento,
+          search: debouncedSearch || null,
+          soloPendientes,
+          quickFilter,
+          clienteId: filtrosCotizacion.clienteId,
+          agenteId: filtrosCotizacion.agenteId,
+          fechaDesde: filtrosCotizacion.fechaDesde || null,
+          fechaHasta: filtrosCotizacion.fechaHasta || null,
+          montoMin: filtrosCotizacion.montoMin || null,
+          montoMax: filtrosCotizacion.montoMax || null,
+        },
+        columns: exportColumns,
+      });
+    } catch (err) {
+      setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudo exportar', severity: 'error' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const extraActionsContent = (
+    <Button
+      variant="outlined"
+      startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
+      onClick={() => void handleExport()}
+      disabled={exportLoading}
+    >
+      Exportar
     </Button>
-  ) : null;
+  );
 
   const desktopView = (
     <DocumentosDesktopView

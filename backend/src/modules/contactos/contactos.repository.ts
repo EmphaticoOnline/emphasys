@@ -737,6 +737,161 @@ export async function precioListaPerteneceAEmpresa(
   return (rowCount ?? 0) > 0;
 }
 
+export async function obtenerContactosParaExportar(
+  empresaId: number,
+  tipos: string[] | undefined,
+  search?: string,
+  advancedFilters: ContactosFiltrosAvanzados = {}
+) {
+  const tiposNormalizados = tipos?.map((tipo) => tipo.trim().toLowerCase()).filter(Boolean);
+  const params: Array<number | string[] | string> = [empresaId];
+  const whereClauses: string[] = ['contactos.empresa_id = $1'];
+
+  if (tiposNormalizados && tiposNormalizados.length) {
+    params.push(tiposNormalizados);
+    whereClauses.push(`LOWER(contactos.tipo_contacto::text) = ANY($${params.length})`);
+  }
+
+  if (search && search.trim()) {
+    const term = `%${search.trim()}%`;
+    params.push(term);
+    const idx = params.length;
+    whereClauses.push(
+      `(
+        contactos.nombre ILIKE $${idx}
+        OR contactos.nombre_contacto ILIKE $${idx}
+        OR contactos.email ILIKE $${idx}
+        OR contactos.rfc ILIKE $${idx}
+        OR cdf.rfc ILIKE $${idx}
+        OR contactos.telefono ILIKE $${idx}
+        OR contactos.telefono_secundario ILIKE $${idx}
+        OR COALESCE(contactos.interes_inicial, '') ILIKE $${idx}
+        OR COALESCE(contactos.observaciones, '') ILIKE $${idx}
+        OR contactos.tipo_contacto::text ILIKE $${idx}
+        OR contactos.vendedor_id::text ILIKE $${idx}
+        OR vendedor.nombre ILIKE $${idx}
+        OR c.descripcion ILIKE $${idx}
+      )`
+    );
+  }
+
+  if (Number.isFinite(advancedFilters.origenContactoId)) {
+    params.push(Number(advancedFilters.origenContactoId));
+    const idx = params.length;
+    whereClauses.push(
+      `EXISTS (
+        SELECT 1
+          FROM core.entidades_catalogos ec_origen
+          JOIN core.catalogos c_origen ON c_origen.id = ec_origen.catalogo_id
+          JOIN core.catalogos_tipos ct_origen ON ct_origen.id = c_origen.tipo_catalogo_id
+         WHERE ec_origen.empresa_id = contactos.empresa_id
+           AND ec_origen.entidad_id = contactos.id
+           AND ec_origen.entidad_tipo_id = (
+             SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+           )
+           AND ct_origen.nombre ILIKE '%origen%'
+           AND c_origen.id = $${idx}
+      )`
+    );
+  }
+
+  if (Number.isFinite(advancedFilters.vendedorId)) {
+    params.push(Number(advancedFilters.vendedorId));
+    whereClauses.push(`contactos.vendedor_id = $${params.length}`);
+  }
+
+  if (advancedFilters.activo === 'activos') {
+    whereClauses.push('contactos.activo = true');
+  } else if (advancedFilters.activo === 'inactivos') {
+    whereClauses.push('contactos.activo = false');
+  }
+
+  if (advancedFilters.fechaAltaDesde?.trim()) {
+    params.push(advancedFilters.fechaAltaDesde.trim());
+    whereClauses.push(`contactos.fecha_alta::date >= $${params.length}::date`);
+  }
+
+  if (advancedFilters.fechaAltaHasta?.trim()) {
+    params.push(advancedFilters.fechaAltaHasta.trim());
+    whereClauses.push(`contactos.fecha_alta::date <= $${params.length}::date`);
+  }
+
+  if (advancedFilters.interesInicial?.trim()) {
+    params.push(`%${advancedFilters.interesInicial.trim()}%`);
+    whereClauses.push(`COALESCE(contactos.interes_inicial, '') ILIKE $${params.length}`);
+  }
+
+  if (advancedFilters.observaciones?.trim()) {
+    params.push(`%${advancedFilters.observaciones.trim()}%`);
+    whereClauses.push(`COALESCE(contactos.observaciones, '') ILIKE $${params.length}`);
+  }
+
+  const result = await pool.query(
+    `SELECT DISTINCT ON (contactos.id)
+            contactos.*,
+            cdf.rfc AS rfc_fiscal,
+            clasificacion.clave AS clasificacion,
+            clasificacion.descripcion AS clasificacion_descripcion,
+            origen.clave AS origen_contacto,
+            origen.descripcion AS origen_contacto_descripcion,
+            lista_directa.nombre AS precio_lista_nombre,
+            vendedor.nombre AS vendedor_nombre
+     FROM contactos
+     LEFT JOIN contactos vendedor
+       ON vendedor.id = contactos.vendedor_id
+      AND vendedor.empresa_id = contactos.empresa_id
+     LEFT JOIN precios_listas lista_directa
+       ON lista_directa.id = contactos.precio_lista_id
+      AND lista_directa.empresa_id = contactos.empresa_id
+     LEFT JOIN contactos_datos_fiscales cdf
+       ON cdf.contacto_id = contactos.id
+     LEFT JOIN core.entidades_catalogos ec
+       ON ec.empresa_id = contactos.empresa_id
+      AND ec.entidad_id = contactos.id
+      AND ec.entidad_tipo_id = (
+        SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+      )
+     LEFT JOIN core.catalogos c
+       ON c.id = ec.catalogo_id
+     LEFT JOIN LATERAL (
+       SELECT c2.clave, c2.descripcion
+         FROM core.entidades_catalogos ec2
+         JOIN core.catalogos c2 ON c2.id = ec2.catalogo_id
+         JOIN core.catalogos_tipos ct2 ON ct2.id = c2.tipo_catalogo_id
+        WHERE ec2.empresa_id = contactos.empresa_id
+          AND ec2.entidad_id = contactos.id
+          AND ec2.entidad_tipo_id = (
+            SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+          )
+          AND ct2.nombre ILIKE '%clasificacion%'
+        ORDER BY c2.orden NULLS LAST, c2.descripcion ASC
+        LIMIT 1
+     ) clasificacion ON true
+     LEFT JOIN LATERAL (
+       SELECT c3.clave, c3.descripcion
+         FROM core.entidades_catalogos ec3
+         JOIN core.catalogos c3 ON c3.id = ec3.catalogo_id
+         JOIN core.catalogos_tipos ct3 ON ct3.id = c3.tipo_catalogo_id
+        WHERE ec3.empresa_id = contactos.empresa_id
+          AND ec3.entidad_id = contactos.id
+          AND ec3.entidad_tipo_id = (
+            SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+          )
+          AND ct3.nombre ILIKE '%origen%'
+        ORDER BY c3.orden NULLS LAST, c3.descripcion ASC
+        LIMIT 1
+     ) origen ON true
+     WHERE ${whereClauses.join(' AND ')}
+     ORDER BY contactos.id, contactos.nombre ASC`,
+    params
+  );
+
+  return result.rows.map(({ rfc_fiscal, ...rest }) => ({
+    ...rest,
+    rfc: rfc_fiscal ?? rest.rfc ?? null,
+  }));
+}
+
 export async function eliminarContacto(id: number, empresa_id: number) {
   const { rows } = await pool.query(
     'DELETE FROM contactos WHERE id = $1 AND empresa_id = $2 RETURNING *',

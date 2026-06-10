@@ -37,6 +37,8 @@ export interface ProductosDesktopViewProps extends ProductosViewCommonProps {
   contextMenuPosition: { top: number; left: number } | null;
   contextMenuOpen: boolean;
   onCloseContextMenu: () => void;
+  onExport: () => void;
+  exportLoading?: boolean;
 }
 
 export interface ProductosMobileViewProps extends ProductosViewCommonProps {

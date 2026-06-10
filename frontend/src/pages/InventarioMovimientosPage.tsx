@@ -20,6 +20,7 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import DownloadIcon from '@mui/icons-material/Download';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import dayjs from 'dayjs';
@@ -27,7 +28,7 @@ import 'dayjs/locale/es';
 import { useNavigate } from 'react-router-dom';
 
 import type { MovimientoDetalle, MovimientoListadoItem } from '../types/inventario';
-import { listarMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
+import { exportarMovimientos, listarMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT } from '../components/grids/standardDataGridSx';
 
 dayjs.locale('es');
@@ -77,6 +78,26 @@ export default function InventarioMovimientosPage() {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const EXPORT_COLUMNS = [
+    { field: 'fecha', headerName: 'Fecha' },
+    { field: 'tipo_movimiento', headerName: 'Tipo' },
+    { field: 'observaciones', headerName: 'Observaciones' },
+    { field: 'usuario_nombre', headerName: 'Usuario' },
+    { field: 'documento_id', headerName: 'Documento' },
+  ];
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      await exportarMovimientos({ columns: EXPORT_COLUMNS });
+    } catch (err) {
+      setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudo exportar', severity: 'error' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const formatoFecha = (value: string) => dayjs(value).format('DD/MM/YYYY');
 
@@ -147,6 +168,14 @@ export default function InventarioMovimientosPage() {
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void cargarMovimientos()} disabled={listLoading}>
             Recargar
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
+            onClick={() => void handleExport()}
+            disabled={exportLoading}
+          >
+            Exportar
           </Button>
           <Button
             variant="contained"

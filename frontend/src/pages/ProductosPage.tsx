@@ -14,6 +14,7 @@ import { productoColumns } from './productosColumns';
 import {
   createProducto,
   deleteProducto,
+  exportarProductos,
   fetchProductos,
   updateProducto,
 } from '../services/productosService';
@@ -38,6 +39,7 @@ export default function ProductosPage() {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
+  const [exportLoading, setExportLoading] = useState(false);
 
   const {
     loadingPreferences,
@@ -252,6 +254,28 @@ export default function ProductosPage() {
     [columnVisibilityModel]
   );
 
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      const exportColumns = orderedColumns
+        .filter(
+          (col) =>
+            col.field !== 'menu' &&
+            col.field !== 'actions' &&
+            effectiveColumnVisibilityModel[col.field] !== false
+        )
+        .map((col) => ({ field: col.field, headerName: String(col.headerName ?? col.field) }));
+      await exportarProductos({
+        filters: search.trim() ? { search: search.trim() } : {},
+        columns: exportColumns,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo exportar');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const commonViewProps = {
     searchTerm: search,
     onSearchTermChange: setSearch,
@@ -291,6 +315,8 @@ export default function ProductosPage() {
       contextMenuPosition={contextMenuPosition}
       contextMenuOpen={Boolean(contextMenuRow && contextMenuPosition)}
       onCloseContextMenu={closeContextMenu}
+      onExport={() => void handleExport()}
+      exportLoading={exportLoading}
     />
   );
 

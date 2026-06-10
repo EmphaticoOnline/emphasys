@@ -17,6 +17,7 @@ import {
   cancelarDocumento,
   obtenerCotizacionPDF,
   calcularImpuestosPreviewHandler,
+  exportarDocumentos,
 } from './documentos.controller';
 import { obtenerCamposDocumento } from './documentos-campos.controller';
 
@@ -44,6 +45,7 @@ router.post('/:id/enviar-email', requireAuth, requireEmpresaActiva, enviarCotiza
 router.post('/:id/enviar-whatsapp-cotizacion', requireAuth, requireEmpresaActiva, enviarWhatsappCotizacion);
 
 // POST /api/documentos
+router.post('/exportar', requireAuth, requireEmpresaActiva, exportarDocumentos);
 router.post('/', requireAuth, requireEmpresaActiva, crearCotizacion);
 
 // POST /api/documentos/duplicar-masivo

@@ -1,6 +1,6 @@
 import type { CotizacionDetalle, CotizacionListado, CotizacionCrearPayload, CotizacionPartidaPayload } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
-import { apiFetch } from './apiFetch';
+import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 import { clearSession, loadSession } from '../session/sessionStorage';
 
 const BASE_PATH: Record<TipoDocumento, string> = {
@@ -260,4 +260,17 @@ export function calcularImpuestosPreview(payload: {
     method: 'POST',
     body: payload as any,
   });
+}
+
+export type ExportDocumentoColumna = { field: string; headerName: string };
+
+export async function exportarDocumentos(payload: {
+  filters: Record<string, any>;
+  columns: ExportDocumentoColumna[];
+}): Promise<void> {
+  const { blob, filename } = await apiFetchBlob('/api/documentos/exportar', {
+    method: 'POST',
+    body: payload as any,
+  });
+  triggerBlobDownload(blob, filename);
 }

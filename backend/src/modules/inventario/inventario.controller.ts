@@ -6,6 +6,8 @@ import {
   listarMovimientos,
   obtenerMovimientoDetalle,
 } from './inventario.service';
+import { generarExcelBuffer } from '../../utils/exportar';
+import type { ExportColumna } from '../../utils/exportar';
 
 function getEmpresaId(req: Request): number | null {
   const empresaId = (req as any).context?.empresaId ?? (req as any).empresaId;
@@ -131,6 +133,37 @@ export async function getMovimientoDetalle(req: Request, res: Response) {
     return res.json(detalle);
   } catch (error) {
     const message = (error as any)?.message || 'Error al obtener detalle del movimiento';
+    return res.status(500).json({ message });
+  }
+}
+
+export async function exportarMovimientos(req: Request, res: Response) {
+  const empresaId = getEmpresaId(req);
+  if (!empresaId) return res.status(400).json({ message: 'empresaId es requerido' });
+
+  const { columns } = req.body as { columns: ExportColumna[] };
+
+  if (!Array.isArray(columns) || columns.length === 0) {
+    return res.status(400).json({ message: 'columns es obligatorio' });
+  }
+
+  const exportColumns = columns
+    .filter((c) => c && typeof c.field === 'string' && typeof c.headerName === 'string')
+    .slice(0, 50);
+
+  if (exportColumns.length === 0) {
+    return res.status(400).json({ message: 'No hay columnas válidas para exportar' });
+  }
+
+  try {
+    const movimientos = await listarMovimientos(empresaId);
+    const buffer = generarExcelBuffer(movimientos as Record<string, any>[], exportColumns, 'Movimientos');
+    const fecha = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="movimientos-inventario-${fecha}.xlsx"`);
+    res.send(buffer);
+  } catch (error) {
+    const message = (error as any)?.message || 'Error al exportar movimientos';
     return res.status(500).json({ message });
   }
 }

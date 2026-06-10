@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import {
   obtenerContactos,
   obtenerContactosPaginados,
+  obtenerContactosParaExportar,
   insertarContacto,
   actualizarContacto as actualizarContactoRepository,
   obtenerContactoPorId,
@@ -10,6 +11,8 @@ import {
   guardarCatalogosConfigurablesDeContacto,
   precioListaPerteneceAEmpresa,
 } from "./contactos.repository";
+import { generarExcelBuffer } from "../../utils/exportar";
+import type { ExportColumna } from "../../utils/exportar";
 import { normalizarTelefono } from "../../utils/telefono";
 import { normalizeRFC } from "../../shared/normalizers/rfc";
 import { normalizeEmail } from "../../shared/normalizers/email";
@@ -340,6 +343,74 @@ export async function listarCatalogosConfigurablesDeContacto(req: Request, res: 
   } catch (error) {
     console.error("Error al obtener catálogos configurables de contacto:", error);
     res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+
+export async function exportarContactos(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    if (empresaId === undefined || empresaId === null || Number.isNaN(Number(empresaId))) {
+      return res.status(400).json({ message: "empresaId es obligatorio" });
+    }
+
+    const { filters = {}, columns } = req.body as { filters: Record<string, any>; columns: ExportColumna[] };
+
+    if (!Array.isArray(columns) || columns.length === 0) {
+      return res.status(400).json({ message: "columns es obligatorio" });
+    }
+
+    const exportColumns = columns
+      .filter((c) => c && typeof c.field === 'string' && typeof c.headerName === 'string')
+      .slice(0, 50);
+
+    if (exportColumns.length === 0) {
+      return res.status(400).json({ message: "No hay columnas válidas para exportar" });
+    }
+
+    const tiposRaw = filters.tipos;
+    const tipos = Array.isArray(tiposRaw)
+      ? (tiposRaw as string[]).filter(Boolean)
+      : typeof tiposRaw === 'string'
+        ? tiposRaw.split(',').map((t: string) => t.trim()).filter(Boolean)
+        : undefined;
+
+    const search = typeof filters.search === 'string' ? filters.search.trim() : undefined;
+    const activo =
+      filters.activo === 'activos' || filters.activo === 'inactivos' || filters.activo === 'todos'
+        ? filters.activo
+        : undefined;
+    const origenContactoId =
+      filters.origenContactoId != null ? Number(filters.origenContactoId) : undefined;
+    const vendedorId =
+      filters.vendedorId != null ? Number(filters.vendedorId) : undefined;
+    const fechaAltaDesde =
+      typeof filters.fechaAltaDesde === 'string' ? filters.fechaAltaDesde.trim() : undefined;
+    const fechaAltaHasta =
+      typeof filters.fechaAltaHasta === 'string' ? filters.fechaAltaHasta.trim() : undefined;
+    const interesInicial =
+      typeof filters.interesInicial === 'string' ? filters.interesInicial.trim() : undefined;
+    const observaciones =
+      typeof filters.observaciones === 'string' ? filters.observaciones.trim() : undefined;
+
+    const contactos = await obtenerContactosParaExportar(Number(empresaId), tipos, search, {
+      origenContactoId: Number.isFinite(origenContactoId) ? origenContactoId : undefined,
+      vendedorId: Number.isFinite(vendedorId) ? vendedorId : undefined,
+      activo,
+      fechaAltaDesde,
+      fechaAltaHasta,
+      interesInicial,
+      observaciones,
+    });
+
+    const buffer = generarExcelBuffer(contactos, exportColumns, 'Contactos');
+
+    const fecha = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="contactos-${fecha}.xlsx"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error("Error al exportar contactos:", error);
+    res.status(500).json({ message: "Error al exportar contactos" });
   }
 }
 

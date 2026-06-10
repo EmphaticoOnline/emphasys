@@ -6,12 +6,14 @@ import {
   postRevertirDocumento,
   getMovimientos,
   getMovimientoDetalle,
+  exportarMovimientos,
 } from './inventario.controller';
 
 const router = Router();
 
 router.use(requireAuth, requireEmpresaActiva);
 
+router.post('/movimientos/exportar', exportarMovimientos);
 router.post('/movimientos/manual', postMovimientoManual);
 router.post('/documentos/:id/aplicar', postAplicarDocumento);
 router.post('/documentos/:id/revertir', postRevertirDocumento);

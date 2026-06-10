@@ -13,6 +13,7 @@ import {
 	crearProductoArchivo,
 	eliminarProductoArchivo,
 	marcarProductoArchivoPrincipal,
+	exportarProductos,
 } from './productos.controller';
 import { createDiskUploader, resolveUploadsDir } from '../uploads/uploads.multer';
 import path from 'path';
@@ -62,6 +63,7 @@ router.get('/:id', requireAuth, requireEmpresaActiva, getProducto);
 
 
 // POST /api/productos
+router.post('/exportar', requireAuth, requireEmpresaActiva, exportarProductos);
 router.post('/', requireAuth, requireEmpresaActiva, crearProducto);
 router.post('/:productoId/archivos', requireAuth, requireEmpresaActiva, manejarUploadProductoArchivo, crearProductoArchivo);
 

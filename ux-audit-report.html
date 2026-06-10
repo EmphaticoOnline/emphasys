@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditoría UX — Emphasys ERP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --brand: #1d2f68;
+  --brand-light: #2a4299;
+  --brand-lighter: #e8ecf8;
+  --success: #16a34a;
+  --success-light: #dcfce7;
+  --danger: #dc2626;
+  --danger-light: #fee2e2;
+  --warning: #d97706;
+  --warning-light: #fef3c7;
+  --n50: #f8fafc; --n100: #f1f5f9; --n200: #e2e8f0;
+  --n300: #cbd5e1; --n400: #94a3b8; --n500: #64748b;
+  --n600: #475569; --n700: #334155; --n800: #1e293b; --n900: #0f172a;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--n100);color:var(--n900);line-height:1.6}
+
+/* ── DOC ── */
+.doc{max-width:980px;margin:0 auto;padding:52px 28px}
+.hero{background:var(--brand);color:#fff;padding:44px 48px;border-radius:14px;margin-bottom:40px}
+.hero .eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:10px}
+.hero h1{font-size:30px;font-weight:700;line-height:1.2;margin-bottom:10px}
+.hero p{font-size:14px;color:rgba(255,255,255,.7);max-width:560px}
+.hero-meta{display:flex;gap:24px;margin-top:22px;font-size:12px;color:rgba(255,255,255,.5)}
+.card{background:#fff;border:1px solid var(--n200);border-radius:12px;padding:28px;margin-bottom:20px}
+.card h2{font-size:17px;font-weight:700;color:var(--brand);margin-bottom:18px;display:flex;align-items:center;gap:9px}
+.snum{width:26px;height:26px;background:var(--brand);color:#fff;border-radius:6px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+.finding{padding:14px 0;border-bottom:1px solid var(--n100)}
+.finding:last-child{border-bottom:none;padding-bottom:0}
+.finding h3{font-size:13.5px;font-weight:600;color:var(--n800);margin-bottom:5px}
+.finding p{font-size:13px;color:var(--n500);line-height:1.65}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;margin-bottom:7px}
+.b-ok{background:var(--success-light);color:var(--success)}
+.b-crit{background:var(--danger-light);color:var(--danger)}
+.b-warn{background:var(--warning-light);color:var(--warning)}
+
+.at{width:100%;border-collapse:collapse;font-size:13px}
+.at th{background:var(--n100);padding:9px 13px;text-align:left;font-size:11px;font-weight:600;color:var(--n500);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--n200)}
+.at td{padding:9px 13px;border-bottom:1px solid var(--n100);color:var(--n700);vertical-align:top}
+.at tr:last-child td{border-bottom:none}
+.vr{font-size:12px;font-weight:600}
+.vr-rm{color:var(--danger)} .vr-rd{color:var(--warning)} .vr-ok{color:var(--success)}
+
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mc{border-radius:10px;padding:18px;border:1px solid var(--n200)}
+.mc h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+.mc.hi-lo{background:#f0fdf4;border-color:#bbf7d0} .mc.hi-lo h3{color:#15803d}
+.mc.hi-me{background:#fefce8;border-color:#fde047} .mc.hi-me h3{color:#a16207}
+.mc.hi-hi{background:#fff1f2;border-color:#fecdd3} .mc.hi-hi h3{color:#be123c}
+.mc.me-lo{background:#f0f9ff;border-color:#bae6fd} .mc.me-lo h3{color:#0369a1}
+.mc.me-me{background:#faf5ff;border-color:#e9d5ff;grid-column:span 2} .mc.me-me h3{color:#7e22ce}
+.mc.me-me .mi-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.mi{font-size:12.5px;color:var(--n700);padding:5px 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;gap:6px;align-items:flex-start}
+.mi::before{content:'→';opacity:.35;flex-shrink:0;margin-top:1px}
+.mi:last-child{border-bottom:none}
+
+.q-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+.q-box{padding:18px;background:var(--n50);border-radius:9px;border:1px solid var(--n200)}
+.q-box .ql{font-size:11px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+.qi{font-size:12.5px;color:var(--n600);padding:5px 0;border-bottom:1px solid var(--n100)}
+.qi:last-child{border-bottom:none}
+
+/* ── DIVIDER ── */
+.div-section{text-align:center;padding:44px 0 28px}
+.div-section h2{font-size:26px;font-weight:700;color:var(--n800);margin-bottom:6px}
+.div-section p{color:var(--n500);font-size:14px}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--brand);color:#fff;font-size:12px;font-weight:600;padding:5px 14px;border-radius:100px;margin-bottom:16px}
+
+/* ── COMPARISON ── */
+.cmp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cmp-panel{border-radius:10px;overflow:hidden;border:1px solid var(--n200)}
+.cmp-head{padding:9px 15px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px}
+.cmp-panel.before .cmp-head{background:#fff1f2;color:#be123c}
+.cmp-panel.after  .cmp-head{background:#f0fdf4;color:#15803d}
+.cmp-body{padding:14px}
+.ci{font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--n100);color:var(--n600)}
+.ci.bad{color:var(--danger)} .ci.good{color:var(--success)}
+.ci:last-child{border-bottom:none}
+
+/* ── MOCKUP CONTAINER ── */
+.mkp-wrap{background:#fff;border-radius:14px;border:1px solid var(--n200);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.1);margin-bottom:36px}
+.chrome{height:34px;background:#161625;display:flex;align-items:center;padding:0 14px;gap:7px}
+.cdot{width:11px;height:11px;border-radius:50%}
+.cdot.r{background:#ff5f57} .cdot.y{background:#ffbd2e} .cdot.g{background:#28c840}
+.curl{flex:1;background:rgba(255,255,255,.07);border-radius:4px;height:20px;margin:0 10px;display:flex;align-items:center;padding:0 9px;font-size:11px;color:rgba(255,255,255,.4);font-family:monospace}
+
+.app{display:flex;height:630px}
+
+/* ── SIDEBAR ── */
+.sb{width:216px;background:var(--brand);flex-shrink:0;display:flex;flex-direction:column}
+.sb-logo{padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:9px}
+.logo-ico{width:28px;height:28px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--brand);flex-shrink:0}
+.logo-txt{color:#fff;font-size:13.5px;font-weight:700}
+.sb-nav{padding:10px 0;flex:1;overflow-y:auto}
+.sb-sec{padding:0 10px;margin-bottom:2px}
+.sb-lbl{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.3);padding:7px 9px 3px}
+.sb-item{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;color:rgba(255,255,255,.6);font-size:13px;font-weight:500;cursor:pointer}
+.sb-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.sb-item.act{background:rgba(255,255,255,.15);color:#fff;font-weight:600}
+.sb-item .ic{width:15px;text-align:center;font-style:normal}
+.sb-item .nb{margin-left:auto;background:rgba(255,255,255,.2);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:9px}
+.sb-foot{padding:12px;border-top:1px solid rgba(255,255,255,.1)}
+.sb-user{display:flex;align-items:center;gap:9px;padding:5px 7px;border-radius:7px;cursor:pointer}
+.sb-user:hover{background:rgba(255,255,255,.08)}
+.av{width:28px;height:28px;background:#4f7bf7;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.su-info{flex:1;min-width:0}
+.su-name{font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.su-role{font-size:10px;color:rgba(255,255,255,.4)}
+.su-chev{color:rgba(255,255,255,.3);font-size:11px}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;background:var(--n50);min-width:0}
+.topbar{height:50px;background:#fff;border-bottom:1px solid var(--n200);display:flex;align-items:center;padding:0 22px;gap:14px;flex-shrink:0}
+.bc{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--n400);flex:1}
+.bc .cur{color:var(--n800);font-weight:600}
+.tb-right{display:flex;align-items:center;gap:9px}
+.live{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--n500);padding:3px 9px;background:var(--n100);border-radius:100px;border:1px solid var(--n200)}
+.ldot{width:6px;height:6px;background:var(--success);border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.co-sel{display:flex;align-items:center;gap:5px;background:var(--n100);border:1px solid var(--n200);padding:4px 9px;border-radius:6px;font-size:12px;font-weight:500;color:var(--n700);cursor:pointer}
+.co-dot{width:6px;height:6px;background:var(--success);border-radius:50%}
+
+.stabs{background:#fff;border-bottom:1px solid var(--n200);padding:0 22px;display:flex;flex-shrink:0}
+.stab{padding:9px 14px;font-size:13px;font-weight:500;color:var(--n500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.stab.act{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+
+.content{flex:1;padding:16px 22px;overflow:hidden;display:flex;flex-direction:column;gap:12px}
+
+/* ── KPI STRIP ── */
+.kpi-strip{background:#fff;border:1px solid var(--n200);border-radius:9px;padding:11px 18px;display:flex;flex-shrink:0}
+.kpi{flex:1;padding:0 18px;border-right:1px solid var(--n200)}
+.kpi:first-child{padding-left:0}
+.kpi:last-child{border-right:none}
+.kpi-lbl{font-size:10.5px;color:var(--n400);font-weight:500;margin-bottom:1px}
+.kpi-val{font-size:17px;font-weight:700;color:var(--n800);font-variant-numeric:tabular-nums}
+.kpi-val.primary{color:var(--brand)}
+.kpi-val.danger{color:var(--danger)}
+.kpi-val.mute{color:var(--n300);font-size:14px;padding-top:2px}
+
+/* ── TOOLBAR ── */
+.toolbar{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.srch{flex:1;display:flex;align-items:center;background:#fff;border:1px solid var(--n200);border-radius:7px;padding:0 11px;height:34px;gap:7px}
+.srch-ic{color:var(--n400);font-size:13px}
+.srch input{border:none;outline:none;font-size:13px;font-family:inherit;color:var(--n700);background:transparent;flex:1}
+.srch input::placeholder{color:var(--n400)}
+.btn{display:flex;align-items:center;gap:5px;padding:0 13px;height:34px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;white-space:nowrap}
+.btn.ghost{background:#fff;border:1px solid var(--n200);color:var(--n600)}
+.btn.ghost:hover{background:var(--n50)}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.primary:hover{background:var(--brand-light)}
+
+/* ── FILTER BAR ── */
+.fbar{display:flex;align-items:center;gap:7px;flex-shrink:0;flex-wrap:wrap}
+.fchip{display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:100px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--n200);background:#fff;color:var(--n600);user-select:none}
+.fchip:hover{border-color:var(--n300)}
+.fchip.act{background:var(--brand-lighter);border-color:var(--brand);color:var(--brand);font-weight:600}
+.fchip .cnt{background:var(--brand);color:#fff;border-radius:100px;padding:0 5px;font-size:10px;font-weight:700}
+.fchip .rm{font-size:13px;opacity:.5;margin-left:1px}
+.res-cnt{margin-left:auto;font-size:12px;color:var(--n400);white-space:nowrap}
+
+/* ── BULK BAR ── */
+.bulk{background:var(--brand);color:#fff;padding:0 14px;height:38px;border-radius:7px;display:none;align-items:center;gap:10px;font-size:13px;font-weight:500;flex-shrink:0}
+.bulk.vis{display:flex}
+.ba{padding:3px 9px;background:rgba(255,255,255,.15);border-radius:4px;cursor:pointer;font-size:12px}
+.ba:hover{background:rgba(255,255,255,.25)}
+.bsep{width:1px;height:14px;background:rgba(255,255,255,.2)}
+.bclose{margin-left:auto;opacity:.6;cursor:pointer;font-size:15px;line-height:1}
+
+/* ── TABLE ── */
+.tbl-wrap{flex:1;background:#fff;border:1px solid var(--n200);border-radius:9px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.tbl-scroll{overflow:auto;flex:1;min-height:0}
+table.tbl{width:100%;border-collapse:collapse;font-size:13px}
+table.tbl thead{background:var(--brand);position:sticky;top:0;z-index:1}
+table.tbl th{padding:9px 11px;text-align:left;color:rgba(255,255,255,.8);font-size:11px;font-weight:600;letter-spacing:.3px;white-space:nowrap;user-select:none}
+table.tbl th.sort{cursor:pointer}
+table.tbl th.sort:hover{color:#fff}
+table.tbl th.sorted{color:#fff}
+.si{font-size:10px;opacity:.45;margin-left:3px}
+.si.on{opacity:1}
+table.tbl th:first-child{width:34px;padding:9px 7px}
+table.tbl th.ac{width:90px}
+table.tbl tbody tr{border-bottom:1px solid var(--n100);cursor:pointer}
+table.tbl tbody tr:last-child{border-bottom:none}
+table.tbl tbody tr:hover{background:var(--n50)}
+table.tbl tbody tr:hover .ra{opacity:1}
+table.tbl tbody tr.sel{background:var(--brand-lighter)}
+table.tbl td{padding:8px 11px;color:var(--n700);vertical-align:middle}
+table.tbl td:first-child{padding:8px 7px}
+table.tbl .r{text-align:right}
+
+.chk{width:14px;height:14px;border:1.5px solid var(--n300);border-radius:3px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;vertical-align:middle}
+.chk.on{background:var(--brand);border-color:var(--brand)}
+
+.folio{font-weight:600;color:var(--brand);font-size:13px}
+.dt{color:var(--n500);font-size:12px}
+.cli{font-weight:500;font-size:13px}
+.cli small{display:block;font-size:11px;color:var(--n400);font-weight:400;line-height:1.3}
+.amt{font-variant-numeric:tabular-nums;font-size:13px}
+.amt.m{color:var(--n400)}
+.saldo{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600}
+.saldo.paid{color:var(--n400);font-weight:400}
+.saldo.due{color:var(--danger)}
+.ov-chip{display:inline-block;background:var(--danger-light);color:var(--danger);font-size:10px;font-weight:600;padding:1px 5px;border-radius:100px;margin-left:4px;white-space:nowrap}
+
+.stbadge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:11px;font-weight:600}
+.stbadge::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.stbadge.tim{background:#dcfce7;color:#15803d} .stbadge.tim::before{background:#16a34a}
+.stbadge.bor{background:var(--n100);color:var(--n500)} .stbadge.bor::before{background:var(--n400)}
+.stbadge.can{background:var(--danger-light);color:var(--danger)} .stbadge.can::before{background:var(--danger)}
+
+.ra{display:flex;gap:3px;opacity:0;transition:opacity .15s}
+.rab{width:24px;height:24px;border-radius:4px;border:1px solid var(--n200);background:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;color:var(--n500)}
+.rab:hover{background:var(--n100);color:var(--n800)}
+
+.tfoot{padding:9px 14px;border-top:1px solid var(--n200);display:flex;align-items:center;gap:10px;background:#fff;flex-shrink:0}
+.pgn{display:flex;align-items:center;gap:3px;margin-left:auto}
+.pb{width:26px;height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;border:1px solid var(--n200);background:#fff;color:var(--n600)}
+.pb.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.pb:hover:not(.on){background:var(--n50)}
+.pp{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--n500)}
+.pp select{border:1px solid var(--n200);border-radius:4px;padding:2px 5px;font-size:12px;font-family:inherit;color:var(--n700)}
+
+/* ── ANNOTATIONS ── */
+.annots{background:#fff;border:1px solid var(--n200);border-radius:11px;padding:26px;margin-bottom:36px}
+.annots h3{font-size:15px;font-weight:700;color:var(--n800);margin-bottom:18px}
+.ann-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ann{display:flex;gap:11px;padding:13px;background:var(--n50);border-radius:7px;border:1px solid var(--n100)}
+.an{width:20px;height:20px;background:var(--brand);color:#fff;border-radius:50%;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.at-txt{font-size:12.5px;color:var(--n700);line-height:1.55}
+.at-txt strong{color:var(--n900);font-weight:600;display:block;margin-bottom:2px}
+
+.footer-note{text-align:center;padding:24px 0 52px;color:var(--n400);font-size:12.5px}
+
+@media(max-width:768px){.mg,.cmp-grid,.ann-grid,.q-grid{grid-template-columns:1fr}.mc.me-me{grid-column:span 1}}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<!-- HERO -->
+<div class="hero">
+  <div class="eyebrow">Auditoría de Experiencia de Usuario · 2026</div>
+  <h1>Emphasys ERP — Diagnóstico de Interfaz</h1>
+  <p>Análisis crítico desde la perspectiva de ERPs modernos (Dynamics 365, Salesforce, Odoo Enterprise, HubSpot, SAP B1 Web). Pantallas evaluadas: <strong>Facturas</strong> y <strong>Contactos</strong>.</p>
+  <div class="hero-meta">
+    <span>📋 Junio 2026</span>
+    <span>🖥️ 2 pantallas analizadas</span>
+    <span>📊 40+ recomendaciones clasificadas</span>
+    <span>🎯 Prototipo interactivo incluido</span>
+  </div>
+</div>
+
+<!-- 1. LO QUE FUNCIONA -->
+<div class="card">
+  <h2><div class="snum">1</div> Lo que funciona bien</h2>
+  <div class="finding">
+    <span class="badge b-ok">✓ Correcto</span>
+    <h3>Barra de navegación con identidad visual clara</h3>
+    <p>El navy corporativo con menú horizontal comunica consistencia de marca. El selector de empresa con dropdown es una característica crítica para entornos multi-empresa y está bien ejecutada y ubicada.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-ok">✓ Correcto</span>
+    <h3>Concepto de KPI row en Facturas</h3>
+    <p>Mostrar totales por estatus antes de la tabla diferencia a los ERPs de simples listas de datos. La idea es correcta aunque la ejecución consume 80px en lugar de los 44px que necesita.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-ok">✓ Correcto</span>
+    <h3>Encabezados de tabla con contraste navy</h3>
+    <p>El fondo navy en headers crea separación visual clara entre controles de columna y datos. Funciona en contextos de alta densidad y comunica herramienta de trabajo.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-ok">✓ Correcto</span>
+    <h3>Semántica de color en columna Saldo</h3>
+    <p>Rojo para saldos pendientes, verde para pagados. El usuario detecta excepciones a velocidad de visión periférica sin leer. Esta es exactamente la función que el color debe cumplir en productividad.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-ok">✓ Correcto</span>
+    <h3>Counter de registros visible en Contactos</h3>
+    <p>"2,977 registros encontrados" como texto inline elimina la incertidumbre sobre si hay filtros activos o si se está viendo el total. Muchos sistemas junior omiten este detalle crítico.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-ok">✓ Correcto</span>
+    <h3>Jerarquía de botones de acción primaria</h3>
+    <p>NUEVO correctamente diferenciado como acción primaria en azul oscuro. La gradación visual Exportar (secundario) → Recargar (secundario) → Nuevo (primario) es la correcta en intención.</p>
+  </div>
+</div>
+
+<!-- 2. PROBLEMAS CRÍTICOS -->
+<div class="card">
+  <h2><div class="snum">2</div> Problemas críticos identificados</h2>
+  <div class="finding">
+    <span class="badge b-crit">⚠ Crítico</span>
+    <h3>38% de la pantalla consumida antes del primer dato</h3>
+    <p>En Facturas, aproximadamente <strong>340px de chrome UI</strong> (tabs, título, subtítulo, búsqueda, filtros tabs, KPI cards, header de tabla) preceden a la primera fila de datos. En una pantalla de 900px de altura útil, el usuario ya agotó más de un tercio antes de ver un registro. Dynamics 365 y Salesforce Lightning logran el mismo overhead en ~150px.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-crit">⚠ Crítico</span>
+    <h3>Subtítulos descriptivos que nadie lee después del día 1</h3>
+    <p>"Consulta y gestiona facturas." y "Gestiona y consulta tus contactos registrados." son textos de onboarding permanente que consumen una línea entera por página. Un usuario que lleva una semana en el sistema nunca necesitará que le expliquen para qué sirve la pantalla de Facturas. En ningún ERP de categoría empresarial existe este patrón en producción.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-crit">⚠ Crítico</span>
+    <h3>Buscador con jerarquía incorrecta en Contactos</h3>
+    <p>En Facturas el buscador ocupa ~80% del ancho. En Contactos ocupa ~30% del ancho con 2,977 registros. La herramienta más crítica de la pantalla ocupa el espacio más pequeño de la fila. Error de jerarquía de información que ralentiza la tarea más frecuente del usuario.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-crit">⚠ Crítico</span>
+    <h3>Paginación invisible con 2,977 registros</h3>
+    <p>No hay control de paginación visible en el viewport de Contactos. El usuario no sabe cuántas páginas hay, en cuál está, ni cuántos registros por página se cargan. Para datasets de esta magnitud, este es un problema de usabilidad severo y una señal de escalabilidad no resuelta.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-crit">⚠ Crítico</span>
+    <h3>Sin indicadores de ordenamiento en columnas</h3>
+    <p>Ninguna columna muestra si está ordenada ni en qué dirección. Para un ERP con cientos o miles de registros, la visibilidad del orden activo es fundamental. Su ausencia completa transmite la sensación de herramienta no terminada.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-warn">⚡ Importante</span>
+    <h3>Botón RECARGAR como acción primaria visible</h3>
+    <p>Un botón "Recargar" expuesto al nivel de acciones primarias comunica: <em>"los datos pueden estar desactualizados, pídelos tú manualmente."</em> Es un patrón de diseño de los años 2000. En sistemas modernos este control se relega a un ícono pequeño con timestamp de última actualización.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-warn">⚡ Importante</span>
+    <h3>Doble indicador de estatus en Facturas — redundancia visual</h3>
+    <p>La columna Estatus muestra: (1) un ícono circular coloreado (✓ verde / ○ gris) Y (2) un badge dropdown con el texto. Dos elementos comunicando lo mismo. El dropdown arrow además crea ambigüedad peligrosa: si hacer clic cambia el estatus de una factura timbrada, es una operación de alto impacto con un click accidental en la vista de lista.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-warn">⚡ Importante</span>
+    <h3>Columna Saldo sin contexto de vencimiento</h3>
+    <p>La columna muestra el monto pero no la fecha ni los días de atraso. Para administración de cuentas por cobrar, saber que B-003 tiene $14,500 pendientes es menos útil que saber si están vencidos 15, 30, o 90 días. El dato más accionable no está disponible en la vista de lista.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-warn">⚡ Importante</span>
+    <h3>Sin acciones bulk al seleccionar filas</h3>
+    <p>Existe checkbox maestro en el header de Facturas, pero no hay un toolbar contextual que aparezca al seleccionar registros. El usuario puede marcar facturas sin recibir retroalimentación ni acciones disponibles sobre la selección. Patrón incompleto que frustra a usuarios de productividad.</p>
+  </div>
+  <div class="finding">
+    <span class="badge b-warn">⚡ Importante</span>
+    <h3>Formato de fecha 01-JUN-2026 asociado a sistemas legacy</h3>
+    <p>Este formato está asociado directamente a Oracle DB, SAP R/3 y sistemas del período 1995–2005. Para usuarios con experiencia en software empresarial moderno, este detalle comunica "herramienta heredada" a nivel inconsciente. Es un cambio de 5 minutos con impacto de percepción alto.</p>
+  </div>
+</div>
+
+<!-- 3. ESPACIO DESPERDICIADO -->
+<div class="card">
+  <h2><div class="snum">3</div> Elementos que consumen espacio innecesariamente</h2>
+  <table class="at">
+    <thead>
+      <tr><th>Elemento</th><th>Espacio consumido</th><th>Justificación actual</th><th>Veredicto</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Título de página ("Facturas")</strong></td><td>~30px altura</td><td>Orienta al usuario</td><td><span class="vr vr-rm">Eliminar</span> — breadcrumb y tabs ya lo hacen</td></tr>
+      <tr><td><strong>Subtítulo descriptivo</strong></td><td>~25px altura</td><td>Onboarding inicial</td><td><span class="vr vr-rm">Eliminar</span> — innecesario después del día 1</td></tr>
+      <tr><td><strong>5 KPI cards grandes</strong></td><td>~80px altura</td><td>Resumen ejecutivo</td><td><span class="vr vr-rd">Compactar</span> — strip horizontal de 44px</td></tr>
+      <tr><td><strong>Columna "⋮" siempre visible</strong></td><td>~35px ancho</td><td>Acceso a acciones de fila</td><td><span class="vr vr-rd">Solo en hover</span> — tabla más limpia por defecto</td></tr>
+      <tr><td><strong>Separadores verticales de columna</strong></td><td>~8px ancho c/u</td><td>Delimitar columnas</td><td><span class="vr vr-rm">Eliminar</span> — redundante con padding de celda</td></tr>
+      <tr><td><strong>Panel de filtros vacío en Contactos</strong></td><td>~160px altura</td><td>Disponibilidad de filtros</td><td><span class="vr vr-rd">Solo si hay filtros activos</span> — chips inline</td></tr>
+      <tr><td><strong>Padding vertical de filas (~50px)</strong></td><td>15px por fila extra</td><td>Legibilidad</td><td><span class="vr vr-rd">Reducir a 36px</span> — 5 filas → 8+ sin perder legibilidad</td></tr>
+      <tr><td><strong>Columna "Clasificación" vacía</strong></td><td>~90px ancho</td><td>Disponibilidad del campo</td><td><span class="vr vr-rm">Ocultar por defecto</span> si >90% está vacío</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 4. RUIDO VISUAL -->
+<div class="card">
+  <h2><div class="snum">4</div> Elementos que generan ruido visual</h2>
+  <div class="finding">
+    <h3>Comillas literales en nombres de empresa</h3>
+    <p>"FERRE ELECTRICOS SIRAV", "FROYELI", "GRUPO CORPORATIVO LA PEQUEÑA" — las comillas son artefactos de datos almacenados incorrectamente que el UI hereda sin transformar. Cada fila con comillas interrumpe el escaneo visual y revela falta de control sobre la presentación de datos.</p>
+  </div>
+  <div class="finding">
+    <h3>Header de columna truncado "Teléfono secund..."</h3>
+    <p>Si el encabezado de una columna no cabe en el espacio disponible, el diseño de columnas no fue validado con datos reales. Un header truncado con "..." es más llamativo que el dato que contiene y comunica que el diseño no fue terminado.</p>
+  </div>
+  <div class="finding">
+    <h3>"EL MISMO" como nombre de contacto</h3>
+    <p>Es un valor de negocio interno almacenado como texto literal y expuesto sin transformación. La pantalla debería presentar el nombre de la empresa o un guion. Ver "EL MISMO" en mayúsculas en una lista de contactos transmite que la base de datos no fue diseñada con el UI en mente.</p>
+  </div>
+  <div class="finding">
+    <h3>Checkbox "Solo pendientes" desanclado visualmente</h3>
+    <p>El checkbox está en la fila del buscador pero pertenece conceptualmente al grupo de filtros rápidos de la fila inferior. Esta desconexión espacial hace que el usuario tenga que inferir su relación con los demás controles de filtrado.</p>
+  </div>
+  <div class="finding">
+    <h3>Inconsistencia en separadores de columna entre pantallas</h3>
+    <p>La tabla de Facturas usa separadores verticales entre celdas. La de Contactos no los usa. Dos tablas en el mismo producto con convenciones visuales distintas. El usuario no puede verbalizar por qué algo "se siente inconsistente" — pero lo percibe y lo registra como falta de pulido.</p>
+  </div>
+</div>
+
+<!-- 5-8: RECOMENDACIONES POR OBJETIVO -->
+<div class="card">
+  <h2><div class="snum">5–8</div> Recomendaciones por objetivo</h2>
+  <div class="q-grid">
+    <div class="q-box">
+      <div class="ql">5 — Percepción de ERP empresarial</div>
+      <div class="qi">• Densidad configurable: Compact / Normal / Comfortable</div>
+      <div class="qi">• Breadcrumbs en lugar de títulos de página grandes</div>
+      <div class="qi">• Sorting visual con indicadores ↑↓ en columnas</div>
+      <div class="qi">• Timestamp de actualización vs botón Recargar</div>
+      <div class="qi">• Formato de fecha moderno: "1 jun 2026"</div>
+      <div class="qi">• Toolbar bulk contextual al seleccionar filas</div>
+    </div>
+    <div class="q-box">
+      <div class="ql">6 — Productividad del usuario intensivo</div>
+      <div class="qi">• Edición inline con doble clic en celda</div>
+      <div class="qi">• Click en fila abre detalle (sin pasar por menú ⋮)</div>
+      <div class="qi">• Búsqueda con preview de resultados en dropdown</div>
+      <div class="qi">• Columna días de vencimiento en Facturas</div>
+      <div class="qi">• Atajos de teclado: N = Nuevo, / = Foco búsqueda</div>
+      <div class="qi">• Vistas guardadas ("Mis facturas vencidas")</div>
+    </div>
+    <div class="q-box">
+      <div class="ql">7 — Más información sin saturar</div>
+      <div class="qi">• Filas a 36px (+60% registros visibles)</div>
+      <div class="qi">• Panel lateral split-view para detalle</div>
+      <div class="qi">• Avatares/iniciales en columna empresa</div>
+      <div class="qi">• Chips de "X días de atraso" inline en Saldo</div>
+      <div class="qi">• Columnas ocultables y reordenables por usuario</div>
+    </div>
+    <div class="q-box">
+      <div class="ql">8 — Competir vs SaaS modernos (Linear, HubSpot)</div>
+      <div class="qi">• Sidebar vertical en lugar de navbar horizontal</div>
+      <div class="qi">• Tipografía Inter con tracking y peso ajustados</div>
+      <div class="qi">• Micro-interacciones: hover de fila con acciones</div>
+      <div class="qi">• Chips de filtro activo removibles (estilo Linear)</div>
+      <div class="qi">• Números con fuente tabular (alineación perfecta)</div>
+      <div class="qi">• Empty states diseñados cuando la tabla está vacía</div>
+    </div>
+  </div>
+</div>
+
+<!-- PRIORITY MATRIX -->
+<div class="card">
+  <h2><div class="snum">★</div> Matriz de priorización</h2>
+  <div class="mg">
+    <div class="mc hi-lo">
+      <h3>🟢 Impacto Alto / Esfuerzo Bajo</h3>
+      <div class="mi">Eliminar subtítulo descriptivo de páginas</div>
+      <div class="mi">Reducir padding de filas a 36px</div>
+      <div class="mi">Cambiar formato de fecha a "1 jun 2026"</div>
+      <div class="mi">Expandir buscador de Contactos a ancho completo</div>
+      <div class="mi">Reemplazar botón Recargar por timestamp</div>
+      <div class="mi">Ocultar columna ⋮ hasta hover de fila</div>
+      <div class="mi">Agregar indicadores sort ↑↓ en columnas</div>
+      <div class="mi">Unificar separadores de columna entre tablas</div>
+    </div>
+    <div class="mc hi-me">
+      <h3>🟡 Impacto Alto / Esfuerzo Medio</h3>
+      <div class="mi">KPI row compacto horizontal (reemplaza 5 cards grandes)</div>
+      <div class="mi">Toolbar de acciones bulk al seleccionar filas</div>
+      <div class="mi">Chips de filtros activos (reemplaza panel expandido)</div>
+      <div class="mi">Paginación visible con selector de registros/página</div>
+      <div class="mi">Columna de días de vencimiento/atraso en Facturas</div>
+      <div class="mi">Click en fila abre detalle sin pasar por menú ⋮</div>
+      <div class="mi">Vistas personalizadas guardadas por usuario</div>
+    </div>
+    <div class="mc hi-hi">
+      <h3>🔴 Impacto Alto / Esfuerzo Alto</h3>
+      <div class="mi">Migrar navegación a sidebar vertical</div>
+      <div class="mi">Densidad de tabla configurable por usuario</div>
+      <div class="mi">Edición inline de celdas con doble clic</div>
+      <div class="mi">Búsqueda con preview de resultados en dropdown</div>
+      <div class="mi">Columnas redimensionables y reordenables</div>
+      <div class="mi">Panel lateral split-view para detalle de registro</div>
+    </div>
+    <div class="mc me-lo">
+      <h3>🔵 Impacto Medio / Esfuerzo Bajo</h3>
+      <div class="mi">Eliminar título de página grande</div>
+      <div class="mi">Corregir truncamiento de header "Teléfono secund..."</div>
+      <div class="mi">Unificar ancho de buscador entre módulos</div>
+      <div class="mi">Mover "Solo pendientes" al grupo de filtros tabs</div>
+      <div class="mi">Simplificar badge de estatus (un solo indicador)</div>
+    </div>
+    <div class="mc me-me">
+      <h3>🟣 Impacto Medio / Esfuerzo Medio</h3>
+      <div class="mi-grid">
+        <div>
+          <div class="mi">Avatares/iniciales en columna empresa o cliente</div>
+          <div class="mi">Tipografía refinada (Inter) con tracking correcto</div>
+          <div class="mi">Empty state diseñado para tablas con pocos registros</div>
+        </div>
+        <div>
+          <div class="mi">Micro-interacciones hover de fila con acciones visibles</div>
+          <div class="mi">Números de moneda con fuente tabular</div>
+          <div class="mi">Ocultar columnas vacías por defecto</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .doc -->
+
+<!-- ══════════════ MOCKUP SECTION ══════════════ -->
+<div class="doc" style="padding-top:0">
+
+  <div class="div-section">
+    <div class="pill">✦ Propuesta visual interactiva</div>
+    <h2>Así podría verse la pantalla de Facturas</h2>
+    <p>Prototipo con las recomendaciones de impacto alto aplicadas. Interactúa: selecciona filas, haz hover, explora los controles.</p>
+  </div>
+
+  <!-- Before / After -->
+  <div class="card">
+    <h2><div class="snum">→</div> Antes vs Después — resumen</h2>
+    <div class="cmp-grid">
+      <div class="cmp-panel before">
+        <div class="cmp-head">✗ Estado actual</div>
+        <div class="cmp-body">
+          <div class="ci bad">❌ ~340px de chrome antes del primer dato</div>
+          <div class="ci bad">❌ Subtítulo descriptivo permanente en cada página</div>
+          <div class="ci bad">❌ 5 KPI cards grandes (~80px de altura)</div>
+          <div class="ci bad">❌ Solo 5 filas visibles con padding excesivo</div>
+          <div class="ci bad">❌ Sin sort visible en ninguna columna</div>
+          <div class="ci bad">❌ Sin acciones bulk al seleccionar filas</div>
+          <div class="ci bad">❌ Botón RECARGAR como acción primaria</div>
+          <div class="ci bad">❌ Fecha "01-JUN-2026" estilo legacy</div>
+          <div class="ci bad">❌ Doble indicador de estatus (ícono + badge)</div>
+          <div class="ci bad">❌ Sin contexto de días de atraso en saldos</div>
+        </div>
+      </div>
+      <div class="cmp-panel after">
+        <div class="cmp-head">✓ Propuesta mejorada</div>
+        <div class="cmp-body">
+          <div class="ci good">✅ Sidebar + ~160px de chrome → primer dato más rápido</div>
+          <div class="ci good">✅ Subtítulo eliminado, breadcrumb de 1 línea</div>
+          <div class="ci good">✅ KPI strip compacto horizontal (~44px)</div>
+          <div class="ci good">✅ 8+ filas visibles en el mismo espacio</div>
+          <div class="ci good">✅ Sort con indicadores visuales clickeables</div>
+          <div class="ci good">✅ Toolbar bulk contextual al seleccionar</div>
+          <div class="ci good">✅ Timestamp "Actualizado hace 2 min" en tiempo real</div>
+          <div class="ci good">✅ Fecha "1 jun 2026" limpia y moderna</div>
+          <div class="ci good">✅ Badge de estatus único, sin redundancia</div>
+          <div class="ci good">✅ Chips "30 días / 45 días" inline en saldos vencidos</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE MOCKUP -->
+  <div class="mkp-wrap">
+    <div class="chrome">
+      <div class="cdot r"></div><div class="cdot y"></div><div class="cdot g"></div>
+      <div class="curl">erp.emphasys.cloud/ventas/factura</div>
+    </div>
+    <div class="app">
+
+      <!-- SIDEBAR -->
+      <div class="sb">
+        <div class="sb-logo">
+          <div class="logo-ico">e</div>
+          <div class="logo-txt">emphasys</div>
+        </div>
+        <div class="sb-nav">
+          <div class="sb-sec">
+            <div class="sb-lbl">Principal</div>
+            <div class="sb-item"><i class="ic">◻</i>Dashboard</div>
+            <div class="sb-item"><i class="ic">◎</i>Contactos</div>
+            <div class="sb-item"><i class="ic">◈</i>CRM<span class="nb">3</span></div>
+          </div>
+          <div class="sb-sec">
+            <div class="sb-lbl">Ventas</div>
+            <div class="sb-item act"><i class="ic">◧</i>Facturas</div>
+            <div class="sb-item"><i class="ic">◩</i>Cotizaciones</div>
+            <div class="sb-item"><i class="ic">◪</i>Pagos</div>
+          </div>
+          <div class="sb-sec">
+            <div class="sb-lbl">Operaciones</div>
+            <div class="sb-item"><i class="ic">▣</i>Inventarios</div>
+            <div class="sb-item"><i class="ic">▤</i>Compras</div>
+            <div class="sb-item"><i class="ic">▥</i>Producción</div>
+          </div>
+          <div class="sb-sec">
+            <div class="sb-lbl">Reportes</div>
+            <div class="sb-item"><i class="ic">▦</i>Finanzas</div>
+            <div class="sb-item"><i class="ic">▧</i>Informes</div>
+            <div class="sb-item"><i class="ic">▨</i>Configuración</div>
+          </div>
+        </div>
+        <div class="sb-foot">
+          <div class="sb-user">
+            <div class="av">AD</div>
+            <div class="su-info">
+              <div class="su-name">Antonio Díaz</div>
+              <div class="su-role">Administrador</div>
+            </div>
+            <span class="su-chev">⌄</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN CONTENT -->
+      <div class="main">
+        <div class="topbar">
+          <div class="bc">Ventas <span style="margin:0 2px;opacity:.4">›</span> <span class="cur">Facturas</span></div>
+          <div class="tb-right">
+            <div class="live"><div class="ldot"></div>Actualizado hace 2 min</div>
+            <div class="co-sel"><div class="co-dot"></div>Emphasys Software ⌄</div>
+          </div>
+        </div>
+
+        <div class="stabs">
+          <div class="stab act">Facturas</div>
+          <div class="stab">Pagos</div>
+          <div class="stab">Notas de crédito</div>
+        </div>
+
+        <div class="content">
+
+          <!-- KPI STRIP -->
+          <div class="kpi-strip">
+            <div class="kpi">
+              <div class="kpi-lbl">Total general</div>
+              <div class="kpi-val primary">$73,034.48</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-lbl">Timbrado</div>
+              <div class="kpi-val">$73,034.48</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-lbl">Saldo pendiente</div>
+              <div class="kpi-val danger">$41,180.00</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-lbl">Borrador</div>
+              <div class="kpi-val mute">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-lbl">Cancelado</div>
+              <div class="kpi-val mute">—</div>
+            </div>
+          </div>
+
+          <!-- TOOLBAR -->
+          <div class="toolbar">
+            <div class="srch">
+              <span class="srch-ic">⌕</span>
+              <input type="text" placeholder="Buscar folio, cliente, RFC, teléfono, concepto, producto...">
+            </div>
+            <button class="btn ghost">↓ Exportar</button>
+            <button class="btn primary">+ Nuevo</button>
+          </div>
+
+          <!-- FILTER BAR -->
+          <div class="fbar">
+            <div class="fchip act" onclick="toggleChip(this)">Todos <span class="cnt">5</span></div>
+            <div class="fchip" onclick="toggleChip(this)">Borrador</div>
+            <div class="fchip" onclick="toggleChip(this)">Emitido</div>
+            <div class="fchip" onclick="toggleChip(this)">Cancelado</div>
+            <div class="fchip act" onclick="toggleChip(this)">Timbrado <span class="cnt">5</span> <span class="rm">×</span></div>
+            <div class="fchip" onclick="toggleChip(this)">⚡ Solo pendientes</div>
+            <button class="btn ghost" style="height:27px;font-size:12px;padding:0 10px">+ Filtro</button>
+            <span class="res-cnt">5 registros</span>
+          </div>
+
+          <!-- BULK ACTION BAR -->
+          <div class="bulk" id="bulkBar">
+            <span id="bulkCnt">0 seleccionados</span>
+            <div class="bsep"></div>
+            <div class="ba">✉ Enviar por correo</div>
+            <div class="ba">↓ Exportar selección</div>
+            <div class="ba">⊘ Cancelar</div>
+            <div class="bclose" onclick="clearSel()">✕</div>
+          </div>
+
+          <!-- TABLE -->
+          <div class="tbl-wrap">
+            <div class="tbl-scroll">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th><div class="chk" id="mchk" onclick="toggleAll()"></div></th>
+                    <th class="sort sorted" onclick="doSort(this)">Folio <span class="si on">↓</span></th>
+                    <th class="sort" onclick="doSort(this)">Fecha <span class="si">↕</span></th>
+                    <th>Cliente</th>
+                    <th class="sort r" onclick="doSort(this)">Subtotal <span class="si">↕</span></th>
+                    <th class="r">IVA</th>
+                    <th class="sort r" onclick="doSort(this)">Total <span class="si">↕</span></th>
+                    <th class="sort r" onclick="doSort(this)">Saldo <span class="si">↕</span></th>
+                    <th>Estatus</th>
+                    <th class="ac"></th>
+                  </tr>
+                </thead>
+                <tbody id="tbody">
+                  <tr onclick="clickRow(this)" data-id="B-005">
+                    <td><div class="chk" onclick="e(event);toggleRow(this)"></div></td>
+                    <td><span class="folio">B-005</span></td>
+                    <td><span class="dt">1 jun 2026</span></td>
+                    <td><div class="cli">Dicor Comercializadora<small>RFC: DIC930812XX1</small></div></td>
+                    <td class="amt r">$12,500.00</td>
+                    <td class="amt m r">$2,000.00</td>
+                    <td class="amt r">$14,500.00</td>
+                    <td class="saldo paid r">$0.00</td>
+                    <td><span class="stbadge tim">Timbrado</span></td>
+                    <td><div class="ra"><div class="rab" title="Ver">👁</div><div class="rab" title="PDF">📄</div><div class="rab" title="Más">···</div></div></td>
+                  </tr>
+                  <tr onclick="clickRow(this)" data-id="B-004">
+                    <td><div class="chk" onclick="e(event);toggleRow(this)"></div></td>
+                    <td><span class="folio">B-004</span></td>
+                    <td><span class="dt">1 jun 2026</span></td>
+                    <td><div class="cli">Monica Valadez Grajeda<small>RFC: VAGM750301XX5</small></div></td>
+                    <td class="amt r">$9,000.00</td>
+                    <td class="amt m r">$1,440.00</td>
+                    <td class="amt r">$10,440.00</td>
+                    <td class="saldo paid r">$0.00</td>
+                    <td><span class="stbadge tim">Timbrado</span></td>
+                    <td><div class="ra"><div class="rab">👁</div><div class="rab">📄</div><div class="rab">···</div></div></td>
+                  </tr>
+                  <tr onclick="clickRow(this)" data-id="B-003">
+                    <td><div class="chk" onclick="e(event);toggleRow(this)"></div></td>
+                    <td><span class="folio">B-003</span></td>
+                    <td><span class="dt">1 jun 2026</span></td>
+                    <td><div class="cli">Jorge Ernesto Magaña Dueñas<small>RFC: MADJ820415XX3</small></div></td>
+                    <td class="amt r">$12,500.00</td>
+                    <td class="amt m r">$2,000.00</td>
+                    <td class="amt r">$14,500.00</td>
+                    <td class="r"><span class="saldo due">$14,500.00</span><span class="ov-chip">30 días</span></td>
+                    <td><span class="stbadge tim">Timbrado</span></td>
+                    <td><div class="ra"><div class="rab">👁</div><div class="rab">📄</div><div class="rab">···</div></div></td>
+                  </tr>
+                  <tr onclick="clickRow(this)" data-id="B-002">
+                    <td><div class="chk" onclick="e(event);toggleRow(this)"></div></td>
+                    <td><span class="folio">B-002</span></td>
+                    <td><span class="dt">1 jun 2026</span></td>
+                    <td><div class="cli">Canteras Santa Lucia<small>RFC: CSL910720XX8</small></div></td>
+                    <td class="amt r">$23,000.00</td>
+                    <td class="amt m r">$3,680.00</td>
+                    <td class="amt r">$26,680.00</td>
+                    <td class="r"><span class="saldo due">$26,680.00</span><span class="ov-chip">45 días</span></td>
+                    <td><span class="stbadge tim">Timbrado</span></td>
+                    <td><div class="ra"><div class="rab">👁</div><div class="rab">📄</div><div class="rab">···</div></div></td>
+                  </tr>
+                  <tr onclick="clickRow(this)" data-id="B-001">
+                    <td><div class="chk" onclick="e(event);toggleRow(this)"></div></td>
+                    <td><span class="folio">B-001</span></td>
+                    <td><span class="dt">1 jun 2026</span></td>
+                    <td><div class="cli">Grupo Supplier<small>RFC: GSU880603XX2</small></div></td>
+                    <td class="amt r">$16,034.48</td>
+                    <td class="amt m r">$2,565.52</td>
+                    <td class="amt r">$18,600.00</td>
+                    <td class="saldo paid r">$0.00</td>
+                    <td><span class="stbadge tim">Timbrado</span></td>
+                    <td><div class="ra"><div class="rab">👁</div><div class="rab">📄</div><div class="rab">···</div></div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="tfoot">
+              <div class="pp">Mostrar <select><option>25</option><option>50</option><option>100</option></select> por página</div>
+              <div style="font-size:12px;color:#94a3b8">Mostrando 1–5 de 5</div>
+              <div class="pgn">
+                <div class="pb">‹</div>
+                <div class="pb on">1</div>
+                <div class="pb">2</div>
+                <div class="pb">3</div>
+                <div class="pb">›</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- content -->
+      </div><!-- main -->
+    </div><!-- app -->
+  </div><!-- mkp-wrap -->
+
+  <!-- ANNOTATIONS -->
+  <div class="annots">
+    <h3>Cambios implementados en el prototipo</h3>
+    <div class="ann-grid">
+      <div class="ann"><div class="an">1</div><div class="at-txt"><strong>Sidebar vertical de navegación</strong>Libera el 100% del ancho para contenido. Permite escalar a más módulos sin overflow en la navbar. Los usuarios identifican el módulo activo por posición espacial, más rápido que por subrayado en una barra horizontal.</div></div>
+      <div class="ann"><div class="an">2</div><div class="at-txt"><strong>Breadcrumb + timestamp vs título + botón Recargar</strong>"Ventas › Facturas" da contexto de navegación en 1 línea. "Actualizado hace 2 min" con punto verde animado reemplaza el botón RECARGAR, comunicando que el sistema vive en tiempo real.</div></div>
+      <div class="ann"><div class="an">3</div><div class="at-txt"><strong>KPI strip de una línea (44px vs 80px)</strong>Los mismos 5 KPIs en la mitad del espacio vertical. Los valores en $0.00 se muestran como "—" para reducir ruido. El saldo pendiente total se suma y destaca en rojo como el dato más accionable.</div></div>
+      <div class="ann"><div class="an">4</div><div class="at-txt"><strong>Chips de filtro inline (40px vs 160px)</strong>Los filtros activos son chips removibles en una sola línea. El panel de 6 dropdowns vacíos desaparece. Los chips solo aparecen cuando hay filtros aplicados. Haz clic en cualquiera para probarlo.</div></div>
+      <div class="ann"><div class="an">5</div><div class="at-txt"><strong>Filas compactas con RFC como dato secundario</strong>El padding reducido permite mostrar más registros. Se agrega el RFC como línea secundaria dentro de la celda de cliente, sin columna adicional. Mismo espacio, más información contextual.</div></div>
+      <div class="ann"><div class="an">6</div><div class="at-txt"><strong>Chips "X días" inline en columna Saldo</strong>En lugar de columna adicional, el chip "30 días / 45 días" aparece junto al monto en rojo. El administrador de cartera identifica urgencia y antigüedad sin abrir el registro.</div></div>
+      <div class="ann"><div class="an">7</div><div class="at-txt"><strong>Acciones de fila aparecen solo en hover</strong>Los botones 👁 📄 ··· son invisibles hasta que el cursor pasa sobre la fila. La tabla permanece limpia por defecto. Las acciones están disponibles cuando el usuario las necesita, no permanentemente.</div></div>
+      <div class="ann"><div class="an">8</div><div class="at-txt"><strong>Toolbar bulk contextual — pruébalo</strong>Haz clic en los checkboxes de la izquierda para seleccionar filas. Aparece automáticamente una barra azul con acciones masivas: Enviar por correo, Exportar selección, Cancelar. Haz clic en ✕ para limpiar la selección.</div></div>
+    </div>
+  </div>
+
+  <div class="footer-note">Auditoría UX preparada con Claude Code · Emphasys ERP · Junio 2026</div>
+
+</div><!-- doc -->
+
+<script>
+var sel=new Set(),masterOn=false;
+function e(ev){ev.stopPropagation()}
+function toggleRow(chk){
+  var row=chk.closest('tr'),id=row.dataset.id;
+  if(chk.classList.contains('on')){chk.classList.remove('on');chk.textContent='';row.classList.remove('sel');sel.delete(id)}
+  else{chk.classList.add('on');chk.textContent='✓';row.classList.add('sel');sel.add(id)}
+  updateBulk();syncMaster();
+}
+function toggleAll(){
+  var mc=document.getElementById('mchk'),
+      chks=document.querySelectorAll('#tbody .chk'),
+      rows=document.querySelectorAll('#tbody tr');
+  masterOn=!masterOn;
+  if(masterOn){mc.classList.add('on');mc.textContent='✓';chks.forEach(function(c,i){c.classList.add('on');c.textContent='✓';rows[i].classList.add('sel');sel.add(rows[i].dataset.id)})}
+  else{mc.classList.remove('on');mc.textContent='';chks.forEach(function(c,i){c.classList.remove('on');c.textContent='';rows[i].classList.remove('sel')});sel.clear()}
+  updateBulk();
+}
+function syncMaster(){
+  var mc=document.getElementById('mchk'),total=document.querySelectorAll('#tbody tr').length;
+  if(sel.size===total){mc.classList.add('on');mc.textContent='✓';masterOn=true}
+  else{mc.classList.remove('on');mc.textContent='';masterOn=false}
+}
+function updateBulk(){
+  var bar=document.getElementById('bulkBar'),cnt=document.getElementById('bulkCnt');
+  if(sel.size>0){bar.classList.add('vis');cnt.textContent=sel.size+' seleccionado'+(sel.size>1?'s':'')}
+  else{bar.classList.remove('vis')}
+}
+function clearSel(){
+  document.querySelectorAll('#tbody .chk').forEach(function(c){c.classList.remove('on');c.textContent=''});
+  document.querySelectorAll('#tbody tr').forEach(function(r){r.classList.remove('sel')});
+  sel.clear();masterOn=false;
+  var mc=document.getElementById('mchk');mc.classList.remove('on');mc.textContent='';
+  updateBulk();
+}
+function clickRow(row){
+  document.querySelectorAll('#tbody tr').forEach(function(r){r.style.outline=''});
+  row.style.outline='2px solid #1d2f68';row.style.outlineOffset='-2px';
+}
+function doSort(th){
+  document.querySelectorAll('.tbl th.sort').forEach(function(t){
+    t.classList.remove('sorted');
+    var si=t.querySelector('.si');if(si){si.classList.remove('on');si.textContent='↕'}
+  });
+  th.classList.add('sorted');
+  var si=th.querySelector('.si');if(si){si.classList.add('on');si.textContent='↓'}
+}
+function toggleChip(c){c.classList.toggle('act')}
+</script>
+</body>
+</html>

@@ -75,3 +75,55 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
 
   return payload as T;
 }
+
+export async function apiFetchBlob(url: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {
+  const session = readSession();
+  const finalUrl = buildUrl(url);
+  const headers = new Headers(options.headers || {});
+
+  if (session?.token) {
+    headers.set("Authorization", `Bearer ${session.token}`);
+  }
+  if (session?.empresaActivaId && !headers.has("X-Empresa-Id")) {
+    headers.set("X-Empresa-Id", String(session.empresaActivaId));
+  }
+
+  let body = options.body;
+  if (isJsonSerializable(body)) {
+    headers.set("Content-Type", "application/json");
+    body = JSON.stringify(body);
+  }
+
+  const response = await fetch(finalUrl, { ...options, headers, body: body ?? null });
+
+  if (response.status === 401) {
+    clearSession();
+    window.location.href = "/login";
+    throw new Error("Sesión expirada");
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    let message = text;
+    try { message = JSON.parse(text)?.message || text; } catch { /* no-op */ }
+    throw new Error(message || `Error HTTP ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+  const filename = match ? match[1].replace(/['"]/g, '') : 'exportacion.xlsx';
+
+  return { blob, filename };
+}
+
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

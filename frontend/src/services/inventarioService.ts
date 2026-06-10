@@ -1,4 +1,4 @@
-import { apiFetch } from './apiFetch';
+import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 import type {
   Almacen,
   CrearMovimientoManualPayload,
@@ -28,4 +28,16 @@ export async function obtenerMovimientoDetalle(id: number): Promise<MovimientoDe
 
 export async function fetchAlmacenes(): Promise<Almacen[]> {
   return apiFetch('/api/almacenes');
+}
+
+export type ExportMovimientoColumna = { field: string; headerName: string };
+
+export async function exportarMovimientos(payload: {
+  columns: ExportMovimientoColumna[];
+}): Promise<void> {
+  const { blob, filename } = await apiFetchBlob(`${BASE_URL}/movimientos/exportar`, {
+    method: 'POST',
+    body: payload as any,
+  });
+  triggerBlobDownload(blob, filename);
 }

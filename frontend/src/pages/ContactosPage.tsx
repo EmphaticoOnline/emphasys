@@ -18,7 +18,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import { fetchContactosPaginados, fetchVendedores } from '../services/contactosService.js';
 import { obtenerCatalogosConfigurablesContacto } from '../services/contactos.api';
-import { eliminarContacto } from '../services/contactos.api';
+import { eliminarContacto, exportarContactos } from '../services/contactos.api';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
@@ -75,6 +75,7 @@ export default function ContactosPage() {
   const [advancedFilters, setAdvancedFilters] = useState<ContactosAdvancedFiltersState>(CONTACTOS_ADVANCED_FILTERS_INITIAL);
   const [seguimientoContacto, setSeguimientoContacto] = useState<ContactoRow | null>(null);
   const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const drawerReopenHandled = useRef(false);
 
   const vendedorNombre = useMemo(() => {
@@ -105,6 +106,39 @@ export default function ContactosPage() {
   const handleVerActividades = (contacto: ContactoRow) => {
     setSeguimientoContacto(contacto);
     setSeguimientoDrawerOpen(true);
+  };
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      const exportColumns = orderedColumns
+        .filter(
+          (col) =>
+            col.field !== 'menu' &&
+            col.field !== 'actions' &&
+            effectiveColumnVisibilityModel[col.field] !== false
+        )
+        .map((col) => ({ field: col.field, headerName: String(col.headerName ?? col.field) }));
+
+      await exportarContactos({
+        filters: {
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          activo: advancedFilters.activo,
+          ...(advancedFilters.selectedTipos.length ? { tipos: advancedFilters.selectedTipos } : {}),
+          ...(advancedFilters.origenContactoId != null ? { origenContactoId: advancedFilters.origenContactoId } : {}),
+          ...(advancedFilters.vendedorId != null ? { vendedorId: advancedFilters.vendedorId } : {}),
+          ...(advancedFilters.fechaAltaDesde ? { fechaAltaDesde: advancedFilters.fechaAltaDesde } : {}),
+          ...(advancedFilters.fechaAltaHasta ? { fechaAltaHasta: advancedFilters.fechaAltaHasta } : {}),
+          ...(advancedFilters.interesInicial ? { interesInicial: advancedFilters.interesInicial } : {}),
+          ...(advancedFilters.observaciones ? { observaciones: advancedFilters.observaciones } : {}),
+        },
+        columns: exportColumns,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo exportar');
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   const openDrawerContactoId = (location.state as { openDrawerContactoId?: number } | null)?.openDrawerContactoId ?? null;
@@ -178,7 +212,7 @@ export default function ContactosPage() {
       headerClassName: 'finanzas-header',
       renderCell: (params: GridRenderCellParams) => params.value || '',
     },
-    { field: 'telefono_secundario', headerName: 'Teléfono', width: 130, headerClassName: 'finanzas-header' },
+    { field: 'telefono_secundario', headerName: 'Teléfono secundario', width: 130, headerClassName: 'finanzas-header' },
     {
       field: 'actions',
       headerName: 'Acciones',
@@ -546,6 +580,8 @@ export default function ContactosPage() {
       contextMenuPosition={contextMenuPosition}
       contextMenuOpen={Boolean(contextMenuRow)}
       onCloseContextMenu={closeContextMenu}
+      onExport={handleExport}
+      exportLoading={exportLoading}
     />
   );
 

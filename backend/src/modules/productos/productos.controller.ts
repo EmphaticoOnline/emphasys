@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import { generarExcelBuffer } from '../../utils/exportar';
+import type { ExportColumna } from '../../utils/exportar';
 import {
   getProductosRepository,
   updateProductoRepository,
@@ -222,6 +224,48 @@ export async function eliminarProductoArchivo(req: Request, res: Response) {
   } catch (error) {
     console.error('Error al eliminar archivo de producto:', error);
     return res.status(500).json({ message: 'Error al eliminar archivo del producto' });
+  }
+}
+
+export async function exportarProductos(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    if (!empresaId) return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+
+    const { filters = {}, columns } = req.body as { filters: Record<string, any>; columns: ExportColumna[] };
+
+    if (!Array.isArray(columns) || columns.length === 0) {
+      return res.status(400).json({ message: 'columns es obligatorio' });
+    }
+
+    const exportColumns = columns
+      .filter((c) => c && typeof c.field === 'string' && typeof c.headerName === 'string')
+      .slice(0, 50);
+
+    if (exportColumns.length === 0) {
+      return res.status(400).json({ message: 'No hay columnas válidas para exportar' });
+    }
+
+    const search = typeof filters.search === 'string' ? filters.search.trim().toLowerCase() : '';
+
+    let productos: Record<string, any>[] = await getProductosRepository(Number(empresaId));
+
+    if (search) {
+      productos = productos.filter((p) =>
+        [p['clave'], p['descripcion']]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(search))
+      );
+    }
+
+    const buffer = generarExcelBuffer(productos, exportColumns, 'Productos');
+    const fecha = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="productos-${fecha}.xlsx"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error al exportar productos:', error);
+    res.status(500).json({ message: 'Error al exportar productos' });
   }
 }
 

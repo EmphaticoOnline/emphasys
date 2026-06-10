@@ -1,5 +1,5 @@
 import type { Producto, ProductoBasico } from '../types/producto';
-import { apiFetch } from './apiFetch';
+import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 
 const BASE_URL = '/api/productos';
 
@@ -97,4 +97,17 @@ export async function marcarProductoArchivoPrincipal(archivoId: number): Promise
   return apiFetch(`${BASE_URL}/archivos/${archivoId}/principal`, {
     method: 'PATCH',
   });
+}
+
+export type ExportProductoColumna = { field: string; headerName: string };
+
+export async function exportarProductos(payload: {
+  filters: Record<string, any>;
+  columns: ExportProductoColumna[];
+}): Promise<void> {
+  const { blob, filename } = await apiFetchBlob(`${BASE_URL}/exportar`, {
+    method: 'POST',
+    body: payload as any,
+  });
+  triggerBlobDownload(blob, filename);
 }

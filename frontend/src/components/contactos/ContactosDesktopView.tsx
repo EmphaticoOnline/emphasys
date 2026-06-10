@@ -1,6 +1,7 @@
-import { Box, Button, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import DownloadIcon from '@mui/icons-material/Download';
 import { GridContextMenu } from '../grids/GridContextMenu';
 import { EmphasysDataGrid } from '../grids/EmphasysDataGrid';
 import {
@@ -35,6 +36,8 @@ export default function ContactosDesktopView({
   contextMenuPosition,
   contextMenuOpen,
   onCloseContextMenu,
+  onExport,
+  exportLoading,
   searchTerm,
   onSearchTermChange,
   onClearSearch,
@@ -86,20 +89,29 @@ export default function ContactosDesktopView({
               }}
             />
           </Box>
-          <Button
-            variant="contained"
-            onClick={onCreateContacto}
-            sx={{
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              backgroundColor: '#1d2f68',
-              color: '#ffffff',
-              '&:hover': { backgroundColor: '#162551' },
-              alignSelf: 'flex-end',
-            }}
-          >
-            + NUEVO
-          </Button>
+          <Stack direction="row" spacing={1} sx={{ alignSelf: 'flex-end' }}>
+            <Button
+              variant="outlined"
+              startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
+              onClick={onExport}
+              disabled={exportLoading}
+            >
+              Exportar
+            </Button>
+            <Button
+              variant="contained"
+              onClick={onCreateContacto}
+              sx={{
+                textTransform: 'uppercase',
+                fontWeight: 700,
+                backgroundColor: '#1d2f68',
+                color: '#ffffff',
+                '&:hover': { backgroundColor: '#162551' },
+              }}
+            >
+              + NUEVO
+            </Button>
+          </Stack>
         </Box>
 
         <ContactosAdvancedFilters

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth, requireEmpresaActiva } from "../auth/auth.middleware";
-import { getContactos } from "./contactos.controller";
+import { getContactos, exportarContactos } from "./contactos.controller";
 import { crearContacto } from './contactos.controller';
 import { actualizarContacto } from './contactos.controller';
 import { getContactoPorId } from './contactos.controller';
@@ -12,6 +12,7 @@ const router = Router();
 // Endpoint base: /api/contactos
 // GET /
 router.get("/", requireAuth, requireEmpresaActiva, getContactos);
+router.post('/exportar', requireAuth, requireEmpresaActiva, exportarContactos);
 router.get('/catalogos-configurables', requireAuth, requireEmpresaActiva, listarCatalogosConfigurablesDeContacto);
 router.put('/:id/catalogos-configurables', requireAuth, requireEmpresaActiva, guardarCatalogosConfigurables);
 router.get('/:id', requireAuth, requireEmpresaActiva, getContactoPorId);

@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
+import { generarExcelBuffer } from '../../utils/exportar';
+import type { ExportColumna } from '../../utils/exportar';
 import {
   listarDocumentosRepository,
   obtenerDocumentoRepository,
@@ -588,6 +590,96 @@ export const calcularImpuestosPreviewHandler = async (req: Request, res: Respons
     return res.status(500).json({ message: 'Error al calcular impuestos' });
   }
 };
+
+export async function exportarDocumentos(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    if (!empresaId) return res.status(400).json({ message: 'empresaId no disponible en contexto' });
+
+    const { filters = {}, columns } = req.body as {
+      filters: Record<string, any>;
+      columns: ExportColumna[];
+    };
+
+    if (!Array.isArray(columns) || columns.length === 0) {
+      return res.status(400).json({ message: 'columns es obligatorio' });
+    }
+
+    const exportColumns = columns
+      .filter((c) => c && typeof c.field === 'string' && typeof c.headerName === 'string')
+      .slice(0, 50);
+
+    if (exportColumns.length === 0) {
+      return res.status(400).json({ message: 'No hay columnas válidas para exportar' });
+    }
+
+    const tipo = normalizarTipo(filters.tipo_documento, 'cotizacion');
+    const search = typeof filters.search === 'string' ? filters.search : null;
+
+    let filas: Record<string, any>[] = await listarDocumentosRepository(tipo, Number(empresaId), search);
+
+    if (filters.soloPendientes === true) {
+      filas = filas.filter((row) => Number(row['saldo'] ?? 0) > 0);
+    }
+
+    const quickFilter = typeof filters.quickFilter === 'string' ? filters.quickFilter.trim().toLowerCase() : 'todos';
+    if (quickFilter && quickFilter !== 'todos') {
+      const statusField = tipo === 'cotizacion' ? 'estado_seguimiento' : 'estatus_documento';
+      filas = filas.filter((row) => {
+        const raw = String(row[statusField] ?? '').trim().toLowerCase();
+        const normalized = statusField === 'estatus_documento' && raw === 'enviado' ? 'emitido' : raw;
+        return normalized === quickFilter;
+      });
+    }
+
+    if (filters.clienteId) {
+      const clienteId = Number(filters.clienteId);
+      filas = filas.filter((row) => Number(row['contacto_principal_id']) === clienteId);
+    }
+
+    if (filters.agenteId) {
+      const agenteId = Number(filters.agenteId);
+      filas = filas.filter((row) => Number(row['agente_id'] ?? 0) === agenteId);
+    }
+
+    if (filters.fechaDesde) {
+      const desde = new Date(String(filters.fechaDesde));
+      desde.setHours(0, 0, 0, 0);
+      filas = filas.filter((row) => new Date(row['fecha_documento']) >= desde);
+    }
+
+    if (filters.fechaHasta) {
+      const hasta = new Date(String(filters.fechaHasta));
+      hasta.setHours(23, 59, 59, 999);
+      filas = filas.filter((row) => new Date(row['fecha_documento']) <= hasta);
+    }
+
+    const montoMin = filters.montoMin !== '' && filters.montoMin != null ? Number(filters.montoMin) : null;
+    const montoMax = filters.montoMax !== '' && filters.montoMax != null ? Number(filters.montoMax) : null;
+
+    if (montoMin !== null && !Number.isNaN(montoMin)) {
+      filas = filas.filter((row) => Number(row['total'] ?? 0) >= montoMin);
+    }
+
+    if (montoMax !== null && !Number.isNaN(montoMax)) {
+      filas = filas.filter((row) => Number(row['total'] ?? 0) <= montoMax);
+    }
+
+    filas = filas.map((row) => ({
+      ...row,
+      folio: formatearFolioDocumento(String(row['serie'] ?? ''), Number(row['numero'] ?? 0)) || String(row['id']),
+    }));
+
+    const buffer = generarExcelBuffer(filas, exportColumns, 'Documentos');
+    const fecha = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="documentos-${fecha}.xlsx"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error al exportar documentos:', error);
+    res.status(500).json({ message: 'Error al exportar documentos' });
+  }
+}
 
 const buildPdfHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) => async (req: Request, res: Response) => {
   try {
