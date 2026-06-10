@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; margin: 2cm; color: #1a1a1a; }
+  h1 { font-size: 20pt; color: #1d2f68; border-bottom: 3px solid #1d2f68; padding-bottom: 6pt; margin-top: 0; }
+  h2 { font-size: 15pt; color: #1d2f68; border-bottom: 1px solid #c0c0c0; padding-bottom: 4pt; margin-top: 24pt; }
+  h3 { font-size: 12pt; color: #2c4a9e; margin-top: 16pt; margin-bottom: 4pt; }
+  h4 { font-size: 11pt; color: #444; margin-top: 12pt; margin-bottom: 2pt; }
+  p { margin: 4pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10pt 0; font-size: 10pt; }
+  th { background-color: #1d2f68; color: white; padding: 6pt 8pt; text-align: left; }
+  td { border: 1px solid #d0d0d0; padding: 5pt 8pt; vertical-align: top; }
+  tr:nth-child(even) td { background-color: #f5f7fc; }
+  .badge-red    { background:#e53935; color:white; padding:2pt 6pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-yellow { background:#f57c00; color:white; padding:2pt 6pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-green  { background:#388e3c; color:white; padding:2pt 6pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-blue   { background:#1d2f68; color:white; padding:2pt 6pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .bar { display:inline-block; height:10pt; background:#1d2f68; vertical-align:middle; }
+  .bar-bg { display:inline-block; height:10pt; background:#e0e0e0; vertical-align:middle; }
+  ul { margin: 4pt 0 4pt 16pt; padding: 0; }
+  li { margin-bottom: 2pt; }
+  .seccion-critica   { border-left: 4px solid #e53935; padding-left: 10pt; margin-bottom: 12pt; }
+  .seccion-importante{ border-left: 4px solid #f57c00; padding-left: 10pt; margin-bottom: 12pt; }
+  .seccion-deseable  { border-left: 4px solid #388e3c; padding-left: 10pt; margin-bottom: 12pt; }
+  .cover { text-align:center; padding: 40pt 0 30pt 0; }
+  .cover h1 { border: none; font-size: 28pt; }
+  .cover .subtitulo { font-size: 14pt; color: #555; margin-top: 8pt; }
+  .cover .fecha { font-size: 10pt; color: #888; margin-top: 16pt; }
+  pre { background:#f4f4f4; padding:8pt; font-size:9pt; border:1px solid #ccc; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 16pt 0; }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div class="cover">
+  <h1>Emphasys ERP</h1>
+  <div class="subtitulo">Inventario de módulos implementados<br>y análisis de funcionalidades faltantes</div>
+  <div class="fecha">Generado el 8 de junio de 2026</div>
+</div>
+
+<hr>
+
+<!-- ==================== PARTE 1: INVENTARIO ==================== -->
+
+<h1>Parte 1 — Inventario del sistema actual</h1>
+
+<!-- MÓDULOS IMPLEMENTADOS -->
+<h2>1. Módulos implementados</h2>
+
+<table>
+  <tr>
+    <th>Módulo</th>
+    <th>Backend</th>
+    <th>Frontend</th>
+    <th>Estado</th>
+  </tr>
+  <tr><td>Autenticación (JWT, roles, permisos)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Multiempresa</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Contactos (clientes / proveedores)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Productos y catálogo</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Documentos universales (cotizaciones, facturas, etc.)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>CFDI / Facturama (timbrado y cancelación)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Finanzas (cuentas, operaciones, aging)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Inventario y almacenes</td><td>✔</td><td>✔</td><td>Básico</td></tr>
+  <tr><td>Producción (etapas, seguimiento)</td><td>✔</td><td>✔</td><td>Básico</td></tr>
+  <tr><td>CRM (actividades, oportunidades)</td><td>✔</td><td>✔</td><td>Básico</td></tr>
+  <tr><td>WhatsApp Business (mensajes, plantillas, etiquetas)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Email / SMTP configurable</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Precios y listas de precios</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Campos dinámicos configurables</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Reportes con IA (OpenAI)</td><td>✔</td><td>✔</td><td>Básico</td></tr>
+  <tr><td>Configuración y parámetros del sistema</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Grid preferences por usuario</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Compras</td><td>Esqueleto</td><td>Esqueleto</td><td>Incompleto</td></tr>
+</table>
+
+<!-- PÁGINAS FRONTEND -->
+<h2>2. Pantallas del frontend (45 páginas)</h2>
+
+<h3>Páginas principales</h3>
+<table>
+  <tr><th>Página</th><th>Descripción</th></tr>
+  <tr><td>LoginPage</td><td>Autenticación</td></tr>
+  <tr><td>SeleccionEmpresaPage</td><td>Selección de empresa activa</td></tr>
+  <tr><td>CRMPage</td><td>Dashboard CRM integrado</td></tr>
+  <tr><td>ActividadesPage / ActividadFormPage</td><td>Actividades comerciales</td></tr>
+  <tr><td>OportunidadesPage / OportunidadDetallePage</td><td>Oportunidades de venta</td></tr>
+  <tr><td>LeadsPage</td><td>Conversaciones / leads de WhatsApp</td></tr>
+  <tr><td>ContactosPage / ContactoFormPage</td><td>Gestión de clientes y proveedores</td></tr>
+  <tr><td>ProductosPage / ProductoFormPage</td><td>Catálogo de productos</td></tr>
+  <tr><td>DocumentosPage / DocumentosFormPage</td><td>Documentos (cotizaciones, facturas, etc.)</td></tr>
+  <tr><td>CotizacionesGridPage</td><td>Vista grilla de cotizaciones</td></tr>
+  <tr><td>FinanzasPage</td><td>Módulo financiero</td></tr>
+  <tr><td>InventarioMovimientosPage / InventarioMovimientoFormPage</td><td>Movimientos de inventario</td></tr>
+  <tr><td>ProduccionPage</td><td>Seguimiento de producción</td></tr>
+  <tr><td>AIReportesPage</td><td>Reportes con inteligencia artificial</td></tr>
+  <tr><td>CamposConfiguracionPage</td><td>Campos dinámicos</td></tr>
+  <tr><td>CatalogosConfigurablesPage</td><td>Catálogos configurables por módulo</td></tr>
+  <tr><td>ConceptosPage</td><td>Conceptos de documentos</td></tr>
+  <tr><td>ConfiguracionEtapasProduccionPage</td><td>Etapas de producción</td></tr>
+</table>
+
+<h3>Páginas de configuración</h3>
+<table>
+  <tr><th>Página</th><th>Descripción</th></tr>
+  <tr><td>EmpresasPage</td><td>Gestión de empresas</td></tr>
+  <tr><td>UsuariosPage</td><td>Gestión de usuarios</td></tr>
+  <tr><td>RolesPage</td><td>Roles y permisos</td></tr>
+  <tr><td>ParametrosPage / OpcionesParametrosPage</td><td>Parámetros del sistema</td></tr>
+  <tr><td>DocumentosConfiguracionPage</td><td>Tipos y configuración de documentos</td></tr>
+  <tr><td>ConceptosPage (config)</td><td>Conceptos configurables</td></tr>
+  <tr><td>EmpresaImpuestosDefaultPage</td><td>Impuestos default por empresa</td></tr>
+  <tr><td>FormatosImpresionPage</td><td>Formatos de impresión personalizables</td></tr>
+  <tr><td>ListasPreciosPage / PreciosPage</td><td>Listas y tabla de precios</td></tr>
+  <tr><td>SeriesDocumentosPage</td><td>Series de documentos con folio automático</td></tr>
+  <tr><td>ConfiguracionCorreoPage</td><td>Configuración SMTP</td></tr>
+  <tr><td>CfdiPacConfigPage</td><td>Configuración de Facturama</td></tr>
+  <tr><td>WhatsappEtiquetasPage / WhatsappPlantillasPage</td><td>WhatsApp: etiquetas y plantillas</td></tr>
+  <tr><td>CamposObligatoriosPage</td><td>Campos obligatorios por entidad y contexto</td></tr>
+</table>
+
+<!-- BASE DE DATOS -->
+<h2>3. Base de datos (60+ tablas)</h2>
+
+<table>
+  <tr><th>Esquema</th><th>Tablas principales</th></tr>
+  <tr>
+    <td><strong>public</strong></td>
+    <td>documentos, documentos_partidas, documentos_partidas_impuestos, aplicaciones, productos, productos_archivos, contactos, plantillas_documento, series_documento, precios, precios_listas, conceptos, unidades, impuestos_empresa_default, campos_configuracion, campos_documento_valor</td>
+  </tr>
+  <tr>
+    <td><strong>inventario</strong></td>
+    <td>almacenes, movimientos, movimientos_partidas, existencias</td>
+  </tr>
+  <tr>
+    <td><strong>produccion</strong></td>
+    <td>etapas, seguimientos, seguimientos_historial</td>
+  </tr>
+  <tr>
+    <td><strong>finanzas_operaciones</strong></td>
+    <td>finanzas_operaciones, finanzas_operaciones_conciliacion</td>
+  </tr>
+  <tr>
+    <td><strong>crm</strong></td>
+    <td>actividades, oportunidades_venta, reglas_seguimiento, configuracion_email_empresa, configuracion_email_usuario, email_plantillas</td>
+  </tr>
+  <tr>
+    <td><strong>whatsapp</strong></td>
+    <td>config, plantillas, etiquetas, conversacion_etiquetas, conversaciones, mensajes</td>
+  </tr>
+  <tr>
+    <td><strong>core</strong></td>
+    <td>empresas, usuarios, usuarios_empresas, roles, usuarios_roles, catalogos, tipos_documento, entidades_tipos, cfdi_pac_config, grid_preferences, campos_obligatorios</td>
+  </tr>
+</table>
+
+<!-- ENDPOINTS -->
+<h2>4. Endpoints del backend (200+)</h2>
+
+<table>
+  <tr><th>Módulo</th><th>Endpoints destacados</th><th>Total aprox.</th></tr>
+  <tr><td>Autenticación</td><td>login, /me, change-password</td><td>3</td></tr>
+  <tr><td>Contactos</td><td>CRUD completo + catálogos configurables</td><td>8</td></tr>
+  <tr><td>Productos</td><td>CRUD + archivos + catálogos configurables</td><td>11</td></tr>
+  <tr><td>Documentos</td><td>CRUD + timbrar + cancelar + PDF + email + WhatsApp + duplicar + partidas</td><td>20</td></tr>
+  <tr><td>Facturas</td><td>CRUD + timbrar + XML + PDF + email + WhatsApp + links públicos</td><td>15</td></tr>
+  <tr><td>Finanzas</td><td>Cuentas, operaciones, transferencias, conciliaciones, aplicaciones, aging, estado de cuenta</td><td>22</td></tr>
+  <tr><td>Inventario</td><td>Movimientos manuales, aplicar/revertir documento, listado</td><td>5</td></tr>
+  <tr><td>Producción</td><td>Etapas CRUD, seguimientos CRUD</td><td>8</td></tr>
+  <tr><td>Usuarios</td><td>CRUD + empresas + roles</td><td>9</td></tr>
+  <tr><td>Roles</td><td>CRUD por empresa</td><td>4</td></tr>
+  <tr><td>WhatsApp</td><td>Webhook, enviar mensaje/plantilla, conversaciones, etiquetas</td><td>14</td></tr>
+  <tr><td>CRM</td><td>Oportunidades, actividades, recordatorios</td><td>11</td></tr>
+  <tr><td>Configuración</td><td>Email, series, CFDI, campos obligatorios, impuestos, precios</td><td>25+</td></tr>
+  <tr><td>Catálogos / Conceptos / Unidades</td><td>CRUD + tipos + regímenes fiscales SAT</td><td>12</td></tr>
+  <tr><td>IA / Leads</td><td>Reportes SQL natural, sugerencia de mensajes</td><td>3</td></tr>
+</table>
+
+<!-- INTEGRACIONES -->
+<h2>5. Integraciones externas</h2>
+
+<table>
+  <tr><th>Servicio</th><th>Propósito</th><th>Estado</th></tr>
+  <tr><td><strong>Facturama</strong></td><td>Timbrado y cancelación de CFDI, registro de CSD multiemisor, descarga XML/PDF</td><td>Completo</td></tr>
+  <tr><td><strong>OpenAI</strong> (GPT-4.1-mini)</td><td>Generación de reportes SQL desde lenguaje natural, sugerencias de mensajes para leads</td><td>Funcional</td></tr>
+  <tr><td><strong>WhatsApp Business API</strong></td><td>Mensajería bidireccional, plantillas, webhook, ruteo automático</td><td>Completo</td></tr>
+  <tr><td><strong>Nodemailer / SMTP</strong></td><td>Envío de documentos y notificaciones por correo, configuración por empresa o usuario</td><td>Completo</td></tr>
+  <tr><td><strong>PostgreSQL</strong></td><td>Base de datos principal, sin ORM, esquemas múltiples, campos JSONB dinámicos</td><td>Completo</td></tr>
+</table>
+
+<!-- COBERTURA -->
+<h2>6. Cobertura actual estimada</h2>
+
+<table>
+  <tr><th>Área</th><th>Cobertura</th><th>Observación</th></tr>
+  <tr><td>Comercial básico</td><td>80 %</td><td>Faltan descuentos avanzados y comisiones</td></tr>
+  <tr><td>Facturación / CFDI</td><td>60 %</td><td>Faltan complemento de pagos y carta porte</td></tr>
+  <tr><td>Finanzas operativas</td><td>70 %</td><td>Falta CxP completa y conciliación bancaria automática</td></tr>
+  <tr><td>CRM</td><td>50 %</td><td>Falta pipeline Kanban, forecast y campañas</td></tr>
+  <tr><td>Inventario</td><td>50 %</td><td>Falta valuación, series/lotes, toma física</td></tr>
+  <tr><td>Compras</td><td>20 %</td><td>Solo esqueleto de rutas</td></tr>
+  <tr><td>Contabilidad</td><td>0 %</td><td>Módulo no iniciado</td></tr>
+  <tr><td>Nómina</td><td>0 %</td><td>Módulo no iniciado</td></tr>
+  <tr><td>Reportes / BI</td><td>30 %</td><td>Solo reportes IA ad-hoc; faltan reportes estándar</td></tr>
+  <tr><td><strong>Cobertura ERP total</strong></td><td><strong>~45 %</strong></td><td></td></tr>
+</table>
+
+<hr>
+
+<!-- ==================== PARTE 2: FALTANTES ==================== -->
+
+<h1>Parte 2 — Funcionalidades faltantes para ERP competitivo en México</h1>
+
+<!-- CRÍTICAS -->
+<h2>🔴 Críticas — Bloquean ventas o cumplimiento fiscal</h2>
+
+<div class="seccion-critica">
+<h3>1. Complemento de Pagos (CFDI Pagos 2.0 / PPD)</h3>
+<p>El sistema genera facturas pero no emite el complemento de pagos cuando el cliente paga en parcialidades (método de pago PPD). Es <strong>obligación fiscal SAT</strong>; sin él el cliente no puede deducir la factura.</p>
+<ul>
+  <li>Relación de documentos relacionados (UUID del CFDI origen)</li>
+  <li>Nodo <em>Pagos 2.0</em> con moneda, tipo de cambio, importe pagado</li>
+  <li>Impuestos trasladados y retenidos en el nodo de pagos</li>
+  <li>Actualización de saldo del documento al timbrar el complemento</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>2. CFDI de Nómina (Complemento Nómina 1.2)</h3>
+<p>No existe ningún módulo de nómina. Para empresas con empleados formales es <strong>obligación ISR/IMSS</strong>.</p>
+<ul>
+  <li>Alta de empleados (RFC, CURP, NSS, datos laborales, banco)</li>
+  <li>Cálculo de percepciones y deducciones</li>
+  <li>Cálculo de ISR (tabla mensual/quincenal/semanal)</li>
+  <li>Timbrado de recibos de nómina como CFDI</li>
+  <li>Integración con IMSS (SUA/IDSE)</li>
+  <li>Declaraciones mensuales y anuales (PTU)</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>3. Contabilidad General y e-Contabilidad</h3>
+<p>No hay módulo contable. Para competir con CONTPAQi, Aspel NOI, SAE o cualquier ERP regional es indispensable. El SAT exige e-Contabilidad (XML) a todas las personas morales.</p>
+<ul>
+  <li>Plan de cuentas (catálogo de cuentas SAT)</li>
+  <li>Pólizas de diario, ingresos y egresos</li>
+  <li>Mayor general y auxiliares</li>
+  <li>Balanza de comprobación</li>
+  <li>Estado de resultados y balance general</li>
+  <li>e-Contabilidad: XML de catálogo, balanza y pólizas para el SAT</li>
+  <li>Generación automática de pólizas desde documentos</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>4. CFDI Carta Porte (Complemento 3.0)</h3>
+<p>Obligatorio desde 2022 para <strong>cualquier traslado de mercancía</strong> en territorio nacional. Clientes con logística o distribución no pueden operar legalmente sin él.</p>
+<ul>
+  <li>Datos del autotransporte (placas, año modelo, permisos SCT)</li>
+  <li>Figuras de transporte (operador, propietario, arrendatario)</li>
+  <li>Ubicaciones origen y destino con coordenadas</li>
+  <li>Mercancías con clave de producto SAT, peso, dimensiones</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>5. Módulo de Compras completo</h3>
+<p>Existe el esqueleto de rutas pero el flujo no está implementado. Sin compras no hay control real del ciclo comercial.</p>
+<ul>
+  <li>Requisiciones de compra con flujo de autorización</li>
+  <li>Órdenes de compra con PDF y envío a proveedor</li>
+  <li>Recepción de mercancía (entrada a inventario)</li>
+  <li>Facturas de proveedor (registro y conciliación contra OC)</li>
+  <li>Cuentas por pagar y programación de pagos</li>
+  <li>Aging de cuentas por pagar</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>6. Facturación Global (Ventas al público general)</h3>
+<p>Para negocios B2C (retail, restaurantes, tiendas) es <strong>obligación SAT</strong> emitir una factura global periódica con RFC genérico (XAXX010101000 o XEXX010101000) por las ventas sin factura individual.</p>
+<ul>
+  <li>Agrupación de tickets/ventas sin CFDI individual</li>
+  <li>Periodicidad configurable (diaria, semanal, mensual)</li>
+  <li>Timbrado automático de factura global</li>
+</ul>
+</div>
+
+<!-- IMPORTANTES -->
+<h2>🟡 Importantes — Necesarias para ser competitivo</h2>
+
+<div class="seccion-importante">
+<h3>7. Dashboard ejecutivo con KPIs</h3>
+<p>No existe página de inicio con métricas del negocio. Es la primera pantalla que ven los directores y vendedores en cualquier ERP.</p>
+<ul>
+  <li>Ventas del día / mes / año vs año anterior</li>
+  <li>Facturas vencidas y por vencer (semáforo)</li>
+  <li>Top clientes y top productos del período</li>
+  <li>Flujo de caja proyectado</li>
+  <li>Indicadores de inventario (productos bajo mínimo)</li>
+  <li>Actividades pendientes del vendedor</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>8. Exportación a Excel / CSV desde grillas</h3>
+<p>Las grillas tienen preferencias de columnas pero no exportan datos. Es la funcionalidad más solicitada en cualquier ERP por usuarios de administración y contabilidad.</p>
+</div>
+
+<div class="seccion-importante">
+<h3>9. Control de inventario avanzado</h3>
+<ul>
+  <li>Valuación de inventario (costo promedio ponderado, FIFO)</li>
+  <li>Números de serie y lotes</li>
+  <li>Fecha de caducidad y alertas de vencimiento</li>
+  <li>Mínimos, máximos y punto de reorden</li>
+  <li>Alertas automáticas de stock bajo</li>
+  <li>Toma física (conteo vs sistema, diferencias)</li>
+  <li>Kardex por producto con valorización</li>
+  <li>Traspasos entre almacenes con documento</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>10. Reportes estándar predefinidos</h3>
+<p>Los reportes IA son innovadores pero no reemplazan reportes operativos confiables y auditables que los contadores y gerentes necesitan cotidianamente.</p>
+<ul>
+  <li>Ventas por período, vendedor, producto y cliente</li>
+  <li>Libro de ventas y libro de compras</li>
+  <li>Análisis de rentabilidad por producto o línea</li>
+  <li>Inventario valorizado a fecha</li>
+  <li>Flujo de caja real vs proyectado</li>
+  <li>DIOT (Declaración Informativa de Operaciones con Terceros)</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>11. Descuentos avanzados y promociones</h3>
+<ul>
+  <li>Descuentos por volumen (escala de precios)</li>
+  <li>Descuentos por cliente o grupo de clientes</li>
+  <li>Vigencia de precios especiales</li>
+  <li>Descuento máximo permitido por rol de usuario</li>
+  <li>Promociones (2x1, producto de regalo, descuento condicionado)</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>12. Comisiones de vendedores</h3>
+<ul>
+  <li>Porcentaje de comisión configurable por vendedor, producto o categoría</li>
+  <li>Cálculo automático al facturar o al cobrar (configurable)</li>
+  <li>Reporte de comisiones por período y vendedor</li>
+  <li>Integración con nómina (cuando exista)</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>13. Importación masiva de datos (Excel / CSV)</h3>
+<ul>
+  <li>Carga masiva de productos (alta inicial y actualización de precios)</li>
+  <li>Carga masiva de contactos (clientes y prospectos)</li>
+  <li>Carga de saldos iniciales (cuentas por cobrar y pagar)</li>
+  <li>Plantillas de importación descargables con validación</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>14. Punto de venta (POS)</h3>
+<p>Para clientes con tienda física, mostrador o restaurante.</p>
+<ul>
+  <li>Interfaz de cobro rápida (pantalla táctil)</li>
+  <li>Impresora de tickets (Hasar, Epson)</li>
+  <li>Manejo de caja con apertura y corte</li>
+  <li>Pagos en efectivo, tarjeta y combinados</li>
+  <li>Facturación electrónica al momento o diferida</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>15. Descarga y validación de CFDIs recibidos (SAT)</h3>
+<p>Integración con el webservice del SAT para descargar las facturas recibidas de proveedores.</p>
+<ul>
+  <li>Conexión al buzón tributario SAT</li>
+  <li>Descarga masiva de XML de facturas recibidas</li>
+  <li>Validación de RFC y estatus (vigente / cancelado)</li>
+  <li>Conciliación automática con órdenes de compra</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>16. Portal de clientes (self-service)</h3>
+<ul>
+  <li>Acceso web para que el cliente vea sus facturas y estado de cuenta</li>
+  <li>Descarga de XML y PDF sin contactar al proveedor</li>
+  <li>Aprobación o rechazo de cotizaciones en línea</li>
+  <li>Historial de compras</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>17. CRM avanzado</h3>
+<ul>
+  <li>Pipeline visual tipo Kanban por etapa de venta</li>
+  <li>Pronóstico de ventas (forecast mensual / trimestral)</li>
+  <li>Scoring automático de leads (calificación por comportamiento)</li>
+  <li>Historial unificado del contacto (emails, llamadas, documentos, WhatsApp)</li>
+  <li>Campañas de seguimiento automatizado (cadencias)</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>18. Auditoría y trazabilidad completa</h3>
+<ul>
+  <li>Log de todos los cambios (quién cambió qué y cuándo)</li>
+  <li>Historial de versiones por registro</li>
+  <li>Exportación de logs para auditoría externa o SAT</li>
+  <li>Alertas de acciones sensibles (eliminaciones, cancelaciones)</li>
+</ul>
+</div>
+
+<!-- DESEABLES -->
+<h2>🟢 Deseables — Diferenciadores o para segmentos específicos</h2>
+
+<div class="seccion-deseable">
+<h3>19. Integración bancaria (SPEI / CoDi / Open Banking)</h3>
+<ul>
+  <li>Complemento de pago automático al detectar transferencia SPEI recibida</li>
+  <li>Conciliación bancaria automática vía XML bancario (BBVA, Banorte, Santander)</li>
+  <li>Generación de layouts de pago masivo (SPEI empresa)</li>
+  <li>Cobro con código QR / CoDi</li>
+  <li>Integración con Mercado Pago, Stripe o Conekta</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>20. E-commerce / Tienda en línea</h3>
+<ul>
+  <li>Catálogo de productos públicos con fotos y descripciones</li>
+  <li>Carrito de compra y proceso de checkout</li>
+  <li>Pago con tarjeta, SPEI o CoDi</li>
+  <li>Sincronización de inventario en tiempo real</li>
+  <li>Facturación automática al confirmar el pago</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>21. App móvil (PWA o nativa)</h3>
+<ul>
+  <li>Vendedores en campo: cotizaciones y captura de pedidos</li>
+  <li>Almacenistas: movimientos de inventario con escáner de código de barras</li>
+  <li>Directivos: dashboard con KPIs en tiempo real</li>
+  <li>Notificaciones push</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>22. Gestión de Recursos Humanos</h3>
+<ul>
+  <li>Expediente digital del empleado (documentos, historial)</li>
+  <li>Organigrama</li>
+  <li>Control de asistencia y vacaciones</li>
+  <li>Evaluaciones de desempeño</li>
+  <li>Onboarding y offboarding</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>23. Control de activos fijos</h3>
+<ul>
+  <li>Registro de activos (equipo, vehículos, mobiliario, software)</li>
+  <li>Depreciación automática (fiscal y contable)</li>
+  <li>Bajas, traspasos y revalorizaciones</li>
+  <li>Pólizas contables automáticas</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>24. Gestión de proyectos</h3>
+<p>Para empresas de servicios profesionales, construcción o manufactura.</p>
+<ul>
+  <li>Proyectos con fases y tareas</li>
+  <li>Presupuesto de proyecto vs. ejecutado</li>
+  <li>Asociación de documentos (facturas, compras) al proyecto</li>
+  <li>Análisis de rentabilidad por proyecto</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>25. Notificaciones en tiempo real (WebSocket)</h3>
+<ul>
+  <li>Notificaciones in-app sin recargar la página</li>
+  <li>Alertas de documentos pendientes de aprobación</li>
+  <li>Recordatorios automáticos de cobranza</li>
+  <li>Avisos de inventario bajo mínimo</li>
+  <li>Notificaciones de nuevos mensajes de WhatsApp</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>26. Business Intelligence / Dashboards avanzados</h3>
+<ul>
+  <li>Gráficas interactivas de ventas y tendencias</li>
+  <li>Comparativos vs. período anterior</li>
+  <li>Cubos de datos configurables por el usuario</li>
+  <li>Exportación a PDF de dashboards</li>
+  <li>Alertas automáticas por umbrales (venta baja, inventario crítico)</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>27. Autenticación avanzada (2FA / SSO)</h3>
+<ul>
+  <li>Doble factor de autenticación (Google Authenticator / SMS)</li>
+  <li>Single Sign-On con Google Workspace o Microsoft 365</li>
+  <li>Política de contraseñas configurable por empresa</li>
+  <li>Gestión de sesiones activas y cierre remoto</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>28. Gestión de garantías y devoluciones (RMA)</h3>
+<ul>
+  <li>Solicitud de devolución desde el documento de venta</li>
+  <li>Generación automática de nota de crédito</li>
+  <li>Reingreso al inventario con motivo</li>
+  <li>Seguimiento del ciclo de garantía</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>29. Cotizador avanzado (CPQ — Configure Price Quote)</h3>
+<p>Para empresas con productos complejos o configurables.</p>
+<ul>
+  <li>Reglas de configuración de productos (opciones mutuamente excluyentes)</li>
+  <li>Bundles y kits dinámicos con precio calculado automáticamente</li>
+  <li>Plantillas de cotización con imágenes y especificaciones técnicas</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>30. API pública documentada</h3>
+<ul>
+  <li>API REST con autenticación por API Key</li>
+  <li>Documentación con Swagger / OpenAPI</li>
+  <li>Webhooks de salida configurables (integraciones de terceros)</li>
+  <li>SDK o ejemplos para integradores</li>
+</ul>
+</div>
+
+<hr>
+
+<!-- RESUMEN FINAL -->
+<h2>Resumen de funcionalidades faltantes</h2>
+
+<table>
+  <tr>
+    <th>Clasificación</th>
+    <th>Cantidad</th>
+    <th>Funcionalidades</th>
+  </tr>
+  <tr>
+    <td><span class="badge-red">CRÍTICAS</span></td>
+    <td>6</td>
+    <td>Complemento pagos, CFDI Nómina, Contabilidad/e-Contabilidad, Carta Porte, Compras, Factura Global</td>
+  </tr>
+  <tr>
+    <td><span class="badge-yellow">IMPORTANTES</span></td>
+    <td>12</td>
+    <td>Dashboard KPIs, Exportar Excel, Inventario avanzado, Reportes estándar, Descuentos, Comisiones, Importación masiva, POS, CFDIs recibidos SAT, Portal clientes, CRM avanzado, Auditoría</td>
+  </tr>
+  <tr>
+    <td><span class="badge-green">DESEABLES</span></td>
+    <td>12</td>
+    <td>Integración bancaria, E-commerce, App móvil, RRHH, Activos fijos, Proyectos, Notificaciones real-time, BI avanzado, 2FA/SSO, RMA, CPQ, API pública</td>
+  </tr>
+  <tr>
+    <td><strong>Total</strong></td>
+    <td><strong>30</strong></td>
+    <td></td>
+  </tr>
+</table>
+
+<h2>Hoja de ruta sugerida</h2>
+<table>
+  <tr><th>Fase</th><th>Período sugerido</th><th>Módulos</th></tr>
+  <tr>
+    <td><span class="badge-red">Fase 1</span></td>
+    <td>1–3 meses</td>
+    <td>Complemento de Pagos · Carta Porte · Módulo de Compras · Factura Global</td>
+  </tr>
+  <tr>
+    <td><span class="badge-yellow">Fase 2</span></td>
+    <td>3–6 meses</td>
+    <td>Contabilidad básica + e-Contabilidad · Dashboard KPIs · Exportar Excel · Inventario avanzado · Reportes estándar</td>
+  </tr>
+  <tr>
+    <td><span class="badge-yellow">Fase 3</span></td>
+    <td>6–12 meses</td>
+    <td>Nómina CFDI · POS · Portal clientes · Comisiones · Importación masiva · Auditoría</td>
+  </tr>
+  <tr>
+    <td><span class="badge-green">Fase 4</span></td>
+    <td>12–18 meses</td>
+    <td>App móvil · Integración bancaria · E-commerce · CRM avanzado · BI avanzado · API pública</td>
+  </tr>
+</table>
+
+<p style="font-size:9pt; color:#888; text-align:center; margin-top:30pt;">
+  Documento generado por Claude Code — Emphasys ERP — Junio 2026
+</p>
+
+</body>
+</html>

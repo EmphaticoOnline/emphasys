@@ -1,6 +1,6 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-06-07T19:31:16.850Z
+-- Generated at: 2026-06-09T00:57:18.696Z
 --
 -- PostgreSQL database dump
 --
@@ -53,6 +53,13 @@ COMMENT ON SCHEMA inventario IS 'Módulo de inventario del ERP. Contiene movimie
 --
 
 CREATE SCHEMA mantenimiento;
+
+
+--
+-- Name: migrate; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA migrate;
 
 
 --
@@ -852,6 +859,55 @@ CREATE TABLE core.campos_obligatorios (
     campo character varying(100) NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+
+--
+-- Name: TABLE campos_obligatorios; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.campos_obligatorios IS 'Campos configurados como obligatorios por empresa, entidad y contexto. La tabla solo almacena excepciones: si un campo no existe aquí, se considera opcional.';
+
+
+--
+-- Name: COLUMN campos_obligatorios.id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.campos_obligatorios.id IS 'Identificador único del registro.';
+
+
+--
+-- Name: COLUMN campos_obligatorios.empresa_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.campos_obligatorios.empresa_id IS 'Empresa a la que pertenece la configuración.';
+
+
+--
+-- Name: COLUMN campos_obligatorios.entidad; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.campos_obligatorios.entidad IS 'Entidad funcional del sistema, por ejemplo contactos o documentos. No depende del nombre físico del formulario.';
+
+
+--
+-- Name: COLUMN campos_obligatorios.contexto; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.campos_obligatorios.contexto IS 'Contexto específico de la entidad. En contactos puede ser el tipo de contacto; en documentos puede ser el tipo_documento. Puede ser NULL cuando la configuración aplique a toda la entidad.';
+
+
+--
+-- Name: COLUMN campos_obligatorios.campo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.campos_obligatorios.campo IS 'Nombre técnico del campo dentro de la entidad.';
+
+
+--
+-- Name: COLUMN campos_obligatorios.created_at; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.campos_obligatorios.created_at IS 'Fecha y hora en que se creó la configuración.';
 
 
 --
@@ -3722,6 +3778,24 @@ ALTER SEQUENCE inventario.movimientos_partidas_id_seq OWNED BY inventario.movimi
 
 
 --
+-- Name: productos_legacy_supplier; Type: TABLE; Schema: migrate; Owner: -
+--
+
+CREATE TABLE migrate.productos_legacy_supplier (
+    empresa_id integer NOT NULL,
+    clave_producto character varying(50) NOT NULL,
+    proveedor_surtido character varying(150),
+    proveedor_surtido_2 character varying(150),
+    proveedor_surtido_3 character varying(150),
+    unidad_aduana character varying(20),
+    factor_equivalente_unidad_aduana numeric(18,6),
+    usa_pedimento boolean,
+    costo_reposicion numeric(18,6),
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: etapas; Type: TABLE; Schema: produccion; Owner: -
 --
 
@@ -5690,7 +5764,11 @@ CREATE TABLE public.productos (
     empresa_id integer NOT NULL,
     unidad_venta_id integer,
     unidad_inventario_id integer,
-    clave_unidad_sat character varying(10)
+    clave_unidad_sat character varying(10),
+    dias_entrega integer,
+    cantidad_minima_compra numeric(15,4),
+    proveedor_preferido_id integer,
+    pais_origen_id text
 );
 
 
@@ -7832,6 +7910,14 @@ ALTER TABLE ONLY inventario.existencias
 
 
 --
+-- Name: productos_legacy_supplier pk_productos_legacy_supplier; Type: CONSTRAINT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.productos_legacy_supplier
+    ADD CONSTRAINT pk_productos_legacy_supplier PRIMARY KEY (empresa_id, clave_producto);
+
+
+--
 -- Name: etapas etapas_pkey; Type: CONSTRAINT; Schema: produccion; Owner: -
 --
 
@@ -9239,6 +9325,27 @@ COMMENT ON INDEX inventario.uq_inventario_almacenes_empresa_clave IS 'Garantiza 
 
 
 --
+-- Name: ix_productos_legacy_supplier_proveedor_surtido; Type: INDEX; Schema: migrate; Owner: -
+--
+
+CREATE INDEX ix_productos_legacy_supplier_proveedor_surtido ON migrate.productos_legacy_supplier USING btree (proveedor_surtido);
+
+
+--
+-- Name: ix_productos_legacy_supplier_proveedor_surtido_2; Type: INDEX; Schema: migrate; Owner: -
+--
+
+CREATE INDEX ix_productos_legacy_supplier_proveedor_surtido_2 ON migrate.productos_legacy_supplier USING btree (proveedor_surtido_2);
+
+
+--
+-- Name: ix_productos_legacy_supplier_proveedor_surtido_3; Type: INDEX; Schema: migrate; Owner: -
+--
+
+CREATE INDEX ix_productos_legacy_supplier_proveedor_surtido_3 ON migrate.productos_legacy_supplier USING btree (proveedor_surtido_3);
+
+
+--
 -- Name: idx_produccion_etapas_empresa; Type: INDEX; Schema: produccion; Owner: -
 --
 
@@ -9922,6 +10029,20 @@ CREATE INDEX ix_contactos_tipo ON public.contactos USING btree (tipo_contacto);
 --
 
 CREATE INDEX ix_productos_empresa ON public.productos USING btree (empresa_id);
+
+
+--
+-- Name: ix_productos_pais_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_productos_pais_origen ON public.productos USING btree (pais_origen_id);
+
+
+--
+-- Name: ix_productos_proveedor_preferido; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_productos_proveedor_preferido ON public.productos USING btree (proveedor_preferido_id);
 
 
 --
@@ -10680,6 +10801,14 @@ ALTER TABLE ONLY inventario.almacenes
 
 
 --
+-- Name: productos_legacy_supplier fk_productos_legacy_supplier_producto; Type: FK CONSTRAINT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.productos_legacy_supplier
+    ADD CONSTRAINT fk_productos_legacy_supplier_producto FOREIGN KEY (empresa_id, clave_producto) REFERENCES public.productos(empresa_id, clave) ON DELETE CASCADE;
+
+
+--
 -- Name: seguimientos fk_produccion_seguimientos_etapa; Type: FK CONSTRAINT; Schema: produccion; Owner: -
 --
 
@@ -11205,6 +11334,22 @@ ALTER TABLE ONLY public.productos_archivos
 
 ALTER TABLE ONLY public.productos_impuestos
     ADD CONSTRAINT fk_productos_impuestos_impuesto FOREIGN KEY (impuesto_id) REFERENCES public.impuestos(id);
+
+
+--
+-- Name: productos fk_productos_pais_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos
+    ADD CONSTRAINT fk_productos_pais_origen FOREIGN KEY (pais_origen_id) REFERENCES sat.paises(id) ON DELETE SET NULL;
+
+
+--
+-- Name: productos fk_productos_proveedor_preferido; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos
+    ADD CONSTRAINT fk_productos_proveedor_preferido FOREIGN KEY (proveedor_preferido_id) REFERENCES public.contactos(id) ON DELETE SET NULL;
 
 
 --
