@@ -35,6 +35,27 @@ export async function fetchProductos(): Promise<Producto[]> {
   return apiFetch(BASE_URL);
 }
 
+export type ProductosPaginadosResponse = {
+  data: Producto[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export async function fetchProductosPaginados(options: {
+  page: number;
+  limit: number;
+  search?: string;
+}): Promise<ProductosPaginadosResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(options.page));
+  params.set('limit', String(options.limit));
+  if (options.search?.trim()) {
+    params.set('search', options.search.trim());
+  }
+  return apiFetch(`${BASE_URL}?${params.toString()}`);
+}
+
 export async function fetchProducto(id: number): Promise<Producto> {
   return apiFetch(`${BASE_URL}/${id}`);
 }

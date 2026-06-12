@@ -482,6 +482,172 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
   return rows;
 }
 
+type DocumentosAdditionalFilters = {
+  soloPendientes?: boolean;
+  quickFilter?: string;
+  clienteId?: number | null;
+  agenteId?: number | null;
+  fechaDesde?: string | null;
+  fechaHasta?: string | null;
+  montoMin?: number | null;
+  montoMax?: number | null;
+};
+
+export async function listarDocumentosRepositoryPaginado(
+  tipoDocumento: TipoDocumento,
+  empresaId: number,
+  pagination: { page: number; limit: number },
+  search?: string | null,
+  additionalFilters?: DocumentosAdditionalFilters
+): Promise<{ data: any[]; total: number }> {
+  const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
+  const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
+  const selectSaldo = esFactura ? 'COALESCE(ds.saldo, 0) AS saldo' : 'NULL::numeric AS saldo';
+  const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
+  const hasSeguimiento = await ensureSeguimientoColumns();
+
+  const selectSeguimiento = hasSeguimiento
+    ? `d.producto_resumen,
+       d.estado_seguimiento,
+       d.comentario_seguimiento,`
+    : `NULL::text AS producto_resumen,
+       NULL::text AS estado_seguimiento,
+       NULL::text AS comentario_seguimiento,`;
+
+  const values: Array<number | string> = [empresaId, tipoDocumento.toLowerCase()];
+  const whereClauses = ['d.empresa_id = $1', 'LOWER(d.tipo_documento) = $2'];
+
+  const searchTerm = String(search ?? '').trim();
+  if (searchTerm) {
+    values.push(`%${searchTerm}%`);
+    const searchIdx = values.length;
+    const saldoSearchExpr = esFactura ? 'COALESCE(ds.saldo, 0)::text' : "''";
+    whereClauses.push(`(
+      CONCAT(COALESCE(d.serie, ''), COALESCE(d.numero::text, '')) ILIKE $${searchIdx}
+      OR COALESCE(d.serie, '') ILIKE $${searchIdx}
+      OR COALESCE(d.numero::text, '') ILIKE $${searchIdx}
+      OR COALESCE(c.nombre, '') ILIKE $${searchIdx}
+      OR COALESCE(c.email, '') ILIKE $${searchIdx}
+      OR COALESCE(c.telefono, '') ILIKE $${searchIdx}
+      OR COALESCE(c.telefono_secundario, '') ILIKE $${searchIdx}
+      OR COALESCE(cdf.rfc, c.rfc, d.rfc_receptor, '') ILIKE $${searchIdx}
+      OR COALESCE(d.nombre_receptor, '') ILIKE $${searchIdx}
+      OR COALESCE(con.nombre_concepto, '') ILIKE $${searchIdx}
+      OR COALESCE(d.subtotal::text, '') ILIKE $${searchIdx}
+      OR COALESCE(d.total::text, '') ILIKE $${searchIdx}
+      OR ${saldoSearchExpr} ILIKE $${searchIdx}
+      OR COALESCE(d.fecha_documento::text, '') ILIKE $${searchIdx}
+      OR COALESCE(d.estatus_documento, '') ILIKE $${searchIdx}
+      OR COALESCE(d.producto_resumen, '') ILIKE $${searchIdx}
+      OR EXISTS (
+        SELECT 1
+          FROM documentos_partidas dp
+          LEFT JOIN productos p ON p.id = dp.producto_id
+         WHERE dp.documento_id = d.id
+           AND (
+             COALESCE(p.clave, '') ILIKE $${searchIdx}
+             OR COALESCE(p.descripcion, '') ILIKE $${searchIdx}
+             OR COALESCE(dp.descripcion_alterna, '') ILIKE $${searchIdx}
+             OR COALESCE(dp.observaciones, '') ILIKE $${searchIdx}
+             OR COALESCE(dp.comentarios_internos, '') ILIKE $${searchIdx}
+           )
+      )
+    )`);
+  }
+
+  if (additionalFilters) {
+    const { soloPendientes, quickFilter, clienteId, agenteId, fechaDesde, fechaHasta, montoMin, montoMax } = additionalFilters;
+
+    if (soloPendientes && esFactura) {
+      whereClauses.push('COALESCE(ds.saldo, 0) > 0');
+    }
+
+    if (quickFilter && quickFilter !== 'todos') {
+      values.push(quickFilter.toLowerCase());
+      const qfIdx = values.length;
+      if (esCotizacion && hasSeguimiento) {
+        whereClauses.push(`LOWER(COALESCE(d.estado_seguimiento, 'borrador')) = $${qfIdx}`);
+      } else {
+        whereClauses.push(`(CASE WHEN LOWER(d.estatus_documento) = 'enviado' THEN 'emitido' ELSE LOWER(COALESCE(d.estatus_documento, 'borrador')) END) = $${qfIdx}`);
+      }
+    }
+
+    if (clienteId) {
+      values.push(Number(clienteId));
+      whereClauses.push(`d.contacto_principal_id = $${values.length}`);
+    }
+
+    if (agenteId) {
+      values.push(Number(agenteId));
+      whereClauses.push(`d.agente_id = $${values.length}`);
+    }
+
+    if (fechaDesde) {
+      values.push(fechaDesde);
+      whereClauses.push(`d.fecha_documento::date >= $${values.length}::date`);
+    }
+
+    if (fechaHasta) {
+      values.push(fechaHasta);
+      whereClauses.push(`d.fecha_documento::date <= $${values.length}::date`);
+    }
+
+    if (montoMin !== null && montoMin !== undefined && !isNaN(montoMin)) {
+      values.push(montoMin);
+      whereClauses.push(`d.total >= $${values.length}`);
+    }
+
+    if (montoMax !== null && montoMax !== undefined && !isNaN(montoMax)) {
+      values.push(montoMax);
+      whereClauses.push(`d.total <= $${values.length}`);
+    }
+  }
+
+  const offset = (pagination.page - 1) * pagination.limit;
+  values.push(pagination.limit, offset);
+  const limitIdx = values.length - 1;
+  const offsetIdx = values.length;
+
+  const query = `
+    SELECT
+      d.id,
+      d.motivo_nc,
+      d.serie,
+      d.numero,
+      d.fecha_documento,
+      d.contacto_principal_id,
+      d.agente_id,
+      c.nombre AS nombre_cliente,
+      c.email AS contacto_email,
+      c.telefono AS cliente_telefono,
+      ${selectSeguimiento}
+      d.subtotal,
+      d.iva,
+      d.total,
+      d.tratamiento_impuestos,
+      false AS eliminara_oportunidad,
+      d.estatus_documento,
+      ${selectSaldo},
+      COUNT(*) OVER() AS total_count
+    FROM documentos d
+    ${joinSaldo}
+    LEFT JOIN contactos c ON d.contacto_principal_id = c.id
+    LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
+    LEFT JOIN conceptos con ON con.id = d.concepto_id AND con.empresa_id = d.empresa_id
+    WHERE ${whereClauses.join(' AND ')}
+    ORDER BY d.fecha_documento DESC, d.id DESC
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}
+  `;
+
+  const { rows } = await pool.query(query, values);
+  const total = rows.length ? Number(rows[0].total_count) : 0;
+  const data = rows.map((row: any) => {
+    const { total_count, ...rest } = row;
+    return rest;
+  });
+  return { data, total };
+}
+
 export async function obtenerDocumentoRepository(id: number, empresaId: number, tipoDocumento?: TipoDocumento) {
   const executor = pool;
   const docQuery = `

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+import { Box, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { useSession } from '../session/useSession';
 import type { Empresa } from '../session/sessionTypes';
@@ -30,14 +30,14 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
     }
   };
 
-  return (
+  const formControl = (
     <FormControl
       size="small"
       sx={{
         minWidth: fullWidth ? '100%' : 220,
         width: fullWidth ? '100%' : 'auto',
-        '& .MuiInputLabel-root': { color: isPanel ? '#475569' : '#e8f1ff' },
-        '& .MuiInputLabel-root.Mui-focused': { color: isPanel ? '#1d2f68' : '#ffffff' },
+        '& .MuiInputLabel-root': { color: '#475569' },
+        '& .MuiInputLabel-root.Mui-focused': { color: '#1d2f68' },
         '& .MuiOutlinedInput-notchedOutline': {
           borderColor: isPanel ? '#cbd5e1' : 'rgba(255,255,255,0.5)',
         },
@@ -52,11 +52,11 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
         },
       }}
     >
-      <InputLabel id="empresa-selector-label">Empresa</InputLabel>
+      {isPanel && <InputLabel id="empresa-selector-label">Empresa</InputLabel>}
       <Select
         labelId="empresa-selector-label"
         value={empresaActivaId ? String(empresaActivaId) : ''}
-        label="Empresa"
+        label={isPanel ? 'Empresa' : undefined}
         onChange={handleChange}
       >
         {empresas.map((empresa) => (
@@ -66,5 +66,16 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
         ))}
       </Select>
     </FormControl>
+  );
+
+  if (isPanel) return formControl;
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', whiteSpace: 'nowrap' }}>
+        Empresa
+      </Typography>
+      {formControl}
+    </Box>
   );
 }

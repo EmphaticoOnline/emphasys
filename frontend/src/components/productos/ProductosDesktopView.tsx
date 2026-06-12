@@ -1,11 +1,9 @@
-import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, Paper, Stack, TextField, Toolbar, Typography } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { esES } from '@mui/x-data-grid/locales';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import DownloadIcon from '@mui/icons-material/Download';
 import { GridContextMenu } from '../grids/GridContextMenu';
+import { EmphasysDataGrid } from '../grids/EmphasysDataGrid';
 import {
   STANDARD_DATA_GRID_HEADER_HEIGHT,
   STANDARD_DATA_GRID_ROW_HEIGHT,
@@ -17,8 +15,9 @@ export default function ProductosDesktopView({
   productos,
   columns,
   loading,
-  error,
-  onClearError,
+  rowCount,
+  paginationModel,
+  onPaginationModelChange,
   onRowClick,
   sortModel,
   onSortModelChange,
@@ -36,26 +35,18 @@ export default function ProductosDesktopView({
   searchTerm,
   onSearchTermChange,
   onClearSearch,
-  onRefresh,
   onCreateProducto,
 }: ProductosDesktopViewProps) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'flex-end', pb: 1 }}>
-        <Stack spacing={1} sx={{ maxWidth: 480 }}>
-          <Box>
-            <Typography variant="h5" fontWeight={700} color="#1d2f68">
-              Productos
-            </Typography>
-            <Typography variant="body2" color="#4b5563">
-              Gestiona el catálogo básico de productos. Existencias son solo de lectura.
-            </Typography>
-          </Box>
+    <Box sx={{ width: '100%', px: 3, pt: 2, pb: 0, display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <TextField
             size="small"
-            placeholder="Buscar por clave o descripción"
+            placeholder="Buscar por clave o descripción..."
             value={searchTerm}
             onChange={(event) => onSearchTermChange(event.target.value)}
+            sx={{ flex: 1 }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -71,100 +62,77 @@ export default function ProductosDesktopView({
               ) : null,
             }}
           />
-        </Stack>
-        <Stack direction="row" spacing={1} sx={{ alignSelf: 'flex-end' }}>
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={onRefresh} disabled={loading}>
-            Recargar
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
-            onClick={onExport}
-            disabled={exportLoading}
-          >
-            Exportar
-          </Button>
-          <Button
-            variant="contained"
-            onClick={onCreateProducto}
-            sx={{
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              backgroundColor: '#1d2f68',
-              color: '#ffffff',
-              '&:hover': { backgroundColor: '#162551' },
-            }}
-          >
-            + NUEVO
-          </Button>
-        </Stack>
-      </Toolbar>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
+              onClick={onExport}
+              disabled={exportLoading ?? false}
+            >
+              Exportar
+            </Button>
+            <Button
+              variant="contained"
+              onClick={onCreateProducto}
+              sx={{
+                textTransform: 'uppercase',
+                fontWeight: 700,
+                backgroundColor: '#1d2f68',
+                color: '#ffffff',
+                '&:hover': { backgroundColor: '#162551' },
+              }}
+            >
+              + Nuevo
+            </Button>
+          </Stack>
+        </Box>
 
-      {error ? (
-        <Alert severity="error" onClose={onClearError}>
-          {error}
-        </Alert>
-      ) : null}
-
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <DataGrid
-          rows={productos}
-          columns={columns}
-          rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
-          columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
-          autoHeight
-          density="standard"
-          loading={loading}
-          disableRowSelectionOnClick
-          sortModel={sortModel}
-          onSortModelChange={onSortModelChange}
-          columnVisibilityModel={columnVisibilityModel}
-          onColumnVisibilityModelChange={onColumnVisibilityModelChange}
-          onColumnWidthChange={onColumnWidthChange}
-          onColumnOrderChange={onColumnOrderChange}
-          onRowClick={onRowClick}
-          {...(slotProps ? { slotProps } : {})}
-          localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-          sx={[
-            standardDataGridSx,
-            {
-              '--DataGrid-overlayHeight': '200px',
-              '& .MuiDataGrid-cell': {
-                display: 'flex',
-                alignItems: 'center',
+        <Box sx={{ width: '100%', backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+          <EmphasysDataGrid
+            rows={productos}
+            columns={columns}
+            rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+            columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
+            autoHeight
+            pagination
+            paginationMode="server"
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            pageSizeOptions={[25, 50, 100]}
+            onPaginationModelChange={onPaginationModelChange}
+            loading={loading}
+            sortModel={sortModel}
+            onSortModelChange={onSortModelChange}
+            columnVisibilityModel={columnVisibilityModel}
+            onColumnVisibilityModelChange={onColumnVisibilityModelChange}
+            onColumnWidthChange={onColumnWidthChange}
+            onColumnOrderChange={onColumnOrderChange}
+            onRowClick={onRowClick}
+            disableRowSelectionOnClick
+            {...(slotProps ? { slotProps } : {})}
+            hideFooterSelectedRowCount
+            sx={[
+              standardDataGridSx,
+              {
+                '--DataGrid-overlayHeight': '200px',
+                '& .MuiDataGrid-cell': {
+                  display: 'flex',
+                  alignItems: 'center',
+                },
+                '& .MuiDataGrid-row': {
+                  cursor: 'default',
+                },
               },
-            },
-          ]}
-          slots={{
-            noRowsOverlay: () => (
-              <Stack height="100%" alignItems="center" justifyContent="center" spacing={1} sx={{ py: 3 }}>
-                <Typography variant="body2" color="#4b5563">
-                  {searchTerm.trim()
-                    ? `No hay productos que coincidan con "${searchTerm}".`
-                    : 'No hay productos registrados.'}
-                </Typography>
-              </Stack>
-            ),
-            loadingOverlay: () => (
-              <Stack height="100%" alignItems="center" justifyContent="center" spacing={1} sx={{ py: 3 }}>
-                <CircularProgress size={22} />
-                <Typography variant="body2" color="text.secondary">
-                  Cargando productos...
-                </Typography>
-              </Stack>
-            ),
-          }}
-          hideFooterPagination
-          hideFooterSelectedRowCount
-        />
-      </Paper>
-
-      <GridContextMenu
-        actions={contextMenuActions}
-        anchorPosition={contextMenuPosition}
-        open={contextMenuOpen}
-        onClose={onCloseContextMenu}
-      />
+            ]}
+          />
+          <GridContextMenu
+            actions={contextMenuActions}
+            anchorPosition={contextMenuPosition}
+            open={contextMenuOpen}
+            onClose={onCloseContextMenu}
+          />
+        </Box>
+      </Box>
     </Box>
   );
 }

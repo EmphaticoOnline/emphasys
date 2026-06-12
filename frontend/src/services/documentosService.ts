@@ -66,6 +66,51 @@ export function getDocumentos(tipo: TipoDocumento, options?: { search?: string |
   return apiFetch(url);
 }
 
+export type DocumentosPaginadosResponse = {
+  data: CotizacionListado[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export function getDocumentosPaginados(
+  tipo: TipoDocumento,
+  options: {
+    page: number;
+    limit: number;
+    search?: string | null;
+    soloPendientes?: boolean;
+    quickFilter?: string;
+    clienteId?: number | null;
+    agenteId?: number | null;
+    fechaDesde?: string | null;
+    fechaHasta?: string | null;
+    montoMin?: string | null;
+    montoMax?: string | null;
+  }
+): Promise<DocumentosPaginadosResponse> {
+  const base = getBasePath(tipo);
+  const params = new URLSearchParams();
+  if (shouldAppendTipoQuery(tipo)) {
+    params.set('tipo_documento', tipo);
+  }
+  params.set('page', String(options.page));
+  params.set('limit', String(options.limit));
+
+  const search = options.search?.trim();
+  if (search) params.set('search', search);
+  if (options.soloPendientes) params.set('solo_pendientes', 'true');
+  if (options.quickFilter && options.quickFilter !== 'todos') params.set('quick_filter', options.quickFilter);
+  if (options.clienteId) params.set('cliente_id', String(options.clienteId));
+  if (options.agenteId) params.set('agente_id', String(options.agenteId));
+  if (options.fechaDesde) params.set('fecha_desde', options.fechaDesde);
+  if (options.fechaHasta) params.set('fecha_hasta', options.fechaHasta);
+  if (options.montoMin) params.set('monto_min', options.montoMin);
+  if (options.montoMax) params.set('monto_max', options.montoMax);
+
+  return apiFetch(`${base}?${params.toString()}`);
+}
+
 export function getDocumento(id: number, tipo: TipoDocumento): Promise<CotizacionDetalle> {
   const base = getBasePath(tipo);
   const url = withTipoQuery(`${base}/${id}`, tipo);

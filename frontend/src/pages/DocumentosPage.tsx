@@ -88,7 +88,7 @@ import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, getDocumentosPaginados, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
 import { fetchAnticiposDisponiblesDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
@@ -125,19 +125,16 @@ const formatCivilDate = (value: unknown) => {
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (match) {
     const [, year, month, day] = match;
-    const date = new Date(Number(year), Number(month) - 1, Number(day));
-    const formattedDay = date.toLocaleString('es-MX', { day: '2-digit' });
-    const formattedMonth = date.toLocaleString('es-MX', { month: 'short' }).replace('.', '').toUpperCase();
-    return `${formattedDay}-${formattedMonth}-${year}`;
+    return `${day}/${month}/${year}`;
   }
 
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return raw;
 
-  const day = parsed.toLocaleString('es-MX', { day: '2-digit' });
-  const month = parsed.toLocaleString('es-MX', { month: 'short' }).replace('.', '').toUpperCase();
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
   const year = parsed.getFullYear();
-  return `${day}-${month}-${year}`;
+  return `${day}/${month}/${year}`;
 };
 
 const toCivilDate = (date = new Date()) => {
@@ -443,6 +440,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     };
   }, [documentoTypeConfig, tiposDocumento, tipoDocumento]);
   const [rows, setRows] = useState<CotizacionListado[]>([]);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [rowCount, setRowCount] = useState(0);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1166,16 +1166,29 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   };
 
   const load = async () => {
+    if (loadingPreferences) return;
     try {
       setLoading(true);
-      const data = await getDocumentos(tipoDocumento, { search: debouncedSearch });
-      setRows(data);
+      const result = await getDocumentosPaginados(tipoDocumento, {
+        page: page + 1,
+        limit: pageSize,
+        search: debouncedSearch || null,
+        ...(isFacturaConSaldo && soloPendientes ? { soloPendientes: true } : {}),
+        ...(quickFilter !== 'todos' ? { quickFilter } : {}),
+        clienteId: filtrosCotizacion.clienteId,
+        agenteId: filtrosCotizacion.agenteId,
+        fechaDesde: filtrosCotizacion.fechaDesde || null,
+        fechaHasta: filtrosCotizacion.fechaHasta || null,
+        montoMin: filtrosCotizacion.montoMin || null,
+        montoMax: filtrosCotizacion.montoMax || null,
+      });
+      setRows(result.data);
+      setRowCount(result.total);
       setError(null);
 
-      // Detectar si existen opciones de generación para el tipo de documento (basado en el primer documento)
-      if (data && data.length > 0 && token && empresaId) {
+      if (result.data && result.data.length > 0 && token && empresaId) {
         try {
-          const firstId = Number((data?.[0] as any)?.id ?? (data?.[0] as any)?.documento_id ?? 0);
+          const firstId = Number((result.data?.[0] as any)?.id ?? (result.data?.[0] as any)?.documento_id ?? 0);
           if (firstId) {
             const opts = await getOpcionesGeneracion(firstId, token, empresaId);
             setTieneOpcionesGeneracion((opts?.length ?? 0) > 0);
@@ -1207,8 +1220,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   }, [search]);
 
   useEffect(() => {
+    setPage(0);
+  }, [tipoDocumento, debouncedSearch, soloPendientes, quickFilter, filtrosCotizacion]);
+
+  useEffect(() => {
     load();
-  }, [tipoDocumento, debouncedSearch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoDocumento, page, pageSize, debouncedSearch, soloPendientes, quickFilter, filtrosCotizacion, loadingPreferences]);
 
   const obtenerEmailDocumento = (row: any) =>
     row?.contacto_email ?? row?.email_contacto ?? row?.cliente_email ?? row?.email_cliente ?? row?.email ?? '';
@@ -1765,7 +1783,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   disabled={loading || Number(params.row?.saldo ?? 0) <= 0}
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`${basePath}/${params.id}?abrirPagos=1`);
+                    setAplicarSaldoNcDrawer({
+                      open: true,
+                      documentoId: Number(params.row?.id ?? 0) || null,
+                      contactoId: Number(params.row?.contacto_principal_id ?? 0) || null,
+                      saldo: Number(params.row?.saldo ?? 0),
+                      tipoDocumento: 'factura',
+                    });
                   }}
                 >
                   <AccountBalanceWalletIcon fontSize="small" />
@@ -1940,58 +1964,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     return [...(menuColumn ? [menuColumn] : []), ...ordered, ...remaining];
   }, [columnOrder, columns]);
 
-  const filteredRows = useMemo(() => {
-    let result = [...rows];
-
-    if (isFacturaConSaldo && soloPendientes) {
-      result = result.filter((row) => Number(row?.saldo ?? 0) > 0);
-    }
-
-    if (enableFilters) {
-      if (quickFilter !== 'todos') {
-        result = result.filter((row) => {
-          const rawStatus = row[statusField];
-          const normalizedStatus =
-            statusField === 'estado_seguimiento'
-              ? normalizeEstadoSeguimiento(rawStatus)
-              : normalizeDocumentoEstatus(rawStatus);
-
-          return normalizedStatus === quickFilter;
-        });
-      }
-
-      if (filtrosCotizacion.clienteId) {
-        result = result.filter((row) => row.contacto_principal_id === filtrosCotizacion.clienteId);
-      }
-
-      if (showAgentFilter && filtrosCotizacion.agenteId) {
-        result = result.filter((row) => Number(row.agente_id ?? 0) === filtrosCotizacion.agenteId);
-      }
-
-      if (filtrosCotizacion.fechaDesde) {
-        const desde = dayjs(filtrosCotizacion.fechaDesde).startOf('day');
-        result = result.filter((row) => dayjs(row.fecha_documento).startOf('day').isAfter(desde.subtract(1, 'millisecond')));
-      }
-
-      if (filtrosCotizacion.fechaHasta) {
-        const hasta = dayjs(filtrosCotizacion.fechaHasta).endOf('day');
-        result = result.filter((row) => dayjs(row.fecha_documento).endOf('day').isBefore(hasta.add(1, 'millisecond')));
-      }
-
-      const montoMin = filtrosCotizacion.montoMin === '' ? null : Number(filtrosCotizacion.montoMin);
-      const montoMax = filtrosCotizacion.montoMax === '' ? null : Number(filtrosCotizacion.montoMax);
-
-      if (montoMin !== null && !Number.isNaN(montoMin)) {
-        result = result.filter((row) => Number(row.total ?? 0) >= montoMin);
-      }
-
-      if (montoMax !== null && !Number.isNaN(montoMax)) {
-        result = result.filter((row) => Number(row.total ?? 0) <= montoMax);
-      }
-    }
-
-    return result;
-  }, [rows, soloPendientes, isFacturaConSaldo, enableFilters, quickFilter, filtrosCotizacion, showAgentFilter, statusField]);
+  const filteredRows = rows;
 
   useEffect(() => {
     if (!canBulkDuplicate) {
@@ -2066,7 +2039,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         icon: <AccountBalanceWalletIcon fontSize="small" />,
         hidden: !(hasAction('aplicar_pago') && tipoDocumento === 'factura'),
         disabled: loading || Number(contextMenuRow?.saldo ?? 0) <= 0,
-        onClick: () => navigate(`${basePath}/${rowId}?abrirPagos=1`),
+        onClick: () => {
+          setAplicarSaldoNcDrawer({
+            open: true,
+            documentoId: rowId,
+            contactoId: Number(contextMenuRow?.contacto_principal_id ?? 0) || null,
+            saldo: Number(contextMenuRow?.saldo ?? 0),
+            tipoDocumento: 'factura',
+          });
+        },
       },
       {
         id: 'aplicar-saldo',
@@ -2816,6 +2797,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       contextMenuPosition={contextMenuPosition}
       contextMenuOpen={Boolean(contextMenuRow)}
       onCloseContextMenu={closeGridContextMenu}
+      rowCount={rowCount}
+      paginationModel={{ page, pageSize }}
+      onPaginationModelChange={(model) => {
+        if (model.pageSize !== pageSize) {
+          setPageSize(Math.min(model.pageSize, 100));
+          setPage(0);
+        } else {
+          setPage(model.page);
+        }
+      }}
     />
   );
 
@@ -2857,9 +2848,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   );
 
   return (
-    <Container maxWidth={false} sx={{ py: 2 }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
-        {isMobile ? mobileView : desktopView}
+    <>
+      {isMobile ? (
+        <Container maxWidth={false} sx={{ py: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+            {mobileView}
+          </Box>
+        </Container>
+      ) : desktopView}
 
       <Dialog open={Boolean(error)} onClose={() => setError(null)} fullWidth maxWidth="xs">
         <DialogTitle>Error</DialogTitle>
@@ -2991,7 +2987,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       {aplicarSaldoNcDrawer.open && aplicarSaldoNcDrawer.documentoId && aplicarSaldoNcDrawer.contactoId && aplicarSaldoNcDrawer.tipoDocumento ? (
         <FacturaPagosDrawer
           open={aplicarSaldoNcDrawer.open}
-          onClose={() => setAplicarSaldoNcDrawer({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null })}
+          onClose={() => { setAplicarSaldoNcDrawer({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null }); void load(); }}
           documentoId={aplicarSaldoNcDrawer.documentoId}
           contactoId={aplicarSaldoNcDrawer.contactoId}
           saldo={aplicarSaldoNcDrawer.saldo}
@@ -3596,7 +3592,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           </Button>
         </DialogActions>
       </Dialog>
-      </Box>
-    </Container>
+    </>
   );
 }

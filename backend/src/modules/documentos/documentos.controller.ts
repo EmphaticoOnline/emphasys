@@ -6,6 +6,7 @@ import { generarExcelBuffer } from '../../utils/exportar';
 import type { ExportColumna } from '../../utils/exportar';
 import {
   listarDocumentosRepository,
+  listarDocumentosRepositoryPaginado,
   obtenerDocumentoRepository,
   actualizarDocumentoRepository,
   eliminarDocumentoRepository,
@@ -325,6 +326,41 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
 
     const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
     const search = typeof req.query.search === 'string' ? req.query.search : null;
+
+    const pageRaw = req.query.page;
+    const limitRaw = req.query.limit;
+    const page = typeof pageRaw === 'string' ? Number(pageRaw) : undefined;
+    const limit = typeof limitRaw === 'string' ? Number(limitRaw) : undefined;
+
+    if (Number.isFinite(page) && Number.isFinite(limit) && page && page >= 1 && limit && limit >= 1 && limit <= 100) {
+      const quickFilter = typeof req.query.quick_filter === 'string' ? req.query.quick_filter.trim() : undefined;
+      const soloPendientes = req.query.solo_pendientes === 'true';
+      const clienteIdRaw = typeof req.query.cliente_id === 'string' ? Number(req.query.cliente_id) : null;
+      const agenteIdRaw = typeof req.query.agente_id === 'string' ? Number(req.query.agente_id) : null;
+      const fechaDesde = typeof req.query.fecha_desde === 'string' ? req.query.fecha_desde : null;
+      const fechaHasta = typeof req.query.fecha_hasta === 'string' ? req.query.fecha_hasta : null;
+      const montoMinRaw = typeof req.query.monto_min === 'string' ? Number(req.query.monto_min) : null;
+      const montoMaxRaw = typeof req.query.monto_max === 'string' ? Number(req.query.monto_max) : null;
+
+      const result = await listarDocumentosRepositoryPaginado(
+        tipo,
+        Number(empresaId),
+        { page, limit },
+        search,
+        {
+          soloPendientes,
+          quickFilter: quickFilter && quickFilter !== 'todos' ? quickFilter : undefined,
+          clienteId: clienteIdRaw && !isNaN(clienteIdRaw) ? clienteIdRaw : null,
+          agenteId: agenteIdRaw && !isNaN(agenteIdRaw) ? agenteIdRaw : null,
+          fechaDesde,
+          fechaHasta,
+          montoMin: montoMinRaw !== null && !isNaN(montoMinRaw) ? montoMinRaw : null,
+          montoMax: montoMaxRaw !== null && !isNaN(montoMaxRaw) ? montoMaxRaw : null,
+        }
+      );
+      return res.json({ data: result.data, total: result.total, page, limit });
+    }
+
     const data = await listarDocumentosRepository(tipo, Number(empresaId), search);
     res.json(data);
   } catch (error) {

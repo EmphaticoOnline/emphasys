@@ -280,11 +280,52 @@ export async function getProductosRepository(empresaId: number) {
       AND p.clave <> $2
     ORDER BY p.id
   `;
-  //console.log('[BACK SQL DEBUG] getProductos SQL', query);
-  //console.log('[BACK SQL DEBUG] getProductos params', [empresaId, PRODUCTO_TECNICO_NC_CLAVE]);
   const { rows } = await pool.query(query, [empresaId, PRODUCTO_TECNICO_NC_CLAVE]);
-  //console.log('[BACK IVA DEBUG] getProductos rows', rows.map((r) => ({ id: r.id, iva_porcentaje: r.iva_porcentaje })));
   return rows;
+}
+
+export async function getProductosPaginadosRepository(
+  empresaId: number,
+  options: { page: number; limit: number; search?: string }
+): Promise<{ data: any[]; total: number }> {
+  const { page, limit, search } = options;
+  const params: Array<string | number> = [empresaId, PRODUCTO_TECNICO_NC_CLAVE];
+  const whereClauses = ['p.empresa_id = $1', 'p.clave <> $2'];
+
+  if (search?.trim()) {
+    params.push(`%${search.trim()}%`);
+    const idx = params.length;
+    whereClauses.push(`(p.clave ILIKE $${idx} OR p.descripcion ILIKE $${idx})`);
+  }
+
+  const offset = (page - 1) * limit;
+  params.push(limit, offset);
+  const limitIdx = params.length - 1;
+  const offsetIdx = params.length;
+
+  const query = `
+    SELECT
+      p.*,
+      uv.clave AS unidad_venta_clave,
+      uv.descripcion AS unidad_venta_descripcion,
+      ui.clave AS unidad_inventario_clave,
+      ui.descripcion AS unidad_inventario_descripcion,
+      COUNT(*) OVER() AS total_count
+    FROM productos p
+    LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
+    LEFT JOIN unidades ui ON p.unidad_inventario_id = ui.id
+    WHERE ${whereClauses.join(' AND ')}
+    ORDER BY p.id
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}
+  `;
+
+  const { rows } = await pool.query(query, params);
+  const total = rows.length ? Number(rows[0].total_count) : 0;
+  const data = rows.map((row: any) => {
+    const { total_count, ...rest } = row;
+    return rest;
+  });
+  return { data, total };
 }
 
 export async function getProductoByIdRepository(id: number, empresaId: number) {

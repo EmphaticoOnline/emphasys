@@ -49,6 +49,9 @@ export interface DocumentosDesktopViewProps extends DocumentosViewCommonProps {
   contextMenuPosition: { top: number; left: number } | null;
   contextMenuOpen: boolean;
   onCloseContextMenu: () => void;
+  rowCount: number;
+  paginationModel: { page: number; pageSize: number };
+  onPaginationModelChange: (model: { page: number; pageSize: number }) => void;
 }
 
 export interface DocumentosMobileViewProps extends DocumentosViewCommonProps {

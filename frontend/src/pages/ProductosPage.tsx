@@ -15,7 +15,7 @@ import {
   createProducto,
   deleteProducto,
   exportarProductos,
-  fetchProductos,
+  fetchProductosPaginados,
   updateProducto,
 } from '../services/productosService';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
@@ -34,6 +34,10 @@ export default function ProductosPage() {
   const perfilDispositivo = useDeviceProfile();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [rowCount, setRowCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
@@ -74,21 +78,17 @@ export default function ProductosPage() {
     []
   );
 
-  const filteredProductos = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return productos;
-    return productos.filter((p) =>
-      [p.clave, p.descripcion]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(term))
-    );
-  }, [productos, search]);
-
   const loadProductos = async () => {
+    if (loadingPreferences) return;
     try {
       setLoading(true);
-      const data = await fetchProductos();
-      setProductos(data);
+      const result = await fetchProductosPaginados({
+        page: page + 1,
+        limit: pageSize,
+        search: debouncedSearch,
+      });
+      setProductos(result.data);
+      setRowCount(result.total);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar productos');
@@ -97,9 +97,23 @@ export default function ProductosPage() {
     }
   };
 
+  // Debounce search
+  useEffect(() => {
+    const handler = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => window.clearTimeout(handler);
+  }, [search]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch]);
+
   useEffect(() => {
     loadProductos();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, debouncedSearch, loadingPreferences]);
 
   useEffect(() => {
     persistExternalFilters({ searchTerm: search });
@@ -144,7 +158,7 @@ export default function ProductosPage() {
     closeContextMenu,
     openContextMenuForRow,
     rowSlotProps,
-  } = useGridContextMenu(filteredProductos);
+  } = useGridContextMenu(productos);
 
   const contextMenuActions = useMemo<GridContextMenuAction[]>(() => {
     if (!contextMenuRow) return [];
@@ -287,11 +301,19 @@ export default function ProductosPage() {
   const desktopView = (
     <ProductosDesktopView
       {...commonViewProps}
-      productos={filteredProductos}
+      productos={productos}
       columns={orderedColumns}
       loading={loading || loadingPreferences}
-      error={error}
-      onClearError={() => setError(null)}
+      rowCount={rowCount}
+      paginationModel={{ page, pageSize }}
+      onPaginationModelChange={(model) => {
+        if (model.pageSize !== pageSize) {
+          setPageSize(Math.min(model.pageSize, 100));
+          setPage(0);
+        } else {
+          setPage(model.page);
+        }
+      }}
       onRowClick={(params: GridRowParams) => navigate(`/productos/${params.id}`)}
       sortModel={sortModel}
       onSortModelChange={setSortModel}
@@ -323,7 +345,7 @@ export default function ProductosPage() {
   const mobileView = (
     <ProductosMobileView
       {...commonViewProps}
-      productos={filteredProductos}
+      productos={productos}
       loading={loading}
       error={error}
       onClearError={() => setError(null)}

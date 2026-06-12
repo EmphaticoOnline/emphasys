@@ -67,24 +67,18 @@ interface MovimientosTableProps {
   onDeleteTransferencia?: (op: FinanzasOperacion) => void;
 }
 
-const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-
 function formatDate(value?: string | null) {
   if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) {
-    // If it already comes as yyyy-mm-dd, reformat it
-    if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
-      const [y, m, day] = value.slice(0, 10).split('-');
-      const month = MONTHS_SHORT[Number(m) - 1] || m;
-      return `${day}-${month}-${y}`;
-    }
-    return value;
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const [y, m, day] = value.slice(0, 10).split('-');
+    return `${day}/${m}/${y}`;
   }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
   const day = String(d.getDate()).padStart(2, '0');
-  const month = MONTHS_SHORT[d.getMonth()] || String(d.getMonth() + 1).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
-  return `${day}-${month}-${year}`;
+  return `${day}/${month}/${year}`;
 }
 
 export function MovimientosTable({

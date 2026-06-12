@@ -431,9 +431,10 @@ export default function DocumentosFormPage({
   const sessionUserId = session.user?.id ?? null;
   const tipoDocumento = (propTipo ?? (codigo as TipoDocumento)) || 'cotizacion';
   const routeDocumentoId = useMemo(() => {
+    if (embedded) return null;
     const parsedId = Number(id);
     return Number.isFinite(parsedId) && parsedId > 0 ? parsedId : null;
-  }, [id]);
+  }, [id, embedded]);
   const [documentoPersistidoId, setDocumentoPersistidoId] = useState<number | null>(routeDocumentoId);
   const {
     config: documentoConfig,

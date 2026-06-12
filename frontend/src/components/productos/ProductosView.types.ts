@@ -23,8 +23,9 @@ export interface ProductosDesktopViewProps extends ProductosViewCommonProps {
   productos: Producto[];
   columns: GridColDef[];
   loading: boolean;
-  error: string | null;
-  onClearError: () => void;
+  rowCount: number;
+  paginationModel: { page: number; pageSize: number };
+  onPaginationModelChange: (model: { page: number; pageSize: number }) => void;
   onRowClick: (params: GridRowParams) => void;
   sortModel: GridSortModel;
   onSortModelChange: (model: GridSortModel) => void;

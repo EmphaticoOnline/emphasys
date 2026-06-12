@@ -1,12 +1,12 @@
 import * as React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import SidebarLayout from './components/layout/SidebarLayout';
 import ContactosPage from './pages/ContactosPage';
 import ContactoFormPage from './pages/ContactoFormPage';
 import ProductosPage from './pages/ProductosPage';
 import ProductoFormPage from './pages/ProductoFormPage';
 import DocumentosPage from './pages/DocumentosPage';
 import DocumentosFormPage from './pages/DocumentosFormPage';
-import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import SeleccionEmpresaPage from './pages/SeleccionEmpresaPage';
 import RequireAuth from './auth/RequireAuth';
@@ -33,8 +33,6 @@ import FinanzasPage from './pages/FinanzasPage';
 import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
-import LeadsPage from './pages/LeadsPage';
-import OportunidadesPage from './pages/OportunidadesPage';
 import CRMPage from './pages/CRMPage';
 import ActividadFormPage from './pages/ActividadFormPage';
 import OportunidadDetallePage from './pages/OportunidadDetallePage';
@@ -53,16 +51,32 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
 
         <Route element={<RequireAuth />}>
-          <Route element={<LayoutWrapper />}>
+          <Route element={<SidebarLayout />}>
+            {/* Selección de empresa: no requiere empresa activa */}
             <Route path="/seleccionar-empresa" element={<SeleccionEmpresaPage />} />
 
             <Route element={<RequireEmpresa />}>
+              {/* Catálogos */}
               <Route path="/contactos" element={<ContactosPage />} />
               <Route path="/contactos/nuevo" element={<ContactoFormPage />} />
               <Route path="/contactos/:id" element={<ContactoFormPage />} />
               <Route path="/productos" element={<ProductosPage />} />
               <Route path="/productos/nuevo" element={<ProductoFormPage />} />
               <Route path="/productos/:id" element={<ProductoFormPage />} />
+
+              {/* Ventas */}
+              <Route path="/ventas/produccion" element={<ProduccionPage />} />
+              <Route path="/ventas/cotizaciones-grid" element={<CotizacionesGridPage />} />
+              <Route path="/ventas/:codigo" element={<DocumentosPage />} />
+              <Route path="/ventas/:codigo/nuevo" element={<DocumentosFormPage />} />
+              <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />
+
+              {/* Compras */}
+              <Route path="/compras/:codigo" element={<DocumentosPage />} />
+              <Route path="/compras/:codigo/nuevo" element={<DocumentosFormPage />} />
+              <Route path="/compras/:codigo/:id" element={<DocumentosFormPage />} />
+
+              {/* CRM */}
               <Route path="/crm" element={<CRMPage />} />
               <Route path="/crm/actividades" element={<CRMPage />} />
               <Route path="/crm/actividades/nueva" element={<ActividadFormPage />} />
@@ -72,16 +86,14 @@ export default function App() {
               <Route path="/crm/conversaciones" element={<CRMPage />} />
               <Route path="/leads" element={<Navigate to="/crm/conversaciones" replace />} />
               <Route path="/oportunidades" element={<Navigate to="/crm/oportunidades" replace />} />
-              <Route path="/ventas/produccion" element={<ProduccionPage />} />
-              <Route path="/ventas/:codigo" element={<DocumentosPage />} />
-              <Route path="/ventas/:codigo/nuevo" element={<DocumentosFormPage />} />
-              <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />
-              <Route path="/ventas/cotizaciones-grid" element={<CotizacionesGridPage />} />
-              <Route path="/compras/:codigo" element={<DocumentosPage />} />
-              <Route path="/compras/:codigo/nuevo" element={<DocumentosFormPage />} />
-              <Route path="/compras/:codigo/:id" element={<DocumentosFormPage />} />
-              <Route path="/documentos" element={<Navigate to="/ventas/cotizacion" replace />} />
-              <Route path="/facturas" element={<Navigate to="/ventas/factura" replace />} />
+
+              {/* Finanzas / Inventario / Informes */}
+              <Route path="/finanzas" element={<FinanzasPage />} />
+              <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
+              <Route path="/inventario/movimientos/nuevo" element={<InventarioMovimientoFormPage />} />
+              <Route path="/informes/ia" element={<AIReportesPage />} />
+
+              {/* Configuración */}
               <Route path="/configuracion" element={<ConfiguracionPage />} />
               <Route path="/configuracion/empresas" element={<EmpresasPage />} />
               <Route path="/configuracion/usuarios" element={<UsuariosPage />} />
@@ -104,10 +116,12 @@ export default function App() {
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
-              <Route path="/finanzas" element={<FinanzasPage />} />
-              <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
-              <Route path="/inventario/movimientos/nuevo" element={<InventarioMovimientoFormPage />} />
-              <Route path="/informes/ia" element={<AIReportesPage />} />
+
+              {/* Redirects legacy */}
+              <Route path="/documentos" element={<Navigate to="/ventas/cotizacion" replace />} />
+              <Route path="/facturas" element={<Navigate to="/ventas/factura" replace />} />
+
+              {/* Default / catch-all */}
               <Route path="/" element={<Navigate to="/contactos" replace />} />
               <Route path="*" element={<Navigate to="/contactos" replace />} />
             </Route>
@@ -117,13 +131,5 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
-  );
-}
-
-function LayoutWrapper() {
-  return (
-    <Layout>
-      <Outlet />
-    </Layout>
   );
 }

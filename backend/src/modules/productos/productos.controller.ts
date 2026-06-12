@@ -3,6 +3,7 @@ import { generarExcelBuffer } from '../../utils/exportar';
 import type { ExportColumna } from '../../utils/exportar';
 import {
   getProductosRepository,
+  getProductosPaginadosRepository,
   updateProductoRepository,
   deleteProductoRepository,
   insertarProductoRepository,
@@ -38,8 +39,19 @@ export async function getProductos(req: Request, res: Response) {
       return res.status(400).json({ message: "empresaId no disponible en contexto" });
     }
 
+    const pageRaw = req.query.page;
+    const limitRaw = req.query.limit;
+    const page = typeof pageRaw === 'string' ? Number(pageRaw) : undefined;
+    const limit = typeof limitRaw === 'string' ? Number(limitRaw) : undefined;
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+
+    const usingPagination = Number.isFinite(page) && Number.isFinite(limit);
+    if (usingPagination && page && page >= 1 && limit && limit >= 1 && limit <= 100) {
+      const result = await getProductosPaginadosRepository(Number(empresaId), { page, limit, search });
+      return res.json({ data: result.data, total: result.total, page, limit });
+    }
+
     const productos = await getProductosRepository(Number(empresaId));
-    //console.log('[BACK IVA DEBUG] getProductos response sample', productos.slice(0, 3).map((p) => ({ id: p?.id, iva_porcentaje: p?.iva_porcentaje })));
     res.json(productos);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener productos' });

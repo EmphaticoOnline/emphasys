@@ -1,4 +1,4 @@
-import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -59,37 +59,31 @@ export default function ContactosDesktopView({
   onCreateContacto,
 }: ContactosDesktopViewProps) {
   return (
-    <Box sx={{ width: '100%', px: 3, py: 0, display: 'flex', justifyContent: 'center' }}>
-      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 1 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 260 }}>
-            <Box>
-              <Typography variant="h5" fontWeight={600} color="#1d2f68">Contactos</Typography>
-              <Typography variant="body2" color="#4b5563">Gestiona y consulta tus contactos registrados.</Typography>
-            </Box>
-            <TextField
-              size="small"
-              placeholder="Buscar por empresa, contacto, email, teléfono, interés u observaciones"
-              value={searchTerm}
-              onChange={(event) => onSearchTermChange(event.target.value)}
-              sx={{ maxWidth: 360 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-                endAdornment: searchTerm ? (
-                  <InputAdornment position="end">
-                    <IconButton aria-label="Borrar búsqueda" size="small" onClick={onClearSearch} edge="end">
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ) : null,
-              }}
-            />
-          </Box>
-          <Stack direction="row" spacing={1} sx={{ alignSelf: 'flex-end' }}>
+    <Box sx={{ width: '100%', px: 3, pt: 2, pb: 0, display: 'flex', justifyContent: 'center' }}>
+      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TextField
+            size="small"
+            placeholder="Buscar por empresa, contacto, email, teléfono, interés u observaciones..."
+            value={searchTerm}
+            onChange={(event) => onSearchTermChange(event.target.value)}
+            sx={{ flex: 1 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: searchTerm ? (
+                <InputAdornment position="end">
+                  <IconButton aria-label="Borrar búsqueda" size="small" onClick={onClearSearch} edge="end">
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+          <Stack direction="row" spacing={1}>
             <Button
               variant="outlined"
               startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
@@ -109,7 +103,7 @@ export default function ContactosDesktopView({
                 '&:hover': { backgroundColor: '#162551' },
               }}
             >
-              + NUEVO
+              + Nuevo
             </Button>
           </Stack>
         </Box>

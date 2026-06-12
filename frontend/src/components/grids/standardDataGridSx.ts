@@ -1,7 +1,7 @@
 import type { SystemStyleObject, Theme } from '@mui/material/styles';
 
-export const STANDARD_DATA_GRID_HEADER_HEIGHT = 42;
-export const STANDARD_DATA_GRID_ROW_HEIGHT = 42;
+export const STANDARD_DATA_GRID_HEADER_HEIGHT = 38;
+export const STANDARD_DATA_GRID_ROW_HEIGHT = 34;
 
 export const standardDataGridSx: SystemStyleObject<Theme> = {
   '& .MuiDataGrid-columnHeaders': {
@@ -35,6 +35,24 @@ export const standardDataGridSx: SystemStyleObject<Theme> = {
   },
   '& .MuiDataGrid-columnHeader .MuiSvgIcon-root': {
     color: '#ffffff',
+  },
+  // GridIconButtonContainer default: visibility:hidden; width:0.
+  // Restore visibility for sorted/filtered columns and on hover.
+  '& .MuiDataGrid-columnHeader--sorted .MuiDataGrid-iconButtonContainer': {
+    visibility: 'visible',
+    width: 'auto',
+  },
+  '& .MuiDataGrid-columnHeader--filtered .MuiDataGrid-iconButtonContainer': {
+    visibility: 'visible',
+    width: 'auto',
+  },
+  '& .MuiDataGrid-columnHeader:hover .MuiDataGrid-iconButtonContainer': {
+    visibility: 'visible',
+    width: 'auto',
+  },
+  // Ensure sort button is fully opaque when column is sorted.
+  '& .MuiDataGrid-columnHeader--sorted .MuiDataGrid-sortButton': {
+    opacity: 1,
   },
   '& .MuiDataGrid-columnSeparator': {
     color: 'rgba(255,255,255,0.25)',

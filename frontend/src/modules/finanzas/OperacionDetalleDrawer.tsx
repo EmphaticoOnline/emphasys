@@ -40,21 +40,18 @@ const compatibilidadNaturaleza: Record<string, string[]> = {
   movimiento_general: [],
 };
 
-const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-
 const formatDateShort = (value?: string | null) => {
   if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime()) && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
     const [y, m, d] = value.slice(0, 10).split('-');
-    const month = MONTHS_SHORT[Number(m) - 1] || m;
-    return `${d}-${month}-${y}`;
+    return `${d}/${m}/${y}`;
   }
+  const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   const day = String(parsed.getDate()).padStart(2, '0');
-  const month = MONTHS_SHORT[parsed.getMonth()] || String(parsed.getMonth() + 1).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
   const year = parsed.getFullYear();
-  return `${day}-${month}-${year}`;
+  return `${day}/${month}/${year}`;
 };
 
 interface OperacionDetalleDrawerProps {
