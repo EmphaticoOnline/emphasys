@@ -13,7 +13,7 @@ import {
 } from '../crm/conversaciones.service';
 import { COTIZACION_ESTATUS_DOCUMENTO_ENVIADO } from '../modules/documentos/cotizacion-status';
 
-type TipoDocumentoEnviable = 'cotizacion' | 'orden_servicio';
+type TipoDocumentoEnviable = 'cotizacion' | 'orden_servicio' | 'orden_compra';
 
 type EnviarDocumentoEmailInput = {
   documentoId: number;
@@ -40,20 +40,23 @@ type DocumentoEmail = {
 const DOCUMENTO_LABELS: Record<TipoDocumentoEnviable, string> = {
   cotizacion: 'Cotización',
   orden_servicio: 'Orden de servicio',
+  orden_compra: 'Orden de compra',
 };
 
 const PLANTILLA_EMAIL_FALLBACK: Record<TipoDocumentoEnviable, string> = {
   cotizacion: 'cotizacion',
   orden_servicio: 'cotizacion',
+  orden_compra: 'cotizacion',
 };
 
 const ARCHIVO_ADJUNTO_PREFIX: Record<TipoDocumentoEnviable, string> = {
   cotizacion: 'Cotizacion',
   orden_servicio: 'OrdenDeServicio',
+  orden_compra: 'OrdenDeCompra',
 };
 
 const esTipoDocumentoEnviable = (value: string): value is TipoDocumentoEnviable =>
-  value === 'cotizacion' || value === 'orden_servicio';
+  value === 'cotizacion' || value === 'orden_servicio' || value === 'orden_compra';
 
 export class CotizacionEmailService {
   public static async enviarCotizacion(input: Omit<EnviarDocumentoEmailInput, 'tipoDocumento'>) {

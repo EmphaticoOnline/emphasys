@@ -4,6 +4,7 @@ export type WhatsappTemplateAction = 'documento_pdf' | 'cfdi' | 'reactivacion' |
 export type WhatsappTemplateType =
   | 'envio_cotizacion'
   | 'envio_orden_servicio'
+  | 'envio_orden_compra'
   | 'envio_cfdi'
   | 'envio_nota_venta'
   | 'reactivacion'
@@ -14,6 +15,7 @@ export const DEFAULT_WHATSAPP_TEMPLATE_ACTION: Extract<WhatsappTemplateAction, '
 const DOCUMENTO_PDF_TEMPLATE_BY_DOCUMENTO: Partial<Record<TipoDocumento, WhatsappTemplateType>> = {
   cotizacion: 'envio_cotizacion',
   orden_servicio: 'envio_orden_servicio',
+  orden_compra: 'envio_orden_compra',
 };
 
 const CFDI_TEMPLATE_BY_DOCUMENTO: Partial<Record<TipoDocumento, WhatsappTemplateType>> = {

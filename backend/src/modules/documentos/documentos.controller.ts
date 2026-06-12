@@ -66,13 +66,14 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   factura_compra: 'factura de compra',
 };
 
-const TIPOS_DOCUMENTO_ENVIO = new Set<TipoDocumento>(['cotizacion', 'orden_servicio']);
+const TIPOS_DOCUMENTO_ENVIO = new Set<TipoDocumento>(['cotizacion', 'orden_servicio', 'orden_compra']);
 const CARPETAS_PUBLICAS_POR_TIPO: Partial<Record<TipoDocumento, string>> = {
   cotizacion: 'cotizaciones',
   orden_servicio: 'ordenes-servicio',
+  orden_compra: 'ordenes-compra',
 };
 
-const esTipoDocumentoEnviable = (value: TipoDocumento): value is 'cotizacion' | 'orden_servicio' =>
+const esTipoDocumentoEnviable = (value: TipoDocumento): value is 'cotizacion' | 'orden_servicio' | 'orden_compra' =>
   TIPOS_DOCUMENTO_ENVIO.has(value);
 
 type RecursoFacturaPublico = 'pdf' | 'xml';
