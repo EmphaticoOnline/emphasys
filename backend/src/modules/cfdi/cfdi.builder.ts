@@ -149,6 +149,14 @@ export class CfdiBuilder {
 
     const xml = create({ version: '1.0', encoding: 'UTF-8' }).ele('cfdi:Comprobante', comprobanteAttrs);
 
+    if (options.globalInformation) {
+      xml.ele('cfdi:InformacionGlobal', {
+        Periodicidad: options.globalInformation.periodicity,
+        Meses: options.globalInformation.months,
+        Año: options.globalInformation.year,
+      }).up();
+    }
+
     if (options.relations?.type && options.relations.cfdis?.length) {
       const relaciones = xml.ele('cfdi:CfdiRelacionados', { TipoRelacion: options.relations.type });
       options.relations.cfdis.forEach((relation) => {

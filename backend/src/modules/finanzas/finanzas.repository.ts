@@ -2,7 +2,16 @@ import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import { obtenerReglaDocumentoOrigenFinanciero } from './documento-origen-financiero';
 
-const TIPOS_DOCUMENTO_CARGO = ['factura', 'factura_compra'];
+const TIPOS_DOCUMENTO_CARGO = [
+  'factura',
+  'factura_compra',
+  'nota_credito',
+  'nota_credito_compra',
+  'pago_cliente',
+  'pago_proveedor',
+  'ajuste_cliente',
+  'ajuste_proveedor',
+];
 
 const currentCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -849,7 +858,7 @@ async function crearAplicacionTx(
   const origenDocQuery = `
     SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
     FROM documentos d
-    WHERE d.id = $1 AND d.empresa_id = $2 AND d.tipo_documento IN ('nota_credito', 'nota_credito_compra', 'pago_cliente', 'pago_proveedor')
+    WHERE d.id = $1 AND d.empresa_id = $2 AND d.tipo_documento IN ('nota_credito', 'nota_credito_compra', 'pago_cliente', 'pago_proveedor', 'ajuste_cliente', 'ajuste_proveedor')
     FOR UPDATE
   `;
   const origenRows = await client.query(origenDocQuery, [documentoOrigenId, empresaId]);
@@ -874,13 +883,13 @@ async function crearAplicacionTx(
 
   // 4) Validar compatibilidad de tipos
   if (destino.tipo_documento === 'factura') {
-    if (!['nota_credito', 'pago_cliente'].includes(origen.tipo_documento)) {
+    if (!['nota_credito', 'pago_cliente', 'ajuste_cliente'].includes(origen.tipo_documento)) {
       const err = new Error('documento origen incompatible para factura');
       (err as any).status = 409;
       throw err;
     }
   } else if (destino.tipo_documento === 'factura_compra') {
-    if (!['nota_credito_compra', 'pago_proveedor'].includes(origen.tipo_documento)) {
+    if (!['nota_credito_compra', 'pago_proveedor', 'ajuste_proveedor'].includes(origen.tipo_documento)) {
       const err = new Error('documento origen incompatible para factura_compra');
       (err as any).status = 409;
       throw err;

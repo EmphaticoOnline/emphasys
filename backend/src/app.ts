@@ -62,6 +62,7 @@ import produccionRouter from "./modules/produccion/produccion.routes";
 import gridPreferencesRouter from "./modules/grid-preferences/grid-preferences.routes";
 import versionRouter from "./routes/version.routes";
 import cfdiCsdRouter from "./modules/cfdi/cfdi-csd.routes";
+import facturaGlobalRouter from "./modules/documentos/factura-global.routes";
 import { FRONTEND_BUILD_VERSION } from "./config/version";
 
 const app = express();
@@ -165,6 +166,7 @@ app.use("/api/uploads", uploadsRouter);
 app.use("/api/crm", crmOportunidadesRouter);
 app.use("/api/version", versionRouter);
 app.use("/api/cfdi", cfdiCsdRouter);
+app.use("/api/factura-global", facturaGlobalRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

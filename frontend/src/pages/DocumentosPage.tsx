@@ -117,6 +117,7 @@ import {
 } from '../modules/documentos/documentoNavigation';
 import DocumentosDesktopView from '../components/documentos/DocumentosDesktopView';
 import DocumentosMobileView from '../components/documentos/DocumentosMobileView';
+import FacturaGlobalDialog from '../modules/documentos/FacturaGlobalDialog';
 
 const formatCivilDate = (value: unknown) => {
   const raw = String(value ?? '').trim();
@@ -393,6 +394,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const modulo = location.pathname.startsWith('/compras') ? 'compras' : 'ventas';
   const esCotizacion = tipoDocumento === 'cotizacion';
   const esNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
+  const esFacturaVentas = tipoDocumento === 'factura' && modulo === 'ventas';
+  const [openFacturaGlobal, setOpenFacturaGlobal] = useState(false);
   const [tiposDocumento, setTiposDocumento] = useState<TipoDocumentoEmpresa[]>([]);
 
   useEffect(() => {
@@ -2700,14 +2703,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   };
 
   const extraActionsContent = (
-    <Button
-      variant="outlined"
-      startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
-      onClick={() => void handleExport()}
-      disabled={exportLoading}
-    >
-      Exportar
-    </Button>
+    <Stack direction="row" spacing={1}>
+      {esFacturaVentas && (
+        <Button
+          variant="outlined"
+          startIcon={<ReceiptLongIcon />}
+          onClick={() => setOpenFacturaGlobal(true)}
+        >
+          Factura global
+        </Button>
+      )}
+      <Button
+        variant="outlined"
+        startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
+        onClick={() => void handleExport()}
+        disabled={exportLoading}
+      >
+        Exportar
+      </Button>
+    </Stack>
   );
 
   const desktopView = (
@@ -3592,6 +3606,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           </Button>
         </DialogActions>
       </Dialog>
+
+      <FacturaGlobalDialog
+        open={openFacturaGlobal}
+        onClose={() => setOpenFacturaGlobal(false)}
+        onGenerado={() => { setOpenFacturaGlobal(false); void load(); }}
+      />
     </>
   );
 }

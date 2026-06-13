@@ -20,6 +20,8 @@ export const SERIES_DEFAULTS: Record<TipoDocumento, string> = {
   nota_credito_compra: 'NCC',
   pago_proveedor: 'PPR',
   factura_compra: 'FCO',
+  ajuste_cliente: 'ACL',
+  ajuste_proveedor: 'APR',
 };
 
 type SerieDocumentoRow = {

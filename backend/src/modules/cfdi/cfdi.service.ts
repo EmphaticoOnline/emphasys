@@ -105,6 +105,7 @@ export class CfdiService {
       `SELECT d.id, d.empresa_id, d.tipo_documento, d.motivo_nc, d.documento_origen_id,
               d.serie, d.numero, d.fecha_documento, d.moneda, d.subtotal, d.iva, d.total,
               d.forma_pago, d.metodo_pago, d.uso_cfdi, d.rfc_receptor, d.nombre_receptor, d.regimen_fiscal_receptor, d.codigo_postal_receptor,
+              d.tratamiento_impuestos, d.periodicidad_global, d.meses_global, d.anio_global,
               e.razon_social, e.rfc, e.regimen_fiscal_id AS regimen_fiscal, e.codigo_postal_id
          FROM documentos d
          JOIN core.empresas e ON e.id = d.empresa_id
@@ -123,6 +124,13 @@ export class CfdiService {
     const tipoDocumento = String(documento.tipo_documento || '').trim().toLowerCase();
     if (tipoDocumento !== 'factura' && tipoDocumento !== 'nota_credito') {
       throw new CfdiValidationError('Solo se permite timbrar facturas y notas de crédito.');
+    }
+
+    const tratamiento = String(documento.tratamiento_impuestos || '').trim().toLowerCase();
+    if (tratamiento === 'venta_publico_general') {
+      throw new CfdiValidationError(
+        'Las ventas de público general no se timbran individualmente. Genera una factura global para el período correspondiente.'
+      );
     }
 
     if (tipoDocumento === 'nota_credito') {
@@ -155,6 +163,10 @@ export class CfdiService {
         nombre_receptor: documento.nombre_receptor,
         regimen_fiscal_receptor: documento.regimen_fiscal_receptor,
         codigo_postal_receptor: documento.codigo_postal_receptor,
+        tratamiento_impuestos: documento.tratamiento_impuestos ?? null,
+        periodicidad_global: documento.periodicidad_global ?? null,
+        meses_global: documento.meses_global ?? null,
+        anio_global: documento.anio_global ? Number(documento.anio_global) : null,
       },
       empresa: {
         id: documento.empresa_id,
@@ -247,6 +259,22 @@ export class CfdiService {
       return {
         cfdiType: 'E',
         relations: await this.resolverNcRelations(data.documento.documento_origen_id, empresaId),
+      };
+    }
+
+    const tratamiento = String(data.documento.tratamiento_impuestos || '').trim().toLowerCase();
+    const rfcReceptor = String(data.documento.rfc_receptor || '').toUpperCase();
+    const esFacturaGlobal =
+      tratamiento === 'factura_global' &&
+      (rfcReceptor === 'XAXX010101000' || rfcReceptor === 'XEXX010101000');
+
+    if (esFacturaGlobal) {
+      const periodicity = String(data.documento.periodicidad_global || '04').padStart(2, '0');
+      const months = String(data.documento.meses_global || '01').padStart(2, '0');
+      const year = String(data.documento.anio_global || new Date().getFullYear());
+      return {
+        cfdiType: 'I',
+        globalInformation: { periodicity, months, year },
       };
     }
 

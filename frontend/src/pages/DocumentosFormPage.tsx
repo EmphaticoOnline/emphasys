@@ -310,7 +310,7 @@ const DESCRIPCIONES_FORMULARIO: Record<string, string> = {
   pago_proveedor: 'Captura un documento monetario simple de pago a proveedor.',
 };
 
-const TIPOS_DOCUMENTO_CON_SALDO = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra', 'pago_cliente', 'pago_proveedor'];
+const TIPOS_DOCUMENTO_CON_SALDO = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra', 'pago_cliente', 'pago_proveedor', 'ajuste_cliente', 'ajuste_proveedor'];
 const MOTIVOS_NOTA_CREDITO = ['devolucion', 'bonificacion', 'otro'] as const;
 type MotivoNotaCredito = typeof MOTIVOS_NOTA_CREDITO[number];
 

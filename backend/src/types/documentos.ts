@@ -12,4 +12,6 @@ export type TipoDocumento =
   | 'recepcion'
   | 'nota_credito_compra'
   | 'pago_proveedor'
-  | 'factura_compra';
+  | 'factura_compra'
+  | 'ajuste_cliente'
+  | 'ajuste_proveedor';

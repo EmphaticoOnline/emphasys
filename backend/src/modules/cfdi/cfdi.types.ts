@@ -30,6 +30,10 @@ export interface CfdiDocumento {
   nombre_receptor: string | null;
   regimen_fiscal_receptor: string | null;
   codigo_postal_receptor: string | null;
+  tratamiento_impuestos?: string | null;
+  periodicidad_global?: string | null;
+  meses_global?: string | null;
+  anio_global?: number | null;
 }
 
 export interface CfdiPartida {
@@ -68,10 +72,17 @@ export interface CfdiRelationsData {
   cfdis: CfdiRelatedDocument[];
 }
 
+export interface CfdiGlobalInformation {
+  periodicity: string; // SAT code: 01=Diario 02=Semanal 03=Quincenal 04=Mensual 05=Bimestral
+  months: string;      // SAT code: 01-12 mensual, 13-18 bimestral
+  year: string;        // YYYY
+}
+
 export interface CfdiBuildOptions {
   fechaEmision?: string;
   cfdiType?: string;
   relations?: CfdiRelationsData;
+  globalInformation?: CfdiGlobalInformation;
 }
 
 export interface CfdiBuildResult {

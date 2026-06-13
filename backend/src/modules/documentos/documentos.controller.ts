@@ -64,6 +64,8 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   nota_credito_compra: 'nota de crédito de compra',
   pago_proveedor: 'pago proveedor',
   factura_compra: 'factura de compra',
+  ajuste_cliente: 'ajuste de saldo cliente',
+  ajuste_proveedor: 'ajuste de saldo proveedor',
 };
 
 const TIPOS_DOCUMENTO_ENVIO = new Set<TipoDocumento>(['cotizacion', 'orden_servicio', 'orden_compra']);
