@@ -4,6 +4,7 @@ import {
   agregarPartida,
   crearCotizacion,
   timbrarDocumentoCfdi,
+  timbrarComplementoPagoHandler,
   enviarCotizacionPorCorreo,
   enviarWhatsappCotizacion,
   listarCotizaciones,
@@ -68,6 +69,9 @@ router.put('/:id/partidas', requireAuth, requireEmpresaActiva, reemplazarPartida
 
 // POST /api/documentos/:id/timbrar-cfdi
 router.post('/:id/timbrar-cfdi', requireAuth, requireEmpresaActiva, timbrarDocumentoCfdi);
+
+// POST /api/documentos/:id/timbrar-complemento-pago
+router.post('/:id/timbrar-complemento-pago', requireAuth, requireEmpresaActiva, timbrarComplementoPagoHandler);
 
 // POST /api/documentos/:id/cancelar
 router.post('/:id/cancelar', requireAuth, requireEmpresaActiva, cancelarDocumento);

@@ -913,6 +913,17 @@ async function crearAplicacionTx(
   const montoOrigenBase = Math.abs(Number(origen.total || 0) * tipoCambioOrigen);
   const saldoOrigen = roundFinancial(montoOrigenBase - aplicadoOrigen);
   const saldoDestino = roundFinancial(Number(destino.total || 0) - aplicadoDestino);
+
+  // Campos fiscales SAT para DoctoRelacionado en Complemento de Pagos 2.0.
+  // El COUNT es seguro porque el FOR UPDATE sobre destino impide inserciones
+  // concurrentes al mismo documento_destino_id hasta que esta transacción confirme.
+  const { rows: parcRows } = await client.query<{ cnt: string }>(
+    `SELECT COUNT(*) AS cnt FROM aplicaciones_saldo WHERE documento_destino_id = $1`,
+    [destino.id]
+  );
+  const numParcialidad = Number(parcRows[0]?.cnt ?? 0) + 1;
+  const impSaldoAnt = saldoDestino;
+
   const montoBase = roundFinancial(data.monto);
   const montoMonedaDocumento = roundFinancial(data.monto_moneda_documento);
   const compareTolerance = 0.000001;
@@ -953,6 +964,8 @@ async function crearAplicacionTx(
     throw err;
   }
 
+  const impSaldoInsoluto = roundFinancial(impSaldoAnt - montoMonedaDocumento);
+
   const insertSql = `
     INSERT INTO aplicaciones_saldo (
       empresa_id,
@@ -961,8 +974,11 @@ async function crearAplicacionTx(
       monto,
       monto_moneda_documento,
       fecha_aplicacion,
-      fecha_creacion
-    ) VALUES ($1,$2,$3,$4,$5,$6,NOW())
+      fecha_creacion,
+      num_parcialidad,
+      imp_saldo_ant,
+      imp_saldo_insoluto
+    ) VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,$8,$9)
     RETURNING *
   `;
 
@@ -973,6 +989,9 @@ async function crearAplicacionTx(
     montoBase,
     montoMonedaDocumento,
     data.fecha_aplicacion ?? null,
+    numParcialidad,
+    impSaldoAnt,
+    impSaldoInsoluto,
   ];
 
   const { rows: appRows } = await client.query(insertSql, insertValues);

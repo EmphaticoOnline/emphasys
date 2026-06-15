@@ -14,6 +14,7 @@ import {
 import { generarDocumentoPDF } from './documentos.pdf';
 import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
+import { timbrarComplementoPago } from '../cfdi/cfdi-pago.service';
 import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
 import { actualizarCotizacionService, actualizarDocumentoService, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
@@ -1199,6 +1200,25 @@ export async function timbrarDocumentoCfdi(req: Request, res: Response) {
     }
     console.error('Error al timbrar documento CFDI', error);
     res.status(500).json({ message: 'Error al timbrar el documento' });
+  }
+}
+
+export async function timbrarComplementoPagoHandler(req: Request, res: Response) {
+  const documentoId = Number(req.params.id);
+  const empresaId = req.context?.empresaId;
+  if (Number.isNaN(documentoId) || !empresaId) {
+    return res.status(400).json({ message: 'ID o empresaId inválido' });
+  }
+  try {
+    const resultado = await timbrarComplementoPago(documentoId, Number(empresaId));
+    res.json(resultado);
+  } catch (error) {
+    if (error instanceof CfdiValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
+    console.error('Error al timbrar complemento de pago', error);
+    const message = error instanceof Error ? error.message : 'Error al timbrar el complemento de pago';
+    res.status(500).json({ message });
   }
 }
 

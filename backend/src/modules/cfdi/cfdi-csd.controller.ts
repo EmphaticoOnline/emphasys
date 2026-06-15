@@ -173,7 +173,11 @@ export async function registrarCsdEmpresaFacturamaController(req: Request, res: 
     });
 
     const statusCode = Number(error?.statusCode);
-    const status = Number.isFinite(statusCode) ? Math.min(Math.max(statusCode, 400), 502) : 500;
+    // 401/403 de Facturama no deben reenviarse al cliente — apiFetch los
+    // interpreta como sesión vencida y cierra la sesión del usuario.
+    const status = Number.isFinite(statusCode) && statusCode !== 401 && statusCode !== 403
+      ? Math.min(Math.max(statusCode, 400), 502)
+      : 422;
     const message = String(error?.message || 'No se pudo registrar el CSD en Facturama');
 
     return res.status(status).json({ message });

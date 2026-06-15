@@ -76,6 +76,28 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled, visibleF
       }
     : {};
 
+  const esPPD = values.metodo_pago === 'PPD';
+  const rfcUpper = (values.rfc_receptor || '').toUpperCase();
+  const esRfcGenerico = rfcUpper === 'XAXX010101000' || rfcUpper === 'XEXX010101000';
+
+  useEffect(() => {
+    if (values.metodo_pago === 'PPD' && values.forma_pago !== '99') {
+      onChange({ forma_pago: '99' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values.metodo_pago]);
+
+  useEffect(() => {
+    const upper = (values.rfc_receptor || '').toUpperCase();
+    if (upper === 'XAXX010101000' || upper === 'XEXX010101000') {
+      const changes: Partial<DatosFiscalesValues> = {};
+      if (values.regimen_fiscal_receptor !== '616') changes.regimen_fiscal_receptor = '616';
+      if (values.uso_cfdi !== 'S01') changes.uso_cfdi = 'S01';
+      if (Object.keys(changes).length > 0) onChange(changes);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values.rfc_receptor]);
+
   const [rfcError, setRfcError] = useState<string | null>(null);
 
   const [regimenOptions, setRegimenOptions] = useState<CatalogItem[]>([]);
@@ -163,50 +185,54 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled, visibleF
     options: CatalogItem[],
     loading: boolean,
     onSearch: (value: string) => void,
-    onSelect: (value: string) => void
-  ) => (
-    <Autocomplete
-      options={options}
-      loading={loading}
-      value={options.find((o) => o.clave === value) || (value ? { clave: value, nombre: value } : null)}
-      getOptionLabel={(option) => option?.nombre || option?.clave || ''}
-      isOptionEqualToValue={(option, val) => option?.clave === val?.clave}
-      onInputChange={(_, newValue) => onSearch(newValue)}
-      onChange={(_, newValue) => onSelect(newValue?.clave || '')}
-      renderInput={(params) => (
-        <TextField
-          {...(params as any)}
-          label={label}
-          fullWidth
-          {...textFieldProps}
-          inputProps={compact
-            ? {
-                ...params.inputProps,
-                style: {
-                  ...(params.inputProps?.style ?? {}),
-                  fontSize: 13,
-                },
-              }
-            : params.inputProps}
-          InputProps={{
-            ...params.InputProps,
-            endAdornment: (
-              <>
-                {loading && <CircularProgress size={18} />} {params.InputProps.endAdornment}
-              </>
-            ) as React.ReactNode,
-          }}
-          placeholder="Buscar"
-          disabled={isDisabled}
-        />
-      )}
-      noOptionsText="Sin resultados"
-      onOpen={() => {
-        if (!options.length) onSearch('');
-      }}
-      disabled={isDisabled}
-    />
-  );
+    onSelect: (value: string) => void,
+    extraDisabled = false
+  ) => {
+    const fieldDisabled = isDisabled || extraDisabled;
+    return (
+      <Autocomplete
+        options={options}
+        loading={loading}
+        value={options.find((o) => o.clave === value) || (value ? { clave: value, nombre: value } : null)}
+        getOptionLabel={(option) => option?.nombre || option?.clave || ''}
+        isOptionEqualToValue={(option, val) => option?.clave === val?.clave}
+        onInputChange={(_, newValue) => onSearch(newValue)}
+        onChange={(_, newValue) => onSelect(newValue?.clave || '')}
+        renderInput={(params) => (
+          <TextField
+            {...(params as any)}
+            label={label}
+            fullWidth
+            {...textFieldProps}
+            inputProps={compact
+              ? {
+                  ...params.inputProps,
+                  style: {
+                    ...(params.inputProps?.style ?? {}),
+                    fontSize: 13,
+                  },
+                }
+              : params.inputProps}
+            InputProps={{
+              ...params.InputProps,
+              endAdornment: (
+                <>
+                  {loading && <CircularProgress size={18} />} {params.InputProps.endAdornment}
+                </>
+              ) as React.ReactNode,
+            }}
+            placeholder="Buscar"
+            disabled={fieldDisabled}
+          />
+        )}
+        noOptionsText="Sin resultados"
+        onOpen={() => {
+          if (!options.length) onSearch('');
+        }}
+        disabled={fieldDisabled}
+      />
+    );
+  };
 
   useEffect(() => {
   loadCatalog(endpoints.regimen, '', setRegimenOptions, setRegimenLoading, 'regimen', mapRegimenItems);
@@ -265,7 +291,8 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled, visibleF
             regimenOptions,
             regimenLoading,
             (search) => loadCatalog(endpoints.regimen, search, setRegimenOptions, setRegimenLoading, 'regimen', mapRegimenItems),
-            (clave) => onChange({ regimen_fiscal_receptor: clave })
+            (clave) => onChange({ regimen_fiscal_receptor: clave }),
+            esRfcGenerico
           )}
           {fields.uso_cfdi && buildAutocomplete(
             'Uso CFDI',
@@ -273,7 +300,8 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled, visibleF
             usoOptions,
             usoLoading,
             (search) => loadCatalog(endpoints.uso, search, setUsoOptions, setUsoLoading, 'uso'),
-            (clave) => onChange({ uso_cfdi: clave })
+            (clave) => onChange({ uso_cfdi: clave }),
+            esRfcGenerico
           )}
         </Box>
       )}
@@ -323,14 +351,14 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled, visibleF
                     ) as React.ReactNode,
                   }}
                   placeholder="Buscar"
-                  disabled={isDisabled}
+                  disabled={isDisabled || esPPD}
                 />
               )}
               noOptionsText="Sin resultados"
               onOpen={() => {
                 loadCatalogForma('');
               }}
-              disabled={isDisabled}
+              disabled={isDisabled || esPPD}
             />
           )}
           {fields.metodo_pago && buildAutocomplete(

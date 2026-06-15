@@ -369,6 +369,11 @@ const normalizarTratamiento = (value: unknown): TratamientoImpuestos => {
 
 const puedeTimbrarCfdiDocumento = (tipoDocumento: TipoDocumento, row?: Partial<CotizacionListado> | null): boolean => {
   const tipoNormalizado = normalizeTipoDocumento(tipoDocumento);
+
+  if (tipoNormalizado === 'pago_cliente') {
+    return true;
+  }
+
   if (!esDocumentoFiscalPorTratamiento(tipoNormalizado, row?.tratamiento_impuestos)) {
     return false;
   }

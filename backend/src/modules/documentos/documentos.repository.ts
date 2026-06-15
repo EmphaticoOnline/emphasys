@@ -10,6 +10,21 @@ import { obtenerOCrearProductoTecnicoNcComercialRepository } from '../productos/
 import { reservarNumeroParaSerieExistente, resolverSerieDocumento, resolverYReservarSerieDocumento } from './series-documento.service';
 import { DocumentoDeleteValidationError } from './documentos-delete.service';
 
+function normalizarCamposFiscalesSat(data: Record<string, any>): void {
+  if (Object.prototype.hasOwnProperty.call(data, 'rfc_receptor')) {
+    const rfc = String(data.rfc_receptor || '').toUpperCase();
+    if (rfc === 'XAXX010101000' || rfc === 'XEXX010101000') {
+      data.regimen_fiscal_receptor = '616';
+      data.uso_cfdi = 'S01';
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'metodo_pago')) {
+    if (String(data.metodo_pago || '').toUpperCase() === 'PPD') {
+      data.forma_pago = '99';
+    }
+  }
+}
+
 export type Documento = {
   id: number;
   empresa_id: number;
@@ -822,6 +837,8 @@ export async function crearDocumentoRepository(
     }
   }
 
+  normalizarCamposFiscalesSat(dataConDefaults);
+
   const serieResuelta = await resolverYReservarSerieDocumento({
     empresaId,
     tipoDocumento: tipoDocumentoDb,
@@ -922,6 +939,7 @@ export async function actualizarDocumentoRepository(
   }
 
   let dataToUpdate: DocumentoInput = { ...data };
+  normalizarCamposFiscalesSat(dataToUpdate);
   const serieActual = current.serie ?? null;
   const serieNueva = dataToUpdate.serie ?? serieActual;
   const tipoDestino = (dataToUpdate.tipo_documento ?? current.tipo_documento) as TipoDocumento;

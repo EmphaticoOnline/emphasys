@@ -136,7 +136,9 @@ export class CfdiBuilder {
       Total: formatMoney(total),
       LugarExpedicion: data.empresa.codigo_postal_id,
       MetodoPago: data.documento.metodo_pago || 'PUE',
-      FormaPago: data.documento.forma_pago || '99',
+      FormaPago: (data.documento.metodo_pago || 'PUE').toUpperCase() === 'PPD'
+        ? '99'
+        : (data.documento.forma_pago || '99'),
       TotalImpuestosTrasladados: totalImpuestosTrasladados > 0 ? formatMoney(totalImpuestosTrasladados) : undefined,
       TotalImpuestosRetenidos: totalImpuestosRetenidos > 0 ? formatMoney(totalImpuestosRetenidos) : undefined,
     });
@@ -165,6 +167,9 @@ export class CfdiBuilder {
       relaciones.up();
     }
 
+    const rfcReceptorUpper = (data.documento.rfc_receptor || '').toUpperCase();
+    const esRfcGenerico = rfcReceptorUpper === 'XAXX010101000' || rfcReceptorUpper === 'XEXX010101000';
+
     xml
       .ele('cfdi:Emisor', sanitize({
         Rfc: data.empresa.rfc,
@@ -176,8 +181,8 @@ export class CfdiBuilder {
         Rfc: data.documento.rfc_receptor,
         Nombre: data.documento.nombre_receptor,
         DomicilioFiscalReceptor: domicilioFiscalReceptorAjustado,
-        RegimenFiscalReceptor: data.documento.regimen_fiscal_receptor,
-        UsoCFDI: data.documento.uso_cfdi,
+        RegimenFiscalReceptor: esRfcGenerico ? '616' : data.documento.regimen_fiscal_receptor,
+        UsoCFDI: esRfcGenerico ? 'S01' : data.documento.uso_cfdi,
       }))
       .up();
 

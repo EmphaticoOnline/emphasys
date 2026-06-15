@@ -166,3 +166,52 @@ export interface TimbrarFacturaResult {
   timbre: TimbradoPersisted;
   facturamaResponse: FacturamaStampResponse;
 }
+
+// ---------------------------------------------------------------------------
+// Complemento de Pagos 2.0
+// ---------------------------------------------------------------------------
+
+export interface ImpuestoDR {
+  impuesto: string;                      // nombre o clave SAT: "IVA", "002", etc.
+  tipo: 'traslado' | 'retencion';
+  tasa: number;                          // puede venir como 16 o 0.16
+  base: number;
+  monto: number;
+}
+
+export interface AplicacionComplemento {
+  uuid_factura: string;
+  serie: string | null;
+  folio: string | null;
+  moneda_factura: string;
+  tipo_cambio_factura: number;
+  total_factura: number;
+  monto_moneda_documento: number;
+  num_parcialidad: number;
+  imp_saldo_ant: number;
+  imp_saldo_insoluto: number;
+  impuestos: ImpuestoDR[];
+}
+
+export interface PagoComplementData {
+  empresa: {
+    rfc: string;
+    razon_social: string;
+    regimen_fiscal: string;
+    codigo_postal_id: string;
+  };
+  receptor: {
+    rfc: string;
+    nombre: string;
+    regimen_fiscal: string;
+    codigo_postal: string;
+  };
+  pago: {
+    monto: number;
+    forma_pago: string;
+    moneda: string;
+    tipo_cambio: number;
+    fecha: string;
+  };
+  aplicaciones: AplicacionComplemento[];
+}

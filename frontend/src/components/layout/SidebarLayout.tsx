@@ -29,6 +29,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import PeopleIcon from '@mui/icons-material/People';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
+import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -86,7 +87,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Contactos',     path: '/contactos',              icon: PeopleIcon },
   { label: 'Productos',     path: '/productos',              icon: CategoryIcon },
   { label: 'CRM',           path: '/crm',                   icon: ForumIcon },
-  { label: 'Ventas',        path: '/ventas/cotizacion',      icon: ReceiptLongIcon },
+  { label: 'Ventas',        path: '/ventas/cotizacion',      icon: PointOfSaleIcon },
   { label: 'Compras',       path: '/compras/orden-compra',   icon: ShoppingCartIcon },
   { label: 'Finanzas',      path: '/finanzas',              icon: AccountBalanceIcon },
   { label: 'Inventarios',   path: '/inventario/movimientos', icon: InventoryIcon },

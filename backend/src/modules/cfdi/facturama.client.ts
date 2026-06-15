@@ -84,6 +84,7 @@ export class FacturamaClient {
     this.stampPath = config.stampPath;
     this.http = axios.create({
       baseURL: config.baseUrl,
+      timeout: 30_000,
       auth: {
         username: config.username,
         password: config.password,
@@ -218,6 +219,65 @@ export class FacturamaClient {
             console.error('[facturama] response.data.ModelState:', JSON.stringify(modelState, null, 2));
           }
 
+          const userMessage = buildFacturamaUserMessage(respData);
+          if (userMessage) {
+            const facturamaError: any = new Error(userMessage);
+            facturamaError.isFacturamaValidation = true;
+            throw facturamaError;
+          }
+        }
+      }
+      throw error;
+    }
+  }
+
+  async stampPagoComplement(payload: object): Promise<{
+    xmlTimbrado: string;
+    response: FacturamaStampResponse;
+    uuid?: string;
+  }> {
+    console.log('===== FACTURAMA PAGO PAYLOAD START =====');
+    console.log(JSON.stringify(payload, null, 2));
+    console.log('===== FACTURAMA PAGO PAYLOAD END =====');
+
+    try {
+      const create = await this.http.post(this.stampPath, payload, {
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      });
+      const data = create.data;
+      console.log('[facturama] PAGO RESPONSE:', JSON.stringify(data, null, 2));
+
+      const xmlContent = (data as any)?.XmlContent as string | undefined;
+      if (xmlContent) {
+        return {
+          xmlTimbrado: Buffer.from(xmlContent, 'base64').toString('utf8'),
+          response: data,
+          uuid: (data as any)?.Uuid || (data as any)?.Complement?.TaxStamp?.Uuid,
+        };
+      }
+
+      const cfdiId = (data as any)?.Id;
+      if (!cfdiId) {
+        throw new Error('Facturama no regresó Id para descargar XML del complemento de pago.');
+      }
+
+      const file = await this.http.get(`/api/Cfdi/xml/issued/${cfdiId}`);
+      const xmlBase64 = (file.data as any)?.Content as string | undefined;
+      const xmlTimbrado = xmlBase64
+        ? Buffer.from(xmlBase64, 'base64').toString('utf8')
+        : String((file.data as any) || '');
+
+      return {
+        xmlTimbrado,
+        uuid: (data as any)?.Complement?.TaxStamp?.Uuid,
+        response: data,
+      };
+    } catch (error: any) {
+      if (axios.isAxiosError(error)) {
+        const respData = error.response?.data;
+        console.error('[facturama] Error al timbrar complemento de pago:', error.message);
+        if (respData !== undefined) {
+          console.error('[facturama] response.data:', JSON.stringify(respData, null, 2));
           const userMessage = buildFacturamaUserMessage(respData);
           if (userMessage) {
             const facturamaError: any = new Error(userMessage);

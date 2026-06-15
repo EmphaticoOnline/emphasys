@@ -265,6 +265,12 @@ export function enviarCotizacionPorCorreo(id: number, payload: {
 }
 
 export function timbrarDocumentoCfdi(id: number, tipo: TipoDocumento) {
+  if (tipo === 'pago_cliente') {
+    return apiFetch(`/api/documentos/${id}/timbrar-complemento-pago`, {
+      method: 'POST',
+    });
+  }
+
   const base = getBasePath(tipo);
   if (base === '/api/facturas') {
     return apiFetch(`/api/facturas/${id}/timbrar`, {
