@@ -22,13 +22,19 @@ export interface MovimientoListadoItem {
   usuario_id: number | null;
   usuario_nombre?: string | null;
   documento_id: number | null;
+  documento_serie?: string | null;
+  documento_numero?: number | null;
 }
 
 export interface MovimientoPartidaDetalle {
   id: number;
   producto_id: number | null;
+  producto_clave?: string | null;
+  producto_descripcion?: string | null;
   almacen_origen_id: number | null;
+  almacen_origen_nombre?: string | null;
   almacen_destino_id: number | null;
+  almacen_destino_nombre?: string | null;
   cantidad: number;
 }
 
@@ -41,6 +47,8 @@ export interface MovimientoDetalle {
     usuario_id: number | null;
     usuario_nombre?: string | null;
     documento_id: number | null;
+    documento_serie?: string | null;
+    documento_numero?: number | null;
   };
   partidas: MovimientoPartidaDetalle[];
 }

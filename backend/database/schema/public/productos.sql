@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict 2cBW0HtbyVlCnZSFeLs6knBSgvM1mGL7ivr2pLDjoLnle7JKqSD4djlhgoa5adg
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -82,7 +84,12 @@ CREATE TABLE public.productos (
     empresa_id integer NOT NULL,
     unidad_venta_id integer,
     unidad_inventario_id integer,
-    clave_unidad_sat character varying(10)
+    clave_unidad_sat character varying(10),
+    dias_entrega integer,
+    cantidad_minima_compra numeric(15,4),
+    proveedor_preferido_id integer,
+    pais_origen_id text,
+    cantidad_minima_venta numeric(15,4)
 );
 
 
@@ -130,10 +137,38 @@ ALTER TABLE ONLY public.productos
 
 
 --
+-- Name: idx_productos_clave_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_productos_clave_trgm ON public.productos USING gin (clave sat.gin_trgm_ops);
+
+
+--
+-- Name: idx_productos_descripcion_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_productos_descripcion_trgm ON public.productos USING gin (descripcion sat.gin_trgm_ops);
+
+
+--
 -- Name: ix_productos_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ix_productos_empresa ON public.productos USING btree (empresa_id);
+
+
+--
+-- Name: ix_productos_pais_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_productos_pais_origen ON public.productos USING btree (pais_origen_id);
+
+
+--
+-- Name: ix_productos_proveedor_preferido; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_productos_proveedor_preferido ON public.productos USING btree (proveedor_preferido_id);
 
 
 --
@@ -153,6 +188,24 @@ ALTER TABLE ONLY public.productos
 
 
 --
+-- Name: productos fk_productos_pais_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos
+    ADD CONSTRAINT fk_productos_pais_origen FOREIGN KEY (pais_origen_id) REFERENCES sat.paises(id) ON DELETE SET NULL;
+
+
+--
+-- Name: productos fk_productos_proveedor_preferido; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos
+    ADD CONSTRAINT fk_productos_proveedor_preferido FOREIGN KEY (proveedor_preferido_id) REFERENCES public.contactos(id) ON DELETE SET NULL;
+
+
+--
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 2cBW0HtbyVlCnZSFeLs6knBSgvM1mGL7ivr2pLDjoLnle7JKqSD4djlhgoa5adg
 

@@ -4,6 +4,9 @@ export interface OpcionGeneracion {
   tipo_documento_destino: TipoDocumento;
   nombre: string;
   orden?: number;
+  modo_autorizacion: 'ninguna' | 'directa' | 'flujo' | null;
+  usuario_puede_autorizar: boolean | null;
+  rol_requerido: string | null;
 }
 
 export interface PrepararGeneracionPartida {

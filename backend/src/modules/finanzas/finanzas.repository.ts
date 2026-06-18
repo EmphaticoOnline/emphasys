@@ -65,9 +65,11 @@ type AplicacionAnticipoBatchInput = {
 
 export async function obtenerSaldoDocumento(id: number, empresaId: number) {
   const sql = `
-    SELECT id, empresa_id, tipo_documento, moneda, tipo_cambio, total, saldo
-    FROM documentos_saldo
-    WHERE id = $1 AND empresa_id = $2
+    SELECT ds.id, ds.empresa_id, ds.tipo_documento, ds.moneda, ds.tipo_cambio, ds.total,
+      CASE WHEN LOWER(TRIM(COALESCE(d.estatus_documento, ''))) IN ('cancelado', 'cancelada') THEN 0 ELSE ds.saldo END AS saldo
+    FROM documentos_saldo ds
+    JOIN documentos d ON d.id = ds.id AND d.empresa_id = ds.empresa_id
+    WHERE ds.id = $1 AND ds.empresa_id = $2
   `;
   const { rows } = await pool.query(sql, [id, empresaId]);
   return rows[0] || null;

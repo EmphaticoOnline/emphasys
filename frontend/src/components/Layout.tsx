@@ -265,6 +265,7 @@ export default function Layout({ children }: LayoutProps) {
     Configuración: '/configuracion',
     CRM: '/crm',
     Informes: '/informes/ia',
+    Autorizaciones: '/autorizaciones',
   };
 
   const tabPathMap: Record<string, string> = {
@@ -295,6 +296,7 @@ export default function Layout({ children }: LayoutProps) {
   if (pathname.startsWith('/finanzas')) return 'Finanzas';
   if (pathname.startsWith('/inventario/')) return 'Inventarios';
   if (pathname.startsWith('/informes/')) return 'Informes';
+  if (pathname.startsWith('/autorizaciones')) return 'Autorizaciones';
   if (pathname.startsWith('/crm') || pathname.startsWith('/leads') || pathname.startsWith('/oportunidades')) return 'CRM';
     const tab = getTabFromPath(pathname);
     return getSectionForTab(tab);

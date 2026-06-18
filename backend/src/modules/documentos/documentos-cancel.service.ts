@@ -302,11 +302,15 @@ async function ejecutarCancelacionInterna(params: {
     await assertSinDocumentosDerivadosActivos(client, documentoId, empresaId);
 
     // Reversión de inventario (dentro de la misma transacción)
+    console.log(`[CANCELACION] Verificando movimiento inventario doc=${documentoId} empresa=${empresaId}`);
     const hayMovimientoInventario = await tieneMovimientoInventarioAsociado(client, documentoId, empresaId);
+    console.log(`[CANCELACION] tieneMovimientoInventarioAsociado=`, hayMovimientoInventario);
     if (hayMovimientoInventario) {
+      console.log(`[CANCELACION] Llamando revertirInventarioDocumentoEnTransaccion doc=${documentoId}`);
       await revertirInventarioDocumentoEnTransaccion(client, documentoId, empresaId, usuarioId, {
         observaciones: `Reversión por cancelación de documento ${documentoId}`,
       });
+      console.log(`[CANCELACION] revertirInventarioDocumentoEnTransaccion completado`);
     }
 
     // Cancelar documento
@@ -345,7 +349,9 @@ async function ejecutarCancelacionInterna(params: {
       [intentoId]
     );
 
+    console.log(`[CANCELACION] Antes de COMMIT doc=${documentoId}`);
     await client.query('COMMIT');
+    console.log(`[CANCELACION] COMMIT completado`);
 
     return {
       ok: true,

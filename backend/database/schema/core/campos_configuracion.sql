@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict 6apd3OQ1KwlT86NMC5umFrcuzxPLP0hEckdOK6FfeTkqSma2uv6Q8maI1p2xckE
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -41,7 +43,8 @@ CREATE TABLE core.campos_configuracion (
     obligatorio boolean DEFAULT false,
     activo boolean DEFAULT true,
     orden integer,
-    created_at timestamp without time zone DEFAULT now()
+    created_at timestamp without time zone DEFAULT now(),
+    proposito_sistema character varying(50)
 );
 
 
@@ -151,6 +154,13 @@ COMMENT ON COLUMN core.campos_configuracion.created_at IS 'Fecha y hora en que s
 
 
 --
+-- Name: COLUMN campos_configuracion.proposito_sistema; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.campos_configuracion.proposito_sistema IS 'Propósito especial del campo configurable dentro del sistema. Ejemplo: PRECIOS.';
+
+
+--
 -- Name: campos_configuracion_id_seq; Type: SEQUENCE; Schema: core; Owner: -
 --
 
@@ -214,6 +224,13 @@ COMMENT ON INDEX core.idx_campos_configuracion_entidad IS 'Optimiza consultas de
 
 
 --
+-- Name: ux_campos_configuracion_empresa_proposito_sistema; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_campos_configuracion_empresa_proposito_sistema ON core.campos_configuracion USING btree (empresa_id, proposito_sistema) WHERE (proposito_sistema IS NOT NULL);
+
+
+--
 -- Name: campos_configuracion fk_campos_configuracion_catalogo; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -248,4 +265,6 @@ ALTER TABLE ONLY core.campos_configuracion
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 6apd3OQ1KwlT86NMC5umFrcuzxPLP0hEckdOK6FfeTkqSma2uv6Q8maI1p2xckE
 

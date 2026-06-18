@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict HDtgVhYF7kP01uFhIXrydLiBnsoo6eT67fieY17jZ0Ake53B6Nhsyq476cfafqN
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -111,4 +113,6 @@ ALTER TABLE ONLY core.usuarios_empresas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict HDtgVhYF7kP01uFhIXrydLiBnsoo6eT67fieY17jZ0Ake53B6Nhsyq476cfafqN
 

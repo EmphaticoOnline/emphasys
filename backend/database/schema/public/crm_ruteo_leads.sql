@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict EDqX8dxEBk3kSi9ayGkTlNf3NHrVmxml5IecYWgO4n6rMYyb5o9dATpWcPXS6ud
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -105,4 +107,6 @@ ALTER TABLE ONLY public.crm_ruteo_leads
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict EDqX8dxEBk3kSi9ayGkTlNf3NHrVmxml5IecYWgO4n6rMYyb5o9dATpWcPXS6ud
 

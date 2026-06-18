@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict nIUuRagSSOT16fAAPfovbB6WZ1rRpwGvzGEGT4ATKwz88fEd8uIWgG6VjfOK44D
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -49,4 +51,6 @@ ALTER TABLE ONLY sat.impuestos
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict nIUuRagSSOT16fAAPfovbB6WZ1rRpwGvzGEGT4ATKwz88fEd8uIWgG6VjfOK44D
 

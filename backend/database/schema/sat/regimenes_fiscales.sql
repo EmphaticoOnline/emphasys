@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict t3a4dLz8yYoA2bl9CT2FZQuxwKelQVULwQ7qa0nb4Y5fsik11UZ7EyyYUnP42qA
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -55,4 +57,6 @@ CREATE INDEX idx_regimenes_fiscales_texto ON sat.regimenes_fiscales USING btree 
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict t3a4dLz8yYoA2bl9CT2FZQuxwKelQVULwQ7qa0nb4Y5fsik11UZ7EyyYUnP42qA
 

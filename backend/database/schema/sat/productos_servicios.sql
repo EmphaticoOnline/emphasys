@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict AChTdKl65RpXYFshPUlReA2IyFO24l6FuXbgwww5FmXMOohoGRBIzSwLCLz71jR
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -30,12 +32,12 @@ SET default_table_access_method = heap;
 CREATE TABLE sat.productos_servicios (
     id text NOT NULL,
     texto text NOT NULL,
-    iva_trasladado integer NOT NULL,
-    ieps_trasladado integer NOT NULL,
+    iva_trasladado text NOT NULL,
+    ieps_trasladado text NOT NULL,
     complemento text NOT NULL,
     vigencia_desde text NOT NULL,
     vigencia_hasta text NOT NULL,
-    estimulo_frontera integer NOT NULL,
+    estimulo_frontera text NOT NULL,
     similares text NOT NULL,
     search_vector tsvector
 );
@@ -73,4 +75,6 @@ CREATE INDEX idx_productos_servicios_texto_trgm ON sat.productos_servicios USING
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict AChTdKl65RpXYFshPUlReA2IyFO24l6FuXbgwww5FmXMOohoGRBIzSwLCLz71jR
 

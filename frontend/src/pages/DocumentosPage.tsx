@@ -89,7 +89,7 @@ import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
 import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, getDocumentosPaginados, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
-import { fetchAnticiposDisponiblesDocumento } from '../services/finanzasService';
+import { fetchAnticiposDisponiblesDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
@@ -207,6 +207,8 @@ import {
   prepararGeneracion,
   prepararGeneracionMultiple,
   generarDocumentoDesdeOrigen,
+  AutorizacionRequeridaError,
+  SinPermisoAutorizacionError,
   type OpcionGeneracionResponse,
   type PrepararGeneracionResponse,
   type GenerarDocumentoPayload,
@@ -915,15 +917,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         : [];
     }
 
-    return opciones.map((op) => ({
-      id: `generar-${op.tipo_documento_destino}`,
-      label: `Generar ${op.nombre || op.tipo_documento_destino}`,
-      icon: <NoteAddIcon fontSize="small" />,
-      disabled: loading,
-      onClick: () => {
-        void handlePrepararGeneracion(rowId, op.tipo_documento_destino);
-      },
-    }));
+    return opciones.map((op) => {
+      const esDirectaSinPermiso = op.modo_autorizacion === 'directa' && op.usuario_puede_autorizar === false;
+      let label = `Generar ${op.nombre || op.tipo_documento_destino}`;
+      if (op.modo_autorizacion === 'directa') {
+        label = `Autorizar y generar ${op.nombre || op.tipo_documento_destino}`;
+      } else if (op.modo_autorizacion === 'flujo') {
+        label = `Solicitar autorización para ${op.nombre || op.tipo_documento_destino}`;
+      }
+      return {
+        id: `generar-${op.tipo_documento_destino}`,
+        label,
+        icon: <NoteAddIcon fontSize="small" />,
+        disabled: loading || esDirectaSinPermiso,
+        tooltip: esDirectaSinPermiso ? `Requiere rol: ${op.rol_requerido ?? 'Autorizador'}` : undefined,
+        onClick: () => {
+          void handlePrepararGeneracion(rowId, op.tipo_documento_destino);
+        },
+      };
+    });
   }, [contextMenuRow, handlePrepararGeneracion, loading, menuLoading, opcionesGeneracion, tieneOpcionesGeneracion]);
 
   const handleOpenEstatusMenu = (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => {
@@ -960,12 +972,29 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       return;
     }
 
+    if (nextValue === 'cancelado') {
+      closeEstatusMenu();
+      const row = rows.find((r) => Number(r.id) === rowId);
+      if (row) abrirDialogoCancelar(row);
+      return;
+    }
+
     try {
       setActualizandoEstatusId(rowId);
       const updated = await updateDocumento(rowId, tipoDocumento, {
         estatus_documento: esCotizacion ? formatCotizacionEstatusLabel(nextValue) : formatDocumentoEstatusLabel(nextValue),
       });
-      setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...(updated as Partial<CotizacionListado>) } : row)));
+      let saldoActualizado: number | undefined;
+      if (showSaldo) {
+        const saldoData = await fetchSaldoDocumento(rowId).catch(() => null);
+        if (saldoData) saldoActualizado = Number(saldoData.saldo ?? 0);
+      }
+      setRows((prev) => prev.map((row) => {
+        if (row.id !== rowId) return row;
+        const merged = { ...row, ...(updated as Partial<CotizacionListado>) };
+        if (saldoActualizado !== undefined) merged.saldo = saldoActualizado;
+        return merged;
+      }));
       setSnackbar({ open: true, message: 'Estatus actualizado', severity: 'success' });
     } catch (err: any) {
       setSnackbar({ open: true, message: err?.message || 'No se pudo actualizar el estatus', severity: 'error' });
@@ -1152,6 +1181,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         : { documento_origen_id: generacionDialog.documentoId ?? undefined }),
       tipo_documento_destino: generacionDialog.tipoDestino as any,
       datos_encabezado: {
+        fecha: toCivilDate(),
         tratamiento_impuestos: generacionDialog.tratamientoImpuestos,
       },
       partidas,
@@ -1168,7 +1198,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         pathname: location.pathname,
       });
     } catch (err: any) {
-      setGeneracionDialog((prev) => ({ ...prev, enviando: false }));
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
+      if (err instanceof AutorizacionRequeridaError) {
+        setSnackbar({ open: true, message: err.message, severity: 'info' });
+        void load();
+        return;
+      }
+      if (err instanceof SinPermisoAutorizacionError) {
+        const msg = err.rol_requerido ? `${err.message} Requiere rol: ${err.rol_requerido}.` : err.message;
+        setSnackbar({ open: true, message: msg, severity: 'warning' });
+        return;
+      }
       setSnackbar({ open: true, message: err?.message || 'No se pudo generar el documento', severity: 'error' });
     }
   };
@@ -1319,9 +1359,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const documentoId = Number(cancelarDialog.id ?? 0);
     if (!Number.isFinite(documentoId) || documentoId <= 0) return;
 
+    const esCfdi = hasAction('timbrar');
     const motivoSat = String(cancelarDialog.motivoSat ?? '').trim();
     const uuidSustitucion = String(cancelarDialog.uuidSustitucion ?? '').trim();
-    if (motivoSat === '01' && !uuidSustitucion) {
+    if (esCfdi && motivoSat === '01' && !uuidSustitucion) {
       setCancelarDialog((prev) => ({ ...prev, error: 'El UUID de sustitución es obligatorio cuando el motivo SAT es 01.' }));
       return;
     }
@@ -1332,8 +1373,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
       await cancelarDocumento(documentoId, tipoDocumento, {
         motivo_cancelacion: cancelarDialog.motivoCancelacion.trim() || null,
-        motivo_sat: motivoSat || null,
-        uuid_sustitucion: uuidSustitucion || null,
+        motivo_sat: esCfdi ? (motivoSat || null) : null,
+        uuid_sustitucion: esCfdi ? (uuidSustitucion || null) : null,
       });
 
       cerrarDialogoCancelar();
@@ -1599,6 +1640,55 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             },
           ] as GridColDef[])
         : []),
+      ...(tipoDocumento === 'orden_compra'
+        ? ([{
+            field: 'estado_recepcion',
+            headerName: 'Recepción',
+            width: 130,
+            headerClassName: 'finanzas-header',
+            sortable: false,
+            renderCell: (params: any) => {
+              const estado = String(params.row?.estado_recepcion ?? 'abierta');
+              const cfg: Record<string, { label: string; bgcolor: string; color: string }> = {
+                abierta: { label: 'Abierta',  bgcolor: '#f1f5f9', color: '#475569' },
+                parcial: { label: 'Parcial',  bgcolor: '#fef3c7', color: '#92400e' },
+                cerrada: { label: 'Cerrada',  bgcolor: '#dcfce7', color: '#166534' },
+              };
+              const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta;
+              return (
+                <Chip
+                  label={label}
+                  size="small"
+                  sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5,
+                        bgcolor, color, fontWeight: 700 }}
+                />
+              );
+            },
+          }] as GridColDef[])
+        : []),
+      {
+        field: 'estado_autorizacion',
+        headerName: 'Autorización',
+        width: 130,
+        sortable: false,
+        headerClassName: 'finanzas-header',
+        renderCell: (params: any) => {
+          const estado = params.row?.estado_autorizacion as string | null | undefined;
+          if (!estado || estado === 'no_requerida') return null;
+          const MAP: Record<string, { label: string; bgcolor: string; color: string }> = {
+            pendiente: { label: 'Pendiente auth.', bgcolor: '#fef3c7', color: '#92400e' },
+            aprobada:  { label: 'Autorizado',      bgcolor: '#dcfce7', color: '#166534' },
+            rechazada: { label: 'Rechazado',        bgcolor: '#fee2e2', color: '#991b1b' },
+          };
+          const cfg = MAP[estado];
+          if (!cfg) return null;
+          return (
+            <Chip label={cfg.label} size="small"
+              sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5,
+                    bgcolor: cfg.bgcolor, color: cfg.color, fontWeight: 700 }} />
+          );
+        },
+      },
       {
         field: 'estatus_documento',
         headerName: 'Estatus',
@@ -3173,29 +3263,36 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               value={cancelarDialog.motivoCancelacion}
               onChange={(event) => setCancelarDialog((prev) => ({ ...prev, motivoCancelacion: event.target.value, error: null }))}
             />
-            <TextField
-              select
-              fullWidth
-              label="Motivo SAT"
-              value={cancelarDialog.motivoSat}
-              onChange={(event) => setCancelarDialog((prev) => ({ ...prev, motivoSat: event.target.value, error: null }))}
-            >
-              <MenuItem value="01">01 - Comprobante emitido con errores con relación</MenuItem>
-              <MenuItem value="02">02 - Comprobante emitido con errores sin relación</MenuItem>
-              <MenuItem value="03">03 - No se llevó a cabo la operación</MenuItem>
-              <MenuItem value="04">04 - Operación nominativa relacionada en factura global</MenuItem>
-            </TextField>
-            {cancelarDialog.motivoSat === '01' && (
-              <TextField
-                fullWidth
-                label="UUID sustitución"
-                value={cancelarDialog.uuidSustitucion}
-                onChange={(event) => setCancelarDialog((prev) => ({ ...prev, uuidSustitucion: event.target.value, error: null }))}
-                error={Boolean(cancelarDialog.error)}
-                helperText={cancelarDialog.error || 'Obligatorio cuando el motivo SAT es 01'}
-              />
+            {hasAction('timbrar') && (
+              <>
+                <TextField
+                  select
+                  fullWidth
+                  label="Motivo SAT"
+                  value={cancelarDialog.motivoSat}
+                  onChange={(event) => setCancelarDialog((prev) => ({ ...prev, motivoSat: event.target.value, error: null }))}
+                >
+                  <MenuItem value="01">01 - Comprobante emitido con errores con relación</MenuItem>
+                  <MenuItem value="02">02 - Comprobante emitido con errores sin relación</MenuItem>
+                  <MenuItem value="03">03 - No se llevó a cabo la operación</MenuItem>
+                  <MenuItem value="04">04 - Operación nominativa relacionada en factura global</MenuItem>
+                </TextField>
+                {cancelarDialog.motivoSat === '01' && (
+                  <TextField
+                    fullWidth
+                    label="UUID sustitución"
+                    value={cancelarDialog.uuidSustitucion}
+                    onChange={(event) => setCancelarDialog((prev) => ({ ...prev, uuidSustitucion: event.target.value, error: null }))}
+                    error={Boolean(cancelarDialog.error)}
+                    helperText={cancelarDialog.error || 'Obligatorio cuando el motivo SAT es 01'}
+                  />
+                )}
+                {cancelarDialog.motivoSat !== '01' && cancelarDialog.error ? (
+                  <Alert severity="error" variant="outlined">{cancelarDialog.error}</Alert>
+                ) : null}
+              </>
             )}
-            {cancelarDialog.motivoSat !== '01' && cancelarDialog.error ? (
+            {!hasAction('timbrar') && cancelarDialog.error ? (
               <Alert severity="error" variant="outlined">{cancelarDialog.error}</Alert>
             ) : null}
           </Stack>

@@ -737,6 +737,7 @@ function validarRFC(rfc: string) {
                     <MenuItem value="Lead">Lead</MenuItem>
                     <MenuItem value="Cliente">Cliente</MenuItem>
                     <MenuItem value="Proveedor">Proveedor</MenuItem>
+                    <MenuItem value="Varios">Varios</MenuItem>
                     <MenuItem value="Vendedor">Vendedor</MenuItem>
                   </Select>
                 </FormControl>

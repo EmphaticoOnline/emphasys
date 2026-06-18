@@ -1,5 +1,7 @@
 import pool from '../../../config/database';
 
+export type AfectaInventario = 'none' | 'entrada' | 'salida' | 'transferencia';
+
 export type DocumentoEmpresa = {
   id: number;
   codigo: string;
@@ -9,6 +11,11 @@ export type DocumentoEmpresa = {
   orden: number;
   habilitado: boolean;
   whatsapp_plantilla_default_id: number | null;
+  /** Override de la empresa. null = heredar del catálogo. */
+  afecta_inventario: AfectaInventario | null;
+  /** Default del catálogo global (core.tipos_documento). Solo lectura. */
+  afecta_inventario_sistema: AfectaInventario | null;
+  afecta_reservado: boolean;
 };
 
 export type TransicionDocumento = {
@@ -27,7 +34,10 @@ export async function obtenerDocumentosEmpresa(empresaId: number): Promise<Docum
       td.icono,
       td.orden,
       COALESCE(etd.activo, FALSE) AS habilitado,
-      etd.whatsapp_plantilla_default_id
+      etd.whatsapp_plantilla_default_id,
+      etd.afecta_inventario,
+      td.afecta_inventario AS afecta_inventario_sistema,
+      COALESCE(etd.afecta_reservado, FALSE) AS afecta_reservado
     FROM core.tipos_documento td
     LEFT JOIN core.empresas_tipos_documento etd
       ON etd.tipo_documento_id = td.id
@@ -70,30 +80,38 @@ export async function upsertDocumentoEmpresa(
   tipoDocumentoId: number,
   activo: boolean,
   includeWhatsappPlantillaDefault: boolean,
-  whatsappPlantillaDefaultId: number | null
-): Promise<{ empresa_id: number; tipo_documento_id: number; activo: boolean; whatsapp_plantilla_default_id: number | null } | null> {
+  whatsappPlantillaDefaultId: number | null,
+  afectaInventario: AfectaInventario | null = null,
+  afectaReservado: boolean = false
+): Promise<{ empresa_id: number; tipo_documento_id: number; activo: boolean; whatsapp_plantilla_default_id: number | null; afecta_inventario: AfectaInventario | null; afecta_reservado: boolean } | null> {
   const { rows } = await pool.query<{
     empresa_id: number;
     tipo_documento_id: number;
     activo: boolean;
     whatsapp_plantilla_default_id: number | null;
+    afecta_inventario: AfectaInventario | null;
+    afecta_reservado: boolean;
   }>(
     `INSERT INTO core.empresas_tipos_documento (
         empresa_id,
         tipo_documento_id,
         activo,
-        whatsapp_plantilla_default_id
+        whatsapp_plantilla_default_id,
+        afecta_inventario,
+        afecta_reservado
      )
-       VALUES ($1, $2, $3, CASE WHEN $4 THEN $5::bigint ELSE NULL::bigint END)
+       VALUES ($1, $2, $3, CASE WHEN $4 THEN $5::bigint ELSE NULL::bigint END, $6, $7)
    ON CONFLICT (empresa_id, tipo_documento_id)
      DO UPDATE SET
        activo = EXCLUDED.activo,
        whatsapp_plantilla_default_id = CASE
          WHEN $4 THEN EXCLUDED.whatsapp_plantilla_default_id
          ELSE core.empresas_tipos_documento.whatsapp_plantilla_default_id
-       END
-   RETURNING empresa_id, tipo_documento_id, activo, whatsapp_plantilla_default_id`,
-    [empresaId, tipoDocumentoId, activo, includeWhatsappPlantillaDefault, whatsappPlantillaDefaultId]
+       END,
+       afecta_inventario = EXCLUDED.afecta_inventario,
+       afecta_reservado = EXCLUDED.afecta_reservado
+   RETURNING empresa_id, tipo_documento_id, activo, whatsapp_plantilla_default_id, afecta_inventario, afecta_reservado`,
+    [empresaId, tipoDocumentoId, activo, includeWhatsappPlantillaDefault, whatsappPlantillaDefaultId, afectaInventario ?? null, afectaReservado]
   );
 
   return rows[0] ?? null;

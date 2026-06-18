@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict xnyDWULmXBofC2Fpz62tyYdEnWsLAbqiYpIJ1a11tAJFG7S5zoYfjFgwaJnvD83
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -37,7 +39,8 @@ CREATE TABLE core.catalogos (
     activo boolean DEFAULT true,
     extra jsonb,
     created_at timestamp without time zone DEFAULT now(),
-    catalogo_padre_id integer
+    catalogo_padre_id integer,
+    precio_lista_id bigint
 );
 
 
@@ -182,6 +185,13 @@ COMMENT ON INDEX core.idx_catalogos_padre IS 'Optimiza consultas que filtran reg
 
 
 --
+-- Name: idx_catalogos_precio_lista; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_catalogos_precio_lista ON core.catalogos USING btree (precio_lista_id) WHERE (precio_lista_id IS NOT NULL);
+
+
+--
 -- Name: idx_catalogos_tipo; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -212,6 +222,16 @@ ALTER TABLE ONLY core.catalogos
 
 
 --
+-- Name: catalogos fk_catalogos_precio_lista; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.catalogos
+    ADD CONSTRAINT fk_catalogos_precio_lista FOREIGN KEY (precio_lista_id) REFERENCES public.precios_listas(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
+
+\unrestrict xnyDWULmXBofC2Fpz62tyYdEnWsLAbqiYpIJ1a11tAJFG7S5zoYfjFgwaJnvD83
 

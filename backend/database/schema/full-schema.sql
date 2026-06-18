@@ -1,12 +1,14 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-06-09T00:57:18.696Z
+-- Generated at: 2026-06-16T00:33:34.107Z
 --
 -- PostgreSQL database dump
 --
 
+\restrict 60bEWq5hb0OIE6LOWFXLysyena92n5p2gEplOW7xsmLnUhpC2YGEH4uPHvnLBLE
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -145,258 +147,258 @@ CREATE TYPE public.tipo_contacto_enum AS ENUM (
 
 CREATE PROCEDURE core.bootstrap_empresa(IN p_empresa_id integer, IN p_usuario_id integer)
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  ---------------------------------------------------------------------------
-  -- Validaciones
-  ---------------------------------------------------------------------------
-  PERFORM 1 FROM core.empresas WHERE id = p_empresa_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'La empresa % no existe', p_empresa_id;
-  END IF;
-
-  PERFORM 1 FROM core.usuarios WHERE id = p_usuario_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'El usuario % no existe', p_usuario_id;
-  END IF;
-
-  ---------------------------------------------------------------------------
-  -- Roles base
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Creando roles base...';
-  INSERT INTO core.roles (empresa_id, nombre, descripcion, activo)
-  VALUES
-    (p_empresa_id, 'Administrador', 'Rol base administrador', true),
-    (p_empresa_id, 'Supervisor',    'Rol base supervisor',    true),
-    (p_empresa_id, 'Operador',      'Rol base operador',      true),
-    (p_empresa_id, 'Consulta',      'Rol base consulta',      true)
-  ON CONFLICT (empresa_id, nombre) DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Asociación usuario-empresa
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Registrando usuario en la empresa...';
-  INSERT INTO core.usuarios_empresas (usuario_id, empresa_id)
-  VALUES (p_usuario_id, p_empresa_id)
-  ON CONFLICT (usuario_id, empresa_id) DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Asignar rol Administrador al usuario
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Asignando rol Administrador al usuario...';
-  INSERT INTO core.usuarios_roles (usuario_id, empresa_id, rol_id)
-  SELECT
-    p_usuario_id,
-    p_empresa_id,
-    r.id
-  FROM core.roles r
-  WHERE r.empresa_id = p_empresa_id
-    AND r.nombre = 'Administrador'
-  ON CONFLICT (usuario_id, empresa_id, rol_id) DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Parámetros por empresa (copiando core.parametros)
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Inicializando parametros_empresa...';
-  INSERT INTO core.parametros_empresa (empresa_id, parametro_id, valor)
-  SELECT p_empresa_id, p.parametro_id, COALESCE(p.valor_default, NULL)
-  FROM core.parametros p
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM core.parametros_empresa pe
-    WHERE pe.empresa_id = p_empresa_id
-      AND pe.parametro_id = p.parametro_id
-  );
-
----------------------------------------------------------------------------
--- Valores críticos de parámetros (hardcoded)
----------------------------------------------------------------------------
-RAISE NOTICE 'Aplicando valores críticos de configuración...';
-
-UPDATE core.parametros_empresa pe
-SET valor = v.valor
-FROM (
-  VALUES
-    ('decimales_costos','2'),
-    ('decimales_cantidades','2'),
-    ('decimales_precios','2'),
-    ('variacion_maxima_costos','0.20'),
-    ('porcentaje_iva_predeterminado','0.16'),
-
-    ('usar_series','true'),
-    ('permitir_afectacion_ajustes','true'),
-    ('usar_ultimo_costo_precios','true'),
-
-    ('serie_facturas','F'),
-    ('serie_notas','N'),
-    ('serie_notas_credito','NC'),
-    ('serie_pedidos','P'),
-    ('serie_ordenes_entrega','OE'),
-
-    ('serie_ordenes_compra','OC'),
-    ('serie_pagos_proveedores','PGP'),
-
-    ('serie_transacciones_inventario','INV'),
-    ('serie_ajustes','AJ'),
-    ('serie_entradas','EN'),
-
-    ('serie_nota_venta','N'),
-
-    ('oc_requiere_autorizacion','true'),
-    ('aprobacion_automatica_pagos','false'),
-    ('utilizar_limite_credito','true'),
-    ('restringir_segun_vencimiento','false'),
-    ('tipo_cliente_obligatorio','true')
-) AS v(clave,valor)
-JOIN core.parametros p
-  ON p.clave = v.clave
-WHERE pe.parametro_id = p.parametro_id
-AND pe.empresa_id = p_empresa_id;
-
-  ---------------------------------------------------------------------------
-  -- Impuestos por default
-  ---------------------------------------------------------------------------
-
-RAISE NOTICE 'Creando impuestos por defecto...';
-
-INSERT INTO core.empresas_impuestos_default
-(empresa_id, impuesto_id, orden)
-VALUES
-(p_empresa_id, 'iva_16', 1)
-ON CONFLICT DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Tipos de documento por empresa (copiando core.tipos_documento)
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Inicializando empresas_tipos_documento...';
-  INSERT INTO core.empresas_tipos_documento
-    (empresa_id, tipo_documento_id, activo, orden, usuario_creacion_id)
-  SELECT
-    p_empresa_id,
-    td.id,
-    td.activo,
-    td.orden,
-    p_usuario_id
-  FROM core.tipos_documento td
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM core.empresas_tipos_documento etd
-    WHERE etd.empresa_id = p_empresa_id
-      AND etd.tipo_documento_id = td.id
-  );
-
-  ---------------------------------------------------------------------------
-  -- Transiciones base de tipos de documento
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Inicializando transiciones de documentos...';
-  WITH t(cod_origen, cod_destino) AS (
-    VALUES
-      ('cotizacion',    'pedido'),
-      ('pedido',        'orden_entrega'),
-      ('orden_entrega', 'remision'),
-      ('remision',      'factura'),
-      ('requisicion',   'orden_compra'),
-      ('orden_compra',  'recepcion'),
-      ('recepcion',     'factura_compra')
-  )
-  INSERT INTO core.empresas_tipos_documento_transiciones
-    (empresa_id, tipo_documento_origen_id, tipo_documento_destino_id, activo, orden, usuario_creacion_id)
-  SELECT
-    p_empresa_id,
-    etd_origen.tipo_documento_id,
-    etd_destino.tipo_documento_id,
-    true,
-    ROW_NUMBER() OVER (ORDER BY t.cod_origen, t.cod_destino) - 1,
-    p_usuario_id
-  FROM t
-  JOIN core.tipos_documento td_origen   ON td_origen.codigo  = t.cod_origen
-  JOIN core.tipos_documento td_destino  ON td_destino.codigo = t.cod_destino
-  JOIN core.empresas_tipos_documento etd_origen
-       ON etd_origen.empresa_id = p_empresa_id
-      AND etd_origen.tipo_documento_id = td_origen.id
-  JOIN core.empresas_tipos_documento etd_destino
-       ON etd_destino.empresa_id = p_empresa_id
-      AND etd_destino.tipo_documento_id = td_destino.id
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM core.empresas_tipos_documento_transiciones x
-    WHERE x.empresa_id = p_empresa_id
-      AND x.tipo_documento_origen_id  = etd_origen.tipo_documento_id
-      AND x.tipo_documento_destino_id = etd_destino.tipo_documento_id
-  );
-
-  ---------------------------------------------------------------------------
-  -- Cuenta financiera inicial
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Creando cuenta financiera inicial...';
-  INSERT INTO public.finanzas_cuentas
-    (empresa_id, identificador, numero_cuenta, tipo_cuenta, moneda,
-     saldo, saldo_inicial, saldo_conciliado, es_cuenta_efectivo, afecta_total_disponible)
-  SELECT p_empresa_id, 'Caja', NULL, 'Disponibilidad', 'MXN',
-         0, 0, 0, true, true
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM public.finanzas_cuentas fc
-    WHERE fc.empresa_id = p_empresa_id
-      AND fc.identificador = 'Caja'
-  );
-
-  ---------------------------------------------------------------------------
-  -- Conceptos base
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Creando conceptos base...';
-  INSERT INTO public.conceptos
-    (empresa_id, nombre_concepto, es_gasto, activo, orden, color)
-  VALUES
-    (p_empresa_id, 'Ingreso', false, true, 0, '#2E7D32'),
-    (p_empresa_id, 'Venta',   false, true, 1, '#1565C0'),
-    (p_empresa_id, 'Gasto',   true,  true, 2, '#C62828'),
-    (p_empresa_id, 'Compra',  true,  true, 3, '#6A1B9A'),
-    (p_empresa_id, 'Ajuste',  true,  true, 4, '#F9A825')
-  ON CONFLICT (empresa_id, nombre_concepto) DO NOTHING;
-
-  ---------------------------------------------------------------------------
-  -- Unidades
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Creando unidades base...';
-  INSERT INTO public.unidades
-	(clave, descripcion, unidad_sat_id, empresa_id, activo)
-  VALUES
-    ('SERVICIO', 'Servicio', 1, p_empresa_id, true),
-    ('MES',   'Mes', 3, p_empresa_id, true),
-    ('HORA',   'Hora',  4, p_empresa_id, true),
-    ('PIEZA',  'Pieza', 2, p_empresa_id, true)
-  ON CONFLICT (empresa_id, clave) DO NOTHING;
-
-	---------------------------------------------------------------------------
-	-- Catálogos configurables (tipos) por empresa
-	---------------------------------------------------------------------------
-	RAISE NOTICE 'Inicializando catalogos_tipos...';
-	
-	INSERT INTO core.catalogos_tipos
-	  (empresa_id, entidad_tipo_id, nombre, permite_multiple, activo)
-	SELECT
-	  p_empresa_id,
-	  ct.entidad_tipo_id,
-	  ct.nombre,
-	  ct.permite_multiple,
-	  ct.activo
-	FROM core.catalogos_tipos ct
-	WHERE ct.empresa_id = 1
-	AND NOT EXISTS (
-	  SELECT 1
-	  FROM core.catalogos_tipos ct2
-	  WHERE ct2.empresa_id = p_empresa_id
-	    AND ct2.entidad_tipo_id = ct.entidad_tipo_id
-	    AND ct2.nombre = ct.nombre
-	);
-
-  ---------------------------------------------------------------------------
-  -- Aviso final
-  ---------------------------------------------------------------------------
-  RAISE NOTICE 'Bootstrap completado para la empresa %.', p_empresa_id;
-
-END;
+    AS $$
+BEGIN
+  ---------------------------------------------------------------------------
+  -- Validaciones
+  ---------------------------------------------------------------------------
+  PERFORM 1 FROM core.empresas WHERE id = p_empresa_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'La empresa % no existe', p_empresa_id;
+  END IF;
+
+  PERFORM 1 FROM core.usuarios WHERE id = p_usuario_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'El usuario % no existe', p_usuario_id;
+  END IF;
+
+  ---------------------------------------------------------------------------
+  -- Roles base
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Creando roles base...';
+  INSERT INTO core.roles (empresa_id, nombre, descripcion, activo)
+  VALUES
+    (p_empresa_id, 'Administrador', 'Rol base administrador', true),
+    (p_empresa_id, 'Supervisor',    'Rol base supervisor',    true),
+    (p_empresa_id, 'Operador',      'Rol base operador',      true),
+    (p_empresa_id, 'Consulta',      'Rol base consulta',      true)
+  ON CONFLICT (empresa_id, nombre) DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Asociación usuario-empresa
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Registrando usuario en la empresa...';
+  INSERT INTO core.usuarios_empresas (usuario_id, empresa_id)
+  VALUES (p_usuario_id, p_empresa_id)
+  ON CONFLICT (usuario_id, empresa_id) DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Asignar rol Administrador al usuario
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Asignando rol Administrador al usuario...';
+  INSERT INTO core.usuarios_roles (usuario_id, empresa_id, rol_id)
+  SELECT
+    p_usuario_id,
+    p_empresa_id,
+    r.id
+  FROM core.roles r
+  WHERE r.empresa_id = p_empresa_id
+    AND r.nombre = 'Administrador'
+  ON CONFLICT (usuario_id, empresa_id, rol_id) DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Parámetros por empresa (copiando core.parametros)
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Inicializando parametros_empresa...';
+  INSERT INTO core.parametros_empresa (empresa_id, parametro_id, valor)
+  SELECT p_empresa_id, p.parametro_id, COALESCE(p.valor_default, NULL)
+  FROM core.parametros p
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM core.parametros_empresa pe
+    WHERE pe.empresa_id = p_empresa_id
+      AND pe.parametro_id = p.parametro_id
+  );
+
+---------------------------------------------------------------------------
+-- Valores críticos de parámetros (hardcoded)
+---------------------------------------------------------------------------
+RAISE NOTICE 'Aplicando valores críticos de configuración...';
+
+UPDATE core.parametros_empresa pe
+SET valor = v.valor
+FROM (
+  VALUES
+    ('decimales_costos','2'),
+    ('decimales_cantidades','2'),
+    ('decimales_precios','2'),
+    ('variacion_maxima_costos','0.20'),
+    ('porcentaje_iva_predeterminado','0.16'),
+
+    ('usar_series','true'),
+    ('permitir_afectacion_ajustes','true'),
+    ('usar_ultimo_costo_precios','true'),
+
+    ('serie_facturas','F'),
+    ('serie_notas','N'),
+    ('serie_notas_credito','NC'),
+    ('serie_pedidos','P'),
+    ('serie_ordenes_entrega','OE'),
+
+    ('serie_ordenes_compra','OC'),
+    ('serie_pagos_proveedores','PGP'),
+
+    ('serie_transacciones_inventario','INV'),
+    ('serie_ajustes','AJ'),
+    ('serie_entradas','EN'),
+
+    ('serie_nota_venta','N'),
+
+    ('oc_requiere_autorizacion','true'),
+    ('aprobacion_automatica_pagos','false'),
+    ('utilizar_limite_credito','true'),
+    ('restringir_segun_vencimiento','false'),
+    ('tipo_cliente_obligatorio','true')
+) AS v(clave,valor)
+JOIN core.parametros p
+  ON p.clave = v.clave
+WHERE pe.parametro_id = p.parametro_id
+AND pe.empresa_id = p_empresa_id;
+
+  ---------------------------------------------------------------------------
+  -- Impuestos por default
+  ---------------------------------------------------------------------------
+
+RAISE NOTICE 'Creando impuestos por defecto...';
+
+INSERT INTO core.empresas_impuestos_default
+(empresa_id, impuesto_id, orden)
+VALUES
+(p_empresa_id, 'iva_16', 1)
+ON CONFLICT DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Tipos de documento por empresa (copiando core.tipos_documento)
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Inicializando empresas_tipos_documento...';
+  INSERT INTO core.empresas_tipos_documento
+    (empresa_id, tipo_documento_id, activo, orden, usuario_creacion_id)
+  SELECT
+    p_empresa_id,
+    td.id,
+    td.activo,
+    td.orden,
+    p_usuario_id
+  FROM core.tipos_documento td
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM core.empresas_tipos_documento etd
+    WHERE etd.empresa_id = p_empresa_id
+      AND etd.tipo_documento_id = td.id
+  );
+
+  ---------------------------------------------------------------------------
+  -- Transiciones base de tipos de documento
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Inicializando transiciones de documentos...';
+  WITH t(cod_origen, cod_destino) AS (
+    VALUES
+      ('cotizacion',    'pedido'),
+      ('pedido',        'orden_entrega'),
+      ('orden_entrega', 'remision'),
+      ('remision',      'factura'),
+      ('requisicion',   'orden_compra'),
+      ('orden_compra',  'recepcion'),
+      ('recepcion',     'factura_compra')
+  )
+  INSERT INTO core.empresas_tipos_documento_transiciones
+    (empresa_id, tipo_documento_origen_id, tipo_documento_destino_id, activo, orden, usuario_creacion_id)
+  SELECT
+    p_empresa_id,
+    etd_origen.tipo_documento_id,
+    etd_destino.tipo_documento_id,
+    true,
+    ROW_NUMBER() OVER (ORDER BY t.cod_origen, t.cod_destino) - 1,
+    p_usuario_id
+  FROM t
+  JOIN core.tipos_documento td_origen   ON td_origen.codigo  = t.cod_origen
+  JOIN core.tipos_documento td_destino  ON td_destino.codigo = t.cod_destino
+  JOIN core.empresas_tipos_documento etd_origen
+       ON etd_origen.empresa_id = p_empresa_id
+      AND etd_origen.tipo_documento_id = td_origen.id
+  JOIN core.empresas_tipos_documento etd_destino
+       ON etd_destino.empresa_id = p_empresa_id
+      AND etd_destino.tipo_documento_id = td_destino.id
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM core.empresas_tipos_documento_transiciones x
+    WHERE x.empresa_id = p_empresa_id
+      AND x.tipo_documento_origen_id  = etd_origen.tipo_documento_id
+      AND x.tipo_documento_destino_id = etd_destino.tipo_documento_id
+  );
+
+  ---------------------------------------------------------------------------
+  -- Cuenta financiera inicial
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Creando cuenta financiera inicial...';
+  INSERT INTO public.finanzas_cuentas
+    (empresa_id, identificador, numero_cuenta, tipo_cuenta, moneda,
+     saldo, saldo_inicial, saldo_conciliado, es_cuenta_efectivo, afecta_total_disponible)
+  SELECT p_empresa_id, 'Caja', NULL, 'Disponibilidad', 'MXN',
+         0, 0, 0, true, true
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.finanzas_cuentas fc
+    WHERE fc.empresa_id = p_empresa_id
+      AND fc.identificador = 'Caja'
+  );
+
+  ---------------------------------------------------------------------------
+  -- Conceptos base
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Creando conceptos base...';
+  INSERT INTO public.conceptos
+    (empresa_id, nombre_concepto, es_gasto, activo, orden, color)
+  VALUES
+    (p_empresa_id, 'Ingreso', false, true, 0, '#2E7D32'),
+    (p_empresa_id, 'Venta',   false, true, 1, '#1565C0'),
+    (p_empresa_id, 'Gasto',   true,  true, 2, '#C62828'),
+    (p_empresa_id, 'Compra',  true,  true, 3, '#6A1B9A'),
+    (p_empresa_id, 'Ajuste',  true,  true, 4, '#F9A825')
+  ON CONFLICT (empresa_id, nombre_concepto) DO NOTHING;
+
+  ---------------------------------------------------------------------------
+  -- Unidades
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Creando unidades base...';
+  INSERT INTO public.unidades
+	(clave, descripcion, unidad_sat_id, empresa_id, activo)
+  VALUES
+    ('SERVICIO', 'Servicio', 1, p_empresa_id, true),
+    ('MES',   'Mes', 3, p_empresa_id, true),
+    ('HORA',   'Hora',  4, p_empresa_id, true),
+    ('PIEZA',  'Pieza', 2, p_empresa_id, true)
+  ON CONFLICT (empresa_id, clave) DO NOTHING;
+
+	---------------------------------------------------------------------------
+	-- Catálogos configurables (tipos) por empresa
+	---------------------------------------------------------------------------
+	RAISE NOTICE 'Inicializando catalogos_tipos...';
+	
+	INSERT INTO core.catalogos_tipos
+	  (empresa_id, entidad_tipo_id, nombre, permite_multiple, activo)
+	SELECT
+	  p_empresa_id,
+	  ct.entidad_tipo_id,
+	  ct.nombre,
+	  ct.permite_multiple,
+	  ct.activo
+	FROM core.catalogos_tipos ct
+	WHERE ct.empresa_id = 1
+	AND NOT EXISTS (
+	  SELECT 1
+	  FROM core.catalogos_tipos ct2
+	  WHERE ct2.empresa_id = p_empresa_id
+	    AND ct2.entidad_tipo_id = ct.entidad_tipo_id
+	    AND ct2.nombre = ct.nombre
+	);
+
+  ---------------------------------------------------------------------------
+  -- Aviso final
+  ---------------------------------------------------------------------------
+  RAISE NOTICE 'Bootstrap completado para la empresa %.', p_empresa_id;
+
+END;
 $$;
 
 
@@ -420,24 +422,24 @@ $$;
 
 CREATE FUNCTION core.validar_usuario_vendedor_contacto() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  IF NEW.vendedor_contacto_id IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  PERFORM 1
-    FROM public.contactos c
-   WHERE c.id = NEW.vendedor_contacto_id
-     AND c.tipo_contacto = 'Vendedor';
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'vendedor_contacto_id % no es un Vendedor válido', NEW.vendedor_contacto_id
-      USING ERRCODE = '23514';
-  END IF;
-
-  RETURN NEW;
-END;
+    AS $$
+BEGIN
+  IF NEW.vendedor_contacto_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  PERFORM 1
+    FROM public.contactos c
+   WHERE c.id = NEW.vendedor_contacto_id
+     AND c.tipo_contacto = 'Vendedor';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'vendedor_contacto_id % no es un Vendedor válido', NEW.vendedor_contacto_id
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
 $$;
 
 
@@ -456,16 +458,93 @@ $$;
 
 
 --
+-- Name: to_bool_legacy(text); Type: FUNCTION; Schema: migrate; Owner: -
+--
+
+CREATE FUNCTION migrate.to_bool_legacy(p_value text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    SELECT CASE
+        WHEN trim(coalesce(p_value, '')) IN ('1', 'true', 'TRUE', 'True', 'S', 'SI', 'Sí', 'Y') THEN true
+        ELSE false
+    END;
+$$;
+
+
+--
+-- Name: to_int_legacy(text); Type: FUNCTION; Schema: migrate; Owner: -
+--
+
+CREATE FUNCTION migrate.to_int_legacy(p_value text) RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    SELECT NULLIF(
+        regexp_replace(
+            replace(coalesce(p_value, ''), ',', ''),
+            '[^0-9\-]',
+            '',
+            'g'
+        ),
+        ''
+    )::integer;
+$$;
+
+
+--
+-- Name: to_numeric_legacy(text); Type: FUNCTION; Schema: migrate; Owner: -
+--
+
+CREATE FUNCTION migrate.to_numeric_legacy(p_value text) RETURNS numeric
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    SELECT NULLIF(
+        regexp_replace(
+            replace(coalesce(p_value, ''), ',', ''),
+            '[^0-9\.\-]',
+            '',
+            'g'
+        ),
+        ''
+    )::numeric;
+$$;
+
+
+--
+-- Name: to_timestamptz_legacy(text); Type: FUNCTION; Schema: migrate; Owner: -
+--
+
+CREATE FUNCTION migrate.to_timestamptz_legacy(p_value text) RETURNS timestamp with time zone
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+DECLARE
+    v text;
+BEGIN
+    v := trim(coalesce(p_value, ''));
+
+    IF v = '' THEN
+        RETURN NULL;
+    END IF;
+
+    BEGIN
+        RETURN v::timestamptz;
+    EXCEPTION WHEN others THEN
+        RETURN NULL;
+    END;
+END;
+$$;
+
+
+--
 -- Name: set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
 $$;
 
 
@@ -475,40 +554,40 @@ $$;
 
 CREATE FUNCTION whatsapp.fn_actualizar_estadisticas_whatsapp() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    f date;
-BEGIN
-    IF NEW.fecha_envio IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    f := NEW.fecha_envio::date;
-
-    INSERT INTO whatsapp.whatsapp_estadisticas (
-        fecha,
-        mensajes_enviados,
-        mensajes_recibidos,
-        plantillas_usadas
-    )
-    VALUES (
-        f,
-        CASE WHEN NEW.tipo_mensaje = 'saliente' THEN 1 ELSE 0 END,
-        CASE WHEN NEW.tipo_mensaje = 'entrante' THEN 1 ELSE 0 END,
-        CASE WHEN NEW.tipo_mensaje = 'saliente'
-             AND NEW.plantilla_nombre IS NOT NULL THEN 1 ELSE 0 END
-    )
-    ON CONFLICT (fecha)
-    DO UPDATE SET
-        mensajes_enviados =
-            whatsapp.whatsapp_estadisticas.mensajes_enviados + EXCLUDED.mensajes_enviados,
-        mensajes_recibidos =
-            whatsapp.whatsapp_estadisticas.mensajes_recibidos + EXCLUDED.mensajes_recibidos,
-        plantillas_usadas =
-            whatsapp.whatsapp_estadisticas.plantillas_usadas + EXCLUDED.plantillas_usadas;
-
-    RETURN NEW;
-END;
+    AS $$
+DECLARE
+    f date;
+BEGIN
+    IF NEW.fecha_envio IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    f := NEW.fecha_envio::date;
+
+    INSERT INTO whatsapp.whatsapp_estadisticas (
+        fecha,
+        mensajes_enviados,
+        mensajes_recibidos,
+        plantillas_usadas
+    )
+    VALUES (
+        f,
+        CASE WHEN NEW.tipo_mensaje = 'saliente' THEN 1 ELSE 0 END,
+        CASE WHEN NEW.tipo_mensaje = 'entrante' THEN 1 ELSE 0 END,
+        CASE WHEN NEW.tipo_mensaje = 'saliente'
+             AND NEW.plantilla_nombre IS NOT NULL THEN 1 ELSE 0 END
+    )
+    ON CONFLICT (fecha)
+    DO UPDATE SET
+        mensajes_enviados =
+            whatsapp.whatsapp_estadisticas.mensajes_enviados + EXCLUDED.mensajes_enviados,
+        mensajes_recibidos =
+            whatsapp.whatsapp_estadisticas.mensajes_recibidos + EXCLUDED.mensajes_recibidos,
+        plantillas_usadas =
+            whatsapp.whatsapp_estadisticas.plantillas_usadas + EXCLUDED.plantillas_usadas;
+
+    RETURN NEW;
+END;
 $$;
 
 
@@ -518,23 +597,23 @@ $$;
 
 CREATE FUNCTION whatsapp.fn_normaliza_telefono_e164(tel text) RETURNS text
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    s text;
-BEGIN
-    IF tel IS NULL THEN
-        RETURN NULL;
-    END IF;
-
-    s := regexp_replace(tel, '[\s\-\(\)\.\t]', '', 'g');
-    s := regexp_replace(s, '[^+0-9]', '', 'g');
-
-    IF left(s,1) <> '+' THEN
-        s := '+52' || s;
-    END IF;
-
-    RETURN s;
-END;
+    AS $$
+DECLARE
+    s text;
+BEGIN
+    IF tel IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    s := regexp_replace(tel, '[\s\-\(\)\.\t]', '', 'g');
+    s := regexp_replace(s, '[^+0-9]', '', 'g');
+
+    IF left(s,1) <> '+' THEN
+        s := '+52' || s;
+    END IF;
+
+    RETURN s;
+END;
 $$;
 
 
@@ -551,11 +630,11 @@ COMMENT ON FUNCTION whatsapp.fn_normaliza_telefono_e164(tel text) IS 'Normaliza 
 
 CREATE FUNCTION whatsapp.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
+    AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
 $$;
 
 
@@ -565,83 +644,83 @@ $$;
 
 CREATE FUNCTION whatsapp.sp_whatsapp_log_mensaje_contactado(numero_telefono_raw text, tipo_mensaje text, canal text DEFAULT NULL::text, contenido text DEFAULT NULL::text, plantilla_nombre text DEFAULT NULL::text, fecha_envio timestamp with time zone DEFAULT NULL::timestamp with time zone, status text DEFAULT NULL::text, id_externo text DEFAULT NULL::text, respuesta_json jsonb DEFAULT NULL::jsonb) RETURNS void
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    tel text;
-    cid integer;
-    conv_id bigint;
-BEGIN
-    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
-
-    IF fecha_envio IS NULL THEN
-        fecha_envio := now();
-    END IF;
-
-    SELECT id INTO cid
-    FROM whatsapp.vcontactos_telefonos
-    WHERE telefonoe164 = tel
-    LIMIT 1;
-
-    SELECT id INTO conv_id
-    FROM whatsapp.whatsapp_conversaciones
-    WHERE contacto_id = cid
-      AND estado = 'abierta'
-    ORDER BY creada_en DESC
-    LIMIT 1;
-
-    IF conv_id IS NULL THEN
-        INSERT INTO whatsapp.whatsapp_conversaciones (
-            contacto_id,
-            creada_en,
-            ultimo_mensaje_en
-        )
-        VALUES (
-            cid,
-            fecha_envio,
-            fecha_envio
-        )
-        RETURNING id INTO conv_id;
-    ELSE
-        UPDATE whatsapp.whatsapp_conversaciones
-        SET ultimo_mensaje_en = fecha_envio
-        WHERE id = conv_id;
-    END IF;
-
-    INSERT INTO whatsapp.whatsapp_mensajes (
-        contacto_id,
-        conversacion_id,
-        numero_telefono,
-        tipo_mensaje,
-        canal,
-        contenido,
-        plantilla_nombre,
-        fecha_envio,
-        status,
-        id_externo,
-        respuesta_json
-    )
-    VALUES (
-        cid,
-        conv_id,
-        tel,
-        tipo_mensaje,
-        canal,
-        contenido,
-        plantilla_nombre,
-        fecha_envio,
-        status,
-        id_externo,
-        respuesta_json
-    );
-
-    PERFORM whatsapp.sp_whatsapp_touch_estado(
-        tel,
-        CASE WHEN tipo_mensaje = 'entrante'
-             THEN 'in'
-             ELSE 'out'
-        END
-    );
-END;
+    AS $$
+DECLARE
+    tel text;
+    cid integer;
+    conv_id bigint;
+BEGIN
+    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
+
+    IF fecha_envio IS NULL THEN
+        fecha_envio := now();
+    END IF;
+
+    SELECT id INTO cid
+    FROM whatsapp.vcontactos_telefonos
+    WHERE telefonoe164 = tel
+    LIMIT 1;
+
+    SELECT id INTO conv_id
+    FROM whatsapp.whatsapp_conversaciones
+    WHERE contacto_id = cid
+      AND estado = 'abierta'
+    ORDER BY creada_en DESC
+    LIMIT 1;
+
+    IF conv_id IS NULL THEN
+        INSERT INTO whatsapp.whatsapp_conversaciones (
+            contacto_id,
+            creada_en,
+            ultimo_mensaje_en
+        )
+        VALUES (
+            cid,
+            fecha_envio,
+            fecha_envio
+        )
+        RETURNING id INTO conv_id;
+    ELSE
+        UPDATE whatsapp.whatsapp_conversaciones
+        SET ultimo_mensaje_en = fecha_envio
+        WHERE id = conv_id;
+    END IF;
+
+    INSERT INTO whatsapp.whatsapp_mensajes (
+        contacto_id,
+        conversacion_id,
+        numero_telefono,
+        tipo_mensaje,
+        canal,
+        contenido,
+        plantilla_nombre,
+        fecha_envio,
+        status,
+        id_externo,
+        respuesta_json
+    )
+    VALUES (
+        cid,
+        conv_id,
+        tel,
+        tipo_mensaje,
+        canal,
+        contenido,
+        plantilla_nombre,
+        fecha_envio,
+        status,
+        id_externo,
+        respuesta_json
+    );
+
+    PERFORM whatsapp.sp_whatsapp_touch_estado(
+        tel,
+        CASE WHEN tipo_mensaje = 'entrante'
+             THEN 'in'
+             ELSE 'out'
+        END
+    );
+END;
 $$;
 
 
@@ -651,42 +730,42 @@ $$;
 
 CREATE FUNCTION whatsapp.sp_whatsapp_touch_estado(numero_telefono_raw text, tipo_evento text) RETURNS void
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    tel text;
-BEGIN
-    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
-
-    INSERT INTO whatsapp.whatsapp_contacto_estado (
-        numero_telefono,
-        opt_in,
-        opt_out,
-        ultimo_in,
-        ultimo_out
-    )
-    VALUES (
-        tel,
-        (tipo_evento = 'optin'),
-        (tipo_evento = 'optout'),
-        CASE WHEN tipo_evento = 'in' THEN now() ELSE NULL END,
-        CASE WHEN tipo_evento = 'out' THEN now() ELSE NULL END
-    )
-    ON CONFLICT (numero_telefono)
-    DO UPDATE SET
-        ultimo_in  = CASE WHEN tipo_evento = 'in'
-                          THEN now()
-                          ELSE whatsapp_contacto_estado.ultimo_in END,
-        ultimo_out = CASE WHEN tipo_evento = 'out'
-                          THEN now()
-                          ELSE whatsapp_contacto_estado.ultimo_out END,
-        opt_in  = CASE WHEN tipo_evento = 'optin'
-                       THEN true
-                       ELSE whatsapp_contacto_estado.opt_in END,
-        opt_out = CASE WHEN tipo_evento = 'optout'
-                       THEN true
-                       ELSE whatsapp_contacto_estado.opt_out END,
-        actualizado_en = now();
-END;
+    AS $$
+DECLARE
+    tel text;
+BEGIN
+    tel := whatsapp.fn_normaliza_telefono_e164(numero_telefono_raw);
+
+    INSERT INTO whatsapp.whatsapp_contacto_estado (
+        numero_telefono,
+        opt_in,
+        opt_out,
+        ultimo_in,
+        ultimo_out
+    )
+    VALUES (
+        tel,
+        (tipo_evento = 'optin'),
+        (tipo_evento = 'optout'),
+        CASE WHEN tipo_evento = 'in' THEN now() ELSE NULL END,
+        CASE WHEN tipo_evento = 'out' THEN now() ELSE NULL END
+    )
+    ON CONFLICT (numero_telefono)
+    DO UPDATE SET
+        ultimo_in  = CASE WHEN tipo_evento = 'in'
+                          THEN now()
+                          ELSE whatsapp_contacto_estado.ultimo_in END,
+        ultimo_out = CASE WHEN tipo_evento = 'out'
+                          THEN now()
+                          ELSE whatsapp_contacto_estado.ultimo_out END,
+        opt_in  = CASE WHEN tipo_evento = 'optin'
+                       THEN true
+                       ELSE whatsapp_contacto_estado.opt_in END,
+        opt_out = CASE WHEN tipo_evento = 'optout'
+                       THEN true
+                       ELSE whatsapp_contacto_estado.opt_out END,
+        actualizado_en = now();
+END;
 $$;
 
 
@@ -3778,6 +3857,95 @@ ALTER SEQUENCE inventario.movimientos_partidas_id_seq OWNED BY inventario.movimi
 
 
 --
+-- Name: clientes_legacy_supplier; Type: TABLE; Schema: migrate; Owner: -
+--
+
+CREATE TABLE migrate.clientes_legacy_supplier (
+    empresa_id integer NOT NULL,
+    codigo_legacy character varying(20) NOT NULL,
+    agente character varying(50),
+    agente_cobranza character varying(50),
+    clasificacion character varying(80),
+    categoria character varying(80),
+    mercado character varying(80),
+    goldmine character varying(100),
+    proceso_general_venta character varying(100),
+    cuenta_contable character varying(50),
+    descuento numeric(12,4),
+    saldo_maximo_deudor numeric(12,2),
+    usar_ultimo_precio boolean,
+    cobrar_iva boolean,
+    es_extranjero boolean,
+    intercompania boolean,
+    banco_cuenta_predeterminada character varying(100),
+    numero_cuenta_pago character varying(100),
+    comentarios_credito text,
+    autorizado_por character varying(100),
+    fecha_autorizacion timestamp with time zone,
+    fecha_inicio_relaciones timestamp with time zone,
+    fecha_ultimo_movimiento timestamp with time zone,
+    bloquear_al_siguiente_dia boolean,
+    usuario_bloqueo character varying(100),
+    pagina_web character varying(150),
+    lunes_contrarecibo boolean,
+    martes_contrarecibo boolean,
+    miercoles_contrarecibo boolean,
+    jueves_contrarecibo boolean,
+    viernes_contrarecibo boolean,
+    lunes_pago boolean,
+    martes_pago boolean,
+    miercoles_pago boolean,
+    jueves_pago boolean,
+    viernes_pago boolean,
+    lunes_recepcion_mercancia boolean,
+    martes_recepcion_mercancia boolean,
+    miercoles_recepcion_mercancia boolean,
+    jueves_recepcion_mercancia boolean,
+    viernes_recepcion_mercancia boolean,
+    horario_contrarecibo character varying(100),
+    horario_pago character varying(100),
+    horario_recepcion_mercancia character varying(100),
+    campo_usuario_1 character varying(150),
+    campo_usuario_2 character varying(150),
+    campo_usuario_3 character varying(150),
+    campo_usuario_4 character varying(150),
+    campo_usuario_5 character varying(150),
+    raw_data jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: clientes_legacy_supplier_json; Type: TABLE; Schema: migrate; Owner: -
+--
+
+CREATE TABLE migrate.clientes_legacy_supplier_json (
+    id bigint NOT NULL,
+    data jsonb NOT NULL,
+    fecha_importacion timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: clientes_legacy_supplier_json_id_seq; Type: SEQUENCE; Schema: migrate; Owner: -
+--
+
+CREATE SEQUENCE migrate.clientes_legacy_supplier_json_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: clientes_legacy_supplier_json_id_seq; Type: SEQUENCE OWNED BY; Schema: migrate; Owner: -
+--
+
+ALTER SEQUENCE migrate.clientes_legacy_supplier_json_id_seq OWNED BY migrate.clientes_legacy_supplier_json.id;
+
+
+--
 -- Name: productos_legacy_supplier; Type: TABLE; Schema: migrate; Owner: -
 --
 
@@ -3793,6 +3961,142 @@ CREATE TABLE migrate.productos_legacy_supplier (
     costo_reposicion numeric(18,6),
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: productos_legacy_supplier_json; Type: TABLE; Schema: migrate; Owner: -
+--
+
+CREATE TABLE migrate.productos_legacy_supplier_json (
+    id bigint NOT NULL,
+    data jsonb NOT NULL,
+    fecha_importacion timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: productos_legacy_supplier_json_id_seq; Type: SEQUENCE; Schema: migrate; Owner: -
+--
+
+CREATE SEQUENCE migrate.productos_legacy_supplier_json_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: productos_legacy_supplier_json_id_seq; Type: SEQUENCE OWNED BY; Schema: migrate; Owner: -
+--
+
+ALTER SEQUENCE migrate.productos_legacy_supplier_json_id_seq OWNED BY migrate.productos_legacy_supplier_json.id;
+
+
+--
+-- Name: productos_raw; Type: TABLE; Schema: migrate; Owner: -
+--
+
+CREATE TABLE migrate.productos_raw (
+    empresa_id integer NOT NULL,
+    data jsonb NOT NULL,
+    fecha_importacion timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: v_clientes_legacy_supplier; Type: VIEW; Schema: migrate; Owner: -
+--
+
+CREATE VIEW migrate.v_clientes_legacy_supplier AS
+ SELECT clientes_legacy_supplier_json.id AS legacy_id,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Codigo'::text) AS codigo_legacy,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Nombre'::text) AS nombre,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Contacto'::text) AS nombre_contacto,
+    NULLIF(TRIM(BOTH FROM (clientes_legacy_supplier_json.data ->> 'CLI:RFC'::text)), ''::text) AS rfc,
+    NULLIF(TRIM(BOTH FROM (clientes_legacy_supplier_json.data ->> 'CLI:Email'::text)), ''::text) AS email,
+    NULLIF(TRIM(BOTH FROM (clientes_legacy_supplier_json.data ->> 'CLI:Telefono1'::text)), ''::text) AS telefono,
+    NULLIF(TRIM(BOTH FROM (clientes_legacy_supplier_json.data ->> 'CLI:Telefono2'::text)), ''::text) AS telefono_secundario,
+    NULLIF(TRIM(BOTH FROM (clientes_legacy_supplier_json.data ->> 'CLI:Telefono3'::text)), ''::text) AS telefono_3,
+    migrate.to_bool_legacy((clientes_legacy_supplier_json.data ->> 'CLI:Baja'::text)) AS baja,
+    migrate.to_bool_legacy((clientes_legacy_supplier_json.data ->> 'CLI:Bloqueado'::text)) AS bloqueado,
+    migrate.to_int_legacy((clientes_legacy_supplier_json.data ->> 'CLI:DiasCredito'::text)) AS dias_credito,
+    migrate.to_numeric_legacy((clientes_legacy_supplier_json.data ->> 'CLI:LimiteCredito'::text)) AS limite_credito,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Observaciones'::text) AS observaciones,
+    NULLIF(TRIM(BOTH FROM (clientes_legacy_supplier_json.data ->> 'CLI:MotivoBloqueo'::text)), ''::text) AS motivo_bloqueo,
+    NULLIF(TRIM(BOTH FROM (clientes_legacy_supplier_json.data ->> 'CLI:Zona'::text)), ''::text) AS zona,
+    NULLIF(TRIM(BOTH FROM (clientes_legacy_supplier_json.data ->> 'CLI:Concepto'::text)), ''::text) AS ultimo_concepto_utilizado,
+    migrate.to_bool_legacy((clientes_legacy_supplier_json.data ->> 'CLI:IVADesglosado'::text)) AS iva_desglosado,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Domicilio'::text) AS domicilio,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Calle'::text) AS calle,
+    (clientes_legacy_supplier_json.data ->> 'CLI:NumeroExterior'::text) AS numero_exterior,
+    (clientes_legacy_supplier_json.data ->> 'CLI:NumeroInterior'::text) AS numero_interior,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Colonia'::text) AS colonia,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Ciudad'::text) AS ciudad,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Estado'::text) AS estado,
+    (clientes_legacy_supplier_json.data ->> 'CLI:CP'::text) AS codigo_postal,
+    (clientes_legacy_supplier_json.data ->> 'CLI:Pais'::text) AS pais,
+    (clientes_legacy_supplier_json.data ->> 'CLI:CodigoRegimenFiscal'::text) AS codigo_regimen_fiscal,
+    (clientes_legacy_supplier_json.data ->> 'CLI:UsoCFDIPredeterminado'::text) AS uso_cfdi_predeterminado,
+    (clientes_legacy_supplier_json.data ->> 'CLI:FormaPagoPredeterminada'::text) AS forma_pago_predeterminada,
+    (clientes_legacy_supplier_json.data ->> 'CLI:MetodoPago'::text) AS metodo_pago,
+    (clientes_legacy_supplier_json.data ->> 'CLI:CodigoPaisSAT'::text) AS codigo_pais_sat,
+    clientes_legacy_supplier_json.data AS raw_data
+   FROM migrate.clientes_legacy_supplier_json;
+
+
+--
+-- Name: v_productos_legacy_supplier; Type: VIEW; Schema: migrate; Owner: -
+--
+
+CREATE VIEW migrate.v_productos_legacy_supplier AS
+ SELECT productos_legacy_supplier_json.id AS legacy_id,
+    (productos_legacy_supplier_json.data ->> 'PRD:Identificacion'::text) AS clave,
+    (productos_legacy_supplier_json.data ->> 'PRD:Descripcion'::text) AS descripcion,
+    (productos_legacy_supplier_json.data ->> 'PRD:Clasificacion'::text) AS clasificacion,
+    (productos_legacy_supplier_json.data ->> 'PRD:Familia'::text) AS familia,
+    (productos_legacy_supplier_json.data ->> 'PRD:Linea'::text) AS linea,
+    (productos_legacy_supplier_json.data ->> 'PRD:Presentacion'::text) AS presentacion,
+    (productos_legacy_supplier_json.data ->> 'PRD:Unidad'::text) AS unidad,
+    (productos_legacy_supplier_json.data ->> 'PRD:UMCompra'::text) AS unidad_compra,
+    (productos_legacy_supplier_json.data ->> 'PRD:UMVenta'::text) AS unidad_venta,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:Existencia'::text)) AS existencia_actual,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:MinimoParaVenta'::text)) AS cantidad_minima_venta,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:MOQ'::text)) AS cantidad_minima_compra,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:CostoEstandar'::text)) AS costo_estandar,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:CostoPromedio'::text)) AS costo_promedio,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:UltimoCosto'::text)) AS ultimo_costo,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:Tasa'::text)) AS iva_porcentaje,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:PctIEPSVentas'::text)) AS ieps_porcentaje,
+    migrate.to_bool_legacy((productos_legacy_supplier_json.data ->> 'PRD:SeRetieneIVA'::text)) AS retiene_iva,
+    migrate.to_bool_legacy((productos_legacy_supplier_json.data ->> 'PRD:SeRetieneISR'::text)) AS retiene_isr,
+    (productos_legacy_supplier_json.data ->> 'PRD:CodigoProductoSAT'::text) AS clave_producto_sat,
+    (productos_legacy_supplier_json.data ->> 'PRD:FraccionArancelaria'::text) AS fraccion_arancelaria,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:Largo'::text)) AS largo,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:Ancho'::text)) AS ancho,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:Grueso'::text)) AS espesor,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:PesoBrutoPorCarton'::text)) AS peso_por_empaque,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:PiezasPorCarton'::text)) AS piezas_por_empaque,
+    (productos_legacy_supplier_json.data ->> 'PRD:UnidadPesoBruto'::text) AS unidad_peso_empaque,
+    migrate.to_int_legacy((productos_legacy_supplier_json.data ->> 'PRD:TiempoSurtido'::text)) AS dias_entrega,
+    (productos_legacy_supplier_json.data ->> 'PRD:Observaciones'::text) AS observaciones,
+    (productos_legacy_supplier_json.data ->> 'PRD:ObservacionesCompras'::text) AS observaciones_compras,
+    (productos_legacy_supplier_json.data ->> 'PRD:ObservacionesDiseno'::text) AS observaciones_diseno,
+    (productos_legacy_supplier_json.data ->> 'PRD:ArchivoFotografia1'::text) AS archivo_fotografia_1,
+    (productos_legacy_supplier_json.data ->> 'PRD:ArchivoFotografia2'::text) AS archivo_fotografia_2,
+    (productos_legacy_supplier_json.data ->> 'PRD:ArchivoFichaTecnica'::text) AS archivo_ficha_tecnica,
+    (productos_legacy_supplier_json.data ->> 'PRD:ArchivoCertificado'::text) AS archivo_certificado,
+    (productos_legacy_supplier_json.data ->> 'PRD:Proveedor'::text) AS proveedor_legacy,
+    (productos_legacy_supplier_json.data ->> 'PRD:Proveedor2'::text) AS proveedor_2_legacy,
+    (productos_legacy_supplier_json.data ->> 'PRD:Proveedor3'::text) AS proveedor_3_legacy,
+    migrate.to_bool_legacy((productos_legacy_supplier_json.data ->> 'PRD:Baja'::text)) AS baja,
+    migrate.to_bool_legacy((productos_legacy_supplier_json.data ->> 'PRD:EsUnServicio'::text)) AS es_servicio,
+    migrate.to_bool_legacy((productos_legacy_supplier_json.data ->> 'PRD:EsManufacturable'::text)) AS es_manufacturable,
+    migrate.to_bool_legacy((productos_legacy_supplier_json.data ->> 'PRD:EsEstacional'::text)) AS es_estacional,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:DemandaMensual'::text)) AS demanda_mensual_estimado,
+    migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:FactorDemanda'::text)) AS factor_demanda,
+    productos_legacy_supplier_json.data AS raw_data
+   FROM migrate.productos_legacy_supplier_json;
 
 
 --
@@ -3883,6 +4187,9 @@ CREATE TABLE public.aplicaciones_saldo (
     monto_moneda_documento numeric(15,2) NOT NULL,
     fecha_aplicacion timestamp with time zone DEFAULT now() NOT NULL,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
     CONSTRAINT chk_aplicacion_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
 );
 
@@ -3958,6 +4265,34 @@ COMMENT ON COLUMN public.aplicaciones_saldo.fecha_creacion IS 'Fecha en que se c
 
 
 --
+-- Name: COLUMN aplicaciones_saldo.num_parcialidad; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.num_parcialidad IS 'Número de parcialidad SAT (1-based). Cuenta cuántas aplicaciones previas existen
+para el mismo documento_destino_id en el momento del INSERT. Calculado dentro de
+la misma transacción con FOR UPDATE sobre el documento destino.';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.imp_saldo_ant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.imp_saldo_ant IS 'Saldo de la factura (documento_destino) antes de esta aplicación, en la moneda
+del documento destino. Equivale al campo ImpSaldoAnterior del complemento SAT
+Pagos 2.0. Calculado como: total_factura - SUM(monto_moneda_documento) de
+aplicaciones previas al momento del INSERT.';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.imp_saldo_insoluto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.imp_saldo_insoluto IS 'Saldo de la factura (documento_destino) después de esta aplicación, en la moneda
+del documento destino. Equivale al campo ImpSaldoInsoluto del complemento SAT
+Pagos 2.0. Calculado como: imp_saldo_ant - monto_moneda_documento.';
+
+
+--
 -- Name: aplicaciones_saldo_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -4016,6 +4351,310 @@ CREATE SEQUENCE public.audit_log_id_seq
 --
 
 ALTER SEQUENCE public.audit_log_id_seq OWNED BY public.audit_log.id;
+
+
+--
+-- Name: autorizaciones_reglas; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.autorizaciones_reglas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    transicion_id integer NOT NULL,
+    monto_minimo numeric(18,4),
+    monto_maximo numeric(18,4),
+    modo character varying(20) DEFAULT 'flujo'::character varying NOT NULL,
+    rol_autorizador_id integer,
+    usuario_autorizador_id integer,
+    nivel smallint DEFAULT 1 NOT NULL,
+    activa boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT autorizaciones_reglas_modo_check CHECK (((modo)::text = ANY ((ARRAY['ninguna'::character varying, 'directa'::character varying, 'flujo'::character varying])::text[]))),
+    CONSTRAINT ck_autorizador_segun_modo CHECK ((((modo)::text = 'ninguna'::text) OR ((rol_autorizador_id IS NOT NULL) AND (usuario_autorizador_id IS NULL)) OR ((rol_autorizador_id IS NULL) AND (usuario_autorizador_id IS NOT NULL))))
+);
+
+
+--
+-- Name: TABLE autorizaciones_reglas; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.autorizaciones_reglas IS 'Políticas de autorización por transición documental y rango de monto. Define si una transición (ej. cotización → factura) requiere autorización y bajo qué modo. Invariante: no pueden existir dos filas activas con la misma transicion_id cuyos rangos [monto_minimo, monto_maximo] se solapen; esta regla se valida en la capa de negocio al insertar o actualizar.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.id IS 'Identificador interno de la política.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.empresa_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.empresa_id IS 'Empresa a la que pertenece esta política. Referencia core.empresas.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.transicion_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.transicion_id IS 'Transición documental a la que aplica la política. Referencia core.empresas_tipos_documento_transiciones; contiene el par (tipo_documento_origen, tipo_documento_destino) habilitado para la empresa.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.monto_minimo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.monto_minimo IS 'Límite inferior del rango de monto (inclusive). NULL significa sin límite inferior (aplica desde cero).';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.monto_maximo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.monto_maximo IS 'Límite superior del rango de monto (inclusive). NULL significa sin límite superior (aplica hasta cualquier monto).';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.modo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.modo IS 'Modo de autorización: ninguna = libre, sin restricción; directa = solo usuarios con el rol/usuario asignado pueden ejecutar la transición; flujo = se crea una solicitud formal y el documento queda bloqueado hasta que el autorizador responda.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.rol_autorizador_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.rol_autorizador_id IS 'Rol que puede autorizar la transición en modos directa y flujo. Mutuamente excluyente con usuario_autorizador_id. NULL cuando modo=ninguna.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.usuario_autorizador_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.usuario_autorizador_id IS 'Usuario específico que puede autorizar la transición en modos directa y flujo. Mutuamente excluyente con rol_autorizador_id. NULL cuando modo=ninguna.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.nivel; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.nivel IS 'Nivel de autorización en cadena. Reservado para uso futuro (cadenas de aprobación multinivel). Sprint 2 usa siempre nivel = 1.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.activa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.activa IS 'Soft-delete: false oculta la política sin eliminarla. Las políticas inactivas no se evalúan en tiempo de ejecución ni participan en la validación de traslape.';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.created_at IS 'Marca de tiempo de creación del registro (UTC).';
+
+
+--
+-- Name: COLUMN autorizaciones_reglas.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_reglas.updated_at IS 'Marca de tiempo de la última modificación del registro (UTC).';
+
+
+--
+-- Name: CONSTRAINT ck_autorizador_segun_modo ON autorizaciones_reglas; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT ck_autorizador_segun_modo ON public.autorizaciones_reglas IS 'Garantiza coherencia entre modo y autorizador: modo ninguna no requiere autorizador; modos directa y flujo requieren exactamente uno (rol XOR usuario).';
+
+
+--
+-- Name: autorizaciones_reglas_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.autorizaciones_reglas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: autorizaciones_reglas_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.autorizaciones_reglas_id_seq OWNED BY public.autorizaciones_reglas.id;
+
+
+--
+-- Name: autorizaciones_solicitudes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.autorizaciones_solicitudes (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    regla_id integer NOT NULL,
+    documento_origen_id integer NOT NULL,
+    tipo_documento_origen character varying(60) NOT NULL,
+    tipo_documento_destino character varying(60) NOT NULL,
+    folio_documento_origen character varying(60),
+    monto numeric(18,4) NOT NULL,
+    usuario_solicitante_id integer NOT NULL,
+    usuario_autorizador_id integer,
+    estado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    comentario_solicitante text,
+    comentario_autorizador text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    respondido_at timestamp with time zone,
+    CONSTRAINT autorizaciones_solicitudes_estado_check CHECK (((estado)::text = ANY ((ARRAY['pendiente'::character varying, 'aprobada'::character varying, 'rechazada'::character varying, 'cancelada'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE autorizaciones_solicitudes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.autorizaciones_solicitudes IS 'Registro de solicitudes formales de autorización generadas por el modo=flujo. Se crea una fila cuando un usuario intenta ejecutar una transición sujeta a flujo y el documento aún no está aprobado. El documento origen queda en estado_autorizacion=pendiente hasta que el autorizador responde o el solicitante cancela. Los campos tipo_documento_* y folio_documento_origen se copian del documento en el momento de la solicitud para preservar el historial aunque el documento sea modificado o cancelado posteriormente.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.id IS 'Identificador interno de la solicitud.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.empresa_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.empresa_id IS 'Empresa a la que pertenece la solicitud. Referencia core.empresas.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.regla_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.regla_id IS 'Política de autorización que disparó la creación de esta solicitud. Referencia autorizaciones_reglas.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.documento_origen_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.documento_origen_id IS 'Documento cuya transición está pendiente de aprobación. Referencia public.documentos.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.tipo_documento_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.tipo_documento_origen IS 'Código del tipo de documento origen en el momento de crear la solicitud (ej. cotizacion). Desnormalizado para preservar historial.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.tipo_documento_destino; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.tipo_documento_destino IS 'Código del tipo de documento que se intentó generar (ej. factura). Desnormalizado para preservar historial.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.folio_documento_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.folio_documento_origen IS 'Folio (serie + número) del documento origen en el momento de crear la solicitud. Desnormalizado para mostrar en la bandeja sin join adicional.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.monto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.monto IS 'Total del documento origen en el momento de crear la solicitud. Determina qué política aplica; se congela aquí para que un cambio posterior en el documento no altere la solicitud en curso.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.usuario_solicitante_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.usuario_solicitante_id IS 'Usuario que intentó ejecutar la transición y desencadenó la solicitud. Referencia core.usuarios.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.usuario_autorizador_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.usuario_autorizador_id IS 'Usuario que efectivamente respondió la solicitud (aprobó o rechazó). Puede diferir del autorizador asignado por la regla si el rol permite a varios usuarios responder. NULL mientras la solicitud esté pendiente.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.estado; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.estado IS 'Estado del ciclo de vida de la solicitud: pendiente (en espera de respuesta), aprobada (autorizador aprobó; el documento pasa a estado_autorizacion=aprobada), rechazada (autorizador rechazó), cancelada (el solicitante retiró la solicitud; el documento vuelve a estado_autorizacion=no_requerida).';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.comentario_solicitante; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.comentario_solicitante IS 'Comentario opcional que el solicitante puede incluir al crear la solicitud.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.comentario_autorizador; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.comentario_autorizador IS 'Comentario opcional que el autorizador incluye al aprobar o rechazar.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.created_at IS 'Marca de tiempo de creación de la solicitud (UTC).';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.updated_at IS 'Marca de tiempo de la última modificación (UTC). Se actualiza al responder o cancelar.';
+
+
+--
+-- Name: COLUMN autorizaciones_solicitudes.respondido_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.autorizaciones_solicitudes.respondido_at IS 'Marca de tiempo en que el autorizador respondió (aprobó o rechazó). NULL mientras la solicitud esté pendiente o cancelada.';
+
+
+--
+-- Name: autorizaciones_solicitudes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.autorizaciones_solicitudes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: autorizaciones_solicitudes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.autorizaciones_solicitudes_id_seq OWNED BY public.autorizaciones_solicitudes.id;
 
 
 --
@@ -4384,7 +5023,7 @@ CREATE TABLE public.documentos (
     forma_pago text,
     metodo_pago text,
     codigo_postal_receptor character varying(10),
-    tratamiento_impuestos character varying(20) DEFAULT 'normal'::character varying NOT NULL,
+    tratamiento_impuestos character varying(30) DEFAULT 'normal'::character varying NOT NULL,
     estado_seguimiento text DEFAULT 'borrador'::text,
     comentario_seguimiento text,
     producto_resumen text,
@@ -4392,7 +5031,17 @@ CREATE TABLE public.documentos (
     motivo_nc character varying(20),
     concepto_id integer,
     finanzas_operacion_id integer,
-    CONSTRAINT chk_documentos_motivo_nc CHECK (((motivo_nc IS NULL) OR ((motivo_nc)::text = ANY ((ARRAY['devolucion'::character varying, 'bonificacion'::character varying, 'otro'::character varying])::text[]))))
+    periodicidad_global character varying(2) DEFAULT NULL::character varying,
+    meses_global character varying(2) DEFAULT NULL::character varying,
+    anio_global smallint,
+    factura_global_id integer,
+    usuario_cancelacion_id integer,
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    estado_autorizacion character varying(20) DEFAULT 'no_requerida'::character varying,
+    CONSTRAINT chk_documentos_motivo_nc CHECK (((motivo_nc IS NULL) OR ((motivo_nc)::text = ANY ((ARRAY['devolucion'::character varying, 'bonificacion'::character varying, 'otro'::character varying])::text[])))),
+    CONSTRAINT documentos_estado_autorizacion_check CHECK (((estado_autorizacion)::text = ANY ((ARRAY['no_requerida'::character varying, 'pendiente'::character varying, 'aprobada'::character varying, 'rechazada'::character varying])::text[])))
 );
 
 
@@ -4407,7 +5056,7 @@ COMMENT ON TABLE public.documentos IS 'Tabla universal de documentos del ERP (co
 -- Name: COLUMN documentos.tratamiento_impuestos; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.documentos.tratamiento_impuestos IS 'Define el tratamiento fiscal del documento. Valores esperados: normal, sin_iva, tasa_cero, exento. Determina cómo se calculan los impuestos.';
+COMMENT ON COLUMN public.documentos.tratamiento_impuestos IS 'Define el tratamiento fiscal del documento. Valores esperados: normal, sin_iva, tasa_cero, exento, venta_publico_general, factura_global. Determina cómo se calculan los impuestos y el tratamiento fiscal/operativo del documento.';
 
 
 --
@@ -4422,6 +5071,69 @@ COMMENT ON COLUMN public.documentos.motivo_nc IS 'Motivo de la nota de crédito.
 --
 
 COMMENT ON COLUMN public.documentos.concepto_id IS 'Concepto contable/comercial asociado al documento. Utilizado para contabilización y clasificación.';
+
+
+--
+-- Name: COLUMN documentos.periodicidad_global; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.periodicidad_global IS 'Código SAT de periodicidad para factura global: 01=Diario, 02=Semanal, 03=Quincenal, 04=Mensual, 05=Bimestral';
+
+
+--
+-- Name: COLUMN documentos.meses_global; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.meses_global IS 'Código SAT de mes(es) para factura global: 01-12 mensual, 13-18 bimestral';
+
+
+--
+-- Name: COLUMN documentos.anio_global; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.anio_global IS 'Año de la factura global (4 dígitos)';
+
+
+--
+-- Name: COLUMN documentos.factura_global_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.factura_global_id IS 'Para ventas publico_general: ID de la factura global que las incluye. Evita doble agrupación.';
+
+
+--
+-- Name: COLUMN documentos.usuario_cancelacion_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.usuario_cancelacion_id IS 'Usuario que ejecutó la cancelación del documento';
+
+
+--
+-- Name: COLUMN documentos.motivo_cancelacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.motivo_cancelacion IS 'Motivo interno de cancelación capturado por el usuario';
+
+
+--
+-- Name: COLUMN documentos.motivo_sat; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.motivo_sat IS 'Motivo SAT de cancelación CFDI (ejemplo: 01, 02, 03, 04)';
+
+
+--
+-- Name: COLUMN documentos.uuid_sustitucion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.uuid_sustitucion IS 'UUID del CFDI sustituto cuando el motivo SAT requiere sustitución';
+
+
+--
+-- Name: COLUMN documentos.estado_autorizacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.estado_autorizacion IS 'Ciclo de vida de autorización del documento. Valores: no_requerida (sin política activa o modo ninguna/directa), pendiente (solicitud de flujo creada y en espera), aprobada (autorizador aprobó; habilita re-ejecución de la transición), rechazada (autorizador rechazó). Solo modo=flujo transiciona entre pendiente/aprobada/rechazada; los otros modos permanecen en no_requerida.';
 
 
 --
@@ -5443,6 +6155,40 @@ COMMENT ON COLUMN public.impuestos.activo IS 'Indica si el impuesto está activo
 
 
 --
+-- Name: oc_partidas_recepcion; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.oc_partidas_recepcion AS
+ SELECT dp_oc.documento_id AS oc_id,
+    d_oc.empresa_id,
+    dp_oc.id AS partida_oc_id,
+    dp_oc.producto_id,
+    dp_oc.cantidad AS cantidad_ordenada,
+    COALESCE(sum(
+        CASE
+            WHEN ((lower((d_dest.tipo_documento)::text) = 'recepcion'::text) AND (lower((COALESCE(d_dest.estatus_documento, ''::character varying))::text) <> ALL (ARRAY['cancelado'::text, 'cancelada'::text]))) THEN dpv.cantidad
+            ELSE (0)::numeric
+        END), (0)::numeric) AS cantidad_recibida,
+    (dp_oc.cantidad - COALESCE(sum(
+        CASE
+            WHEN ((lower((d_dest.tipo_documento)::text) = 'recepcion'::text) AND (lower((COALESCE(d_dest.estatus_documento, ''::character varying))::text) <> ALL (ARRAY['cancelado'::text, 'cancelada'::text]))) THEN dpv.cantidad
+            ELSE (0)::numeric
+        END), (0)::numeric)) AS cantidad_pendiente
+   FROM (((public.documentos_partidas dp_oc
+     JOIN public.documentos d_oc ON (((d_oc.id = dp_oc.documento_id) AND (lower((d_oc.tipo_documento)::text) = 'orden_compra'::text))))
+     LEFT JOIN public.documentos_partidas_vinculos dpv ON (((dpv.documento_origen_id = d_oc.id) AND (dpv.partida_origen_id = dp_oc.id))))
+     LEFT JOIN public.documentos d_dest ON ((d_dest.id = dpv.documento_destino_id)))
+  GROUP BY dp_oc.documento_id, d_oc.empresa_id, dp_oc.id, dp_oc.producto_id, dp_oc.cantidad;
+
+
+--
+-- Name: VIEW oc_partidas_recepcion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.oc_partidas_recepcion IS 'Progreso de recepción por partida de Orden de Compra. Sin columnas adicionales ni triggers.';
+
+
+--
 -- Name: operaciones_credito_aplicaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -5768,7 +6514,8 @@ CREATE TABLE public.productos (
     dias_entrega integer,
     cantidad_minima_compra numeric(15,4),
     proveedor_preferido_id integer,
-    pais_origen_id text
+    pais_origen_id text,
+    cantidad_minima_venta numeric(15,4)
 );
 
 
@@ -7206,6 +7953,20 @@ ALTER TABLE ONLY inventario.movimientos_partidas ALTER COLUMN id SET DEFAULT nex
 
 
 --
+-- Name: clientes_legacy_supplier_json id; Type: DEFAULT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.clientes_legacy_supplier_json ALTER COLUMN id SET DEFAULT nextval('migrate.clientes_legacy_supplier_json_id_seq'::regclass);
+
+
+--
+-- Name: productos_legacy_supplier_json id; Type: DEFAULT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.productos_legacy_supplier_json ALTER COLUMN id SET DEFAULT nextval('migrate.productos_legacy_supplier_json_id_seq'::regclass);
+
+
+--
 -- Name: etapas id; Type: DEFAULT; Schema: produccion; Owner: -
 --
 
@@ -7231,6 +7992,20 @@ ALTER TABLE ONLY public.aplicaciones_saldo ALTER COLUMN id SET DEFAULT nextval('
 --
 
 ALTER TABLE ONLY public.audit_log ALTER COLUMN id SET DEFAULT nextval('public.audit_log_id_seq'::regclass);
+
+
+--
+-- Name: autorizaciones_reglas id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_reglas ALTER COLUMN id SET DEFAULT nextval('public.autorizaciones_reglas_id_seq'::regclass);
+
+
+--
+-- Name: autorizaciones_solicitudes id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_solicitudes ALTER COLUMN id SET DEFAULT nextval('public.autorizaciones_solicitudes_id_seq'::regclass);
 
 
 --
@@ -7910,11 +8685,35 @@ ALTER TABLE ONLY inventario.existencias
 
 
 --
+-- Name: clientes_legacy_supplier_json clientes_legacy_supplier_json_pkey; Type: CONSTRAINT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.clientes_legacy_supplier_json
+    ADD CONSTRAINT clientes_legacy_supplier_json_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: clientes_legacy_supplier pk_clientes_legacy_supplier; Type: CONSTRAINT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.clientes_legacy_supplier
+    ADD CONSTRAINT pk_clientes_legacy_supplier PRIMARY KEY (empresa_id, codigo_legacy);
+
+
+--
 -- Name: productos_legacy_supplier pk_productos_legacy_supplier; Type: CONSTRAINT; Schema: migrate; Owner: -
 --
 
 ALTER TABLE ONLY migrate.productos_legacy_supplier
     ADD CONSTRAINT pk_productos_legacy_supplier PRIMARY KEY (empresa_id, clave_producto);
+
+
+--
+-- Name: productos_legacy_supplier_json productos_legacy_supplier_json_pkey; Type: CONSTRAINT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.productos_legacy_supplier_json
+    ADD CONSTRAINT productos_legacy_supplier_json_pkey PRIMARY KEY (id);
 
 
 --
@@ -7947,6 +8746,22 @@ ALTER TABLE ONLY public.aplicaciones_saldo
 
 ALTER TABLE ONLY public.audit_log
     ADD CONSTRAINT audit_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: autorizaciones_reglas autorizaciones_reglas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_reglas
+    ADD CONSTRAINT autorizaciones_reglas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: autorizaciones_solicitudes autorizaciones_solicitudes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_solicitudes
+    ADD CONSTRAINT autorizaciones_solicitudes_pkey PRIMARY KEY (id);
 
 
 --
@@ -9325,27 +10140,6 @@ COMMENT ON INDEX inventario.uq_inventario_almacenes_empresa_clave IS 'Garantiza 
 
 
 --
--- Name: ix_productos_legacy_supplier_proveedor_surtido; Type: INDEX; Schema: migrate; Owner: -
---
-
-CREATE INDEX ix_productos_legacy_supplier_proveedor_surtido ON migrate.productos_legacy_supplier USING btree (proveedor_surtido);
-
-
---
--- Name: ix_productos_legacy_supplier_proveedor_surtido_2; Type: INDEX; Schema: migrate; Owner: -
---
-
-CREATE INDEX ix_productos_legacy_supplier_proveedor_surtido_2 ON migrate.productos_legacy_supplier USING btree (proveedor_surtido_2);
-
-
---
--- Name: ix_productos_legacy_supplier_proveedor_surtido_3; Type: INDEX; Schema: migrate; Owner: -
---
-
-CREATE INDEX ix_productos_legacy_supplier_proveedor_surtido_3 ON migrate.productos_legacy_supplier USING btree (proveedor_surtido_3);
-
-
---
 -- Name: idx_produccion_etapas_empresa; Type: INDEX; Schema: produccion; Owner: -
 --
 
@@ -9448,6 +10242,90 @@ CREATE INDEX idx_aplicaciones_saldo_operacion ON public.aplicaciones_saldo USING
 --
 
 COMMENT ON INDEX public.idx_aplicaciones_saldo_operacion IS 'Optimiza consultas para calcular saldo de operaciones financieras (pagos).';
+
+
+--
+-- Name: idx_aut_reglas_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aut_reglas_empresa ON public.autorizaciones_reglas USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_aut_reglas_empresa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aut_reglas_empresa IS 'Acelera la consulta de políticas activas al filtrar por empresa_id.';
+
+
+--
+-- Name: idx_aut_reglas_transicion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aut_reglas_transicion ON public.autorizaciones_reglas USING btree (transicion_id);
+
+
+--
+-- Name: INDEX idx_aut_reglas_transicion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aut_reglas_transicion IS 'Acelera la búsqueda de políticas para una transición concreta durante la validación en tiempo de ejecución y la detección de traslape de rangos.';
+
+
+--
+-- Name: idx_aut_sol_autorizador_resp; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aut_sol_autorizador_resp ON public.autorizaciones_solicitudes USING btree (usuario_autorizador_id);
+
+
+--
+-- Name: INDEX idx_aut_sol_autorizador_resp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aut_sol_autorizador_resp IS 'Acelera la búsqueda de solicitudes respondidas por un autorizador específico.';
+
+
+--
+-- Name: idx_aut_sol_doc_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aut_sol_doc_origen ON public.autorizaciones_solicitudes USING btree (documento_origen_id);
+
+
+--
+-- Name: INDEX idx_aut_sol_doc_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aut_sol_doc_origen IS 'Acelera la búsqueda de solicitudes existentes para un documento origen concreto; usado al verificar si ya existe una solicitud pendiente antes de crear una nueva.';
+
+
+--
+-- Name: idx_aut_sol_empresa_estado; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aut_sol_empresa_estado ON public.autorizaciones_solicitudes USING btree (empresa_id, estado);
+
+
+--
+-- Name: INDEX idx_aut_sol_empresa_estado; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aut_sol_empresa_estado IS 'Acelera la consulta de solicitudes por empresa y estado; cubre el filtro principal de la bandeja (empresa_id + estado=pendiente) y de Mis Solicitudes.';
+
+
+--
+-- Name: idx_aut_sol_solicitante; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aut_sol_solicitante ON public.autorizaciones_solicitudes USING btree (usuario_solicitante_id);
+
+
+--
+-- Name: INDEX idx_aut_sol_solicitante; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aut_sol_solicitante IS 'Acelera la vista "Mis Solicitudes", que filtra por usuario_solicitante_id.';
 
 
 --
@@ -9661,6 +10539,13 @@ CREATE INDEX idx_documentos_estado_seguimiento ON public.documentos USING btree 
 
 
 --
+-- Name: idx_documentos_factura_global_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_factura_global_id ON public.documentos USING btree (factura_global_id) WHERE (factura_global_id IS NOT NULL);
+
+
+--
 -- Name: idx_documentos_motivo_nc; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9735,6 +10620,13 @@ CREATE INDEX idx_documentos_partidas_precio_editado_manual ON public.documentos_
 --
 
 CREATE INDEX idx_documentos_partidas_precio_lista ON public.documentos_partidas USING btree (precio_lista_id);
+
+
+--
+-- Name: idx_documentos_publico_general_pendiente; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_publico_general_pendiente ON public.documentos USING btree (empresa_id, tratamiento_impuestos, es_publico_general, factura_global_id) WHERE (((tipo_documento)::text = 'factura'::text) AND ((tratamiento_impuestos)::text = 'venta_publico_general'::text) AND (es_publico_general = true) AND (factura_global_id IS NULL));
 
 
 --
@@ -9997,10 +10889,24 @@ CREATE INDEX ix_contactos_empresa_nombre ON public.contactos USING btree (empres
 
 
 --
+-- Name: ix_contactos_empresa_rfc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contactos_empresa_rfc ON public.contactos USING btree (empresa_id, rfc) WHERE (rfc IS NOT NULL);
+
+
+--
 -- Name: ix_contactos_empresa_tel_sec; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ix_contactos_empresa_tel_sec ON public.contactos USING btree (empresa_id, telefono_secundario) WHERE (telefono_secundario IS NOT NULL);
+
+
+--
+-- Name: ix_contactos_empresa_telefono; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contactos_empresa_telefono ON public.contactos USING btree (empresa_id, telefono) WHERE (telefono IS NOT NULL);
 
 
 --
@@ -10053,17 +10959,10 @@ CREATE UNIQUE INDEX ux_contactos_domicilios_principal ON public.contactos_domici
 
 
 --
--- Name: ux_contactos_empresa_telefono; Type: INDEX; Schema: public; Owner: -
+-- Name: ux_contactos_empresa_codigo_legacy; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX ux_contactos_empresa_telefono ON public.contactos USING btree (empresa_id, telefono) WHERE (telefono IS NOT NULL);
-
-
---
--- Name: ux_contactos_rfc_empresa; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX ux_contactos_rfc_empresa ON public.contactos USING btree (empresa_id, rfc) WHERE (rfc IS NOT NULL);
+CREATE UNIQUE INDEX ux_contactos_empresa_codigo_legacy ON public.contactos USING btree (empresa_id, codigo_legacy) WHERE (codigo_legacy IS NOT NULL);
 
 
 --
@@ -10801,19 +11700,75 @@ ALTER TABLE ONLY inventario.almacenes
 
 
 --
--- Name: productos_legacy_supplier fk_productos_legacy_supplier_producto; Type: FK CONSTRAINT; Schema: migrate; Owner: -
---
-
-ALTER TABLE ONLY migrate.productos_legacy_supplier
-    ADD CONSTRAINT fk_productos_legacy_supplier_producto FOREIGN KEY (empresa_id, clave_producto) REFERENCES public.productos(empresa_id, clave) ON DELETE CASCADE;
-
-
---
 -- Name: seguimientos fk_produccion_seguimientos_etapa; Type: FK CONSTRAINT; Schema: produccion; Owner: -
 --
 
 ALTER TABLE ONLY produccion.seguimientos
     ADD CONSTRAINT fk_produccion_seguimientos_etapa FOREIGN KEY (etapa_id) REFERENCES produccion.etapas(id) ON DELETE SET NULL;
+
+
+--
+-- Name: autorizaciones_reglas autorizaciones_reglas_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_reglas
+    ADD CONSTRAINT autorizaciones_reglas_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: autorizaciones_reglas autorizaciones_reglas_rol_autorizador_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_reglas
+    ADD CONSTRAINT autorizaciones_reglas_rol_autorizador_id_fkey FOREIGN KEY (rol_autorizador_id) REFERENCES core.roles(id);
+
+
+--
+-- Name: autorizaciones_reglas autorizaciones_reglas_transicion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_reglas
+    ADD CONSTRAINT autorizaciones_reglas_transicion_id_fkey FOREIGN KEY (transicion_id) REFERENCES core.empresas_tipos_documento_transiciones(id);
+
+
+--
+-- Name: autorizaciones_reglas autorizaciones_reglas_usuario_autorizador_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_reglas
+    ADD CONSTRAINT autorizaciones_reglas_usuario_autorizador_id_fkey FOREIGN KEY (usuario_autorizador_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: autorizaciones_solicitudes autorizaciones_solicitudes_documento_origen_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_solicitudes
+    ADD CONSTRAINT autorizaciones_solicitudes_documento_origen_id_fkey FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: autorizaciones_solicitudes autorizaciones_solicitudes_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_solicitudes
+    ADD CONSTRAINT autorizaciones_solicitudes_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: autorizaciones_solicitudes autorizaciones_solicitudes_regla_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_solicitudes
+    ADD CONSTRAINT autorizaciones_solicitudes_regla_id_fkey FOREIGN KEY (regla_id) REFERENCES public.autorizaciones_reglas(id);
+
+
+--
+-- Name: autorizaciones_solicitudes autorizaciones_solicitudes_usuario_solicitante_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_solicitudes
+    ADD CONSTRAINT autorizaciones_solicitudes_usuario_solicitante_id_fkey FOREIGN KEY (usuario_solicitante_id) REFERENCES core.usuarios(id);
 
 
 --
@@ -11025,6 +11980,14 @@ ALTER TABLE ONLY public.documentos
 
 
 --
+-- Name: documentos fk_documentos_factura_global; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos
+    ADD CONSTRAINT fk_documentos_factura_global FOREIGN KEY (factura_global_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
+
+
+--
 -- Name: documentos fk_documentos_forma_pago; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11062,6 +12025,14 @@ ALTER TABLE ONLY public.documentos
 
 ALTER TABLE ONLY public.documentos
     ADD CONSTRAINT fk_documentos_uso_cfdi FOREIGN KEY (uso_cfdi) REFERENCES sat.usos_cfdi(id);
+
+
+--
+-- Name: documentos fk_documentos_usuario_cancelacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos
+    ADD CONSTRAINT fk_documentos_usuario_cancelacion FOREIGN KEY (usuario_cancelacion_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
 
 
 --
@@ -11435,4 +12406,6 @@ ALTER TABLE ONLY whatsapp.plantillas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 60bEWq5hb0OIE6LOWFXLysyena92n5p2gEplOW7xsmLnUhpC2YGEH4uPHvnLBLE
 

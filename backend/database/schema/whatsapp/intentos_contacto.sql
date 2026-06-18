@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict 8ww6hRdoSVMrBwNwOLMW2lfwhn9eI9dHDX6OjlyFUeOqgb9Nv4H5LBe74En9Xlz
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -37,7 +39,8 @@ CREATE TABLE whatsapp.intentos_contacto (
     session_id text,
     ip_address inet,
     user_agent text,
-    creado_en timestamp with time zone DEFAULT now() NOT NULL
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    tipo_intento text
 );
 
 
@@ -153,6 +156,13 @@ ALTER TABLE ONLY whatsapp.intentos_contacto
 
 
 --
+-- Name: intentos_contacto_dedupe_idx; Type: INDEX; Schema: whatsapp; Owner: -
+--
+
+CREATE INDEX intentos_contacto_dedupe_idx ON whatsapp.intentos_contacto USING btree (session_id, pagina_origen, tipo_intento, creado_en DESC);
+
+
+--
 -- Name: intentos_contacto intentos_contacto_empresa_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
@@ -163,4 +173,6 @@ ALTER TABLE ONLY whatsapp.intentos_contacto
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 8ww6hRdoSVMrBwNwOLMW2lfwhn9eI9dHDX6OjlyFUeOqgb9Nv4H5LBe74En9Xlz
 

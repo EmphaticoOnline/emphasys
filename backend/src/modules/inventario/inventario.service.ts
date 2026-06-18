@@ -127,8 +127,9 @@ async function ejecutarAplicarMovimiento(
     throw buildError('SIN_PARTIDAS', 'No hay partidas para aplicar el movimiento de inventario');
   }
 
+  console.log(`[APLICAR_MOV] Antes de INSERT tipo=${tipoMovimiento} fecha=${fecha} esReversion=${esReversion} doc=${documentoId} empresa=${empresaId} partidas=${partidas.length}`);
   const { rows } = await client.query<{ movimiento_id: number }>(
-    `SELECT inventario.aplicar_movimiento($1, $2, $3, $4, $5, $6, $7::jsonb) AS movimiento_id`,
+    `SELECT inventario.aplicar_movimiento($1, $2, $3::date, $4, $5, $6, $7::jsonb) AS movimiento_id`,
     [
       empresaId,
       tipoMovimiento,
@@ -139,6 +140,7 @@ async function ejecutarAplicarMovimiento(
       JSON.stringify(partidas),
     ]
   );
+  console.log(`[APLICAR_MOV] Después de INSERT rows=`, JSON.stringify(rows));
 
   const movimientoId = rows[0]?.movimiento_id ?? null;
   if (!movimientoId) {
@@ -149,21 +151,27 @@ async function ejecutarAplicarMovimiento(
     await client.query(`UPDATE inventario.movimientos SET es_reversion = $1 WHERE id = $2`, [esReversion, movimientoId]);
   }
 
+  console.log(`[APLICAR_MOV] movimientoId=${movimientoId} es_reversion=${esReversion} guardado`);
   return movimientoId;
 }
 
 function resolverCantidadInventariable(partida: PartidaDocumentoRow): number {
+  // Prioridad 1: campo precalculado
   const cantidadInventariable = parseNumeric(partida.cantidad_inventariable);
-  if (cantidadInventariable && cantidadInventariable > 0) {
+  if (cantidadInventariable != null && cantidadInventariable > 0) {
     return cantidadInventariable;
   }
 
-  const baseCantidad = parseNumeric(partida.cantidad) ?? 0;
-  const factor = parseNumeric(partida.factor_conversion) ?? 1;
-  const calculada = baseCantidad * factor;
-  if (calculada > 0) return calculada;
+  // Prioridad 2: cantidad base — único campo obligatorio
+  const baseCantidad = parseNumeric(partida.cantidad);
+  if (baseCantidad == null || baseCantidad <= 0) {
+    throw buildError('CANTIDAD_INVALIDA', `Cantidad inválida para la partida ${partida.documento_partida_id}`);
+  }
 
-  throw buildError('CANTIDAD_INVALIDA', `Cantidad inválida para la partida ${partida.documento_partida_id}`);
+  // Prioridad 3: factor_conversion es opcional
+  // Si existe y es > 0 se aplica; si no, la cantidad inventariable = cantidad
+  const factor = parseNumeric(partida.factor_conversion);
+  return factor != null && factor > 0 ? baseCantidad * factor : baseCantidad;
 }
 
 async function obtenerDocumentoInventario(
@@ -178,7 +186,7 @@ async function obtenerDocumentoInventario(
             d.estatus_documento,
             d.fecha_documento,
             d.almacen_id,
-            COALESCE(etd.afecta_inventario, 'none') AS afecta_inventario,
+            COALESCE(etd.afecta_inventario, td.afecta_inventario, 'none') AS afecta_inventario,
             d.observaciones
        FROM documentos d
   LEFT JOIN core.tipos_documento td
@@ -276,20 +284,25 @@ export async function revertirInventarioDocumentoEnTransaccion(
   usuarioId: number,
   opciones?: { fecha?: Date | string; observaciones?: string | null }
 ) {
+  console.log(`[REVERSION] Inicio doc=${documentoId} empresa=${empresaId} usuario=${usuarioId}`);
+
   const { rowCount: yaRevertido } = await client.query(
     `SELECT 1 FROM inventario.movimientos WHERE documento_id = $1 AND empresa_id = $2 AND es_reversion = true LIMIT 1`,
     [documentoId, empresaId]
   );
+  console.log(`[REVERSION] yaRevertido rowCount=`, yaRevertido);
   if (yaRevertido && yaRevertido > 0) {
     throw buildError('YA_REVERTIDO', 'El documento ya cuenta con un movimiento de reversión');
   }
 
   const movimientoOriginal = await obtenerMovimientoOriginal(documentoId, empresaId, client);
+  console.log(`[REVERSION] movimientoOriginal=`, movimientoOriginal);
   if (!movimientoOriginal) {
     throw buildError('MOVIMIENTO_NO_ENCONTRADO', 'No existe un movimiento original para revertir');
   }
 
   const partidasOriginales = await obtenerPartidasMovimiento(movimientoOriginal.id, empresaId, client);
+  console.log(`[REVERSION] partidasOriginales count=`, partidasOriginales.length, JSON.stringify(partidasOriginales));
   if (!partidasOriginales.length) {
     throw buildError('SIN_PARTIDAS_ORIGINALES', 'El movimiento original no tiene partidas');
   }
@@ -313,10 +326,16 @@ export async function revertirInventarioDocumentoEnTransaccion(
     };
   });
 
+  const tipoOriginal = movimientoOriginal.tipo_movimiento;
+  const tipoReversion =
+    tipoOriginal === 'entrada' ? 'salida' :
+    tipoOriginal === 'salida'  ? 'entrada' :
+    tipoOriginal;
+
   const movimientoId = await ejecutarAplicarMovimiento(
     {
       empresaId,
-      tipoMovimiento: movimientoOriginal.tipo_movimiento,
+      tipoMovimiento: tipoReversion,
       fecha: normalizarFecha(opciones?.fecha ?? new Date()),
       usuarioId,
       documentoId,
@@ -329,14 +348,129 @@ export async function revertirInventarioDocumentoEnTransaccion(
     client
   );
 
-  return { movimientoId, partidas, tipoMovimiento: movimientoOriginal.tipo_movimiento };
+  return { movimientoId, partidas, tipoMovimiento: tipoReversion };
 }
 
 function normalizarFecha(fecha?: Date | string): Date | string {
   if (!fecha) return new Date();
   if (fecha instanceof Date) return fecha;
+  // Cadenas fecha-solo (YYYY-MM-DD): devolverlas tal cual para que
+  // PostgreSQL las trate como DATE sin conversión de zona horaria.
+  // new Date('YYYY-MM-DD') las interpretaría como UTC midnight, lo que
+  // causa un desfase de -6h al leerlas en zona horaria México.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha;
   const parsed = new Date(fecha);
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+async function resolverAlmacenDefault(
+  client: PoolClient,
+  empresaId: number,
+  almacenDocumentoId: number | null
+): Promise<number> {
+  if (almacenDocumentoId) return almacenDocumentoId;
+
+  const almacenParametro = await obtenerParametroNumero('inventario.almacen_default', empresaId, client);
+  if (almacenParametro) return almacenParametro;
+
+  // Crear o recuperar el almacén general de forma idempotente y concurrente.
+  // El UNIQUE (empresa_id, clave) garantiza que no se creen duplicados aunque
+  // dos transacciones lleguen simultáneamente: la segunda bloqueará hasta que
+  // la primera haga commit/rollback, luego ON CONFLICT DO NOTHING no inserta
+  // y el SELECT devuelve la fila ya comprometida.
+  await client.query(
+    `INSERT INTO inventario.almacenes (empresa_id, clave, nombre, tipo)
+     VALUES ($1, 'GENERAL', 'Almacén General', 'normal')
+     ON CONFLICT (empresa_id, clave) DO NOTHING`,
+    [empresaId]
+  );
+
+  const { rows } = await client.query<{ id: number }>(
+    `SELECT id FROM inventario.almacenes WHERE empresa_id = $1 AND clave = 'GENERAL' LIMIT 1`,
+    [empresaId]
+  );
+
+  const almacenId = rows[0]?.id ?? null;
+  if (!almacenId) {
+    throw buildError('SIN_ALMACEN_RESOLVABLE', 'No se pudo crear ni recuperar el almacén general para la empresa');
+  }
+
+  console.log(`[inventario] Almacén General auto-resuelto id=${almacenId} empresa=${empresaId}`);
+  return almacenId;
+}
+
+export async function aplicarInventarioDesdeDocumentoEnTransaccion(
+  client: PoolClient,
+  documentoId: number,
+  empresaId: number,
+  usuarioId: number,
+  opciones?: { fecha?: Date | string; observaciones?: string | null }
+): Promise<{ movimientoId: number; partidas: MovimientoPartidaPayload[]; tipoMovimiento: string }> {
+  const documento = await obtenerDocumentoInventario(documentoId, empresaId, client);
+  if (!documento) {
+    throw buildError('DOCUMENTO_NO_ENCONTRADO', 'Documento no encontrado para la empresa indicada');
+  }
+
+  const afectaInventario = (documento.afecta_inventario || 'none').toLowerCase();
+  if (afectaInventario === 'none') {
+    throw buildError('TIPO_NO_AFECTA_INVENTARIO', 'El tipo de documento no afecta inventario');
+  }
+
+  const estatus = (documento.estatus_documento || '').toLowerCase();
+  if (estatus !== 'emitido' && estatus !== 'enviado') {
+    throw buildError('DOCUMENTO_NO_CONFIRMADO', 'El documento debe estar emitido antes de afectar inventario');
+  }
+
+  await asegurarMovimientoNoDuplicado(documentoId, empresaId, client);
+
+  const partidasDocumento = await obtenerPartidasDocumento(documentoId, client);
+  const partidasInventariables = partidasDocumento.filter((p) => (p.tipo_producto || '').toLowerCase() === 'inventariable');
+
+  if (!partidasInventariables.length) {
+    throw buildError('SIN_PARTIDAS_INVENTARIABLES', 'El documento no tiene partidas inventariables');
+  }
+
+  const almacenFallback = await resolverAlmacenDefault(client, empresaId, documento.almacen_id);
+
+  const partidas: MovimientoPartidaPayload[] = partidasInventariables.map((p) => {
+    const almacen = p.partida_almacen_id ?? almacenFallback;
+
+    const cantidad = resolverCantidadInventariable(p);
+    let signo: 1 | -1;
+    if (afectaInventario === 'entrada') {
+      signo = 1;
+    } else if (afectaInventario === 'salida') {
+      signo = -1;
+    } else {
+      throw buildError('AFECTA_INVENTARIO_INVALIDO', `Tipo de afectación de inventario no soportado: ${afectaInventario}`);
+    }
+
+    return {
+      documento_partida_id: p.documento_partida_id,
+      producto_id: p.producto_id,
+      almacen_id: almacen,
+      cantidad,
+      signo,
+      tipo_partida: 'normal',
+      costo_unitario: p.costo ?? null,
+    };
+  });
+
+  const movimientoId = await ejecutarAplicarMovimiento(
+    {
+      empresaId,
+      tipoMovimiento: afectaInventario,
+      fecha: normalizarFecha(opciones?.fecha ?? documento.fecha_documento),
+      usuarioId,
+      documentoId,
+      observaciones: opciones?.observaciones ?? documento.observaciones ?? null,
+      partidas,
+      esReversion: false,
+    },
+    client
+  );
+
+  return { movimientoId, partidas, tipoMovimiento: afectaInventario };
 }
 
 export async function aplicarInventarioDesdeDocumento(
@@ -348,76 +482,9 @@ export async function aplicarInventarioDesdeDocumento(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    const documento = await obtenerDocumentoInventario(documentoId, empresaId, client);
-    if (!documento) {
-      throw buildError('DOCUMENTO_NO_ENCONTRADO', 'Documento no encontrado para la empresa indicada');
-    }
-
-    const afectaInventario = (documento.afecta_inventario || 'none').toLowerCase();
-    if (afectaInventario === 'none') {
-      throw buildError('TIPO_NO_AFECTA_INVENTARIO', 'El tipo de documento no afecta inventario');
-    }
-
-    const estatus = (documento.estatus_documento || '').toLowerCase();
-    if (estatus !== 'confirmado') {
-      throw buildError('DOCUMENTO_NO_CONFIRMADO', 'El documento debe estar confirmado antes de afectar inventario');
-    }
-
-    await asegurarMovimientoNoDuplicado(documentoId, empresaId, client);
-
-    const partidasDocumento = await obtenerPartidasDocumento(documentoId, client);
-    const partidasInventariables = partidasDocumento.filter((p) => (p.tipo_producto || '').toLowerCase() === 'inventariable');
-
-    if (!partidasInventariables.length) {
-      throw buildError('SIN_PARTIDAS_INVENTARIABLES', 'El documento no tiene partidas inventariables');
-    }
-
-    const almacenDefault = await obtenerParametroNumero('inventario.almacen_default', empresaId, client);
-
-    const partidas: MovimientoPartidaPayload[] = partidasInventariables.map((p) => {
-      const almacen = p.partida_almacen_id ?? documento.almacen_id ?? almacenDefault;
-      if (!almacen) {
-        throw buildError('ALMACEN_REQUERIDO', `No se encontró almacén para la partida ${p.documento_partida_id}`);
-      }
-
-      const cantidad = resolverCantidadInventariable(p);
-      let signo: 1 | -1;
-      if (afectaInventario === 'entrada') {
-        signo = 1;
-      } else if (afectaInventario === 'salida') {
-        signo = -1;
-      } else {
-        throw buildError('AFECTA_INVENTARIO_INVALIDO', `Tipo de afectación de inventario no soportado: ${afectaInventario}`);
-      }
-
-      return {
-        documento_partida_id: p.documento_partida_id,
-        producto_id: p.producto_id,
-        almacen_id: almacen,
-        cantidad,
-        signo,
-        tipo_partida: 'normal',
-        costo_unitario: p.costo ?? null,
-      };
-    });
-
-    const movimientoId = await ejecutarAplicarMovimiento(
-      {
-        empresaId,
-        tipoMovimiento: afectaInventario,
-        fecha: normalizarFecha(opciones?.fecha ?? documento.fecha_documento),
-        usuarioId,
-        documentoId,
-        observaciones: opciones?.observaciones ?? documento.observaciones ?? null,
-        partidas,
-        esReversion: false,
-      },
-      client
-    );
-
+    const result = await aplicarInventarioDesdeDocumentoEnTransaccion(client, documentoId, empresaId, usuarioId, opciones);
     await client.query('COMMIT');
-    return { movimientoId, partidas, tipoMovimiento: afectaInventario };
+    return result;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

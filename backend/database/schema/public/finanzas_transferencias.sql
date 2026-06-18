@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict yjZZ9FIbMdbzRSkUAN0ePWcsQ8lblg1txIbSw8QQgVDHfWSrkQjvlxR2VN7Kmq3
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -96,4 +98,6 @@ ALTER TABLE ONLY public.finanzas_transferencias
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict yjZZ9FIbMdbzRSkUAN0ePWcsQ8lblg1txIbSw8QQgVDHfWSrkQjvlxR2VN7Kmq3
 

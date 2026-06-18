@@ -50,7 +50,7 @@ export function useDocumentoConfig(tipo: TipoDocumento): UseDocumentoConfigResul
       filtroAgente: config?.features?.filtroAgente ?? false,
       mostrarSaldo: config?.features?.mostrarSaldo ?? false,
       contactoLabel: config?.relatedEntities?.contacto?.label ?? (isDocumentoCompra ? 'Proveedor' : 'Cliente'),
-      tiposContactoPermitidos: config?.features?.tiposContactoPermitidos,
+      tiposContactoPermitidos: config?.features?.tiposContactoPermitidos ?? config?.relatedEntities?.contacto?.tiposPermitidos,
       accionesDisponibles: config?.features?.accionesDisponibles ?? [],
       estatusPermitidos: config?.estatusPermitidos ?? ['borrador', 'emitido', 'cancelado'],
       esDocumentoMonetario: config?.esDocumentoMonetario ?? false,

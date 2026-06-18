@@ -200,6 +200,32 @@ export async function resolverSerieDocumento(args: ResolverSerieArgs): Promise<S
     return serieDefault;
   }
 
+  // Fallback: crear la serie automáticamente usando el código por defecto del tipo.
+  // Usa ON CONFLICT para ser seguro ante condiciones de carrera.
+  const codigoDefault = SERIES_DEFAULTS[tipoNormalizado] ?? null;
+  if (codigoDefault) {
+    const executor = client ?? pool;
+    await executor.query(
+      `INSERT INTO public.series_documento
+         (empresa_id, tipo_documento, serie, descripcion, es_fiscal, activa, ultimo_numero)
+       VALUES ($1, $2, $3, $4, false, true, 0)
+       ON CONFLICT (empresa_id, tipo_documento, serie) DO NOTHING`,
+      [empresaId, tipoNormalizado, codigoDefault, `${tipoNormalizado} (creada automáticamente)`]
+    );
+    const { rows } = await executor.query<SerieDocumentoRow>(
+      `SELECT id, empresa_id, tipo_documento, serie, descripcion, es_fiscal, activa,
+              COALESCE(ultimo_numero, 0) AS ultimo_numero
+         FROM public.series_documento
+        WHERE empresa_id = $1
+          AND LOWER(tipo_documento) = LOWER($2)
+          AND serie = $3
+          AND activa = true
+        LIMIT 1`,
+      [empresaId, tipoNormalizado, codigoDefault]
+    );
+    if (rows[0]) return rows[0];
+  }
+
   throw new Error(`No existe una serie activa configurada para ${tipoNormalizado} (${esFiscal ? 'fiscal' : 'no fiscal'}).`);
 }
 

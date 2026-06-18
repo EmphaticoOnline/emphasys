@@ -10,17 +10,20 @@ import {
   obtenerDocumentoRepository,
   actualizarDocumentoRepository,
   eliminarDocumentoRepository,
+  obtenerRecepcionResumenRepository,
 } from './documentos.repository';
 import { generarDocumentoPDF } from './documentos.pdf';
 import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import { timbrarComplementoPago } from '../cfdi/cfdi-pago.service';
 import pool from '../../config/database';
+import type { PoolClient } from 'pg';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
 import { actualizarCotizacionService, actualizarDocumentoService, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
 import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeEliminarCotizacion } from './documentos-delete.service';
 import { cancelarDocumentoService, DocumentoCancelValidationError } from './documentos-cancel.service';
+import { aplicarInventarioDesdeDocumentoEnTransaccion } from '../inventario/inventario.service';
 import { formatearFolioDocumento } from '../../utils/documentos';
 import { obtenerJwtSecret } from '../auth/auth.service';
 import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
@@ -35,6 +38,29 @@ const resolverTipoDocumentoRequest = (req: Request, fallback: TipoDocumento): Ti
   normalizarTipo(req.query.tipo_documento ?? req.body?.tipo_documento, fallback);
 
 const TIPOS_DOCUMENTO_MONETARIOS = new Set<TipoDocumento>(['pago_cliente', 'pago_proveedor']);
+
+const INVENTARIO_SILENCEABLE = new Set([
+  'TIPO_NO_AFECTA_INVENTARIO',
+  'SIN_PARTIDAS_INVENTARIABLES',
+  'MOVIMIENTO_DUPLICADO',
+  'SIN_ALMACEN_RESOLVABLE', // defensivo: fallo de infraestructura al crear/recuperar almacén general
+]);
+
+async function aplicarInventarioPostEmision(
+  client: PoolClient,
+  documentoId: number,
+  empresaId: number,
+  estatusResultante: string,
+  usuarioId: number | undefined
+): Promise<void> {
+  if (estatusResultante !== 'emitido' && estatusResultante !== 'enviado') return;
+  if (!usuarioId) return;
+  try {
+    await aplicarInventarioDesdeDocumentoEnTransaccion(client, documentoId, empresaId, Number(usuarioId));
+  } catch (invErr: any) {
+    if (!INVENTARIO_SILENCEABLE.has((invErr as any)?.code)) throw invErr;
+  }
+}
 
 function sanitizarNombreDescarga(nombre: string): string {
   const limpio = (nombre || 'documento').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -424,12 +450,47 @@ const buildActualizarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = fals
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
+    // Bloquear edición de documentos autorizados
+    const { rows: estadoRows } = await (await import('../../config/database')).default.query<{ estado_autorizacion: string }>(
+      `SELECT COALESCE(estado_autorizacion, 'no_requerida') AS estado_autorizacion
+         FROM public.documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+      [id, empresaId]
+    );
+    if (estadoRows[0]?.estado_autorizacion === 'aprobada') {
+      return res.status(409).json({ error: 'El documento ha sido autorizado y no puede editarse. Para modificarlo, cancélelo y cree uno nuevo.' });
+    }
+
     const tipo = forzarTipo ? tipoPorDefecto : resolverTipoDocumentoRequest(req, tipoPorDefecto);
-    const updated = TIPOS_DOCUMENTO_MONETARIOS.has(tipo)
-      ? await actualizarDocumentoService(id, req.body || {}, Number(empresaId), tipo)
-      : await actualizarDocumentoRepository(id, req.body || {}, Number(empresaId), tipo);
-    if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
-    res.json(updated);
+
+    // Los documentos monetarios (pagos) no afectan inventario — path sin cambios
+    if (TIPOS_DOCUMENTO_MONETARIOS.has(tipo)) {
+      const updated = await actualizarDocumentoService(id, req.body || {}, Number(empresaId), tipo);
+      if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
+      return res.json(updated);
+    }
+
+    // Path no-monetario: update + inventario en la misma transacción
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const updated = await actualizarDocumentoRepository(id, req.body || {}, Number(empresaId), tipo, client);
+      if (!updated) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
+      }
+
+      const estatusResultante = String(updated.estatus_documento ?? '').toLowerCase();
+      await aplicarInventarioPostEmision(client, id, Number(empresaId), estatusResultante, req.auth?.userId);
+
+      await client.query('COMMIT');
+      return res.json(updated);
+    } catch (txError) {
+      await client.query('ROLLBACK');
+      throw txError;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     const message = (error as Error)?.message ?? '';
     if (message.startsWith('VALIDATION_ERROR')) {
@@ -504,14 +565,39 @@ export const actualizarCotizacion = async (req: Request, res: Response) => {
 
     const tipo = resolverTipoDocumentoRequest(req, 'cotizacion');
     const body = req.body || {};
+
+    // Cotización con reconciliación de oportunidad: path propio sin inventario
+    // (actualizarCotizacionService no participa en transacción externa y las
+    // cotizaciones tienen afecta_inventario = 'none' por definición)
     const requiereReconciliarOportunidad = tipo === 'cotizacion' && Object.prototype.hasOwnProperty.call(body, 'contacto_principal_id');
+    if (requiereReconciliarOportunidad) {
+      const updated = await actualizarCotizacionService(id, body, Number(empresaId));
+      if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
+      return res.json(updated);
+    }
 
-    const updated = requiereReconciliarOportunidad
-      ? await actualizarCotizacionService(id, body, Number(empresaId))
-      : await actualizarDocumentoRepository(id, body, Number(empresaId), tipo);
+    // Path general: update + inventario en la misma transacción
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
-    return res.json(updated);
+      const updated = await actualizarDocumentoRepository(id, body, Number(empresaId), tipo, client);
+      if (!updated) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
+      }
+
+      const estatusResultante = String(updated.estatus_documento ?? '').toLowerCase();
+      await aplicarInventarioPostEmision(client, id, Number(empresaId), estatusResultante, req.auth?.userId);
+
+      await client.query('COMMIT');
+      return res.json(updated);
+    } catch (txError) {
+      await client.query('ROLLBACK');
+      throw txError;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     const message = (error as Error)?.message ?? '';
     if (message.startsWith('VALIDATION_ERROR')) {
@@ -1150,6 +1236,16 @@ export async function reemplazarPartidas(req: Request, res: Response) {
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(documentoId) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
+    // Bloquear modificación de partidas en documentos autorizados
+    const { rows: estadoRows } = await (await import('../../config/database')).default.query<{ estado_autorizacion: string }>(
+      `SELECT COALESCE(estado_autorizacion, 'no_requerida') AS estado_autorizacion
+         FROM public.documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+      [documentoId, empresaId]
+    );
+    if (estadoRows[0]?.estado_autorizacion === 'aprobada') {
+      return res.status(409).json({ error: 'El documento ha sido autorizado y no puede editarse. Para modificarlo, cancélelo y cree uno nuevo.' });
+    }
+
   const permiteImagen = permiteArchivoImagen(req);
   const partidas = Array.isArray(req.body?.partidas) ? req.body.partidas.map((p: any) => limpiarArchivoImagenPartida(p, permiteImagen)) : [];
   const inserted = await reemplazarPartidasService(documentoId, partidas, Number(empresaId));
@@ -1250,5 +1346,27 @@ export async function cancelarDocumento(req: Request, res: Response) {
 
     console.error('Error al cancelar documento', error);
     return res.status(500).json({ message: 'Error al cancelar documento' });
+  }
+}
+
+export async function obtenerRecepcionResumenHandler(req: Request, res: Response) {
+  try {
+    const empresaId = Number((req as any).empresaActiva?.id);
+    const id = Number(req.params.id);
+
+    if (!empresaId || !id) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+
+    const resultado = await obtenerRecepcionResumenRepository(id, empresaId);
+
+    if (!resultado) {
+      return res.status(404).json({ error: 'Orden de compra no encontrada' });
+    }
+
+    return res.json(resultado);
+  } catch (error: any) {
+    console.error('[recepcion-resumen] Error', error);
+    return res.status(500).json({ error: error?.message ?? 'Error al obtener resumen de recepción' });
   }
 }

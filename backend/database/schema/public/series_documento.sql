@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict ROpq9a1Ja59flYWeeGNazMBxyhprE2teXl8eyKxWat2nix4Aj33HOVDd749egJB
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -35,6 +37,10 @@ CREATE TABLE public.series_documento (
     layout_id integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    descripcion text,
+    es_fiscal boolean DEFAULT false NOT NULL,
+    activa boolean DEFAULT true NOT NULL,
+    ultimo_numero integer DEFAULT 0 NOT NULL,
     CONSTRAINT chk_series_tipo_lower CHECK ((tipo_documento = lower(tipo_documento)))
 );
 
@@ -96,13 +102,6 @@ COMMENT ON COLUMN public.series_documento.updated_at IS 'Fecha de última actual
 
 
 --
--- Name: CONSTRAINT chk_series_tipo_lower ON series_documento; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON CONSTRAINT chk_series_tipo_lower ON public.series_documento IS 'Asegura que tipo_documento esté en minúsculas para evitar inconsistencias';
-
-
---
 -- Name: series_documento_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -138,29 +137,6 @@ ALTER TABLE ONLY public.series_documento
 
 
 --
--- Name: series_documento uq_series_documento_empresa_nombre; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.series_documento
-    ADD CONSTRAINT uq_series_documento_empresa_nombre UNIQUE (empresa_id, serie);
-
-
---
--- Name: series_documento uq_series_documento_empresa_tipo_nombre; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.series_documento
-    ADD CONSTRAINT uq_series_documento_empresa_tipo_nombre UNIQUE (empresa_id, tipo_documento, serie);
-
-
---
--- Name: CONSTRAINT uq_series_documento_empresa_tipo_nombre ON series_documento; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON CONSTRAINT uq_series_documento_empresa_tipo_nombre ON public.series_documento IS 'Evita duplicar nombres de serie por empresa y tipo de documento';
-
-
---
 -- Name: series_documento uq_series_documento_empresa_tipo_serie; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -180,6 +156,13 @@ CREATE INDEX idx_series_documento_empresa_tipo ON public.series_documento USING 
 --
 
 COMMENT ON INDEX public.idx_series_documento_empresa_tipo IS 'Optimiza búsquedas de series por empresa y tipo de documento';
+
+
+--
+-- Name: idx_series_documento_empresa_tipo_activa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_series_documento_empresa_tipo_activa ON public.series_documento USING btree (empresa_id, tipo_documento, activa);
 
 
 --
@@ -215,4 +198,6 @@ ALTER TABLE ONLY public.series_documento
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict ROpq9a1Ja59flYWeeGNazMBxyhprE2teXl8eyKxWat2nix4Aj33HOVDd749egJB
 

@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict 0SIyysUy3pBxdwYwzlTkCnsv5XrLyvIahw5vkJSdXfb5cwaJh3ySKNC0YdIgYdG
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -37,7 +39,6 @@ CREATE TABLE public.finanzas_operaciones (
     observaciones text,
     cuenta_id integer NOT NULL,
     contacto_id integer,
-    documento_origen_id integer,
     factura_id integer,
     es_transferencia boolean DEFAULT false NOT NULL,
     transferencia_id integer,
@@ -45,6 +46,8 @@ CREATE TABLE public.finanzas_operaciones (
     saldo numeric(15,2),
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     concepto_id integer,
+    naturaleza_operacion character varying(30) DEFAULT 'movimiento_general'::character varying NOT NULL,
+    documento_origen_id integer,
     CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('cotejado'::character varying)::text, ('conciliado'::character varying)::text]))),
     CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY (ARRAY[('Deposito'::character varying)::text, ('Retiro'::character varying)::text])))
 );
@@ -86,6 +89,20 @@ ALTER TABLE ONLY public.finanzas_operaciones
 
 
 --
+-- Name: idx_finanzas_operaciones_documento_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_operaciones_documento_origen ON public.finanzas_operaciones USING btree (documento_origen_id);
+
+
+--
+-- Name: idx_finanzas_operaciones_empresa_naturaleza; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_operaciones_empresa_naturaleza ON public.finanzas_operaciones USING btree (empresa_id, naturaleza_operacion);
+
+
+--
 -- Name: idx_fo_concepto; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -93,10 +110,11 @@ CREATE INDEX idx_fo_concepto ON public.finanzas_operaciones USING btree (concept
 
 
 --
--- Name: idx_finanzas_operaciones_documento_origen; Type: INDEX; Schema: public; Owner: -
+-- Name: finanzas_operaciones fk_finanzas_operaciones_documento_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_finanzas_operaciones_documento_origen ON public.finanzas_operaciones USING btree (documento_origen_id);
+ALTER TABLE ONLY public.finanzas_operaciones
+    ADD CONSTRAINT fk_finanzas_operaciones_documento_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
 
 
 --
@@ -116,14 +134,6 @@ ALTER TABLE ONLY public.finanzas_operaciones
 
 
 --
--- Name: finanzas_operaciones fk_finanzas_operaciones_documento_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.finanzas_operaciones
-    ADD CONSTRAINT fk_finanzas_operaciones_documento_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
-
-
---
 -- Name: finanzas_operaciones fk_fo_cuenta; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -134,4 +144,6 @@ ALTER TABLE ONLY public.finanzas_operaciones
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 0SIyysUy3pBxdwYwzlTkCnsv5XrLyvIahw5vkJSdXfb5cwaJh3ySKNC0YdIgYdG
 

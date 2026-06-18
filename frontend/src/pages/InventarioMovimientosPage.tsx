@@ -29,6 +29,8 @@ import { useNavigate } from 'react-router-dom';
 
 import type { MovimientoDetalle, MovimientoListadoItem } from '../types/inventario';
 import { exportarMovimientos, listarMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
+import { fetchParametrosSistema } from '../services/parametrosService';
+import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT } from '../components/grids/standardDataGridSx';
 
 dayjs.locale('es');
@@ -79,6 +81,21 @@ export default function InventarioMovimientosPage() {
     { open: false, message: '', severity: 'success' }
   );
   const [exportLoading, setExportLoading] = useState(false);
+  const [decimalesCantidades, setDecimalesCantidades] = useState(2);
+
+  useEffect(() => {
+    void fetchParametrosSistema().then((modulos) => {
+      const param = modulos.flatMap((m) => m.parametros).find((p) => p.clave === 'decimales_cantidades');
+      const valor = parseInt(param?.valor_resuelto ?? '', 10);
+      if (!isNaN(valor)) setDecimalesCantidades(valor);
+    });
+  }, []);
+
+  const formatCantidad = (cantidad: number) =>
+    new Intl.NumberFormat('es-MX', {
+      minimumFractionDigits: decimalesCantidades,
+      maximumFractionDigits: decimalesCantidades,
+    }).format(cantidad);
 
   const EXPORT_COLUMNS = [
     { field: 'fecha', headerName: 'Fecha' },
@@ -225,7 +242,11 @@ export default function InventarioMovimientosPage() {
                     <TableCell sx={{ textTransform: 'capitalize' }}>{m.tipo_movimiento}</TableCell>
                     <TableCell>{m.observaciones || '—'}</TableCell>
                     <TableCell>{m.usuario_nombre ?? '—'}</TableCell>
-                    <TableCell>{m.documento_id ?? '—'}</TableCell>
+                    <TableCell>
+                      {m.documento_id != null
+                        ? formatearFolioDocumento(m.documento_serie ?? '', m.documento_numero ?? 0) || String(m.documento_id)
+                        : '—'}
+                    </TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Tooltip title="Ver detalle">
@@ -292,10 +313,22 @@ export default function InventarioMovimientosPage() {
                 )}
                 {!detalleLoading && detalle?.partidas.map((p) => (
                   <TableRow key={p.id} hover>
-                    <TableCell>{p.producto_id ?? '—'}</TableCell>
-                    <TableCell>{p.almacen_origen_id ?? '—'}</TableCell>
-                    <TableCell>{p.almacen_destino_id ?? '—'}</TableCell>
-                    <TableCell align="right">{p.cantidad}</TableCell>
+                    <TableCell>
+                      {p.producto_clave && p.producto_descripcion
+                        ? `${p.producto_clave} - ${p.producto_descripcion}`
+                        : (p.producto_clave ?? p.producto_descripcion ?? p.producto_id ?? '—')}
+                    </TableCell>
+                    <TableCell>{p.almacen_origen_nombre ?? p.almacen_origen_id ?? '—'}</TableCell>
+                    <TableCell>{p.almacen_destino_nombre ?? p.almacen_destino_id ?? '—'}</TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        color: p.cantidad > 0 ? '#16a34a' : p.cantidad < 0 ? '#dc2626' : undefined,
+                        fontWeight: p.cantidad !== 0 ? 700 : undefined,
+                      }}
+                    >
+                      {formatCantidad(p.cantidad)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

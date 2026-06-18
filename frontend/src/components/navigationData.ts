@@ -6,6 +6,7 @@ export const MAIN_MENUS = [
   { label: 'Finanzas' },
   { label: 'Inventarios' },
   { label: 'Informes' },
+  { label: 'Autorizaciones', sidebarOnly: true },
   { label: 'Configuración' },
 ];
 
@@ -17,6 +18,7 @@ export const MODULE_TABS: Record<string, string[]> = {
   Finanzas: ['Finanzas'],
   Inventarios: ['Movimientos', 'Inventario', 'Ajustes de stock', 'Kardex', 'Ubicaciones', 'Reportes de inventario'],
   Informes: ['Pregúntale a tu negocio'],
+  Autorizaciones: [],
   Configuración: [],
 };
 
@@ -28,6 +30,7 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   Finanzas: 'Supervisa cuentas, movimientos y conciliaciones bancarias.',
   Inventarios: 'Monitorea stock, ajustes, ubicaciones y reportes de inventario.',
   Informes: 'Explora reportes y respuestas ad-hoc sobre tu negocio.',
+  Autorizaciones: 'Gestiona solicitudes de autorización y revisa tu bandeja pendiente.',
   Configuración: 'Configura catálogos del sistema, usuarios, roles y empresas.',
 };
 

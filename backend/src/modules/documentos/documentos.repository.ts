@@ -155,6 +155,46 @@ function estatusDocumentoEsInactivo(estatusDocumento: unknown) {
   return estatusNormalizado === 'cancelado' || estatusNormalizado === 'cancelada';
 }
 
+function assertFacturaCompraNoEmitida(tipo_documento: unknown, estatus_documento: unknown) {
+  if (String(tipo_documento ?? '').trim().toLowerCase() !== 'factura_compra') return;
+  const estatus = String(estatus_documento ?? '').trim().toLowerCase();
+  if (estatus === 'emitido' || estatus === 'enviado') {
+    throw new Error('VALIDATION_ERROR: La factura de compra está emitida y no puede modificarse. Para revertir sus efectos, utilice la cancelación.');
+  }
+}
+
+async function assertOrdenCompraModificable(
+  documentoId: number,
+  empresaId: number,
+  tipo_documento: unknown,
+  executor: Pick<import('pg').PoolClient, 'query'>
+) {
+  if (String(tipo_documento ?? '').trim().toLowerCase() !== 'orden_compra') return;
+
+  const { rows } = await executor.query<{ existe: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM documentos d
+        WHERE d.empresa_id = $1
+          AND d.documento_origen_id = $2
+          AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+       UNION ALL
+       SELECT 1
+         FROM documentos_partidas_vinculos dpv
+         JOIN documentos d_dest ON d_dest.id = dpv.documento_destino_id
+        WHERE dpv.documento_origen_id = $2
+          AND d_dest.empresa_id = $1
+          AND d_dest.id <> $2
+          AND LOWER(TRIM(COALESCE(d_dest.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+     ) AS existe`,
+    [empresaId, documentoId]
+  );
+
+  if (Boolean(rows[0]?.existe)) {
+    throw new Error('VALIDATION_ERROR: La orden de compra tiene documentos derivados activos y no puede modificarse. Cancele los documentos derivados primero.');
+  }
+}
+
 /**
  * Devuelve true si el documento tiene un intento de cancelación en estado
  * 'externo_ok_interno_pendiente', es decir: Facturama ya canceló el CFDI pero
@@ -389,7 +429,9 @@ const normalizarImagenPartida = (data: PartidaInput, permiteImagen: boolean) => 
 export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number, search?: string | null) {
   const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
-  const selectSaldo = esFactura ? 'COALESCE(ds.saldo, 0) AS saldo' : 'NULL::numeric AS saldo';
+  const selectSaldo = esFactura
+    ? `CASE WHEN LOWER(TRIM(COALESCE(d.estatus_documento, ''))) IN ('cancelado', 'cancelada') THEN 0 ELSE COALESCE(ds.saldo, 0) END AS saldo`
+    : 'NULL::numeric AS saldo';
   const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
   const selectDeleteWarning = esCotizacion
     ? `CASE
@@ -517,8 +559,37 @@ export async function listarDocumentosRepositoryPaginado(
 ): Promise<{ data: any[]; total: number }> {
   const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
-  const selectSaldo = esFactura ? 'COALESCE(ds.saldo, 0) AS saldo' : 'NULL::numeric AS saldo';
+  const esOrdenCompra = (tipoDocumento || '').toLowerCase() === 'orden_compra';
+  const selectSaldo = esFactura
+    ? `CASE WHEN LOWER(TRIM(COALESCE(d.estatus_documento, ''))) IN ('cancelado', 'cancelada') THEN 0 ELSE COALESCE(ds.saldo, 0) END AS saldo`
+    : 'NULL::numeric AS saldo';
   const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
+  const selectEstadoRecepcion = esOrdenCompra
+    ? `(
+         SELECT CASE
+           WHEN COALESCE(SUM(
+             CASE WHEN LOWER(d_dest.tipo_documento) = 'recepcion'
+                   AND LOWER(COALESCE(d_dest.estatus_documento, ''))
+                       NOT IN ('cancelado', 'cancelada')
+             THEN dpv_sub.cantidad ELSE 0 END
+           ), 0) <= 0.000001 THEN 'abierta'
+           WHEN COALESCE(SUM(
+             CASE WHEN LOWER(d_dest.tipo_documento) = 'recepcion'
+                   AND LOWER(COALESCE(d_dest.estatus_documento, ''))
+                       NOT IN ('cancelado', 'cancelada')
+             THEN dpv_sub.cantidad ELSE 0 END
+           ), 0) >= (SELECT COALESCE(SUM(dp2.cantidad), 0) FROM public.documentos_partidas dp2 WHERE dp2.documento_id = d.id) - 0.000001 THEN 'cerrada'
+           ELSE 'parcial'
+         END
+         FROM public.documentos_partidas dp_sub
+         LEFT JOIN public.documentos_partidas_vinculos dpv_sub
+           ON dpv_sub.documento_origen_id = d.id
+          AND dpv_sub.partida_origen_id   = dp_sub.id
+         LEFT JOIN public.documentos d_dest
+           ON d_dest.id = dpv_sub.documento_destino_id
+         WHERE dp_sub.documento_id = d.id
+       ) AS estado_recepcion`
+    : `NULL::text AS estado_recepcion`;
   const hasSeguimiento = await ensureSeguimientoColumns();
 
   const selectSeguimiento = hasSeguimiento
@@ -642,7 +713,9 @@ export async function listarDocumentosRepositoryPaginado(
       d.tratamiento_impuestos,
       false AS eliminara_oportunidad,
       d.estatus_documento,
+      COALESCE(d.estado_autorizacion, 'no_requerida') AS estado_autorizacion,
       ${selectSaldo},
+      ${selectEstadoRecepcion},
       COUNT(*) OVER() AS total_count
     FROM documentos d
     ${joinSaldo}
@@ -765,6 +838,28 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
       producto_id: p.producto_id,
       impuestos: p.impuestos,
     })));
+  }
+
+  if (String(documento.tipo_documento ?? '').trim().toLowerCase() === 'orden_compra') {
+    const { rows: derivadosRows } = await executor.query<{ existe: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM documentos d
+          WHERE d.empresa_id = $1
+            AND d.documento_origen_id = $2
+            AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+         UNION ALL
+         SELECT 1
+           FROM documentos_partidas_vinculos dpv
+           JOIN documentos d_dest ON d_dest.id = dpv.documento_destino_id
+          WHERE dpv.documento_origen_id = $2
+            AND d_dest.empresa_id = $1
+            AND d_dest.id <> $2
+            AND LOWER(TRIM(COALESCE(d_dest.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+       ) AS existe`,
+      [empresaId, id]
+    );
+    documento.tiene_derivados_activos = Boolean(derivadosRows[0]?.existe);
   }
 
   return { documento, partidas };
@@ -938,6 +1033,9 @@ export async function actualizarDocumentoRepository(
     throw new Error('VALIDATION_ERROR: El documento tiene una cancelación CFDI pendiente de sincronización y es de solo lectura');
   }
 
+  assertFacturaCompraNoEmitida(current.tipo_documento, current.estatus_documento);
+  await assertOrdenCompraModificable(id, empresaId, current.tipo_documento, executor);
+
   let dataToUpdate: DocumentoInput = { ...data };
   normalizarCamposFiscalesSat(dataToUpdate);
   const serieActual = current.serie ?? null;
@@ -1090,6 +1188,9 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       throw new Error('VALIDATION_ERROR: El documento tiene una cancelación CFDI pendiente de sincronización y es de solo lectura');
     }
 
+    assertFacturaCompraNoEmitida(docRow.tipo_documento, docRow.estatus_documento);
+    await assertOrdenCompraModificable(documentoId, empresaId, docRow.tipo_documento, executor);
+
     const permiteImagen = true;
     const imagen = normalizarImagenPartida(data, permiteImagen);
 
@@ -1191,6 +1292,9 @@ export async function reemplazarPartidasRepository(
       throw new Error('VALIDATION_ERROR: El documento tiene una cancelación CFDI pendiente de sincronización y es de solo lectura');
     }
 
+    assertFacturaCompraNoEmitida(docRow.tipo_documento, docRow.estatus_documento);
+    await assertOrdenCompraModificable(documentoId, empresaId, docRow.tipo_documento, executor);
+
     const permiteImagen = true;
     const usaProductoTecnicoNc = ['nota_credito', 'nota_credito_compra'].includes(String(docRow.tipo_documento ?? '').toLowerCase());
 
@@ -1282,8 +1386,9 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
       tipo_documento: string | null;
       documento_origen_id: number | null;
       finanzas_operacion_id: number | null;
+      estatus_documento: string | null;
     }>(
-      `SELECT tipo_documento, documento_origen_id, finanzas_operacion_id
+      `SELECT tipo_documento, documento_origen_id, finanzas_operacion_id, estatus_documento
          FROM documentos
         WHERE id = $1
           AND empresa_id = $2
@@ -1293,6 +1398,10 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
     );
 
     const documentoActual = documentoRows[0] ?? null;
+
+    if (documentoActual) {
+      assertFacturaCompraNoEmitida(documentoActual.tipo_documento, documentoActual.estatus_documento);
+    }
 
     const deletePartidasSql = tipoDocumento
       ? 'DELETE FROM documentos_partidas dp WHERE dp.documento_id = $1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2 AND LOWER(d.tipo_documento) = LOWER($3))'
@@ -1372,4 +1481,101 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
   } finally {
     client.release();
   }
+}
+
+// ─── Recepción resumen ────────────────────────────────────────────────────────
+
+export type PartidaRecepcionResumen = {
+  partida_oc_id: number;
+  producto_id: number | null;
+  producto_descripcion: string | null;
+  producto_clave: string | null;
+  descripcion_alterna: string | null;
+  unidad: string | null;
+  numero_partida: number | null;
+  cantidad_ordenada: number;
+  cantidad_recibida: number;
+  cantidad_pendiente: number;
+};
+
+export type RecepcionResumenResponse = {
+  partidas: PartidaRecepcionResumen[];
+  estado_recepcion: 'abierta' | 'parcial' | 'cerrada';
+  total_ordenado: number;
+  total_recibido: number;
+  total_pendiente: number;
+};
+
+export async function obtenerRecepcionResumenRepository(
+  documentoId: number,
+  empresaId: number
+): Promise<RecepcionResumenResponse | null> {
+  const { rows: docRows } = await pool.query<{ id: number }>(
+    `SELECT id FROM documentos
+      WHERE id = $1 AND empresa_id = $2
+        AND LOWER(tipo_documento) = 'orden_compra'
+      LIMIT 1`,
+    [documentoId, empresaId]
+  );
+  if (!docRows[0]) return null;
+
+  const { rows } = await pool.query<{
+    partida_oc_id: string;
+    producto_id: string | null;
+    producto_descripcion: string | null;
+    producto_clave: string | null;
+    descripcion_alterna: string | null;
+    unidad: string | null;
+    numero_partida: string | null;
+    cantidad_ordenada: string;
+    cantidad_recibida: string;
+    cantidad_pendiente: string;
+  }>(
+    `SELECT
+       opr.partida_oc_id,
+       opr.producto_id,
+       p.descripcion     AS producto_descripcion,
+       p.clave           AS producto_clave,
+       dp.descripcion_alterna,
+       dp.unidad,
+       dp.numero_partida,
+       opr.cantidad_ordenada,
+       opr.cantidad_recibida,
+       opr.cantidad_pendiente
+     FROM public.oc_partidas_recepcion opr
+     JOIN public.documentos_partidas dp ON dp.id = opr.partida_oc_id
+     LEFT JOIN public.productos p ON p.id = opr.producto_id
+     WHERE opr.oc_id      = $1
+       AND opr.empresa_id = $2
+     ORDER BY dp.numero_partida NULLS LAST, dp.id`,
+    [documentoId, empresaId]
+  );
+
+  const partidas: PartidaRecepcionResumen[] = rows.map((row) => ({
+    partida_oc_id:        Number(row.partida_oc_id),
+    producto_id:          row.producto_id != null ? Number(row.producto_id) : null,
+    producto_descripcion: row.producto_descripcion ?? null,
+    producto_clave:       row.producto_clave ?? null,
+    descripcion_alterna:  row.descripcion_alterna ?? null,
+    unidad:               row.unidad ?? null,
+    numero_partida:       row.numero_partida != null ? Number(row.numero_partida) : null,
+    cantidad_ordenada:    Number(row.cantidad_ordenada),
+    cantidad_recibida:    Number(row.cantidad_recibida),
+    cantidad_pendiente:   Number(row.cantidad_pendiente),
+  }));
+
+  const total_ordenado  = partidas.reduce((s, p) => s + p.cantidad_ordenada, 0);
+  const total_recibido  = partidas.reduce((s, p) => s + p.cantidad_recibida, 0);
+  const total_pendiente = partidas.reduce((s, p) => s + p.cantidad_pendiente, 0);
+
+  let estado_recepcion: 'abierta' | 'parcial' | 'cerrada';
+  if (total_recibido <= 0.000001) {
+    estado_recepcion = 'abierta';
+  } else if (total_recibido >= total_ordenado - 0.000001) {
+    estado_recepcion = 'cerrada';
+  } else {
+    estado_recepcion = 'parcial';
+  }
+
+  return { partidas, estado_recepcion, total_ordenado, total_recibido, total_pendiente };
 }

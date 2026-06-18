@@ -31,7 +31,14 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { useSession } from '../../session/useSession';
-import type { DocumentoEmpresa, TransicionDocumento } from '../../types/documentosConfiguracion';
+import type { AfectaInventario, DocumentoEmpresa, TransicionDocumento } from '../../types/documentosConfiguracion';
+
+const AFECTA_LABELS: Record<AfectaInventario, string> = {
+  none: 'No afecta inventario',
+  entrada: 'Entrada',
+  salida: 'Salida',
+  transferencia: 'Transferencia',
+};
 import {
   fetchDocumentosEmpresa,
   fetchFlujoDocumentos,
@@ -192,6 +199,36 @@ export default function DocumentosConfiguracionPage() {
     }
   };
 
+  const handleAfectaInventarioChange = async (doc: DocumentoEmpresa, value: AfectaInventario | null) => {
+    const previous = doc.afecta_inventario;
+    setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, afecta_inventario: value } : d)));
+    try {
+      await updateDocumentoEmpresa(doc.id, {
+        activo: Boolean(doc.habilitado),
+        afecta_inventario: value,
+        afecta_reservado: doc.afecta_reservado,
+      });
+    } catch (err: any) {
+      setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, afecta_inventario: previous } : d)));
+      setErrorDocumentos(err?.message || 'No se pudo actualizar afecta_inventario');
+    }
+  };
+
+  const handleAfectaReservadoChange = async (doc: DocumentoEmpresa, value: boolean) => {
+    const previous = doc.afecta_reservado;
+    setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, afecta_reservado: value } : d)));
+    try {
+      await updateDocumentoEmpresa(doc.id, {
+        activo: Boolean(doc.habilitado),
+        afecta_inventario: doc.afecta_inventario,
+        afecta_reservado: value,
+      });
+    } catch (err: any) {
+      setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, afecta_reservado: previous } : d)));
+      setErrorDocumentos(err?.message || 'No se pudo actualizar afecta_reservado');
+    }
+  };
+
   const plantillaDisponiblePorId = useMemo(() => {
     return new Set(plantillasWhatsapp.map((plantilla) => plantilla.id));
   }, [plantillasWhatsapp]);
@@ -234,12 +271,14 @@ export default function DocumentosConfiguracionPage() {
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell align="center" sx={{ width: 120 }}>
+            <TableCell align="center" sx={{ width: 80 }}>
               Activo
             </TableCell>
-            <TableCell sx={{ width: 120 }}>Icono</TableCell>
+            <TableCell sx={{ width: 48 }}>Icono</TableCell>
             <TableCell>Nombre del documento</TableCell>
-              <TableCell sx={{ minWidth: 260 }}>Plantilla envío por WhatsApp</TableCell>
+            <TableCell sx={{ minWidth: 180 }}>Afecta inventario</TableCell>
+            <TableCell align="center" sx={{ width: 100 }}>Reservado</TableCell>
+            <TableCell sx={{ minWidth: 260 }}>Plantilla envío por WhatsApp</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -269,6 +308,54 @@ export default function DocumentosConfiguracionPage() {
                 <Typography variant="body2" color="#6b7280">
                   Código: {doc.codigo}
                 </Typography>
+              </TableCell>
+              <TableCell>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={doc.afecta_inventario ?? ''}
+                    displayEmpty
+                    disabled={loadingDocumentos}
+                    onChange={(e) => {
+                      const raw = e.target.value as string;
+                      handleAfectaInventarioChange(doc, raw === '' ? null : (raw as AfectaInventario));
+                    }}
+                    renderValue={(selected) => {
+                      const sel = selected as string;
+                      if (sel === '') {
+                        const sistemaLabel = doc.afecta_inventario_sistema
+                          ? AFECTA_LABELS[doc.afecta_inventario_sistema]
+                          : 'No afecta inventario';
+                        return (
+                          <Typography variant="body2" color="#6b7280" component="span">
+                            Sistema: {sistemaLabel}
+                          </Typography>
+                        );
+                      }
+                      return AFECTA_LABELS[sel as AfectaInventario] ?? sel;
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em style={{ color: '#6b7280' }}>
+                        Sistema:{' '}
+                        {doc.afecta_inventario_sistema
+                          ? AFECTA_LABELS[doc.afecta_inventario_sistema]
+                          : 'No afecta inventario'}
+                      </em>
+                    </MenuItem>
+                    <MenuItem value="none">No afecta inventario</MenuItem>
+                    <MenuItem value="entrada">Entrada</MenuItem>
+                    <MenuItem value="salida">Salida</MenuItem>
+                    <MenuItem value="transferencia">Transferencia</MenuItem>
+                  </Select>
+                </FormControl>
+              </TableCell>
+              <TableCell align="center">
+                <Checkbox
+                  checked={Boolean(doc.afecta_reservado)}
+                  onChange={(e) => handleAfectaReservadoChange(doc, e.target.checked)}
+                  color="primary"
+                  disabled={loadingDocumentos}
+                />
               </TableCell>
               <TableCell>
                 <FormControl fullWidth size="small">
@@ -311,7 +398,7 @@ export default function DocumentosConfiguracionPage() {
 
           {documentosOrdenados.length === 0 && !loadingDocumentos && (
             <TableRow>
-              <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+              <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                 <Typography variant="body2" color="#6b7280">
                   No se encontraron tipos de documento activos en el catálogo.
                 </Typography>

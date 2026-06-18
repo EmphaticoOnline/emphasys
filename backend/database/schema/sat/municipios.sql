@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict hcWJg3mpKiEXSPOJMEx9venIRKKUm1fe8O6OtLqCVzzg6Ea4vUUXqyDwuyV3TTD
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -62,4 +64,6 @@ CREATE INDEX idx_municipios_search ON sat.municipios USING gin (search_vector);
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict hcWJg3mpKiEXSPOJMEx9venIRKKUm1fe8O6OtLqCVzzg6Ea4vUUXqyDwuyV3TTD
 

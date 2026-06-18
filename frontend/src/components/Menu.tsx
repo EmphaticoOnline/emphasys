@@ -34,15 +34,13 @@ export function MainMenuItems({ selectedSection, onSelect, variant = 'horizontal
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleMenuClick = (index: number, _event: React.MouseEvent<HTMLElement>) => {
-    const item = MAIN_MENUS[index];
-    if (!item) return;
-    if (item.label === 'CRM') {
+  const handleMenuClick = (label: string) => {
+    if (label === 'CRM') {
       onSelect('CRM');
       navigate('/crm');
       return;
     }
-    onSelect(item.label);
+    onSelect(label);
   };
 
   const isVertical = variant === 'vertical';
@@ -60,13 +58,13 @@ export function MainMenuItems({ selectedSection, onSelect, variant = 'horizontal
         flexDirection: isVertical ? 'column' : 'row',
       }}
     >
-      {MAIN_MENUS.map((menu, idx) => {
+      {MAIN_MENUS.filter((m) => isVertical || !m.sidebarOnly).map((menu) => {
         const active = menu.label === 'CRM' ? isCrmRoute : selectedSection === menu.label;
 
         return (
           <Button
             key={menu.label}
-            onClick={(e) => handleMenuClick(idx, e)}
+            onClick={() => handleMenuClick(menu.label)}
             sx={{
               height: isVertical ? 'auto' : '100%',
               flexShrink: 0,

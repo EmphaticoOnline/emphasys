@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict lqb09JKEexamb4B2qmCr3ImWa8ihm9IWes0HOGRACVBINIzKem2pSXfwraeYDsf
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -97,4 +99,6 @@ ALTER TABLE ONLY public.contactos_datos_fiscales
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict lqb09JKEexamb4B2qmCr3ImWa8ihm9IWes0HOGRACVBINIzKem2pSXfwraeYDsf
 

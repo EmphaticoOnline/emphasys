@@ -93,7 +93,7 @@ export type ProductoCaptureMode = 'simple' | 'detailed';
 
 export type VendedorCaptureMode = 'simple' | 'detailed';
 
-export type ContactoTipoPermitido = 'Lead' | 'Cliente' | 'Proveedor';
+export type ContactoTipoPermitido = 'Lead' | 'Cliente' | 'Proveedor' | 'Varios';
 
 export type ProductoTipoPermitido = 'Inventariable' | 'No inventariable' | 'Kit';
 

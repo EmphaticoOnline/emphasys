@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict nqKC9y9B5FvykNSK7dUmeUiM13KeZ6ee793QbbDguYV9JPZFtq0dihj3uaePPFz
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -184,4 +186,6 @@ ALTER TABLE ONLY core.empresas_assets
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict nqKC9y9B5FvykNSK7dUmeUiM13KeZ6ee793QbbDguYV9JPZFtq0dihj3uaePPFz
 

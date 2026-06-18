@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict a4f6mns619YaYqwVs5QdYvUZ6rJEM9dE8yCnY6y6xYGjKf5CSTfRaD8H8cHPCvl
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -67,8 +69,41 @@ CREATE TABLE public.documentos_partidas (
     observaciones text,
     comentarios_internos text,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    fecha_modificacion timestamp with time zone
+    fecha_modificacion timestamp with time zone,
+    es_parte_oportunidad boolean DEFAULT true,
+    producto_archivo_id integer,
+    precio_lista_id bigint,
+    precio_editado_manual boolean DEFAULT false NOT NULL,
+    precio_origen character varying(30)
 );
+
+
+--
+-- Name: COLUMN documentos_partidas.es_parte_oportunidad; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.es_parte_oportunidad IS 'Indica si la partida de la cotizacion debe considerarse dentro del monto real de la oportunidad comercial. Permite distinguir entre el total completo cotizado y las partidas que efectivamente cuentan para pipeline, forecast y valor comercial de la oportunidad.';
+
+
+--
+-- Name: COLUMN documentos_partidas.precio_lista_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.precio_lista_id IS 'Lista de precios utilizada para resolver automáticamente el precio de la partida.';
+
+
+--
+-- Name: COLUMN documentos_partidas.precio_editado_manual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.precio_editado_manual IS 'Indica si el precio unitario fue modificado manualmente por el usuario después de ser sugerido por el sistema.';
+
+
+--
+-- Name: COLUMN documentos_partidas.precio_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.precio_origen IS 'Origen del precio unitario. Ejemplos: LISTA, DEFAULT, MANUAL, LEGACY.';
 
 
 --
@@ -107,6 +142,49 @@ ALTER TABLE ONLY public.documentos_partidas
 
 
 --
+-- Name: idx_documentos_partidas_comentarios_internos_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_comentarios_internos_trgm ON public.documentos_partidas USING gin (comentarios_internos sat.gin_trgm_ops) WHERE (comentarios_internos IS NOT NULL);
+
+
+--
+-- Name: idx_documentos_partidas_descripcion_alterna_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_descripcion_alterna_trgm ON public.documentos_partidas USING gin (descripcion_alterna sat.gin_trgm_ops) WHERE (descripcion_alterna IS NOT NULL);
+
+
+--
+-- Name: idx_documentos_partidas_observaciones_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_observaciones_trgm ON public.documentos_partidas USING gin (observaciones sat.gin_trgm_ops) WHERE (observaciones IS NOT NULL);
+
+
+--
+-- Name: idx_documentos_partidas_precio_editado_manual; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_precio_editado_manual ON public.documentos_partidas USING btree (precio_editado_manual);
+
+
+--
+-- Name: idx_documentos_partidas_precio_lista; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_precio_lista ON public.documentos_partidas USING btree (precio_lista_id);
+
+
+--
+-- Name: documentos_partidas fk_documentos_partidas_precio_lista; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas
+    ADD CONSTRAINT fk_documentos_partidas_precio_lista FOREIGN KEY (precio_lista_id) REFERENCES public.precios_listas(id);
+
+
+--
 -- Name: documentos_partidas fk_partida_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -141,4 +219,6 @@ ALTER TABLE ONLY public.documentos_partidas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict a4f6mns619YaYqwVs5QdYvUZ6rJEM9dE8yCnY6y6xYGjKf5CSTfRaD8H8cHPCvl
 

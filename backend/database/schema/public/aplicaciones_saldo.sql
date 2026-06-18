@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict 4hKueLjp0hcEo0SdSBAdEQLFgFawyvrZsORwtC23OGGgjHNpVs1ysDHbEKQRZJU
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -37,7 +39,10 @@ CREATE TABLE public.aplicaciones_saldo (
     monto_moneda_documento numeric(15,2) NOT NULL,
     fecha_aplicacion timestamp with time zone DEFAULT now() NOT NULL,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_aplicaciones_saldo_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    CONSTRAINT chk_aplicacion_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
 );
 
 
@@ -80,7 +85,7 @@ COMMENT ON COLUMN public.aplicaciones_saldo.documento_origen_id IS 'Origen de la
 -- Name: COLUMN aplicaciones_saldo.documento_destino_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.aplicaciones_saldo.documento_destino_id IS 'Documento que recibe la aplicación de saldo (normalmente una factura).';
+COMMENT ON COLUMN public.aplicaciones_saldo.documento_destino_id IS 'Documento que recibe la aplicación de saldo (factura, factura_compra, etc.).';
 
 
 --
@@ -112,6 +117,34 @@ COMMENT ON COLUMN public.aplicaciones_saldo.fecha_creacion IS 'Fecha en que se c
 
 
 --
+-- Name: COLUMN aplicaciones_saldo.num_parcialidad; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.num_parcialidad IS 'Número de parcialidad SAT (1-based). Cuenta cuántas aplicaciones previas existen
+para el mismo documento_destino_id en el momento del INSERT. Calculado dentro de
+la misma transacción con FOR UPDATE sobre el documento destino.';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.imp_saldo_ant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.imp_saldo_ant IS 'Saldo de la factura (documento_destino) antes de esta aplicación, en la moneda
+del documento destino. Equivale al campo ImpSaldoAnterior del complemento SAT
+Pagos 2.0. Calculado como: total_factura - SUM(monto_moneda_documento) de
+aplicaciones previas al momento del INSERT.';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.imp_saldo_insoluto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.imp_saldo_insoluto IS 'Saldo de la factura (documento_destino) después de esta aplicación, en la moneda
+del documento destino. Equivale al campo ImpSaldoInsoluto del complemento SAT
+Pagos 2.0. Calculado como: imp_saldo_ant - monto_moneda_documento.';
+
+
+--
 -- Name: aplicaciones_saldo_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -139,53 +172,60 @@ ALTER TABLE ONLY public.aplicaciones_saldo ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
--- Name: aplicaciones_saldo aplicaciones_saldo_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo aplicaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT aplicaciones_saldo_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT aplicaciones_pkey PRIMARY KEY (id);
 
 
 --
--- Name: idx_aplicaciones_saldo_doc_destino; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_aplicaciones_doc_destino; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_saldo_doc_destino ON public.aplicaciones_saldo USING btree (documento_destino_id);
-
-
---
--- Name: INDEX idx_aplicaciones_saldo_doc_destino; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_aplicaciones_saldo_doc_destino IS 'Optimiza consultas para calcular saldo pendiente de documentos destino (facturas).';
+CREATE INDEX idx_aplicaciones_doc_destino ON public.aplicaciones_saldo USING btree (documento_destino_id);
 
 
 --
--- Name: idx_aplicaciones_saldo_doc_origen; Type: INDEX; Schema: public; Owner: -
+-- Name: INDEX idx_aplicaciones_doc_destino; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_saldo_doc_origen ON public.aplicaciones_saldo USING btree (documento_origen_id);
-
-
---
--- Name: INDEX idx_aplicaciones_saldo_doc_origen; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON INDEX public.idx_aplicaciones_saldo_doc_origen IS 'Optimiza consultas para calcular saldo disponible de notas de crédito.';
+COMMENT ON INDEX public.idx_aplicaciones_doc_destino IS 'Optimiza consultas para calcular saldo pendiente de documentos destino (facturas).';
 
 
 --
--- Name: idx_aplicaciones_saldo_empresa; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_aplicaciones_doc_origen; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_aplicaciones_saldo_empresa ON public.aplicaciones_saldo USING btree (empresa_id);
+CREATE INDEX idx_aplicaciones_doc_origen ON public.aplicaciones_saldo USING btree (documento_origen_id);
 
 
 --
--- Name: INDEX idx_aplicaciones_saldo_empresa; Type: COMMENT; Schema: public; Owner: -
+-- Name: INDEX idx_aplicaciones_doc_origen; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON INDEX public.idx_aplicaciones_saldo_empresa IS 'Permite filtrar rápidamente aplicaciones por empresa.';
+COMMENT ON INDEX public.idx_aplicaciones_doc_origen IS 'Optimiza consultas para calcular saldo disponible de notas de crédito.';
+
+
+--
+-- Name: idx_aplicaciones_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_empresa ON public.aplicaciones_saldo USING btree (empresa_id);
+
+
+--
+-- Name: INDEX idx_aplicaciones_empresa; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.idx_aplicaciones_empresa IS 'Permite filtrar rápidamente aplicaciones por empresa.';
+
+
+--
+-- Name: idx_aplicaciones_operacion_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aplicaciones_operacion_empresa ON public.aplicaciones_saldo USING btree (empresa_id, finanzas_operacion_id);
 
 
 --
@@ -203,44 +243,40 @@ COMMENT ON INDEX public.idx_aplicaciones_saldo_operacion IS 'Optimiza consultas 
 
 
 --
--- Name: idx_aplicaciones_saldo_operacion_empresa; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_aplicaciones_saldo_operacion_empresa ON public.aplicaciones_saldo USING btree (empresa_id, finanzas_operacion_id);
-
-
---
--- Name: aplicaciones_saldo fk_aplicaciones_saldo_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_saldo_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT fk_aplicaciones_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
 
 
 --
--- Name: aplicaciones_saldo fk_aplicaciones_saldo_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_saldo_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
-
-
---
--- Name: aplicaciones_saldo fk_aplicaciones_saldo_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_doc_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_saldo_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT fk_aplicaciones_doc_origen FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
--- Name: aplicaciones_saldo fk_aplicaciones_saldo_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: aplicaciones_saldo fk_aplicaciones_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_saldo_operacion FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_aplicaciones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: aplicaciones_saldo fk_aplicaciones_operacion; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aplicaciones_saldo
+    ADD CONSTRAINT fk_aplicaciones_operacion FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
 
 
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 4hKueLjp0hcEo0SdSBAdEQLFgFawyvrZsORwtC23OGGgjHNpVs1ysDHbEKQRZJU
+

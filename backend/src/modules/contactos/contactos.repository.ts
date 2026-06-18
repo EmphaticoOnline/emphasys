@@ -200,7 +200,11 @@ export async function obtenerContactos(empresaId: number, tipos?: string[]) {
   const filtros: string[] = ['contactos.empresa_id = $1'];
 
   if (tiposNormalizados && tiposNormalizados.length) {
-    params.push(tiposNormalizados);
+    const tiposConVarios =
+      tiposNormalizados.some((t) => t === 'cliente' || t === 'proveedor') && !tiposNormalizados.includes('varios')
+        ? [...tiposNormalizados, 'varios']
+        : tiposNormalizados;
+    params.push(tiposConVarios);
     filtros.push('LOWER(contactos.tipo_contacto::text) = ANY($2)');
   }
 
@@ -276,7 +280,11 @@ export async function obtenerContactosPaginados(
   const whereClauses: string[] = ['contactos.empresa_id = $1'];
 
   if (tiposNormalizados && tiposNormalizados.length) {
-    params.push(tiposNormalizados);
+    const tiposConVarios =
+      tiposNormalizados.some((t) => t === 'cliente' || t === 'proveedor') && !tiposNormalizados.includes('varios')
+        ? [...tiposNormalizados, 'varios']
+        : tiposNormalizados;
+    params.push(tiposConVarios);
     whereClauses.push(`LOWER(contactos.tipo_contacto::text) = ANY($${params.length})`);
   }
 
@@ -748,7 +756,11 @@ export async function obtenerContactosParaExportar(
   const whereClauses: string[] = ['contactos.empresa_id = $1'];
 
   if (tiposNormalizados && tiposNormalizados.length) {
-    params.push(tiposNormalizados);
+    const tiposConVarios =
+      tiposNormalizados.some((t) => t === 'cliente' || t === 'proveedor') && !tiposNormalizados.includes('varios')
+        ? [...tiposNormalizados, 'varios']
+        : tiposNormalizados;
+    params.push(tiposConVarios);
     whereClauses.push(`LOWER(contactos.tipo_contacto::text) = ANY($${params.length})`);
   }
 

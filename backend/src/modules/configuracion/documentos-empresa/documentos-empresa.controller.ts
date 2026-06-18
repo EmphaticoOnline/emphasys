@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import {
+  AfectaInventario,
   DocumentoEmpresa,
   TransicionDocumento,
   documentoEstaHabilitado,
@@ -10,6 +11,8 @@ import {
   upsertDocumentoEmpresa,
   upsertTransicionDocumento,
 } from './documentos-empresa.repository';
+
+const AFECTA_INVENTARIO_VALIDOS = new Set<AfectaInventario>(['none', 'entrada', 'salida', 'transferencia']);
 import { obtenerPlantillaWhatsappPorId } from '../../../whatsapp/whatsapp-plantillas.service';
 
 function ensureEmpresa(req: Request): number | null {
@@ -54,6 +57,20 @@ export async function actualizarDocumentoEmpresa(req: Request, res: Response) {
       return res.status(400).json({ message: 'whatsapp_plantilla_default_id inválido' });
     }
 
+    // null = "usar default del sistema"; cadena válida = override explícito
+    const afectaInventarioRaw = Object.prototype.hasOwnProperty.call(body, 'afecta_inventario')
+      ? body.afecta_inventario
+      : undefined;
+    const afectaInventario: AfectaInventario | null =
+      afectaInventarioRaw === null || afectaInventarioRaw === undefined
+        ? null
+        : afectaInventarioRaw;
+
+    if (afectaInventario !== null && !AFECTA_INVENTARIO_VALIDOS.has(afectaInventario)) {
+      return res.status(400).json({ message: 'afecta_inventario debe ser: null, none, entrada, salida o transferencia' });
+    }
+    const afectaReservado: boolean = Boolean(body.afecta_reservado ?? false);
+
     const tipoExiste = await existeTipoDocumento(tipoDocumentoId);
     if (!tipoExiste) return res.status(404).json({ message: 'Tipo de documento no encontrado o inactivo' });
 
@@ -69,7 +86,9 @@ export async function actualizarDocumentoEmpresa(req: Request, res: Response) {
       tipoDocumentoId,
       Boolean(activo),
       includeWhatsappPlantillaDefault,
-      whatsappPlantillaDefaultId
+      whatsappPlantillaDefaultId,
+      afectaInventario,
+      afectaReservado
     );
     if (!actualizado) return res.status(500).json({ message: 'No se pudo actualizar el documento' });
 

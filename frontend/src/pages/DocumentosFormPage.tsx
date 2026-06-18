@@ -70,11 +70,13 @@ import type {
   TratamientoImpuestos,
 } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
-import { getDocumento, getDocumentos, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana } from '../services/documentosService';
+import { getDocumento, getDocumentos, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana, getRecepcionResumen, type RecepcionResumenResponse } from '../services/documentosService';
 import { fetchConceptos } from '../services/conceptosService';
 import {
   generarDocumentoDesdeOrigen,
   prepararGeneracionMultiple,
+  AutorizacionRequeridaError,
+  SinPermisoAutorizacionError,
   type PrepararGeneracionResponse,
 } from '../services/documentGenerationService';
 import { uploadArchivo } from '../services/uploadsService';
@@ -260,6 +262,8 @@ const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
 
 const TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL = new Set<TipoDocumento>([
   'factura',
+  'factura_compra',
+  'orden_compra',
   'nota_credito',
   'nota_credito_compra',
   'cotizacion',
@@ -442,6 +446,7 @@ export default function DocumentosFormPage({
     defaultEstadoSeguimiento,
     contactoCaptureMode,
     contactoDefaultTipoContacto,
+    contactoLabel,
     contactoTiposPermitidos,
     tiposContactoPermitidos,
     productoCreationMode,
@@ -458,6 +463,7 @@ export default function DocumentosFormPage({
     partidasMostrarImagenes,
     partidasMostrarEsParteOportunidad,
     partidasMostrarMontoOportunidad,
+    vendedorVisible,
   } = useDocumentoConfig(tipoDocumento);
   const navigate = useNavigate();
   const location = useLocation();
@@ -575,6 +581,8 @@ export default function DocumentosFormPage({
   const [openPagos, setOpenPagos] = useState(false);
   const [openAnticipoDialog, setOpenAnticipoDialog] = useState(false);
   const [saldoDocumento, setSaldoDocumento] = useState<number>(0);
+  const [recepcionResumen, setRecepcionResumen] = useState<RecepcionResumenResponse | null>(null);
+  const [recepcionLoading, setRecepcionLoading] = useState(false);
   const [anticiposResumen, setAnticiposResumen] = useState<DocumentoAnticipoResumen | null>(null);
   const [cuentasFinancieras, setCuentasFinancieras] = useState<FinanzasCuenta[]>([]);
   const [loadingAnticiposResumen, setLoadingAnticiposResumen] = useState(false);
@@ -583,9 +591,11 @@ export default function DocumentosFormPage({
   const [montosAplicacionMonetaria, setMontosAplicacionMonetaria] = useState<Record<number, string>>({});
   const [autoApplyingDocumentoMonetario, setAutoApplyingDocumentoMonetario] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>(
     { open: false, message: '', severity: 'success' }
   );
+  const [estadoAutorizacionDoc, setEstadoAutorizacionDoc] = useState<string | null>(null);
+  const [tieneDerivadosActivos, setTieneDerivadosActivos] = useState(false);
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [conceptoObligatorioDialog, setConceptoObligatorioDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -633,7 +643,6 @@ export default function DocumentosFormPage({
   const usaCapturaEspecialNotaCredito = isNotaCreditoManual || isNotaCreditoDevolucion || isNotaCreditoBonificacion;
   const usaGeneracionEspecialNotaCredito = isNotaCreditoDevolucion || isNotaCreditoBonificacion;
   const permiteCapturaManualSinPartidas = isNotaCredito && !partidas.some((partida) => !esPartidaPlaceholder(partida));
-  const contactoLabel = tipoDocumento === 'nota_credito_compra' ? 'Proveedor' : 'Cliente';
   const tipoDocumentoOrigenNotaCredito = tipoDocumento === 'nota_credito_compra' ? 'factura_compra' : 'factura';
   const prefillContactoId = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -1599,6 +1608,8 @@ export default function DocumentosFormPage({
       }
       const [data, saldoData] = await Promise.all(requests);
       const doc = data.documento;
+      setEstadoAutorizacionDoc((doc as any).estado_autorizacion ?? null);
+      setTieneDerivadosActivos(Boolean((doc as any).tiene_derivados_activos));
       setDocumentoPersistidoId(Number((doc as any).id ?? documentoActualId));
       setSaldoDocumento(Number((saldoData as any)?.saldo ?? doc.saldo ?? 0));
       setForm({
@@ -1754,6 +1765,14 @@ export default function DocumentosFormPage({
       }
 
       setError(null);
+
+      if (tipoDocumento === 'orden_compra' && documentoActualId) {
+        setRecepcionLoading(true);
+        getRecepcionResumen(Number(documentoActualId))
+          .then(setRecepcionResumen)
+          .catch(() => setRecepcionResumen(null))
+          .finally(() => setRecepcionLoading(false));
+      }
     } catch (e) {
   const mensaje = e instanceof Error ? e.message : `No se pudo cargar la ${textos.singular}`;
       setError(mensaje);
@@ -2537,6 +2556,16 @@ export default function DocumentosFormPage({
 
       return docId;
     } catch (e) {
+      if (e instanceof AutorizacionRequeridaError) {
+        setEstadoAutorizacionDoc('pendiente');
+        setSnackbar({ open: true, message: e.message, severity: 'info' });
+        return null;
+      }
+      if (e instanceof SinPermisoAutorizacionError) {
+        const msg = e.rol_requerido ? `${e.message} Requiere rol: ${e.rol_requerido}.` : e.message;
+        setSnackbar({ open: true, message: msg, severity: 'warning' });
+        return null;
+      }
       const message = e instanceof Error ? e.message : 'No se pudo guardar';
       if (message.toLowerCase().includes('serie') && message.toLowerCase().includes('número')) {
         setDuplicateDialog({ open: true, message });
@@ -3339,7 +3368,7 @@ export default function DocumentosFormPage({
                 variant="contained"
                 startIcon={<SaveIcon />}
                 onClick={handleSave}
-                disabled={saving || loading}
+                disabled={saving || loading || tieneDerivadosActivos}
               >
                 {saving ? 'Guardando...' : 'Guardar'}
               </Button>
@@ -3351,7 +3380,7 @@ export default function DocumentosFormPage({
       {isMobile ? (
         <MobileSaveFab
           loading={saving}
-          disabled={saving || loading}
+          disabled={saving || loading || tieneDerivadosActivos}
           onClick={handleSave}
         />
       ) : null}
@@ -3393,6 +3422,23 @@ export default function DocumentosFormPage({
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+
+      {isEdit && estadoAutorizacionDoc && estadoAutorizacionDoc !== 'no_requerida' && (() => {
+        const MAP: Record<string, { label: string; severity: 'warning' | 'success' | 'error' }> = {
+          pendiente: { label: 'Este documento tiene una solicitud de autorización pendiente.', severity: 'warning' },
+          aprobada:  { label: 'Documento autorizado. No puede modificarse hasta que la autorización sea cancelada.', severity: 'success' },
+          rechazada: { label: 'La solicitud de autorización fue rechazada.', severity: 'error' },
+        };
+        const cfg = MAP[estadoAutorizacionDoc];
+        if (!cfg) return null;
+        return <Alert severity={cfg.severity} sx={{ mb: 1 }}>{cfg.label}</Alert>;
+      })()}
+
+      {isEdit && tieneDerivadosActivos && (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          Esta Orden de Compra tiene documentos derivados activos (Recepciones o Facturas de Compra) y no puede modificarse. Cancele los documentos derivados primero si necesita hacer cambios.
         </Alert>
       )}
 
@@ -3510,7 +3556,7 @@ export default function DocumentosFormPage({
                         )}
                       />
                     </Grid>
-                    {!usaCapturaEspecialNotaCredito && (
+                    {!usaCapturaEspecialNotaCredito && vendedorVisible && (
                       <Grid size={{ xs: 12, md: 3 }}>
                         <Autocomplete
                           fullWidth
@@ -3775,7 +3821,7 @@ export default function DocumentosFormPage({
                     )}
                   />
                 </Grid>
-                {!usaCapturaEspecialNotaCredito && (
+                {!usaCapturaEspecialNotaCredito && vendedorVisible && (
                 <Grid size={{ xs: 12, md: 3 }}>
                   <Autocomplete
                     fullWidth
@@ -5512,6 +5558,101 @@ export default function DocumentosFormPage({
                 </Stack>
               )}
             </>
+          )}
+        </Paper>
+      )}
+
+      {tipoDocumento === 'orden_compra' && isEdit && (
+        <Paper
+          elevation={0}
+          sx={{
+            mt: 2,
+            border: '1px solid',
+            borderColor: 'rgba(148,163,184,0.35)',
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            sx={{ px: 2, py: 1.25, bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'rgba(148,163,184,0.25)' }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b', flexGrow: 1 }}>
+              Recepciones
+            </Typography>
+            {recepcionLoading && <CircularProgress size={16} />}
+            {!recepcionLoading && recepcionResumen && (() => {
+              const estado = recepcionResumen.estado_recepcion;
+              const cfg: Record<string, { label: string; bgcolor: string; color: string }> = {
+                abierta: { label: 'Abierta', bgcolor: '#f1f5f9', color: '#475569' },
+                parcial: { label: 'Parcial', bgcolor: '#fef3c7', color: '#92400e' },
+                cerrada: { label: 'Cerrada', bgcolor: '#dcfce7', color: '#166534' },
+              };
+              const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta;
+              return (
+                <Chip
+                  label={label}
+                  size="small"
+                  sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5, bgcolor, color, fontWeight: 700 }}
+                />
+              );
+            })()}
+          </Stack>
+
+          {!recepcionLoading && recepcionResumen && recepcionResumen.partidas.length > 0 && (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ '& th': { bgcolor: '#f1f5f9', fontWeight: 700, fontSize: '0.75rem', color: '#475569', py: 0.75 } }}>
+                    <TableCell>Producto</TableCell>
+                    <TableCell align="right">Ordenado</TableCell>
+                    <TableCell align="right">Recibido</TableCell>
+                    <TableCell align="right">Pendiente</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {recepcionResumen.partidas.map((p) => (
+                    <TableRow
+                      key={p.partida_oc_id}
+                      sx={{ '&:last-child td': { border: 0 }, '& td': { fontSize: '0.8rem', py: 0.6 } }}
+                    >
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500, color: '#1e293b' }}>
+                          {p.producto_descripcion ?? p.descripcion_alterna ?? '—'}
+                        </Typography>
+                        {p.producto_clave && (
+                          <Typography variant="caption" sx={{ color: '#64748b' }}>{p.producto_clave}</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: '#334155' }}>
+                        {Number(p.cantidad_ordenada).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
+                        {p.unidad ? ` ${p.unidad}` : ''}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: p.cantidad_recibida > 0 ? '#166534' : '#94a3b8' }}>
+                        {Number(p.cantidad_recibida).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: p.cantidad_pendiente > 0.000001 ? '#92400e' : '#166534', fontWeight: 600 }}>
+                        {Number(p.cantidad_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow sx={{ bgcolor: '#f8fafc', '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: 'rgba(148,163,184,0.4)' } }}>
+                    <TableCell>Total</TableCell>
+                    <TableCell align="right">{Number(recepcionResumen.total_ordenado).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                    <TableCell align="right" sx={{ color: '#166534' }}>{Number(recepcionResumen.total_recibido).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                    <TableCell align="right" sx={{ color: recepcionResumen.total_pendiente > 0.000001 ? '#92400e' : '#166534' }}>{Number(recepcionResumen.total_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          {!recepcionLoading && (!recepcionResumen || recepcionResumen.partidas.length === 0) && (
+            <Box sx={{ px: 2, py: 2, color: '#94a3b8', fontSize: '0.82rem' }}>
+              Sin partidas de recepción registradas.
+            </Box>
           )}
         </Paper>
       )}

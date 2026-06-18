@@ -40,6 +40,7 @@ import { calcularImpuestosPartida } from "../impuestos/impuestos.service";
 import { actualizarTotales, asegurarOportunidadParaCotizacion } from "./documentos.service";
 import { sanitizarCamposCotizacion } from "./cotizacion-status";
 import { reservarNumeroParaSerieExistente, resolverYReservarSerieDocumento } from "./series-documento.service";
+import { buscarTransicionId, buscarPoliticaAplicable, obtenerInfoPoliticaParaOpcion } from "../autorizaciones/autorizaciones.repository";
 
 class ServiceError extends Error {
   code: string;
@@ -142,6 +143,28 @@ const estatusDocumentoEsInactivo = (estatusDocumento: string | null | undefined)
   const estatusNormalizado = String(estatusDocumento ?? "").trim().toLowerCase();
   return estatusNormalizado === "cancelado" || estatusNormalizado === "cancelada";
 };
+
+const TIPOS_DESTINO_REQUIEREN_OC_EMITIDA = new Set<string>(['recepcion', 'factura_compra']);
+
+function validarEstatusOrigenParaGeneracion(
+  documentosOrigen: DocumentoGeneracionRow[],
+  tipoDestino: TipoDocumento
+) {
+  if (!TIPOS_DESTINO_REQUIEREN_OC_EMITIDA.has(String(tipoDestino ?? '').toLowerCase())) return;
+
+  for (const doc of documentosOrigen) {
+    if (String(doc.tipo_documento ?? '').toLowerCase() !== 'orden_compra') continue;
+    const estatus = String(doc.estatus_documento ?? '').trim().toLowerCase();
+    if (estatus !== 'emitido' && estatus !== 'enviado') {
+      throw new ServiceError(
+        "ORIGEN_NO_EMITIDO",
+        "La Orden de Compra debe estar emitida antes de generar este documento",
+        400,
+        { documento_origen_id: Number(doc.id) }
+      );
+    }
+  }
+}
 
 const normalizarIdsDocumentoOrigen = (payload: GenerarDocumentoPayload) => {
   const ids = [
@@ -400,13 +423,15 @@ async function cargarPartidasOrigen(documentoIds: number[], client: PoolClient):
   return rows;
 }
 
-async function cargarCantidadesGeneradas(documentoIds: number[], client: PoolClient) {
+async function cargarCantidadesGeneradas(documentoIds: number[], client: PoolClient, tipoDestino?: TipoDocumento) {
   const { rows } = await client.query<{ partida_origen_id: number; cantidad_generada: string }>(
-    `SELECT partida_origen_id, COALESCE(SUM(cantidad), 0) AS cantidad_generada
-       FROM documentos_partidas_vinculos
-      WHERE documento_origen_id = ANY($1::int[])
-      GROUP BY partida_origen_id`,
-    [documentoIds]
+    `SELECT dpv.partida_origen_id, COALESCE(SUM(dpv.cantidad), 0) AS cantidad_generada
+       FROM documentos_partidas_vinculos dpv
+       JOIN documentos d_dest ON d_dest.id = dpv.documento_destino_id
+      WHERE dpv.documento_origen_id = ANY($1::int[])
+        AND ($2::text IS NULL OR LOWER(d_dest.tipo_documento) = LOWER($2))
+      GROUP BY dpv.partida_origen_id`,
+    [documentoIds, tipoDestino ?? null]
   );
 
   return new Map<number, number>(rows.map((row) => [Number(row.partida_origen_id), Number(row.cantidad_generada)]));
@@ -495,11 +520,15 @@ async function aplicarConversionComercialDesdeCotizacion(
 }
 
 export class DocumentGenerationService {
-  static async getOpcionesGeneracion(documentoId: number, empresaId: number): Promise<OpcionGeneracion[]> {
+  static async getOpcionesGeneracion(
+    documentoId: number,
+    empresaId: number,
+    userId?: number | null
+  ): Promise<OpcionGeneracion[]> {
     const client = await pool.connect();
     try {
       const { rows: docRows } = await client.query(
-        `SELECT id, tipo_documento
+        `SELECT id, tipo_documento, COALESCE(total, 0) AS total
            FROM documentos
           WHERE id = $1 AND empresa_id = $2
           LIMIT 1`,
@@ -518,7 +547,7 @@ export class DocumentGenerationService {
       });
 
       const { rows } = await client.query(
-        `SELECT td_dest.codigo AS tipo_documento_destino, td_dest.nombre, etd.orden
+        `SELECT td_dest.codigo AS tipo_documento_destino, td_dest.nombre, etd.orden, etd.id AS transicion_id
            FROM core.empresas_tipos_documento_transiciones etd
            JOIN core.tipos_documento td_origen ON td_origen.id = etd.tipo_documento_origen_id
            JOIN core.tipos_documento td_dest   ON td_dest.id   = etd.tipo_documento_destino_id
@@ -538,11 +567,28 @@ export class DocumentGenerationService {
         rows,
       });
 
-      return rows.map((row) => ({
-        tipo_documento_destino: row.tipo_documento_destino as TipoDocumento,
-        nombre: row.nombre ?? row.tipo_documento_destino,
-        orden: row.orden !== null && row.orden !== undefined ? Number(row.orden) : undefined,
-      }));
+      const monto = Number(documento.total ?? 0);
+
+      const opcionesConPolitica = await Promise.all(
+        rows.map(async (row) => {
+          const infoPolitica = await obtenerInfoPoliticaParaOpcion(
+            empresaId,
+            Number(row.transicion_id),
+            monto,
+            userId
+          );
+          return {
+            tipo_documento_destino: row.tipo_documento_destino as TipoDocumento,
+            nombre: row.nombre ?? row.tipo_documento_destino,
+            orden: row.orden !== null && row.orden !== undefined ? Number(row.orden) : undefined,
+            modo_autorizacion: infoPolitica.modo_autorizacion,
+            usuario_puede_autorizar: infoPolitica.usuario_puede_autorizar,
+            rol_requerido: infoPolitica.rol_requerido,
+          };
+        })
+      );
+
+      return opcionesConPolitica;
     } finally {
       client.release();
     }
@@ -574,12 +620,13 @@ export class DocumentGenerationService {
       }
 
       validarCompatibilidadConsolidada(documentosOrigen, tipoDestino);
+      validarEstatusOrigenParaGeneracion(documentosOrigen, tipoDestino);
       if (requiereValidacionDeFlujoOrigenDestino(tipoDestino)) {
         await validarFlujosOrigenDestino(documentosOrigen, tipoDestino, empresaId, client);
       }
 
       const partidas = await cargarPartidasOrigen(idsNormalizados, client);
-      const cantidadesGeneradas = await cargarCantidadesGeneradas(idsNormalizados, client);
+      const cantidadesGeneradas = await cargarCantidadesGeneradas(idsNormalizados, client, tipoDestino);
 
       return construirRespuestaPreparacion(documentosOrigen, tipoDestino, partidas, cantidadesGeneradas);
     } finally {
@@ -611,8 +658,9 @@ export class DocumentGenerationService {
       }
 
       validarCompatibilidadConsolidada(documentosOrigen, tipo_documento_destino);
-  await assertDocumentosSinCancelacionPendiente(documentoOrigenIds, empresaId, client);
-  if (requiereValidacionDeFlujoOrigenDestino(tipo_documento_destino)) {
+      validarEstatusOrigenParaGeneracion(documentosOrigen, tipo_documento_destino);
+      await assertDocumentosSinCancelacionPendiente(documentoOrigenIds, empresaId, client);
+      if (requiereValidacionDeFlujoOrigenDestino(tipo_documento_destino)) {
         await validarFlujosOrigenDestino(documentosOrigen, tipo_documento_destino, empresaId, client);
       }
 
@@ -898,7 +946,7 @@ export class DocumentGenerationService {
         documentoDestino = insertDocRows[0];
       }
 
-      const cantidadesGeneradas = await cargarCantidadesGeneradas(documentoOrigenIds, client);
+      const cantidadesGeneradas = await cargarCantidadesGeneradas(documentoOrigenIds, client, tipo_documento_destino);
 
       if (tipo_documento_destino === "cotizacion") {
         await asegurarOportunidadParaCotizacion(

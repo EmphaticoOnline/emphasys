@@ -19,6 +19,7 @@ import {
   obtenerCotizacionPDF,
   calcularImpuestosPreviewHandler,
   exportarDocumentos,
+  obtenerRecepcionResumenHandler,
 } from './documentos.controller';
 import { obtenerCamposDocumento } from './documentos-campos.controller';
 
@@ -29,6 +30,9 @@ router.get('/', requireAuth, requireEmpresaActiva, listarCotizaciones);
 
 // GET /api/documentos/:id
 router.get('/:id', requireAuth, requireEmpresaActiva, obtenerCotizacion);
+
+// GET /api/documentos/:id/recepcion-resumen
+router.get('/:id/recepcion-resumen', requireAuth, requireEmpresaActiva, obtenerRecepcionResumenHandler);
 
 // GET /api/documentos/:id/validar-eliminacion
 router.get('/:id/validar-eliminacion', requireAuth, requireEmpresaActiva, validarEliminacionCotizacion);

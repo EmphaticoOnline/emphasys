@@ -43,6 +43,8 @@ import ConfiguracionEtapasProduccionPage from './pages/ConfiguracionEtapasProduc
 import ListasPreciosPage from './pages/configuracion/ListasPreciosPage';
 import PreciosPage from './pages/configuracion/PreciosPage';
 import CamposObligatoriosPage from './pages/configuracion/CamposObligatoriosPage';
+import AutorizacionesBandejaPage from './pages/AutorizacionesBandejaPage';
+import AutorizacionesReglasPage from './pages/configuracion/AutorizacionesReglasPage';
 
 export default function App() {
   return (
@@ -116,6 +118,10 @@ export default function App() {
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
+              <Route path="/configuracion/autorizaciones-reglas" element={<AutorizacionesReglasPage />} />
+
+              {/* Autorizaciones */}
+              <Route path="/autorizaciones" element={<AutorizacionesBandejaPage />} />
 
               {/* Redirects legacy */}
               <Route path="/documentos" element={<Navigate to="/ventas/cotizacion" replace />} />

@@ -33,6 +33,7 @@ import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import SettingsIcon from '@mui/icons-material/Settings';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import logo from '../../assets/emphasys-w.png';
@@ -93,6 +94,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Inventarios',   path: '/inventario/movimientos', icon: InventoryIcon },
   { label: 'Almacenes',     path: '/almacenes',             icon: WarehouseIcon },
   { label: 'Informes',      path: '/informes/ia',           icon: BarChartIcon },
+  { label: 'Autorizaciones', path: '/autorizaciones',        icon: VerifiedUserIcon },
   { label: 'Configuración', path: '/configuracion',         icon: SettingsIcon },
 ];
 
@@ -106,6 +108,7 @@ function getBreadcrumbs(pathname: string): string[] {
   if (pathname.startsWith('/inventario'))    return ['Inventarios'];
   if (pathname.startsWith('/almacenes'))     return ['Almacenes'];
   if (pathname.startsWith('/informes'))      return ['Informes'];
+  if (pathname.startsWith('/autorizaciones')) return ['Autorizaciones'];
   if (pathname.startsWith('/configuracion')) return ['Configuración'];
   return [];
 }

@@ -676,7 +676,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     widgets: {
       pagosDrawer: false,
       origenDocumento: false,
-      tratamientoFiscal: false,
+      tratamientoFiscal: true,
       fiscalTab: false,
     },
     defaults: {
@@ -806,7 +806,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     widgets: {
       pagosDrawer: true,
       origenDocumento: false,
-      tratamientoFiscal: false,
+      tratamientoFiscal: true,
       fiscalTab: false,
     },
     defaults: {
@@ -871,7 +871,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     widgets: {
       pagosDrawer: false,
       origenDocumento: false,
-      tratamientoFiscal: false,
+      tratamientoFiscal: true,
       fiscalTab: false,
     },
     defaults: {

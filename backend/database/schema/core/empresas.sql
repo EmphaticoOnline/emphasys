@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict kKj0hJuNX0ocwllEvmEChatjcYWsYCoCGGd2ez9JdfOYCDmk4QytpeYjWVtDjhw
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -51,7 +53,12 @@ CREATE TABLE core.empresas (
     activo boolean DEFAULT true,
     created_at timestamp without time zone DEFAULT now(),
     codigo_postal character varying(10),
-    regimen_fiscal character varying(10)
+    regimen_fiscal character varying(10),
+    cfdi_csd_registrado_facturama boolean DEFAULT false NOT NULL,
+    cfdi_csd_fecha_actualizacion timestamp without time zone,
+    cfdi_csd_cer_path character varying,
+    cfdi_csd_key_path character varying,
+    cfdi_csd_password_encrypted text
 );
 
 
@@ -217,6 +224,41 @@ COMMENT ON COLUMN core.empresas.created_at IS 'Fecha de creación del registro';
 
 
 --
+-- Name: COLUMN empresas.cfdi_csd_registrado_facturama; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_registrado_facturama IS 'Indica si el CSD fue registrado exitosamente en Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_fecha_actualizacion; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_fecha_actualizacion IS 'Fecha de la ultima actualizacion del CSD en Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_cer_path; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_cer_path IS 'Ruta relativa en uploads del archivo .cer cargado para Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_key_path; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_key_path IS 'Ruta relativa en uploads del archivo .key cargado para Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.cfdi_csd_password_encrypted; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.cfdi_csd_password_encrypted IS 'Contrasena CSD cifrada para registro en Facturama Multiemisor';
+
+
+--
 -- Name: empresas_id_seq; Type: SEQUENCE; Schema: core; Owner: -
 --
 
@@ -378,4 +420,6 @@ ALTER TABLE ONLY core.empresas
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict kKj0hJuNX0ocwllEvmEChatjcYWsYCoCGGd2ez9JdfOYCDmk4QytpeYjWVtDjhw
 

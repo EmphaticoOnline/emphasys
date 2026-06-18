@@ -18,6 +18,7 @@ import {
   ViewListRounded,
   GridViewRounded,
   TagRounded,
+  VerifiedUserRounded,
 } from '@mui/icons-material';
 import { CONFIGURACION_OPTIONS } from './configuracion/configuracionNavigation';
 
@@ -40,6 +41,8 @@ const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
   'PAC CFDI': CloudRounded,
   'Etiquetas de WhatsApp': LabelRounded,
   'Etapas de producción': SchemaRounded,
+  'Campos obligatorios': TuneRounded,
+  'Políticas de autorización': VerifiedUserRounded,
 };
 
 export default function ConfiguracionPage() {

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import type { TipoDocumento } from "../../types/documentos";
 import { DocumentGenerationService, ServiceError } from "./document-generation.service";
 import type { GenerarDocumentoPayload } from "./document-generation.types";
+import { verificarPoliticaAutorizacion } from "../autorizaciones/autorizaciones.repository";
 
 const parseTipo = (valor: any): TipoDocumento => (valor ?? "").toString().toLowerCase() as TipoDocumento;
 
@@ -11,6 +12,10 @@ const handleError = (res: Response, error: unknown) => {
       return res.status(error.status).json({ error: error.message, message: error.message, code: error.code, details: error.details });
     }
     return res.status(error.status).json({ message: error.message, code: error.code, details: error.details });
+  }
+  const e = error as any;
+  if (typeof e?.status === 'number') {
+    return res.status(e.status).json({ error: e.message, code: e.code });
   }
   console.error("Error inesperado en generación de documentos", error);
   return res.status(500).json({ message: "Error interno" });
@@ -24,7 +29,8 @@ export async function obtenerOpcionesGeneracion(req: Request, res: Response) {
       return res.status(400).json({ message: "Parámetros inválidos" });
     }
 
-    const opciones = await DocumentGenerationService.getOpcionesGeneracion(documentoId, empresaId);
+    const userId = req.auth?.userId ?? null;
+    const opciones = await DocumentGenerationService.getOpcionesGeneracion(documentoId, empresaId, userId);
     return res.json(opciones);
   } catch (error) {
     return handleError(res, error);
@@ -89,7 +95,35 @@ export async function generarDocumentoDesdeOrigen(req: Request, res: Response) {
     }
 
     const usuarioId = req.auth?.userId ?? null;
+    const documentoOrigenId = hasSingleOrigen ? Number(payload.documento_origen_id) : documentoOrigenIds[0];
 
+    // Verificar política de autorización antes de generar
+    const resultadoPolitica = await verificarPoliticaAutorizacion({
+      empresaId,
+      documentoOrigenId,
+      tipoDocumentoDestino: parseTipo(payload.tipo_documento_destino),
+      userId: usuarioId,
+    });
+
+    if (resultadoPolitica.tipo === 'sin_permiso_directa') {
+      return res.status(403).json({
+        error: 'No tiene permiso para ejecutar esta transición.',
+        rol_requerido: resultadoPolitica.rol_requerido,
+        code: 'SIN_PERMISO_AUTORIZACION',
+      });
+    }
+
+    if (resultadoPolitica.tipo === 'solicitud_nueva' || resultadoPolitica.tipo === 'solicitud_pendiente') {
+      return res.status(202).json({
+        requiere_autorizacion: true,
+        solicitud_id: resultadoPolitica.solicitud_id,
+        mensaje: resultadoPolitica.tipo === 'solicitud_nueva'
+          ? 'Autorización solicitada. Revisa el estado en Mis Solicitudes.'
+          : 'Ya existe una solicitud de autorización pendiente para este documento.',
+      });
+    }
+
+    // Política permite la generación
     const resultado = await DocumentGenerationService.generarDocumentoDesdeOrigen(
       {
         ...payload,

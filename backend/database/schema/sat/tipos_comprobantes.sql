@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict 2iOPWBhkk6DOvIOjv7LEz6Oe9crLJFF6LE8qgkgDH8y0zRTkLHC6jmacesWRX4n
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -47,4 +49,6 @@ ALTER TABLE ONLY sat.tipos_comprobantes
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict 2iOPWBhkk6DOvIOjv7LEz6Oe9crLJFF6LE8qgkgDH8y0zRTkLHC6jmacesWRX4n
 

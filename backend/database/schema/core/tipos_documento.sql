@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict OMdww8rPUhn7PMd4B8h2qGqNAd25VKbhGget9aOvaWs93RZPtbedGvEoOXH8A33
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -36,7 +38,9 @@ CREATE TABLE core.tipos_documento (
     orden integer DEFAULT 0,
     activo boolean DEFAULT true,
     created_at timestamp without time zone DEFAULT now(),
-    modulo character varying(30)
+    modulo character varying(30),
+    naturaleza_saldo character varying(20),
+    CONSTRAINT chk_tipos_documento_naturaleza_saldo CHECK (((naturaleza_saldo)::text = ANY ((ARRAY['cargo'::character varying, 'abono'::character varying, 'none'::character varying])::text[])))
 );
 
 
@@ -111,6 +115,13 @@ COMMENT ON COLUMN core.tipos_documento.modulo IS 'Módulo al que pertenece el do
 
 
 --
+-- Name: COLUMN tipos_documento.naturaleza_saldo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.tipos_documento.naturaleza_saldo IS 'Define comportamiento financiero del documento: cargo, abono o none.';
+
+
+--
 -- Name: tipos_documento_id_seq; Type: SEQUENCE; Schema: core; Owner: -
 --
 
@@ -170,4 +181,6 @@ COMMENT ON INDEX core.idx_tipos_documento_modulo IS 'Permite filtrar rápidament
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict OMdww8rPUhn7PMd4B8h2qGqNAd25VKbhGget9aOvaWs93RZPtbedGvEoOXH8A33
 

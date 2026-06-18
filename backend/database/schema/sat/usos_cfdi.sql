@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict xoEL1jg3uDYoakBwZQa4D2IAVgzESgrqGJN9j0m1JNs2DAajvj3OYClgzGUfgeq
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -56,4 +58,6 @@ CREATE INDEX idx_usos_cfdi_texto ON sat.usos_cfdi USING btree (texto);
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict xoEL1jg3uDYoakBwZQa4D2IAVgzESgrqGJN9j0m1JNs2DAajvj3OYClgzGUfgeq
 

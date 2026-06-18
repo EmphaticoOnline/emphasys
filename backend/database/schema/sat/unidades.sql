@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict zygdTHRZsuUGln7ko1Br4NrYxFIyb2ItkOBe40z23aiI6aimoXyjk690gmYPhRR
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -81,4 +83,6 @@ ALTER TABLE ONLY sat.unidades
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict zygdTHRZsuUGln7ko1Br4NrYxFIyb2ItkOBe40z23aiI6aimoXyjk690gmYPhRR
 

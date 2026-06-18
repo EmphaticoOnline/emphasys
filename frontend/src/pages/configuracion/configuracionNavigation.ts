@@ -108,4 +108,9 @@ export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
 		descripcion: 'Define qué campos son obligatorios por entidad y tipo de contacto.',
 		path: '/configuracion/campos-obligatorios',
 	},
+	{
+		titulo: 'Políticas de autorización',
+		descripcion: 'Define qué transiciones documentales requieren autorización y en qué modo.',
+		path: '/configuracion/autorizaciones-reglas',
+	},
 ];

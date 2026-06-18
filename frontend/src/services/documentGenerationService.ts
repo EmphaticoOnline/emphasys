@@ -14,10 +14,15 @@ type TipoDocumento =
   | "nota_credito_compra"
   | "factura_compra";
 
+export type ModoAutorizacion = 'ninguna' | 'directa' | 'flujo' | null;
+
 export interface OpcionGeneracionResponse {
   tipo_documento_destino: TipoDocumento;
   nombre: string;
   orden?: number;
+  modo_autorizacion: ModoAutorizacion;
+  usuario_puede_autorizar: boolean | null;
+  rol_requerido: string | null;
 }
 
 export interface PrepararGeneracionPartida {
@@ -122,6 +127,24 @@ async function handleJsonResponse<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
+export class AutorizacionRequeridaError extends Error {
+  solicitud_id: number;
+  constructor(solicitud_id: number, mensaje: string) {
+    super(mensaje);
+    this.name = 'AutorizacionRequeridaError';
+    this.solicitud_id = solicitud_id;
+  }
+}
+
+export class SinPermisoAutorizacionError extends Error {
+  rol_requerido: string | null;
+  constructor(mensaje: string, rol_requerido: string | null) {
+    super(mensaje);
+    this.name = 'SinPermisoAutorizacionError';
+    this.rol_requerido = rol_requerido;
+  }
+}
+
 export async function getOpcionesGeneracion(
   documentoId: number,
   token: string,
@@ -170,5 +193,19 @@ export async function generarDocumentoDesdeOrigen(
     headers: buildHeaders(token, empresaId),
     body: JSON.stringify(payload),
   });
+
+  if (resp.status === 202) {
+    const body = await resp.json();
+    throw new AutorizacionRequeridaError(body.solicitud_id, body.mensaje ?? 'Se requiere autorización para esta transición.');
+  }
+
+  if (resp.status === 403) {
+    const body = await resp.json().catch(() => ({}));
+    throw new SinPermisoAutorizacionError(
+      body.error ?? 'No tiene permiso para ejecutar esta transición.',
+      body.rol_requerido ?? null
+    );
+  }
+
   return handleJsonResponse<GenerarDocumentoResultado>(resp);
 }

@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict xzq7URC06LxosOOzSsEoIeaPIB10NtHiDH9Og6RQ2dkcs8v9EsJzBdNzbfOFxsN
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -73,4 +75,6 @@ CREATE INDEX idx_codigos_postales_estado ON sat.codigos_postales USING btree (es
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict xzq7URC06LxosOOzSsEoIeaPIB10NtHiDH9Og6RQ2dkcs8v9EsJzBdNzbfOFxsN
 

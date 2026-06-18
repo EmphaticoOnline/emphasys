@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict EYIfdSxEbZT2BwGDEk9pMi6XKqzpBg8YsImz49mEm5eapFuXxRclngdsSwaOAdv
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -36,7 +38,8 @@ CREATE TABLE core.usuarios (
     activo boolean DEFAULT true,
     es_superadmin boolean DEFAULT false,
     created_at timestamp without time zone DEFAULT now(),
-    vendedor_contacto_id integer
+    vendedor_contacto_id integer,
+    ruta_inicio text
 );
 
 
@@ -101,6 +104,13 @@ COMMENT ON COLUMN core.usuarios.es_superadmin IS 'Usuario administrador global d
 --
 
 COMMENT ON COLUMN core.usuarios.created_at IS 'Fecha de creación del usuario';
+
+
+--
+-- Name: COLUMN usuarios.ruta_inicio; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.usuarios.ruta_inicio IS 'Ruta inicial sugerida al iniciar sesión';
 
 
 --
@@ -177,4 +187,6 @@ ALTER TABLE ONLY core.usuarios
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict EYIfdSxEbZT2BwGDEk9pMi6XKqzpBg8YsImz49mEm5eapFuXxRclngdsSwaOAdv
 

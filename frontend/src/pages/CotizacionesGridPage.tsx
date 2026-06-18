@@ -454,6 +454,7 @@ export default function CotizacionesGridPage() {
         {
           documento_origen_id: row.id,
           tipo_documento_destino: 'factura',
+          datos_encabezado: { fecha: toCivilDate() },
           partidas,
         },
         session.token,

@@ -325,3 +325,30 @@ export async function exportarDocumentos(payload: {
   });
   triggerBlobDownload(blob, filename);
 }
+
+// ─── Recepción resumen de Orden de Compra ────────────────────────────────────
+
+export type PartidaRecepcionResumen = {
+  partida_oc_id: number;
+  producto_id: number | null;
+  producto_descripcion: string | null;
+  producto_clave: string | null;
+  descripcion_alterna: string | null;
+  unidad: string | null;
+  numero_partida: number | null;
+  cantidad_ordenada: number;
+  cantidad_recibida: number;
+  cantidad_pendiente: number;
+};
+
+export type RecepcionResumenResponse = {
+  partidas: PartidaRecepcionResumen[];
+  estado_recepcion: 'abierta' | 'parcial' | 'cerrada';
+  total_ordenado: number;
+  total_recibido: number;
+  total_pendiente: number;
+};
+
+export function getRecepcionResumen(documentoId: number): Promise<RecepcionResumenResponse> {
+  return apiFetch(`/api/documentos/${documentoId}/recepcion-resumen`);
+}

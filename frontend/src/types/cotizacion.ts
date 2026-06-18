@@ -24,6 +24,7 @@ export interface CotizacionListado {
   comentario_seguimiento?: string | null;
   eliminara_oportunidad?: boolean;
   saldo?: number | null;
+  estado_autorizacion?: string | null;
 }
 
 export interface CotizacionDocumento {

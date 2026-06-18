@@ -6,8 +6,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict s0yj56FIFAtxNOuir81PWaJhvsEhqDnS9PYpsV2hTVB5TLVZ0OXLjV6PBQoiRbR
+
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
--- Dumped by pg_dump version 17.3
+-- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -55,4 +57,6 @@ ALTER TABLE ONLY whatsapp.contacto_mapeo
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict s0yj56FIFAtxNOuir81PWaJhvsEhqDnS9PYpsV2hTVB5TLVZ0OXLjV6PBQoiRbR
 

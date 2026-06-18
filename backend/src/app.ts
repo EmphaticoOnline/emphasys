@@ -63,6 +63,7 @@ import gridPreferencesRouter from "./modules/grid-preferences/grid-preferences.r
 import versionRouter from "./routes/version.routes";
 import cfdiCsdRouter from "./modules/cfdi/cfdi-csd.routes";
 import facturaGlobalRouter from "./modules/documentos/factura-global.routes";
+import autorizacionesRouter from "./modules/autorizaciones/autorizaciones.routes";
 import { FRONTEND_BUILD_VERSION } from "./config/version";
 
 const app = express();
@@ -166,6 +167,7 @@ app.use("/api/uploads", uploadsRouter);
 app.use("/api/crm", crmOportunidadesRouter);
 app.use("/api/version", versionRouter);
 app.use("/api/cfdi", cfdiCsdRouter);
+app.use("/api/autorizaciones", autorizacionesRouter);
 app.use("/api/factura-global", facturaGlobalRouter);
 
 app.get("/health", (_req, res) => {
