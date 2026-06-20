@@ -297,6 +297,7 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
     WHERE d.empresa_id = $1
       AND d.contacto_principal_id = $2
       AND d.tipo_documento = ANY($3::text[])
+      AND COALESCE(LOWER(TRIM(d.estatus_documento)), '') NOT IN ('cancelado', 'cancelada', 'borrador', '')
 
     UNION ALL
 

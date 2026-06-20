@@ -1872,8 +1872,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          {hasAction('aplicar_pago') && tipoDocumento === 'factura' && (
-            <Tooltip title={Number(params.row?.saldo ?? 0) > 0 ? 'Aplicar pago' : 'Factura sin saldo pendiente'}>
+          {hasAction('aplicar_pago') && (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra') && (
+            <Tooltip title={Number(params.row?.saldo ?? 0) > 0 ? 'Aplicar pago' : 'Documento sin saldo pendiente'}>
               <span>
                 <IconButton
                   size="small"
@@ -1886,7 +1886,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                       documentoId: Number(params.row?.id ?? 0) || null,
                       contactoId: Number(params.row?.contacto_principal_id ?? 0) || null,
                       saldo: Number(params.row?.saldo ?? 0),
-                      tipoDocumento: 'factura',
+                      tipoDocumento,
                     });
                   }}
                 >
@@ -2135,7 +2135,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         id: 'aplicar-pago',
         label: 'Aplicar pago',
         icon: <AccountBalanceWalletIcon fontSize="small" />,
-        hidden: !(hasAction('aplicar_pago') && tipoDocumento === 'factura'),
+        hidden: !(hasAction('aplicar_pago') && (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra')),
         disabled: loading || Number(contextMenuRow?.saldo ?? 0) <= 0,
         onClick: () => {
           setAplicarSaldoNcDrawer({
@@ -2143,7 +2143,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             documentoId: rowId,
             contactoId: Number(contextMenuRow?.contacto_principal_id ?? 0) || null,
             saldo: Number(contextMenuRow?.saldo ?? 0),
-            tipoDocumento: 'factura',
+            tipoDocumento,
           });
         },
       },

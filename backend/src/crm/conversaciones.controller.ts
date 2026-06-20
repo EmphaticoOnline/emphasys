@@ -5,6 +5,7 @@ import {
   sendDocumentMessage,
   sendImageMessage,
   sendTemplateMessage,
+  sendTemplateMensajeDirecta,
   sendTextMessage,
   WhatsappWindowExpiredError,
 } from "../whatsapp/whatsapp.service";
@@ -15,6 +16,7 @@ import {
   DEFAULT_WHATSAPP_TEMPLATE_ACTION,
   resolverTipoPlantillaWhatsapp,
 } from "../whatsapp/whatsapp-template-type.service";
+import { obtenerPlantillaWhatsappPorId } from "../whatsapp/whatsapp-plantillas.service";
 import { obtenerRolesDeUsuarioEnEmpresa, obtenerUsuarioPorId } from "../modules/auth/auth.service";
 import {
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappRepo,
@@ -1220,12 +1222,13 @@ export const quitarEtiquetaConversacionWhatsapp = async (req: Request, res: Resp
 export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
-    const { telefono, tipo } = req.body || {};
+    const { telefono, tipo, plantilla_id, params } = req.body || {};
 
     console.info('[WhatsApp Template Controller] Solicitud recibida', {
       empresaId,
       telefono,
       tipo,
+      plantilla_id,
     });
 
     if (!empresaId) {
@@ -1236,23 +1239,33 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "telefono es requerido" });
     }
 
-    const accionPlantilla = String(tipo ?? DEFAULT_WHATSAPP_TEMPLATE_ACTION).trim() || DEFAULT_WHATSAPP_TEMPLATE_ACTION;
-    let tipoPlantilla: string;
+    const templateParams: string[] = Array.isArray(params) ? params.map(String) : [];
 
-    try {
-      tipoPlantilla = resolverTipoPlantillaWhatsapp(accionPlantilla);
-    } catch (error) {
-      return res.status(400).json({ message: (error as Error).message });
+    let respuesta: any;
+
+    if (plantilla_id) {
+      const plantilla = await obtenerPlantillaWhatsappPorId(Number(empresaId), Number(plantilla_id));
+      if (!plantilla) {
+        return res.status(404).json({ message: "Plantilla no encontrada" });
+      }
+      if (!plantilla.activa) {
+        return res.status(409).json({ message: "La plantilla no está activa" });
+      }
+      respuesta = await sendTemplateMensajeDirecta(Number(empresaId), String(telefono), plantilla, templateParams);
+    } else {
+      const accionPlantilla = String(tipo ?? DEFAULT_WHATSAPP_TEMPLATE_ACTION).trim() || DEFAULT_WHATSAPP_TEMPLATE_ACTION;
+      let tipoPlantilla: string;
+
+      try {
+        tipoPlantilla = resolverTipoPlantillaWhatsapp(accionPlantilla);
+      } catch (error) {
+        return res.status(400).json({ message: (error as Error).message });
+      }
+
+      respuesta = await sendTemplateMessage(Number(empresaId), String(telefono), tipoPlantilla, templateParams);
     }
 
-    const respuesta = await sendTemplateMessage(Number(empresaId), String(telefono), tipoPlantilla);
-
-    console.info('[WhatsApp Template Controller] Respuesta de sendTemplateMessage', {
-      empresaId,
-      telefono,
-      tipoPlantilla,
-      respuesta,
-    });
+    console.info('[WhatsApp Template Controller] Respuesta', { empresaId, telefono, respuesta });
 
     if (respuesta?.error) {
       return res.status(409).json({ message: respuesta.message || "No hay plantilla disponible" });

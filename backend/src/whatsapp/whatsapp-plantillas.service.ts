@@ -1,5 +1,11 @@
 import pool from "../config/database";
 
+export type ParametroPlantilla = {
+  variable: number;
+  label: string;
+  origen: 'manual' | 'contacto.nombre' | 'contacto.telefono' | 'contacto.empresa';
+};
+
 export type WhatsappPlantilla = {
   id: number;
   empresa_id: number;
@@ -9,6 +15,8 @@ export type WhatsappPlantilla = {
   provider_template_id: string;
   es_default: boolean;
   activa: boolean;
+  contenido?: string | null;
+  configuracion_parametros?: ParametroPlantilla[] | null;
 };
 
 export type PlantillaPayload = {
@@ -18,6 +26,8 @@ export type PlantillaPayload = {
   provider_template_id: string;
   es_default: boolean;
   activa?: boolean;
+  contenido?: string | null;
+  configuracion_parametros?: ParametroPlantilla[] | null;
 };
 
 export type PlantillaUpdatePayload = Partial<PlantillaPayload>;
@@ -26,7 +36,7 @@ export async function crearPlantilla(
   empresaId: number,
   payload: PlantillaPayload
 ): Promise<WhatsappPlantilla> {
-  const { nombre_interno, tipo, proveedor, provider_template_id, es_default, activa = true } = payload;
+  const { nombre_interno, tipo, proveedor, provider_template_id, es_default, activa = true, contenido = null, configuracion_parametros = null } = payload;
 
   const client = await pool.connect();
   try {
@@ -43,10 +53,10 @@ export async function crearPlantilla(
 
     const { rows } = await client.query<WhatsappPlantilla>(
       `INSERT INTO whatsapp.plantillas
-         (empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa`,
-      [empresaId, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa]
+         (empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros`,
+      [empresaId, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros ? JSON.stringify(configuracion_parametros) : null]
     );
 
     await client.query("COMMIT");
@@ -73,6 +83,10 @@ export async function actualizarPlantilla(
   const provider_template_id = payload.provider_template_id ?? current.provider_template_id;
   const es_default = payload.es_default ?? current.es_default;
   const activa = payload.activa ?? current.activa;
+  const contenido = 'contenido' in payload ? (payload.contenido ?? null) : (current.contenido ?? null);
+  const configuracion_parametros = 'configuracion_parametros' in payload
+    ? (payload.configuracion_parametros ?? null)
+    : (current.configuracion_parametros ?? null);
 
   const client = await pool.connect();
   try {
@@ -95,10 +109,12 @@ export async function actualizarPlantilla(
               provider_template_id = $4,
               es_default = $5,
               activa = $6,
+              contenido = $7,
+              configuracion_parametros = $8,
               actualizado_en = NOW()
-        WHERE id = $7 AND empresa_id = $8
-        RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa`,
-      [nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, plantillaId, empresaId]
+        WHERE id = $9 AND empresa_id = $10
+        RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros`,
+      [nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros ? JSON.stringify(configuracion_parametros) : null, plantillaId, empresaId]
     );
 
     await client.query("COMMIT");
@@ -126,7 +142,9 @@ export async function listarPlantillasWhatsapp(
       proveedor,
       provider_template_id,
       es_default,
-      activa
+      activa,
+      contenido,
+      configuracion_parametros
     FROM whatsapp.plantillas
     WHERE empresa_id = $1
       ${filtroActiva}
@@ -152,7 +170,9 @@ export async function obtenerPlantillaWhatsappPorId(
       proveedor,
       provider_template_id,
       es_default,
-      activa
+      activa,
+      contenido,
+      configuracion_parametros
     FROM whatsapp.plantillas
     WHERE empresa_id = $1
       AND id = $2
@@ -177,7 +197,9 @@ export async function resolverPlantillaWhatsapp(
       proveedor,
       provider_template_id,
       es_default,
-      activa
+      activa,
+      contenido,
+      configuracion_parametros
     FROM whatsapp.plantillas
     WHERE empresa_id = $1
       AND tipo = $2
@@ -201,7 +223,9 @@ export async function resolverPlantillaWhatsapp(
       proveedor,
       provider_template_id,
       es_default,
-      activa
+      activa,
+      contenido,
+      configuracion_parametros
     FROM whatsapp.plantillas
     WHERE empresa_id = $1
       AND tipo = $2

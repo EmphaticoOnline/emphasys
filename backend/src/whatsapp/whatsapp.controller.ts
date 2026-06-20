@@ -20,6 +20,7 @@ import {
   listarPlantillasWhatsapp as listarPlantillasWhatsappRepo,
   crearPlantilla as crearPlantillaRepo,
   actualizarPlantilla as actualizarPlantillaRepo,
+  type ParametroPlantilla,
 } from "./whatsapp-plantillas.service";
 
 const TIPOS_VALIDOS = [
@@ -30,6 +31,20 @@ const TIPOS_VALIDOS = [
   "reactivacion",
   "seguimiento",
 ];
+
+const ORIGENES_VALIDOS = ["manual", "contacto.nombre", "contacto.telefono", "contacto.empresa"] as const;
+
+function parseConfiguracionParametros(raw: unknown): ParametroPlantilla[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  return raw
+    .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
+    .map((item) => ({
+      variable: Number(item.variable),
+      label: typeof item.label === "string" ? item.label.trim() : `Variable ${item.variable}`,
+      origen: ORIGENES_VALIDOS.includes(item.origen as any) ? (item.origen as ParametroPlantilla["origen"]) : "manual",
+    }))
+    .filter((item) => Number.isFinite(item.variable) && item.variable > 0);
+}
 
 export const whatsappWebhook = async (req: Request, res: Response) => {
     console.log("WEBHOOK EJECUTADO", new Date().toISOString());
@@ -94,6 +109,8 @@ export const crearPlantillaController = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "provider_template_id es requerido" });
     }
 
+    const { contenido, configuracion_parametros } = req.body as Record<string, unknown>;
+
     const plantilla = await crearPlantillaRepo(empresaId, {
       nombre_interno: nombre_interno.trim(),
       tipo,
@@ -101,6 +118,8 @@ export const crearPlantillaController = async (req: Request, res: Response) => {
       provider_template_id: (provider_template_id as string).trim(),
       es_default: Boolean(es_default),
       activa: activa === undefined ? true : Boolean(activa),
+      contenido: typeof contenido === "string" && contenido.trim() ? contenido.trim() : null,
+      configuracion_parametros: parseConfiguracionParametros(configuracion_parametros),
     });
 
     return res.status(201).json(plantilla);
@@ -151,6 +170,12 @@ export const actualizarPlantillaController = async (req: Request, res: Response)
     }
     if (body.es_default !== undefined) payload.es_default = Boolean(body.es_default);
     if (body.activa !== undefined) payload.activa = Boolean(body.activa);
+    if (body.contenido !== undefined) {
+      payload.contenido = typeof body.contenido === "string" && body.contenido.trim() ? body.contenido.trim() : null;
+    }
+    if (body.configuracion_parametros !== undefined) {
+      payload.configuracion_parametros = parseConfiguracionParametros(body.configuracion_parametros);
+    }
 
     const plantilla = await actualizarPlantillaRepo(empresaId, plantillaId, payload);
     if (!plantilla) {

@@ -13,7 +13,7 @@ import {
   registrarMensajeTextoSalienteWhatsapp,
 } from "../crm/conversaciones.service";
 import { getWhatsappConfig } from "./whatsapp-config.service";
-import { resolverPlantillaWhatsapp } from "./whatsapp-plantillas.service";
+import { resolverPlantillaWhatsapp, type WhatsappPlantilla } from "./whatsapp-plantillas.service";
 
 const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 const GUPSHUP_TEMPLATE_API_URL = "https://api.gupshup.io/wa/api/v1/template/msg";
@@ -463,14 +463,16 @@ export const sendTemplateMessage = async (
         payload = qs.stringify({
           channel: "whatsapp",
           source: config.phone_number,
+          "src.name": config.app_name,
           destination: destinoGupshup,
+          template: JSON.stringify({
+            id: plantilla.provider_template_id,
+            params,
+          }),
           message: JSON.stringify({
-            type: "template",
-            template: {
-              id: plantilla.provider_template_id,
-              params
-            }
-          })
+            type: "text",
+            text: "text",
+          }),
         });
         break;
       default:
@@ -481,7 +483,7 @@ export const sendTemplateMessage = async (
 
     console.log('[WhatsApp] API KEY EN USO:', config.api_key);
     const response = await axios.post(
-      GUPSHUP_API_URL,
+      GUPSHUP_TEMPLATE_API_URL,
       payload,
       {
         headers: {
@@ -650,6 +652,80 @@ export const sendTemplateDocumentMessage = async (
       status: error?.response?.status,
       data: error?.response?.data,
       providerResponse: error?.response?.data,
+    });
+    throw error;
+  }
+};
+
+export const sendTemplateMensajeDirecta = async (
+  empresaId: number,
+  to: string,
+  plantilla: WhatsappPlantilla,
+  params: string[] = []
+) => {
+  try {
+    const config = await getWhatsappConfig(empresaId);
+
+    const destinoNormalizado = normalizarTelefono(to);
+    const destinoGupshup = String(to).replace(/\D/g, '');
+    if (!destinoGupshup) {
+      throw new Error("telefono inválido o vacío para WhatsApp");
+    }
+
+    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
+
+    const proveedorNormalized = plantilla.proveedor?.toLowerCase();
+    let payload: string;
+
+    switch (proveedorNormalized) {
+      case "gupshup":
+        payload = qs.stringify({
+          channel: "whatsapp",
+          source: config.phone_number,
+          "src.name": config.app_name,
+          destination: destinoGupshup,
+          template: JSON.stringify({
+            id: plantilla.provider_template_id,
+            params,
+          }),
+          message: JSON.stringify({
+            type: "text",
+            text: "text",
+          }),
+        });
+        break;
+      default:
+        throw new Error(`Proveedor de WhatsApp no soportado: ${plantilla.proveedor}`);
+    }
+
+    const response = await axios.post(
+      GUPSHUP_TEMPLATE_API_URL,
+      payload,
+      {
+        headers: {
+          apikey: config.api_key,
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
+
+    await registrarMensajePlantillaSalienteWhatsapp(
+      empresaId,
+      conversacionId,
+      destinoGupshup,
+      `Plantilla: ${plantilla.nombre_interno}`,
+      response.data?.messageId || null
+    );
+
+    await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
+
+    return { ...response.data, plantilla_usada: plantilla.provider_template_id };
+  } catch (error: any) {
+    console.error("[WhatsApp Template Directa] API Error", {
+      message: error?.message,
+      status: error?.response?.status,
+      data: error?.response?.data,
     });
     throw error;
   }

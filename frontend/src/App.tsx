@@ -38,6 +38,10 @@ import ActividadFormPage from './pages/ActividadFormPage';
 import OportunidadDetallePage from './pages/OportunidadDetallePage';
 import CotizacionesGridPage from './pages/CotizacionesGridPage';
 import AIReportesPage from './pages/AIReportesPage';
+import InformesPage from './pages/informes/InformesPage';
+import EstadoCuentaProveedorPage from './pages/informes/compras/EstadoCuentaProveedorPage';
+import EstadoCuentaClientePage from './pages/informes/ventas/EstadoCuentaClientePage';
+import ComprasPorProveedorPage from './pages/informes/compras/ComprasPorProveedorPage';
 import ProduccionPage from './pages/ProduccionPage';
 import ConfiguracionEtapasProduccionPage from './pages/ConfiguracionEtapasProduccionPage';
 import ListasPreciosPage from './pages/configuracion/ListasPreciosPage';
@@ -93,7 +97,11 @@ export default function App() {
               <Route path="/finanzas" element={<FinanzasPage />} />
               <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
               <Route path="/inventario/movimientos/nuevo" element={<InventarioMovimientoFormPage />} />
+              <Route path="/informes" element={<InformesPage />} />
               <Route path="/informes/ia" element={<AIReportesPage />} />
+              <Route path="/informes/compras/compras-por-proveedor"    element={<ComprasPorProveedorPage />} />
+              <Route path="/informes/compras/estado-cuenta-proveedor" element={<EstadoCuentaProveedorPage />} />
+              <Route path="/informes/ventas/estado-cuenta-cliente"    element={<EstadoCuentaClientePage />} />
 
               {/* Configuración */}
               <Route path="/configuracion" element={<ConfiguracionPage />} />

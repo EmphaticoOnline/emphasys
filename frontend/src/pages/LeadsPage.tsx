@@ -42,6 +42,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, buildAuthHeaders } from '../api/apiClient';
 import { useSession } from '../session/useSession';
+import { SendWhatsappTemplateDialog } from '../components/SendWhatsappTemplateDialog';
 import { fetchContactos } from '../services/contactosService';
 import type { Contacto } from '../types/contactos.types';
 import { actualizarContacto } from '../services/contactos.api';
@@ -479,7 +480,6 @@ export default function LeadsPage() {
   const [isUploadingImage, setIsUploadingImage] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
-  const [isSendingTemplate, setIsSendingTemplate] = React.useState(false);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = React.useState(false);
   const [sendSuccess, setSendSuccess] = React.useState(false);
   const [reglasSeguimiento, setReglasSeguimiento] = React.useState<ReglasSeguimiento>(DEFAULT_REGLAS_SEGUIMIENTO);
@@ -1826,38 +1826,16 @@ export default function LeadsPage() {
     setIsTemplateDialogOpen(true);
   };
 
-  const handleConfirmTemplateSend = async () => {
+  const handleTemplateSuccess = (plantillaNombre: string) => {
     if (!selectedLead) return;
-
-    setIsSendingTemplate(true);
-    try {
-      const response = await apiFetch('/api/whatsapp/enviar-plantilla', {
-        method: 'POST',
-        body: JSON.stringify({
-          telefono: selectedLead.phone,
-          tipo: 'reactivacion',
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data?.message || 'No se pudo enviar la plantilla');
-      }
-
-      const nowIso = new Date().toISOString();
-      updateLead(selectedLead.id, {
-        ultimoMensajeEn: nowIso,
-        lastMessage: 'Plantilla de reactivación enviada',
-      });
-      setSnackbar({ open: true, message: 'Conversación reactivada', severity: 'success' });
-      loadConversations({ incremental: true });
-      setIsTemplateDialogOpen(false);
-    } catch (error: any) {
-      console.error('Error enviando plantilla:', error);
-      setSnackbar({ open: true, message: error?.message || 'No se pudo enviar la plantilla', severity: 'error' });
-    } finally {
-      setIsSendingTemplate(false);
-    }
+    const nowIso = new Date().toISOString();
+    updateLead(selectedLead.id, {
+      ultimoMensajeEn: nowIso,
+      lastMessage: `Plantilla enviada: ${plantillaNombre}`,
+    });
+    setSnackbar({ open: true, message: `Plantilla "${plantillaNombre}" enviada correctamente`, severity: 'success' });
+    loadConversations({ incremental: true });
+    setIsTemplateDialogOpen(false);
   };
 
   const urgentLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes > 180);
@@ -2693,10 +2671,9 @@ export default function LeadsPage() {
                       size="small"
                       startIcon={<DescriptionIcon />}
                       onClick={handleSendTemplate}
-                      disabled={isSendingTemplate}
                       sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
                     >
-                      {isSendingTemplate ? 'Reactivando…' : 'Reactivar conversación'}
+                      Enviar plantilla
                     </Button>
                     <Button
                       variant="outlined"
@@ -2790,37 +2767,17 @@ export default function LeadsPage() {
                 )}
               </Paper>
 
-              <Dialog
+              <SendWhatsappTemplateDialog
                 open={isTemplateDialogOpen}
-                onClose={() => !isSendingTemplate && setIsTemplateDialogOpen(false)}
-                maxWidth="xs"
-                fullWidth
-              >
-                <DialogTitle>Reactivar conversación</DialogTitle>
-                <DialogContent>
-                  <Typography variant="body2" color="text.secondary">
-                    Se enviará un mensaje para reactivar la conversación con el cliente.
-                    Después podrás escribir normalmente.
-                  </Typography>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                  <Button
-                    onClick={() => setIsTemplateDialogOpen(false)}
-                    disabled={isSendingTemplate}
-                    variant="outlined"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={handleConfirmTemplateSend}
-                    disabled={isSendingTemplate}
-                    variant="contained"
-                    color="warning"
-                  >
-                    {isSendingTemplate ? 'Reactivando…' : 'Reactivar'}
-                  </Button>
-                </DialogActions>
-              </Dialog>
+                onClose={() => setIsTemplateDialogOpen(false)}
+                telefono={selectedLead.phone ?? ''}
+                contacto={{
+                  nombre: selectedContacto?.nombre || selectedLead.name || null,
+                  telefono: selectedLead.phone || null,
+                  empresa: selectedContacto?.zona || null,
+                }}
+                onSuccess={handleTemplateSuccess}
+              />
 
               <Stack spacing={1}>
                 <Typography variant="subtitle2" color="text.secondary">

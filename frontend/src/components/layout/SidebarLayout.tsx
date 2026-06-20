@@ -93,7 +93,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Finanzas',      path: '/finanzas',              icon: AccountBalanceIcon },
   { label: 'Inventarios',   path: '/inventario/movimientos', icon: InventoryIcon },
   { label: 'Almacenes',     path: '/almacenes',             icon: WarehouseIcon },
-  { label: 'Informes',      path: '/informes/ia',           icon: BarChartIcon },
+  { label: 'Informes',      path: '/informes',              icon: BarChartIcon },
   { label: 'Autorizaciones', path: '/autorizaciones',        icon: VerifiedUserIcon },
   { label: 'Configuración', path: '/configuracion',         icon: SettingsIcon },
 ];

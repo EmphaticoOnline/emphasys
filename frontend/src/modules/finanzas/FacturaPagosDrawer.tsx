@@ -131,7 +131,8 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
   const ariaPendientes = esNotaCredito ? 'Documentos de cargo pendientes' : 'Facturas pendientes';
   const emptyPendientes = esNotaCredito ? 'No hay documentos de cargo pendientes' : 'No hay documentos de abono disponibles';
   const etiquetaDocumento = esNotaCredito ? (tipoDocumento === 'nota_credito_compra' ? 'Nota de credito de compra' : 'Nota de credito') : 'Documento';
-  const etiquetaContacto = tipoDocumento === 'nota_credito_compra' ? 'Proveedor' : 'Cliente';
+  const esModuloCompras = tipoDocumentoNormalizado === 'factura_compra' || tipoDocumentoNormalizado === 'nota_credito_compra' || tipoDocumentoNormalizado === 'pago_proveedor' || tipoDocumentoNormalizado === 'ajuste_proveedor';
+  const etiquetaContacto = esModuloCompras ? 'Proveedor' : 'Cliente';
   const documentosCompatibles = useMemo(() => TIPOS_DOCUMENTO_ORIGEN_COMPATIBLES[tipoDocumentoNormalizado] ?? [], [tipoDocumentoNormalizado]);
 
   const effectiveSaldo = Number(saldoDocumento?.saldo ?? saldo ?? 0);
@@ -193,7 +194,12 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
       setDocumentoMeta(documentoData ? {
         folio: formatearFolioDocumento(documentoData.documento?.serie || '', documentoData.documento?.numero || 0),
         fechaDocumento: documentoData.documento?.fecha_documento || '',
-        contactoNombre: String((documentoData.documento as any)?.nombre_cliente || documentoData.documento?.nombre_receptor || '').trim(),
+        contactoNombre: String(
+          (documentoData.documento as any)?.nombre_cliente ||
+          (documentoData.documento as any)?.cliente_nombre ||
+          documentoData.documento?.nombre_receptor ||
+          ''
+        ).trim(),
         empresaId: Number(documentoData.documento?.empresa_id ?? 0) || null,
         moneda: String(documentoData.documento?.moneda || saldoData?.moneda || 'MXN'),
       } : null);
@@ -394,7 +400,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             {esNotaCredito ? (
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }} mt={0.5}>
                 <Typography variant="body2" color="text.secondary">
-                  {etiquetaContacto}: {documentoMeta?.contactoNombre || '—'}
+                  {etiquetaContacto}: <strong>{documentoMeta?.contactoNombre || '—'}</strong>
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Fecha: {documentoMeta?.fechaDocumento ? formatDateShort(documentoMeta.fechaDocumento) : '—'}
@@ -406,7 +412,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             ) : (
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.25, sm: 2 }} mt={0.5}>
                 <Typography variant="body2" color="text.secondary">
-                  {etiquetaContacto}: {documentoMeta?.contactoNombre || '—'}
+                  {etiquetaContacto}: <strong>{documentoMeta?.contactoNombre || '—'}</strong>
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Fecha: {documentoMeta?.fechaDocumento ? formatDateShort(documentoMeta.fechaDocumento) : '—'}

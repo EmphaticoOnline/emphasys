@@ -12,9 +12,15 @@ import {
   IconButton,
   InputAdornment,
   MenuItem,
+  Select,
   Snackbar,
   Stack,
   Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Tooltip,
   Typography,
@@ -29,6 +35,8 @@ import {
   actualizarWhatsappPlantilla,
   crearWhatsappPlantilla,
   fetchWhatsappPlantillas,
+  type OrigenParametro,
+  type ParametroPlantilla,
   type PlantillaAdminPayload,
   type WhatsappPlantillaOption,
 } from '../../services/whatsappPlantillasService';
@@ -50,6 +58,13 @@ const TIPOS_PLANTILLA = [
 
 type TipoPlantilla = typeof TIPOS_PLANTILLA[number];
 
+const ORIGENES: { value: OrigenParametro; label: string }[] = [
+  { value: 'manual', label: 'Manual (el usuario lo ingresa)' },
+  { value: 'contacto.nombre', label: 'Nombre del contacto' },
+  { value: 'contacto.telefono', label: 'Teléfono del contacto' },
+  { value: 'contacto.empresa', label: 'Empresa del contacto' },
+];
+
 type FormState = {
   nombre_interno: string;
   tipo: TipoPlantilla | '';
@@ -57,6 +72,8 @@ type FormState = {
   provider_template_id: string;
   es_default: boolean;
   activa: boolean;
+  contenido: string;
+  configuracion_parametros: ParametroPlantilla[];
 };
 
 const EMPTY_FORM: FormState = {
@@ -66,7 +83,26 @@ const EMPTY_FORM: FormState = {
   provider_template_id: '',
   es_default: false,
   activa: true,
+  contenido: '',
+  configuracion_parametros: [],
 };
+
+function extractVariableIndices(contenido: string): number[] {
+  const matches = contenido.match(/\{\{(\d+)\}\}/g) ?? [];
+  const indices = [...new Set(matches.map((m) => Number(m.replace(/\{\{|\}\}/g, ''))))];
+  indices.sort((a, b) => a - b);
+  return indices.filter((n) => n > 0);
+}
+
+function syncParametros(
+  current: ParametroPlantilla[],
+  indices: number[]
+): ParametroPlantilla[] {
+  const byVar = new Map(current.map((p) => [p.variable, p]));
+  return indices.map((v) =>
+    byVar.get(v) ?? { variable: v, label: `Variable ${v}`, origen: 'manual' as OrigenParametro }
+  );
+}
 
 export default function WhatsappPlantillasPage() {
   const [rows, setRows] = React.useState<WhatsappPlantillaOption[]>([]);
@@ -110,6 +146,8 @@ export default function WhatsappPlantillasPage() {
 
   const handleEdit = (row: WhatsappPlantillaOption) => {
     setEditing(row);
+    const indices = extractVariableIndices(row.contenido ?? '');
+    const configActual = Array.isArray(row.configuracion_parametros) ? row.configuracion_parametros : [];
     setForm({
       nombre_interno: row.nombre_interno,
       tipo: row.tipo as TipoPlantilla,
@@ -117,6 +155,8 @@ export default function WhatsappPlantillasPage() {
       provider_template_id: row.provider_template_id,
       es_default: row.es_default,
       activa: row.activa,
+      contenido: row.contenido ?? '',
+      configuracion_parametros: syncParametros(configActual, indices),
     });
     setDialogOpen(true);
   };
@@ -128,27 +168,33 @@ export default function WhatsappPlantillasPage() {
     setForm(EMPTY_FORM);
   };
 
+  const handleContenidoChange = (value: string) => {
+    const indices = extractVariableIndices(value);
+    setForm((prev) => ({
+      ...prev,
+      contenido: value,
+      configuracion_parametros: syncParametros(prev.configuracion_parametros, indices),
+    }));
+  };
+
+  const handleParamChange = (variable: number, field: 'label' | 'origen', value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      configuracion_parametros: prev.configuracion_parametros.map((p) =>
+        p.variable === variable ? { ...p, [field]: value } : p
+      ),
+    }));
+  };
+
   const handleSave = async () => {
     const nombre_interno = form.nombre_interno.trim();
     const proveedor = form.proveedor.trim();
     const provider_template_id = form.provider_template_id.trim();
 
-    if (!nombre_interno) {
-      setError('El nombre interno es obligatorio');
-      return;
-    }
-    if (!form.tipo) {
-      setError('El tipo es obligatorio');
-      return;
-    }
-    if (!proveedor) {
-      setError('El proveedor es obligatorio');
-      return;
-    }
-    if (!provider_template_id) {
-      setError('El ID de plantilla del proveedor es obligatorio');
-      return;
-    }
+    if (!nombre_interno) { setError('El nombre interno es obligatorio'); return; }
+    if (!form.tipo) { setError('El tipo es obligatorio'); return; }
+    if (!proveedor) { setError('El proveedor es obligatorio'); return; }
+    if (!provider_template_id) { setError('El ID de plantilla del proveedor es obligatorio'); return; }
 
     const payload: PlantillaAdminPayload = {
       nombre_interno,
@@ -157,6 +203,8 @@ export default function WhatsappPlantillasPage() {
       provider_template_id,
       es_default: form.es_default,
       activa: form.activa,
+      contenido: form.contenido.trim() || null,
+      configuracion_parametros: form.configuracion_parametros.length > 0 ? form.configuracion_parametros : null,
     };
 
     try {
@@ -199,7 +247,6 @@ export default function WhatsappPlantillasPage() {
 
   const filteredRows = React.useMemo(() => {
     const term = search.trim().toLowerCase();
-
     return rows.filter((row) => {
       if (estadoFilter === 'activas' && !row.activa) return false;
       if (estadoFilter === 'inactivas' && row.activa) return false;
@@ -256,31 +303,15 @@ export default function WhatsappPlantillasPage() {
   );
 
   const baseColumns: GridColDef<WhatsappPlantillaOption>[] = [
-    {
-      field: 'nombre_interno',
-      headerName: 'Nombre interno',
-      flex: 1,
-      minWidth: 180,
-    },
+    { field: 'nombre_interno', headerName: 'Nombre interno', flex: 1, minWidth: 180 },
     {
       field: 'tipo',
       headerName: 'Tipo',
       width: 200,
-      renderCell: (params) => (
-        <Chip size="small" label={params.row.tipo} variant="outlined" />
-      ),
+      renderCell: (params) => <Chip size="small" label={params.row.tipo} variant="outlined" />,
     },
-    {
-      field: 'proveedor',
-      headerName: 'Proveedor',
-      width: 120,
-    },
-    {
-      field: 'provider_template_id',
-      headerName: 'ID en proveedor',
-      flex: 1,
-      minWidth: 180,
-    },
+    { field: 'proveedor', headerName: 'Proveedor', width: 120 },
+    { field: 'provider_template_id', headerName: 'ID en proveedor', flex: 1, minWidth: 180 },
     {
       field: 'es_default',
       headerName: 'Default',
@@ -288,9 +319,7 @@ export default function WhatsappPlantillasPage() {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) =>
-        params.row.es_default ? (
-          <Chip size="small" label="Default" color="primary" variant="filled" />
-        ) : null,
+        params.row.es_default ? <Chip size="small" label="Default" color="primary" variant="filled" /> : null,
     },
     {
       field: 'activa',
@@ -340,6 +369,8 @@ export default function WhatsappPlantillasPage() {
     () => [contextMenuTriggerColumn, ...baseColumns],
     [contextMenuTriggerColumn]
   );
+
+  const detectedIndices = extractVariableIndices(form.contenido);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -446,7 +477,7 @@ export default function WhatsappPlantillasPage() {
         onClose={closeContextMenu}
       />
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="sm">
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="md">
         <DialogTitle>{editing ? 'Editar plantilla' : 'Nueva plantilla'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           <TextField
@@ -483,6 +514,78 @@ export default function WhatsappPlantillasPage() {
             onChange={(event) => setForm((prev) => ({ ...prev, provider_template_id: event.target.value }))}
             required
           />
+
+          <TextField
+            size="small"
+            label="Contenido (opcional)"
+            value={form.contenido}
+            onChange={(event) => handleContenidoChange(event.target.value)}
+            multiline
+            minRows={3}
+            maxRows={8}
+            placeholder={'Hola {{1}}, tu cotización {{2}} está lista.'}
+            helperText="Usa {{1}}, {{2}}, etc. para definir variables. Detectarán automáticamente los parámetros de abajo."
+          />
+
+          {detectedIndices.length > 0 && (
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Configuración de parámetros
+              </Typography>
+              <Box
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                }}
+              >
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: 'action.hover' }}>
+                      <TableCell sx={{ width: 80, fontWeight: 600 }}>Variable</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Etiqueta</TableCell>
+                      <TableCell sx={{ width: 260, fontWeight: 600 }}>Origen</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {form.configuracion_parametros.map((param) => (
+                      <TableRow key={param.variable}>
+                        <TableCell>
+                          <Chip size="small" label={`{{${param.variable}}}`} variant="outlined" />
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            fullWidth
+                            value={param.label}
+                            onChange={(e) => handleParamChange(param.variable, 'label', e.target.value)}
+                            placeholder={`Etiqueta para la variable ${param.variable}`}
+                            variant="standard"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            size="small"
+                            fullWidth
+                            value={param.origen}
+                            onChange={(e) => handleParamChange(param.variable, 'origen', e.target.value)}
+                          >
+                            {ORIGENES.map((o) => (
+                              <MenuItem key={o.value} value={o.value}>
+                                {o.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            </Box>
+          )}
+
           <FormControlLabel
             control={
               <Switch
