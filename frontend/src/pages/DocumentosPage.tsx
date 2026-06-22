@@ -92,7 +92,7 @@ import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoP
 import { fetchAnticiposDisponiblesDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
-import { formatearFolioDocumento } from '../utils/documentos.utils';
+import { resolverFolioVisual } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
 import { useSession } from '../session/useSession';
 import type { DocumentoAccion } from '../modules/documentos/documentoTypes';
@@ -1305,7 +1305,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       id: Number(row.id),
       tipoDocumento,
       tipoDocumentoLabel: tipoDocumentoMeta?.nombre || textos.singular,
-      folio: formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0)) || String(row.id),
+      folio: resolverFolioVisual(row, tipoDocumento) || String(row.id),
       cliente: row?.nombre_cliente || `Sin ${contactoLabelLower}`,
       total: row?.total ?? null,
       telefono: obtenerTelefonoDocumento(row),
@@ -1314,7 +1314,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   }, [enviarWhatsappDialog.id, rows, tipoDocumento, tiposDocumento, textos.singular, obtenerTelefonoDocumento]);
 
   const abrirDialogoEnviarCotizacion = (row: CotizacionListado) => {
-    const folio = formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0));
+    const folio = resolverFolioVisual(row, tipoDocumento);
     const emailInicial = obtenerEmailDocumento(row);
     const esCotizacion = tipoDocumento === 'cotizacion';
     const etiquetaDocumento = esCotizacion ? 'Cotizacion' : documentoTypeConfig.label;
@@ -1402,7 +1402,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
   const abrirDrawerProduccion = useCallback(async (row: CotizacionListado) => {
     const documentoId = Number(row.id);
-    const titulo = formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0)) || String(documentoId);
+    const titulo = resolverFolioVisual(row, tipoDocumento) || String(documentoId);
 
     setProduccionDrawer({
       open: true,
@@ -1491,7 +1491,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         width: 160,
         headerClassName: 'finanzas-header',
         renderCell: (params: any) =>
-          formatearFolioDocumento(params?.row?.serie ?? '', Number(params?.row?.numero ?? 0)),
+          resolverFolioVisual(params?.row, tipoDocumento),
       },
       {
         field: 'fecha_documento',
@@ -1992,7 +1992,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                     console.info('[CFDI WhatsApp] Abrir modal de envio', {
                       documentoId: Number(params.row.id),
                       tipoDocumento,
-                      folio: formatearFolioDocumento(params.row?.serie ?? '', Number(params.row?.numero ?? 0)) || String(params.row.id),
+                      folio: resolverFolioVisual(params.row, tipoDocumento) || String(params.row.id),
                     });
                     setEnviarWhatsappDialog({ open: true, id: Number(params.row.id) });
                   }}
@@ -2216,7 +2216,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           console.info('[CFDI WhatsApp] Abrir modal de envio', {
             documentoId: rowId,
             tipoDocumento,
-            folio: formatearFolioDocumento(contextMenuRow?.serie ?? '', Number(contextMenuRow?.numero ?? 0)) || String(rowId),
+            folio: resolverFolioVisual(contextMenuRow, tipoDocumento) || String(rowId),
           });
           setEnviarWhatsappDialog({ open: true, id: rowId });
         },
@@ -2950,7 +2950,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       contextMenuPosition={contextMenuPosition}
       contextMenuOpen={Boolean(contextMenuRow)}
       onCloseContextMenu={closeGridContextMenu}
-      formatFolio={(row) => formatearFolioDocumento(row?.serie ?? '', Number(row?.numero ?? 0)) || String(row.id)}
+      formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
       formatDate={formatCivilDate}
       currency={currency}
     />

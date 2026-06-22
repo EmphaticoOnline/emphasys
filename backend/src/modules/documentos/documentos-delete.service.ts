@@ -38,6 +38,24 @@ async function cotizacionTieneDocumentosPosteriores(documentoId: number, client:
 }
 
 async function eliminarDocumentoBase(documentoId: number, empresaId: number, tipoDocumento: string, client: PoolClient) {
+  const { rows: _vinculosBase } = await client.query(
+    `SELECT dpv.id, dpv.documento_origen_id, dpv.documento_destino_id,
+            dpv.partida_origen_id, dpv.partida_destino_id, dpv.cantidad
+       FROM documentos_partidas_vinculos dpv
+      WHERE dpv.documento_destino_id = $1
+         OR dpv.documento_origen_id = $1`,
+    [documentoId]
+  );
+  if (_vinculosBase.length > 0) {
+    console.warn('[VINCULOS AUDIT] eliminarDocumentoBase - vinculos presentes antes de DELETE', {
+      operacion: 'eliminarDocumentoBase',
+      documentoId,
+      tipoDocumento,
+      vinculos: _vinculosBase,
+      stack: new Error().stack,
+    });
+  }
+
   await client.query(
     `DELETE FROM documentos_partidas dp
       WHERE dp.documento_id = $1

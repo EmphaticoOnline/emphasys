@@ -42,6 +42,10 @@ import InformesPage from './pages/informes/InformesPage';
 import EstadoCuentaProveedorPage from './pages/informes/compras/EstadoCuentaProveedorPage';
 import EstadoCuentaClientePage from './pages/informes/ventas/EstadoCuentaClientePage';
 import ComprasPorProveedorPage from './pages/informes/compras/ComprasPorProveedorPage';
+import ComprasPorProductoPage from './pages/informes/compras/ComprasPorProductoPage';
+import OCPendientesRecibirPage from './pages/informes/compras/OCPendientesRecibirPage';
+import VentasPorClientePage from './pages/informes/ventas/VentasPorClientePage';
+import VentasPorProductoPage from './pages/informes/ventas/VentasPorProductoPage';
 import ProduccionPage from './pages/ProduccionPage';
 import ConfiguracionEtapasProduccionPage from './pages/ConfiguracionEtapasProduccionPage';
 import ListasPreciosPage from './pages/configuracion/ListasPreciosPage';
@@ -100,7 +104,11 @@ export default function App() {
               <Route path="/informes" element={<InformesPage />} />
               <Route path="/informes/ia" element={<AIReportesPage />} />
               <Route path="/informes/compras/compras-por-proveedor"    element={<ComprasPorProveedorPage />} />
+              <Route path="/informes/compras/compras-por-producto"    element={<ComprasPorProductoPage />} />
+              <Route path="/informes/compras/oc-pendientes-recibir"   element={<OCPendientesRecibirPage />} />
               <Route path="/informes/compras/estado-cuenta-proveedor" element={<EstadoCuentaProveedorPage />} />
+              <Route path="/informes/ventas/ventas-por-cliente"       element={<VentasPorClientePage />} />
+              <Route path="/informes/ventas/ventas-por-producto"      element={<VentasPorProductoPage />} />
               <Route path="/informes/ventas/estado-cuenta-cliente"    element={<EstadoCuentaClientePage />} />
 
               {/* Configuración */}

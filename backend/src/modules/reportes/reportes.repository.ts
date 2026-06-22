@@ -288,10 +288,10 @@ export async function obtenerEstadoCuentaCliente(params: {
   return _obtenerEstadoCuenta(CONFIG_CLIENTE, params);
 }
 
-// ── Compras por Proveedor ─────────────────────────────────────────────────────
+// ── Volumen por Contacto (Compras por Proveedor / Ventas por Cliente) ─────────
 
-export type ProveedorCompras = {
-  proveedor_id: number;
+export type ContactoVolumen = {
+  contacto_id: number;
   nombre: string;
   rfc: string;
   cantidad_facturas: number;
@@ -301,9 +301,9 @@ export type ProveedorCompras = {
   pct_participacion: number;
 };
 
-export type FacturaCompraDetalle = {
+export type FacturaVolumenDetalle = {
   id: number;
-  proveedor_id: number;
+  contacto_id: number;
   fecha: string;
   folio: string;
   subtotal: number;
@@ -312,36 +312,37 @@ export type FacturaCompraDetalle = {
   cancelado: boolean;
 };
 
-export type ComprasPorProveedorResult = {
+export type VolumenContactoResult = {
   fecha_inicio: string;
   fecha_fin: string;
-  proveedores: ProveedorCompras[];
-  facturas: FacturaCompraDetalle[];   // vacío si detalle = false
+  contactos: ContactoVolumen[];
+  facturas: FacturaVolumenDetalle[];
 };
 
-export async function obtenerComprasPorProveedor(params: {
-  empresaId: number;
-  fechaInicio: string;
-  fechaFin: string;
-  proveedorId?: number | null;
-  incluirCancelados?: boolean;
-  detalle?: boolean;
-}): Promise<ComprasPorProveedorResult> {
-  const { empresaId, fechaInicio, fechaFin, proveedorId, incluirCancelados = false, detalle = false } = params;
+async function _obtenerVolumen(
+  tipoDocumento: string,
+  params: {
+    empresaId: number;
+    fechaInicio: string;
+    fechaFin: string;
+    contactoId?: number | null;
+    detalle?: boolean;
+  }
+): Promise<VolumenContactoResult> {
+  const { empresaId, fechaInicio, fechaFin, contactoId, detalle = false } = params;
 
-  const filtroCancelados = incluirCancelados
-    ? ''
-    : `AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
+  const filtroCancelados = `AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
 
-  const args: unknown[] = [empresaId, fechaInicio, fechaFin];
-  let filtroProveedor = '';
-  if (proveedorId) {
-    args.push(proveedorId);
-    filtroProveedor = `AND d.contacto_principal_id = $${args.length}`;
+  // $1=empresaId  $2=fechaInicio  $3=fechaFin  $4=tipoDocumento  [$5=contactoId]
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin, tipoDocumento];
+  let filtroContacto = '';
+  if (contactoId) {
+    args.push(contactoId);
+    filtroContacto = `AND d.contacto_principal_id = $${args.length}`;
   }
 
   const { rows: resumen } = await pool.query<{
-    proveedor_id: number;
+    contacto_id: number;
     nombre: string;
     rfc: string;
     cantidad_facturas: number;
@@ -352,25 +353,25 @@ export async function obtenerComprasPorProveedor(params: {
   }>(
     `WITH base AS (
        SELECT
-         d.contacto_principal_id AS proveedor_id,
-         SUM(d.subtotal)::numeric  AS subtotal,
-         SUM(d.iva)::numeric       AS iva,
-         SUM(d.total)::numeric     AS total_comprado,
-         COUNT(d.id)::int          AS cantidad_facturas
+         d.contacto_principal_id AS contacto_id,
+         SUM(d.subtotal)::numeric AS subtotal,
+         SUM(d.iva)::numeric      AS iva,
+         SUM(d.total)::numeric    AS total_comprado,
+         COUNT(d.id)::int         AS cantidad_facturas
        FROM documentos d
        WHERE d.empresa_id = $1
-         AND d.tipo_documento = 'factura_compra'
+         AND d.tipo_documento = $4
          AND d.fecha_documento >= $2::date
          AND d.fecha_documento <= $3::date
          ${filtroCancelados}
-         ${filtroProveedor}
+         ${filtroContacto}
        GROUP BY d.contacto_principal_id
      ),
      gran_total AS (SELECT COALESCE(SUM(total_comprado), 0) AS gt FROM base)
      SELECT
-       b.proveedor_id,
+       b.contacto_id,
        c.nombre,
-       COALESCE(c.rfc, '')    AS rfc,
+       COALESCE(c.rfc, '')           AS rfc,
        b.cantidad_facturas,
        COALESCE(b.subtotal, 0)       AS subtotal,
        COALESCE(b.iva, 0)            AS iva,
@@ -380,16 +381,17 @@ export async function obtenerComprasPorProveedor(params: {
          2
        )::numeric AS pct_participacion
      FROM base b
-     JOIN contactos c ON c.id = b.proveedor_id AND c.empresa_id = $1
+     JOIN contactos c ON c.id = b.contacto_id AND c.empresa_id = $1
      ORDER BY b.total_comprado DESC`,
     args
   );
 
-  let facturas: FacturaCompraDetalle[] = [];
+  let facturas: FacturaVolumenDetalle[] = [];
   if (detalle) {
+    // reutiliza los mismos args (ya incluyen tipoDocumento y contactoId si aplica)
     const { rows } = await pool.query<{
       id: number;
-      proveedor_id: number;
+      contacto_id: number;
       fecha: unknown;
       serie: string;
       numero: number;
@@ -400,7 +402,7 @@ export async function obtenerComprasPorProveedor(params: {
     }>(
       `SELECT
          d.id,
-         d.contacto_principal_id          AS proveedor_id,
+         d.contacto_principal_id          AS contacto_id,
          d.fecha_documento                AS fecha,
          COALESCE(d.serie, '')            AS serie,
          COALESCE(d.numero, 0)::int       AS numero,
@@ -410,18 +412,18 @@ export async function obtenerComprasPorProveedor(params: {
          LOWER(COALESCE(d.estatus_documento, '')) IN ('cancelado', 'cancelada') AS cancelado
        FROM documentos d
        WHERE d.empresa_id = $1
-         AND d.tipo_documento = 'factura_compra'
+         AND d.tipo_documento = $4
          AND d.fecha_documento >= $2::date
          AND d.fecha_documento <= $3::date
          ${filtroCancelados}
-         ${filtroProveedor}
+         ${filtroContacto}
        ORDER BY d.contacto_principal_id, d.fecha_documento, d.id`,
       args
     );
 
     facturas = rows.map((r) => ({
       id: r.id,
-      proveedor_id: r.proveedor_id,
+      contacto_id: r.contacto_id,
       fecha: toFecha(r.fecha),
       folio: formatearFolioDocumento(r.serie, r.numero),
       subtotal: Number(r.subtotal),
@@ -434,8 +436,8 @@ export async function obtenerComprasPorProveedor(params: {
   return {
     fecha_inicio: fechaInicio,
     fecha_fin: fechaFin,
-    proveedores: resumen.map((r) => ({
-      proveedor_id: r.proveedor_id,
+    contactos: resumen.map((r) => ({
+      contacto_id: r.contacto_id,
       nombre: r.nombre,
       rfc: r.rfc,
       cantidad_facturas: Number(r.cantidad_facturas),
@@ -446,4 +448,513 @@ export async function obtenerComprasPorProveedor(params: {
     })),
     facturas,
   };
+}
+
+export async function obtenerComprasPorProveedor(params: {
+  empresaId: number;
+  fechaInicio: string;
+  fechaFin: string;
+  contactoId?: number | null;
+  detalle?: boolean;
+}): Promise<VolumenContactoResult> {
+  return _obtenerVolumen('factura_compra', params);
+}
+
+export async function obtenerVentasPorCliente(params: {
+  empresaId: number;
+  fechaInicio: string;
+  fechaFin: string;
+  contactoId?: number | null;
+  detalle?: boolean;
+}): Promise<VolumenContactoResult> {
+  return _obtenerVolumen('factura', params);
+}
+
+// ── Volumen por Producto (Compras por Producto / Ventas por Producto) ──────────
+
+export type ProductoVolumen = {
+  grupo_key: string;
+  producto_id: number | null;
+  clave: string;
+  descripcion: string;
+  unidad: string;
+  cantidad_total: number;
+  cantidad_documentos: number;
+  precio_promedio: number;
+  ultimo_precio_unitario: number;
+  subtotal: number;
+  iva: number;
+  total: number;
+  ultimo_movimiento: string;
+  pct_participacion: number;
+};
+
+export type PartidaVolumenDetalle = {
+  grupo_key: string;
+  producto_id: number | null;
+  fecha: string;
+  folio: string;
+  contacto_nombre: string;
+  cantidad: number;
+  precio_unitario: number;
+  descuento: number;
+  subtotal: number;
+  total: number;
+};
+
+export type VolumenProductoResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  productos: ProductoVolumen[];
+  partidas: PartidaVolumenDetalle[];
+};
+
+async function _obtenerVolumenProducto(
+  tipoDocumento: string,
+  params: {
+    empresaId: number;
+    fechaInicio: string;
+    fechaFin: string;
+    productoId?: number | null;
+    contactoId?: number | null;
+    detalle?: boolean;
+    excluirSinMovimiento?: boolean;
+  }
+): Promise<VolumenProductoResult> {
+  const {
+    empresaId, fechaInicio, fechaFin,
+    productoId, contactoId,
+    detalle = false,
+    excluirSinMovimiento = true,
+  } = params;
+
+  const sinCancelados  = `LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
+  const sinCancelados2 = `LOWER(COALESCE(d2.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
+  const grupoKey       = `COALESCE(dp.producto_id::text, 'libre:' || COALESCE(dp.descripcion_alterna, ''))`;
+  const grupoKey2      = `COALESCE(dp2.producto_id::text, 'libre:' || COALESCE(dp2.descripcion_alterna, ''))`;
+
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin, tipoDocumento];
+
+  let filtroProducto = '';
+  if (productoId) {
+    args.push(productoId);
+    filtroProducto = `AND dp.producto_id = $${args.length}`;
+  }
+  let filtroContacto = '';
+  if (contactoId) {
+    args.push(contactoId);
+    filtroContacto = `AND d.contacto_principal_id = $${args.length}`;
+  }
+
+  const havingClause = excluirSinMovimiento ? 'HAVING SUM(total) > 0' : '';
+
+  const { rows: resumen } = await pool.query(
+    `WITH
+     base_raw AS (
+       SELECT
+         ${grupoKey}                                                              AS grupo_key,
+         dp.producto_id,
+         COALESCE(p.clave, dp.descripcion_alterna, '—')                          AS clave,
+         COALESCE(p.descripcion, dp.descripcion_alterna, '(sin descripción)')    AS descripcion,
+         COALESCE(u.clave, '')                                                    AS unidad,
+         dp.cantidad::numeric                                                     AS cantidad,
+         dp.subtotal_partida::numeric                                             AS subtotal,
+         dp.total_partida::numeric                                                AS total,
+         d.id                                                                     AS doc_id
+       FROM documentos_partidas dp
+       JOIN documentos d ON d.id = dp.documento_id AND d.empresa_id = $1
+       LEFT JOIN productos p ON p.id = dp.producto_id AND p.empresa_id = $1
+       LEFT JOIN unidades u ON u.id = p.unidad_venta_id
+       WHERE d.tipo_documento = $4
+         AND d.fecha_documento >= $2::date
+         AND d.fecha_documento <= $3::date
+         AND ${sinCancelados}
+         ${filtroProducto}
+         ${filtroContacto}
+     ),
+     base AS (
+       SELECT
+         grupo_key,
+         producto_id,
+         clave,
+         descripcion,
+         unidad,
+         SUM(cantidad)::numeric         AS cantidad_total,
+         COUNT(DISTINCT doc_id)::int    AS cantidad_documentos,
+         SUM(subtotal)::numeric         AS subtotal,
+         SUM(total - subtotal)::numeric AS iva,
+         SUM(total)::numeric            AS total
+       FROM base_raw
+       GROUP BY grupo_key, producto_id, clave, descripcion, unidad
+       ${havingClause}
+     ),
+     gran_total AS (SELECT COALESCE(SUM(total), 0) AS gt FROM base),
+     hist_movimiento AS (
+       SELECT
+         ${grupoKey2}                    AS grupo_key,
+         MAX(d2.fecha_documento)::text   AS ultimo_movimiento
+       FROM documentos_partidas dp2
+       JOIN documentos d2 ON d2.id = dp2.documento_id AND d2.empresa_id = $1
+       WHERE d2.tipo_documento = $4
+         AND ${sinCancelados2}
+       GROUP BY 1
+     ),
+     hist_precio AS (
+       SELECT DISTINCT ON (${grupoKey2})
+         ${grupoKey2}                       AS grupo_key,
+         dp2.precio_unitario::numeric       AS ultimo_precio_unitario
+       FROM documentos_partidas dp2
+       JOIN documentos d2 ON d2.id = dp2.documento_id AND d2.empresa_id = $1
+       WHERE d2.tipo_documento = $4
+         AND ${sinCancelados2}
+       ORDER BY ${grupoKey2}, d2.fecha_documento DESC, d2.id DESC, dp2.id DESC
+     )
+     SELECT
+       b.grupo_key,
+       b.producto_id,
+       b.clave,
+       b.descripcion,
+       b.unidad,
+       b.cantidad_total,
+       b.cantidad_documentos,
+       b.subtotal,
+       b.iva,
+       b.total,
+       ROUND(b.total * 100.0 / NULLIF((SELECT gt FROM gran_total), 0), 2)::numeric AS pct_participacion,
+       CASE WHEN b.cantidad_total > 0
+         THEN ROUND((b.subtotal / b.cantidad_total)::numeric, 4)
+         ELSE 0
+       END AS precio_promedio,
+       COALESCE(hm.ultimo_movimiento, '')     AS ultimo_movimiento,
+       COALESCE(hp.ultimo_precio_unitario, 0) AS ultimo_precio_unitario
+     FROM base b
+     LEFT JOIN hist_movimiento hm ON hm.grupo_key = b.grupo_key
+     LEFT JOIN hist_precio hp ON hp.grupo_key = b.grupo_key
+     ORDER BY b.total DESC`,
+    args
+  );
+
+  let partidas: PartidaVolumenDetalle[] = [];
+  if (detalle) {
+    const { rows } = await pool.query(
+      `SELECT
+         ${grupoKey}                            AS grupo_key,
+         dp.producto_id,
+         d.fecha_documento                      AS fecha,
+         COALESCE(d.serie, '')                  AS serie,
+         COALESCE(d.numero, 0)::int             AS numero,
+         COALESCE(c.nombre, '—')               AS contacto_nombre,
+         dp.cantidad::numeric                   AS cantidad,
+         dp.precio_unitario::numeric            AS precio_unitario,
+         COALESCE(dp.descuento, 0)::numeric     AS descuento,
+         dp.subtotal_partida::numeric           AS subtotal,
+         dp.total_partida::numeric              AS total
+       FROM documentos_partidas dp
+       JOIN documentos d ON d.id = dp.documento_id AND d.empresa_id = $1
+       LEFT JOIN contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = $1
+       WHERE d.tipo_documento = $4
+         AND d.fecha_documento >= $2::date
+         AND d.fecha_documento <= $3::date
+         AND ${sinCancelados}
+         ${filtroProducto}
+         ${filtroContacto}
+       ORDER BY ${grupoKey}, d.fecha_documento, d.id, dp.numero_partida`,
+      args
+    );
+    partidas = rows.map((r) => ({
+      grupo_key:       String(r.grupo_key),
+      producto_id:     r.producto_id != null ? (r.producto_id as number) : null,
+      fecha:           toFecha(r.fecha),
+      folio:           formatearFolioDocumento(r.serie as string, r.numero as number),
+      contacto_nombre: String(r.contacto_nombre ?? '—'),
+      cantidad:        Number(r.cantidad ?? 0),
+      precio_unitario: Number(r.precio_unitario ?? 0),
+      descuento:       Number(r.descuento ?? 0),
+      subtotal:        Number(r.subtotal ?? 0),
+      total:           Number(r.total ?? 0),
+    }));
+  }
+
+  return {
+    fecha_inicio: fechaInicio,
+    fecha_fin:    fechaFin,
+    productos: resumen.map((r) => ({
+      grupo_key:              String(r.grupo_key),
+      producto_id:            r.producto_id != null ? (r.producto_id as number) : null,
+      clave:                  String(r.clave ?? '—'),
+      descripcion:            String(r.descripcion ?? '(sin descripción)'),
+      unidad:                 String(r.unidad ?? ''),
+      cantidad_total:         Number(r.cantidad_total ?? 0),
+      cantidad_documentos:    Number(r.cantidad_documentos ?? 0),
+      subtotal:               Number(r.subtotal ?? 0),
+      iva:                    Number(r.iva ?? 0),
+      total:                  Number(r.total ?? 0),
+      pct_participacion:      Number(r.pct_participacion ?? 0),
+      precio_promedio:        Number(r.precio_promedio ?? 0),
+      ultimo_movimiento:      toFecha(r.ultimo_movimiento),
+      ultimo_precio_unitario: Number(r.ultimo_precio_unitario ?? 0),
+    })),
+    partidas,
+  };
+}
+
+export async function obtenerComprasPorProducto(params: {
+  empresaId: number;
+  fechaInicio: string;
+  fechaFin: string;
+  productoId?: number | null;
+  contactoId?: number | null;
+  detalle?: boolean;
+  excluirSinMovimiento?: boolean;
+}): Promise<VolumenProductoResult> {
+  return _obtenerVolumenProducto('factura_compra', params);
+}
+
+export async function obtenerVentasPorProducto(params: {
+  empresaId: number;
+  fechaInicio: string;
+  fechaFin: string;
+  productoId?: number | null;
+  contactoId?: number | null;
+  detalle?: boolean;
+  excluirSinMovimiento?: boolean;
+}): Promise<VolumenProductoResult> {
+  return _obtenerVolumenProducto('factura', params);
+}
+
+// ── Órdenes de Compra Pendientes de Recibir ──────────────────────────────────
+
+export type OCPendienteOC = {
+  oc_id: number;
+  folio: string;
+  fecha_oc: string;
+  total_oc: number;
+  proveedor_id: number | null;
+  proveedor_nombre: string;
+  cantidad_ordenada: number;
+  cantidad_materializada: number;
+  cantidad_pendiente: number;
+  pct_recibido: number;
+  dias_transcurridos: number;
+};
+
+export type OCPendientePartida = {
+  oc_id: number;
+  serie: string;
+  numero: number;
+  partida_oc_id: number;
+  producto_id: number | null;
+  clave: string;
+  descripcion: string;
+  unidad: string;
+  cantidad_ordenada: number;
+  cantidad_materializada: number;
+  cantidad_pendiente: number;
+  pct_recibido: number;
+};
+
+export type OCPendientesResult = {
+  fecha_corte: string;
+  ordenes: OCPendienteOC[];
+  partidas: OCPendientePartida[];
+};
+
+export async function obtenerOCPendientesRecibir(params: {
+  empresaId: number;
+  fechaCorte: string;
+  contactoId?: number | null;
+  excluirCompletamenteRecibidas?: boolean;
+  detalle?: boolean;
+}): Promise<OCPendientesResult> {
+  const { empresaId, fechaCorte, contactoId, excluirCompletamenteRecibidas = true, detalle = false } = params;
+
+  const args: unknown[] = [empresaId, fechaCorte];
+  let filtroContacto = '';
+  if (contactoId) {
+    args.push(contactoId);
+    filtroContacto = `AND d.contacto_principal_id = $${args.length}`;
+  }
+
+  const havingOC = excluirCompletamenteRecibidas
+    ? 'HAVING COALESCE(SUM(tm.cantidad_materializada), 0) < SUM(op.cantidad_ordenada)'
+    : '';
+
+  // CTEs comunes reutilizadas en ambas queries
+  const cteComunes = `
+    tipos_entrada AS (
+      SELECT LOWER(td.codigo) AS tipo
+      FROM core.tipos_documento td
+      LEFT JOIN core.empresas_tipos_documento etd
+        ON etd.tipo_documento_id = td.id AND etd.empresa_id = $1
+      WHERE COALESCE(etd.afecta_inventario, td.afecta_inventario) = 'entrada'
+    ),
+    oc_base AS (
+      SELECT d.id AS oc_id, d.fecha_documento AS fecha_oc, d.serie, d.numero,
+             COALESCE(d.total, 0)::numeric AS total_oc,
+             d.contacto_principal_id
+      FROM documentos d
+      WHERE d.empresa_id = $1
+        AND LOWER(d.tipo_documento) = 'orden_compra'
+        AND d.fecha_documento <= $2::date
+        AND LOWER(COALESCE(d.estatus_documento,'')) NOT IN ('cancelado','cancelada')
+        ${filtroContacto}
+    ),
+    oc_partidas AS (
+      SELECT ob.oc_id, ob.fecha_oc, ob.serie, ob.numero, ob.total_oc,
+             ob.contacto_principal_id,
+             dp.id AS partida_oc_id,
+             dp.producto_id,
+             dp.descripcion_alterna,
+             dp.cantidad::numeric AS cantidad_ordenada
+      FROM oc_base ob
+      JOIN documentos_partidas dp ON dp.documento_id = ob.oc_id
+    ),
+    nivel1 AS (
+      SELECT op.partida_oc_id,
+             dpv.partida_destino_id,
+             dpv.cantidad AS cantidad_vinculada,
+             d.tipo_documento AS tipo_dest,
+             d.fecha_documento AS fecha_dest,
+             LOWER(COALESCE(d.estatus_documento,'')) AS estatus_dest
+      FROM oc_partidas op
+      JOIN documentos_partidas_vinculos dpv ON dpv.partida_origen_id = op.partida_oc_id
+      JOIN documentos d ON d.id = dpv.documento_destino_id
+      WHERE d.empresa_id = $1
+    ),
+    entrada_nivel1 AS (
+      SELECT n1.partida_oc_id, n1.cantidad_vinculada
+      FROM nivel1 n1
+      JOIN tipos_entrada te ON LOWER(n1.tipo_dest) = te.tipo
+      WHERE n1.fecha_dest <= $2::date
+        AND n1.estatus_dest NOT IN ('cancelado','cancelada')
+    ),
+    intermedios_nivel1 AS (
+      SELECT n1.partida_oc_id, n1.partida_destino_id
+      FROM nivel1 n1
+      LEFT JOIN tipos_entrada te ON LOWER(n1.tipo_dest) = te.tipo
+      WHERE te.tipo IS NULL
+        AND n1.estatus_dest NOT IN ('cancelado','cancelada')
+    ),
+    entrada_nivel2 AS (
+      SELECT in1.partida_oc_id, dpv2.cantidad AS cantidad_vinculada
+      FROM intermedios_nivel1 in1
+      JOIN documentos_partidas_vinculos dpv2 ON dpv2.partida_origen_id = in1.partida_destino_id
+      JOIN documentos d2 ON d2.id = dpv2.documento_destino_id
+      JOIN tipos_entrada te ON LOWER(d2.tipo_documento) = te.tipo
+      WHERE d2.empresa_id = $1
+        AND d2.fecha_documento <= $2::date
+        AND LOWER(COALESCE(d2.estatus_documento,'')) NOT IN ('cancelado','cancelada')
+    ),
+    total_materializado AS (
+      SELECT partida_oc_id, SUM(cantidad_vinculada) AS cantidad_materializada
+      FROM (
+        SELECT partida_oc_id, cantidad_vinculada FROM entrada_nivel1
+        UNION ALL
+        SELECT partida_oc_id, cantidad_vinculada FROM entrada_nivel2
+      ) t
+      GROUP BY partida_oc_id
+    )`;
+
+  // ── Query de resumen (siempre se ejecuta) ──────────────────────────────────
+  const { rows: resumenRows } = await pool.query(
+    `WITH ${cteComunes}
+     SELECT
+       op.oc_id,
+       op.serie,
+       op.numero,
+       op.fecha_oc,
+       op.total_oc,
+       op.contacto_principal_id                                                      AS proveedor_id,
+       COALESCE(c.nombre, '—')                                                      AS proveedor_nombre,
+       SUM(op.cantidad_ordenada)::numeric                                            AS cantidad_ordenada,
+       COALESCE(SUM(tm.cantidad_materializada), 0)::numeric                         AS cantidad_materializada,
+       (SUM(op.cantidad_ordenada) - COALESCE(SUM(tm.cantidad_materializada), 0))::numeric AS cantidad_pendiente,
+       ROUND(COALESCE(SUM(tm.cantidad_materializada), 0) * 100.0
+             / NULLIF(SUM(op.cantidad_ordenada), 0), 1)::numeric                   AS pct_recibido,
+       ($2::date - op.fecha_oc)::int                                                AS dias_transcurridos
+     FROM oc_partidas op
+     LEFT JOIN total_materializado tm ON tm.partida_oc_id = op.partida_oc_id
+     LEFT JOIN contactos c ON c.id = op.contacto_principal_id AND c.empresa_id = $1
+     GROUP BY op.oc_id, op.serie, op.numero, op.fecha_oc, op.total_oc,
+              op.contacto_principal_id, c.nombre
+     ${havingOC}
+     ORDER BY op.fecha_oc, op.oc_id`,
+    args
+  );
+
+  const ordenes: OCPendienteOC[] = resumenRows.map((r) => ({
+    oc_id:                 r.oc_id as number,
+    folio:                 formatearFolioDocumento(r.serie as string, r.numero as number),
+    fecha_oc:              toFecha(r.fecha_oc),
+    total_oc:              Number(r.total_oc ?? 0),
+    proveedor_id:          r.proveedor_id != null ? (r.proveedor_id as number) : null,
+    proveedor_nombre:      String(r.proveedor_nombre ?? '—'),
+    cantidad_ordenada:     Number(r.cantidad_ordenada ?? 0),
+    cantidad_materializada: Number(r.cantidad_materializada ?? 0),
+    cantidad_pendiente:    Number(r.cantidad_pendiente ?? 0),
+    pct_recibido:          Number(r.pct_recibido ?? 0),
+    dias_transcurridos:    Number(r.dias_transcurridos ?? 0),
+  }));
+
+  // ── Query de detalle (solo si se solicita) ─────────────────────────────────
+  let partidas: OCPendientePartida[] = [];
+  if (detalle) {
+    const ocConPendienteCTE = excluirCompletamenteRecibidas
+      ? `, oc_con_pendiente AS (
+           SELECT op2.oc_id
+           FROM oc_partidas op2
+           LEFT JOIN total_materializado tm2 ON tm2.partida_oc_id = op2.partida_oc_id
+           GROUP BY op2.oc_id
+           HAVING COALESCE(SUM(tm2.cantidad_materializada), 0) < SUM(op2.cantidad_ordenada)
+         )`
+      : '';
+
+    const joinPendiente = excluirCompletamenteRecibidas
+      ? 'JOIN oc_con_pendiente ocp ON ocp.oc_id = op.oc_id'
+      : '';
+
+    const { rows: partidaRows } = await pool.query(
+      `WITH ${cteComunes}
+       ${ocConPendienteCTE}
+       SELECT
+         op.oc_id,
+         op.serie,
+         op.numero,
+         op.partida_oc_id,
+         dp.producto_id,
+         COALESCE(p.clave, dp.descripcion_alterna, '—')                       AS clave,
+         COALESCE(p.descripcion, dp.descripcion_alterna, '(sin descripción)') AS descripcion,
+         COALESCE(u.clave, '')                                                  AS unidad,
+         op.cantidad_ordenada,
+         COALESCE(tm.cantidad_materializada, 0)::numeric                       AS cantidad_materializada,
+         (op.cantidad_ordenada - COALESCE(tm.cantidad_materializada, 0))::numeric AS cantidad_pendiente,
+         ROUND(COALESCE(tm.cantidad_materializada, 0) * 100.0
+               / NULLIF(op.cantidad_ordenada, 0), 1)::numeric                 AS pct_recibido
+       FROM oc_partidas op
+       ${joinPendiente}
+       JOIN documentos_partidas dp ON dp.id = op.partida_oc_id
+       LEFT JOIN productos p ON p.id = dp.producto_id AND p.empresa_id = $1
+       LEFT JOIN unidades u ON u.id = p.unidad_venta_id
+       LEFT JOIN total_materializado tm ON tm.partida_oc_id = op.partida_oc_id
+       ORDER BY op.fecha_oc, op.oc_id, op.partida_oc_id`,
+      args
+    );
+
+    partidas = partidaRows.map((r) => ({
+      oc_id:                 r.oc_id as number,
+      serie:                 String(r.serie ?? ''),
+      numero:                Number(r.numero ?? 0),
+      partida_oc_id:         r.partida_oc_id as number,
+      producto_id:           r.producto_id != null ? (r.producto_id as number) : null,
+      clave:                 String(r.clave ?? '—'),
+      descripcion:           String(r.descripcion ?? '(sin descripción)'),
+      unidad:                String(r.unidad ?? ''),
+      cantidad_ordenada:     Number(r.cantidad_ordenada ?? 0),
+      cantidad_materializada: Number(r.cantidad_materializada ?? 0),
+      cantidad_pendiente:    Number(r.cantidad_pendiente ?? 0),
+      pct_recibido:          Number(r.pct_recibido ?? 0),
+    }));
+  }
+
+  return { fecha_corte: fechaCorte, ordenes, partidas };
 }

@@ -43,6 +43,16 @@ const CATEGORIAS: Categoria[] = [
         path: '/informes/compras/compras-por-proveedor',
       },
       {
+        label: 'Compras por Producto',
+        descripcion: 'Volumen, cantidad y costo por artículo comprado en un período.',
+        path: '/informes/compras/compras-por-producto',
+      },
+      {
+        label: 'OC Pendientes de Recibir',
+        descripcion: 'Órdenes de compra con cantidades pendientes de materializar en inventario.',
+        path: '/informes/compras/oc-pendientes-recibir',
+      },
+      {
         label: 'Estado de Cuenta de Proveedor',
         descripcion: 'Saldo y movimientos por proveedor en un período.',
         path: '/informes/compras/estado-cuenta-proveedor',
@@ -54,6 +64,16 @@ const CATEGORIAS: Categoria[] = [
     icon: PointOfSaleIcon,
     color: '#006261',
     reportes: [
+      {
+        label: 'Ventas por Cliente',
+        descripcion: 'Volumen y participación de ventas por cliente en un período.',
+        path: '/informes/ventas/ventas-por-cliente',
+      },
+      {
+        label: 'Ventas por Producto',
+        descripcion: 'Volumen, cantidad y precio por artículo vendido en un período.',
+        path: '/informes/ventas/ventas-por-producto',
+      },
       {
         label: 'Estado de Cuenta de Cliente',
         descripcion: 'Saldo y movimientos por cliente en un período.',

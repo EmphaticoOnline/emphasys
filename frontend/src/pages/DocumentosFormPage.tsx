@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
+  AlertTitle,
   Autocomplete,
   Box,
   Button,
@@ -89,7 +90,7 @@ import { useSession } from '../session/useSession';
 import type { ImpuestoEntrada, ImpuestoCalculadoUI } from '../utils/impuestos';
 import { calcularImpuestosPreview } from '../services/documentosService';
 import { DocumentoDatosFiscalesTab } from '../modules/documentos';
-import { resolveDocumentoTextos } from '../modules/documentos/documentoTypeConfig';
+import { resolveDocumentoTextos, getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
 import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
 import type { ProductoTipoPermitido } from '../modules/documentos/documentoTypes';
 import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
@@ -524,6 +525,8 @@ export default function DocumentosFormPage({
     forma_pago: '',
     metodo_pago: '',
     codigo_postal_receptor: '',
+    serie_externa: null,
+    numero_externo: null,
     ...initialValues,
   });
 
@@ -545,6 +548,8 @@ export default function DocumentosFormPage({
   const [expandedObs, setExpandedObs] = useState<boolean[]>([false]);
   const [editingPrecio, setEditingPrecio] = useState<boolean[]>([false]);
   const [precioInputs, setPrecioInputs] = useState<string[]>(['']);
+  const [editingCantidad, setEditingCantidad] = useState<boolean[]>([false]);
+  const [cantidadInputs, setCantidadInputs] = useState<string[]>(['']);
   const [uploadingImagen, setUploadingImagen] = useState<boolean[]>([false]);
   const [partidaImagenDialog, setPartidaImagenDialog] = useState<{ open: boolean; index: number | null; view: 'menu' | 'producto' }>({
     open: false,
@@ -596,7 +601,11 @@ export default function DocumentosFormPage({
   );
   const [estadoAutorizacionDoc, setEstadoAutorizacionDoc] = useState<string | null>(null);
   const [tieneDerivadosActivos, setTieneDerivadosActivos] = useState(false);
+  const [trazabilidadActiva, setTrazabilidadActiva] = useState(false);
+  const [trazabilidadRol, setTrazabilidadRol] = useState<'origen' | 'destino' | null>(null);
+  const [docTrazabilidad, setDocTrazabilidad] = useState<{ tipo_documento: string; folio: string } | null>(null);
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+  const [trazabilidadDialog, setTrazabilidadDialog] = useState<{ open: boolean; folioRelacionado: string }>({ open: false, folioRelacionado: '' });
   const [conceptoObligatorioDialog, setConceptoObligatorioDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [activeTab, setActiveTab] = useState<number>(0);
   const [crearClienteOpen, setCrearClienteOpen] = useState(false);
@@ -1610,6 +1619,9 @@ export default function DocumentosFormPage({
       const doc = data.documento;
       setEstadoAutorizacionDoc((doc as any).estado_autorizacion ?? null);
       setTieneDerivadosActivos(Boolean((doc as any).tiene_derivados_activos));
+      setTrazabilidadActiva(Boolean((doc as any).trazabilidad_activa));
+      setTrazabilidadRol((doc as any).trazabilidad_rol ?? null);
+      setDocTrazabilidad((doc as any).documento_trazabilidad ?? null);
       setDocumentoPersistidoId(Number((doc as any).id ?? documentoActualId));
       setSaldoDocumento(Number((saldoData as any)?.saldo ?? doc.saldo ?? 0));
       setForm({
@@ -1643,6 +1655,8 @@ export default function DocumentosFormPage({
         forma_pago: (doc as any).forma_pago || '',
         metodo_pago: (doc as any).metodo_pago || '',
         codigo_postal_receptor: (doc as any).codigo_postal_receptor || '',
+        serie_externa: (doc as any).serie_externa ?? null,
+        numero_externo: (doc as any).numero_externo ?? null,
       });
       const motivoDocumentoActual = ((doc as any).motivo_nc ?? null) as MotivoNotaCredito | null;
       if (isNotaCredito && (motivoDocumentoActual === 'devolucion' || motivoDocumentoActual === 'bonificacion')) {
@@ -1713,7 +1727,7 @@ export default function DocumentosFormPage({
         return calcularPartida({
           id: p.id,
           producto_id: p.producto_id,
-          descripcion_alterna: p.descripcion_alterna ?? '',
+          descripcion_alterna: p.descripcion_alterna ?? p.producto_descripcion ?? '',
           cantidad: p.cantidad,
           precio_unitario: p.precio_unitario,
           precio_lista_id: p.precio_lista_id ?? null,
@@ -2567,7 +2581,10 @@ export default function DocumentosFormPage({
         return null;
       }
       const message = e instanceof Error ? e.message : 'No se pudo guardar';
-      if (message.toLowerCase().includes('serie') && message.toLowerCase().includes('número')) {
+      if (message.startsWith('TRAZABILIDAD_ACTIVA:')) {
+        const folio = message.replace('TRAZABILIDAD_ACTIVA:', '').trim();
+        setTrazabilidadDialog({ open: true, folioRelacionado: folio });
+      } else if (message.toLowerCase().includes('serie') && message.toLowerCase().includes('número')) {
         setDuplicateDialog({ open: true, message });
       } else {
         setSnackbar({ open: true, message, severity: 'error' });
@@ -3368,7 +3385,7 @@ export default function DocumentosFormPage({
                 variant="contained"
                 startIcon={<SaveIcon />}
                 onClick={handleSave}
-                disabled={saving || loading || tieneDerivadosActivos}
+                disabled={saving || loading || tieneDerivadosActivos || trazabilidadActiva}
               >
                 {saving ? 'Guardando...' : 'Guardar'}
               </Button>
@@ -3380,7 +3397,7 @@ export default function DocumentosFormPage({
       {isMobile ? (
         <MobileSaveFab
           loading={saving}
-          disabled={saving || loading || tieneDerivadosActivos}
+          disabled={saving || loading || tieneDerivadosActivos || trazabilidadActiva}
           onClick={handleSave}
         />
       ) : null}
@@ -3439,6 +3456,23 @@ export default function DocumentosFormPage({
       {isEdit && tieneDerivadosActivos && (
         <Alert severity="warning" sx={{ mb: 1 }}>
           Esta Orden de Compra tiene documentos derivados activos (Recepciones o Facturas de Compra) y no puede modificarse. Cancele los documentos derivados primero si necesita hacer cambios.
+        </Alert>
+      )}
+
+      {isEdit && trazabilidadActiva && trazabilidadRol === 'destino' && (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          <AlertTitle fontWeight={700}>Documento con trazabilidad activa</AlertTitle>
+          Este documento participa en una cadena de trazabilidad y no puede modificarse directamente.
+          {docTrazabilidad?.tipo_documento ? (
+            <>
+              {' '}Documento relacionado:{' '}
+              <strong>
+                {getDocumentoTypeConfig(docTrazabilidad.tipo_documento as TipoDocumento)?.label ?? docTrazabilidad.tipo_documento}
+                {docTrazabilidad.folio ? ` ${docTrazabilidad.folio}` : ''}
+              </strong>.
+            </>
+          ) : null}
+          {' '}Si necesita realizar cambios, elimine este documento (si continúa en borrador) y vuelva a generarlo desde el documento origen. Este documento puede consultarse, pero no modificarse.
         </Alert>
       )}
 
@@ -3521,7 +3555,7 @@ export default function DocumentosFormPage({
                           return option?.id === value?.id;
                         }}
                         value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
-                        disabled={lockedContacto}
+                        disabled={lockedContacto || trazabilidadActiva}
                         onChange={(_, value) => {
                           if (lockedContacto) return;
                           if (value && 'kind' in value && value.kind === 'create') {
@@ -3548,7 +3582,7 @@ export default function DocumentosFormPage({
                             label={contactoLabel}
                             required
                             size="small"
-                            disabled={lockedContacto}
+                            disabled={lockedContacto || trazabilidadActiva}
                             InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                             inputProps={{ ...params.inputProps }}
                             sx={campoEncabezadoSx}
@@ -3564,6 +3598,7 @@ export default function DocumentosFormPage({
                           loading={vendedores.length === 0}
                           getOptionLabel={(option) => option.nombre || ''}
                           value={vendedores.find((c) => c.id === form.agente_id) || null}
+                          disabled={trazabilidadActiva}
                           onChange={(_, value) => setForm((prev) => ({ ...prev, agente_id: value?.id ?? null }))}
                           renderOption={(props, option) => {
                             const { key, ...rest } = props;
@@ -3594,7 +3629,7 @@ export default function DocumentosFormPage({
                           type="date"
                           value={form.fecha_documento}
                           onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
-                          disabled={lockedFechaDocumento}
+                          disabled={lockedFechaDocumento || trazabilidadActiva}
                           InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                           sx={campoEncabezadoSx}
                           fullWidth
@@ -3608,12 +3643,13 @@ export default function DocumentosFormPage({
                         label="Monto"
                         value={Number(form.total ?? 0)}
                         onValueChange={(values) => syncDocumentoMonetarioTotals(values.floatValue ?? 0)}
-                        thousandSeparator="," 
+                        thousandSeparator=","
                         decimalSeparator="."
                         decimalScale={2}
                         fixedDecimalScale
                         allowNegative={false}
                         prefix="$"
+                        disabled={trazabilidadActiva}
                         fullWidth
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -3630,7 +3666,7 @@ export default function DocumentosFormPage({
                         label="Moneda"
                         value={form.moneda || 'MXN'}
                         onChange={(e) => setForm((prev) => ({ ...prev, moneda: e.target.value || 'MXN', tipo_cambio: (e.target.value || 'MXN') === 'MXN' ? 1 : (prev.tipo_cambio ?? 1) }))}
-                        disabled={lockedMoneda}
+                        disabled={lockedMoneda || trazabilidadActiva}
                         fullWidth
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -3648,6 +3684,7 @@ export default function DocumentosFormPage({
                           label="Cuenta / caja / banco"
                           value={form.cuenta_financiera_id ?? ''}
                           onChange={(e) => setForm((prev) => ({ ...prev, cuenta_financiera_id: Number(e.target.value) || null }))}
+                          disabled={trazabilidadActiva}
                           fullWidth
                           size="small"
                           InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -3667,12 +3704,47 @@ export default function DocumentosFormPage({
                         label="Referencia / observaciones"
                         value={form.observaciones || ''}
                         onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
+                        disabled={trazabilidadActiva}
                         fullWidth
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                         sx={campoEncabezadoSx}
                       />
                     </Grid>
+                    {(tipoDocumento === 'factura_compra' || tipoDocumento === 'nota_credito_compra') && (
+                      <>
+                        <Grid size={{ xs: 12, md: 1 }}>
+                          <TextField
+                            label="Serie externa"
+                            value={form.serie_externa || ''}
+                            onChange={(e) => setForm((prev) => ({ ...prev, serie_externa: e.target.value.trim() || null }))}
+                            disabled={trazabilidadActiva}
+                            fullWidth
+                            size="small"
+                            inputProps={{ maxLength: 10, style: { fontSize: 13 } }}
+                            InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                            sx={campoEncabezadoSx}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 2 }}>
+                          <TextField
+                            label="Número externo"
+                            value={form.numero_externo ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setForm((prev) => ({ ...prev, numero_externo: val === '' ? null : Number(val) }));
+                            }}
+                            disabled={trazabilidadActiva}
+                            fullWidth
+                            size="small"
+                            type="number"
+                            inputProps={{ min: 0, style: { fontSize: 13 } }}
+                            InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                            sx={campoEncabezadoSx}
+                          />
+                        </Grid>
+                      </>
+                    )}
                     <Grid size={{ xs: 12, md: 4 }}>
                       <Box
                         sx={{
@@ -3695,7 +3767,7 @@ export default function DocumentosFormPage({
                         <DocumentoDatosFiscalesTab
                           values={fiscalValues}
                           onChange={(changes) => setForm((prev) => ({ ...prev, ...changes }))}
-                          disabled={saving || loading}
+                          disabled={saving || loading || trazabilidadActiva}
                           visibleFields={{
                             forma_pago: true,
                             rfc_receptor: false,
@@ -3720,11 +3792,12 @@ export default function DocumentosFormPage({
                           label="Tipo de cambio"
                           value={Number(form.tipo_cambio ?? 1)}
                           onValueChange={(values) => setForm((prev) => ({ ...prev, tipo_cambio: values.floatValue && values.floatValue > 0 ? values.floatValue : 1 }))}
-                          thousandSeparator="," 
+                          thousandSeparator=","
                           decimalSeparator="."
                           decimalScale={4}
                           fixedDecimalScale={false}
                           allowNegative={false}
+                          disabled={trazabilidadActiva}
                           fullWidth
                           size="small"
                           InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -3780,7 +3853,7 @@ export default function DocumentosFormPage({
                       return option?.id === value?.id;
                     }}
                     value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
-                    disabled={lockedContacto}
+                    disabled={lockedContacto || trazabilidadActiva}
                     onChange={(_, value) => {
                       if (lockedContacto) return;
                       if (value && 'kind' in value && value.kind === 'create') {
@@ -3807,7 +3880,7 @@ export default function DocumentosFormPage({
                         label={contactoLabel}
                         required
                         size="small"
-                        disabled={lockedContacto}
+                        disabled={lockedContacto || trazabilidadActiva}
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                         inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
                         sx={{
@@ -3829,6 +3902,7 @@ export default function DocumentosFormPage({
                     loading={vendedores.length === 0}
                     getOptionLabel={(option) => option.nombre || ''}
                     value={vendedores.find((c) => c.id === form.agente_id) || null}
+                    disabled={trazabilidadActiva}
                     onChange={(_, value) => setForm((prev) => ({ ...prev, agente_id: value?.id ?? null }))}
                     renderOption={(props, option) => {
                       const { key, ...rest } = props;
@@ -3859,7 +3933,7 @@ export default function DocumentosFormPage({
                     type="date"
                     value={form.fecha_documento}
                     onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
-                    disabled={lockedFechaDocumento}
+                    disabled={lockedFechaDocumento || trazabilidadActiva}
                     InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                     inputProps={{ style: { fontSize: 13 } }}
                     fullWidth
@@ -3874,6 +3948,7 @@ export default function DocumentosFormPage({
                       label="Tratamiento fiscal"
                       value={form.tratamiento_impuestos || 'normal'}
                       onChange={(e) => handleTratamientoChange((e.target.value as TratamientoImpuestos) || 'normal')}
+                      disabled={trazabilidadActiva}
                       fullWidth
                       size="small"
                       InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -3894,6 +3969,7 @@ export default function DocumentosFormPage({
                       label="Motivo NC"
                       value={motivoNotaCredito}
                       onChange={(e) => handleMotivoNotaCreditoChange(e.target.value as MotivoNotaCredito)}
+                      disabled={trazabilidadActiva}
                       fullWidth
                       size="small"
                       InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -3930,6 +4006,7 @@ export default function DocumentosFormPage({
                         return option.nombre_concepto || '';
                       }}
                       value={conceptosActivos.find((concepto) => concepto.id === form.concepto_id) || null}
+                      disabled={trazabilidadActiva}
                       onChange={(_, value) => {
                         if (!value) {
                           conceptoManualOverrideRef.current = true;
@@ -3991,6 +4068,7 @@ export default function DocumentosFormPage({
                       onBlur={handleNotaCreditoManualTotalBlur}
                       type="text"
                       inputMode="decimal"
+                      disabled={trazabilidadActiva}
                       fullWidth
                       size="small"
                       InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -4004,6 +4082,7 @@ export default function DocumentosFormPage({
                       label="Observaciones"
                       value={form.observaciones || ''}
                       onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
+                      disabled={trazabilidadActiva}
                       fullWidth
                       size="small"
                       InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -4019,6 +4098,7 @@ export default function DocumentosFormPage({
                         type="number"
                         value={form.subtotal ?? 0}
                         onChange={(e) => syncDocumentoMonetarioTotals(e.target.value)}
+                        disabled={trazabilidadActiva}
                         fullWidth
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -4031,6 +4111,7 @@ export default function DocumentosFormPage({
                         type="number"
                         value={form.total ?? 0}
                         onChange={(e) => syncDocumentoMonetarioTotals(e.target.value)}
+                        disabled={trazabilidadActiva}
                         fullWidth
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -4046,7 +4127,7 @@ export default function DocumentosFormPage({
                     type="number"
                     value={form.descuento_global ?? 0}
                     onChange={(e) => handleDescuentoGlobalChange(e.target.value)}
-                    disabled={!usaPartidas || permiteCapturaManualSinPartidas}
+                    disabled={!usaPartidas || permiteCapturaManualSinPartidas || trazabilidadActiva}
                     fullWidth
                     size="small"
                     InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
@@ -4557,7 +4638,7 @@ export default function DocumentosFormPage({
                 <Typography variant="h6" color="#1d2f68" fontWeight={700}>
                   Partidas
                 </Typography>
-                <Button startIcon={<AddIcon />} onClick={addRow} variant="outlined" size="small">
+                <Button startIcon={<AddIcon />} onClick={addRow} variant="outlined" size="small" disabled={trazabilidadActiva}>
                   Agregar partida
                 </Button>
               </Stack>
@@ -4733,6 +4814,7 @@ export default function DocumentosFormPage({
                                       inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
                                     />
                                   )}
+                                  disabled={trazabilidadActiva}
                                 />
 
                                 <TextField
@@ -4748,19 +4830,53 @@ export default function DocumentosFormPage({
                                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1 }}>
                                   <TextField
                                     label="Cantidad"
-                                    type="number"
-                                    value={partida.cantidad ?? 0}
-                                    onChange={(e) => handleCantidadPrecioChange(index, 'cantidad', e.target.value)}
-                                    size="small"
-                                    inputProps={{ min: 0, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
+                                    type="text"
+                                    value={editingCantidad[index]
+                                      ? cantidadInputs[index] ?? ''
+                                      : Number(partida.cantidad ?? 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
+                                    onChange={(e) => {
+                                      const raw = e.target.value ?? '';
+                                      setCantidadInputs((prev) => {
+                                        const next = [...prev];
+                                        next[index] = raw;
+                                        return next;
+                                      });
+                                      const numeric = parseFloat(raw);
+                                      handleCantidadPrecioChange(index, 'cantidad', Number.isFinite(numeric) ? String(numeric) : '0');
+                                    }}
                                     onFocus={() => {
+                                      setEditingCantidad((prev) => {
+                                        const next = [...prev];
+                                        next[index] = true;
+                                        return next;
+                                      });
+                                      setCantidadInputs((prev) => {
+                                        const next = [...prev];
+                                        next[index] = (partida.cantidad ?? '').toString();
+                                        return next;
+                                      });
                                       requestAnimationFrame(() => {
                                         cantidadRefs.current[index]?.select();
                                       });
                                     }}
+                                    onBlur={() => {
+                                      setEditingCantidad((prev) => {
+                                        const next = [...prev];
+                                        next[index] = false;
+                                        return next;
+                                      });
+                                      setCantidadInputs((prev) => {
+                                        const next = [...prev];
+                                        next[index] = '';
+                                        return next;
+                                      });
+                                    }}
+                                    size="small"
+                                    inputProps={{ style: { textAlign: 'right', fontSize: 13 } }}
                                     inputRef={(el) => {
                                       cantidadRefs.current[index] = el;
                                     }}
+                                    disabled={trazabilidadActiva}
                                   />
 
                                   <TextField
@@ -4809,6 +4925,7 @@ export default function DocumentosFormPage({
                                     inputRef={(el) => {
                                       precioRefs.current[index] = el;
                                     }}
+                                    disabled={trazabilidadActiva}
                                   />
                                 </Box>
 
@@ -4819,6 +4936,7 @@ export default function DocumentosFormPage({
                                   onChange={(e) => handleCantidadPrecioChange(index, 'descuento', e.target.value)}
                                   size="small"
                                   inputProps={{ min: 0, max: 100, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
+                                  disabled={trazabilidadActiva}
                                 />
 
                                 <Tooltip
@@ -4870,6 +4988,7 @@ export default function DocumentosFormPage({
                                           }));
                                         }}
                                         inputProps={{ 'aria-label': 'Cuenta para oportunidad' }}
+                                        disabled={trazabilidadActiva}
                                       />
                                     </Tooltip>
                                     <Typography variant="body2" color="text.secondary">
@@ -4904,7 +5023,7 @@ export default function DocumentosFormPage({
                                               {...(valorCampo ? { value: valorCampo } : {})}
                                               options={options}
                                               loading={Boolean(camposPartida.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
-                                              disabled={disabled}
+                                              disabled={disabled || trazabilidadActiva}
                                               onChange={(val: CampoValorPayload) => handleValorCampoPartidaChange(index, { ...val, campo_id: campo.id })}
                                             />
                                           </Grid>
@@ -4926,6 +5045,7 @@ export default function DocumentosFormPage({
                                     variant="outlined"
                                     size="small"
                                     InputProps={{ sx: { fontSize: 13 } }}
+                                    disabled={trazabilidadActiva}
                                   />
                                 )}
                               </Stack>
@@ -5054,6 +5174,7 @@ export default function DocumentosFormPage({
                               />
                             )}
                             sx={{ minWidth: 0 }}
+                            disabled={trazabilidadActiva}
                           />
 
                           <TextField
@@ -5069,19 +5190,53 @@ export default function DocumentosFormPage({
 
                           <TextField
                             label="Cantidad"
-                            type="number"
-                            value={partida.cantidad ?? 0}
-                            onChange={(e) => handleCantidadPrecioChange(index, 'cantidad', e.target.value)}
-                            size="small"
-                            inputProps={{ min: 0, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
+                            type="text"
+                            value={editingCantidad[index]
+                              ? cantidadInputs[index] ?? ''
+                              : Number(partida.cantidad ?? 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
+                            onChange={(e) => {
+                              const raw = e.target.value ?? '';
+                              setCantidadInputs((prev) => {
+                                const next = [...prev];
+                                next[index] = raw;
+                                return next;
+                              });
+                              const numeric = parseFloat(raw);
+                              handleCantidadPrecioChange(index, 'cantidad', Number.isFinite(numeric) ? String(numeric) : '0');
+                            }}
                             onFocus={() => {
+                              setEditingCantidad((prev) => {
+                                const next = [...prev];
+                                next[index] = true;
+                                return next;
+                              });
+                              setCantidadInputs((prev) => {
+                                const next = [...prev];
+                                next[index] = (partida.cantidad ?? '').toString();
+                                return next;
+                              });
                               requestAnimationFrame(() => {
                                 cantidadRefs.current[index]?.select();
                               });
                             }}
+                            onBlur={() => {
+                              setEditingCantidad((prev) => {
+                                const next = [...prev];
+                                next[index] = false;
+                                return next;
+                              });
+                              setCantidadInputs((prev) => {
+                                const next = [...prev];
+                                next[index] = '';
+                                return next;
+                              });
+                            }}
+                            size="small"
+                            inputProps={{ style: { textAlign: 'right', fontSize: 13 } }}
                             inputRef={(el) => {
                               cantidadRefs.current[index] = el;
                             }}
+                            disabled={trazabilidadActiva}
                           />
 
                           <TextField
@@ -5130,6 +5285,7 @@ export default function DocumentosFormPage({
                             inputRef={(el) => {
                               precioRefs.current[index] = el;
                             }}
+                            disabled={trazabilidadActiva}
                           />
 
                           <TextField
@@ -5139,6 +5295,7 @@ export default function DocumentosFormPage({
                             onChange={(e) => handleCantidadPrecioChange(index, 'descuento', e.target.value)}
                             size="small"
                             inputProps={{ min: 0, max: 100, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
+                            disabled={trazabilidadActiva}
                           />
 
                           <Tooltip
@@ -5191,6 +5348,7 @@ export default function DocumentosFormPage({
                                     }));
                                   }}
                                   inputProps={{ 'aria-label': 'Cuenta para oportunidad' }}
+                                  disabled={trazabilidadActiva}
                                 />
                               </Tooltip>
                             </Box>
@@ -5212,7 +5370,7 @@ export default function DocumentosFormPage({
                                     size="small"
                                     aria-label="Imagen de partida"
                                     onClick={() => abrirImagenDialog(index)}
-                                    disabled={Boolean(uploadingImagen[index])}
+                                    disabled={Boolean(uploadingImagen[index]) || trazabilidadActiva}
                                     sx={{
                                       color: partida.archivo_imagen_1
                                         ? '#2e7d32'
@@ -5236,7 +5394,7 @@ export default function DocumentosFormPage({
                                       size="small"
                                       aria-label="Eliminar imagen de partida"
                                       onClick={() => handleImagenRemove(index)}
-                                      disabled={Boolean(uploadingImagen[index])}
+                                      disabled={Boolean(uploadingImagen[index]) || trazabilidadActiva}
                                       color="error"
                                     >
                                       <DeleteIcon fontSize="small" />
@@ -5256,7 +5414,7 @@ export default function DocumentosFormPage({
                             <CommentIcon fontSize="small" />
                           </IconButton>
 
-                          <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small">
+                          <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small" disabled={trazabilidadActiva}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
 
@@ -5288,7 +5446,7 @@ export default function DocumentosFormPage({
                                       {...(valorCampo ? { value: valorCampo } : {})}
                                       options={options}
                                       loading={Boolean(camposPartida.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
-                                      disabled={disabled}
+                                      disabled={disabled || trazabilidadActiva}
                                       onChange={(val: CampoValorPayload) => handleValorCampoPartidaChange(index, { ...val, campo_id: campo.id })}
                                     />
                                   </Grid>
@@ -5311,6 +5469,7 @@ export default function DocumentosFormPage({
                               variant="outlined"
                               size="small"
                               InputProps={{ sx: { fontSize: 13 } }}
+                              disabled={trazabilidadActiva}
                             />
                           </Box>
                         )}
@@ -5337,7 +5496,7 @@ export default function DocumentosFormPage({
                             abrirImagenDialog(targetIndex);
                           }
                         }}
-                        disabled={Boolean(uploadingImagen[mobilePartidaMenuIndex])}
+                        disabled={Boolean(uploadingImagen[mobilePartidaMenuIndex]) || trazabilidadActiva}
                       >
                         {partidas[mobilePartidaMenuIndex]?.archivo_imagen_1
                           ? 'Cambiar imagen'
@@ -5355,7 +5514,7 @@ export default function DocumentosFormPage({
                             handleImagenRemove(targetIndex);
                           }
                         }}
-                        disabled={Boolean(uploadingImagen[mobilePartidaMenuIndex])}
+                        disabled={Boolean(uploadingImagen[mobilePartidaMenuIndex]) || trazabilidadActiva}
                       >
                         Eliminar imagen
                       </MenuItem>
@@ -5386,6 +5545,7 @@ export default function DocumentosFormPage({
                           }
                         }}
                         sx={{ color: 'error.main' }}
+                        disabled={trazabilidadActiva}
                       >
                         Eliminar partida
                       </MenuItem>
@@ -5747,6 +5907,32 @@ export default function DocumentosFormPage({
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button variant="contained" onClick={() => setDuplicateDialog({ open: false, message: '' })}>
+            Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={trazabilidadDialog.open} onClose={() => setTrazabilidadDialog({ open: false, folioRelacionado: '' })}>
+        <DialogTitle fontWeight={700}>Documento con trazabilidad activa</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: '#374151' }}>
+            Este documento fue generado a partir de otro documento o ya participa en una cadena de trazabilidad.
+            <br /><br />
+            Modificar sus partidas podría afectar la integridad de la información y romper las relaciones entre documentos.
+            <br /><br />
+            Si necesita cambiar cantidades, eliminar partidas o corregir información, elimine este documento (si aún está en borrador) y vuelva a generarlo desde el documento origen.
+            <br /><br />
+            Las partidas de documentos vinculados no pueden modificarse directamente.
+            {trazabilidadDialog.folioRelacionado && (
+              <>
+                <br /><br />
+                <strong>Documento relacionado:</strong> {trazabilidadDialog.folioRelacionado}
+              </>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button variant="contained" onClick={() => setTrazabilidadDialog({ open: false, folioRelacionado: '' })}>
             Entendido
           </Button>
         </DialogActions>

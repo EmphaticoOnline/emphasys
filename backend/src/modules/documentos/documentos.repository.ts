@@ -33,6 +33,8 @@ export type Documento = {
   concepto_id?: number | null;
   serie: string | null;
   numero: number | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
   documento_origen_id?: number | null;
   oportunidad_id?: number | null;
   fecha_documento: string;
@@ -86,6 +88,8 @@ export type Partida = {
 const CAMPOS_DOCUMENTO = [
   'serie',
   'numero',
+  'serie_externa',
+  'numero_externo',
   'fecha_documento',
   'documento_origen_id',
   'oportunidad_id',
@@ -512,6 +516,8 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
       d.motivo_nc,
       d.serie,
       d.numero,
+      d.serie_externa,
+      d.numero_externo,
       d.fecha_documento,
       d.contacto_principal_id,
       d.agente_id,
@@ -700,6 +706,8 @@ export async function listarDocumentosRepositoryPaginado(
       d.motivo_nc,
       d.serie,
       d.numero,
+      d.serie_externa,
+      d.numero_externo,
       d.fecha_documento,
       d.contacto_principal_id,
       d.agente_id,
@@ -861,6 +869,40 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
     );
     documento.tiene_derivados_activos = Boolean(derivadosRows[0]?.existe);
   }
+
+  const { rows: trazabilidadRows } = await executor.query<{
+    es_origen: boolean;
+    tipo_documento_relacionado: string | null;
+    folio_relacionado: string | null;
+  }>(
+    `SELECT
+       (dpv.documento_origen_id = $1) AS es_origen,
+       d_rel.tipo_documento AS tipo_documento_relacionado,
+       CASE
+         WHEN d_rel.serie IS NOT NULL AND d_rel.numero IS NOT NULL
+           THEN d_rel.serie || '-' || LPAD(d_rel.numero::text, 3, '0')
+         WHEN d_rel.serie IS NOT NULL THEN d_rel.serie
+         WHEN d_rel.numero IS NOT NULL THEN d_rel.numero::text
+         ELSE NULL
+       END AS folio_relacionado
+     FROM documentos_partidas dp
+     JOIN documentos_partidas_vinculos dpv
+       ON dpv.partida_origen_id = dp.id
+       OR dpv.partida_destino_id = dp.id
+     LEFT JOIN documentos d_rel ON d_rel.id = CASE
+       WHEN dpv.documento_origen_id = $1 THEN dpv.documento_destino_id
+       ELSE dpv.documento_origen_id
+     END
+     WHERE dp.documento_id = $1
+     LIMIT 1`,
+    [id]
+  );
+  const trazRow = trazabilidadRows[0] ?? null;
+  documento.trazabilidad_activa = trazRow !== null;
+  documento.trazabilidad_rol = trazRow ? (trazRow.es_origen ? 'origen' : 'destino') : null;
+  documento.documento_trazabilidad = trazRow
+    ? { tipo_documento: trazRow.tipo_documento_relacionado ?? '', folio: trazRow.folio_relacionado ?? '' }
+    : null;
 
   return { documento, partidas };
 }
@@ -1295,11 +1337,53 @@ export async function reemplazarPartidasRepository(
     assertFacturaCompraNoEmitida(docRow.tipo_documento, docRow.estatus_documento);
     await assertOrdenCompraModificable(documentoId, empresaId, docRow.tipo_documento, executor);
 
+    const { rows: vinculosCheck } = await executor.query<{ folio_relacionado: string | null }>(
+      `SELECT
+         CASE
+           WHEN d_rel.serie IS NOT NULL AND d_rel.numero IS NOT NULL
+             THEN d_rel.serie || '-' || LPAD(d_rel.numero::text, 3, '0')
+           WHEN d_rel.serie IS NOT NULL THEN d_rel.serie
+           WHEN d_rel.numero IS NOT NULL THEN d_rel.numero::text
+           ELSE NULL
+         END AS folio_relacionado
+       FROM documentos_partidas dp
+       JOIN documentos_partidas_vinculos dpv
+         ON dpv.partida_origen_id = dp.id
+         OR dpv.partida_destino_id = dp.id
+       LEFT JOIN documentos d_rel ON d_rel.id = CASE
+         WHEN dpv.documento_origen_id = $1 THEN dpv.documento_destino_id
+         ELSE dpv.documento_origen_id
+       END
+       WHERE dp.documento_id = $1
+       LIMIT 1`,
+      [documentoId]
+    );
+    if (vinculosCheck.length > 0) {
+      const folio = vinculosCheck[0].folio_relacionado ?? '';
+      throw new Error(`VALIDATION_ERROR: TRAZABILIDAD_ACTIVA: ${folio}`);
+    }
+
     const permiteImagen = true;
     const usaProductoTecnicoNc = ['nota_credito', 'nota_credito_compra'].includes(String(docRow.tipo_documento ?? '').toLowerCase());
 
     if (ownedClient) {
       await executor.query('BEGIN');
+    }
+    const { rows: _vinculosReemplazar } = await executor.query(
+      `SELECT dpv.id, dpv.documento_origen_id, dpv.documento_destino_id,
+              dpv.partida_origen_id, dpv.partida_destino_id, dpv.cantidad
+         FROM documentos_partidas_vinculos dpv
+        WHERE dpv.documento_destino_id = $1
+           OR dpv.documento_origen_id = $1`,
+      [documentoId]
+    );
+    if (_vinculosReemplazar.length > 0) {
+      console.warn('[VINCULOS AUDIT] reemplazarPartidasRepository - vinculos presentes antes de DELETE partidas', {
+        operacion: 'reemplazarPartidas',
+        documentoId,
+        vinculos: _vinculosReemplazar,
+        stack: new Error().stack,
+      });
     }
     console.log('[documentos] reemplazarPartidasRepository - delete partidas documento', documentoId);
     await executor.query('DELETE FROM documentos_partidas WHERE documento_id = $1', [documentoId]);
@@ -1401,6 +1485,24 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
 
     if (documentoActual) {
       assertFacturaCompraNoEmitida(documentoActual.tipo_documento, documentoActual.estatus_documento);
+    }
+
+    const { rows: _vinculosEliminar } = await client.query(
+      `SELECT dpv.id, dpv.documento_origen_id, dpv.documento_destino_id,
+              dpv.partida_origen_id, dpv.partida_destino_id, dpv.cantidad
+         FROM documentos_partidas_vinculos dpv
+        WHERE dpv.documento_destino_id = $1
+           OR dpv.documento_origen_id = $1`,
+      [id]
+    );
+    if (_vinculosEliminar.length > 0) {
+      console.warn('[VINCULOS AUDIT] eliminarDocumentoRepository - vinculos presentes antes de DELETE documento', {
+        operacion: 'eliminarDocumento',
+        documentoId: id,
+        tipoDocumento,
+        vinculos: _vinculosEliminar,
+        stack: new Error().stack,
+      });
     }
 
     const deletePartidasSql = tipoDocumento

@@ -89,7 +89,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Productos',     path: '/productos',              icon: CategoryIcon },
   { label: 'CRM',           path: '/crm',                   icon: ForumIcon },
   { label: 'Ventas',        path: '/ventas/cotizacion',      icon: PointOfSaleIcon },
-  { label: 'Compras',       path: '/compras/orden-compra',   icon: ShoppingCartIcon },
+  { label: 'Compras',       path: '/compras/orden_compra',   icon: ShoppingCartIcon },
   { label: 'Finanzas',      path: '/finanzas',              icon: AccountBalanceIcon },
   { label: 'Inventarios',   path: '/inventario/movimientos', icon: InventoryIcon },
   { label: 'Almacenes',     path: '/almacenes',             icon: WarehouseIcon },
@@ -388,6 +388,15 @@ export default function SidebarLayout() {
     else if (docModulo === 'compras') navigate(`/compras/${value}`);
   };
 
+  // Si el segmento de la URL no coincide con ninguna pestaña disponible, redirige a la primera habilitada
+  React.useEffect(() => {
+    if (!docModulo || documentTabs.length === 0) return;
+    const tabExists = documentTabs.some((t) => t.value === docTab);
+    if (!tabExists && documentTabs[0]) {
+      navigate(`/${docModulo}/${documentTabs[0].value}`, { replace: true });
+    }
+  }, [docModulo, docTab, documentTabs, navigate]);
+
   const documentTabBar = documentTabs.length > 0 ? (
     <Box sx={{ background: '#f6f8fa', borderBottom: '1px solid #e5e7eb', px: 2.5, pt: 1.5, pb: 0, flexShrink: 0 }}>
       <Tabs
@@ -453,7 +462,13 @@ export default function SidebarLayout() {
   };
 
   const handleNavigate = (path: string) => {
-    navigate(path);
+    let effectivePath = path;
+    if (path.startsWith('/ventas/') && ventasTabs.length > 0 && ventasTabs[0]) {
+      effectivePath = `/ventas/${ventasTabs[0].value}`;
+    } else if (path.startsWith('/compras/') && comprasTabs.length > 0 && comprasTabs[0]) {
+      effectivePath = `/compras/${comprasTabs[0].value}`;
+    }
+    navigate(effectivePath);
     setMobileOpen(false);
   };
 

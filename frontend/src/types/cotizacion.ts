@@ -25,6 +25,8 @@ export interface CotizacionListado {
   eliminara_oportunidad?: boolean;
   saldo?: number | null;
   estado_autorizacion?: string | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
 }
 
 export interface CotizacionDocumento {
@@ -64,6 +66,8 @@ export interface CotizacionDocumento {
   codigo_postal_receptor?: string | null;
   tratamiento_impuestos?: TratamientoImpuestos | null;
   saldo?: number | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
 }
 
 export interface CotizacionPartida {
@@ -148,6 +152,8 @@ export interface CotizacionCrearPayload {
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
   tratamiento_impuestos?: TratamientoImpuestos | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
   aplicaciones_documento?: Array<{
     documento_destino_id: number;
     monto: number;

@@ -750,6 +750,19 @@ export class DocumentGenerationService {
             )`,
           [documentoDestinoExistenteId]
         );
+        const { rows: _vinculosGenerar } = await client.query(
+          `SELECT id, documento_origen_id, documento_destino_id,
+                  partida_origen_id, partida_destino_id, cantidad
+             FROM documentos_partidas_vinculos
+            WHERE documento_destino_id = $1`,
+          [documentoDestinoExistenteId]
+        );
+        console.warn('[VINCULOS AUDIT] generarDocumentoDesdeOrigen - esEdicionDocumentoDestino DELETE vinculos', {
+          operacion: 'generarDesdeOrigen_edicion',
+          documentoDestinoId: documentoDestinoExistenteId,
+          vinculos_a_eliminar: _vinculosGenerar,
+          stack: new Error().stack,
+        });
         await client.query(
           `DELETE FROM documentos_partidas_vinculos
             WHERE documento_destino_id = $1`,
@@ -1050,7 +1063,9 @@ export class DocumentGenerationService {
             documentoDestino.id,
             idx + 1,
             partidaOrigen.producto_id ?? null,
-            esBonificacion ? (partidaOrigen.descripcion_alterna ?? `Bonificacion sobre ${buildFolio(partidaOrigen.documento_serie, partidaOrigen.documento_numero) ?? 'factura'}`) : null,
+            esBonificacion
+              ? (partidaOrigen.descripcion_alterna ?? `Bonificacion sobre ${buildFolio(partidaOrigen.documento_serie, partidaOrigen.documento_numero) ?? 'factura'}`)
+              : (partidaOrigen.descripcion_alterna ?? null),
             cantidadDestino,
             precioUnitarioDestino,
             esBonificacion ? 0 : descuento,
@@ -1086,6 +1101,14 @@ export class DocumentGenerationService {
             usuarioId ?? null,
           ]
         );
+        console.log('[VINCULOS AUDIT] generarDocumentoDesdeOrigen - INSERT vinculo', {
+          empresa_id: empresaId,
+          documento_origen_id: partidaOrigen.documento_id,
+          documento_destino_id: documentoDestino.id,
+          partida_origen_id: partidaOrigen.partida_id,
+          partida_destino_id: partidaDestinoId,
+          cantidad: cantidadVinculo,
+        });
 
         // Calcular impuestos con el motor nuevo (misma transacción)
         await calcularImpuestosPartida(partidaDestinoId, client);
