@@ -33,43 +33,6 @@ type Categoria = {
 
 const CATEGORIAS: Categoria[] = [
   {
-    label: 'Compras',
-    icon: ShoppingCartIcon,
-    color: '#1d2f68',
-    reportes: [
-      {
-        label: 'Compras por Proveedor',
-        descripcion: 'Volumen y participación de compras por proveedor en un período.',
-        path: '/informes/compras/compras-por-proveedor',
-      },
-      {
-        label: 'Compras por Producto',
-        descripcion: 'Volumen, cantidad y costo por artículo comprado en un período.',
-        path: '/informes/compras/compras-por-producto',
-      },
-      {
-        label: 'OC Pendientes de Recibir',
-        descripcion: 'Órdenes de compra con cantidades pendientes de materializar en inventario.',
-        path: '/informes/compras/oc-pendientes-recibir',
-      },
-      {
-        label: 'Estado de Cuenta de Proveedor',
-        descripcion: 'Saldo y movimientos por proveedor en un período.',
-        path: '/informes/compras/estado-cuenta-proveedor',
-      },
-      {
-        label: 'Historial de Precios de Compra',
-        descripcion: 'Evolución de costos unitarios por producto y proveedor en un período.',
-        path: '/informes/compras/historial-precios',
-      },
-      {
-        label: 'Compras por Período',
-        descripcion: 'Evolución temporal de compras. Identifica tendencias, estacionalidad y períodos clave.',
-        path: '/informes/compras/compras-por-periodo',
-      },
-    ],
-  },
-  {
     label: 'Ventas',
     icon: PointOfSaleIcon,
     color: '#006261',
@@ -108,6 +71,43 @@ const CATEGORIAS: Categoria[] = [
         label: 'Remisiones Pendientes de Facturar',
         descripcion: 'Remisiones con importe aún no cubierto mediante facturas de venta.',
         path: '/informes/ventas/remisiones-pendientes-facturar',
+      },
+    ],
+  },
+  {
+    label: 'Compras',
+    icon: ShoppingCartIcon,
+    color: '#1d2f68',
+    reportes: [
+      {
+        label: 'Compras por Proveedor',
+        descripcion: 'Volumen y participación de compras por proveedor en un período.',
+        path: '/informes/compras/compras-por-proveedor',
+      },
+      {
+        label: 'Compras por Producto',
+        descripcion: 'Volumen, cantidad y costo por artículo comprado en un período.',
+        path: '/informes/compras/compras-por-producto',
+      },
+      {
+        label: 'OC Pendientes de Recibir',
+        descripcion: 'Órdenes de compra con cantidades pendientes de materializar en inventario.',
+        path: '/informes/compras/oc-pendientes-recibir',
+      },
+      {
+        label: 'Estado de Cuenta de Proveedor',
+        descripcion: 'Saldo y movimientos por proveedor en un período.',
+        path: '/informes/compras/estado-cuenta-proveedor',
+      },
+      {
+        label: 'Historial de Precios de Compra',
+        descripcion: 'Evolución de costos unitarios por producto y proveedor en un período.',
+        path: '/informes/compras/historial-precios',
+      },
+      {
+        label: 'Compras por Período',
+        descripcion: 'Evolución temporal de compras. Identifica tendencias, estacionalidad y períodos clave.',
+        path: '/informes/compras/compras-por-periodo',
       },
     ],
   },
