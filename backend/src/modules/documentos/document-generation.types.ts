@@ -45,6 +45,7 @@ export interface PrepararGeneracionResponse {
 export interface DatosEncabezadoGeneracion {
   serie?: string | null;
   fecha?: string | Date;
+  fecha_vencimiento?: string | null;
   contacto_principal_id?: number | null;
   conversacion_id?: number | null;
   comentarios?: string | null;
@@ -59,6 +60,8 @@ export interface DatosEncabezadoGeneracion {
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
   tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
 }
 
 export interface GenerarDocumentoPartidaInput {

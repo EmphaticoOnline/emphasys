@@ -311,3 +311,274 @@ export async function fetchOCPendientesRecibir(params: OCPendientesParams): Prom
 export function buildOCPendientesExportUrl(params: OCPendientesParams, formato: 'excel' | 'pdf'): string {
   return `${BASE}/compras/oc-pendientes-recibir?${buildOCPendientesQs(params, { formato }).toString()}`;
 }
+
+// ── Vencimientos de Proveedores ───────────────────────────────────────────────
+
+export type VencimientoProveedor = {
+  id: number;
+  fecha_vencimiento: string;
+  dias: number;
+  proveedor_nombre: string;
+  folio: string;
+  referencia_proveedor: string;
+  total: number;
+  saldo: number;
+};
+
+export type VencimientosProveedoresResult = {
+  fecha_corte: string;
+  vencimientos: VencimientoProveedor[];
+};
+
+export type VencimientosProveedoresParams = {
+  fecha_corte?: string;
+  contacto_id?: number | null;
+  moneda?: string | null;
+};
+
+function buildVencimientosQs(params: VencimientosProveedoresParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams(extras);
+  if (params.fecha_corte) qs.set('fecha_corte', params.fecha_corte);
+  if (params.contacto_id) qs.set('contacto_id', String(params.contacto_id));
+  if (params.moneda) qs.set('moneda', params.moneda);
+  return qs;
+}
+
+export async function fetchVencimientosProveedores(params: VencimientosProveedoresParams): Promise<VencimientosProveedoresResult> {
+  const res = await apiFetch(`${BASE}/finanzas/vencimientos-proveedores?${buildVencimientosQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener reporte');
+  }
+  return res.json() as Promise<VencimientosProveedoresResult>;
+}
+
+export function buildVencimientosProveedoresExportUrl(params: VencimientosProveedoresParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/finanzas/vencimientos-proveedores?${buildVencimientosQs(params, { formato }).toString()}`;
+}
+
+// ── Historial de Precios de Compra ────────────────────────────────────────────
+
+export type HistorialPrecioLinea = {
+  id: number;
+  fecha: string;
+  proveedor_nombre: string;
+  folio: string;
+  referencia_proveedor: string;
+  grupo_key: string;
+  producto_id: number | null;
+  clave: string;
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+};
+
+export type HistorialPreciosResumen = {
+  ultimo_costo: number;
+  primer_costo: number | null;
+  costo_min: number;
+  costo_max: number;
+  costo_promedio: number;
+  variacion_pct: number | null;
+};
+
+export type HistorialPreciosResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  lineas: HistorialPrecioLinea[];
+  resumen: HistorialPreciosResumen;
+};
+
+export type HistorialPreciosParams = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  producto_id?: number | null;
+  contacto_id?: number | null;
+};
+
+function buildHistorialQs(params: HistorialPreciosParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams({ fecha_inicio: params.fecha_inicio, fecha_fin: params.fecha_fin, ...extras });
+  if (params.producto_id) qs.set('producto_id', String(params.producto_id));
+  if (params.contacto_id) qs.set('contacto_id', String(params.contacto_id));
+  return qs;
+}
+
+export async function fetchHistorialPreciosCompra(params: HistorialPreciosParams): Promise<HistorialPreciosResult> {
+  const res = await apiFetch(`${BASE}/compras/historial-precios?${buildHistorialQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener reporte');
+  }
+  return res.json() as Promise<HistorialPreciosResult>;
+}
+
+export function buildHistorialPreciosExportUrl(params: HistorialPreciosParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/compras/historial-precios?${buildHistorialQs(params, { formato }).toString()}`;
+}
+
+export async function fetchHistorialPreciosVenta(params: HistorialPreciosParams): Promise<HistorialPreciosResult> {
+  const res = await apiFetch(`${BASE}/ventas/historial-precios?${buildHistorialQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener reporte');
+  }
+  return res.json() as Promise<HistorialPreciosResult>;
+}
+
+export function buildHistorialPreciosVentaExportUrl(params: HistorialPreciosParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/ventas/historial-precios?${buildHistorialQs(params, { formato }).toString()}`;
+}
+
+// ── Movimientos por Período (Compras / Ventas) ────────────────────────────────
+
+export type Agrupacion = 'dia' | 'semana' | 'mes' | 'anio';
+
+export type PeriodoResumen = {
+  periodo_key:          string;
+  periodo_label:        string;
+  cantidad_documentos:  number;
+  cantidad_contactos:   number;
+  cantidad_total:       number;
+  subtotal:             number;
+  iva:                  number;
+  total:                number;
+};
+
+export type DocumentoPeriodo = {
+  periodo_key:      string;
+  id:               number;
+  fecha:            string;
+  folio:            string;
+  contacto_nombre:  string;
+  cantidad_total:   number;
+  subtotal:         number;
+  iva:              number;
+  total:            number;
+};
+
+export type KpisMovimientosPeriodo = {
+  total:                number;
+  cantidad_documentos:  number;
+  cantidad_contactos:   number;
+  cantidad_total:       number;
+  ticket_promedio:      number;
+};
+
+export type MovimientosPorPeriodoResult = {
+  fecha_inicio: string;
+  fecha_fin:    string;
+  agrupacion:   Agrupacion;
+  periodos:     PeriodoResumen[];
+  documentos:   DocumentoPeriodo[];
+  kpis:         KpisMovimientosPeriodo;
+};
+
+export type MovimientosPorPeriodoParams = {
+  fecha_inicio:  string;
+  fecha_fin:     string;
+  agrupacion:    Agrupacion;
+  contacto_id?:  number | null;
+  producto_id?:  number | null;
+};
+
+function buildPeriodoQs(params: MovimientosPorPeriodoParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams({
+    fecha_inicio: params.fecha_inicio,
+    fecha_fin:    params.fecha_fin,
+    agrupacion:   params.agrupacion,
+    ...extras,
+  });
+  if (params.contacto_id) qs.set('contacto_id', String(params.contacto_id));
+  if (params.producto_id) qs.set('producto_id', String(params.producto_id));
+  return qs;
+}
+
+async function fetchMovimientosPorPeriodo(
+  endpoint: string,
+  params: MovimientosPorPeriodoParams
+): Promise<MovimientosPorPeriodoResult> {
+  const res = await apiFetch(`${BASE}/${endpoint}?${buildPeriodoQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener reporte');
+  }
+  return res.json() as Promise<MovimientosPorPeriodoResult>;
+}
+
+function buildPeriodoExportUrl(
+  endpoint: string,
+  params: MovimientosPorPeriodoParams,
+  formato: 'excel' | 'pdf'
+): string {
+  return `${BASE}/${endpoint}?${buildPeriodoQs(params, { formato }).toString()}`;
+}
+
+export const fetchComprasPorPeriodo = (p: MovimientosPorPeriodoParams) =>
+  fetchMovimientosPorPeriodo('compras/compras-por-periodo', p);
+
+export const buildComprasPorPeriodoExportUrl = (p: MovimientosPorPeriodoParams, f: 'excel' | 'pdf') =>
+  buildPeriodoExportUrl('compras/compras-por-periodo', p, f);
+
+export const fetchVentasPorPeriodo = (p: MovimientosPorPeriodoParams) =>
+  fetchMovimientosPorPeriodo('ventas/ventas-por-periodo', p);
+
+export const buildVentasPorPeriodoExportUrl = (p: MovimientosPorPeriodoParams, f: 'excel' | 'pdf') =>
+  buildPeriodoExportUrl('ventas/ventas-por-periodo', p, f);
+
+// ── Pendientes de Facturar (Pedidos / Remisiones) ─────────────────────────────
+
+export type PendienteFacturarDoc = {
+  doc_id:          number;
+  folio:           string;
+  fecha:           string;
+  cliente_id:      number | null;
+  cliente_nombre:  string;
+  total_doc:       number;
+  total_facturado: number;
+  total_pendiente: number;
+  pct_avance:      number;
+};
+
+export type PendientesFacturarResult = {
+  fecha_inicio: string;
+  fecha_fin:    string;
+  documentos:   PendienteFacturarDoc[];
+};
+
+export type PendientesFacturarParams = {
+  fecha_inicio: string;
+  fecha_fin:    string;
+  contacto_id?: number | null;
+};
+
+function buildPendientesQs(params: PendientesFacturarParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams({ fecha_inicio: params.fecha_inicio, fecha_fin: params.fecha_fin, ...extras });
+  if (params.contacto_id) qs.set('contacto_id', String(params.contacto_id));
+  return qs;
+}
+
+async function fetchPendientesFacturar(endpoint: string, params: PendientesFacturarParams): Promise<PendientesFacturarResult> {
+  const res = await apiFetch(`${BASE}/${endpoint}?${buildPendientesQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener reporte');
+  }
+  return res.json() as Promise<PendientesFacturarResult>;
+}
+
+function buildPendientesExportUrl(endpoint: string, params: PendientesFacturarParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/${endpoint}?${buildPendientesQs(params, { formato }).toString()}`;
+}
+
+export const fetchPedidosPendientesFacturar = (p: PendientesFacturarParams) =>
+  fetchPendientesFacturar('ventas/pedidos-pendientes-facturar', p);
+
+export const buildPedidosPendientesExportUrl = (p: PendientesFacturarParams, f: 'excel' | 'pdf') =>
+  buildPendientesExportUrl('ventas/pedidos-pendientes-facturar', p, f);
+
+export const fetchRemisionesPendientesFacturar = (p: PendientesFacturarParams) =>
+  fetchPendientesFacturar('ventas/remisiones-pendientes-facturar', p);
+
+export const buildRemisionesPendientesExportUrl = (p: PendientesFacturarParams, f: 'excel' | 'pdf') =>
+  buildPendientesExportUrl('ventas/remisiones-pendientes-facturar', p, f);

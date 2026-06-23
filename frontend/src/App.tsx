@@ -46,6 +46,13 @@ import ComprasPorProductoPage from './pages/informes/compras/ComprasPorProductoP
 import OCPendientesRecibirPage from './pages/informes/compras/OCPendientesRecibirPage';
 import VentasPorClientePage from './pages/informes/ventas/VentasPorClientePage';
 import VentasPorProductoPage from './pages/informes/ventas/VentasPorProductoPage';
+import VencimientosProveedoresPage from './pages/informes/finanzas/VencimientosProveedoresPage';
+import HistorialPreciosCompraPage from './pages/informes/compras/HistorialPreciosCompraPage';
+import ComprasPorPeriodoPage from './pages/informes/compras/ComprasPorPeriodoPage';
+import HistorialPreciosVentaPage from './pages/informes/ventas/HistorialPreciosVentaPage';
+import VentasPorPeriodoPage from './pages/informes/ventas/VentasPorPeriodoPage';
+import PedidosPendientesFacturarPage from './pages/informes/ventas/PedidosPendientesFacturarPage';
+import RemisionesPendientesFacturarPage from './pages/informes/ventas/RemisionesPendientesFacturarPage';
 import ProduccionPage from './pages/ProduccionPage';
 import ConfiguracionEtapasProduccionPage from './pages/ConfiguracionEtapasProduccionPage';
 import ListasPreciosPage from './pages/configuracion/ListasPreciosPage';
@@ -110,6 +117,13 @@ export default function App() {
               <Route path="/informes/ventas/ventas-por-cliente"       element={<VentasPorClientePage />} />
               <Route path="/informes/ventas/ventas-por-producto"      element={<VentasPorProductoPage />} />
               <Route path="/informes/ventas/estado-cuenta-cliente"    element={<EstadoCuentaClientePage />} />
+              <Route path="/informes/compras/historial-precios"                    element={<HistorialPreciosCompraPage />} />
+              <Route path="/informes/compras/compras-por-periodo"               element={<ComprasPorPeriodoPage />} />
+              <Route path="/informes/ventas/historial-precios"                  element={<HistorialPreciosVentaPage />} />
+              <Route path="/informes/ventas/ventas-por-periodo"                 element={<VentasPorPeriodoPage />} />
+              <Route path="/informes/ventas/pedidos-pendientes-facturar"        element={<PedidosPendientesFacturarPage />} />
+              <Route path="/informes/ventas/remisiones-pendientes-facturar"     element={<RemisionesPendientesFacturarPage />} />
+              <Route path="/informes/finanzas/vencimientos-proveedores"        element={<VencimientosProveedoresPage />} />
 
               {/* Configuración */}
               <Route path="/configuracion" element={<ConfiguracionPage />} />

@@ -537,8 +537,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     data: PrepararGeneracionResponse | null;
     cantidades: Record<number, number>;
     tratamientoImpuestos: TratamientoImpuestos;
+    serieExterna: string;
+    numeroExterno: string;
     enviando: boolean;
-  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
+  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false });
   const [aplicarAnticiposDialog, setAplicarAnticiposDialog] = useState<{
     open: boolean;
     documentoOrigenId: number | null;
@@ -859,6 +861,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       data: null,
       cantidades: {},
       tratamientoImpuestos: 'normal',
+      serieExterna: '',
+      numeroExterno: '',
       enviando: false,
     });
 
@@ -878,6 +882,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         data,
         cantidades,
         tratamientoImpuestos: tratamientoInicial,
+        serieExterna: '',
+        numeroExterno: '',
         enviando: false,
       });
     } catch (err: any) {
@@ -890,6 +896,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         data: null,
         cantidades: {},
         tratamientoImpuestos: 'normal',
+        serieExterna: '',
+        numeroExterno: '',
         enviando: false,
       });
       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la generación', severity: 'error' });
@@ -1068,6 +1076,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       data: null,
       cantidades: {},
       tratamientoImpuestos: 'normal',
+      serieExterna: '',
+      numeroExterno: '',
       enviando: false,
     });
 
@@ -1088,10 +1098,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         data,
         cantidades,
         tratamientoImpuestos: tratamientoInicial,
+        serieExterna: '',
+        numeroExterno: '',
         enviando: false,
       });
     } catch (err: any) {
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false });
       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la consolidación', severity: 'error' });
     }
   };
@@ -1175,22 +1187,28 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       return;
     }
 
+    const serieExternaVal = generacionDialog.serieExterna.trim() || null;
+    const numeroExternoVal = generacionDialog.numeroExterno !== '' ? Number(generacionDialog.numeroExterno) : null;
     const payload: GenerarDocumentoPayload = {
-      ...(generacionDialog.documentoIds.length > 1
-        ? { documento_origen_ids: generacionDialog.documentoIds }
-        : { documento_origen_id: generacionDialog.documentoId ?? undefined }),
       tipo_documento_destino: generacionDialog.tipoDestino as any,
       datos_encabezado: {
         fecha: toCivilDate(),
         tratamiento_impuestos: generacionDialog.tratamientoImpuestos,
+        ...(serieExternaVal !== null && { serie_externa: serieExternaVal }),
+        ...(numeroExternoVal !== null && { numero_externo: numeroExternoVal }),
       },
       partidas,
     };
+    if (generacionDialog.documentoIds.length > 1) {
+      payload.documento_origen_ids = generacionDialog.documentoIds;
+    } else if (generacionDialog.documentoId !== null) {
+      payload.documento_origen_id = generacionDialog.documentoId;
+    }
 
     try {
       setGeneracionDialog((prev) => ({ ...prev, enviando: true }));
       const result = await generarDocumentoDesdeOrigen(payload, token!, empresaId!);
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false });
       setSnackbar({ open: true, message: 'Documento generado correctamente', severity: 'success' });
       await handlePostGeneration({
         documentoOrigenId: generacionDialog.documentoId ?? generacionDialog.documentoIds[0] ?? 0,
@@ -1198,7 +1216,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         pathname: location.pathname,
       });
     } catch (err: any) {
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false });
       if (err instanceof AutorizacionRequeridaError) {
         setSnackbar({ open: true, message: err.message, severity: 'info' });
         void load();
@@ -3106,7 +3124,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
       <Dialog
         open={generacionDialog.open}
-        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false })}
+        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false })}
         fullWidth
         maxWidth="md"
       >
@@ -3142,6 +3160,27 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   </MenuItem>
                 ))}
               </TextField>
+              {generacionDialog.tipoDestino === 'factura_compra' && (
+                <Stack direction="row" spacing={1.5}>
+                  <TextField
+                    label="Serie externa (proveedor)"
+                    size="small"
+                    value={generacionDialog.serieExterna}
+                    onChange={(e) => setGeneracionDialog((prev) => ({ ...prev, serieExterna: e.target.value }))}
+                    inputProps={{ maxLength: 10 }}
+                    sx={{ width: 160 }}
+                  />
+                  <TextField
+                    label="Número externo (proveedor)"
+                    size="small"
+                    type="number"
+                    value={generacionDialog.numeroExterno}
+                    onChange={(e) => setGeneracionDialog((prev) => ({ ...prev, numeroExterno: e.target.value }))}
+                    inputProps={{ min: 0 }}
+                    sx={{ width: 200 }}
+                  />
+                </Stack>
+              )}
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -3177,7 +3216,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
           <Button
-            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', enviando: false })}
+            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false })}
             disabled={generacionDialog.enviando}
           >
             Cancelar

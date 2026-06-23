@@ -129,6 +129,21 @@ const normalizeCivilDate = (value: string | null | undefined) => {
 const defaultFecha = () => toCivilDate();
 const validarRFC = (rfc: string) => /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(rfc);
 
+const TIPOS_CON_VENCIMIENTO = new Set(['factura', 'factura_compra']);
+
+const calcVencimientoLocal = (fechaDocumento: string, diasCredito: number | null | undefined): string | null => {
+  if (!fechaDocumento) return null;
+  const parts = fechaDocumento.split('-');
+  const year = Number(parts[0] ?? 0);
+  const month = Number(parts[1] ?? 0);
+  const day = Number(parts[2] ?? 0);
+  if (!year || !month || !day) return null;
+  if (!diasCredito || diasCredito <= 0) return fechaDocumento;
+  const d = new Date(year, month - 1, day);
+  d.setDate(d.getDate() + diasCredito);
+  return toCivilDate(d);
+};
+
 const clampDiscountPercent = (value: unknown) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 0;
@@ -505,6 +520,7 @@ export default function DocumentosFormPage({
     contacto_principal_id: null,
     agente_id: null,
     fecha_documento: defaultFecha(),
+    fecha_vencimiento: null,
     moneda: 'MXN',
     tipo_cambio: 1,
     cuenta_financiera_id: null,
@@ -633,6 +649,8 @@ export default function DocumentosFormPage({
   const [mobilePartidaMenuIndex, setMobilePartidaMenuIndex] = useState<number | null>(null);
   const conceptoAutoSyncRef = useRef<string | null>(null);
   const conceptoManualOverrideRef = useRef(false);
+  const fechaVencimientoManualRef = useRef(false);
+  const prevVencimientoContactoIdRef = useRef<number | null | undefined>(undefined);
 
   const shouldOpenPagos = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -1634,6 +1652,7 @@ export default function DocumentosFormPage({
         contacto_principal_id: doc.contacto_principal_id,
         agente_id: (doc as any).agente_id ?? null,
         fecha_documento: normalizeCivilDate(doc.fecha_documento) || defaultFecha(),
+        fecha_vencimiento: normalizeCivilDate((doc as any).fecha_vencimiento) || null,
         moneda: doc.moneda || 'MXN',
         tipo_cambio: (doc as any).tipo_cambio ?? 1,
         cuenta_financiera_id: (doc as any).cuenta_financiera_id ?? null,
@@ -1690,6 +1709,7 @@ export default function DocumentosFormPage({
       skipFiscalFetchRef.current = true;
       prevContactoRef.current = doc.contacto_principal_id;
       prevPrecioResolverContactoRef.current = doc.contacto_principal_id;
+      fechaVencimientoManualRef.current = Boolean(normalizeCivilDate((doc as any).fecha_vencimiento));
       descuentoGlobalRef.current = clampDiscountPercent((doc as any).descuento_global ?? 0);
 
       const mapped: PartidaForm[] = data.partidas.map((p: CotizacionPartida) => {
@@ -2246,6 +2266,36 @@ export default function DocumentosFormPage({
     prevContactoRef.current = contactoId;
   }, [form.contacto_principal_id, tipoDocumento]);
 
+  useEffect(() => {
+    if (!TIPOS_CON_VENCIMIENTO.has(tipoDocumento)) return;
+    if (fechaVencimientoManualRef.current) return;
+    if (!form.contacto_principal_id) return;
+    const contacto = contactos.find((c) => c.id === form.contacto_principal_id);
+    const nuevaFecha = calcVencimientoLocal(form.fecha_documento, contacto?.dias_credito);
+    setForm((prev) => ({ ...prev, fecha_vencimiento: nuevaFecha }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.fecha_documento]);
+
+  useEffect(() => {
+    const newId = form.contacto_principal_id ?? null;
+    // Primer render: inicializar el ref sin recalcular (respeta fecha cargada en modo edición)
+    if (prevVencimientoContactoIdRef.current === undefined) {
+      prevVencimientoContactoIdRef.current = newId;
+      return;
+    }
+    if (prevVencimientoContactoIdRef.current === newId) return;
+    prevVencimientoContactoIdRef.current = newId;
+
+    if (!TIPOS_CON_VENCIMIENTO.has(tipoDocumento)) return;
+
+    // Contacto cambió: resetear bandera manual y recalcular
+    fechaVencimientoManualRef.current = false;
+    const contacto = newId ? contactos.find((c) => c.id === newId) : null;
+    const nuevaFecha = calcVencimientoLocal(form.fecha_documento, contacto?.dias_credito);
+    setForm((prev) => ({ ...prev, fecha_vencimiento: nuevaFecha }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.contacto_principal_id]);
+
   const construirPartidaTecnicaNotaCredito = useCallback(async (calculoManual?: { subtotal: number; iva: number; total: number }): Promise<CotizacionPartidaPayload> => {
     const subtotal = Number(calculoManual?.subtotal ?? form.subtotal ?? 0);
     const totalPartida = Number(calculoManual?.total ?? form.total ?? subtotal);
@@ -2411,6 +2461,7 @@ export default function DocumentosFormPage({
         forma_pago: form.forma_pago?.trim() || null,
         metodo_pago: form.metodo_pago?.trim() || null,
         codigo_postal_receptor: form.codigo_postal_receptor?.trim() || null,
+        fecha_vencimiento: TIPOS_CON_VENCIMIENTO.has(tipoDocumento) ? (form.fecha_vencimiento || null) : null,
       };
 
       if (isNotaCreditoDevolucion || isNotaCreditoBonificacion) {
@@ -3711,40 +3762,6 @@ export default function DocumentosFormPage({
                         sx={campoEncabezadoSx}
                       />
                     </Grid>
-                    {(tipoDocumento === 'factura_compra' || tipoDocumento === 'nota_credito_compra') && (
-                      <>
-                        <Grid size={{ xs: 12, md: 1 }}>
-                          <TextField
-                            label="Serie externa"
-                            value={form.serie_externa || ''}
-                            onChange={(e) => setForm((prev) => ({ ...prev, serie_externa: e.target.value.trim() || null }))}
-                            disabled={trazabilidadActiva}
-                            fullWidth
-                            size="small"
-                            inputProps={{ maxLength: 10, style: { fontSize: 13 } }}
-                            InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                            sx={campoEncabezadoSx}
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 12, md: 2 }}>
-                          <TextField
-                            label="Número externo"
-                            value={form.numero_externo ?? ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setForm((prev) => ({ ...prev, numero_externo: val === '' ? null : Number(val) }));
-                            }}
-                            disabled={trazabilidadActiva}
-                            fullWidth
-                            size="small"
-                            type="number"
-                            inputProps={{ min: 0, style: { fontSize: 13 } }}
-                            InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                            sx={campoEncabezadoSx}
-                          />
-                        </Grid>
-                      </>
-                    )}
                     <Grid size={{ xs: 12, md: 4 }}>
                       <Box
                         sx={{
@@ -3941,6 +3958,24 @@ export default function DocumentosFormPage({
                   />
                 </Grid>
                 )}
+                {!usaCapturaEspecialNotaCredito && TIPOS_CON_VENCIMIENTO.has(tipoDocumento) && (
+                <Grid size={{ xs: 12, md: 2 }}>
+                  <TextField
+                    label="Fecha de vencimiento"
+                    type="date"
+                    value={form.fecha_vencimiento ?? ''}
+                    onChange={(e) => {
+                      fechaVencimientoManualRef.current = true;
+                      setForm((prev) => ({ ...prev, fecha_vencimiento: e.target.value || null }));
+                    }}
+                    disabled={trazabilidadActiva}
+                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                    inputProps={{ style: { fontSize: 13 } }}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid>
+                )}
                 {widgetTratamientoFiscal && (
                   <Grid size={{ xs: 12, md: 2 }}>
                     <TextField
@@ -4089,6 +4124,40 @@ export default function DocumentosFormPage({
                       inputProps={{ style: { fontSize: 13 } }}
                     />
                   </Grid>
+                )}
+                {(tipoDocumento === 'factura_compra' || tipoDocumento === 'nota_credito_compra') && (
+                  <>
+                    <Grid size={{ xs: 12, md: 1 }}>
+                      <TextField
+                        label="Serie externa"
+                        value={form.serie_externa || ''}
+                        onChange={(e) => setForm((prev) => ({ ...prev, serie_externa: e.target.value.trim() || null }))}
+                        disabled={trazabilidadActiva}
+                        fullWidth
+                        size="small"
+                        inputProps={{ maxLength: 10, style: { fontSize: 13 } }}
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        sx={campoEncabezadoSx}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 2 }}>
+                      <TextField
+                        label="Número externo"
+                        value={form.numero_externo ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm((prev) => ({ ...prev, numero_externo: val === '' ? null : Number(val) }));
+                        }}
+                        disabled={trazabilidadActiva}
+                        fullWidth
+                        size="small"
+                        type="number"
+                        inputProps={{ min: 0, style: { fontSize: 13 } }}
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                        sx={campoEncabezadoSx}
+                      />
+                    </Grid>
+                  </>
                 )}
                 {!esDocumentoMonetario && !usaPartidas && (
                   <>

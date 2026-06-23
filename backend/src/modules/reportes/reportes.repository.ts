@@ -958,3 +958,719 @@ export async function obtenerOCPendientesRecibir(params: {
 
   return { fecha_corte: fechaCorte, ordenes, partidas };
 }
+
+// ── Historial de Precios de Compra ────────────────────────────────────────────
+
+export type HistorialPrecioLinea = {
+  id: number;
+  fecha: string;
+  proveedor_nombre: string;
+  folio: string;
+  referencia_proveedor: string;
+  grupo_key: string;
+  producto_id: number | null;
+  clave: string;
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+};
+
+export type HistorialPreciosResumen = {
+  ultimo_costo: number;
+  primer_costo: number | null;
+  costo_min: number;
+  costo_max: number;
+  costo_promedio: number;
+  variacion_pct: number | null;
+};
+
+export type HistorialPreciosResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  lineas: HistorialPrecioLinea[];
+  resumen: HistorialPreciosResumen;
+};
+
+function _calcularResumenHistorial(lineas: HistorialPrecioLinea[]): HistorialPreciosResumen {
+  if (lineas.length === 0) {
+    return { ultimo_costo: 0, primer_costo: null, costo_min: 0, costo_max: 0, costo_promedio: 0, variacion_pct: null };
+  }
+
+  // lineas ordenadas DESC → primero = más reciente, último = más antiguo
+  const ultimo_costo = lineas[0].precio_unitario;
+  const primer_costo = lineas[lineas.length - 1].precio_unitario;
+
+  let costo_min = Infinity;
+  let costo_max = -Infinity;
+  let suma_pond  = 0;
+  let suma_cant  = 0;
+
+  for (const l of lineas) {
+    if (l.precio_unitario < costo_min) costo_min = l.precio_unitario;
+    if (l.precio_unitario > costo_max) costo_max = l.precio_unitario;
+    suma_pond += l.cantidad * l.precio_unitario;
+    suma_cant  += l.cantidad;
+  }
+
+  const costo_promedio = suma_cant > 0 ? suma_pond / suma_cant : 0;
+
+  const variacion_pct = lineas.length >= 2 && primer_costo > 0
+    ? ((ultimo_costo - primer_costo) / primer_costo) * 100
+    : null;
+
+  return {
+    ultimo_costo,
+    primer_costo,
+    costo_min: costo_min === Infinity ? 0 : costo_min,
+    costo_max: costo_max === -Infinity ? 0 : costo_max,
+    costo_promedio,
+    variacion_pct,
+  };
+}
+
+export async function obtenerHistorialPreciosCompra(params: {
+  empresaId: number;
+  fechaInicio: string;
+  fechaFin: string;
+  productoId?: number | null;
+  contactoId?: number | null;
+}): Promise<HistorialPreciosResult> {
+  const { empresaId, fechaInicio, fechaFin, productoId, contactoId } = params;
+
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin];
+  const filtros: string[] = [];
+
+  if (productoId) {
+    args.push(productoId);
+    filtros.push(`AND dp.producto_id = $${args.length}`);
+  }
+  if (contactoId) {
+    args.push(contactoId);
+    filtros.push(`AND d.contacto_principal_id = $${args.length}`);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       dp.id,
+       d.fecha_documento                                                                   AS fecha,
+       COALESCE(c.nombre, '—')                                                           AS proveedor_nombre,
+       COALESCE(d.serie, '')                                                               AS serie,
+       COALESCE(d.numero, 0)::int                                                         AS numero,
+       COALESCE(d.serie_externa, '')                                                       AS serie_externa,
+       COALESCE(d.numero_externo, 0)::int                                                 AS numero_externo,
+       COALESCE(dp.producto_id::text, 'libre:' || COALESCE(dp.descripcion_alterna, ''))  AS grupo_key,
+       dp.producto_id,
+       COALESCE(p.clave, dp.descripcion_alterna, '—')                                   AS clave,
+       COALESCE(p.descripcion, dp.descripcion_alterna, '(sin descripción)')              AS descripcion,
+       dp.cantidad::numeric                                                                AS cantidad,
+       dp.precio_unitario::numeric                                                         AS precio_unitario,
+       dp.subtotal_partida::numeric                                                        AS subtotal
+     FROM documentos_partidas dp
+     JOIN documentos d ON d.id = dp.documento_id AND d.empresa_id = $1
+     LEFT JOIN contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = $1
+     LEFT JOIN productos p ON p.id = dp.producto_id AND p.empresa_id = $1
+     WHERE d.tipo_documento = 'factura_compra'
+       AND d.fecha_documento >= $2::date
+       AND d.fecha_documento <= $3::date
+       AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')
+       ${filtros.join(' ')}
+     ORDER BY d.fecha_documento DESC, d.id DESC, dp.numero_partida`,
+    args
+  );
+
+  const lineas: HistorialPrecioLinea[] = rows.map((r) => {
+    const serieExt = String(r.serie_externa ?? '').trim();
+    const numExt   = Number(r.numero_externo ?? 0);
+    return {
+      id:                   r.id as number,
+      fecha:                toFecha(r.fecha),
+      proveedor_nombre:     String(r.proveedor_nombre ?? '—'),
+      folio:                formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+      referencia_proveedor: (serieExt || numExt > 0) ? formatearFolioDocumento(serieExt, numExt) : '',
+      grupo_key:            String(r.grupo_key ?? ''),
+      producto_id:          r.producto_id != null ? Number(r.producto_id) : null,
+      clave:                String(r.clave ?? '—'),
+      descripcion:          String(r.descripcion ?? '(sin descripción)'),
+      cantidad:             Number(r.cantidad ?? 0),
+      precio_unitario:      Number(r.precio_unitario ?? 0),
+      subtotal:             Number(r.subtotal ?? 0),
+    };
+  });
+
+  return {
+    fecha_inicio: fechaInicio,
+    fecha_fin:    fechaFin,
+    lineas,
+    resumen: _calcularResumenHistorial(lineas),
+  };
+}
+
+// ── Movimientos por Período (Compras por Período / Ventas por Período) ────────
+
+export type Agrupacion = 'dia' | 'semana' | 'mes' | 'anio';
+
+export type PeriodoResumen = {
+  periodo_key:          string;
+  periodo_label:        string;
+  cantidad_documentos:  number;
+  cantidad_contactos:   number;
+  cantidad_total:       number;
+  subtotal:             number;
+  iva:                  number;
+  total:                number;
+};
+
+export type DocumentoPeriodo = {
+  periodo_key:      string;
+  id:               number;
+  fecha:            string;
+  folio:            string;
+  contacto_nombre:  string;
+  cantidad_total:   number;
+  subtotal:         number;
+  iva:              number;
+  total:            number;
+};
+
+export type KpisMovimientosPeriodo = {
+  total:                number;
+  cantidad_documentos:  number;
+  cantidad_contactos:   number;
+  cantidad_total:       number;
+  ticket_promedio:      number;
+};
+
+export type MovimientosPorPeriodoResult = {
+  fecha_inicio: string;
+  fecha_fin:    string;
+  agrupacion:   Agrupacion;
+  periodos:     PeriodoResumen[];
+  documentos:   DocumentoPeriodo[];
+  kpis:         KpisMovimientosPeriodo;
+};
+
+const AGRUPACION_TRUNC: Record<Agrupacion, string> = {
+  dia:    'day',
+  semana: 'week',
+  mes:    'month',
+  anio:   'year',
+};
+
+const MESES_ES = [
+  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+];
+
+function _isoWeek(isoDate: string): number {
+  const [yr, mo, da] = isoDate.slice(0, 10).split('-').map(Number);
+  const d = new Date(Date.UTC(yr, mo - 1, da));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+function _periodoLabel(key: string, agrupacion: Agrupacion): string {
+  if (!key || key.length < 10) return key;
+  const [yr, mo, da] = key.slice(0, 10).split('-').map(Number);
+  switch (agrupacion) {
+    case 'dia':    return `${String(da).padStart(2,'0')}-${String(mo).padStart(2,'0')}-${yr}`;
+    case 'semana': return `Semana ${_isoWeek(key)} — ${yr}`;
+    case 'mes':    return `${MESES_ES[mo - 1]} ${yr}`;
+    case 'anio':   return String(yr);
+  }
+}
+
+async function _obtenerMovimientosPorPeriodo(
+  tipoDocumento: string,
+  params: {
+    empresaId:   number;
+    fechaInicio: string;
+    fechaFin:    string;
+    agrupacion:  Agrupacion;
+    contactoId?: number | null;
+    productoId?: number | null;
+  }
+): Promise<MovimientosPorPeriodoResult> {
+  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId } = params;
+
+  const trunc = AGRUPACION_TRUNC[agrupacion];
+  const sinCancelados = `LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
+
+  // Construcción dinámica de filtros opcionales
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin, tipoDocumento];
+  let filtroContacto = '';
+  if (contactoId) {
+    args.push(contactoId);
+    filtroContacto = `AND d.contacto_principal_id = $${args.length}`;
+  }
+
+  // Cuando hay filtro de producto, se restringe qué documentos incluir via subquery
+  let joinProducto  = '';
+  let filtroProducto = '';
+  let filtroProductoCant = '';
+  if (productoId) {
+    args.push(productoId);
+    const pIdx = args.length;
+    joinProducto   = `JOIN documentos_partidas dp_f ON dp_f.documento_id = d.id AND dp_f.producto_id = $${pIdx}`;
+    filtroProducto = '';   // el join ya actúa como filtro
+    filtroProductoCant = `AND dp.producto_id = $${pIdx}`;
+  }
+
+  // ── Resumen agrupado por período ──────────────────────────────────────────
+  const { rows: resumenRows } = await pool.query(
+    `WITH docs_base AS (
+       SELECT DISTINCT d.id, d.fecha_documento, d.contacto_principal_id,
+              d.subtotal::numeric AS subtotal,
+              d.iva::numeric      AS iva,
+              d.total::numeric    AS total
+       FROM documentos d
+       ${joinProducto}
+       WHERE d.empresa_id = $1
+         AND d.tipo_documento = $4
+         AND d.fecha_documento >= $2::date
+         AND d.fecha_documento <= $3::date
+         AND ${sinCancelados}
+         ${filtroContacto}
+         ${filtroProducto}
+     ),
+     cantidades AS (
+       SELECT
+         DATE_TRUNC('${trunc}', d.fecha_documento)::date::text AS periodo_key,
+         SUM(dp.cantidad)::numeric                              AS cantidad_total
+       FROM documentos_partidas dp
+       JOIN documentos d ON d.id = dp.documento_id
+       WHERE d.id IN (SELECT id FROM docs_base)
+         ${filtroProductoCant}
+       GROUP BY 1
+     )
+     SELECT
+       DATE_TRUNC('${trunc}', db.fecha_documento)::date::text AS periodo_key,
+       COUNT(DISTINCT db.id)::int                             AS cantidad_documentos,
+       COUNT(DISTINCT db.contacto_principal_id)::int          AS cantidad_contactos,
+       COALESCE(c.cantidad_total, 0)                          AS cantidad_total,
+       COALESCE(SUM(db.subtotal), 0)::numeric                 AS subtotal,
+       COALESCE(SUM(db.iva), 0)::numeric                      AS iva,
+       COALESCE(SUM(db.total), 0)::numeric                    AS total
+     FROM docs_base db
+     LEFT JOIN cantidades c ON c.periodo_key = DATE_TRUNC('${trunc}', db.fecha_documento)::date::text
+     GROUP BY DATE_TRUNC('${trunc}', db.fecha_documento)::date::text, c.cantidad_total
+     ORDER BY 1 ASC`,
+    args
+  );
+
+  // ── Detalle de documentos por período ────────────────────────────────────
+  const { rows: docRows } = await pool.query(
+    `WITH docs_base AS (
+       SELECT DISTINCT d.id
+       FROM documentos d
+       ${joinProducto}
+       WHERE d.empresa_id = $1
+         AND d.tipo_documento = $4
+         AND d.fecha_documento >= $2::date
+         AND d.fecha_documento <= $3::date
+         AND ${sinCancelados}
+         ${filtroContacto}
+         ${filtroProducto}
+     )
+     SELECT
+       DATE_TRUNC('${trunc}', d.fecha_documento)::date::text AS periodo_key,
+       d.id,
+       d.fecha_documento                                       AS fecha,
+       COALESCE(d.serie, '')                                   AS serie,
+       COALESCE(d.numero, 0)::int                             AS numero,
+       COALESCE(c.nombre, '—')                               AS contacto_nombre,
+       COALESCE(cant.cantidad_total, 0)::numeric               AS cantidad_total,
+       COALESCE(d.subtotal, 0)::numeric                        AS subtotal,
+       COALESCE(d.iva, 0)::numeric                             AS iva,
+       COALESCE(d.total, 0)::numeric                           AS total
+     FROM documentos d
+     JOIN docs_base db ON db.id = d.id
+     LEFT JOIN contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = $1
+     LEFT JOIN (
+       SELECT dp.documento_id, SUM(dp.cantidad)::numeric AS cantidad_total
+       FROM documentos_partidas dp
+       WHERE dp.documento_id IN (SELECT id FROM docs_base)
+         ${filtroProductoCant}
+       GROUP BY dp.documento_id
+     ) cant ON cant.documento_id = d.id
+     ORDER BY 1 ASC, d.fecha_documento ASC, d.id ASC`,
+    args
+  );
+
+  const periodos: PeriodoResumen[] = resumenRows.map((r) => ({
+    periodo_key:         String(r.periodo_key ?? ''),
+    periodo_label:       _periodoLabel(String(r.periodo_key ?? ''), agrupacion),
+    cantidad_documentos: Number(r.cantidad_documentos ?? 0),
+    cantidad_contactos:  Number(r.cantidad_contactos ?? 0),
+    cantidad_total:      Number(r.cantidad_total ?? 0),
+    subtotal:            Number(r.subtotal ?? 0),
+    iva:                 Number(r.iva ?? 0),
+    total:               Number(r.total ?? 0),
+  }));
+
+  const documentos: DocumentoPeriodo[] = docRows.map((r) => ({
+    periodo_key:     String(r.periodo_key ?? ''),
+    id:              r.id as number,
+    fecha:           toFecha(r.fecha),
+    folio:           formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+    contacto_nombre: String(r.contacto_nombre ?? '—'),
+    cantidad_total:  Number(r.cantidad_total ?? 0),
+    subtotal:        Number(r.subtotal ?? 0),
+    iva:             Number(r.iva ?? 0),
+    total:           Number(r.total ?? 0),
+  }));
+
+  const totalGeneral       = periodos.reduce((s, p) => s + p.total, 0);
+  const cantidadDocs       = periodos.reduce((s, p) => s + p.cantidad_documentos, 0);
+  const cantidadContactos  = new Set(docRows.map((r) => r.contacto_nombre)).size;
+  const cantidadTotal      = periodos.reduce((s, p) => s + p.cantidad_total, 0);
+
+  return {
+    fecha_inicio: fechaInicio,
+    fecha_fin:    fechaFin,
+    agrupacion,
+    periodos,
+    documentos,
+    kpis: {
+      total:               totalGeneral,
+      cantidad_documentos: cantidadDocs,
+      cantidad_contactos:  cantidadContactos,
+      cantidad_total:      cantidadTotal,
+      ticket_promedio:     cantidadDocs > 0 ? totalGeneral / cantidadDocs : 0,
+    },
+  };
+}
+
+export async function obtenerComprasPorPeriodo(params: {
+  empresaId:   number;
+  fechaInicio: string;
+  fechaFin:    string;
+  agrupacion:  Agrupacion;
+  contactoId?: number | null;
+  productoId?: number | null;
+}): Promise<MovimientosPorPeriodoResult> {
+  return _obtenerMovimientosPorPeriodo('factura_compra', params);
+}
+
+export async function obtenerVentasPorPeriodo(params: {
+  empresaId:   number;
+  fechaInicio: string;
+  fechaFin:    string;
+  agrupacion:  Agrupacion;
+  contactoId?: number | null;
+  productoId?: number | null;
+}): Promise<MovimientosPorPeriodoResult> {
+  return _obtenerMovimientosPorPeriodo('factura', params);
+}
+
+// ── Historial de Precios de Venta ─────────────────────────────────────────────
+
+export async function obtenerHistorialPreciosVenta(params: {
+  empresaId:   number;
+  fechaInicio: string;
+  fechaFin:    string;
+  productoId?: number | null;
+  contactoId?: number | null;
+}): Promise<HistorialPreciosResult> {
+  const { empresaId, fechaInicio, fechaFin, productoId, contactoId } = params;
+
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin];
+  const filtros: string[] = [];
+
+  if (productoId) {
+    args.push(productoId);
+    filtros.push(`AND dp.producto_id = $${args.length}`);
+  }
+  if (contactoId) {
+    args.push(contactoId);
+    filtros.push(`AND d.contacto_principal_id = $${args.length}`);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       dp.id,
+       d.fecha_documento                                                                   AS fecha,
+       COALESCE(c.nombre, '—')                                                           AS proveedor_nombre,
+       COALESCE(d.serie, '')                                                               AS serie,
+       COALESCE(d.numero, 0)::int                                                         AS numero,
+       COALESCE(dp.producto_id::text, 'libre:' || COALESCE(dp.descripcion_alterna, ''))  AS grupo_key,
+       dp.producto_id,
+       COALESCE(p.clave, dp.descripcion_alterna, '—')                                   AS clave,
+       COALESCE(p.descripcion, dp.descripcion_alterna, '(sin descripción)')              AS descripcion,
+       dp.cantidad::numeric                                                                AS cantidad,
+       dp.precio_unitario::numeric                                                         AS precio_unitario,
+       dp.subtotal_partida::numeric                                                        AS subtotal
+     FROM documentos_partidas dp
+     JOIN documentos d ON d.id = dp.documento_id AND d.empresa_id = $1
+     LEFT JOIN contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = $1
+     LEFT JOIN productos p ON p.id = dp.producto_id AND p.empresa_id = $1
+     WHERE d.tipo_documento = 'factura'
+       AND d.fecha_documento >= $2::date
+       AND d.fecha_documento <= $3::date
+       AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')
+       ${filtros.join(' ')}
+     ORDER BY d.fecha_documento DESC, d.id DESC, dp.numero_partida`,
+    args
+  );
+
+  const lineas: HistorialPrecioLinea[] = rows.map((r) => ({
+    id:                   r.id as number,
+    fecha:                toFecha(r.fecha),
+    proveedor_nombre:     String(r.proveedor_nombre ?? '—'),
+    folio:                formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+    referencia_proveedor: '',
+    grupo_key:            String(r.grupo_key ?? ''),
+    producto_id:          r.producto_id != null ? Number(r.producto_id) : null,
+    clave:                String(r.clave ?? '—'),
+    descripcion:          String(r.descripcion ?? '(sin descripción)'),
+    cantidad:             Number(r.cantidad ?? 0),
+    precio_unitario:      Number(r.precio_unitario ?? 0),
+    subtotal:             Number(r.subtotal ?? 0),
+  }));
+
+  return { fecha_inicio: fechaInicio, fecha_fin: fechaFin, lineas, resumen: _calcularResumenHistorial(lineas) };
+}
+
+// ── Pendientes de Facturar (Pedidos / Remisiones) ─────────────────────────────
+
+export type PendienteFacturarDoc = {
+  doc_id:          number;
+  folio:           string;
+  fecha:           string;
+  cliente_id:      number | null;
+  cliente_nombre:  string;
+  total_doc:       number;
+  total_facturado: number;
+  total_pendiente: number;
+  pct_avance:      number;
+};
+
+export type PendientesFacturarResult = {
+  fecha_inicio: string;
+  fecha_fin:    string;
+  documentos:   PendienteFacturarDoc[];
+};
+
+async function _obtenerPendientesFacturar(
+  tipoDocumento: string,
+  params: {
+    empresaId:   number;
+    fechaInicio: string;
+    fechaFin:    string;
+    contactoId?: number | null;
+  }
+): Promise<PendientesFacturarResult> {
+  const { empresaId, fechaInicio, fechaFin, contactoId } = params;
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin, tipoDocumento];
+
+  let filtroContacto = '';
+  if (contactoId) {
+    args.push(contactoId);
+    filtroContacto = `AND d.contacto_principal_id = $${args.length}`;
+  }
+
+  const { rows } = await pool.query(
+    `WITH doc_base AS (
+       SELECT d.id AS doc_id, d.fecha_documento AS fecha, d.serie, d.numero,
+              d.contacto_principal_id,
+              COALESCE(d.total, 0)::numeric AS total_doc
+       FROM documentos d
+       WHERE d.empresa_id = $1
+         AND d.tipo_documento = $4
+         AND d.fecha_documento >= $2::date
+         AND d.fecha_documento <= $3::date
+         AND LOWER(COALESCE(d.estatus_documento,'')) NOT IN ('cancelado','cancelada')
+         ${filtroContacto}
+     ),
+     nivel1 AS (
+       SELECT dp.documento_id AS doc_id,
+              dpv.partida_destino_id,
+              d_dest.tipo_documento AS tipo_dest,
+              LOWER(COALESCE(d_dest.estatus_documento,'')) AS estatus_dest
+       FROM doc_base db
+       JOIN documentos_partidas dp ON dp.documento_id = db.doc_id
+       JOIN documentos_partidas_vinculos dpv ON dpv.partida_origen_id = dp.id
+       JOIN documentos d_dest ON d_dest.id = dpv.documento_destino_id
+       WHERE d_dest.empresa_id = $1
+     ),
+     facturado_nivel1 AS (
+       SELECT n1.doc_id, COALESCE(SUM(dp_f.total_partida), 0)::numeric AS monto
+       FROM nivel1 n1
+       JOIN documentos_partidas dp_f ON dp_f.id = n1.partida_destino_id
+       WHERE LOWER(n1.tipo_dest) = 'factura'
+         AND n1.estatus_dest NOT IN ('cancelado','cancelada')
+       GROUP BY n1.doc_id
+     ),
+     intermedios AS (
+       SELECT n1.doc_id, n1.partida_destino_id
+       FROM nivel1 n1
+       WHERE LOWER(n1.tipo_dest) != 'factura'
+         AND n1.estatus_dest NOT IN ('cancelado','cancelada')
+     ),
+     facturado_nivel2 AS (
+       SELECT i.doc_id, COALESCE(SUM(dp_f2.total_partida), 0)::numeric AS monto
+       FROM intermedios i
+       JOIN documentos_partidas_vinculos dpv2 ON dpv2.partida_origen_id = i.partida_destino_id
+       JOIN documentos d_f2 ON d_f2.id = dpv2.documento_destino_id
+       JOIN documentos_partidas dp_f2 ON dp_f2.id = dpv2.partida_destino_id
+       WHERE LOWER(d_f2.tipo_documento) = 'factura'
+         AND LOWER(COALESCE(d_f2.estatus_documento,'')) NOT IN ('cancelado','cancelada')
+         AND d_f2.empresa_id = $1
+       GROUP BY i.doc_id
+     ),
+     total_facturado AS (
+       SELECT doc_id, SUM(monto) AS total_facturado
+       FROM (
+         SELECT doc_id, monto FROM facturado_nivel1
+         UNION ALL
+         SELECT doc_id, monto FROM facturado_nivel2
+       ) t
+       GROUP BY doc_id
+     )
+     SELECT
+       db.doc_id,
+       db.serie, db.numero,
+       db.fecha,
+       COALESCE(c.nombre, '—') AS cliente_nombre,
+       db.contacto_principal_id AS cliente_id,
+       db.total_doc,
+       COALESCE(tf.total_facturado, 0)::numeric AS total_facturado,
+       (db.total_doc - COALESCE(tf.total_facturado, 0))::numeric AS total_pendiente,
+       ROUND(
+         COALESCE(tf.total_facturado, 0) * 100.0 / NULLIF(db.total_doc, 0), 1
+       )::numeric AS pct_avance
+     FROM doc_base db
+     LEFT JOIN total_facturado tf ON tf.doc_id = db.doc_id
+     LEFT JOIN contactos c ON c.id = db.contacto_principal_id AND c.empresa_id = $1
+     WHERE (db.total_doc - COALESCE(tf.total_facturado, 0)) > 0.01
+     ORDER BY db.fecha ASC, db.doc_id ASC`,
+    args
+  );
+
+  const documentos: PendienteFacturarDoc[] = rows.map((r) => ({
+    doc_id:          r.doc_id as number,
+    folio:           formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+    fecha:           toFecha(r.fecha),
+    cliente_id:      r.cliente_id != null ? (r.cliente_id as number) : null,
+    cliente_nombre:  String(r.cliente_nombre ?? '—'),
+    total_doc:       Number(r.total_doc ?? 0),
+    total_facturado: Number(r.total_facturado ?? 0),
+    total_pendiente: Number(r.total_pendiente ?? 0),
+    pct_avance:      Number(r.pct_avance ?? 0),
+  }));
+
+  return { fecha_inicio: fechaInicio, fecha_fin: fechaFin, documentos };
+}
+
+export async function obtenerPedidosPendientesFacturar(params: {
+  empresaId:   number;
+  fechaInicio: string;
+  fechaFin:    string;
+  contactoId?: number | null;
+}): Promise<PendientesFacturarResult> {
+  return _obtenerPendientesFacturar('pedido', params);
+}
+
+export async function obtenerRemisionesPendientesFacturar(params: {
+  empresaId:   number;
+  fechaInicio: string;
+  fechaFin:    string;
+  contactoId?: number | null;
+}): Promise<PendientesFacturarResult> {
+  return _obtenerPendientesFacturar('remision', params);
+}
+
+// ── Vencimientos de Proveedores ───────────────────────────────────────────────
+
+export type VencimientoProveedor = {
+  id: number;
+  fecha_vencimiento: string;
+  dias: number;
+  proveedor_nombre: string;
+  folio: string;
+  referencia_proveedor: string;
+  total: number;
+  saldo: number;
+};
+
+export type VencimientosProveedoresResult = {
+  fecha_corte: string;
+  vencimientos: VencimientoProveedor[];
+};
+
+export async function obtenerVencimientosProveedores(params: {
+  empresaId: number;
+  fechaCorte: string;
+  contactoId?: number | null;
+  moneda?: string | null;
+}): Promise<VencimientosProveedoresResult> {
+  const { empresaId, fechaCorte, contactoId, moneda } = params;
+
+  const args: unknown[] = [empresaId, fechaCorte];
+  const filtros: string[] = [];
+
+  if (contactoId) {
+    args.push(contactoId);
+    filtros.push(`AND d.contacto_principal_id = $${args.length}`);
+  }
+  if (moneda) {
+    args.push(moneda);
+    filtros.push(`AND UPPER(d.moneda) = UPPER($${args.length})`);
+  }
+
+  const { rows } = await pool.query(
+    `WITH base AS (
+       SELECT
+         d.id,
+         d.fecha_vencimiento::date                                     AS fecha_vencimiento,
+         (d.fecha_vencimiento::date - $2::date)::int                   AS dias,
+         COALESCE(c.nombre, '')                                         AS proveedor_nombre,
+         COALESCE(d.serie, '')                                          AS serie,
+         COALESCE(d.numero, 0)::int                                    AS numero,
+         COALESCE(d.serie_externa, '')                                  AS serie_externa,
+         COALESCE(d.numero_externo, 0)::int                            AS numero_externo,
+         COALESCE(d.total, 0)::numeric                                  AS total,
+         (COALESCE(d.total, 0)::numeric - COALESCE(
+           (SELECT SUM(a.monto)
+            FROM aplicaciones_saldo a
+            WHERE a.documento_destino_id = d.id
+              AND a.empresa_id = d.empresa_id
+              AND COALESCE(a.fecha_aplicacion::date, NOW()::date) <= $2::date
+           ), 0
+         ))                                                             AS saldo
+       FROM documentos d
+       LEFT JOIN contactos c
+         ON c.id = d.contacto_principal_id AND c.empresa_id = d.empresa_id
+       WHERE d.empresa_id = $1
+         AND d.tipo_documento = 'factura_compra'
+         AND d.fecha_vencimiento IS NOT NULL
+         AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')
+         ${filtros.join(' ')}
+     )
+     SELECT * FROM base WHERE saldo > 0 ORDER BY fecha_vencimiento ASC`,
+    args
+  );
+
+  const vencimientos: VencimientoProveedor[] = rows.map((r) => {
+    const serieExt = String(r.serie_externa ?? '').trim();
+    const numExt   = Number(r.numero_externo ?? 0);
+    const refProveedor = (serieExt || numExt > 0)
+      ? formatearFolioDocumento(serieExt, numExt)
+      : '';
+
+    return {
+      id:                   r.id as number,
+      fecha_vencimiento:    toFecha(r.fecha_vencimiento),
+      dias:                 Number(r.dias),
+      proveedor_nombre:     String(r.proveedor_nombre ?? ''),
+      folio:                formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+      referencia_proveedor: refProveedor,
+      total:                Number(r.total ?? 0),
+      saldo:                Number(r.saldo ?? 0),
+    };
+  });
+
+  return { fecha_corte: fechaCorte, vencimientos };
+}

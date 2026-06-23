@@ -81,6 +81,8 @@ export interface DatosEncabezadoGeneracion {
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
   tratamiento_impuestos?: 'normal' | 'sin_iva' | 'tasa_cero' | 'exento' | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
 }
 
 export interface GenerarDocumentoPayload {

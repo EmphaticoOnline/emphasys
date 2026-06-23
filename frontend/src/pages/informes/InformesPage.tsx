@@ -57,6 +57,16 @@ const CATEGORIAS: Categoria[] = [
         descripcion: 'Saldo y movimientos por proveedor en un período.',
         path: '/informes/compras/estado-cuenta-proveedor',
       },
+      {
+        label: 'Historial de Precios de Compra',
+        descripcion: 'Evolución de costos unitarios por producto y proveedor en un período.',
+        path: '/informes/compras/historial-precios',
+      },
+      {
+        label: 'Compras por Período',
+        descripcion: 'Evolución temporal de compras. Identifica tendencias, estacionalidad y períodos clave.',
+        path: '/informes/compras/compras-por-periodo',
+      },
     ],
   },
   {
@@ -79,6 +89,26 @@ const CATEGORIAS: Categoria[] = [
         descripcion: 'Saldo y movimientos por cliente en un período.',
         path: '/informes/ventas/estado-cuenta-cliente',
       },
+      {
+        label: 'Historial de Precios de Venta',
+        descripcion: 'Evolución de precios unitarios por producto y cliente en un período.',
+        path: '/informes/ventas/historial-precios',
+      },
+      {
+        label: 'Ventas por Período',
+        descripcion: 'Evolución temporal de ventas. Identifica tendencias, estacionalidad y períodos clave.',
+        path: '/informes/ventas/ventas-por-periodo',
+      },
+      {
+        label: 'Pedidos Pendientes de Facturar',
+        descripcion: 'Pedidos con importe aún no cubierto mediante facturas de venta.',
+        path: '/informes/ventas/pedidos-pendientes-facturar',
+      },
+      {
+        label: 'Remisiones Pendientes de Facturar',
+        descripcion: 'Remisiones con importe aún no cubierto mediante facturas de venta.',
+        path: '/informes/ventas/remisiones-pendientes-facturar',
+      },
     ],
   },
   {
@@ -91,7 +121,13 @@ const CATEGORIAS: Categoria[] = [
     label: 'Finanzas',
     icon: AccountBalanceIcon,
     color: '#b45309',
-    reportes: [],
+    reportes: [
+      {
+        label: 'Vencimientos de Proveedores',
+        descripcion: 'Facturas de compra pendientes de pago ordenadas por fecha de vencimiento.',
+        path: '/informes/finanzas/vencimientos-proveedores',
+      },
+    ],
   },
   {
     label: 'CRM',

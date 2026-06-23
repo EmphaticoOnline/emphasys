@@ -8,14 +8,24 @@ import {
   obtenerComprasPorProducto,
   obtenerVentasPorProducto,
   obtenerOCPendientesRecibir,
+  obtenerVencimientosProveedores,
+  obtenerHistorialPreciosCompra,
+  obtenerHistorialPreciosVenta,
+  obtenerComprasPorPeriodo,
+  obtenerVentasPorPeriodo,
+  obtenerPedidosPendientesFacturar,
+  obtenerRemisionesPendientesFacturar,
   type MovimientoEstadoCuenta,
   type EstadoCuentaResult,
   type VolumenContactoResult,
   type VolumenProductoResult,
   type OCPendientesResult,
   type OCPendientePartida,
+  type MovimientosPorPeriodoResult,
+  type PendientesFacturarResult,
+  type Agrupacion,
 } from './reportes.repository';
-import { generarEstadoCuentaPDF, generarVolumenContactoPDF, generarVolumenProductoPDF, generarOCPendientesPDF } from './reportes.pdf';
+import { generarEstadoCuentaPDF, generarVolumenContactoPDF, generarVolumenProductoPDF, generarOCPendientesPDF, generarVencimientosProveedoresPDF, generarHistorialPreciosPDF, generarMovimientosPorPeriodoPDF, generarPendientesFacturarPDF } from './reportes.pdf';
 
 const fmtFechaMX = (iso: string): string => {
   if (!iso || iso.length < 10) return iso;
@@ -501,6 +511,371 @@ export async function getOCPendientesRecibir(req: Request, res: Response) {
   try {
     const resultado = await obtenerOCPendientesRecibir({ empresaId, fechaCorte, contactoId, excluirCompletamenteRecibidas, detalle });
     return sendOCPendientes(res, resultado, formato, detalle);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Historial de Precios de Compra ────────────────────────────────────────────
+
+const COLUMNAS_HISTORIAL_PRECIOS: ExportColumna[] = [
+  { field: 'fecha',                headerName: 'Fecha'           },
+  { field: 'proveedor_nombre',     headerName: 'Proveedor'       },
+  { field: 'folio',                headerName: 'Documento'       },
+  { field: 'referencia_proveedor', headerName: 'Ref. Proveedor'  },
+  { field: 'clave',                headerName: 'Clave'           },
+  { field: 'descripcion',          headerName: 'Descripción'     },
+  { field: 'cantidad',             headerName: 'Cantidad'        },
+  { field: 'precio_unitario',      headerName: 'Precio Unitario' },
+  { field: 'subtotal',             headerName: 'Subtotal'        },
+];
+
+function parseHistorialPreciosParams(req: Request) {
+  const empresaId   = req.context?.empresaId as number | undefined;
+  const hoy         = new Date().toISOString().slice(0, 10);
+  const primerDia   = `${hoy.slice(0, 7)}-01`;
+  const fechaInicio = (req.query.fecha_inicio as string) || primerDia;
+  const fechaFin    = (req.query.fecha_fin    as string) || hoy;
+  const productoId  = req.query.producto_id  ? Number(req.query.producto_id)  : null;
+  const contactoId  = req.query.contacto_id  ? Number(req.query.contacto_id)  : null;
+  const formato     = ((req.query.formato as string) || 'json').toLowerCase();
+  return { empresaId, fechaInicio, fechaFin, productoId, contactoId, formato };
+}
+
+export async function getHistorialPreciosCompra(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, productoId, contactoId, formato } = parseHistorialPreciosParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  try {
+    const resultado = await obtenerHistorialPreciosCompra({ empresaId, fechaInicio, fechaFin, productoId, contactoId });
+
+    if (formato === 'excel') {
+      const filas = resultado.lineas.map((l) => ({
+        ...l,
+        fecha: fmtFechaMX(l.fecha),
+      }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_HISTORIAL_PRECIOS, 'Historial de Precios de Compra');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="historial-precios-compra.xlsx"');
+      return res.send(buffer);
+    }
+
+    if (formato === 'pdf') {
+      const buffer = await generarHistorialPreciosPDF(resultado);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="historial-precios-compra.pdf"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Vencimientos de Proveedores ───────────────────────────────────────────────
+
+const COLUMNAS_VENCIMIENTOS: ExportColumna[] = [
+  { field: 'fecha_vencimiento',    headerName: 'Vencimiento'    },
+  { field: 'dias',                 headerName: 'Días'           },
+  { field: 'proveedor_nombre',     headerName: 'Proveedor'      },
+  { field: 'folio',                headerName: 'Documento'      },
+  { field: 'referencia_proveedor', headerName: 'Ref. Proveedor' },
+  { field: 'total',                headerName: 'Total'          },
+  { field: 'saldo',                headerName: 'Saldo'          },
+];
+
+function parseVencimientosParams(req: Request) {
+  const empresaId  = req.context?.empresaId as number | undefined;
+  const hoy        = new Date().toISOString().slice(0, 10);
+  const fechaCorte = (req.query.fecha_corte as string) || hoy;
+  const contactoId = req.query.contacto_id ? Number(req.query.contacto_id) : null;
+  const moneda     = (req.query.moneda as string) || null;
+  const formato    = ((req.query.formato as string) || 'json').toLowerCase();
+  return { empresaId, fechaCorte, contactoId, moneda, formato };
+}
+
+// ── Movimientos por Período (Compras / Ventas) ────────────────────────────────
+
+const AGRUPACIONES_VALIDAS: Agrupacion[] = ['dia', 'semana', 'mes', 'anio'];
+
+function parsePeriodoParams(req: Request) {
+  const empresaId   = req.context?.empresaId as number | undefined;
+  const hoy         = new Date().toISOString().slice(0, 10);
+  const primerDia   = `${hoy.slice(0, 7)}-01`;
+  const fechaInicio = (req.query.fecha_inicio as string) || primerDia;
+  const fechaFin    = (req.query.fecha_fin    as string) || hoy;
+  const agrupacion  = ((req.query.agrupacion  as string) || 'mes').toLowerCase() as Agrupacion;
+  const contactoId  = req.query.contacto_id ? Number(req.query.contacto_id) : null;
+  const productoId  = req.query.producto_id  ? Number(req.query.producto_id)  : null;
+  const formato     = ((req.query.formato     as string) || 'json').toLowerCase();
+  return { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, formato };
+}
+
+function buildColsPeriodoResumen(contactoLabel: string, mostrarCantidad: boolean): ExportColumna[] {
+  const cols: ExportColumna[] = [
+    { field: 'periodo_label',       headerName: 'Período'              },
+    { field: 'cantidad_documentos', headerName: 'Documentos'           },
+    { field: 'cantidad_contactos',  headerName: contactoLabel + 's'    },
+  ];
+  if (mostrarCantidad) cols.push({ field: 'cantidad_total', headerName: 'Cantidad' });
+  cols.push(
+    { field: 'subtotal', headerName: 'Subtotal' },
+    { field: 'iva',      headerName: 'IVA'      },
+    { field: 'total',    headerName: 'Total'    },
+  );
+  return cols;
+}
+
+function buildColsPeriodoDetalle(contactoLabel: string, mostrarCantidad: boolean): ExportColumna[] {
+  const cols: ExportColumna[] = [
+    { field: 'periodo_label',   headerName: 'Período'     },
+    { field: 'fecha',           headerName: 'Fecha'       },
+    { field: 'folio',           headerName: 'Documento'   },
+    { field: 'contacto_nombre', headerName: contactoLabel },
+  ];
+  if (mostrarCantidad) cols.push({ field: 'cantidad_total', headerName: 'Cantidad' });
+  cols.push(
+    { field: 'subtotal', headerName: 'Subtotal' },
+    { field: 'iva',      headerName: 'IVA'      },
+    { field: 'total',    headerName: 'Total'    },
+  );
+  return cols;
+}
+
+function buildFilasExcelPeriodoDetalle(resultado: MovimientosPorPeriodoResult): Record<string, unknown>[] {
+  const labelPorKey = new Map(resultado.periodos.map((p) => [p.periodo_key, p.periodo_label]));
+  return resultado.documentos.map((d) => ({
+    periodo_label:   labelPorKey.get(d.periodo_key) ?? d.periodo_key,
+    fecha:           fmtFechaMX(d.fecha),
+    folio:           d.folio,
+    contacto_nombre: d.contacto_nombre,
+    cantidad_total:  d.cantidad_total,
+    subtotal:        d.subtotal,
+    iva:             d.iva,
+    total:           d.total,
+  }));
+}
+
+async function sendMovimientosPorPeriodo(
+  res: Response,
+  resultado: MovimientosPorPeriodoResult,
+  formato: string,
+  titulo: string,
+  contactoLabel: string,
+  fileSlug: string,
+  mostrarCantidad: boolean,
+) {
+  if (formato === 'json') return res.json(resultado);
+
+  if (formato === 'pdf') {
+    const buffer = await generarMovimientosPorPeriodoPDF(resultado, titulo, contactoLabel, mostrarCantidad);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileSlug}.pdf"`);
+    return res.send(buffer);
+  }
+
+  if (formato === 'excel') {
+    const filasResumen = resultado.periodos.map((p) => ({ ...p }));
+    const filasDetalle = buildFilasExcelPeriodoDetalle(resultado);
+    const conDetalle = resultado.documentos.length > 0;
+    const filas = conDetalle ? [
+      ...filasResumen.map((p) => ({
+        periodo_label:   p.periodo_label,
+        fecha:           '',
+        folio:           '',
+        contacto_nombre: `${p.cantidad_documentos} doc.`,
+        cantidad_total:  p.cantidad_total,
+        subtotal:        p.subtotal,
+        iva:             p.iva,
+        total:           p.total,
+      })),
+      ...filasDetalle,
+    ] : filasResumen;
+    const cols = conDetalle
+      ? buildColsPeriodoDetalle(contactoLabel, mostrarCantidad)
+      : buildColsPeriodoResumen(contactoLabel, mostrarCantidad);
+    const buffer = generarExcelBuffer(filas, cols, titulo);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileSlug}.xlsx"`);
+    return res.send(buffer);
+  }
+
+  return res.status(400).json({ message: 'Formato no soportado' });
+}
+
+export async function getComprasPorPeriodo(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, formato } = parsePeriodoParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  if (!AGRUPACIONES_VALIDAS.includes(agrupacion)) return res.status(400).json({ message: 'agrupacion inválida' });
+  try {
+    const resultado = await obtenerComprasPorPeriodo({ empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId });
+    return sendMovimientosPorPeriodo(res, resultado, formato, 'Compras por Período', 'Proveedor', 'compras-por-periodo', !!productoId);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+export async function getVentasPorPeriodo(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, formato } = parsePeriodoParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  if (!AGRUPACIONES_VALIDAS.includes(agrupacion)) return res.status(400).json({ message: 'agrupacion inválida' });
+  try {
+    const resultado = await obtenerVentasPorPeriodo({ empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId });
+    return sendMovimientosPorPeriodo(res, resultado, formato, 'Ventas por Período', 'Cliente', 'ventas-por-periodo', !!productoId);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Historial de Precios de Venta ─────────────────────────────────────────────
+
+const COLUMNAS_HISTORIAL_PRECIOS_VENTA: ExportColumna[] = [
+  { field: 'fecha',            headerName: 'Fecha'           },
+  { field: 'proveedor_nombre', headerName: 'Cliente'         },
+  { field: 'folio',            headerName: 'Documento'       },
+  { field: 'clave',            headerName: 'Clave'           },
+  { field: 'descripcion',      headerName: 'Descripción'     },
+  { field: 'cantidad',         headerName: 'Cantidad'        },
+  { field: 'precio_unitario',  headerName: 'Precio Unitario' },
+  { field: 'subtotal',         headerName: 'Subtotal'        },
+];
+
+export async function getHistorialPreciosVenta(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, productoId, contactoId, formato } = parseHistorialPreciosParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  try {
+    const resultado = await obtenerHistorialPreciosVenta({ empresaId, fechaInicio, fechaFin, productoId, contactoId });
+
+    if (formato === 'excel') {
+      const filas = resultado.lineas.map((l) => ({ ...l, fecha: fmtFechaMX(l.fecha) }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_HISTORIAL_PRECIOS_VENTA, 'Historial de Precios de Venta');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="historial-precios-venta.xlsx"');
+      return res.send(buffer);
+    }
+
+    if (formato === 'pdf') {
+      const buffer = await generarHistorialPreciosPDF(resultado, 'Historial de Precios de Venta', 'Cliente', 'PRECIO');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="historial-precios-venta.pdf"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Pendientes de Facturar ────────────────────────────────────────────────────
+
+function buildColsPendientesFacturar(docLabel: string, conAvance: boolean): ExportColumna[] {
+  const cols: ExportColumna[] = [
+    { field: 'fecha',           headerName: 'Fecha'               },
+    { field: 'folio',           headerName: 'Folio'               },
+    { field: 'cliente_nombre',  headerName: 'Cliente'             },
+    { field: 'total_doc',       headerName: `Total ${docLabel}`   },
+    { field: 'total_facturado', headerName: 'Facturado'           },
+    { field: 'total_pendiente', headerName: 'Pendiente'           },
+  ];
+  if (conAvance) cols.push({ field: 'pct_avance', headerName: '% Avance' });
+  return cols;
+}
+
+async function sendPendientesFacturar(
+  res: Response,
+  resultado: PendientesFacturarResult,
+  formato: string,
+  titulo: string,
+  docLabel: string,
+  conAvance: boolean,
+  fileSlug: string
+) {
+  if (formato === 'json') return res.json(resultado);
+
+  if (formato === 'pdf') {
+    const buffer = await generarPendientesFacturarPDF(resultado, titulo, docLabel, conAvance);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileSlug}.pdf"`);
+    return res.send(buffer);
+  }
+
+  if (formato === 'excel') {
+    const filas = resultado.documentos.map((d) => ({ ...d, fecha: fmtFechaMX(d.fecha) }));
+    const columnas = buildColsPendientesFacturar(docLabel, conAvance);
+    const buffer = generarExcelBuffer(filas, columnas, titulo);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileSlug}.xlsx"`);
+    return res.send(buffer);
+  }
+
+  return res.status(400).json({ message: 'Formato no soportado' });
+}
+
+function parsePendientesFacturarParams(req: Request) {
+  const empresaId   = req.context?.empresaId as number | undefined;
+  const hoy         = new Date().toISOString().slice(0, 10);
+  const primerDia   = `${hoy.slice(0, 7)}-01`;
+  const fechaInicio = (req.query.fecha_inicio as string) || primerDia;
+  const fechaFin    = (req.query.fecha_fin    as string) || hoy;
+  const contactoId  = req.query.contacto_id ? Number(req.query.contacto_id) : null;
+  const formato     = ((req.query.formato as string) || 'json').toLowerCase();
+  return { empresaId, fechaInicio, fechaFin, contactoId, formato };
+}
+
+export async function getPedidosPendientesFacturar(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, contactoId, formato } = parsePendientesFacturarParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  try {
+    const resultado = await obtenerPedidosPendientesFacturar({ empresaId, fechaInicio, fechaFin, contactoId });
+    return sendPendientesFacturar(res, resultado, formato, 'Pedidos Pendientes de Facturar', 'Pedido', true, 'pedidos-pendientes-facturar');
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+export async function getRemisionesPendientesFacturar(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, contactoId, formato } = parsePendientesFacturarParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  try {
+    const resultado = await obtenerRemisionesPendientesFacturar({ empresaId, fechaInicio, fechaFin, contactoId });
+    return sendPendientesFacturar(res, resultado, formato, 'Remisiones Pendientes de Facturar', 'Remisión', false, 'remisiones-pendientes-facturar');
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+export async function getVencimientosProveedores(req: Request, res: Response) {
+  const { empresaId, fechaCorte, contactoId, moneda, formato } = parseVencimientosParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const resultado = await obtenerVencimientosProveedores({ empresaId, fechaCorte, contactoId, moneda });
+
+    if (formato === 'excel') {
+      const filas = resultado.vencimientos.map((v) => ({
+        ...v,
+        fecha_vencimiento: fmtFechaMX(v.fecha_vencimiento),
+      }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_VENCIMIENTOS, 'Vencimientos de Proveedores');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="vencimientos-proveedores.xlsx"');
+      return res.send(buffer);
+    }
+
+    if (formato === 'pdf') {
+      const buffer = await generarVencimientosProveedoresPDF(resultado);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="vencimientos-proveedores.pdf"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
   } catch (err: unknown) {
     return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
   }

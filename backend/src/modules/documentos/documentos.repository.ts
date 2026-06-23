@@ -91,6 +91,7 @@ const CAMPOS_DOCUMENTO = [
   'serie_externa',
   'numero_externo',
   'fecha_documento',
+  'fecha_vencimiento',
   'documento_origen_id',
   'oportunidad_id',
   'contacto_principal_id',

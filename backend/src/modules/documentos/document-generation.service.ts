@@ -110,6 +110,42 @@ const TIPOS_DOCUMENTO_CON_DATOS_FISCALES = new Set<TipoDocumento>([
   "nota_credito_compra",
 ]);
 
+const TIPOS_DOCUMENTO_CON_VENCIMIENTO = new Set<TipoDocumento>(["factura", "factura_compra"]);
+
+function sumarDiasAFecha(fecha: Date | string, dias: number): string {
+  const d =
+    typeof fecha === "string"
+      ? new Date(fecha.length === 10 ? fecha + "T12:00:00Z" : fecha)
+      : new Date(fecha.getTime());
+  d.setUTCDate(d.getUTCDate() + dias);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+async function calcularFechaVencimientoContacto(
+  tipoDocumento: TipoDocumento,
+  fechaDocumento: Date | string | null,
+  contactoId: number | null,
+  empresaId: number,
+  client: PoolClient
+): Promise<string | null> {
+  if (!TIPOS_DOCUMENTO_CON_VENCIMIENTO.has(tipoDocumento) || !contactoId || !fechaDocumento) {
+    return null;
+  }
+  try {
+    const { rows } = await client.query<{ dias_credito: number | null }>(
+      `SELECT dias_credito FROM contactos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+      [contactoId, empresaId]
+    );
+    const dias = rows[0]?.dias_credito ?? null;
+    return sumarDiasAFecha(fechaDocumento, dias && dias > 0 ? dias : 0);
+  } catch {
+    return null;
+  }
+}
+
 type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
 
 const normalizarCampoFiscal = (value: unknown) => {
@@ -789,6 +825,16 @@ export class DocumentGenerationService {
           documentoDestinoExistente
         );
 
+        const fechaVencimientoEdicion = datos_encabezado?.fecha_vencimiento !== undefined
+          ? (datos_encabezado.fecha_vencimiento ?? null)
+          : await calcularFechaVencimientoContacto(
+              tipo_documento_destino,
+              fechaDocumento,
+              contactoPrincipalIdDestino,
+              empresaId,
+              client
+            );
+
         const { rows: documentoDestinoActualizadoRows } = await client.query(
           `UPDATE documentos
               SET serie = $3,
@@ -814,7 +860,10 @@ export class DocumentGenerationService {
                   forma_pago = $20,
                   metodo_pago = $21,
                   codigo_postal_receptor = $22,
-                  tratamiento_impuestos = $23
+                  tratamiento_impuestos = $23,
+                  serie_externa = $24,
+                  numero_externo = $25,
+                  fecha_vencimiento = $26
             WHERE id = $1
               AND empresa_id = $2
             RETURNING *`,
@@ -842,6 +891,9 @@ export class DocumentGenerationService {
             datosFiscalesDocumento.metodo_pago,
             datosFiscalesDocumento.codigo_postal_receptor,
             tratamientoDestino,
+            datos_encabezado?.serie_externa ?? null,
+            datos_encabezado?.numero_externo ?? null,
+            fechaVencimientoEdicion,
           ]
         );
 
@@ -869,7 +921,17 @@ export class DocumentGenerationService {
           client
         );
         const columnasCotizacion = camposCotizacion ? ",\n            estado_seguimiento" : "";
-        const valoresCotizacion = camposCotizacion ? ",\n            $27" : "";
+        const valoresCotizacion = camposCotizacion ? ",\n            $30" : "";
+
+        const fechaVencimientoInsert = datos_encabezado?.fecha_vencimiento !== undefined
+          ? (datos_encabezado.fecha_vencimiento ?? null)
+          : await calcularFechaVencimientoContacto(
+              tipo_documento_destino,
+              fechaDocumento,
+              contactoPrincipalIdDestino,
+              empresaId,
+              client
+            );
 
         const { rows: insertDocRows } = await client.query(
           `INSERT INTO documentos (
@@ -902,7 +964,10 @@ export class DocumentGenerationService {
               metodo_pago,
               codigo_postal_receptor,
               tratamiento_impuestos,
-              usuario_creacion_id${columnasCotizacion}
+              usuario_creacion_id,
+              serie_externa,
+              numero_externo,
+              fecha_vencimiento${columnasCotizacion}
             ) VALUES (
               $1, $2, 'Borrador', $3, $4, $5,
               $6, $7, $8, $9,
@@ -922,7 +987,10 @@ export class DocumentGenerationService {
               $23,
               $24,
               $25,
-              $26${valoresCotizacion}
+              $26,
+              $27,
+              $28,
+              $29${valoresCotizacion}
             )
             RETURNING *`,
           [
@@ -952,6 +1020,9 @@ export class DocumentGenerationService {
             datosFiscalesDocumento.codigo_postal_receptor,
             tratamientoDestino,
             usuarioId ?? null,
+            datos_encabezado?.serie_externa ?? null,
+            datos_encabezado?.numero_externo ?? null,
+            fechaVencimientoInsert,
             ...(camposCotizacion ? [camposCotizacion.estado_seguimiento] : []),
           ]
         );

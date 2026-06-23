@@ -501,6 +501,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
   c.tipo_contacto,
   c.vendedor_id,
         c.precio_lista_id,
+        c.dias_credito,
         pl.nombre AS precio_lista_nombre,
 
         cd.calle,
@@ -558,6 +559,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
       vendedor_id: row.vendedor_id,
       precio_lista_id: row.precio_lista_id,
       precio_lista_nombre: row.precio_lista_nombre,
+      dias_credito: row.dias_credito ?? null,
     },
     domicilio_principal: {
       calle: row.calle,

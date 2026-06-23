@@ -64,6 +64,7 @@ type FormState = {
   uso_cfdi: string;
   forma_pago: string;
   metodo_pago: string;
+  dias_credito: string;
 };
 
 const initialState: FormState = {
@@ -95,6 +96,7 @@ const initialState: FormState = {
   uso_cfdi: '',
   forma_pago: '',
   metodo_pago: '',
+  dias_credito: '',
 };
 
 type CatalogoComercialValor = {
@@ -314,6 +316,7 @@ function validarRFC(rfc: string) {
           uso_cfdi: datosFiscales?.uso_cfdi || c.uso_cfdi || '',
           forma_pago: datosFiscales?.forma_pago || c.forma_pago || '',
           metodo_pago: datosFiscales?.metodo_pago || c.metodo_pago || '',
+          dias_credito: contacto.dias_credito != null ? String(contacto.dias_credito) : '',
         });
       } catch (err: unknown) {
         if (!isMounted) return;
@@ -592,6 +595,7 @@ function validarRFC(rfc: string) {
       uso_cfdi: form.uso_cfdi.trim() || null,
       forma_pago: form.forma_pago.trim() || null,
       metodo_pago: form.metodo_pago.trim() || null,
+      dias_credito: form.dias_credito !== '' ? Number(form.dias_credito) : null,
       empresa_id: getEmpresaActivaId(),
     };
 
@@ -1224,6 +1228,18 @@ function validarRFC(rfc: string) {
 
             {activeTab === 3 && (
               <Stack spacing={2}>
+                <TextField
+                  label="Días de crédito"
+                  value={form.dias_credito}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || (/^\d+$/.test(value) && Number(value) >= 0)) {
+                      setForm((prev) => ({ ...prev, dias_credito: value }));
+                    }
+                  }}
+                  inputProps={{ inputMode: 'numeric', min: 0 }}
+                  fullWidth
+                />
                 {comercialLoading ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                     <CircularProgress size={24} />
