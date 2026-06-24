@@ -115,7 +115,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -184,7 +184,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -264,7 +264,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -423,7 +423,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -492,7 +492,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -562,7 +562,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -634,7 +634,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -699,7 +699,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -764,7 +764,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -829,7 +829,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],
@@ -894,7 +894,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
         tiposPermitidos: ['Vendedor'],
       },
       producto: {
-        creationMode: 'disabled',
+        creationMode: 'inline',
         captureMode: 'simple',
         defaultTipoProducto: 'Inventariable',
         tiposPermitidos: ['Inventariable', 'No inventariable', 'Kit'],

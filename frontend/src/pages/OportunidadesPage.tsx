@@ -1511,15 +1511,6 @@ export default function OportunidadesPage() {
   return (
     <Container maxWidth={false} sx={{ py: 2 }}>
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
-            Oportunidades de venta
-          </Typography>
-          <Typography sx={{ color: '#475569', mt: 0.75 }}>
-            Consulta y da seguimiento a tus oportunidades de venta.
-          </Typography>
-        </Box>
-
         {loading ? (
           <Paper variant="outlined" sx={{ p: 4, borderRadius: 2, borderColor: '#dbe3ee' }}>
             <Stack spacing={1.5} alignItems="center" justifyContent="center">
@@ -1539,7 +1530,7 @@ export default function OportunidadesPage() {
         {!loading ? (
           <>
             <PaperCard>
-              <Stack spacing={0.85}>
+              <Stack spacing={0.55}>
                 <Box
                   sx={{
                     display: 'grid',
@@ -1557,7 +1548,7 @@ export default function OportunidadesPage() {
                       value: 'todas' as const,
                       label: 'Pipeline extendido',
                       monto: currencyFormatter.format(totals.pipelineExtendido.monto),
-                      cantidad: `${totals.pipelineExtendido.cantidad} oportunidades`,
+                      count: totals.pipelineExtendido.cantidad,
                       backgroundColor: '#eff6ff',
                       borderColor: '#bfdbfe',
                       labelColor: '#1d4ed8',
@@ -1567,7 +1558,7 @@ export default function OportunidadesPage() {
                       value: 'abiertas' as const,
                       label: 'Abiertas',
                       monto: currencyFormatter.format(totals.abiertas.monto),
-                      cantidad: `${totals.abiertas.cantidad} oportunidades`,
+                      count: totals.abiertas.cantidad,
                       backgroundColor: '#f8fafc',
                       borderColor: '#cbd5e1',
                       labelColor: '#475569',
@@ -1577,7 +1568,7 @@ export default function OportunidadesPage() {
                       value: 'pausadas' as const,
                       label: 'Pausadas',
                       monto: currencyFormatter.format(totals.pausadas.monto),
-                      cantidad: `${totals.pausadas.cantidad} oportunidades`,
+                      count: totals.pausadas.cantidad,
                       backgroundColor: '#fff7ed',
                       borderColor: '#fdba74',
                       labelColor: '#c2410c',
@@ -1587,7 +1578,7 @@ export default function OportunidadesPage() {
                       value: 'convertidas' as const,
                       label: 'Convertidas',
                       monto: currencyFormatter.format(totals.convertidas.monto),
-                      cantidad: `${totals.convertidas.cantidad} oportunidades`,
+                      count: totals.convertidas.cantidad,
                       backgroundColor: '#ecfdf5',
                       borderColor: '#a7f3d0',
                       labelColor: '#047857',
@@ -1597,7 +1588,7 @@ export default function OportunidadesPage() {
                       value: 'perdidas' as const,
                       label: 'Perdidas',
                       monto: currencyFormatter.format(totals.perdidas.monto),
-                      cantidad: `${totals.perdidas.cantidad} oportunidades`,
+                      count: totals.perdidas.cantidad,
                       backgroundColor: '#fef2f2',
                       borderColor: '#fecaca',
                       labelColor: '#b91c1c',
@@ -1607,7 +1598,7 @@ export default function OportunidadesPage() {
                       value: 'canceladas' as const,
                       label: 'Canceladas',
                       monto: currencyFormatter.format(totals.canceladas.monto),
-                      cantidad: `${totals.canceladas.cantidad} oportunidades`,
+                      count: totals.canceladas.cantidad,
                       backgroundColor: '#f8fafc',
                       borderColor: '#cbd5e1',
                       labelColor: '#64748b',
@@ -1623,8 +1614,8 @@ export default function OportunidadesPage() {
                         border: '1px solid',
                         borderColor: filtroEstatus === item.value ? item.labelColor : item.borderColor,
                         borderRadius: 1.5,
-                        px: 0.9,
-                        py: 0.5,
+                        px: 0.75,
+                        py: 0.3,
                         background: item.backgroundColor,
                         boxShadow: filtroEstatus === item.value ? `0 0 0 1px ${item.labelColor} inset, 0 8px 18px rgba(15, 23, 42, 0.08)` : 'none',
                         transform: filtroEstatus === item.value ? 'translateY(-1px)' : 'none',
@@ -1640,14 +1631,11 @@ export default function OportunidadesPage() {
                         },
                       }}
                     >
-                      <Typography sx={{ fontSize: 11, fontWeight: 800, color: item.labelColor, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                        {item.label}
+                      <Typography sx={{ fontSize: 10, fontWeight: 800, color: item.labelColor, textTransform: 'uppercase', letterSpacing: 0.4, lineHeight: 1.1 }}>
+                        {item.label} ({item.count})
                       </Typography>
-                      <Typography sx={{ mt: 0.15, fontSize: 18, lineHeight: 1.02, fontWeight: 800, color: item.amountColor }}>
+                      <Typography sx={{ mt: 0.1, fontSize: 14, lineHeight: 1.02, fontWeight: 800, color: item.amountColor }}>
                         {item.monto}
-                      </Typography>
-                      <Typography sx={{ mt: 0.02, fontSize: 10.5, color: '#64748b', fontWeight: 500 }}>
-                        {item.cantidad}
                       </Typography>
                     </Box>
                   ))}
@@ -1714,20 +1702,22 @@ export default function OportunidadesPage() {
                         border: '1px solid',
                         borderColor: item.borderColor,
                         borderRadius: 1.5,
-                        px: { xs: 0.9, sm: 0.95 },
-                        py: { xs: 0.52, sm: 0.58 },
+                        px: { xs: 0.75, sm: 0.8 },
+                        py: { xs: 0.28, sm: 0.32 },
                         backgroundColor: item.backgroundColor,
                         minWidth: 0,
                       }}
                     >
-                      <Typography sx={{ fontSize: 9.75, fontWeight: 800, color: item.labelColor, textTransform: 'uppercase', letterSpacing: 0.32, lineHeight: 1.05 }}>
-                        {item.label}
-                      </Typography>
-                      <Typography sx={{ mt: 0.18, fontSize: { xs: 15.5, sm: 16.5 }, lineHeight: 1.02, fontWeight: 800, color: item.valueColor }}>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 5px' }}>
+                        <Typography sx={{ fontSize: 9, fontWeight: 800, color: item.labelColor, textTransform: 'uppercase', letterSpacing: 0.32, lineHeight: 1.15 }}>
+                          {item.label}
+                        </Typography>
+                        <Typography sx={{ fontSize: 9, color: '#94a3b8', fontWeight: 500, lineHeight: 1.15 }}>
+                          {item.helper}
+                        </Typography>
+                      </Box>
+                      <Typography sx={{ mt: 0.06, fontSize: { xs: 12.5, sm: 13 }, lineHeight: 1.02, fontWeight: 800, color: item.valueColor }}>
                         {item.value}
-                      </Typography>
-                      <Typography sx={{ mt: 0.14, fontSize: 9.5, color: '#94a3b8', fontWeight: 500, lineHeight: 1.1 }}>
-                        {item.helper}
                       </Typography>
                     </Box>
                   ))}
