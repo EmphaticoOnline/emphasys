@@ -6,13 +6,20 @@ import type {
   DocumentoAnticipoResumen,
   DocumentoSaldo,
   EstadoCuentaItem,
+  FacturaCompraPendiente,
   FinanzasCuenta,
+  FinanzasMetodoPago,
   FinanzasOperacion,
   NaturalezaOperacion,
   OperacionDisponible,
+  ProgramacionPago,
+  ProgramacionPagoInput,
   TipoMovimiento,
   TransferenciaPayload,
   TransferenciaUpdatePayload,
+  ConciliacionMovimientosResult,
+  CierrePayload,
+  CierreResult,
 } from '../types/finanzas';
 
 const BASE = '/api/finanzas';
@@ -54,6 +61,7 @@ export interface OperacionPayload {
   observaciones?: string | null;
   monto: number;
   concepto_id?: number | null;
+  metodo_pago_id?: number | null;
 }
 
 export async function crearOperacion(payload: OperacionPayload): Promise<FinanzasOperacion> {
@@ -165,4 +173,118 @@ export async function aplicarAnticiposDocumento(
 
 export async function eliminarAplicacion(id: number): Promise<void> {
   await apiFetch(`${BASE}/aplicaciones/${id}`, { method: 'DELETE' });
+}
+
+// ── Métodos de pago operativos ─────────────────────────────────────────────────
+
+export async function fetchMetodosPago(soloActivos = true): Promise<FinanzasMetodoPago[]> {
+  return apiFetch(`${BASE}/metodos-pago${soloActivos ? '?activos=true' : ''}`);
+}
+
+export async function crearMetodoPago(
+  payload: Omit<FinanzasMetodoPago, 'id' | 'empresa_id' | 'created_at'>
+): Promise<FinanzasMetodoPago> {
+  return apiFetch(`${BASE}/metodos-pago`, { method: 'POST', body: payload as any });
+}
+
+export async function actualizarMetodoPago(
+  id: number,
+  payload: Partial<Omit<FinanzasMetodoPago, 'id' | 'empresa_id' | 'created_at'>>
+): Promise<FinanzasMetodoPago> {
+  return apiFetch(`${BASE}/metodos-pago/${id}`, { method: 'PUT', body: payload as any });
+}
+
+// ── Programación de pagos (Fase 3.2A) ─────────────────────────────────────────
+
+export async function fetchFacturasCompraPendientes(opts?: {
+  proveedorId?: number | null;
+  search?: string | null;
+}): Promise<FacturaCompraPendiente[]> {
+  const qs = new URLSearchParams();
+  if (opts?.proveedorId) qs.set('proveedor_id', String(opts.proveedorId));
+  if (opts?.search) qs.set('search', opts.search);
+  const q = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`${BASE}/facturas-compra-pendientes${q}`);
+}
+
+export interface ProgramacionPagosParams {
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
+  proveedor_id?: number | null;
+  estatus?: string | null;
+  cuenta_origen_id?: number | null;
+  metodo_pago_id?: number | null;
+  moneda?: string | null;
+}
+
+export async function fetchProgramacionesPago(
+  params?: ProgramacionPagosParams
+): Promise<ProgramacionPago[]> {
+  const qs = new URLSearchParams();
+  if (params?.fecha_inicio)    qs.set('fecha_inicio',    params.fecha_inicio);
+  if (params?.fecha_fin)       qs.set('fecha_fin',       params.fecha_fin);
+  if (params?.proveedor_id)    qs.set('proveedor_id',    String(params.proveedor_id));
+  if (params?.estatus)         qs.set('estatus',         params.estatus);
+  if (params?.cuenta_origen_id) qs.set('cuenta_origen_id', String(params.cuenta_origen_id));
+  if (params?.metodo_pago_id)  qs.set('metodo_pago_id',  String(params.metodo_pago_id));
+  if (params?.moneda)          qs.set('moneda',          params.moneda);
+  const q = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`${BASE}/programacion-pagos${q}`);
+}
+
+export async function crearProgramacionPago(
+  payload: ProgramacionPagoInput
+): Promise<ProgramacionPago> {
+  return apiFetch(`${BASE}/programacion-pagos`, { method: 'POST', body: payload as any });
+}
+
+export async function actualizarProgramacionPago(
+  id: number,
+  payload: Partial<ProgramacionPagoInput>
+): Promise<ProgramacionPago> {
+  return apiFetch(`${BASE}/programacion-pagos/${id}`, { method: 'PUT', body: payload as any });
+}
+
+export async function cancelarProgramacionPago(id: number): Promise<ProgramacionPago> {
+  return apiFetch(`${BASE}/programacion-pagos/${id}/cancelar`, { method: 'POST' });
+}
+
+export interface PagarProgramacionResult {
+  programacion: ProgramacionPago;
+  documento_pago_id: number;
+  finanzas_operacion_id: number;
+}
+
+export async function pagarProgramacion(id: number): Promise<PagarProgramacionResult> {
+  return apiFetch(`${BASE}/programacion-pagos/${id}/pagar`, { method: 'POST' });
+}
+
+// =============================================================================
+// Fase 3.4 — Conciliación Bancaria Básica Manual
+// =============================================================================
+
+export async function fetchConciliacionMovimientos(
+  cuentaId: number,
+  fechaCorte: string
+): Promise<ConciliacionMovimientosResult> {
+  return apiFetch(
+    `${BASE}/conciliacion-bancaria/movimientos?cuenta_id=${cuentaId}&fecha_corte=${encodeURIComponent(fechaCorte)}`
+  );
+}
+
+export async function cotejarMovimientosSvc(
+  operacionIds: number[],
+  estado: 'pendiente' | 'cotejado'
+): Promise<{ updated: number }> {
+  return apiFetch(`${BASE}/conciliacion-bancaria/cotejar`, {
+    method: 'POST',
+    body: { operacion_ids: operacionIds, estado } as any,
+  });
+}
+
+export async function cerrarConciliacion(payload: CierrePayload): Promise<CierreResult> {
+  return apiFetch(`${BASE}/conciliacion-bancaria/cerrar`, {
+    method: 'POST',
+    body: payload as any,
+  });
 }

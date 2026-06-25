@@ -310,6 +310,9 @@ function SidebarNav({
   );
 }
 
+// Rutas bajo /ventas/ que no son pestañas de tipo de documento y no deben redirigirse
+const SPECIAL_VENTAS_PATHS = new Set(['cotizaciones-grid', 'produccion']);
+
 export default function SidebarLayout() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -391,6 +394,7 @@ export default function SidebarLayout() {
   // Si el segmento de la URL no coincide con ninguna pestaña disponible, redirige a la primera habilitada
   React.useEffect(() => {
     if (!docModulo || documentTabs.length === 0) return;
+    if (docModulo === 'ventas' && SPECIAL_VENTAS_PATHS.has(docTab)) return;
     const tabExists = documentTabs.some((t) => t.value === docTab);
     if (!tabExists && documentTabs[0]) {
       navigate(`/${docModulo}/${documentTabs[0].value}`, { replace: true });

@@ -15,6 +15,7 @@ import {
   DialogTitle,
   Grid,
   IconButton,
+  MenuItem,
   Snackbar,
   Stack,
   TextField,
@@ -46,6 +47,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import type { CotizacionCrearPayload, CotizacionListado, EstadoSeguimiento } from '../types/cotizacion';
 import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import { createCotizacion, deleteCotizacion, duplicateCotizacion, getCotizaciones, updateCotizacion, validateDeleteCotizacion } from '../services/cotizacionesService';
@@ -842,7 +844,17 @@ export default function CotizacionesGridPage() {
               Edición rápida de estado y comentarios, con acceso a acciones comerciales.
             </Typography>
           </Stack>
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Tooltip title="Guía de ayuda">
+              <IconButton
+                aria-label="Abrir guía de ayuda"
+                size="small"
+                onClick={() => window.open('/docs/guia-cotizaciones.html', '_blank')}
+                sx={{ color: '#64748b' }}
+              >
+                <HelpOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void load()} disabled={loading}>
               Recargar
             </Button>

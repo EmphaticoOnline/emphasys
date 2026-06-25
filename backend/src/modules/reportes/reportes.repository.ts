@@ -1586,6 +1586,8 @@ export async function obtenerRemisionesPendientesFacturar(params: {
 
 export type VencimientoProveedor = {
   id: number;
+  proveedor_id: number | null;
+  moneda: string;
   fecha_vencimiento: string;
   dias: number;
   proveedor_nombre: string;
@@ -1624,6 +1626,8 @@ export async function obtenerVencimientosProveedores(params: {
     `WITH base AS (
        SELECT
          d.id,
+         d.contacto_principal_id                                        AS proveedor_id,
+         COALESCE(d.moneda, 'MXN')                                      AS moneda,
          d.fecha_vencimiento::date                                     AS fecha_vencimiento,
          (d.fecha_vencimiento::date - $2::date)::int                   AS dias,
          COALESCE(c.nombre, '')                                         AS proveedor_nombre,
@@ -1646,7 +1650,7 @@ export async function obtenerVencimientosProveedores(params: {
        WHERE d.empresa_id = $1
          AND d.tipo_documento = 'factura_compra'
          AND d.fecha_vencimiento IS NOT NULL
-         AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')
+         AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada', 'borrador')
          ${filtros.join(' ')}
      )
      SELECT * FROM base WHERE saldo > 0 ORDER BY fecha_vencimiento ASC`,
@@ -1662,6 +1666,8 @@ export async function obtenerVencimientosProveedores(params: {
 
     return {
       id:                   r.id as number,
+      proveedor_id:         r.proveedor_id as number | null,
+      moneda:               String(r.moneda ?? 'MXN'),
       fecha_vencimiento:    toFecha(r.fecha_vencimiento),
       dias:                 Number(r.dias),
       proveedor_nombre:     String(r.proveedor_nombre ?? ''),
@@ -1673,4 +1679,579 @@ export async function obtenerVencimientosProveedores(params: {
   });
 
   return { fecha_corte: fechaCorte, vencimientos };
+}
+
+// ── Vencimientos de Clientes ──────────────────────────────────────────────────
+
+export type VencimientoCliente = {
+  id: number;
+  fecha_vencimiento: string;
+  dias: number;
+  cliente_nombre: string;
+  folio: string;
+  total: number;
+  saldo: number;
+};
+
+export type VencimientosClientesResult = {
+  fecha_corte: string;
+  vencimientos: VencimientoCliente[];
+};
+
+export async function obtenerVencimientosClientes(params: {
+  empresaId: number;
+  fechaCorte: string;
+  contactoId?: number | null;
+  moneda?: string | null;
+}): Promise<VencimientosClientesResult> {
+  const { empresaId, fechaCorte, contactoId, moneda } = params;
+  const args: unknown[] = [empresaId, fechaCorte];
+  const filtros: string[] = [];
+
+  if (contactoId) {
+    args.push(contactoId);
+    filtros.push(`AND d.contacto_principal_id = $${args.length}`);
+  }
+  if (moneda) {
+    args.push(moneda);
+    filtros.push(`AND UPPER(d.moneda) = UPPER($${args.length})`);
+  }
+
+  const { rows } = await pool.query(
+    `WITH base AS (
+       SELECT
+         d.id,
+         d.fecha_vencimiento::date                                     AS fecha_vencimiento,
+         (d.fecha_vencimiento::date - $2::date)::int                   AS dias,
+         COALESCE(c.nombre, '')                                         AS cliente_nombre,
+         COALESCE(d.serie, '')                                          AS serie,
+         COALESCE(d.numero, 0)::int                                    AS numero,
+         COALESCE(d.total, 0)::numeric                                  AS total,
+         (COALESCE(d.total, 0)::numeric - COALESCE(
+           (SELECT SUM(a.monto)
+            FROM aplicaciones_saldo a
+            WHERE a.documento_destino_id = d.id
+              AND a.empresa_id = d.empresa_id
+              AND COALESCE(a.fecha_aplicacion::date, NOW()::date) <= $2::date
+           ), 0
+         ))                                                             AS saldo
+       FROM documentos d
+       LEFT JOIN contactos c
+         ON c.id = d.contacto_principal_id AND c.empresa_id = d.empresa_id
+       WHERE d.empresa_id = $1
+         AND d.tipo_documento = 'factura'
+         AND d.fecha_vencimiento IS NOT NULL
+         AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada', 'borrador')
+         ${filtros.join(' ')}
+     )
+     SELECT * FROM base WHERE saldo > 0 ORDER BY fecha_vencimiento ASC`,
+    args
+  );
+
+  const vencimientos: VencimientoCliente[] = rows.map((r) => ({
+    id:                r.id as number,
+    fecha_vencimiento: toFecha(r.fecha_vencimiento),
+    dias:              Number(r.dias),
+    cliente_nombre:    String(r.cliente_nombre ?? ''),
+    folio:             formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+    total:             Number(r.total ?? 0),
+    saldo:             Number(r.saldo ?? 0),
+  }));
+
+  return { fecha_corte: fechaCorte, vencimientos };
+}
+
+// ── Pagos de Clientes / Proveedores ───────────────────────────────────────────
+
+export type PagoRegistrado = {
+  id: number;
+  fecha: string;
+  folio: string;
+  contacto_id: number | null;
+  contacto_nombre: string;
+  contacto_rfc: string | null;
+  cuenta_id: number;
+  cuenta_nombre: string;
+  cuenta_moneda: string;
+  monto: number;
+  referencia: string | null;
+  concepto_nombre: string | null;
+  estado_conciliacion: string;
+  metodo_pago_nombre: string | null;
+};
+
+export type PagosResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  total: number;
+  pagos: PagoRegistrado[];
+};
+
+async function obtenerPagosBase(params: {
+  empresaId: number;
+  fechaInicio: string;
+  fechaFin: string;
+  contactoId?: number | null;
+  cuentaId?: number | null;
+  naturaleza: 'cobro_cliente' | 'pago_proveedor';
+}): Promise<PagosResult> {
+  const { empresaId, fechaInicio, fechaFin, contactoId, cuentaId, naturaleza } = params;
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin, naturaleza];
+  const filtros: string[] = [];
+
+  if (contactoId) {
+    args.push(contactoId);
+    filtros.push(`AND fo.contacto_id = $${args.length}`);
+  }
+  if (cuentaId) {
+    args.push(cuentaId);
+    filtros.push(`AND fo.cuenta_id = $${args.length}`);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       fo.id,
+       fo.fecha,
+       fo.monto,
+       fo.referencia,
+       fo.estado_conciliacion,
+       fo.contacto_id,
+       fo.cuenta_id,
+       COALESCE(c.nombre, '')           AS contacto_nombre,
+       c.rfc                            AS contacto_rfc,
+       COALESCE(fc.identificador, '')   AS cuenta_nombre,
+       COALESCE(fc.moneda, 'MXN')       AS cuenta_moneda,
+       COALESCE(d.serie, '')            AS doc_serie,
+       COALESCE(d.numero, 0)::int       AS doc_numero,
+       COALESCE(co.nombre_concepto, '') AS concepto_nombre,
+       mp.nombre                        AS metodo_pago_nombre
+     FROM finanzas_operaciones fo
+     LEFT JOIN contactos c
+       ON c.id  = fo.contacto_id  AND c.empresa_id  = fo.empresa_id
+     LEFT JOIN finanzas_cuentas fc
+       ON fc.id = fo.cuenta_id    AND fc.empresa_id = fo.empresa_id
+     LEFT JOIN documentos d
+       ON d.id  = fo.documento_origen_id AND d.empresa_id = fo.empresa_id
+     LEFT JOIN conceptos co
+       ON co.id          = fo.concepto_id
+      AND co.empresa_id  = fo.empresa_id
+     LEFT JOIN public.finanzas_metodos_pago mp
+       ON mp.id          = fo.metodo_pago_id
+      AND mp.empresa_id  = fo.empresa_id
+     WHERE fo.empresa_id            = $1
+       AND fo.fecha BETWEEN $2 AND $3
+       AND fo.naturaleza_operacion  = $4
+       ${filtros.join(' ')}
+     ORDER BY fo.fecha DESC, fo.id DESC`,
+    args
+  );
+
+  const pagos: PagoRegistrado[] = rows.map((r) => ({
+    id:                  r.id as number,
+    fecha:               toFecha(r.fecha),
+    folio:               formatearFolioDocumento(String(r.doc_serie ?? ''), Number(r.doc_numero ?? 0)),
+    contacto_id:         r.contacto_id as number | null,
+    contacto_nombre:     String(r.contacto_nombre ?? ''),
+    contacto_rfc:        r.contacto_rfc ? String(r.contacto_rfc) : null,
+    cuenta_id:           r.cuenta_id as number,
+    cuenta_nombre:       String(r.cuenta_nombre ?? ''),
+    cuenta_moneda:       String(r.cuenta_moneda ?? 'MXN'),
+    monto:               Number(r.monto ?? 0),
+    referencia:          r.referencia ? String(r.referencia) : null,
+    concepto_nombre:     r.concepto_nombre ? String(r.concepto_nombre) : null,
+    estado_conciliacion: String(r.estado_conciliacion ?? 'pendiente'),
+    metodo_pago_nombre:  r.metodo_pago_nombre ? String(r.metodo_pago_nombre) : null,
+  }));
+
+  return {
+    fecha_inicio: fechaInicio,
+    fecha_fin:    fechaFin,
+    total:        pagos.reduce((s, p) => s + p.monto, 0),
+    pagos,
+  };
+}
+
+export const obtenerPagosClientes = (p: Omit<Parameters<typeof obtenerPagosBase>[0], 'naturaleza'>) =>
+  obtenerPagosBase({ ...p, naturaleza: 'cobro_cliente' });
+
+export const obtenerPagosProveedores = (p: Omit<Parameters<typeof obtenerPagosBase>[0], 'naturaleza'>) =>
+  obtenerPagosBase({ ...p, naturaleza: 'pago_proveedor' });
+
+// ── Posición de Tesorería ──────────────────────────────────────────────────────
+
+export type CuentaTesoreria = {
+  id: number;
+  identificador: string;
+  tipo_cuenta: string;
+  moneda: string;
+  saldo: number;
+  saldo_conciliado: number;
+  fecha_ultima_conciliacion: string | null;
+  es_cuenta_efectivo: boolean;
+  afecta_total_disponible: boolean;
+};
+
+export type TotalPorMoneda = {
+  moneda: string;
+  saldo: number;
+  saldo_conciliado: number;
+  cantidad_cuentas: number;
+};
+
+export type PosicionTesoreriaResult = {
+  fecha_consulta: string;
+  cuentas: CuentaTesoreria[];
+  totales_por_moneda: TotalPorMoneda[];
+};
+
+export async function obtenerPosicionTesoreria(empresaId: number): Promise<PosicionTesoreriaResult> {
+  const { rows } = await pool.query(
+    `SELECT
+       id, identificador, tipo_cuenta, moneda, saldo,
+       COALESCE(saldo_conciliado, 0)   AS saldo_conciliado,
+       fecha_ultima_conciliacion,
+       es_cuenta_efectivo,
+       afecta_total_disponible
+     FROM finanzas_cuentas
+     WHERE empresa_id   = $1
+       AND cuenta_cerrada = false
+     ORDER BY moneda, tipo_cuenta, identificador`,
+    [empresaId]
+  );
+
+  const cuentas: CuentaTesoreria[] = rows.map((r) => ({
+    id:                       r.id as number,
+    identificador:             String(r.identificador ?? ''),
+    tipo_cuenta:               String(r.tipo_cuenta ?? ''),
+    moneda:                    String(r.moneda ?? 'MXN'),
+    saldo:                     Number(r.saldo ?? 0),
+    saldo_conciliado:          Number(r.saldo_conciliado ?? 0),
+    fecha_ultima_conciliacion: r.fecha_ultima_conciliacion ? toFecha(r.fecha_ultima_conciliacion) : null,
+    es_cuenta_efectivo:        Boolean(r.es_cuenta_efectivo),
+    afecta_total_disponible:   Boolean(r.afecta_total_disponible),
+  }));
+
+  const monedaMap = new Map<string, TotalPorMoneda>();
+  for (const c of cuentas) {
+    if (!monedaMap.has(c.moneda)) {
+      monedaMap.set(c.moneda, { moneda: c.moneda, saldo: 0, saldo_conciliado: 0, cantidad_cuentas: 0 });
+    }
+    const t = monedaMap.get(c.moneda)!;
+    t.saldo += c.saldo;
+    t.saldo_conciliado += c.saldo_conciliado;
+    t.cantidad_cuentas += 1;
+  }
+
+  return {
+    fecha_consulta:    new Date().toISOString().slice(0, 10),
+    cuentas,
+    totales_por_moneda: Array.from(monedaMap.values()).sort((a, b) => a.moneda.localeCompare(b.moneda)),
+  };
+}
+
+// ── Cartera Vencida con fecha_base configurable ───────────────────────────────
+
+export type CarteraVencidaRow = {
+  documento_id: number;
+  contacto_id: number | null;
+  contacto_nombre: string;
+  fecha_documento: string;
+  tipo_documento: string;
+  folio: string;
+  moneda: string;
+  total: number;
+  saldo: number;
+  dias: number;
+  bucket: '0-30' | '31-60' | '61-90' | '90+';
+};
+
+export type CarteraVencidaResumenRow = {
+  contacto_id: number | null;
+  contacto_nombre: string;
+  moneda: string;
+  bucket_0_30: number;
+  bucket_31_60: number;
+  bucket_61_90: number;
+  bucket_90_plus: number;
+  total: number;
+};
+
+export type TotalCarteraMoneda = {
+  moneda: string;
+  bucket_0_30: number;
+  bucket_31_60: number;
+  bucket_61_90: number;
+  bucket_90_plus: number;
+  total: number;
+};
+
+export type CarteraVencidaResult = {
+  fecha_base: string;
+  detalle: CarteraVencidaRow[];
+  resumen: CarteraVencidaResumenRow[];
+  totales: TotalCarteraMoneda[];
+};
+
+export async function obtenerCarteraVencida(params: {
+  empresaId: number;
+  fechaBase?: string;
+  tipoDocumento?: 'factura' | 'factura_compra' | null;
+}): Promise<CarteraVencidaResult> {
+  const { empresaId } = params;
+  const fechaBase = params.fechaBase || new Date().toISOString().slice(0, 10);
+  const tiposDoc  = params.tipoDocumento ? [params.tipoDocumento] : ['factura', 'factura_compra'];
+
+  const { rows } = await pool.query(
+    `SELECT
+       d.id                                                               AS documento_id,
+       d.contacto_principal_id                                            AS contacto_id,
+       COALESCE(c.nombre, '')                                             AS contacto_nombre,
+       d.fecha_documento,
+       d.fecha_vencimiento,
+       d.tipo_documento,
+       COALESCE(d.serie, '')                                              AS serie,
+       COALESCE(d.numero, 0)::int                                         AS numero,
+       COALESCE(d.moneda, 'MXN')                                          AS moneda,
+       COALESCE(d.total, 0)::numeric                                      AS total,
+       COALESCE(d.total, 0)::numeric
+         - COALESCE(SUM(
+             CASE WHEN COALESCE(a.fecha_aplicacion::date, NOW()::date) <= $2::date
+               THEN a.monto ELSE 0 END
+           ), 0)                                                           AS saldo,
+       ($2::date - COALESCE(d.fecha_vencimiento, d.fecha_documento)::date)::int AS dias
+     FROM documentos d
+     LEFT JOIN contactos c
+       ON c.id = d.contacto_principal_id AND c.empresa_id = d.empresa_id
+     LEFT JOIN aplicaciones_saldo a
+       ON a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id
+     WHERE d.empresa_id = $1
+       AND d.tipo_documento = ANY($3::text[])
+       AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada', 'borrador')
+       AND COALESCE(d.fecha_vencimiento, d.fecha_documento)::date <= $2::date
+     GROUP BY
+       d.id, d.contacto_principal_id, c.nombre,
+       d.fecha_documento, d.fecha_vencimiento, d.tipo_documento, d.serie, d.numero, d.moneda, d.total
+     HAVING COALESCE(d.total, 0)::numeric
+              - COALESCE(SUM(
+                  CASE WHEN COALESCE(a.fecha_aplicacion::date, NOW()::date) <= $2::date
+                    THEN a.monto ELSE 0 END
+                ), 0) > 0.001
+     ORDER BY d.contacto_principal_id NULLS LAST, COALESCE(d.fecha_vencimiento, d.fecha_documento) ASC`,
+    [empresaId, fechaBase, tiposDoc]
+  );
+
+  const detalle: CarteraVencidaRow[] = rows.map((r) => {
+    const dias = Number(r.dias ?? 0);
+    const bucket: CarteraVencidaRow['bucket'] =
+      dias <= 30 ? '0-30' : dias <= 60 ? '31-60' : dias <= 90 ? '61-90' : '90+';
+    return {
+      documento_id:    r.documento_id as number,
+      contacto_id:     r.contacto_id as number | null,
+      contacto_nombre: String(r.contacto_nombre ?? ''),
+      fecha_documento: toFecha(r.fecha_documento),
+      tipo_documento:  String(r.tipo_documento ?? ''),
+      folio:           formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+      moneda:          String(r.moneda ?? 'MXN'),
+      total:           Number(r.total ?? 0),
+      saldo:           Number(r.saldo ?? 0),
+      dias,
+      bucket,
+    };
+  });
+
+  const resumenMap = new Map<string, CarteraVencidaResumenRow>();
+  for (const row of detalle) {
+    const key = String(row.contacto_id ?? '__sin_contacto__') + '_' + row.moneda;
+    if (!resumenMap.has(key)) {
+      resumenMap.set(key, {
+        contacto_id:    row.contacto_id,
+        contacto_nombre: row.contacto_nombre,
+        moneda:         row.moneda,
+        bucket_0_30: 0, bucket_31_60: 0, bucket_61_90: 0, bucket_90_plus: 0, total: 0,
+      });
+    }
+    const res = resumenMap.get(key)!;
+    if (row.bucket === '0-30')  res.bucket_0_30  += row.saldo;
+    if (row.bucket === '31-60') res.bucket_31_60 += row.saldo;
+    if (row.bucket === '61-90') res.bucket_61_90 += row.saldo;
+    if (row.bucket === '90+')   res.bucket_90_plus += row.saldo;
+    res.total += row.saldo;
+  }
+
+  const resumen = Array.from(resumenMap.values())
+    .sort((a, b) => {
+      const cmp = a.contacto_nombre.localeCompare(b.contacto_nombre, 'es');
+      return cmp !== 0 ? cmp : a.moneda.localeCompare(b.moneda);
+    });
+
+  const totalesMap = new Map<string, TotalCarteraMoneda>();
+  for (const r of resumen) {
+    if (!totalesMap.has(r.moneda)) {
+      totalesMap.set(r.moneda, {
+        moneda: r.moneda,
+        bucket_0_30: 0, bucket_31_60: 0, bucket_61_90: 0, bucket_90_plus: 0, total: 0,
+      });
+    }
+    const t = totalesMap.get(r.moneda)!;
+    t.bucket_0_30  += r.bucket_0_30;
+    t.bucket_31_60 += r.bucket_31_60;
+    t.bucket_61_90 += r.bucket_61_90;
+    t.bucket_90_plus += r.bucket_90_plus;
+    t.total += r.total;
+  }
+
+  const totales = Array.from(totalesMap.values()).sort((a, b) => a.moneda.localeCompare(b.moneda));
+
+  return { fecha_base: fechaBase, detalle, resumen, totales };
+}
+
+// ── Movimientos No Conciliados ─────────────────────────────────────────────────
+
+export type MovimientoNoConciliado = {
+  id: number;
+  fecha: string;
+  cuenta_id: number;
+  cuenta_nombre: string;
+  cuenta_moneda: string;
+  tipo_movimiento: string;
+  naturaleza_operacion: string;
+  monto: number;
+  moneda: string;
+  referencia: string | null;
+  observaciones: string | null;
+  estado_conciliacion: string;
+  dias_sin_conciliar: number;
+  contacto_id: number | null;
+  contacto_nombre: string | null;
+  concepto_nombre: string | null;
+  metodo_pago_nombre: string | null;
+  documento_origen_id: number | null;
+  documento_folio: string | null;
+};
+
+export type MovimientosNoConciliadosResult = {
+  fecha_corte: string;
+  movimientos: MovimientoNoConciliado[];
+};
+
+export async function obtenerMovimientosNoConciliados(params: {
+  empresaId: number;
+  fechaInicio?: string | null;
+  fechaFin?: string | null;
+  cuentaId?: number | null;
+  estadoConciliacion?: string | null;
+  tipoMovimiento?: string | null;
+  naturaleza?: string | null;
+  contactoId?: number | null;
+  metodoPagoId?: number | null;
+  minDias?: number | null;
+}): Promise<MovimientosNoConciliadosResult> {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const fechaCorte = params.fechaFin || hoy;
+
+  const args: unknown[] = [params.empresaId, fechaCorte];
+  const conds: string[] = [];
+
+  if (params.fechaInicio) {
+    args.push(params.fechaInicio);
+    conds.push(`AND fo.fecha >= $${args.length}`);
+  }
+  if (params.fechaFin) {
+    conds.push(`AND fo.fecha <= $2`);
+  }
+  if (params.cuentaId) {
+    args.push(params.cuentaId);
+    conds.push(`AND fo.cuenta_id = $${args.length}`);
+  }
+  if (params.estadoConciliacion && params.estadoConciliacion !== 'todos') {
+    args.push(params.estadoConciliacion);
+    conds.push(`AND fo.estado_conciliacion = $${args.length}`);
+  }
+  if (params.tipoMovimiento && params.tipoMovimiento !== 'todos') {
+    args.push(params.tipoMovimiento);
+    conds.push(`AND fo.tipo_movimiento = $${args.length}`);
+  }
+  if (params.naturaleza && params.naturaleza !== 'todos') {
+    args.push(params.naturaleza);
+    conds.push(`AND fo.naturaleza_operacion = $${args.length}`);
+  }
+  if (params.contactoId) {
+    args.push(params.contactoId);
+    conds.push(`AND fo.contacto_id = $${args.length}`);
+  }
+  if (params.metodoPagoId) {
+    args.push(params.metodoPagoId);
+    conds.push(`AND fo.metodo_pago_id = $${args.length}`);
+  }
+  if (params.minDias != null && params.minDias > 0) {
+    args.push(params.minDias);
+    conds.push(`AND ($2::date - fo.fecha)::int >= $${args.length}`);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       fo.id,
+       fo.fecha,
+       fo.cuenta_id,
+       fo.tipo_movimiento,
+       fo.naturaleza_operacion,
+       fo.monto,
+       fo.referencia,
+       fo.observaciones,
+       fo.estado_conciliacion,
+       ($2::date - fo.fecha)::int                              AS dias_sin_conciliar,
+       fo.contacto_id,
+       fo.documento_origen_id,
+       COALESCE(fc.identificador, '')                          AS cuenta_nombre,
+       COALESCE(fc.moneda, 'MXN')                             AS cuenta_moneda,
+       c.nombre                                                AS contacto_nombre,
+       co.nombre_concepto                                      AS concepto_nombre,
+       mp.nombre                                               AS metodo_pago_nombre,
+       CASE
+         WHEN d.id IS NOT NULL
+           THEN COALESCE(d.serie, '') || CAST(COALESCE(d.numero, 0) AS text)
+         ELSE NULL
+       END                                                     AS documento_folio
+     FROM finanzas_operaciones fo
+     JOIN finanzas_cuentas fc
+       ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
+       AND NOT COALESCE(fc.cuenta_cerrada, false)
+     LEFT JOIN contactos c
+       ON c.id = fo.contacto_id AND c.empresa_id = fo.empresa_id
+     LEFT JOIN conceptos co
+       ON co.id = fo.concepto_id AND co.empresa_id = fo.empresa_id
+     LEFT JOIN finanzas_metodos_pago mp
+       ON mp.id = fo.metodo_pago_id AND mp.empresa_id = fo.empresa_id
+     LEFT JOIN documentos d
+       ON d.id = fo.documento_origen_id AND d.empresa_id = fo.empresa_id
+     WHERE fo.empresa_id = $1
+       AND fo.estado_conciliacion IN ('pendiente', 'cotejado')
+       ${conds.join(' ')}
+     ORDER BY fo.fecha ASC, fo.id ASC`,
+    args
+  );
+
+  const movimientos: MovimientoNoConciliado[] = rows.map((r) => ({
+    id:                   r.id as number,
+    fecha:                String(r.fecha).slice(0, 10),
+    cuenta_id:            r.cuenta_id as number,
+    cuenta_nombre:        String(r.cuenta_nombre ?? ''),
+    cuenta_moneda:        String(r.cuenta_moneda ?? 'MXN'),
+    tipo_movimiento:      String(r.tipo_movimiento ?? ''),
+    naturaleza_operacion: String(r.naturaleza_operacion ?? 'movimiento_general'),
+    monto:                Number(r.monto ?? 0),
+    moneda:               String(r.cuenta_moneda ?? 'MXN'),
+    referencia:           r.referencia ? String(r.referencia) : null,
+    observaciones:        r.observaciones ? String(r.observaciones) : null,
+    estado_conciliacion:  String(r.estado_conciliacion ?? 'pendiente'),
+    dias_sin_conciliar:   Number(r.dias_sin_conciliar ?? 0),
+    contacto_id:          r.contacto_id as number | null,
+    contacto_nombre:      r.contacto_nombre ? String(r.contacto_nombre) : null,
+    concepto_nombre:      r.concepto_nombre ? String(r.concepto_nombre) : null,
+    metodo_pago_nombre:   r.metodo_pago_nombre ? String(r.metodo_pago_nombre) : null,
+    documento_origen_id:  r.documento_origen_id as number | null,
+    documento_folio:      r.documento_folio ? String(r.documento_folio) : null,
+  }));
+
+  return { fecha_corte: fechaCorte, movimientos };
 }

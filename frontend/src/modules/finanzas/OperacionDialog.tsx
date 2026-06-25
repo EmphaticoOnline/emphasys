@@ -16,9 +16,9 @@ import {
   Typography,
 } from '@mui/material';
 import { createFilterOptions } from '@mui/material/Autocomplete';
-import type { Concepto, FinanzasCuenta, FinanzasOperacion, NaturalezaOperacion, TipoMovimiento } from '../../types/finanzas';
+import type { Concepto, FinanzasCuenta, FinanzasMetodoPago, FinanzasOperacion, NaturalezaOperacion, TipoMovimiento } from '../../types/finanzas';
 import type { Contacto } from '../../types/contactos.types';
-import { actualizarOperacion, crearOperacion, type OperacionPayload } from '../../services/finanzasService';
+import { actualizarOperacion, crearOperacion, fetchMetodosPago, type OperacionPayload } from '../../services/finanzasService';
 import { fetchConceptos, crearConcepto } from '../../services/conceptosService';
 import { fetchContactos } from '../../services/contactosService';
 
@@ -64,6 +64,8 @@ export function OperacionDialog({
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [conceptoId, setConceptoId] = useState<string>('');
   const [contactos, setContactos] = useState<Contacto[]>([]);
+  const [metodosPago, setMetodosPago] = useState<FinanzasMetodoPago[]>([]);
+  const [metodoPagoId, setMetodoPagoId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingConceptos, setLoadingConceptos] = useState(false);
@@ -78,6 +80,10 @@ export function OperacionDialog({
 
   const conceptoFilter = createFilterOptions<ConceptoOption>();
 
+  // Método seleccionado — usado para saber si referencia es obligatoria
+  const metodoSeleccionado = metodosPago.find((m) => m.id === metodoPagoId) ?? null;
+  const referenciaObligatoria = metodoSeleccionado?.requiere_referencia === true;
+
   useEffect(() => {
     if (operacion) {
       setCuentaId(operacion.cuenta_id);
@@ -89,6 +95,7 @@ export function OperacionDialog({
       setMonto(formatCurrency(operacion.monto ?? ''));
       setConceptoId(operacion.concepto_id ? String(operacion.concepto_id) : '');
       setNaturaleza((operacion.naturaleza_operacion as NaturalezaOperacion) || 'movimiento_general');
+      setMetodoPagoId(operacion.metodo_pago_id ?? null);
     } else {
       setCuentaId(presetPayload?.cuenta_id ?? defaultCuentaId ?? '');
       setFecha(presetPayload?.fecha || new Date().toISOString().slice(0, 10));
@@ -99,6 +106,7 @@ export function OperacionDialog({
       setObservaciones(presetPayload?.observaciones || '');
       setMonto(presetPayload?.monto ? formatCurrency(presetPayload.monto) : '');
       setConceptoId(presetPayload?.concepto_id ? String(presetPayload.concepto_id) : '');
+      setMetodoPagoId(presetPayload?.metodo_pago_id ?? null);
     }
     setError(null);
   }, [operacion, defaultCuentaId, open, presetPayload]);
@@ -107,6 +115,7 @@ export function OperacionDialog({
     if (!open) return;
     setLoadingConceptos(true);
     setLoadingContactos(true);
+
     fetchConceptos()
       .then((data) => setConceptos(data.filter((c) => c.activo)))
       .catch(() => setConceptos([]))
@@ -116,6 +125,10 @@ export function OperacionDialog({
       .then((data) => setContactos(data))
       .catch(() => setContactos([]))
       .finally(() => setLoadingContactos(false));
+
+    fetchMetodosPago(true)
+      .then((data) => setMetodosPago(data))
+      .catch(() => setMetodosPago([]));
   }, [open]);
 
   const handleSave = async () => {
@@ -125,6 +138,11 @@ export function OperacionDialog({
       setError('Completa la cuenta, fecha y monto.');
       return;
     }
+    if (referenciaObligatoria && !referencia.trim()) {
+      setError(`El método "${metodoSeleccionado?.nombre}" requiere una referencia (número de cheque, SPEI, etc.).`);
+      return;
+    }
+
     const payload: OperacionPayload = {
       cuenta_id: Number(cuentaId),
       fecha,
@@ -136,6 +154,7 @@ export function OperacionDialog({
       observaciones: observaciones || null,
       monto: Number(montoNumerico),
       concepto_id: conceptoId ? Number(conceptoId) : null,
+      metodo_pago_id: metodoPagoId ?? null,
     };
 
     try {
@@ -323,13 +342,35 @@ export function OperacionDialog({
             }}
           />
 
+          {/* Método de pago operativo */}
+          <FormControl size="small" fullWidth>
+            <InputLabel id="metodo-pago-label">Método de pago</InputLabel>
+            <Select
+              labelId="metodo-pago-label"
+              value={metodoPagoId !== null ? String(metodoPagoId) : ''}
+              label="Método de pago"
+              onChange={(e) => setMetodoPagoId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <MenuItem value=""><em>Sin especificar</em></MenuItem>
+              {metodosPago.map((m) => (
+                <MenuItem key={m.id} value={String(m.id)}>
+                  {m.nombre}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
           <TextField
-            label="Referencia"
+            label={referenciaObligatoria ? 'Referencia *' : 'Referencia'}
             size="small"
             value={referencia}
             onChange={(e) => setReferencia(e.target.value)}
-            placeholder="Referencia o folio"
+            placeholder={referenciaObligatoria ? 'Requerido para este método' : 'Referencia o folio'}
             fullWidth
+            error={referenciaObligatoria && !referencia.trim()}
+            helperText={referenciaObligatoria && !referencia.trim()
+              ? `El método "${metodoSeleccionado?.nombre ?? ''}" requiere una referencia`
+              : undefined}
           />
 
           <TextField

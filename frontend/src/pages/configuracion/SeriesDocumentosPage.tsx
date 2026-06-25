@@ -50,6 +50,7 @@ import {
 import { fetchTiposDocumentoHabilitados, type TipoDocumentoEmpresa } from '../../services/tiposDocumentoService';
 import { fetchUsuariosHabilitados } from '../../services/usuariosService';
 import type { Usuario } from '../../types/usuario';
+import { useSession } from '../../session/useSession';
 
 const TAB_SERIES = 0;
 const TAB_ASIGNACIONES = 1;
@@ -62,6 +63,7 @@ type SerieFormState = {
   tipo_documento: string;
   es_fiscal: boolean;
   activa: boolean;
+  ultimo_numero: number;
 };
 
 type AsignacionFormState = {
@@ -78,6 +80,7 @@ const emptySerieForm = (): SerieFormState => ({
   tipo_documento: '',
   es_fiscal: false,
   activa: true,
+  ultimo_numero: 0,
 });
 
 const emptyAsignacionForm = (): AsignacionFormState => ({
@@ -98,6 +101,9 @@ function formatBooleanLabel(value: boolean) {
 }
 
 export default function SeriesDocumentosPage() {
+  const { session } = useSession();
+  const isSuperadmin = Boolean(session.user?.es_superadmin);
+
   const [tab, setTab] = useState(TAB_SERIES);
   const [series, setSeries] = useState<SerieDocumentoItem[]>([]);
   const [asignaciones, setAsignaciones] = useState<AsignacionSerieDocumentoItem[]>([]);
@@ -187,6 +193,7 @@ export default function SeriesDocumentosPage() {
       tipo_documento: item.tipo_documento,
       es_fiscal: item.es_fiscal,
       activa: item.activa,
+      ultimo_numero: item.ultimo_numero ?? 0,
     });
     setSerieFormError(null);
     setSerieDialogOpen(true);
@@ -227,6 +234,7 @@ export default function SeriesDocumentosPage() {
         tipo_documento: serieForm.tipo_documento,
         es_fiscal: serieTipoSoportaFiscal ? serieForm.es_fiscal : false,
         activa: serieForm.activa,
+        ...(serieForm.id && isSuperadmin ? { ultimo_numero: serieForm.ultimo_numero } : {}),
       };
 
       if (serieForm.id) {
@@ -560,6 +568,18 @@ export default function SeriesDocumentosPage() {
               }
               label={`Activa: ${formatBooleanLabel(serieForm.activa)}`}
             />
+
+            {serieForm.id && isSuperadmin && (
+              <TextField
+                label="Último folio"
+                type="number"
+                value={serieForm.ultimo_numero}
+                onChange={(event) => handleSerieFormChange('ultimo_numero', Math.max(0, parseInt(event.target.value, 10) || 0))}
+                fullWidth
+                inputProps={{ min: 0, step: 1 }}
+                helperText="El siguiente documento generado usará este número + 1."
+              />
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>

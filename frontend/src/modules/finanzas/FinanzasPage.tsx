@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -42,6 +43,7 @@ import {
 } from '../../services/finanzasService';
 
 export function FinanzasPage() {
+  const navigate = useNavigate();
   const [cuentas, setCuentas] = useState<FinanzasCuenta[]>([]);
   const [selectedCuentaId, setSelectedCuentaId] = useState<number | null>(null);
   const [operaciones, setOperaciones] = useState<FinanzasOperacion[]>([]);
@@ -218,7 +220,12 @@ export function FinanzasPage() {
           <Button
             variant="contained"
             startIcon={<CheckCircleIcon />}
-            onClick={() => setConciliacionOpen(true)}
+            onClick={() => {
+              const url = selectedCuentaId
+                ? `/finanzas/conciliacion-bancaria?cuenta_id=${selectedCuentaId}`
+                : '/finanzas/conciliacion-bancaria';
+              navigate(url);
+            }}
             disabled={!selectedCuentaId}
             sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#0ea5e9', '&:hover': { bgcolor: '#0284c7' } }}
           >

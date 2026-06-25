@@ -15,6 +15,12 @@ import {
   obtenerVentasPorPeriodo,
   obtenerPedidosPendientesFacturar,
   obtenerRemisionesPendientesFacturar,
+  obtenerVencimientosClientes,
+  obtenerPagosClientes,
+  obtenerPagosProveedores,
+  obtenerPosicionTesoreria,
+  obtenerCarteraVencida,
+  obtenerMovimientosNoConciliados,
   type MovimientoEstadoCuenta,
   type EstadoCuentaResult,
   type VolumenContactoResult,
@@ -872,6 +878,288 @@ export async function getVencimientosProveedores(req: Request, res: Response) {
       const buffer = await generarVencimientosProveedoresPDF(resultado);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename="vencimientos-proveedores.pdf"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Vencimientos de Clientes ──────────────────────────────────────────────────
+
+const COLUMNAS_VENCIMIENTOS_CLIENTES: ExportColumna[] = [
+  { field: 'fecha_vencimiento', headerName: 'Vencimiento' },
+  { field: 'dias',              headerName: 'Días'        },
+  { field: 'cliente_nombre',    headerName: 'Cliente'     },
+  { field: 'folio',             headerName: 'Documento'   },
+  { field: 'total',             headerName: 'Total'       },
+  { field: 'saldo',             headerName: 'Saldo'       },
+];
+
+export async function getVencimientosClientes(req: Request, res: Response) {
+  const empresaId  = req.context?.empresaId as number | undefined;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const hoy        = new Date().toISOString().slice(0, 10);
+  const fechaCorte = (req.query.fecha_corte as string) || hoy;
+  const contactoId = req.query.contacto_id ? Number(req.query.contacto_id) : null;
+  const moneda     = (req.query.moneda as string) || null;
+  const formato    = ((req.query.formato as string) || 'json').toLowerCase();
+
+  try {
+    const resultado = await obtenerVencimientosClientes({ empresaId, fechaCorte, contactoId, moneda });
+
+    if (formato === 'excel') {
+      const filas = resultado.vencimientos.map((v) => ({
+        ...v,
+        fecha_vencimiento: fmtFechaMX(v.fecha_vencimiento),
+      }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_VENCIMIENTOS_CLIENTES, 'Vencimientos de Clientes');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="vencimientos-clientes.xlsx"');
+      return res.send(buffer);
+    }
+
+    if (formato === 'pdf') {
+      const buffer = await generarVencimientosProveedoresPDF(
+        { fecha_corte: resultado.fecha_corte, vencimientos: resultado.vencimientos.map((v) => ({
+            id: v.id, fecha_vencimiento: v.fecha_vencimiento, dias: v.dias,
+            proveedor_nombre: v.cliente_nombre, folio: v.folio,
+            referencia_proveedor: '', total: v.total, saldo: v.saldo,
+            proveedor_id: null, moneda: 'MXN',
+          })) },
+        'Vencimientos de Clientes'
+      );
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="vencimientos-clientes.pdf"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Pagos de Clientes / Proveedores ───────────────────────────────────────────
+
+const COLUMNAS_PAGOS: ExportColumna[] = [
+  { field: 'fecha',               headerName: 'Fecha'          },
+  { field: 'folio',               headerName: 'Folio'          },
+  { field: 'contacto_nombre',     headerName: 'Contacto'       },
+  { field: 'cuenta_nombre',       headerName: 'Cuenta'         },
+  { field: 'cuenta_moneda',       headerName: 'Moneda'         },
+  { field: 'monto',               headerName: 'Monto'          },
+  { field: 'metodo_pago_nombre',  headerName: 'Método de pago' },
+  { field: 'referencia',          headerName: 'Referencia'     },
+  { field: 'concepto_nombre',     headerName: 'Concepto'       },
+  { field: 'estado_conciliacion', headerName: 'Conciliación'   },
+];
+
+function parsePagosParams(req: Request) {
+  const empresaId   = req.context?.empresaId as number | undefined;
+  const hoy         = new Date().toISOString().slice(0, 10);
+  const primeroDeMes = hoy.slice(0, 8) + '01';
+  const fechaInicio = (req.query.fecha_inicio as string) || primeroDeMes;
+  const fechaFin    = (req.query.fecha_fin    as string) || hoy;
+  const contactoId  = req.query.contacto_id ? Number(req.query.contacto_id) : null;
+  const cuentaId    = req.query.cuenta_id    ? Number(req.query.cuenta_id)   : null;
+  const formato     = ((req.query.formato as string) || 'json').toLowerCase();
+  return { empresaId, fechaInicio, fechaFin, contactoId, cuentaId, formato };
+}
+
+export async function getPagosClientes(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, contactoId, cuentaId, formato } = parsePagosParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const resultado = await obtenerPagosClientes({ empresaId, fechaInicio, fechaFin, contactoId, cuentaId });
+
+    if (formato === 'excel') {
+      const filas = resultado.pagos.map((p) => ({ ...p, fecha: fmtFechaMX(p.fecha) }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_PAGOS, 'Pagos de Clientes');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="pagos-clientes.xlsx"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+export async function getPagosProveedores(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, contactoId, cuentaId, formato } = parsePagosParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const resultado = await obtenerPagosProveedores({ empresaId, fechaInicio, fechaFin, contactoId, cuentaId });
+
+    if (formato === 'excel') {
+      const filas = resultado.pagos.map((p) => ({ ...p, fecha: fmtFechaMX(p.fecha) }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_PAGOS, 'Pagos a Proveedores');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="pagos-proveedores.xlsx"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Posición de Tesorería ──────────────────────────────────────────────────────
+
+const COLUMNAS_TESORERIA: ExportColumna[] = [
+  { field: 'identificador',             headerName: 'Cuenta'              },
+  { field: 'tipo_cuenta',               headerName: 'Tipo'                },
+  { field: 'moneda',                    headerName: 'Moneda'              },
+  { field: 'saldo',                     headerName: 'Saldo'               },
+  { field: 'saldo_conciliado',          headerName: 'Saldo Conciliado'    },
+  { field: 'fecha_ultima_conciliacion', headerName: 'Última Conciliación' },
+];
+
+export async function getPosicionTesoreria(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number | undefined;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const formato = ((req.query.formato as string) || 'json').toLowerCase();
+
+  try {
+    const resultado = await obtenerPosicionTesoreria(empresaId);
+
+    if (formato === 'excel') {
+      const filas = resultado.cuentas.map((c) => ({
+        ...c,
+        fecha_ultima_conciliacion: c.fecha_ultima_conciliacion ? fmtFechaMX(c.fecha_ultima_conciliacion) : '',
+      }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_TESORERIA, 'Posición de Tesorería');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="posicion-tesoreria.xlsx"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Cartera Vencida ────────────────────────────────────────────────────────────
+
+const COLUMNAS_CARTERA_VENCIDA: ExportColumna[] = [
+  { field: 'contacto_nombre', headerName: 'Cliente'    },
+  { field: 'folio',           headerName: 'Documento'  },
+  { field: 'tipo_documento',  headerName: 'Tipo'       },
+  { field: 'fecha_documento', headerName: 'Fecha Doc.' },
+  { field: 'moneda',          headerName: 'Moneda'     },
+  { field: 'total',           headerName: 'Total'      },
+  { field: 'saldo',           headerName: 'Saldo'      },
+  { field: 'dias',            headerName: 'Días'       },
+  { field: 'bucket',          headerName: 'Antigüedad' },
+];
+
+const COLUMNAS_CARTERA_RESUMEN: ExportColumna[] = [
+  { field: 'contacto_nombre', headerName: 'Cliente'    },
+  { field: 'moneda',          headerName: 'Moneda'     },
+  { field: 'bucket_0_30',     headerName: '0-30 días'  },
+  { field: 'bucket_31_60',    headerName: '31-60 días' },
+  { field: 'bucket_61_90',    headerName: '61-90 días' },
+  { field: 'bucket_90_plus',  headerName: '90+ días'   },
+  { field: 'total',           headerName: 'Total'      },
+];
+
+export async function getCarteraVencida(req: Request, res: Response) {
+  const empresaId     = req.context?.empresaId as number | undefined;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const hoy           = new Date().toISOString().slice(0, 10);
+  const fechaBase     = (req.query.fecha_base     as string) || hoy;
+  const tipoDocumento = (req.query.tipo_documento as string) || undefined;
+  const vista         = ((req.query.vista         as string) || 'detalle').toLowerCase();
+  const formato       = ((req.query.formato       as string) || 'json').toLowerCase();
+
+  try {
+    const resultado = await obtenerCarteraVencida({
+      empresaId,
+      fechaBase,
+      tipoDocumento: tipoDocumento as 'factura' | 'factura_compra' | undefined,
+    });
+
+    if (formato === 'excel') {
+      if (vista === 'resumen') {
+        const buffer = generarExcelBuffer(resultado.resumen, COLUMNAS_CARTERA_RESUMEN, 'Cartera Vencida - Resumen');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="cartera-vencida-resumen.xlsx"');
+        return res.send(buffer);
+      }
+      const filas = resultado.detalle.map((r) => ({ ...r, fecha_documento: fmtFechaMX(r.fecha_documento) }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_CARTERA_VENCIDA, 'Cartera Vencida');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="cartera-vencida.xlsx"');
+      return res.send(buffer);
+    }
+
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ── Movimientos No Conciliados ─────────────────────────────────────────────────
+
+const COLUMNAS_MOV_NC: ExportColumna[] = [
+  { field: 'fecha',                headerName: 'Fecha'           },
+  { field: 'cuenta_nombre',        headerName: 'Cuenta'          },
+  { field: 'tipo_movimiento',      headerName: 'Tipo'            },
+  { field: 'naturaleza_operacion', headerName: 'Naturaleza'      },
+  { field: 'contacto_nombre',      headerName: 'Contacto'        },
+  { field: 'concepto_nombre',      headerName: 'Concepto'        },
+  { field: 'metodo_pago_nombre',   headerName: 'Método de pago'  },
+  { field: 'referencia',           headerName: 'Referencia'      },
+  { field: 'monto',                headerName: 'Monto'           },
+  { field: 'moneda',               headerName: 'Moneda'          },
+  { field: 'estado_conciliacion',  headerName: 'Estado'          },
+  { field: 'dias_sin_conciliar',   headerName: 'Días sin conc.'  },
+  { field: 'documento_folio',      headerName: 'Folio doc.'      },
+];
+
+function parseMovNCParams(req: Request) {
+  const empresaId    = req.context?.empresaId as number | undefined;
+  const fechaInicio  = (req.query.fecha_inicio    as string) || null;
+  const fechaFin     = (req.query.fecha_fin       as string) || null;
+  const cuentaId     = req.query.cuenta_id       ? Number(req.query.cuenta_id)      : null;
+  const estadoConcil = (req.query.estado          as string) || null;
+  const tipoMov      = (req.query.tipo_movimiento as string) || null;
+  const naturaleza   = (req.query.naturaleza      as string) || null;
+  const contactoId   = req.query.contacto_id     ? Number(req.query.contacto_id)    : null;
+  const metodoPagoId = req.query.metodo_pago_id  ? Number(req.query.metodo_pago_id) : null;
+  const minDias      = req.query.min_dias        ? Number(req.query.min_dias)       : null;
+  const formato      = ((req.query.formato as string) || 'json').toLowerCase();
+  return { empresaId, fechaInicio, fechaFin, cuentaId, estadoConcil, tipoMov, naturaleza, contactoId, metodoPagoId, minDias, formato };
+}
+
+export async function getMovimientosNoConciliados(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, cuentaId, estadoConcil, tipoMov, naturaleza, contactoId, metodoPagoId, minDias, formato } = parseMovNCParams(req);
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const resultado = await obtenerMovimientosNoConciliados({
+      empresaId,
+      fechaInicio,
+      fechaFin,
+      cuentaId,
+      estadoConciliacion: estadoConcil,
+      tipoMovimiento: tipoMov,
+      naturaleza,
+      contactoId,
+      metodoPagoId,
+      minDias,
+    });
+
+    if (formato === 'excel') {
+      const filas = resultado.movimientos.map((m) => ({ ...m, fecha: fmtFechaMX(m.fecha) }));
+      const buffer = generarExcelBuffer(filas, COLUMNAS_MOV_NC, 'Movimientos No Conciliados');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="movimientos-no-conciliados.xlsx"');
       return res.send(buffer);
     }
 

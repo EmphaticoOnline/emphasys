@@ -15,7 +15,7 @@ function getEmpresaId(req: Request): number {
   return Number(req.context?.empresaId ?? 0);
 }
 
-function normalizarSeriePayload(body: any): SerieDocumentoPayload {
+function normalizarSeriePayload(body: any, { incluirFolio = false } = {}): SerieDocumentoPayload {
   const serie = String(body?.serie ?? '').trim();
   const tipoDocumento = String(body?.tipo_documento ?? '').trim().toLowerCase();
   const descripcionRaw = body?.descripcion;
@@ -31,13 +31,23 @@ function normalizarSeriePayload(body: any): SerieDocumentoPayload {
     throw new Error('tipo_documento es obligatorio');
   }
 
-  return {
+  const payload: SerieDocumentoPayload = {
     serie,
     descripcion: descripcion ? descripcion : null,
     tipo_documento: tipoDocumento,
     es_fiscal: esFiscal,
     activa,
   };
+
+  if (incluirFolio && body?.ultimo_numero !== undefined) {
+    const folio = Number(body.ultimo_numero);
+    if (!Number.isInteger(folio) || folio < 0) {
+      throw new Error('ultimo_numero debe ser un entero mayor o igual a cero');
+    }
+    payload.ultimo_numero = folio;
+  }
+
+  return payload;
 }
 
 function normalizarAsignacionPayload(body: any): { usuario_id: number; serie_documento_id: number; tipo_documento: string } {
@@ -110,7 +120,7 @@ export async function actualizarSerieDocumentoAdminController(req: Request, res:
       return res.status(400).json({ message: 'id de serie inválido' });
     }
 
-    const payload = normalizarSeriePayload(req.body);
+    const payload = normalizarSeriePayload(req.body, { incluirFolio: Boolean(req.auth?.esSuperadmin) });
     const row = await actualizarSerieDocumentoAdmin(empresaId, serieId, payload);
 
     if (!row) {

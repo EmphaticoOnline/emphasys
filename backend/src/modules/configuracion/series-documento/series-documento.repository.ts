@@ -20,6 +20,7 @@ export type SerieDocumentoPayload = {
   tipo_documento: string;
   es_fiscal: boolean;
   activa?: boolean;
+  ultimo_numero?: number;
 };
 
 export type AsignacionSerieUsuarioRow = {
@@ -237,26 +238,34 @@ export async function actualizarSerieDocumentoAdmin(
   serieId: number,
   payload: SerieDocumentoPayload
 ): Promise<SerieDocumentoAdminRow | null> {
-  const { rowCount } = await pool.query(
-    `UPDATE public.series_documento
-        SET serie = $3,
-            descripcion = $4,
-            tipo_documento = LOWER($5),
-            es_fiscal = $6,
-            activa = $7,
-            updated_at = NOW()
-      WHERE empresa_id = $1
-        AND id = $2`,
-    [
-      empresaId,
-      serieId,
-      payload.serie,
-      payload.descripcion ?? null,
-      payload.tipo_documento,
-      payload.es_fiscal,
-      payload.activa ?? true,
-    ]
-  );
+  const actualizarFolio = payload.ultimo_numero !== undefined && Number.isInteger(payload.ultimo_numero) && payload.ultimo_numero >= 0;
+
+  const sql = actualizarFolio
+    ? `UPDATE public.series_documento
+          SET serie = $3,
+              descripcion = $4,
+              tipo_documento = LOWER($5),
+              es_fiscal = $6,
+              activa = $7,
+              ultimo_numero = $8,
+              updated_at = NOW()
+        WHERE empresa_id = $1
+          AND id = $2`
+    : `UPDATE public.series_documento
+          SET serie = $3,
+              descripcion = $4,
+              tipo_documento = LOWER($5),
+              es_fiscal = $6,
+              activa = $7,
+              updated_at = NOW()
+        WHERE empresa_id = $1
+          AND id = $2`;
+
+  const params = actualizarFolio
+    ? [empresaId, serieId, payload.serie, payload.descripcion ?? null, payload.tipo_documento, payload.es_fiscal, payload.activa ?? true, payload.ultimo_numero]
+    : [empresaId, serieId, payload.serie, payload.descripcion ?? null, payload.tipo_documento, payload.es_fiscal, payload.activa ?? true];
+
+  const { rowCount } = await pool.query(sql, params);
 
   if (!rowCount) {
     return null;

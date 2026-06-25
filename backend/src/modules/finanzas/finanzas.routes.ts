@@ -8,6 +8,7 @@ import {
   getAnticiposDisponiblesDocumento,
   getAplicacionesPorDocumento,
   getCuentas,
+  getDiagnosticoDuplicados,
   getEstadoCuentaContacto,
   getOperaciones,
   getReporteAging,
@@ -15,6 +16,7 @@ import {
   getReporteAgingResumen,
   getResumenAnticiposDocumento,
   getSaldoDocumento,
+  getVerificacionSaldos,
   postAplicarAnticiposDocumento,
   postAplicacion,
   postConciliacion,
@@ -24,6 +26,18 @@ import {
   putCuenta,
   putOperacion,
   putTransferencia,
+  getMetodosPago,
+  postMetodoPago,
+  putMetodoPago,
+  getFacturasCompraPendientes,
+  getProgramacionesPago,
+  postProgramacionPago,
+  putProgramacionPago,
+  postCancelarProgramacion,
+  postPagarProgramacion,
+  getConciliacionMovimientos,
+  postCotejarMovimientos,
+  postCerrarConciliacion,
 } from './finanzas.controller';
 
 const router = Router();
@@ -58,5 +72,27 @@ router.post('/conciliaciones', postConciliacion);
 
 router.post('/aplicaciones', postAplicacion);
 router.delete('/aplicaciones/:id', deleteAplicacion);
+
+// Endpoints de diagnóstico (solo lectura, no modifican datos)
+router.get('/diagnostico/saldos', getVerificacionSaldos);
+router.get('/diagnostico/duplicados-aplicaciones', getDiagnosticoDuplicados);
+
+// Catálogo de métodos de pago operativos
+router.get('/metodos-pago',     getMetodosPago);
+router.post('/metodos-pago',    postMetodoPago);
+router.put('/metodos-pago/:id', putMetodoPago);
+
+// Programación de pagos a proveedores (Fase 3.2A)
+router.get('/facturas-compra-pendientes',              getFacturasCompraPendientes);
+router.get('/programacion-pagos',                      getProgramacionesPago);
+router.post('/programacion-pagos',                     postProgramacionPago);
+router.put('/programacion-pagos/:id',                  putProgramacionPago);
+router.post('/programacion-pagos/:id/cancelar',        postCancelarProgramacion);
+router.post('/programacion-pagos/:id/pagar',           postPagarProgramacion);
+
+// Conciliación bancaria básica (Fase 3.4)
+router.get('/conciliacion-bancaria/movimientos', getConciliacionMovimientos);
+router.post('/conciliacion-bancaria/cotejar',    postCotejarMovimientos);
+router.post('/conciliacion-bancaria/cerrar',     postCerrarConciliacion);
 
 export default router;

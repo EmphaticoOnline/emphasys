@@ -12,11 +12,9 @@ import {
   Snackbar,
   Stack,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { DataGrid } from '@mui/x-data-grid';
@@ -30,14 +28,12 @@ import {
   standardDataGridSx,
 } from '../../../components/grids/standardDataGridSx';
 import {
-  fetchVencimientosProveedores,
-  buildVencimientosProveedoresExportUrl,
-  type VencimientoProveedor,
-  type VencimientosProveedoresParams,
-  type VencimientosProveedoresResult,
+  fetchVencimientosClientes,
+  buildVencimientosClientesExportUrl,
+  type VencimientoCliente,
+  type VencimientosClientesParams,
+  type VencimientosClientesResult,
 } from '../../../services/reportesService';
-import ProgramacionPagoDialog from '../../../modules/finanzas/ProgramacionPagoDialog';
-import type { FacturaCompraPendiente } from '../../../types/finanzas';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -55,30 +51,13 @@ const hoy = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-function buildColumns(onProgramar: (row: VencimientoProveedor) => void): GridColDef<VencimientoProveedor>[] {
+function buildColumns(): GridColDef<VencimientoCliente>[] {
   return [
-    {
-      field: '_prog',
-      headerName: '',
-      width: 42,
-      sortable: false,
-      renderCell: (p: GridRenderCellParams<VencimientoProveedor>) => (
-        <Tooltip title="Programar pago">
-          <Button
-            size="small"
-            sx={{ minWidth: 0, p: 0.5 }}
-            onClick={(e) => { e.stopPropagation(); onProgramar(p.row); }}
-          >
-            <CalendarMonthOutlinedIcon fontSize="small" />
-          </Button>
-        </Tooltip>
-      ),
-    },
     {
       field: 'fecha_vencimiento',
       headerName: 'Vencimiento',
       width: 110,
-      renderCell: (p: GridRenderCellParams<VencimientoProveedor, string>) => formatFecha(p.value ?? ''),
+      renderCell: (p: GridRenderCellParams<VencimientoCliente, string>) => formatFecha(p.value ?? ''),
     },
     {
       field: 'dias',
@@ -86,7 +65,7 @@ function buildColumns(onProgramar: (row: VencimientoProveedor) => void): GridCol
       width: 70,
       align: 'right',
       headerAlign: 'right',
-      renderCell: (p: GridRenderCellParams<VencimientoProveedor, number>) => {
+      renderCell: (p: GridRenderCellParams<VencimientoCliente, number>) => {
         const v = p.value ?? 0;
         const color = v < 0 ? 'error.main' : v === 0 ? 'warning.main' : 'text.primary';
         return (
@@ -96,35 +75,15 @@ function buildColumns(onProgramar: (row: VencimientoProveedor) => void): GridCol
         );
       },
     },
-    {
-      field: 'proveedor_nombre',
-      headerName: 'Proveedor',
-      flex: 1,
-      minWidth: 160,
-    },
-    {
-      field: 'folio',
-      headerName: 'Documento',
-      width: 110,
-    },
-    {
-      field: 'referencia_proveedor',
-      headerName: 'Ref. Proveedor',
-      width: 120,
-      renderCell: (p: GridRenderCellParams<VencimientoProveedor, string>) =>
-        p.value ? (
-          <Typography variant="body2" color="text.secondary">
-            {p.value}
-          </Typography>
-        ) : null,
-    },
+    { field: 'cliente_nombre', headerName: 'Cliente', flex: 1, minWidth: 160 },
+    { field: 'folio',          headerName: 'Documento', width: 110 },
     {
       field: 'total',
       headerName: 'Total',
       width: 120,
       align: 'right',
       headerAlign: 'right',
-      renderCell: (p: GridRenderCellParams<VencimientoProveedor, number>) => formatMXN(p.value ?? 0),
+      renderCell: (p: GridRenderCellParams<VencimientoCliente, number>) => formatMXN(p.value ?? 0),
     },
     {
       field: 'saldo',
@@ -132,8 +91,8 @@ function buildColumns(onProgramar: (row: VencimientoProveedor) => void): GridCol
       width: 120,
       align: 'right',
       headerAlign: 'right',
-      renderCell: (p: GridRenderCellParams<VencimientoProveedor, number>) => {
-        const row = p.row as VencimientoProveedor;
+      renderCell: (p: GridRenderCellParams<VencimientoCliente, number>) => {
+        const row = p.row as VencimientoCliente;
         return (
           <Typography variant="body2" fontWeight={700} color={row.dias < 0 ? 'error.main' : 'text.primary'}>
             {formatMXN(p.value ?? 0)}
@@ -144,10 +103,10 @@ function buildColumns(onProgramar: (row: VencimientoProveedor) => void): GridCol
   ];
 }
 
-export default function VencimientosProveedoresPage() {
+export default function VencimientosClientesPage() {
   const navigate = useNavigate();
 
-  const [proveedor, setProveedor] = useState<ContactoOpcion | null>(null);
+  const [cliente, setCliente] = useState<ContactoOpcion | null>(null);
   const [opciones, setOpciones] = useState<ContactoOpcion[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [moneda, setMoneda] = useState('MXN');
@@ -155,22 +114,19 @@ export default function VencimientosProveedoresPage() {
 
   const [loading, setLoading] = useState(false);
   const [exportando, setExportando] = useState<'excel' | 'pdf' | null>(null);
-  const [resultado, setResultado] = useState<VencimientosProveedoresResult | null>(null);
+  const [resultado, setResultado] = useState<VencimientosClientesResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-
-  const [programarDialogOpen, setProgramarDialogOpen] = useState(false);
-  const [facturaParaProgramar, setFacturaParaProgramar] = useState<FacturaCompraPendiente | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const buscarProveedores = useCallback((input: string) => {
+  const buscarClientes = useCallback((input: string) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       setBuscando(true);
       try {
-        const qs = new URLSearchParams({ limit: '40', tipos: 'proveedor,varios' });
+        const qs = new URLSearchParams({ limit: '40', tipos: 'cliente,varios' });
         if (input.trim()) qs.set('search', input.trim());
         const res = await apiFetch(`/api/contactos?${qs.toString()}`);
         if (res.ok) {
@@ -186,9 +142,9 @@ export default function VencimientosProveedoresPage() {
     }, 250);
   }, []);
 
-  const buildParams = (): VencimientosProveedoresParams => ({
+  const buildParams = (): VencimientosClientesParams => ({
     ...(fechaCorte ? { fecha_corte: fechaCorte } : {}),
-    ...(proveedor ? { contacto_id: proveedor.id } : {}),
+    ...(cliente ? { contacto_id: cliente.id } : {}),
     ...(moneda.trim() ? { moneda: moneda.trim() } : {}),
   });
 
@@ -198,7 +154,7 @@ export default function VencimientosProveedoresPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchVencimientosProveedores(buildParams());
+        const data = await fetchVencimientosClientes(buildParams());
         setResultado(data);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Error al generar el reporte';
@@ -210,13 +166,13 @@ export default function VencimientosProveedoresPage() {
     }, 500);
     return () => { if (fetchRef.current) clearTimeout(fetchRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proveedor, fechaCorte, moneda]);
+  }, [cliente, fechaCorte, moneda]);
 
   const handleExportar = async (formato: 'excel' | 'pdf') => {
     if (exportando) return;
     setExportando(formato);
     try {
-      const url = buildVencimientosProveedoresExportUrl(buildParams(), formato);
+      const url = buildVencimientosClientesExportUrl(buildParams(), formato);
       const res = await apiFetch(url);
       if (!res.ok) {
         const data = (await res.json()) as { message?: string };
@@ -226,7 +182,7 @@ export default function VencimientosProveedoresPage() {
       const disposition = res.headers.get('Content-Disposition') ?? '';
       const match = /filename="([^"]+)"/.exec(disposition);
       const ext = formato === 'excel' ? 'xlsx' : formato;
-      const filename = match?.[1] ?? `vencimientos-proveedores.${ext}`;
+      const filename = match?.[1] ?? `vencimientos-clientes.${ext}`;
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = objectUrl;
@@ -244,25 +200,7 @@ export default function VencimientosProveedoresPage() {
     }
   };
 
-  const handleProgramar = (row: VencimientoProveedor) => {
-    const factura: FacturaCompraPendiente = {
-      id: row.id,
-      folio: row.folio,
-      folio_proveedor: row.referencia_proveedor,
-      fecha_documento: '',
-      fecha_vencimiento: row.fecha_vencimiento,
-      proveedor_id: row.proveedor_id ?? 0,
-      proveedor_nombre: row.proveedor_nombre,
-      moneda: row.moneda,
-      total: row.total,
-      saldo: row.saldo,
-      saldo_disponible_programar: row.saldo,
-    };
-    setFacturaParaProgramar(factura);
-    setProgramarDialogOpen(true);
-  };
-
-  const columns = useMemo(() => buildColumns(handleProgramar), []);
+  const columns = useMemo(() => buildColumns(), []);
   const rows = resultado?.vencimientos ?? [];
 
   const totalPendiente = rows.reduce((s, v) => s + v.saldo, 0);
@@ -272,16 +210,15 @@ export default function VencimientosProveedoresPage() {
   const totalProx30    = rows.filter((v) => v.dias >= 8 && v.dias <= 30).reduce((s, v) => s + v.saldo, 0);
 
   const kpis = [
-    { label: 'Vencido',        valor: totalVencido,  color: 'error.main'   },
-    { label: 'Vence hoy',      valor: totalHoy,      color: 'warning.main' },
-    { label: 'Próx. 7 días',   valor: totalProx7,    color: 'text.primary' },
-    { label: 'Próx. 30 días',  valor: totalProx30,   color: 'text.primary' },
+    { label: 'Vencido',         valor: totalVencido,   color: 'error.main'   },
+    { label: 'Vence hoy',       valor: totalHoy,       color: 'warning.main' },
+    { label: 'Próx. 7 días',    valor: totalProx7,     color: 'text.primary' },
+    { label: 'Próx. 30 días',   valor: totalProx30,    color: 'text.primary' },
     { label: 'Total pendiente', valor: totalPendiente, color: 'text.primary' },
   ];
 
   return (
     <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {/* Breadcrumb */}
       <Stack direction="row" alignItems="center" spacing={1}>
         <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/informes')}
           sx={{ color: 'text.secondary' }}>
@@ -290,17 +227,16 @@ export default function VencimientosProveedoresPage() {
         <Typography color="text.disabled">/</Typography>
         <Typography variant="body2" color="text.secondary">Finanzas</Typography>
         <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" fontWeight={600}>Vencimientos de Proveedores</Typography>
+        <Typography variant="body2" fontWeight={600}>Vencimientos de Clientes</Typography>
       </Stack>
 
       <Box>
-        <Typography variant="h6" fontWeight={700}>Vencimientos de Proveedores</Typography>
+        <Typography variant="h6" fontWeight={700}>Vencimientos de Clientes</Typography>
         <Typography variant="caption" color="text.secondary">
-          Facturas de compra pendientes de pago ordenadas por fecha de vencimiento.
+          Facturas de venta pendientes de cobro ordenadas por fecha de vencimiento.
         </Typography>
       </Box>
 
-      {/* Filtros */}
       <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -316,10 +252,10 @@ export default function VencimientosProveedoresPage() {
           <Autocomplete<ContactoOpcion>
             options={opciones}
             loading={buscando}
-            value={proveedor}
-            onChange={(_, val) => setProveedor(val)}
-            onInputChange={(_, input) => buscarProveedores(input)}
-            onOpen={() => { if (!opciones.length) buscarProveedores(''); }}
+            value={cliente}
+            onChange={(_, val) => setCliente(val)}
+            onInputChange={(_, input) => buscarClientes(input)}
+            onOpen={() => { if (!opciones.length) buscarClientes(''); }}
             getOptionLabel={(o) => o.nombre}
             getOptionKey={(o) => o.id}
             isOptionEqualToValue={(a, b) => a.id === b.id}
@@ -334,7 +270,7 @@ export default function VencimientosProveedoresPage() {
             )}
             renderInput={(inputProps) => (
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              <TextField {...(inputProps as any)} label="Proveedor" size="small" placeholder="Todos" />
+              <TextField {...(inputProps as any)} label="Cliente" size="small" placeholder="Todos" />
             )}
           />
           <TextField
@@ -372,7 +308,6 @@ export default function VencimientosProveedoresPage() {
         </Box>
       </Paper>
 
-      {/* KPIs */}
       {resultado && (
         <Paper sx={{ p: 1.5 }}>
           <Box sx={{ display: 'flex', gap: 3, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -393,7 +328,6 @@ export default function VencimientosProveedoresPage() {
         </Paper>
       )}
 
-      {/* Tabla */}
       <Paper sx={{ p: 1.5 }}>
         {!resultado && loading && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -401,26 +335,25 @@ export default function VencimientosProveedoresPage() {
             <Typography variant="body2" color="text.secondary">Cargando…</Typography>
           </Box>
         )}
-
         {resultado && (
           <Box sx={{ height: 520 }}>
             <DataGrid
               density="standard"
               rows={rows}
               columns={columns}
-              getRowId={(row) => (row as VencimientoProveedor).id}
+              getRowId={(row) => (row as VencimientoCliente).id}
               rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
               columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
               disableRowSelectionOnClick
               getRowClassName={(params) => {
-                const row = params.row as VencimientoProveedor;
+                const row = params.row as VencimientoCliente;
                 if (row.dias < 0) return 'fila-vencida';
                 if (row.dias === 0) return 'fila-hoy';
                 return '';
               }}
               localeText={{
                 ...esES.components.MuiDataGrid.defaultProps.localeText,
-                noRowsLabel: 'No hay facturas pendientes de pago con fecha de vencimiento',
+                noRowsLabel: 'No hay facturas pendientes de cobro con fecha de vencimiento',
               }}
               sx={[
                 standardDataGridSx,
@@ -434,10 +367,9 @@ export default function VencimientosProveedoresPage() {
             />
           </Box>
         )}
-
         {resultado && !loading && rows.length === 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            No hay facturas de proveedor pendientes de pago al {formatFecha(resultado.fecha_corte)}.
+            No hay facturas de cliente pendientes de cobro al {formatFecha(resultado.fecha_corte)}.
           </Typography>
         )}
       </Paper>
@@ -447,13 +379,6 @@ export default function VencimientosProveedoresPage() {
           {error}
         </Alert>
       </Snackbar>
-
-      <ProgramacionPagoDialog
-        open={programarDialogOpen}
-        facturaPreseleccionada={facturaParaProgramar}
-        onClose={() => setProgramarDialogOpen(false)}
-        onSaved={() => setProgramarDialogOpen(false)}
-      />
     </Box>
   );
 }

@@ -47,6 +47,14 @@ import OCPendientesRecibirPage from './pages/informes/compras/OCPendientesRecibi
 import VentasPorClientePage from './pages/informes/ventas/VentasPorClientePage';
 import VentasPorProductoPage from './pages/informes/ventas/VentasPorProductoPage';
 import VencimientosProveedoresPage from './pages/informes/finanzas/VencimientosProveedoresPage';
+import VencimientosClientesPage    from './pages/informes/finanzas/VencimientosClientesPage';
+import PagosClientesPage           from './pages/informes/finanzas/PagosClientesPage';
+import PagosProveedoresPage        from './pages/informes/finanzas/PagosProveedoresPage';
+import PosicionTesoreriaPage       from './pages/informes/finanzas/PosicionTesoreriaPage';
+import CarteraVencidaPage               from './pages/informes/finanzas/CarteraVencidaPage';
+import MovimientosNoConciliadosPage    from './pages/informes/finanzas/MovimientosNoConciliadosPage';
+import ProgramacionPagosPage           from './pages/finanzas/ProgramacionPagosPage';
+import ConciliacionBancariaPage        from './pages/finanzas/ConciliacionBancariaPage';
 import HistorialPreciosCompraPage from './pages/informes/compras/HistorialPreciosCompraPage';
 import ComprasPorPeriodoPage from './pages/informes/compras/ComprasPorPeriodoPage';
 import HistorialPreciosVentaPage from './pages/informes/ventas/HistorialPreciosVentaPage';
@@ -106,6 +114,8 @@ export default function App() {
 
               {/* Finanzas / Inventario / Informes */}
               <Route path="/finanzas" element={<FinanzasPage />} />
+              <Route path="/finanzas/programacion-pagos" element={<ProgramacionPagosPage />} />
+              <Route path="/finanzas/conciliacion-bancaria" element={<ConciliacionBancariaPage />} />
               <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
               <Route path="/inventario/movimientos/nuevo" element={<InventarioMovimientoFormPage />} />
               <Route path="/informes" element={<InformesPage />} />
@@ -124,6 +134,12 @@ export default function App() {
               <Route path="/informes/ventas/pedidos-pendientes-facturar"        element={<PedidosPendientesFacturarPage />} />
               <Route path="/informes/ventas/remisiones-pendientes-facturar"     element={<RemisionesPendientesFacturarPage />} />
               <Route path="/informes/finanzas/vencimientos-proveedores"        element={<VencimientosProveedoresPage />} />
+              <Route path="/informes/finanzas/vencimientos-clientes"           element={<VencimientosClientesPage />} />
+              <Route path="/informes/finanzas/pagos-clientes"                  element={<PagosClientesPage />} />
+              <Route path="/informes/finanzas/pagos-proveedores"               element={<PagosProveedoresPage />} />
+              <Route path="/informes/finanzas/posicion-tesoreria"              element={<PosicionTesoreriaPage />} />
+              <Route path="/informes/finanzas/cartera-vencida"                 element={<CarteraVencidaPage />} />
+              <Route path="/informes/finanzas/movimientos-no-conciliados"     element={<MovimientosNoConciliadosPage />} />
 
               {/* Configuración */}
               <Route path="/configuracion" element={<ConfiguracionPage />} />

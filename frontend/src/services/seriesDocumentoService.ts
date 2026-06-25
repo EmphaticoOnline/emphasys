@@ -17,6 +17,7 @@ export type SerieDocumentoPayload = {
   tipo_documento: string;
   es_fiscal: boolean;
   activa?: boolean;
+  ultimo_numero?: number;
 };
 
 export type AsignacionSerieDocumentoItem = {

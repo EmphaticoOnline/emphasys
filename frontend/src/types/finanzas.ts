@@ -1,6 +1,72 @@
 export type TipoMovimiento = 'Deposito' | 'Retiro';
 export type NaturalezaOperacion = 'cobro_cliente' | 'pago_proveedor' | 'movimiento_general';
 
+export type EstatusProgramacion = 'programado' | 'pagado' | 'cancelado';
+
+export interface FacturaCompraPendiente {
+  id: number;
+  folio: string;
+  folio_proveedor: string;
+  fecha_documento: string;
+  fecha_vencimiento: string | null;
+  proveedor_id: number;
+  proveedor_nombre: string;
+  moneda: string;
+  total: number;
+  saldo: number;
+  saldo_disponible_programar: number;
+}
+
+export interface ProgramacionPago {
+  id: number;
+  empresa_id: number;
+  documento_id: number;
+  proveedor_id: number | null;
+  fecha_programada: string;
+  monto_programado: number;
+  moneda: string;
+  cuenta_origen_id: number | null;
+  metodo_pago_id: number | null;
+  referencia: string | null;
+  estatus: EstatusProgramacion;
+  notas: string | null;
+  documento_pago_id: number | null;
+  finanzas_operacion_id: number | null;
+  created_by: number | null;
+  updated_by: number | null;
+  created_at: string;
+  updated_at: string;
+  proveedor_nombre?: string | null;
+  documento_folio?: string | null;
+  documento_folio_proveedor?: string | null;
+  documento_fecha_vencimiento?: string | null;
+  cuenta_identificador?: string | null;
+  metodo_pago_nombre?: string | null;
+}
+
+export interface ProgramacionPagoInput {
+  documento_id: number;
+  fecha_programada: string;
+  monto_programado: number;
+  moneda: string;
+  cuenta_origen_id?: number | null;
+  metodo_pago_id?: number | null;
+  referencia?: string | null;
+  notas?: string | null;
+}
+
+export interface FinanzasMetodoPago {
+  id: number;
+  empresa_id: number;
+  clave: string;
+  nombre: string;
+  activo: boolean;
+  requiere_referencia: boolean;
+  es_efectivo: boolean;
+  forma_pago_sat: string | null;
+  created_at: string;
+}
+
 export interface FinanzasCuenta {
   id: number;
   empresa_id?: number;
@@ -47,6 +113,8 @@ export interface FinanzasOperacion {
   fecha_creacion?: string;
   concepto_id?: number | null;
   concepto_nombre?: string | null;
+  metodo_pago_id?: number | null;
+  metodo_pago_nombre?: string | null;
   transferencia_cuenta_origen?: number | null;
   transferencia_cuenta_destino?: number | null;
   transferencia_origen_nombre?: string | null;
@@ -174,4 +242,49 @@ export interface Concepto {
   orden?: number | null;
   color?: string | null;
   observaciones?: string | null;
+}
+
+// =============================================================================
+// Fase 3.4 — Conciliación Bancaria Básica Manual
+// =============================================================================
+
+export interface MovimientoConciliacion {
+  id: number;
+  fecha: string;
+  tipo_movimiento: 'Deposito' | 'Retiro';
+  naturaleza_operacion: string | null;
+  monto: string;
+  referencia: string | null;
+  observaciones: string | null;
+  estado_conciliacion: 'pendiente' | 'cotejado';
+  dias_sin_conciliar: number;
+  contacto_id: number | null;
+  cuenta_nombre: string;
+  cuenta_moneda: string;
+  contacto_nombre: string | null;
+  concepto_nombre: string | null;
+  metodo_pago_nombre: string | null;
+  documento_folio: string | null;
+}
+
+export interface ConciliacionMovimientosResult {
+  movimientos: MovimientoConciliacion[];
+  saldo_sistema: number;
+  moneda: string;
+}
+
+export interface CierrePayload {
+  cuenta_id: number;
+  fecha_corte: string;
+  saldo_banco: number;
+  operacion_ids: number[];
+  observaciones?: string | null;
+}
+
+export interface CierreResult {
+  conciliacion_id: number;
+  saldo_banco: number;
+  saldo_sistema: number;
+  diferencia: number;
+  operaciones_conciliadas: number;
 }

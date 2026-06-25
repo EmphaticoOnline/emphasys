@@ -15,6 +15,12 @@ import {
   getVentasPorPeriodo,
   getPedidosPendientesFacturar,
   getRemisionesPendientesFacturar,
+  getVencimientosClientes,
+  getPagosClientes,
+  getPagosProveedores,
+  getPosicionTesoreria,
+  getCarteraVencida,
+  getMovimientosNoConciliados,
 } from './reportes.controller';
 
 const router = Router();
@@ -35,5 +41,11 @@ router.get('/ventas/ventas-por-periodo',               getVentasPorPeriodo);
 router.get('/ventas/pedidos-pendientes-facturar',      getPedidosPendientesFacturar);
 router.get('/ventas/remisiones-pendientes-facturar',   getRemisionesPendientesFacturar);
 router.get('/finanzas/vencimientos-proveedores',       getVencimientosProveedores);
+router.get('/finanzas/vencimientos-clientes',          getVencimientosClientes);
+router.get('/finanzas/pagos-clientes',                 getPagosClientes);
+router.get('/finanzas/pagos-proveedores',              getPagosProveedores);
+router.get('/finanzas/posicion-tesoreria',             getPosicionTesoreria);
+router.get('/finanzas/cartera-vencida',                getCarteraVencida);
+router.get('/finanzas/movimientos-no-conciliados',     getMovimientosNoConciliados);
 
 export default router;

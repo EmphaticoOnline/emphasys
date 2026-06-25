@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-06-16T00:33:34.107Z
+-- Generated at: 2026-06-24T04:50:08.035Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict 60bEWq5hb0OIE6LOWFXLysyena92n5p2gEplOW7xsmLnUhpC2YGEH4uPHvnLBLE
+\restrict pmGeJeKMdNHv4LkeOqjHygO8cnppF20fHfGRKO7LFqbdUUbTxVO3zIREK0NI2AM
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -137,7 +137,8 @@ CREATE TYPE public.tipo_contacto_enum AS ENUM (
     'Vendedor',
     'Prospecto',
     'Otro',
-    'Lead'
+    'Lead',
+    'Varios'
 );
 
 
@@ -453,6 +454,115 @@ CREATE FUNCTION crm.set_actividades_updated_at() RETURNS trigger
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: aplicar_movimiento(integer, character varying, date, integer, integer, text, jsonb); Type: FUNCTION; Schema: inventario; Owner: -
+--
+
+CREATE FUNCTION inventario.aplicar_movimiento(p_empresa_id integer, p_tipo_movimiento character varying, p_fecha date, p_usuario_id integer, p_documento_id integer, p_observaciones text, p_partidas jsonb) RETURNS bigint
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_movimiento_id         BIGINT;
+  v_partida               JSONB;
+  v_producto_id           INTEGER;
+  v_almacen_id            INTEGER;
+  v_cantidad              NUMERIC(18,6);
+  v_signo                 SMALLINT;
+  v_tipo_partida          VARCHAR(25);
+  v_costo_unitario        NUMERIC(18,6);
+  v_almacen_destino_id    INTEGER;
+  v_doc_partida_id        INTEGER;
+  v_existencia_actual     NUMERIC(18,6);
+  v_existencia_resultante NUMERIC(18,6);
+BEGIN
+  INSERT INTO inventario.movimientos (
+    empresa_id,
+    tipo_movimiento,
+    fecha,
+    usuario_id,
+    documento_id,
+    observaciones
+  ) VALUES (
+    p_empresa_id,
+    p_tipo_movimiento,
+    p_fecha,
+    p_usuario_id,
+    p_documento_id,
+    p_observaciones
+  ) RETURNING id INTO v_movimiento_id;
+
+  FOR v_partida IN SELECT * FROM jsonb_array_elements(p_partidas) LOOP
+    v_producto_id        := (v_partida->>'producto_id')::INTEGER;
+    v_almacen_id         := (v_partida->>'almacen_id')::INTEGER;
+    v_cantidad           := (v_partida->>'cantidad')::NUMERIC;
+    v_signo              := (v_partida->>'signo')::SMALLINT;
+    v_tipo_partida       := COALESCE(v_partida->>'tipo_partida', 'normal');
+    v_costo_unitario     := (v_partida->>'costo_unitario')::NUMERIC;
+    v_almacen_destino_id := (v_partida->>'almacen_destino_id')::INTEGER;
+    v_doc_partida_id     := (v_partida->>'documento_partida_id')::INTEGER;
+
+    SELECT existencia
+      INTO v_existencia_actual
+      FROM inventario.existencias
+     WHERE empresa_id  = p_empresa_id
+       AND producto_id = v_producto_id
+       AND almacen_id  = v_almacen_id
+     FOR UPDATE;
+
+    v_existencia_actual     := COALESCE(v_existencia_actual, 0);
+    v_existencia_resultante := v_existencia_actual + (v_cantidad * v_signo);
+
+    INSERT INTO inventario.movimientos_partidas (
+      empresa_id,
+      movimiento_id,
+      documento_partida_id,
+      producto_id,
+      almacen_id,
+      almacen_destino_id,
+      fecha_movimiento,
+      cantidad,
+      signo,
+      tipo_partida,
+      costo_unitario,
+      existencia_resultante
+    ) VALUES (
+      p_empresa_id,
+      v_movimiento_id,
+      v_doc_partida_id,
+      v_producto_id,
+      v_almacen_id,
+      v_almacen_destino_id,
+      p_fecha,
+      v_cantidad,
+      v_signo,
+      v_tipo_partida,
+      v_costo_unitario,
+      v_existencia_resultante
+    );
+
+    INSERT INTO inventario.existencias (
+      empresa_id,
+      producto_id,
+      almacen_id,
+      existencia,
+      updated_at
+    ) VALUES (
+      p_empresa_id,
+      v_producto_id,
+      v_almacen_id,
+      v_existencia_resultante,
+      now()
+    ) ON CONFLICT (empresa_id, producto_id, almacen_id)
+      DO UPDATE SET
+        existencia = v_existencia_resultante,
+        updated_at = now();
+  END LOOP;
+
+  RETURN v_movimiento_id;
 END;
 $$;
 
@@ -1686,7 +1796,9 @@ CREATE TABLE core.empresas_tipos_documento (
     orden integer DEFAULT 0,
     usuario_creacion_id integer,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    whatsapp_plantilla_default_id bigint
+    whatsapp_plantilla_default_id bigint,
+    afecta_inventario character varying(20) DEFAULT NULL::character varying,
+    afecta_reservado boolean DEFAULT false NOT NULL
 );
 
 
@@ -1744,6 +1856,20 @@ COMMENT ON COLUMN core.empresas_tipos_documento.fecha_creacion IS 'Fecha de crea
 --
 
 COMMENT ON COLUMN core.empresas_tipos_documento.whatsapp_plantilla_default_id IS 'Plantilla de WhatsApp predeterminada para este tipo de documento y empresa.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.afecta_inventario; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.afecta_inventario IS 'Define cómo afecta inventario: none, entrada, salida, transferencia.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.afecta_reservado; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.afecta_reservado IS 'Indica si el documento afecta cantidades reservadas (apartados o compromisos).';
 
 
 --
@@ -2262,6 +2388,7 @@ CREATE TABLE core.tipos_documento (
     created_at timestamp without time zone DEFAULT now(),
     modulo character varying(30),
     naturaleza_saldo character varying(20),
+    afecta_inventario character varying(20),
     CONSTRAINT chk_tipos_documento_naturaleza_saldo CHECK (((naturaleza_saldo)::text = ANY ((ARRAY['cargo'::character varying, 'abono'::character varying, 'none'::character varying])::text[])))
 );
 
@@ -2341,6 +2468,15 @@ COMMENT ON COLUMN core.tipos_documento.modulo IS 'Módulo al que pertenece el do
 --
 
 COMMENT ON COLUMN core.tipos_documento.naturaleza_saldo IS 'Define comportamiento financiero del documento: cargo, abono o none.';
+
+
+--
+-- Name: COLUMN tipos_documento.afecta_inventario; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.tipos_documento.afecta_inventario IS 'Comportamiento predeterminado de afectación de inventario para este tipo de documento.
+ NULL significa que el tipo no tiene default definido (se resuelve como ''none'').
+ Puede ser sobreescrito por empresa en core.empresas_tipos_documento.afecta_inventario.';
 
 
 --
@@ -3603,7 +3739,7 @@ CREATE TABLE inventario.movimientos (
     documento_id bigint,
     usuario_id bigint,
     tipo_movimiento character varying(30) NOT NULL,
-    fecha timestamp with time zone NOT NULL,
+    fecha date NOT NULL,
     observaciones text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
@@ -3719,7 +3855,7 @@ CREATE TABLE inventario.movimientos_partidas (
     producto_id integer NOT NULL,
     almacen_id integer NOT NULL,
     almacen_destino_id integer,
-    fecha_movimiento timestamp with time zone NOT NULL,
+    fecha_movimiento date NOT NULL,
     cantidad numeric(18,6) NOT NULL,
     signo smallint NOT NULL,
     tipo_partida character varying(25) DEFAULT 'normal'::character varying NOT NULL,
@@ -5040,6 +5176,8 @@ CREATE TABLE public.documentos (
     motivo_sat character varying(2),
     uuid_sustitucion character varying(36),
     estado_autorizacion character varying(20) DEFAULT 'no_requerida'::character varying,
+    serie_externa character varying(10),
+    numero_externo integer,
     CONSTRAINT chk_documentos_motivo_nc CHECK (((motivo_nc IS NULL) OR ((motivo_nc)::text = ANY ((ARRAY['devolucion'::character varying, 'bonificacion'::character varying, 'otro'::character varying])::text[])))),
     CONSTRAINT documentos_estado_autorizacion_check CHECK (((estado_autorizacion)::text = ANY ((ARRAY['no_requerida'::character varying, 'pendiente'::character varying, 'aprobada'::character varying, 'rechazada'::character varying])::text[])))
 );
@@ -5050,6 +5188,13 @@ CREATE TABLE public.documentos (
 --
 
 COMMENT ON TABLE public.documentos IS 'Tabla universal de documentos del ERP (cotizaciones, pedidos, facturas, etc.).';
+
+
+--
+-- Name: COLUMN documentos.almacen_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.almacen_id IS 'Almacén predeterminado del documento. Se usa cuando la partida no especifica uno.';
 
 
 --
@@ -5435,7 +5580,8 @@ CREATE TABLE public.documentos_partidas (
     producto_archivo_id integer,
     precio_lista_id bigint,
     precio_editado_manual boolean DEFAULT false NOT NULL,
-    precio_origen character varying(30)
+    precio_origen character varying(30),
+    almacen_id integer
 );
 
 
@@ -5465,6 +5611,13 @@ COMMENT ON COLUMN public.documentos_partidas.precio_editado_manual IS 'Indica si
 --
 
 COMMENT ON COLUMN public.documentos_partidas.precio_origen IS 'Origen del precio unitario. Ejemplos: LISTA, DEFAULT, MANUAL, LEGACY.';
+
+
+--
+-- Name: COLUMN documentos_partidas.almacen_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.almacen_id IS 'Almacén específico de la partida. Si es NULL, se usa el almacén del documento.';
 
 
 --
@@ -7623,7 +7776,9 @@ CREATE TABLE whatsapp.plantillas (
     es_default boolean DEFAULT false NOT NULL,
     activa boolean DEFAULT true NOT NULL,
     creado_en timestamp with time zone DEFAULT now() NOT NULL,
-    actualizado_en timestamp with time zone
+    actualizado_en timestamp with time zone,
+    contenido text,
+    configuracion_parametros jsonb
 );
 
 
@@ -7702,6 +7857,20 @@ COMMENT ON COLUMN whatsapp.plantillas.creado_en IS 'Fecha de creación del regis
 --
 
 COMMENT ON COLUMN whatsapp.plantillas.actualizado_en IS 'Fecha de última actualización del registro.';
+
+
+--
+-- Name: COLUMN plantillas.contenido; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.contenido IS 'Cuerpo del mensaje de la plantilla. Puede contener variables. Se usa para mostrar vista previa y detectar variables al enviar desde el CRM.';
+
+
+--
+-- Name: COLUMN plantillas.configuracion_parametros; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.configuracion_parametros IS 'Configuración de variables de la plantilla. Array JSON con estructura: [{variable: number, label: string, origen: "manual"|"contacto.nombre"|"contacto.telefono"|"contacto.empresa"}]. NULL = todas las variables son manuales.';
 
 
 --
@@ -10497,6 +10666,13 @@ COMMENT ON INDEX public.idx_doc_partidas_vinculos_origen IS 'Índice para consul
 
 
 --
+-- Name: idx_documentos_almacen_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_almacen_id ON public.documentos USING btree (almacen_id);
+
+
+--
 -- Name: idx_documentos_campos_empresa_documento_campo; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10553,10 +10729,24 @@ CREATE INDEX idx_documentos_motivo_nc ON public.documentos USING btree (motivo_n
 
 
 --
+-- Name: idx_documentos_numero_externo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_numero_externo ON public.documentos USING btree (empresa_id, numero_externo) WHERE (((tipo_documento)::text = ANY ((ARRAY['factura_compra'::character varying, 'nota_credito_compra'::character varying])::text[])) AND (numero_externo IS NOT NULL));
+
+
+--
 -- Name: idx_documentos_oportunidad_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_documentos_oportunidad_id ON public.documentos USING btree (oportunidad_id);
+
+
+--
+-- Name: idx_documentos_partidas_almacen_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_almacen_id ON public.documentos_partidas USING btree (almacen_id);
 
 
 --
@@ -10627,6 +10817,13 @@ CREATE INDEX idx_documentos_partidas_precio_lista ON public.documentos_partidas 
 --
 
 CREATE INDEX idx_documentos_publico_general_pendiente ON public.documentos USING btree (empresa_id, tratamiento_impuestos, es_publico_general, factura_global_id) WHERE (((tipo_documento)::text = 'factura'::text) AND ((tratamiento_impuestos)::text = 'venta_publico_general'::text) AND (es_publico_general = true) AND (factura_global_id IS NULL));
+
+
+--
+-- Name: idx_documentos_ref_externa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_ref_externa ON public.documentos USING btree (empresa_id, serie_externa, numero_externo) WHERE ((tipo_documento)::text = ANY ((ARRAY['factura_compra'::character varying, 'nota_credito_compra'::character varying])::text[]));
 
 
 --
@@ -11964,6 +12161,14 @@ ALTER TABLE ONLY public.documentos_partidas_vinculos
 
 
 --
+-- Name: documentos fk_documentos_almacen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos
+    ADD CONSTRAINT fk_documentos_almacen FOREIGN KEY (almacen_id) REFERENCES inventario.almacenes(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: documentos_cfdi fk_documentos_cfdi_documento; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12001,6 +12206,14 @@ ALTER TABLE ONLY public.documentos
 
 ALTER TABLE ONLY public.documentos
     ADD CONSTRAINT fk_documentos_metodo_pago FOREIGN KEY (metodo_pago) REFERENCES sat.metodos_pago(id);
+
+
+--
+-- Name: documentos_partidas fk_documentos_partidas_almacen; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas
+    ADD CONSTRAINT fk_documentos_partidas_almacen FOREIGN KEY (almacen_id) REFERENCES inventario.almacenes(id) ON DELETE RESTRICT;
 
 
 --
@@ -12407,5 +12620,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 60bEWq5hb0OIE6LOWFXLysyena92n5p2gEplOW7xsmLnUhpC2YGEH4uPHvnLBLE
+\unrestrict pmGeJeKMdNHv4LkeOqjHygO8cnppF20fHfGRKO7LFqbdUUbTxVO3zIREK0NI2AM
 

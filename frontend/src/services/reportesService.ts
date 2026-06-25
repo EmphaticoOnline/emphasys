@@ -316,6 +316,8 @@ export function buildOCPendientesExportUrl(params: OCPendientesParams, formato: 
 
 export type VencimientoProveedor = {
   id: number;
+  proveedor_id: number | null;
+  moneda: string;
   fecha_vencimiento: string;
   dias: number;
   proveedor_nombre: string;
@@ -582,3 +584,285 @@ export const fetchRemisionesPendientesFacturar = (p: PendientesFacturarParams) =
 
 export const buildRemisionesPendientesExportUrl = (p: PendientesFacturarParams, f: 'excel' | 'pdf') =>
   buildPendientesExportUrl('ventas/remisiones-pendientes-facturar', p, f);
+
+// ── Vencimientos de Clientes ──────────────────────────────────────────────────
+
+export type VencimientoCliente = {
+  id: number;
+  fecha_vencimiento: string;
+  dias: number;
+  cliente_nombre: string;
+  folio: string;
+  total: number;
+  saldo: number;
+};
+
+export type VencimientosClientesResult = {
+  fecha_corte: string;
+  vencimientos: VencimientoCliente[];
+};
+
+export type VencimientosClientesParams = {
+  fecha_corte?: string;
+  contacto_id?: number | null;
+  moneda?: string | null;
+};
+
+function buildVencimientosClientesQs(params: VencimientosClientesParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams(extras);
+  if (params.fecha_corte) qs.set('fecha_corte', params.fecha_corte);
+  if (params.contacto_id) qs.set('contacto_id', String(params.contacto_id));
+  if (params.moneda) qs.set('moneda', params.moneda);
+  return qs;
+}
+
+export async function fetchVencimientosClientes(params: VencimientosClientesParams): Promise<VencimientosClientesResult> {
+  const res = await apiFetch(`${BASE}/finanzas/vencimientos-clientes?${buildVencimientosClientesQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener reporte');
+  }
+  return res.json() as Promise<VencimientosClientesResult>;
+}
+
+export function buildVencimientosClientesExportUrl(params: VencimientosClientesParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/finanzas/vencimientos-clientes?${buildVencimientosClientesQs(params, { formato }).toString()}`;
+}
+
+// ── Pagos de Clientes / Proveedores ───────────────────────────────────────────
+
+export type PagoRegistrado = {
+  id: number;
+  fecha: string;
+  folio: string;
+  contacto_id: number | null;
+  contacto_nombre: string;
+  contacto_rfc: string | null;
+  cuenta_id: number;
+  cuenta_nombre: string;
+  cuenta_moneda: string;
+  monto: number;
+  referencia: string | null;
+  concepto_nombre: string | null;
+  estado_conciliacion: string;
+  metodo_pago_nombre: string | null;
+};
+
+export type PagosResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  total: number;
+  pagos: PagoRegistrado[];
+};
+
+export type PagosParams = {
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  contacto_id?: number | null;
+  cuenta_id?: number | null;
+};
+
+function buildPagosQs(params: PagosParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams(extras);
+  if (params.fecha_inicio) qs.set('fecha_inicio', params.fecha_inicio);
+  if (params.fecha_fin)    qs.set('fecha_fin',    params.fecha_fin);
+  if (params.contacto_id)  qs.set('contacto_id',  String(params.contacto_id));
+  if (params.cuenta_id)    qs.set('cuenta_id',    String(params.cuenta_id));
+  return qs;
+}
+
+async function fetchPagos(endpoint: string, params: PagosParams): Promise<PagosResult> {
+  const res = await apiFetch(`${BASE}/${endpoint}?${buildPagosQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener reporte');
+  }
+  return res.json() as Promise<PagosResult>;
+}
+
+function buildPagosExportUrl(endpoint: string, params: PagosParams, formato: 'excel'): string {
+  return `${BASE}/${endpoint}?${buildPagosQs(params, { formato }).toString()}`;
+}
+
+export const fetchPagosClientes    = (p: PagosParams) => fetchPagos('finanzas/pagos-clientes', p);
+export const fetchPagosProveedores = (p: PagosParams) => fetchPagos('finanzas/pagos-proveedores', p);
+export const buildPagosClientesExportUrl    = (p: PagosParams, f: 'excel') => buildPagosExportUrl('finanzas/pagos-clientes', p, f);
+export const buildPagosProveedoresExportUrl = (p: PagosParams, f: 'excel') => buildPagosExportUrl('finanzas/pagos-proveedores', p, f);
+
+// ── Posición de Tesorería ──────────────────────────────────────────────────────
+
+export type CuentaTesoreria = {
+  id: number;
+  identificador: string;
+  tipo_cuenta: string;
+  moneda: string;
+  saldo: number;
+  saldo_conciliado: number;
+  fecha_ultima_conciliacion: string | null;
+  es_cuenta_efectivo: boolean;
+  afecta_total_disponible: boolean;
+};
+
+export type TotalPorMoneda = {
+  moneda: string;
+  saldo: number;
+  saldo_conciliado: number;
+  cantidad_cuentas: number;
+};
+
+export type PosicionTesoreriaResult = {
+  fecha_consulta: string;
+  cuentas: CuentaTesoreria[];
+  totales_por_moneda: TotalPorMoneda[];
+};
+
+export async function fetchPosicionTesoreria(): Promise<PosicionTesoreriaResult> {
+  const res = await apiFetch(`${BASE}/finanzas/posicion-tesoreria`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener posición de tesorería');
+  }
+  return res.json() as Promise<PosicionTesoreriaResult>;
+}
+
+export function buildPosicionTesoreriaExportUrl(formato: 'excel'): string {
+  return `${BASE}/finanzas/posicion-tesoreria?formato=${formato}`;
+}
+
+// ── Cartera Vencida ────────────────────────────────────────────────────────────
+
+export type CarteraVencidaRow = {
+  documento_id: number;
+  contacto_id: number | null;
+  contacto_nombre: string;
+  fecha_documento: string;
+  tipo_documento: string;
+  folio: string;
+  moneda: string;
+  total: number;
+  saldo: number;
+  dias: number;
+  bucket: '0-30' | '31-60' | '61-90' | '90+';
+};
+
+export type CarteraVencidaResumenRow = {
+  contacto_id: number | null;
+  contacto_nombre: string;
+  moneda: string;
+  bucket_0_30: number;
+  bucket_31_60: number;
+  bucket_61_90: number;
+  bucket_90_plus: number;
+  total: number;
+};
+
+export type TotalCarteraMoneda = {
+  moneda: string;
+  bucket_0_30: number;
+  bucket_31_60: number;
+  bucket_61_90: number;
+  bucket_90_plus: number;
+  total: number;
+};
+
+export type CarteraVencidaResult = {
+  fecha_base: string;
+  detalle: CarteraVencidaRow[];
+  resumen: CarteraVencidaResumenRow[];
+  totales: TotalCarteraMoneda[];
+};
+
+export type CarteraVencidaParams = {
+  fecha_base?: string;
+  tipo_documento?: 'factura' | 'factura_compra';
+};
+
+function buildCarteraQs(params: CarteraVencidaParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams(extras);
+  if (params.fecha_base)     qs.set('fecha_base',     params.fecha_base);
+  if (params.tipo_documento) qs.set('tipo_documento', params.tipo_documento);
+  return qs;
+}
+
+export async function fetchCarteraVencida(params: CarteraVencidaParams): Promise<CarteraVencidaResult> {
+  const res = await apiFetch(`${BASE}/finanzas/cartera-vencida?${buildCarteraQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener cartera vencida');
+  }
+  return res.json() as Promise<CarteraVencidaResult>;
+}
+
+export function buildCarteraVencidaExportUrl(params: CarteraVencidaParams, formato: 'excel', vista: 'detalle' | 'resumen' = 'detalle'): string {
+  return `${BASE}/finanzas/cartera-vencida?${buildCarteraQs(params, { formato, vista }).toString()}`;
+}
+
+// ── Movimientos No Conciliados (Fase 3.3) ─────────────────────────────────────
+
+export interface MovimientoNoConciliado {
+  id: number;
+  fecha: string;
+  cuenta_id: number;
+  cuenta_nombre: string;
+  cuenta_moneda: string;
+  tipo_movimiento: string;
+  naturaleza_operacion: string;
+  monto: number;
+  moneda: string;
+  referencia: string | null;
+  observaciones: string | null;
+  estado_conciliacion: string;
+  dias_sin_conciliar: number;
+  contacto_id: number | null;
+  contacto_nombre: string | null;
+  concepto_nombre: string | null;
+  metodo_pago_nombre: string | null;
+  documento_origen_id: number | null;
+  documento_folio: string | null;
+}
+
+export interface MovimientosNoConciliadosResult {
+  fecha_corte: string;
+  movimientos: MovimientoNoConciliado[];
+}
+
+export interface MovimientosNoConciliadosParams {
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
+  cuenta_id?: number | null;
+  estado?: string | null;
+  tipo_movimiento?: string | null;
+  naturaleza?: string | null;
+  contacto_id?: number | null;
+  metodo_pago_id?: number | null;
+  min_dias?: number | null;
+}
+
+function buildMovNCQs(params: MovimientosNoConciliadosParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams(extras);
+  if (params.fecha_inicio)   qs.set('fecha_inicio',    params.fecha_inicio);
+  if (params.fecha_fin)      qs.set('fecha_fin',       params.fecha_fin);
+  if (params.cuenta_id)      qs.set('cuenta_id',       String(params.cuenta_id));
+  if (params.estado)         qs.set('estado',          params.estado);
+  if (params.tipo_movimiento) qs.set('tipo_movimiento', params.tipo_movimiento);
+  if (params.naturaleza)     qs.set('naturaleza',      params.naturaleza);
+  if (params.contacto_id)    qs.set('contacto_id',     String(params.contacto_id));
+  if (params.metodo_pago_id) qs.set('metodo_pago_id',  String(params.metodo_pago_id));
+  if (params.min_dias != null && params.min_dias > 0) qs.set('min_dias', String(params.min_dias));
+  return qs;
+}
+
+export async function fetchMovimientosNoConciliados(
+  params: MovimientosNoConciliadosParams
+): Promise<MovimientosNoConciliadosResult> {
+  const res = await apiFetch(`${BASE}/finanzas/movimientos-no-conciliados?${buildMovNCQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener movimientos no conciliados');
+  }
+  return res.json() as Promise<MovimientosNoConciliadosResult>;
+}
+
+export function buildMovimientosNoConciliadosExportUrl(params: MovimientosNoConciliadosParams, formato: 'excel'): string {
+  return `${BASE}/finanzas/movimientos-no-conciliados?${buildMovNCQs(params, { formato }).toString()}`;
+}

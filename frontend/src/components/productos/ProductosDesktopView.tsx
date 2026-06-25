@@ -1,7 +1,8 @@
-import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField } from '@mui/material';
+import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField, Tooltip } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import DownloadIcon from '@mui/icons-material/Download';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { GridContextMenu } from '../grids/GridContextMenu';
 import { EmphasysDataGrid } from '../grids/EmphasysDataGrid';
 import {
@@ -63,6 +64,16 @@ export default function ProductosDesktopView({
             }}
           />
           <Stack direction="row" spacing={1}>
+            <Tooltip title="Guía de ayuda">
+              <IconButton
+                aria-label="Abrir guía de ayuda"
+                size="small"
+                onClick={() => window.open('/docs/guia-productos.html', '_blank')}
+                sx={{ color: '#64748b' }}
+              >
+                <HelpOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Button
               variant="outlined"
               startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}

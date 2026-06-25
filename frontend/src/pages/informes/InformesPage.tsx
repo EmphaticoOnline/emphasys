@@ -127,6 +127,36 @@ const CATEGORIAS: Categoria[] = [
         descripcion: 'Facturas de compra pendientes de pago ordenadas por fecha de vencimiento.',
         path: '/informes/finanzas/vencimientos-proveedores',
       },
+      {
+        label: 'Vencimientos de Clientes',
+        descripcion: 'Facturas de venta pendientes de cobro ordenadas por fecha de vencimiento.',
+        path: '/informes/finanzas/vencimientos-clientes',
+      },
+      {
+        label: 'Pagos Recibidos (Clientes)',
+        descripcion: 'Cobros registrados a clientes en un período, con filtro por cuenta.',
+        path: '/informes/finanzas/pagos-clientes',
+      },
+      {
+        label: 'Pagos a Proveedores',
+        descripcion: 'Pagos realizados a proveedores en un período, con filtro por cuenta.',
+        path: '/informes/finanzas/pagos-proveedores',
+      },
+      {
+        label: 'Posición de Tesorería',
+        descripcion: 'Saldos actuales de todas las cuentas bancarias y de efectivo.',
+        path: '/informes/finanzas/posicion-tesoreria',
+      },
+      {
+        label: 'Cartera Vencida',
+        descripcion: 'Antigüedad de saldos por cobrar (aging) con fecha base configurable.',
+        path: '/informes/finanzas/cartera-vencida',
+      },
+      {
+        label: 'Movimientos No Conciliados',
+        descripcion: 'Operaciones bancarias pendientes o cotejadas sin conciliar, con días de antigüedad.',
+        path: '/informes/finanzas/movimientos-no-conciliados',
+      },
     ],
   },
   {

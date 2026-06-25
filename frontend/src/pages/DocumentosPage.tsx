@@ -75,6 +75,7 @@ import TableViewIcon from '@mui/icons-material/TableView';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip } from '@mui/material';
 import Snackbar from '@mui/material/Snackbar';
 import AlertSnackbar from '@mui/material/Alert';
@@ -2816,7 +2817,19 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   };
 
   const extraActionsContent = (
-    <Stack direction="row" spacing={1}>
+    <Stack direction="row" spacing={1} alignItems="center">
+      {esCotizacion && (
+        <Tooltip title="Guía de ayuda">
+          <IconButton
+            aria-label="Abrir guía de ayuda"
+            size="small"
+            onClick={() => window.open('/docs/guia-cotizaciones.html', '_blank')}
+            sx={{ color: '#64748b' }}
+          >
+            <HelpOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
       {esFacturaVentas && (
         <Button
           variant="outlined"
