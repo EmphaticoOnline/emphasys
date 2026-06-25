@@ -109,6 +109,11 @@ export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
 		path: '/configuracion/campos-obligatorios',
 	},
 	{
+		titulo: 'Métodos de pago',
+		descripcion: 'Administra los métodos de pago disponibles para operaciones y programaciones.',
+		path: '/configuracion/metodos-pago',
+	},
+	{
 		titulo: 'Políticas de autorización',
 		descripcion: 'Define qué transiciones documentales requieren autorización y en qué modo.',
 		path: '/configuracion/autorizaciones-reglas',

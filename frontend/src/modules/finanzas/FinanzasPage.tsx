@@ -20,6 +20,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
@@ -186,7 +187,7 @@ export function FinanzasPage() {
             Control de cuentas, movimientos y conciliaciones bancarias.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -216,6 +217,14 @@ export function FinanzasPage() {
             sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#006261', '&:hover': { bgcolor: '#014c4c' } }}
           >
             Transferencia
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<CalendarMonthIcon />}
+            onClick={() => navigate('/finanzas/programacion-pagos')}
+            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}
+          >
+            Programación de pagos
           </Button>
           <Button
             variant="contained"

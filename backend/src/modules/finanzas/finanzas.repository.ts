@@ -3,6 +3,19 @@ import type { PoolClient } from 'pg';
 import { obtenerReglaDocumentoOrigenFinanciero } from './documento-origen-financiero';
 import { crearDocumentoRepository } from '../documentos/documentos.repository';
 
+// pg puede devolver columnas `date` como objetos Date en lugar de strings.
+// Esta función normaliza ambos casos a "YYYY-MM-DD" usando UTC para evitar desfase de zona horaria.
+function toIsoDateStr(v: unknown): string {
+  if (!v) return '';
+  if (v instanceof Date) {
+    const y = v.getUTCFullYear();
+    const m = String(v.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(v.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(v).slice(0, 10);
+}
+
 const TIPOS_DOCUMENTO_CARGO = [
   'factura',
   'factura_compra',
@@ -1803,13 +1816,30 @@ export async function actualizarMetodoPago(
 
 // ── Programación de pagos ──────────────────────────────────────────────────────
 
+export type ProgramacionPagoDetalle = {
+  id: number;
+  empresa_id: number;
+  programacion_id: number;
+  documento_id: number;
+  monto_programado: number;
+  moneda: string;
+  created_at: string;
+  updated_at: string;
+  // joined
+  documento_serie?: string | null;
+  documento_numero?: number | null;
+  documento_serie_externa?: string | null;
+  documento_numero_externo?: number | null;
+  documento_fecha_vencimiento?: string | null;
+};
+
 export type ProgramacionPago = {
   id: number;
   empresa_id: number;
-  documento_id: number;
+  documento_id: number | null;  // nullable: NULL para multi-factura, legacy para v1
   proveedor_id: number | null;
   fecha_programada: string;
-  monto_programado: number;
+  monto_programado: number;  // total de todos los detalles
   moneda: string;
   cuenta_origen_id: number | null;
   metodo_pago_id: number | null;
@@ -1824,26 +1854,41 @@ export type ProgramacionPago = {
   updated_at: string;
   // joined
   proveedor_nombre?: string | null;
+  numero_facturas?: number;
+  folios_resumen?: string | null;
+  // primer documento (backward compat display)
+  documento_serie?: string | null;
+  documento_numero?: number | null;
+  documento_serie_externa?: string | null;
+  documento_numero_externo?: number | null;
   documento_folio?: string | null;
   documento_folio_proveedor?: string | null;
   documento_fecha_vencimiento?: string | null;
   cuenta_identificador?: string | null;
   metodo_pago_nombre?: string | null;
+  detalles?: ProgramacionPagoDetalle[];
 };
 
 export type ProgramacionPagoInput = {
-  documento_id: number;
+  proveedor_id: number;
   fecha_programada: string;
-  monto_programado: number;
   moneda: string;
   cuenta_origen_id?: number | null;
   metodo_pago_id?: number | null;
   referencia?: string | null;
   notas?: string | null;
+  detalles: Array<{
+    documento_id: number;
+    monto_programado: number;
+  }>;
 };
 
 export type FacturaCompraPendiente = {
   id: number;
+  serie: string;
+  numero: number;
+  serie_externa: string | null;
+  numero_externo: number | null;
   folio: string;
   folio_proveedor: string;
   fecha_documento: string;
@@ -1858,9 +1903,11 @@ export type FacturaCompraPendiente = {
 
 export async function listarFacturasCompraPendientes(
   empresaId: number,
-  opts?: { proveedorId?: number | null; search?: string | null }
+  opts?: { proveedorId?: number | null; search?: string | null; excludeProgramacionId?: number | null }
 ): Promise<FacturaCompraPendiente[]> {
-  const args: unknown[] = [empresaId];
+  // $1 = empresaId, $2 = excludeProgramacionId (puede ser null)
+  const excludeProgId = opts?.excludeProgramacionId ?? null;
+  const args: unknown[] = [empresaId, excludeProgId];
   const filtros: string[] = [];
 
   if (opts?.proveedorId) {
@@ -1890,8 +1937,13 @@ export async function listarFacturasCompraPendientes(
           WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
        )) AS saldo,
        COALESCE(
-         (SELECT SUM(pp.monto_programado) FROM finanzas_programacion_pagos pp
-          WHERE pp.documento_id = d.id AND pp.empresa_id = d.empresa_id AND pp.estatus = 'programado'), 0
+         (SELECT SUM(det.monto_programado)
+          FROM finanzas_programacion_pagos_detalle det
+          JOIN finanzas_programacion_pagos pp
+            ON pp.id = det.programacion_id AND pp.empresa_id = det.empresa_id
+          WHERE det.documento_id = d.id AND det.empresa_id = d.empresa_id
+            AND pp.estatus = 'programado'
+            AND ($2::integer IS NULL OR pp.id != $2::integer)), 0
        ) AS total_programado
      FROM documentos d
      LEFT JOIN contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = d.empresa_id
@@ -1915,10 +1967,14 @@ export async function listarFacturasCompraPendientes(
       const totalProgramado = Number(r.total_programado ?? 0);
       return {
         id: r.id as number,
+        serie,
+        numero: num,
+        serie_externa: serieExt || null,
+        numero_externo: numExt > 0 ? numExt : null,
         folio: serie || num > 0 ? `${serie}${num}` : String(r.id),
         folio_proveedor: serieExt || numExt > 0 ? `${serieExt}${numExt}` : '',
         fecha_documento: r.fecha_documento ? String(r.fecha_documento).slice(0, 10) : '',
-        fecha_vencimiento: r.fecha_vencimiento ? String(r.fecha_vencimiento).slice(0, 10) : null,
+        fecha_vencimiento: r.fecha_vencimiento ? toIsoDateStr(r.fecha_vencimiento) : null,
         proveedor_id: r.proveedor_id as number,
         proveedor_nombre: String(r.proveedor_nombre ?? ''),
         moneda: String(r.moneda ?? 'MXN'),
@@ -1982,16 +2038,45 @@ export async function listarProgramacionesPago(
     `SELECT
        pp.*,
        COALESCE(c.nombre, '') AS proveedor_nombre,
-       COALESCE(d.serie, '') || CAST(COALESCE(d.numero, 0) AS text) AS documento_folio,
-       CASE WHEN d.serie_externa IS NOT NULL OR d.numero_externo IS NOT NULL
-            THEN COALESCE(d.serie_externa, '') || CAST(COALESCE(d.numero_externo, 0) AS text)
+       -- Primer detalle (para display backward-compat de folio único)
+       primer.serie AS documento_serie,
+       primer.numero AS documento_numero,
+       primer.serie_externa AS documento_serie_externa,
+       primer.numero_externo AS documento_numero_externo,
+       COALESCE(primer.serie, '') || CAST(COALESCE(primer.numero, 0) AS text) AS documento_folio,
+       CASE WHEN primer.serie_externa IS NOT NULL OR primer.numero_externo IS NOT NULL
+            THEN COALESCE(primer.serie_externa, '') || CAST(COALESCE(primer.numero_externo, 0) AS text)
             ELSE NULL END AS documento_folio_proveedor,
-       d.fecha_vencimiento::date AS documento_fecha_vencimiento,
+       primer.fecha_vencimiento AS documento_fecha_vencimiento,
+       -- Resumen de detalles
+       COALESCE(det_cnt.cnt, 0) AS numero_facturas,
+       det_cnt.folios_resumen,
        fc.identificador AS cuenta_identificador,
        mp.nombre AS metodo_pago_nombre
      FROM finanzas_programacion_pagos pp
-     LEFT JOIN documentos d
-       ON d.id = pp.documento_id AND d.empresa_id = pp.empresa_id
+     LEFT JOIN LATERAL (
+       SELECT d2.serie, d2.numero, d2.serie_externa, d2.numero_externo,
+              d2.fecha_vencimiento::date AS fecha_vencimiento
+       FROM finanzas_programacion_pagos_detalle det
+       JOIN documentos d2 ON d2.id = det.documento_id
+       WHERE det.programacion_id = pp.id
+       ORDER BY det.id ASC
+       LIMIT 1
+     ) primer ON true
+     LEFT JOIN LATERAL (
+       SELECT
+         COUNT(*)::int AS cnt,
+         STRING_AGG(
+           CASE WHEN d3.serie_externa IS NOT NULL OR d3.numero_externo IS NOT NULL
+                THEN COALESCE(d3.serie_externa,'') || CAST(COALESCE(d3.numero_externo,0) AS text)
+                ELSE COALESCE(d3.serie,'') || CAST(COALESCE(d3.numero,0) AS text)
+           END,
+           ', ' ORDER BY det2.id ASC
+         ) AS folios_resumen
+       FROM finanzas_programacion_pagos_detalle det2
+       JOIN documentos d3 ON d3.id = det2.documento_id
+       WHERE det2.programacion_id = pp.id
+     ) det_cnt ON true
      LEFT JOIN contactos c
        ON c.id = pp.proveedor_id AND c.empresa_id = pp.empresa_id
      LEFT JOIN finanzas_cuentas fc
@@ -2004,12 +2089,12 @@ export async function listarProgramacionesPago(
     args
   );
 
-  return rows.map((r) => ({
+  const programaciones: ProgramacionPago[] = rows.map((r) => ({
     id: r.id as number,
     empresa_id: r.empresa_id as number,
-    documento_id: r.documento_id as number,
+    documento_id: r.documento_id != null ? (r.documento_id as number) : null,
     proveedor_id: r.proveedor_id as number | null,
-    fecha_programada: r.fecha_programada ? String(r.fecha_programada).slice(0, 10) : '',
+    fecha_programada: r.fecha_programada ? toIsoDateStr(r.fecha_programada) : '',
     monto_programado: Number(r.monto_programado ?? 0),
     moneda: String(r.moneda ?? 'MXN'),
     cuenta_origen_id: r.cuenta_origen_id as number | null,
@@ -2024,100 +2109,208 @@ export async function listarProgramacionesPago(
     created_at: String(r.created_at),
     updated_at: String(r.updated_at),
     proveedor_nombre: r.proveedor_nombre ? String(r.proveedor_nombre) : null,
+    numero_facturas: Number(r.numero_facturas ?? 0),
+    folios_resumen: r.folios_resumen ? String(r.folios_resumen) : null,
+    documento_serie: r.documento_serie ? String(r.documento_serie) : null,
+    documento_numero: r.documento_numero != null ? Number(r.documento_numero) : null,
+    documento_serie_externa: r.documento_serie_externa ? String(r.documento_serie_externa) : null,
+    documento_numero_externo: r.documento_numero_externo != null ? Number(r.documento_numero_externo) : null,
     documento_folio: r.documento_folio ? String(r.documento_folio) : null,
     documento_folio_proveedor: r.documento_folio_proveedor ? String(r.documento_folio_proveedor) : null,
     documento_fecha_vencimiento: r.documento_fecha_vencimiento
-      ? String(r.documento_fecha_vencimiento).slice(0, 10)
+      ? toIsoDateStr(r.documento_fecha_vencimiento)
       : null,
     cuenta_identificador: r.cuenta_identificador ? String(r.cuenta_identificador) : null,
     metodo_pago_nombre: r.metodo_pago_nombre ? String(r.metodo_pago_nombre) : null,
+    detalles: [],
   }));
+
+  // Cargar detalles para todas las programaciones en una sola query
+  if (programaciones.length > 0) {
+    const ids = programaciones.map((p) => p.id);
+    const { rows: detRows } = await pool.query(
+      `SELECT
+         det.*,
+         d.serie, d.numero, d.serie_externa, d.numero_externo,
+         d.fecha_vencimiento::date AS documento_fecha_vencimiento
+       FROM finanzas_programacion_pagos_detalle det
+       JOIN documentos d ON d.id = det.documento_id
+       WHERE det.programacion_id = ANY($1::int[]) AND det.empresa_id = $2
+       ORDER BY det.programacion_id, det.id ASC`,
+      [ids, programaciones[0]!.empresa_id]
+    );
+
+    const detallesPorProg = new Map<number, ProgramacionPagoDetalle[]>();
+    for (const dr of detRows) {
+      const pid = dr.programacion_id as number;
+      if (!detallesPorProg.has(pid)) detallesPorProg.set(pid, []);
+      detallesPorProg.get(pid)!.push({
+        id: dr.id as number,
+        empresa_id: dr.empresa_id as number,
+        programacion_id: pid,
+        documento_id: dr.documento_id as number,
+        monto_programado: Number(dr.monto_programado ?? 0),
+        moneda: String(dr.moneda ?? 'MXN'),
+        created_at: String(dr.created_at),
+        updated_at: String(dr.updated_at),
+        documento_serie: dr.serie ? String(dr.serie) : null,
+        documento_numero: dr.numero != null ? Number(dr.numero) : null,
+        documento_serie_externa: dr.serie_externa ? String(dr.serie_externa) : null,
+        documento_numero_externo: dr.numero_externo != null ? Number(dr.numero_externo) : null,
+        documento_fecha_vencimiento: dr.documento_fecha_vencimiento
+          ? toIsoDateStr(dr.documento_fecha_vencimiento)
+          : null,
+      });
+    }
+
+    for (const prog of programaciones) {
+      prog.detalles = detallesPorProg.get(prog.id) ?? [];
+    }
+  }
+
+  return programaciones;
 }
 
-async function validarProgramacionInput(
-  client: import('pg').PoolClient,
+// ---------------------------------------------------------------------------
+// Helpers internos para validación y creación de detalles
+// ---------------------------------------------------------------------------
+
+async function validarCabeceraInput(
+  client: PoolClient,
   data: ProgramacionPagoInput,
-  empresaId: number,
-  excludeId?: number
-): Promise<{ proveedorId: number | null }> {
-  // 1. Documento
-  const { rows: docRows } = await client.query<{
-    id: number; tipo_documento: string; estatus_documento: string;
-    moneda: string; contacto_principal_id: number | null;
-  }>(
-    `SELECT id, tipo_documento, estatus_documento, moneda, contacto_principal_id
-     FROM documentos WHERE id = $1 AND empresa_id = $2`,
-    [data.documento_id, empresaId]
+  empresaId: number
+): Promise<void> {
+  if (!data.proveedor_id) {
+    throw Object.assign(new Error('proveedor_id es requerido'), { status: 422 });
+  }
+  if (!data.detalles || data.detalles.length === 0) {
+    throw Object.assign(new Error('Debe incluir al menos una factura en los detalles'), { status: 422 });
+  }
+
+  const { rows: prvRows } = await client.query(
+    `SELECT id FROM contactos WHERE id = $1 AND empresa_id = $2`,
+    [data.proveedor_id, empresaId]
   );
-  const doc = docRows[0];
-  if (!doc) throw Object.assign(new Error('Documento no encontrado'), { status: 404 });
-  if (doc.tipo_documento !== 'factura_compra') {
-    throw Object.assign(new Error('Solo se pueden programar pagos sobre facturas de compra'), { status: 422 });
-  }
-  if (['cancelado', 'cancelada', 'borrador'].includes(String(doc.estatus_documento ?? '').toLowerCase())) {
-    throw Object.assign(new Error('El documento está cancelado o en borrador'), { status: 422 });
-  }
-  if (String(doc.moneda ?? 'MXN').toUpperCase() !== String(data.moneda ?? 'MXN').toUpperCase()) {
-    throw Object.assign(new Error(`La moneda '${data.moneda}' no coincide con la del documento '${doc.moneda}'`), { status: 422 });
-  }
+  if (!prvRows[0]) throw Object.assign(new Error('Proveedor no encontrado'), { status: 404 });
 
-  // 2. Saldo disponible para programar
-  const { rows: saldoRows } = await client.query<{ saldo: string }>(
-    `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
-       (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
-        WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
-     )) AS saldo
-     FROM documentos d WHERE d.id = $1`,
-    [data.documento_id]
-  );
-  const saldoDocumento = Number(saldoRows[0]?.saldo ?? 0);
-
-  const excludeArgs: unknown[] = excludeId ? [excludeId] : [];
-  const { rows: progRows } = await client.query<{ total: string }>(
-    `SELECT COALESCE(SUM(monto_programado), 0) AS total
-     FROM finanzas_programacion_pagos
-     WHERE documento_id = $1 AND empresa_id = $2 AND estatus = 'programado'
-     ${excludeId ? `AND id != $3` : ''}`,
-    [data.documento_id, empresaId, ...excludeArgs]
-  );
-  const totalProgramado = Number(progRows[0]?.total ?? 0);
-  const disponible = saldoDocumento - totalProgramado;
-
-  if (data.monto_programado > disponible + 0.000001) {
-    throw Object.assign(
-      new Error(`El monto ${data.monto_programado} excede el saldo disponible para programar (${disponible.toFixed(2)})`),
-      { status: 422 }
-    );
-  }
-
-  // 3. Cuenta origen
   if (data.cuenta_origen_id) {
-    const { rows: cuentaRows } = await client.query<{ id: number }>(
+    const { rows: cuentaRows } = await client.query(
       `SELECT id FROM finanzas_cuentas WHERE id = $1 AND empresa_id = $2 AND NOT COALESCE(cuenta_cerrada, false)`,
       [data.cuenta_origen_id, empresaId]
     );
-    if (!cuentaRows[0]) {
-      throw Object.assign(new Error('La cuenta origen no existe o está cerrada'), { status: 422 });
-    }
+    if (!cuentaRows[0]) throw Object.assign(new Error('La cuenta origen no existe o está cerrada'), { status: 422 });
   }
 
-  // 4. Método de pago
   if (data.metodo_pago_id) {
     const { rows: mpRows } = await client.query<{ requiere_referencia: boolean }>(
-      `SELECT requiere_referencia FROM finanzas_metodos_pago
-       WHERE id = $1 AND empresa_id = $2 AND activo = true`,
+      `SELECT requiere_referencia FROM finanzas_metodos_pago WHERE id = $1 AND empresa_id = $2 AND activo = true`,
       [data.metodo_pago_id, empresaId]
     );
-    if (!mpRows[0]) {
-      throw Object.assign(new Error('El método de pago no existe, está inactivo o no pertenece a esta empresa'), { status: 422 });
-    }
+    if (!mpRows[0]) throw Object.assign(new Error('El método de pago no existe, está inactivo o no pertenece a esta empresa'), { status: 422 });
     if (mpRows[0].requiere_referencia && !data.referencia?.trim()) {
       throw Object.assign(new Error('El método de pago seleccionado requiere una referencia'), { status: 422 });
     }
   }
-
-  return { proveedorId: doc.contacto_principal_id };
 }
+
+async function validarYComputarDetalles(
+  client: PoolClient,
+  data: ProgramacionPagoInput,
+  empresaId: number,
+  excludeId?: number
+): Promise<number> {
+  const docIds = data.detalles.map((d) => d.documento_id);
+  if (new Set(docIds).size !== docIds.length) {
+    throw Object.assign(new Error('No se puede incluir la misma factura más de una vez'), { status: 422 });
+  }
+
+  let total = 0;
+  for (const det of data.detalles) {
+    if (!det.documento_id || !(det.monto_programado > 0)) {
+      throw Object.assign(new Error('Cada detalle debe tener documento_id y monto_programado > 0'), { status: 422 });
+    }
+
+    const { rows: docRows } = await client.query<{
+      tipo_documento: string; estatus_documento: string;
+      moneda: string; contacto_principal_id: number | null;
+    }>(
+      `SELECT tipo_documento, estatus_documento, moneda, contacto_principal_id
+       FROM documentos WHERE id = $1 AND empresa_id = $2`,
+      [det.documento_id, empresaId]
+    );
+    const doc = docRows[0];
+    if (!doc) throw Object.assign(new Error(`Documento ${det.documento_id} no encontrado`), { status: 404 });
+    if (doc.tipo_documento !== 'factura_compra') {
+      throw Object.assign(new Error(`El documento ${det.documento_id} no es una factura de compra`), { status: 422 });
+    }
+    if (['cancelado', 'cancelada', 'borrador'].includes(String(doc.estatus_documento ?? '').toLowerCase())) {
+      throw Object.assign(new Error(`El documento ${det.documento_id} está cancelado o en borrador`), { status: 422 });
+    }
+    if (doc.contacto_principal_id !== data.proveedor_id) {
+      throw Object.assign(
+        new Error(`El documento ${det.documento_id} no pertenece al proveedor seleccionado`),
+        { status: 422 }
+      );
+    }
+    if (String(doc.moneda ?? 'MXN').toUpperCase() !== String(data.moneda ?? 'MXN').toUpperCase()) {
+      throw Object.assign(
+        new Error(`La moneda '${data.moneda}' no coincide con la del documento ${det.documento_id} ('${doc.moneda}')`),
+        { status: 422 }
+      );
+    }
+
+    const { rows: saldoRows } = await client.query<{ saldo: string }>(
+      `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
+         (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
+          WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
+       )) AS saldo FROM documentos d WHERE d.id = $1`,
+      [det.documento_id]
+    );
+    const saldoDoc = Number(saldoRows[0]?.saldo ?? 0);
+
+    const excludeArgs: unknown[] = excludeId ? [excludeId] : [];
+    const { rows: progRows } = await client.query<{ total: string }>(
+      `SELECT COALESCE(SUM(det2.monto_programado), 0) AS total
+       FROM finanzas_programacion_pagos_detalle det2
+       JOIN finanzas_programacion_pagos pp ON pp.id = det2.programacion_id
+       WHERE det2.documento_id = $1 AND det2.empresa_id = $2 AND pp.estatus = 'programado'
+       ${excludeId ? `AND pp.id != $3` : ''}`,
+      [det.documento_id, empresaId, ...excludeArgs]
+    );
+    const totalProgExistente = Number(progRows[0]?.total ?? 0);
+    const disponible = saldoDoc - totalProgExistente;
+
+    if (det.monto_programado > disponible + 0.000001) {
+      throw Object.assign(
+        new Error(`El monto ${det.monto_programado} para la factura ${det.documento_id} excede el saldo disponible para programar (${disponible.toFixed(2)})`),
+        { status: 422 }
+      );
+    }
+
+    total += det.monto_programado;
+  }
+
+  return total;
+}
+
+async function insertarDetalles(
+  client: PoolClient,
+  programacionId: number,
+  empresaId: number,
+  detalles: Array<{ documento_id: number; monto_programado: number }>,
+  moneda: string
+): Promise<void> {
+  for (const det of detalles) {
+    await client.query(
+      `INSERT INTO finanzas_programacion_pagos_detalle
+         (empresa_id, programacion_id, documento_id, monto_programado, moneda)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [empresaId, programacionId, det.documento_id, det.monto_programado, moneda]
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 export async function crearProgramacionPago(
   data: ProgramacionPagoInput,
@@ -2127,20 +2320,20 @@ export async function crearProgramacionPago(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { proveedorId } = await validarProgramacionInput(client, data, empresaId);
+    await validarCabeceraInput(client, data, empresaId);
+    const total = await validarYComputarDetalles(client, data, empresaId);
 
     const { rows } = await client.query<{ id: number }>(
       `INSERT INTO finanzas_programacion_pagos
          (empresa_id, documento_id, proveedor_id, fecha_programada, monto_programado, moneda,
           cuenta_origen_id, metodo_pago_id, referencia, estatus, notas, created_by, updated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'programado',$10,$11,$11)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 'programado', $9, $10, $10)
        RETURNING id`,
       [
         empresaId,
-        data.documento_id,
-        proveedorId,
+        data.proveedor_id,
         data.fecha_programada,
-        data.monto_programado,
+        total,
         data.moneda,
         data.cuenta_origen_id ?? null,
         data.metodo_pago_id ?? null,
@@ -2149,8 +2342,10 @@ export async function crearProgramacionPago(
         userId ?? null,
       ]
     );
-    await client.query('COMMIT');
     const id = rows[0]!.id;
+    await insertarDetalles(client, id, empresaId, data.detalles, data.moneda);
+
+    await client.query('COMMIT');
     const list = await listarProgramacionesPago(empresaId, { id });
     const record = list[0];
     if (!record) throw new Error('No se pudo recuperar la programación creada');
@@ -2173,8 +2368,14 @@ export async function actualizarProgramacionPago(
   try {
     await client.query('BEGIN');
 
-    const { rows: existing } = await client.query<ProgramacionPago>(
-      `SELECT * FROM finanzas_programacion_pagos WHERE id = $1 AND empresa_id = $2 FOR UPDATE`,
+    const { rows: existing } = await client.query<{
+      id: number; proveedor_id: number | null; fecha_programada: string;
+      monto_programado: number; moneda: string; cuenta_origen_id: number | null;
+      metodo_pago_id: number | null; referencia: string | null; notas: string | null; estatus: string;
+    }>(
+      `SELECT id, proveedor_id, fecha_programada, monto_programado, moneda,
+              cuenta_origen_id, metodo_pago_id, referencia, notas, estatus
+       FROM finanzas_programacion_pagos WHERE id = $1 AND empresa_id = $2 FOR UPDATE`,
       [id, empresaId]
     );
     const current = existing[0];
@@ -2186,30 +2387,52 @@ export async function actualizarProgramacionPago(
       );
     }
 
+    // Si no se mandan detalles en el payload, cargar los existentes
+    let detallesInput = data.detalles;
+    if (!detallesInput || detallesInput.length === 0) {
+      const { rows: existingDet } = await client.query<{
+        documento_id: number; monto_programado: string;
+      }>(
+        `SELECT documento_id, monto_programado FROM finanzas_programacion_pagos_detalle WHERE programacion_id = $1`,
+        [id]
+      );
+      detallesInput = existingDet.map((d) => ({
+        documento_id: d.documento_id as number,
+        monto_programado: Number(d.monto_programado),
+      }));
+    }
+
     const merged: ProgramacionPagoInput = {
-      documento_id: data.documento_id ?? current.documento_id,
+      proveedor_id: data.proveedor_id ?? (current.proveedor_id ?? 0),
       fecha_programada: data.fecha_programada ?? current.fecha_programada,
-      monto_programado: data.monto_programado ?? current.monto_programado,
       moneda: data.moneda ?? current.moneda,
       cuenta_origen_id: data.cuenta_origen_id !== undefined ? data.cuenta_origen_id : current.cuenta_origen_id,
       metodo_pago_id: data.metodo_pago_id !== undefined ? data.metodo_pago_id : current.metodo_pago_id,
       referencia: data.referencia !== undefined ? data.referencia : current.referencia,
       notas: data.notas !== undefined ? data.notas : current.notas,
+      detalles: detallesInput,
     };
 
-    const { proveedorId } = await validarProgramacionInput(client, merged, empresaId, id);
+    await validarCabeceraInput(client, merged, empresaId);
+    const total = await validarYComputarDetalles(client, merged, empresaId, id);
+
+    // Reemplazar detalles atómicamente
+    await client.query(
+      `DELETE FROM finanzas_programacion_pagos_detalle WHERE programacion_id = $1`,
+      [id]
+    );
+    await insertarDetalles(client, id, empresaId, merged.detalles, merged.moneda);
 
     await client.query(
       `UPDATE finanzas_programacion_pagos
-       SET documento_id = $1, proveedor_id = $2, fecha_programada = $3, monto_programado = $4,
-           moneda = $5, cuenta_origen_id = $6, metodo_pago_id = $7, referencia = $8,
-           notas = $9, updated_by = $10, updated_at = now()
-       WHERE id = $11 AND empresa_id = $12`,
+       SET proveedor_id = $1, fecha_programada = $2, monto_programado = $3,
+           moneda = $4, cuenta_origen_id = $5, metodo_pago_id = $6, referencia = $7,
+           notas = $8, updated_by = $9, updated_at = now()
+       WHERE id = $10 AND empresa_id = $11`,
       [
-        merged.documento_id,
-        proveedorId,
+        merged.proveedor_id,
         merged.fecha_programada,
-        merged.monto_programado,
+        total,
         merged.moneda,
         merged.cuenta_origen_id ?? null,
         merged.metodo_pago_id ?? null,
@@ -2291,9 +2514,14 @@ export async function pagarProgramacionPago(
   try {
     await client.query('BEGIN');
 
-    // 1. Bloquear y cargar programación
-    const { rows: progRows } = await client.query<ProgramacionPago>(
-      `SELECT * FROM finanzas_programacion_pagos WHERE id = $1 AND empresa_id = $2 FOR UPDATE`,
+    // 1. Bloquear y cargar encabezado
+    const { rows: progRows } = await client.query<{
+      id: number; proveedor_id: number | null; estatus: string; moneda: string;
+      cuenta_origen_id: number | null; metodo_pago_id: number | null;
+      referencia: string | null; notas: string | null;
+    }>(
+      `SELECT id, proveedor_id, estatus, moneda, cuenta_origen_id, metodo_pago_id, referencia, notas
+       FROM finanzas_programacion_pagos WHERE id = $1 AND empresa_id = $2 FOR UPDATE`,
       [id, empresaId]
     );
     const prog = progRows[0];
@@ -2311,55 +2539,25 @@ export async function pagarProgramacionPago(
       );
     }
 
-    // 2. Validar factura_compra
-    const { rows: docRows } = await client.query<{
-      id: number;
-      tipo_documento: string;
-      estatus_documento: string;
-      moneda: string;
-      contacto_principal_id: number | null;
+    // 2. Cargar detalles
+    const { rows: detallesRows } = await client.query<{
+      id: number; documento_id: number; monto_programado: string;
     }>(
-      `SELECT id, tipo_documento, estatus_documento, moneda, contacto_principal_id
-       FROM documentos WHERE id = $1 AND empresa_id = $2`,
-      [prog.documento_id, empresaId]
+      `SELECT id, documento_id, monto_programado
+       FROM finanzas_programacion_pagos_detalle
+       WHERE programacion_id = $1 AND empresa_id = $2
+       ORDER BY id ASC`,
+      [id, empresaId]
     );
-    const doc = docRows[0];
-    if (!doc) throw Object.assign(new Error('Factura de compra no encontrada'), { status: 404 });
-    if (doc.tipo_documento !== 'factura_compra') {
-      throw Object.assign(new Error('Solo se puede pagar sobre facturas de compra'), { status: 422 });
-    }
-    if (['cancelado', 'cancelada', 'borrador'].includes(String(doc.estatus_documento ?? '').toLowerCase())) {
-      throw Object.assign(new Error('La factura está cancelada o en borrador'), { status: 422 });
-    }
-    const monedaDoc = String(doc.moneda ?? 'MXN').toUpperCase();
-    const monedaProg = String(prog.moneda ?? 'MXN').toUpperCase();
-    if (monedaDoc !== monedaProg) {
+    if (detallesRows.length === 0) {
       throw Object.assign(
-        new Error(`La moneda de la programación (${monedaProg}) ya no coincide con la factura (${monedaDoc})`),
+        new Error('La programación no tiene facturas asociadas. Edítela antes de pagar.'),
         { status: 422 }
       );
     }
 
-    // 3. Validar saldo actual de la factura (sin la propia programación)
-    const { rows: saldoRows } = await client.query<{ saldo: string }>(
-      `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
-         (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
-          WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
-       )) AS saldo
-       FROM documentos d WHERE d.id = $1`,
-      [prog.documento_id]
-    );
-    const saldoActual = Number(saldoRows[0]?.saldo ?? 0);
-    const montoProg = Number(prog.monto_programado);
-    if (montoProg > saldoActual + 0.000001) {
-      throw Object.assign(
-        new Error(`El monto programado (${montoProg.toFixed(2)}) excede el saldo actual de la factura (${saldoActual.toFixed(2)})`),
-        { status: 422 }
-      );
-    }
-
-    // 4. Validar cuenta origen
-    const { rows: cuentaRows } = await client.query<{ id: number }>(
+    // 3. Validar cuenta origen
+    const { rows: cuentaRows } = await client.query(
       `SELECT id FROM finanzas_cuentas WHERE id = $1 AND empresa_id = $2 AND NOT COALESCE(cuenta_cerrada, false)`,
       [prog.cuenta_origen_id, empresaId]
     );
@@ -2367,7 +2565,7 @@ export async function pagarProgramacionPago(
       throw Object.assign(new Error('La cuenta de origen está cerrada o no existe'), { status: 422 });
     }
 
-    // 5. Validar método de pago si viene
+    // 4. Validar método de pago si viene
     if (prog.metodo_pago_id) {
       const { rows: mpRows } = await client.query<{ requiere_referencia: boolean }>(
         `SELECT requiere_referencia FROM finanzas_metodos_pago
@@ -2375,10 +2573,7 @@ export async function pagarProgramacionPago(
         [prog.metodo_pago_id, empresaId]
       );
       if (!mpRows[0]) {
-        throw Object.assign(
-          new Error('El método de pago no existe, está inactivo o no pertenece a esta empresa'),
-          { status: 422 }
-        );
+        throw Object.assign(new Error('El método de pago no existe, está inactivo o no pertenece a esta empresa'), { status: 422 });
       }
       if (mpRows[0].requiere_referencia && !prog.referencia?.trim()) {
         throw Object.assign(
@@ -2388,15 +2583,62 @@ export async function pagarProgramacionPago(
       }
     }
 
-    // 6. Crear documento pago_proveedor dentro de la transacción
+    // 5. Validar cada factura y calcular total
+    let totalPago = 0;
+    for (const det of detallesRows) {
+      const montoDet = Number(det.monto_programado);
+
+      const { rows: docRows } = await client.query<{
+        tipo_documento: string; estatus_documento: string; moneda: string;
+      }>(
+        `SELECT tipo_documento, estatus_documento, moneda FROM documentos WHERE id = $1 AND empresa_id = $2`,
+        [det.documento_id, empresaId]
+      );
+      const doc = docRows[0];
+      if (!doc) throw Object.assign(new Error(`Factura ${det.documento_id} no encontrada`), { status: 404 });
+      if (doc.tipo_documento !== 'factura_compra') {
+        throw Object.assign(new Error(`El documento ${det.documento_id} no es factura_compra`), { status: 422 });
+      }
+      if (['cancelado', 'cancelada', 'borrador'].includes(String(doc.estatus_documento ?? '').toLowerCase())) {
+        throw Object.assign(new Error(`La factura ${det.documento_id} está cancelada o en borrador`), { status: 422 });
+      }
+      const monedaDoc = String(doc.moneda ?? 'MXN').toUpperCase();
+      const monedaProg = String(prog.moneda ?? 'MXN').toUpperCase();
+      if (monedaDoc !== monedaProg) {
+        throw Object.assign(
+          new Error(`La moneda de la programación (${monedaProg}) ya no coincide con la factura ${det.documento_id} (${monedaDoc})`),
+          { status: 422 }
+        );
+      }
+
+      const { rows: saldoRows } = await client.query<{ saldo: string }>(
+        `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
+           (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
+            WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
+         )) AS saldo FROM documentos d WHERE d.id = $1`,
+        [det.documento_id]
+      );
+      const saldoActual = Number(saldoRows[0]?.saldo ?? 0);
+      if (montoDet > saldoActual + 0.000001) {
+        throw Object.assign(
+          new Error(`El monto programado (${montoDet.toFixed(2)}) para la factura ${det.documento_id} excede su saldo actual (${saldoActual.toFixed(2)})`),
+          { status: 422 }
+        );
+      }
+
+      totalPago += montoDet;
+    }
+
     const hoy = currentCivilDate();
+
+    // 6. Crear un solo documento pago_proveedor por el total
     const docPago = await crearDocumentoRepository(
       {
-        contacto_principal_id: doc.contacto_principal_id,
+        contacto_principal_id: prog.proveedor_id,
         fecha_documento: hoy,
         moneda: prog.moneda,
-        total: montoProg,
-        subtotal: montoProg,
+        total: totalPago,
+        subtotal: totalPago,
         iva: 0,
         tratamiento_impuestos: 'sin_iva',
         estatus_documento: 'Pagado',
@@ -2409,14 +2651,14 @@ export async function pagarProgramacionPago(
       client
     );
 
-    // 7. Crear operación bancaria (Retiro) — reutiliza upsertOperacionDocumentoEnTransaccion
+    // 7. Crear una sola operación bancaria (Retiro) por el total
     const operacion = await upsertOperacionDocumentoEnTransaccion(
       client,
       {
         cuenta_id: prog.cuenta_origen_id,
         fecha: hoy,
         tipo_movimiento: 'Retiro',
-        monto: montoProg,
+        monto: totalPago,
         documento_origen_id: docPago.id,
         referencia: prog.referencia?.trim() || null,
         observaciones: prog.notas?.trim() || null,
@@ -2432,27 +2674,29 @@ export async function pagarProgramacionPago(
       [operacion.id, docPago.id, empresaId]
     );
 
-    // 9. Aplicar pago a la factura_compra — reutiliza crearAplicacionEnTransaccion
-    await crearAplicacionEnTransaccion(
-      client,
-      {
-        documento_origen_id: docPago.id,
-        documento_destino_id: prog.documento_id,
-        monto: montoProg,
-        monto_moneda_documento: montoProg,
-        fecha_aplicacion: hoy,
-        created_by: userId ?? null,
-      },
-      empresaId
-    );
+    // 9. Crear una aplicación_saldo por cada factura del detalle
+    for (const det of detallesRows) {
+      await crearAplicacionEnTransaccion(
+        client,
+        {
+          documento_origen_id: docPago.id,
+          documento_destino_id: det.documento_id,
+          monto: Number(det.monto_programado),
+          monto_moneda_documento: Number(det.monto_programado),
+          fecha_aplicacion: hoy,
+          created_by: userId ?? null,
+        },
+        empresaId
+      );
+    }
 
-    // 10. Marcar programación como pagada
+    // 10. Marcar programación como pagada (actualiza también monto_programado al total real)
     await client.query(
       `UPDATE finanzas_programacion_pagos
        SET estatus = 'pagado', documento_pago_id = $1, finanzas_operacion_id = $2,
-           updated_by = $3, updated_at = now()
-       WHERE id = $4 AND empresa_id = $5`,
-      [docPago.id, operacion.id, userId ?? null, id, empresaId]
+           monto_programado = $3, updated_by = $4, updated_at = now()
+       WHERE id = $5 AND empresa_id = $6`,
+      [docPago.id, operacion.id, totalPago, userId ?? null, id, empresaId]
     );
 
     await client.query('COMMIT');

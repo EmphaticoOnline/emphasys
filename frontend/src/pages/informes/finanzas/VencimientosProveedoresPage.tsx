@@ -247,6 +247,10 @@ export default function VencimientosProveedoresPage() {
   const handleProgramar = (row: VencimientoProveedor) => {
     const factura: FacturaCompraPendiente = {
       id: row.id,
+      serie: '',
+      numero: 0,
+      serie_externa: null,
+      numero_externo: null,
       folio: row.folio,
       folio_proveedor: row.referencia_proveedor,
       fecha_documento: '',

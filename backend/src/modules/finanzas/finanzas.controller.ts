@@ -404,7 +404,10 @@ export async function getFacturasCompraPendientes(req: Request, res: Response) {
     if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
     const proveedorId = req.query.proveedor_id ? Number(req.query.proveedor_id) : null;
     const search = req.query.search ? String(req.query.search) : null;
-    const rows = await listarFacturasCompraPendientes(empresaId, { proveedorId, search });
+    const excludeProgramacionId = req.query.exclude_programacion_id
+      ? Number(req.query.exclude_programacion_id)
+      : null;
+    const rows = await listarFacturasCompraPendientes(empresaId, { proveedorId, search, excludeProgramacionId });
     return res.json(rows);
   } catch (err: any) {
     return res.status(500).json({ message: err.message || 'Error al obtener facturas' });

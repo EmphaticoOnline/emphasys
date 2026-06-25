@@ -68,6 +68,7 @@ import PreciosPage from './pages/configuracion/PreciosPage';
 import CamposObligatoriosPage from './pages/configuracion/CamposObligatoriosPage';
 import AutorizacionesBandejaPage from './pages/AutorizacionesBandejaPage';
 import AutorizacionesReglasPage from './pages/configuracion/AutorizacionesReglasPage';
+import MetodosPagoPage from './pages/configuracion/MetodosPagoPage';
 
 export default function App() {
   return (
@@ -165,6 +166,7 @@ export default function App() {
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
               <Route path="/configuracion/autorizaciones-reglas" element={<AutorizacionesReglasPage />} />
+              <Route path="/configuracion/metodos-pago" element={<MetodosPagoPage />} />
 
               {/* Autorizaciones */}
               <Route path="/autorizaciones" element={<AutorizacionesBandejaPage />} />

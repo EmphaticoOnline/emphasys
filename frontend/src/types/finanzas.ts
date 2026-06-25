@@ -5,6 +5,10 @@ export type EstatusProgramacion = 'programado' | 'pagado' | 'cancelado';
 
 export interface FacturaCompraPendiente {
   id: number;
+  serie: string;
+  numero: number;
+  serie_externa: string | null;
+  numero_externo: number | null;
   folio: string;
   folio_proveedor: string;
   fecha_documento: string;
@@ -17,13 +21,30 @@ export interface FacturaCompraPendiente {
   saldo_disponible_programar: number;
 }
 
+export interface ProgramacionPagoDetalle {
+  id: number;
+  empresa_id: number;
+  programacion_id: number;
+  documento_id: number;
+  monto_programado: number;
+  moneda: string;
+  created_at: string;
+  updated_at: string;
+  // joined
+  documento_serie?: string | null;
+  documento_numero?: number | null;
+  documento_serie_externa?: string | null;
+  documento_numero_externo?: number | null;
+  documento_fecha_vencimiento?: string | null;
+}
+
 export interface ProgramacionPago {
   id: number;
   empresa_id: number;
-  documento_id: number;
+  documento_id: number | null;    // nullable: NULL para multi-factura (modelo v2)
   proveedor_id: number | null;
   fecha_programada: string;
-  monto_programado: number;
+  monto_programado: number;       // total de todos los detalles
   moneda: string;
   cuenta_origen_id: number | null;
   metodo_pago_id: number | null;
@@ -36,23 +57,35 @@ export interface ProgramacionPago {
   updated_by: number | null;
   created_at: string;
   updated_at: string;
+  // joined
   proveedor_nombre?: string | null;
+  numero_facturas?: number;
+  folios_resumen?: string | null;
+  // primer documento (backward compat display)
+  documento_serie?: string | null;
+  documento_numero?: number | null;
+  documento_serie_externa?: string | null;
+  documento_numero_externo?: number | null;
   documento_folio?: string | null;
   documento_folio_proveedor?: string | null;
   documento_fecha_vencimiento?: string | null;
   cuenta_identificador?: string | null;
   metodo_pago_nombre?: string | null;
+  detalles?: ProgramacionPagoDetalle[];
 }
 
 export interface ProgramacionPagoInput {
-  documento_id: number;
+  proveedor_id: number;
   fecha_programada: string;
-  monto_programado: number;
   moneda: string;
   cuenta_origen_id?: number | null;
   metodo_pago_id?: number | null;
   referencia?: string | null;
   notas?: string | null;
+  detalles: Array<{
+    documento_id: number;
+    monto_programado: number;
+  }>;
 }
 
 export interface FinanzasMetodoPago {

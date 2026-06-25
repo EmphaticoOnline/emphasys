@@ -199,10 +199,12 @@ export async function actualizarMetodoPago(
 export async function fetchFacturasCompraPendientes(opts?: {
   proveedorId?: number | null;
   search?: string | null;
+  excludeProgramacionId?: number | null;
 }): Promise<FacturaCompraPendiente[]> {
   const qs = new URLSearchParams();
   if (opts?.proveedorId) qs.set('proveedor_id', String(opts.proveedorId));
   if (opts?.search) qs.set('search', opts.search);
+  if (opts?.excludeProgramacionId) qs.set('exclude_programacion_id', String(opts.excludeProgramacionId));
   const q = qs.toString() ? `?${qs.toString()}` : '';
   return apiFetch(`${BASE}/facturas-compra-pendientes${q}`);
 }

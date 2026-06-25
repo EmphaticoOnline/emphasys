@@ -19,6 +19,7 @@ import {
   GridViewRounded,
   TagRounded,
   VerifiedUserRounded,
+  PaymentsRounded,
 } from '@mui/icons-material';
 import { CONFIGURACION_OPTIONS } from './configuracion/configuracionNavigation';
 
@@ -42,6 +43,7 @@ const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
   'Etiquetas de WhatsApp': LabelRounded,
   'Etapas de producción': SchemaRounded,
   'Campos obligatorios': TuneRounded,
+  'Métodos de pago': PaymentsRounded,
   'Políticas de autorización': VerifiedUserRounded,
 };
 

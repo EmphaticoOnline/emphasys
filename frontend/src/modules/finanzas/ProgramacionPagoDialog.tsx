@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -13,6 +14,12 @@ import {
   MenuItem,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material';
@@ -23,29 +30,46 @@ import type {
   ProgramacionPago,
   ProgramacionPagoInput,
 } from '../../types/finanzas';
+import { resolverFolioVisual } from '../../utils/documentos.utils';
 import {
   fetchFacturasCompraPendientes,
   fetchMetodosPago,
   crearProgramacionPago,
   actualizarProgramacionPago,
+  fetchCuentas,
 } from '../../services/finanzasService';
-import { fetchCuentas } from '../../services/finanzasService';
+import { apiFetch } from '../../api/apiClient';
 
 interface ProgramacionPagoDialogProps {
   open: boolean;
-  // Si se abre desde VencimientosProveedores, la factura ya viene prefijada
+  // Cuando se abre desde VencimientosProveedores, la factura ya viene prefijada
   facturaPreseleccionada?: FacturaCompraPendiente | null;
   programacion?: ProgramacionPago | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
+type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
+
+// Mapa: documento_id → monto a pagar (como string para el input)
+type SeleccionMap = Map<number, string>;
+
 const sanitizeNumber = (v: string) => v.replace(/[^0-9.]/g, '');
-const formatCurrency = (v: string | number) => {
-  const n = Number(typeof v === 'string' ? sanitizeNumber(v) : v);
-  if (Number.isNaN(n)) return '';
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
+
+const formatFecha = (iso?: string | null): string => {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(iso).slice(0, 10);
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const dia = d
+    .toLocaleDateString('es-MX', { weekday: 'short' })
+    .replace('.', '')
+    .replace(/^\w/, (c) => c.toUpperCase());
+  return `${dia} ${m[3]}/${m[2]}/${m[1]}`;
 };
+
+const formatMonto = (v: number) =>
+  v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function ProgramacionPagoDialog({
   open,
@@ -55,18 +79,22 @@ export default function ProgramacionPagoDialog({
   onSaved,
 }: ProgramacionPagoDialogProps) {
   const isEdit = !!programacion;
-  const facturaLocked = !!facturaPreseleccionada;
 
+  // ── Proveedor ──────────────────────────────────────────────────────────────
+  const [proveedorBloqueado, setProveedorBloqueado] = useState<ContactoOpcion | null>(null);
+  const [proveedor, setProveedor] = useState<ContactoOpcion | null>(null);
+  const [opcionesProveedor, setOpcionesProveedor] = useState<ContactoOpcion[]>([]);
+  const [buscandoProv, setBuscandoProv] = useState(false);
+
+  // ── Facturas ───────────────────────────────────────────────────────────────
   const [facturas, setFacturas] = useState<FacturaCompraPendiente[]>([]);
-  const [facturaSeleccionada, setFacturaSeleccionada] = useState<FacturaCompraPendiente | null>(null);
-  const [busquedaFactura, setBusquedaFactura] = useState('');
   const [cargandoFacturas, setCargandoFacturas] = useState(false);
+  const [seleccion, setSeleccion] = useState<SeleccionMap>(new Map());
 
+  // ── Cabecera ───────────────────────────────────────────────────────────────
   const [cuentas, setCuentas] = useState<FinanzasCuenta[]>([]);
   const [metodosPago, setMetodosPago] = useState<FinanzasMetodoPago[]>([]);
-
   const [fechaProgramada, setFechaProgramada] = useState('');
-  const [monto, setMonto] = useState('');
   const [cuentaOrigenId, setCuentaOrigenId] = useState<number | ''>('');
   const [metodoPagoId, setMetodoPagoId] = useState<number | ''>('');
   const [referencia, setReferencia] = useState('');
@@ -75,103 +103,237 @@ export default function ProgramacionPagoDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const hoy = new Date().toISOString().slice(0, 10);
+  const proveedorEfectivo = proveedorBloqueado ?? proveedor;
   const metodoSeleccionado = metodosPago.find((m) => m.id === Number(metodoPagoId)) ?? null;
   const referenciaObligatoria = metodoSeleccionado?.requiere_referencia === true;
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  // Total programado (suma de los seleccionados)
+  const total = Array.from(seleccion.values()).reduce(
+    (acc, v) => acc + (parseFloat(sanitizeNumber(v)) || 0),
+    0
+  );
 
-  // Cargar cuentas y métodos de pago al abrir
+  // Moneda: derivada de las facturas seleccionadas (todas deben ser la misma)
+  const primeraFacturaSeleccionada = facturas.find((f) => seleccion.has(f.id));
+  const moneda = primeraFacturaSeleccionada?.moneda ?? 'MXN';
+
+  // ── Cargar catálogos ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
     fetchCuentas()
       .then((data) => setCuentas(data.filter((c) => !c.cuenta_cerrada)))
       .catch(() => setCuentas([]));
     fetchMetodosPago(true)
-      .then((data) => setMetodosPago(data))
+      .then(setMetodosPago)
       .catch(() => setMetodosPago([]));
   }, [open]);
 
-  // Inicializar estado cuando se abre
+  // ── Inicializar al abrir ───────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
     setError(null);
 
     if (isEdit && programacion) {
+      // Modo edición: proveedor bloqueado
+      const prov: ContactoOpcion = {
+        id: programacion.proveedor_id ?? 0,
+        nombre: programacion.proveedor_nombre ?? `Proveedor #${programacion.proveedor_id}`,
+      };
+      setProveedorBloqueado(prov);
+      setProveedor(null);
       setFechaProgramada(programacion.fecha_programada ?? hoy);
-      setMonto(formatCurrency(programacion.monto_programado));
       setCuentaOrigenId(programacion.cuenta_origen_id ?? '');
       setMetodoPagoId(programacion.metodo_pago_id ?? '');
       setReferencia(programacion.referencia ?? '');
       setNotas(programacion.notas ?? '');
-      setFacturaSeleccionada(null);
-    } else {
+
+      // Pre-llenar selección desde detalles
+      const mapa: SeleccionMap = new Map();
+      for (const det of programacion.detalles ?? []) {
+        mapa.set(det.documento_id, formatMonto(det.monto_programado));
+      }
+      setSeleccion(mapa);
+    } else if (facturaPreseleccionada) {
+      // Desde VencimientosProveedores: proveedor bloqueado, factura pre-seleccionada
+      const prov: ContactoOpcion = {
+        id: facturaPreseleccionada.proveedor_id,
+        nombre: facturaPreseleccionada.proveedor_nombre,
+      };
+      setProveedorBloqueado(prov);
+      setProveedor(null);
       setFechaProgramada(hoy);
-      setMonto('');
       setCuentaOrigenId('');
       setMetodoPagoId('');
       setReferencia('');
       setNotas('');
-      if (facturaPreseleccionada) {
-        setFacturaSeleccionada(facturaPreseleccionada);
-      } else {
-        setFacturaSeleccionada(null);
-      }
+      setSeleccion(
+        new Map([[
+          facturaPreseleccionada.id,
+          formatMonto(facturaPreseleccionada.saldo_disponible_programar),
+        ]])
+      );
+    } else {
+      // Modo creación normal
+      setProveedorBloqueado(null);
+      setProveedor(null);
+      setSeleccion(new Map());
+      setFechaProgramada(hoy);
+      setCuentaOrigenId('');
+      setMetodoPagoId('');
+      setReferencia('');
+      setNotas('');
     }
   }, [open, isEdit, programacion, facturaPreseleccionada]);
 
-  // Buscar facturas con debounce
-  useEffect(() => {
-    if (facturaLocked || isEdit) return;
-    const timer = setTimeout(async () => {
-      setCargandoFacturas(true);
-      try {
-        const data = await fetchFacturasCompraPendientes({ search: busquedaFactura || null });
-        setFacturas(data);
-      } finally {
-        setCargandoFacturas(false);
+  // ── Cargar facturas al cambiar proveedor ───────────────────────────────────
+  const cargarFacturas = useCallback(async (proveedorId: number) => {
+    setCargandoFacturas(true);
+    try {
+      const data = await fetchFacturasCompraPendientes({
+        proveedorId,
+        excludeProgramacionId: isEdit && programacion ? programacion.id : null,
+      });
+      setFacturas(data);
+
+      // En edición: re-verificar que las facturas previamente seleccionadas siguen disponibles
+      if (isEdit && programacion) {
+        setSeleccion((prev) => {
+          const nuevo: SeleccionMap = new Map();
+          for (const det of programacion.detalles ?? []) {
+            // Mantener si sigue en la lista (disponible) o si ya estaba pagada antes (saldo 0 ok)
+            const enLista = data.find((f) => f.id === det.documento_id);
+            const montoStr = formatMonto(det.monto_programado);
+            if (enLista) {
+              nuevo.set(det.documento_id, prev.get(det.documento_id) ?? montoStr);
+            } else {
+              // La factura no aparece en pendientes (ya pagada parcialmente, etc.) pero la mantenemos en selección
+              nuevo.set(det.documento_id, prev.get(det.documento_id) ?? montoStr);
+            }
+          }
+          return nuevo;
+        });
       }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [busquedaFactura, facturaLocked, isEdit]);
+    } finally {
+      setCargandoFacturas(false);
+    }
+  }, [isEdit, programacion]);
 
-  const facturaEfectiva = facturaPreseleccionada ?? facturaSeleccionada;
-  const monedaDocumento = facturaEfectiva?.moneda ?? 'MXN';
-  const saldoMaximo = facturaEfectiva?.saldo_disponible_programar;
+  useEffect(() => {
+    if (!open) return;
+    const pid = proveedorEfectivo?.id;
+    if (pid) {
+      void cargarFacturas(pid);
+    } else {
+      setFacturas([]);
+    }
+  }, [open, proveedorEfectivo, cargarFacturas]);
 
+  // ── Búsqueda de proveedores ────────────────────────────────────────────────
+  const buscarProveedores = useCallback((input: string) => {
+    setBuscandoProv(true);
+    const qs = new URLSearchParams({ limit: '40', tipos: 'proveedor,varios' });
+    if (input.trim()) qs.set('search', input.trim());
+    apiFetch(`/api/contactos?${qs.toString()}`)
+      .then(async (res) => {
+        if (!res.ok) { setOpcionesProveedor([]); return; }
+        const raw = (await res.json()) as ContactoOpcion[] | { data?: ContactoOpcion[]; items?: ContactoOpcion[] };
+        const items: ContactoOpcion[] = Array.isArray(raw)
+          ? raw
+          : (raw as any).data ?? (raw as any).items ?? [];
+        setOpcionesProveedor(items);
+      })
+      .catch(() => setOpcionesProveedor([]))
+      .finally(() => setBuscandoProv(false));
+  }, []);
+
+  // ── Manipulación de selección ──────────────────────────────────────────────
+  const toggleFactura = (factura: FacturaCompraPendiente) => {
+    setSeleccion((prev) => {
+      const nuevo = new Map(prev);
+      if (nuevo.has(factura.id)) {
+        nuevo.delete(factura.id);
+      } else {
+        nuevo.set(factura.id, formatMonto(factura.saldo_disponible_programar));
+      }
+      return nuevo;
+    });
+  };
+
+  const actualizarMonto = (documentoId: number, valor: string) => {
+    setSeleccion((prev) => {
+      const nuevo = new Map(prev);
+      nuevo.set(documentoId, sanitizeNumber(valor));
+      return nuevo;
+    });
+  };
+
+  const formatearMonto = (documentoId: number) => {
+    setSeleccion((prev) => {
+      const nuevo = new Map(prev);
+      const raw = sanitizeNumber(prev.get(documentoId) ?? '');
+      const n = parseFloat(raw);
+      if (!isNaN(n) && n > 0) nuevo.set(documentoId, formatMonto(n));
+      return nuevo;
+    });
+  };
+
+  // ── Guardar ────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    const montoNum = parseFloat(sanitizeNumber(monto));
+    setError(null);
 
+    if (!proveedorEfectivo?.id) {
+      setError('Selecciona un proveedor.');
+      return;
+    }
+    if (seleccion.size === 0) {
+      setError('Selecciona al menos una factura.');
+      return;
+    }
     if (!fechaProgramada) {
       setError('La fecha programada es requerida.');
       return;
     }
-    if (!montoNum || montoNum <= 0) {
-      setError('El monto debe ser mayor a 0.');
-      return;
+
+    // Validar montos
+    for (const [docId, montoStr] of seleccion.entries()) {
+      const monto = parseFloat(sanitizeNumber(montoStr));
+      if (!monto || monto <= 0) {
+        setError(`El monto de la factura ${docId} debe ser mayor a 0.`);
+        return;
+      }
+      const factura = facturas.find((f) => f.id === docId);
+      if (factura && monto > factura.saldo_disponible_programar + 0.001) {
+        setError(
+          `El monto para ${resolverFolioVisual(factura, 'factura_compra')} excede el saldo disponible (${formatMonto(factura.saldo_disponible_programar)}).`
+        );
+        return;
+      }
     }
-    if (!isEdit && !facturaEfectiva) {
-      setError('Selecciona una factura de compra.');
-      return;
-    }
+
     if (referenciaObligatoria && !referencia.trim()) {
       setError(`El método "${metodoSeleccionado?.nombre}" requiere una referencia.`);
       return;
     }
 
+    const detalles = Array.from(seleccion.entries()).map(([documento_id, montoStr]) => ({
+      documento_id,
+      monto_programado: parseFloat(sanitizeNumber(montoStr)),
+    }));
+
     const payload: ProgramacionPagoInput = {
-      documento_id: facturaEfectiva?.id ?? programacion!.documento_id,
+      proveedor_id: proveedorEfectivo.id,
       fecha_programada: fechaProgramada,
-      monto_programado: montoNum,
-      moneda: facturaEfectiva?.moneda ?? programacion?.moneda ?? 'MXN',
+      moneda,
       cuenta_origen_id: cuentaOrigenId ? Number(cuentaOrigenId) : null,
       metodo_pago_id: metodoPagoId ? Number(metodoPagoId) : null,
       referencia: referencia.trim() || null,
       notas: notas.trim() || null,
+      detalles,
     };
 
     try {
       setSaving(true);
-      setError(null);
       if (isEdit && programacion) {
         await actualizarProgramacionPago(programacion.id, payload);
       } else {
@@ -186,70 +348,83 @@ export default function ProgramacionPagoDialog({
     }
   };
 
+  // ── Facturas a mostrar: las disponibles + las ya seleccionadas (edit) que no aparecen ──
+  const facturasEnListaNegra = new Set(facturas.map((f) => f.id));
+  const facturasAdicionales: FacturaCompraPendiente[] = [];
+  if (isEdit && programacion) {
+    for (const det of programacion.detalles ?? []) {
+      if (!facturasEnListaNegra.has(det.documento_id)) {
+        facturasAdicionales.push({
+          id: det.documento_id,
+          serie: det.documento_serie ?? '',
+          numero: det.documento_numero ?? 0,
+          serie_externa: det.documento_serie_externa ?? null,
+          numero_externo: det.documento_numero_externo ?? null,
+          folio: `${det.documento_serie ?? ''}${det.documento_numero ?? 0}`,
+          folio_proveedor: '',
+          fecha_documento: '',
+          fecha_vencimiento: det.documento_fecha_vencimiento ?? null,
+          proveedor_id: programacion.proveedor_id ?? 0,
+          proveedor_nombre: programacion.proveedor_nombre ?? '',
+          moneda: det.moneda,
+          total: det.monto_programado,
+          saldo: det.monto_programado,
+          saldo_disponible_programar: det.monto_programado,
+        });
+      }
+    }
+  }
+  const facturasCompletas = [...facturas, ...facturasAdicionales];
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         {isEdit ? 'Editar programación de pago' : 'Programar pago a proveedor'}
       </DialogTitle>
+
       <DialogContent sx={{ pt: 1 }}>
         <Stack spacing={2} mt={1}>
-          {/* Factura */}
-          {facturaLocked || isEdit ? (
+
+          {/* ── Proveedor ─────────────────────────────────────────────────── */}
+          {proveedorBloqueado ? (
             <Box>
-              <Typography variant="caption" color="text.secondary">Factura</Typography>
-              <Typography variant="body2" fontWeight={600}>
-                {facturaEfectiva
-                  ? `${facturaEfectiva.folio}${facturaEfectiva.folio_proveedor ? ` / Ref: ${facturaEfectiva.folio_proveedor}` : ''} — ${facturaEfectiva.proveedor_nombre}`
-                  : isEdit
-                  ? `Doc #${programacion?.documento_id}`
-                  : '—'}
-              </Typography>
-              {facturaEfectiva && (
-                <Typography variant="caption" color="text.secondary">
-                  Moneda: {facturaEfectiva.moneda} · Saldo disponible:{' '}
-                  {facturaEfectiva.saldo_disponible_programar.toLocaleString('es-MX', {
-                    minimumFractionDigits: 2,
-                  })}
-                </Typography>
-              )}
+              <Typography variant="caption" color="text.secondary">Proveedor</Typography>
+              <Typography variant="body2" fontWeight={600}>{proveedorBloqueado.nombre}</Typography>
             </Box>
           ) : (
-            <Autocomplete<FacturaCompraPendiente>
-              options={facturas}
-              loading={cargandoFacturas}
-              value={facturaSeleccionada}
-              onChange={(_, val) => setFacturaSeleccionada(val)}
-              onInputChange={(_, v) => setBusquedaFactura(v)}
-              onOpen={() => { if (!facturas.length) setBusquedaFactura(''); }}
-              getOptionLabel={(o) =>
-                `${o.folio}${o.folio_proveedor ? ` (${o.folio_proveedor})` : ''} — ${o.proveedor_nombre}`
-              }
+            <Autocomplete<ContactoOpcion>
+              options={opcionesProveedor}
+              loading={buscandoProv}
+              value={proveedor}
+              onChange={(_, val) => {
+                setProveedor(val);
+                setSeleccion(new Map());
+              }}
+              onInputChange={(_, input) => buscarProveedores(input)}
+              onOpen={() => { if (!opcionesProveedor.length) buscarProveedores(''); }}
+              getOptionLabel={(o) => o.nombre}
               getOptionKey={(o) => o.id}
               isOptionEqualToValue={(a, b) => a.id === b.id}
               renderOption={(props, o) => (
                 <li {...props} key={o.id}>
                   <Box>
-                    <Typography variant="body2">
-                      {o.folio}{o.folio_proveedor ? ` / ${o.folio_proveedor}` : ''} — {o.proveedor_nombre}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {o.moneda} · Saldo: {o.saldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                      {o.fecha_vencimiento ? ` · Vence: ${o.fecha_vencimiento}` : ''}
-                    </Typography>
+                    <Typography variant="body2">{o.nombre}</Typography>
+                    {o.rfc && <Typography variant="caption" color="text.secondary">{o.rfc}</Typography>}
                   </Box>
                 </li>
               )}
               renderInput={(p) => (
                 <TextField
                   {...(p as any)}
-                  label="Factura de compra"
+                  label="Proveedor"
                   size="small"
+                  placeholder="Buscar proveedor..."
                   InputLabelProps={{ shrink: true }}
                   InputProps={{
                     ...(p.InputProps as any),
                     endAdornment: (
                       <>
-                        {cargandoFacturas ? <CircularProgress size={16} color="inherit" /> : null}
+                        {buscandoProv ? <CircularProgress size={16} color="inherit" /> : null}
                         {p.InputProps?.endAdornment}
                       </>
                     ),
@@ -259,7 +434,107 @@ export default function ProgramacionPagoDialog({
             />
           )}
 
-          {/* Fecha */}
+          {/* ── Tabla de facturas ─────────────────────────────────────────── */}
+          {proveedorEfectivo && (
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                Facturas pendientes
+              </Typography>
+              {cargandoFacturas ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="body2" color="text.secondary">Cargando facturas…</Typography>
+                </Box>
+              ) : facturasCompletas.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                  No hay facturas pendientes para este proveedor.
+                </Typography>
+              ) : (
+                <TableContainer sx={{ maxHeight: 260, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell padding="checkbox" />
+                        <TableCell sx={{ fontSize: 12, fontWeight: 700 }}>Folio</TableCell>
+                        <TableCell sx={{ fontSize: 12, fontWeight: 700 }}>Vence</TableCell>
+                        <TableCell sx={{ fontSize: 12, fontWeight: 700 }} align="right">Saldo disponible</TableCell>
+                        <TableCell sx={{ fontSize: 12, fontWeight: 700 }} align="right">A pagar</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {facturasCompletas.map((f) => {
+                        const checked = seleccion.has(f.id);
+                        const montoVal = seleccion.get(f.id) ?? '';
+                        const montoNum = parseFloat(sanitizeNumber(montoVal)) || 0;
+                        const excede = montoNum > f.saldo_disponible_programar + 0.001;
+                        return (
+                          <TableRow
+                            key={f.id}
+                            hover
+                            onClick={() => toggleFactura(f)}
+                            sx={{ cursor: 'pointer' }}
+                          >
+                            <TableCell padding="checkbox">
+                              <Checkbox
+                                size="small"
+                                checked={checked}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => toggleFactura(f)}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ fontSize: 12 }}>
+                              {resolverFolioVisual(f, 'factura_compra')}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>
+                              {f.fecha_vencimiento ? formatFecha(f.fecha_vencimiento) : '—'}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: 12 }} align="right">
+                              {formatMonto(f.saldo_disponible_programar)}
+                              <Typography variant="caption" color="text.disabled" sx={{ ml: 0.5 }}>
+                                {f.moneda}
+                              </Typography>
+                            </TableCell>
+                            <TableCell sx={{ fontSize: 12, width: 140 }} align="right" onClick={(e) => e.stopPropagation()}>
+                              {checked ? (
+                                <TextField
+                                  size="small"
+                                  value={montoVal}
+                                  onChange={(e) => actualizarMonto(f.id, e.target.value)}
+                                  onBlur={() => formatearMonto(f.id)}
+                                  error={excede}
+                                  helperText={excede ? 'Excede saldo' : undefined}
+                                  inputProps={{ style: { textAlign: 'right', fontSize: 12, padding: '4px 8px' } }}
+                                  sx={{ width: 120 }}
+                                />
+                              ) : (
+                                <Typography variant="body2" color="text.disabled" sx={{ fontSize: 12 }}>
+                                  {formatMonto(f.saldo_disponible_programar)}
+                                </Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+
+              {/* Total */}
+              {seleccion.size > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.75 }}>
+                  <Typography variant="body2" fontWeight={700}>
+                    Total: {formatMonto(total)} {moneda}
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      ({seleccion.size} factura{seleccion.size !== 1 ? 's' : ''})
+                    </Typography>
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* ── Fecha ─────────────────────────────────────────────────────── */}
           <TextField
             label="Fecha programada"
             type="date"
@@ -270,19 +545,7 @@ export default function ProgramacionPagoDialog({
             fullWidth
           />
 
-          {/* Monto */}
-          <TextField
-            label={`Monto (${monedaDocumento})${saldoMaximo !== undefined ? ` — disponible: ${saldoMaximo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : ''}`}
-            size="small"
-            value={monto}
-            onChange={(e) => setMonto(sanitizeNumber(e.target.value))}
-            onBlur={() => monto && setMonto(formatCurrency(monto))}
-            onFocus={() => setMonto(sanitizeNumber(monto))}
-            placeholder="$0.00"
-            fullWidth
-          />
-
-          {/* Cuenta origen */}
+          {/* ── Cuenta origen ─────────────────────────────────────────────── */}
           <FormControl size="small" fullWidth>
             <InputLabel id="cuenta-origen-label">Cuenta de origen</InputLabel>
             <Select
@@ -294,14 +557,13 @@ export default function ProgramacionPagoDialog({
               <MenuItem value=""><em>Sin especificar</em></MenuItem>
               {cuentas.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
-                  {c.identificador}
-                  {c.moneda !== 'MXN' ? ` (${c.moneda})` : ''}
+                  {c.identificador}{c.moneda !== 'MXN' ? ` (${c.moneda})` : ''}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
 
-          {/* Método de pago */}
+          {/* ── Método de pago ────────────────────────────────────────────── */}
           <FormControl size="small" fullWidth>
             <InputLabel id="metodo-pago-label">Método de pago</InputLabel>
             <Select
@@ -312,14 +574,12 @@ export default function ProgramacionPagoDialog({
             >
               <MenuItem value=""><em>Sin especificar</em></MenuItem>
               {metodosPago.map((m) => (
-                <MenuItem key={m.id} value={String(m.id)}>
-                  {m.nombre}
-                </MenuItem>
+                <MenuItem key={m.id} value={String(m.id)}>{m.nombre}</MenuItem>
               ))}
             </Select>
           </FormControl>
 
-          {/* Referencia */}
+          {/* ── Referencia ────────────────────────────────────────────────── */}
           <TextField
             label={referenciaObligatoria ? 'Referencia *' : 'Referencia'}
             size="small"
@@ -335,7 +595,7 @@ export default function ProgramacionPagoDialog({
             }
           />
 
-          {/* Notas */}
+          {/* ── Notas ─────────────────────────────────────────────────────── */}
           <TextField
             label="Notas"
             size="small"
@@ -354,13 +614,14 @@ export default function ProgramacionPagoDialog({
           )}
         </Stack>
       </DialogContent>
+
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={saving} sx={{ textTransform: 'none' }}>
           Cancelar
         </Button>
         <Button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || seleccion.size === 0}
           variant="contained"
           sx={{
             textTransform: 'none',

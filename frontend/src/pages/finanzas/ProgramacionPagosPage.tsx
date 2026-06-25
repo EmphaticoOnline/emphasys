@@ -25,6 +25,7 @@ import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/apiClient';
+import { resolverFolioVisual } from '../../utils/documentos.utils';
 import {
   STANDARD_DATA_GRID_HEADER_HEIGHT,
   STANDARD_DATA_GRID_ROW_HEIGHT,
@@ -46,9 +47,10 @@ const formatMXN = (v: number, moneda = 'MXN') =>
   (moneda !== 'MXN' ? ` ${moneda}` : '');
 
 const formatFecha = (iso?: string | null): string => {
-  if (!iso || iso.length < 10) return iso ?? '';
-  const [yr, mo, da] = iso.slice(0, 10).split('-');
-  return `${da}-${mo}-${yr}`;
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(iso).slice(0, 10);
+  return `${m[3]}/${m[2]}/${m[1]}`;
 };
 
 const hoy = () => {
@@ -94,19 +96,18 @@ function buildColumns(
       ),
     },
     {
-      field: 'documento_folio',
-      headerName: 'Factura',
-      width: 110,
-      renderCell: (p: GridRenderCellParams<ProgramacionPago, string>) => (
-        <Box>
-          <Typography variant="body2">{p.value ?? `Doc #${p.row.documento_id}`}</Typography>
-          {p.row.documento_folio_proveedor && (
-            <Typography variant="caption" color="text.secondary">
-              {p.row.documento_folio_proveedor}
-            </Typography>
-          )}
-        </Box>
-      ),
+      field: 'folios_resumen',
+      headerName: 'Facturas',
+      width: 160,
+      renderCell: (p: GridRenderCellParams<ProgramacionPago>) => {
+        const folios = p.row.folios_resumen ?? '';
+        if (!folios) return <Typography variant="body2" color="text.disabled">—</Typography>;
+        return (
+          <Typography variant="body2" title={folios} noWrap>
+            {folios}
+          </Typography>
+        );
+      },
     },
     {
       field: 'documento_fecha_vencimiento',
@@ -291,9 +292,12 @@ export default function ProgramacionPagosPage() {
   const handlePagar = useCallback(async (prog: ProgramacionPago) => {
     const monto = prog.monto_programado.toLocaleString('es-MX', { minimumFractionDigits: 2 });
     const proveedor = prog.proveedor_nombre ?? 'este proveedor';
-    const factura = prog.documento_folio ?? `Doc #${prog.documento_id}`;
+    const cnt = prog.numero_facturas ?? 1;
+    const facturaDesc = cnt === 1
+      ? `la factura ${prog.folios_resumen ?? prog.documento_folio ?? `Doc #${prog.documento_id}`}`
+      : `${cnt} facturas (${prog.folios_resumen ?? ''})`;
     if (!confirm(
-      `Se registrará un pago real de ${prog.moneda} $${monto} al proveedor "${proveedor}" y se aplicará a la factura ${factura}.\n\n¿Deseas continuar?`
+      `Se registrará un pago real de ${prog.moneda} $${monto} al proveedor "${proveedor}" y se aplicará a ${facturaDesc}.\n\n¿Deseas continuar?`
     )) return;
     setPagandoId(prog.id);
     try {
@@ -387,7 +391,12 @@ export default function ProgramacionPagosPage() {
       {/* Filtros */}
       <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Box sx={{
+          display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap',
+          '& .MuiInputBase-input': { fontSize: 13 },
+          '& .MuiInputLabel-root': { fontSize: 13 },
+          '& .MuiSelect-select': { fontSize: 13 },
+        }}>
           <TextField
             label="Desde"
             type="date"
@@ -436,6 +445,7 @@ export default function ProgramacionPagosPage() {
             value={estatus}
             onChange={(e) => setEstatus(e.target.value)}
             sx={{ width: 140 }}
+            SelectProps={{ displayEmpty: true }}
           >
             <MenuItem value="">Todos</MenuItem>
             <MenuItem value="programado">Programado</MenuItem>
@@ -453,6 +463,7 @@ export default function ProgramacionPagosPage() {
             <MenuItem value="">Todas</MenuItem>
             <MenuItem value="MXN">MXN</MenuItem>
             <MenuItem value="USD">USD</MenuItem>
+            <MenuItem value="EUR">EUR</MenuItem>
           </TextField>
           <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           <Box sx={{ ml: 'auto', flexShrink: 0 }}>
