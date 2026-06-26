@@ -27,12 +27,8 @@ const TIPOS_DOCUMENTO_CARGO = [
   'ajuste_proveedor',
 ];
 
-const currentCivilDate = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+const currentCivilDate = (): string =>
+  new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
 const roundFinancial = (value: number | string | null | undefined, decimals = 6) => {
   const numeric = Number(value ?? 0);
@@ -1982,7 +1978,8 @@ export async function listarFacturasCompraPendientes(
         saldo,
         saldo_disponible_programar: Math.max(0, saldo - totalProgramado),
       };
-    });
+    })
+    .filter((f) => f.saldo_disponible_programar > 0.001);
 }
 
 export async function listarProgramacionesPago(
@@ -2583,18 +2580,27 @@ export async function pagarProgramacionPago(
       }
     }
 
-    // 5. Validar cada factura y calcular total
-    let totalPago = 0;
-    for (const det of detallesRows) {
-      const montoDet = Number(det.monto_programado);
+    // 5. Adquirir locks en todas las facturas destino antes de leer saldos.
+    //    Un SELECT FOR UPDATE en batch serializa cualquier otro pagarProgramacionPago
+    //    que intente bloquear alguna de estas mismas facturas: el segundo quedará en
+    //    espera hasta que esta transacción haga COMMIT, momento en el que verá los
+    //    saldos ya actualizados y rechazará si no hay saldo suficiente.
+    const docIds = detallesRows.map((d) => d.documento_id);
+    const { rows: facturasLocked } = await client.query<{
+      id: number; tipo_documento: string; estatus_documento: string; moneda: string;
+    }>(
+      `SELECT id, tipo_documento, estatus_documento, moneda
+       FROM documentos
+       WHERE id = ANY($1::int[]) AND empresa_id = $2
+       FOR UPDATE`,
+      [docIds, empresaId]
+    );
 
-      const { rows: docRows } = await client.query<{
-        tipo_documento: string; estatus_documento: string; moneda: string;
-      }>(
-        `SELECT tipo_documento, estatus_documento, moneda FROM documentos WHERE id = $1 AND empresa_id = $2`,
-        [det.documento_id, empresaId]
-      );
-      const doc = docRows[0];
+    const facturaMap = new Map<number, { tipo_documento: string; estatus_documento: string; moneda: string }>();
+    for (const f of facturasLocked) facturaMap.set(f.id, f);
+
+    for (const det of detallesRows) {
+      const doc = facturaMap.get(det.documento_id);
       if (!doc) throw Object.assign(new Error(`Factura ${det.documento_id} no encontrada`), { status: 404 });
       if (doc.tipo_documento !== 'factura_compra') {
         throw Object.assign(new Error(`El documento ${det.documento_id} no es factura_compra`), { status: 422 });
@@ -2610,6 +2616,12 @@ export async function pagarProgramacionPago(
           { status: 422 }
         );
       }
+    }
+
+    // 6. Validar saldo de cada factura (locks ya tomados — lectura consistente).
+    let totalPago = 0;
+    for (const det of detallesRows) {
+      const montoDet = Number(det.monto_programado);
 
       const { rows: saldoRows } = await client.query<{ saldo: string }>(
         `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
@@ -2733,12 +2745,20 @@ export type MovimientoConciliacion = {
   contacto_nombre: string | null;
   concepto_nombre: string | null;
   metodo_pago_nombre: string | null;
-  documento_folio: string | null;
+  documento_tipo_documento: string | null;
+  documento_serie: string | null;
+  documento_numero: number | null;
+  documento_serie_externa: string | null;
+  documento_numero_externo: number | null;
 };
 
 export type ConciliacionMovimientosResult = {
   movimientos: MovimientoConciliacion[];
   saldo_sistema: number;
+  saldo_conciliado_anterior: number;
+  total_depositos_cotejados: number;
+  total_retiros_cotejados: number;
+  saldo_conciliado_calculado: number;
   moneda: string;
 };
 
@@ -2752,17 +2772,18 @@ export async function obtenerMovimientosConciliacion(
       SELECT
         fo.id, fo.fecha, fo.tipo_movimiento, fo.naturaleza_operacion, fo.monto,
         fo.referencia, fo.observaciones, fo.estado_conciliacion,
-        ($2::date - fo.fecha::date)::int AS dias_sin_conciliar,
+        ((CURRENT_TIMESTAMP AT TIME ZONE 'America/Mexico_City')::date - fo.fecha::date)::int AS dias_sin_conciliar,
         fo.contacto_id,
         COALESCE(fc.identificador, '') AS cuenta_nombre,
         COALESCE(fc.moneda, 'MXN') AS cuenta_moneda,
         c.nombre AS contacto_nombre,
         co.nombre_concepto AS concepto_nombre,
         mp.nombre AS metodo_pago_nombre,
-        CASE WHEN d.id IS NOT NULL
-          THEN COALESCE(d.serie, '') || CAST(COALESCE(d.numero, 0) AS text)
-          ELSE NULL
-        END AS documento_folio
+        d.tipo_documento AS documento_tipo_documento,
+        d.serie AS documento_serie,
+        d.numero AS documento_numero,
+        d.serie_externa AS documento_serie_externa,
+        d.numero_externo AS documento_numero_externo
       FROM finanzas_operaciones fo
       JOIN finanzas_cuentas fc
         ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
@@ -2777,11 +2798,37 @@ export async function obtenerMovimientosConciliacion(
         AND fo.estado_conciliacion IN ('pendiente', 'cotejado')
       ORDER BY fo.fecha ASC, fo.id ASC
     `, [empresaId, fechaCorte, cuentaId]),
-    pool.query<{ saldo_sistema: string; moneda: string }>(`
+    pool.query<{
+      saldo_sistema: string;
+      saldo_conciliado_anterior: string;
+      total_depositos_cotejados: string;
+      total_retiros_cotejados: string;
+      saldo_conciliado_calculado: string;
+      moneda: string;
+    }>(`
       SELECT
         COALESCE(fc.saldo_inicial, 0) + COALESCE(SUM(
           CASE WHEN fo2.tipo_movimiento = 'Deposito' THEN fo2.monto ELSE -fo2.monto END
         ), 0) AS saldo_sistema,
+
+        COALESCE(fc.saldo_conciliado, COALESCE(fc.saldo_inicial, 0)) AS saldo_conciliado_anterior,
+
+        COALESCE(SUM(CASE WHEN fo2.estado_conciliacion = 'cotejado'
+                               AND fo2.tipo_movimiento = 'Deposito'
+                          THEN fo2.monto ELSE 0 END), 0) AS total_depositos_cotejados,
+
+        COALESCE(SUM(CASE WHEN fo2.estado_conciliacion = 'cotejado'
+                               AND fo2.tipo_movimiento = 'Retiro'
+                          THEN fo2.monto ELSE 0 END), 0) AS total_retiros_cotejados,
+
+        COALESCE(fc.saldo_conciliado, COALESCE(fc.saldo_inicial, 0))
+        + COALESCE(SUM(CASE WHEN fo2.estado_conciliacion = 'cotejado'
+                                 AND fo2.tipo_movimiento = 'Deposito'
+                            THEN fo2.monto ELSE 0 END), 0)
+        - COALESCE(SUM(CASE WHEN fo2.estado_conciliacion = 'cotejado'
+                                 AND fo2.tipo_movimiento = 'Retiro'
+                            THEN fo2.monto ELSE 0 END), 0) AS saldo_conciliado_calculado,
+
         COALESCE(fc.moneda, 'MXN') AS moneda
       FROM finanzas_cuentas fc
       LEFT JOIN finanzas_operaciones fo2
@@ -2789,7 +2836,7 @@ export async function obtenerMovimientosConciliacion(
         AND fo2.fecha <= $2
       WHERE fc.id = $3 AND fc.empresa_id = $1
         AND NOT COALESCE(fc.cuenta_cerrada, false)
-      GROUP BY fc.saldo_inicial, fc.moneda
+      GROUP BY fc.saldo_inicial, fc.saldo_conciliado, fc.moneda
     `, [empresaId, fechaCorte, cuentaId]),
   ]);
 
@@ -2797,6 +2844,10 @@ export async function obtenerMovimientosConciliacion(
   return {
     movimientos: movRes.rows,
     saldo_sistema: saldoRow ? Number(saldoRow.saldo_sistema) : 0,
+    saldo_conciliado_anterior: saldoRow ? Number(saldoRow.saldo_conciliado_anterior) : 0,
+    total_depositos_cotejados: saldoRow ? Number(saldoRow.total_depositos_cotejados) : 0,
+    total_retiros_cotejados: saldoRow ? Number(saldoRow.total_retiros_cotejados) : 0,
+    saldo_conciliado_calculado: saldoRow ? Number(saldoRow.saldo_conciliado_calculado) : 0,
     moneda: saldoRow?.moneda ?? 'MXN',
   };
 }
@@ -2820,7 +2871,6 @@ export type CierreConciliacionInput = {
   cuentaId: number;
   fechaCorte: string;
   saldoBanco: number;
-  operacionIds: number[];
   observaciones?: string | null;
 };
 
@@ -2828,6 +2878,10 @@ export type CierreConciliacionResult = {
   conciliacion_id: number;
   saldo_banco: number;
   saldo_sistema: number;
+  saldo_conciliado_anterior: number;
+  total_depositos_cotejados: number;
+  total_retiros_cotejados: number;
+  saldo_conciliado_calculado: number;
   diferencia: number;
   operaciones_conciliadas: number;
 };
@@ -2837,14 +2891,17 @@ export async function ejecutarCierreConciliacion(
   empresaId: number,
   userId?: number | null
 ): Promise<CierreConciliacionResult> {
-  const { cuentaId, fechaCorte, saldoBanco, operacionIds, observaciones } = data;
+  const { cuentaId, fechaCorte, saldoBanco, observaciones } = data;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 1. Lock account row and get saldo_inicial
-    const { rows: cuentaRows } = await client.query<{ saldo_inicial: string }>(
-      `SELECT saldo_inicial FROM finanzas_cuentas
+    // 1. Lock account row; capture saldo_inicial and saldo_conciliado_anterior before any changes
+    const { rows: cuentaRows } = await client.query<{
+      saldo_inicial: string;
+      saldo_conciliado: string | null;
+    }>(
+      `SELECT saldo_inicial, saldo_conciliado FROM finanzas_cuentas
        WHERE id = $1 AND empresa_id = $2 AND NOT COALESCE(cuenta_cerrada, false)
        FOR UPDATE`,
       [cuentaId, empresaId]
@@ -2853,33 +2910,63 @@ export async function ejecutarCierreConciliacion(
       throw Object.assign(new Error('Cuenta no encontrada o está cerrada'), { status: 404 });
     }
     const saldoInicial = Number(cuentaRows[0].saldo_inicial ?? 0);
+    // saldo_conciliado_anterior: last confirmed balance; fall back to saldo_inicial if never conciliated
+    const saldoConciliadoAnterior = Number(cuentaRows[0].saldo_conciliado ?? saldoInicial);
 
-    // 2. Validate provided operacion_ids belong to this cuenta, are before fechaCorte, and not already conciliado
-    if (operacionIds.length > 0) {
-      const { rows: invalid } = await client.query<{ id: number }>(
-        `SELECT id FROM finanzas_operaciones
-         WHERE id = ANY($1::int[]) AND empresa_id = $2
-           AND (cuenta_id != $3 OR fecha > $4::date OR estado_conciliacion = 'conciliado')`,
-        [operacionIds, empresaId, cuentaId, fechaCorte]
-      );
-      if (invalid.length > 0) {
-        throw Object.assign(
-          new Error(
-            `${invalid.length} operación(es) no válidas para esta conciliación (ya conciliadas, fuera de fecha o de otra cuenta).`
-          ),
-          { status: 422 }
-        );
-      }
-
-      // 3. Mark as 'conciliado'
-      await client.query(
-        `UPDATE finanzas_operaciones SET estado_conciliacion = 'conciliado'
-         WHERE id = ANY($1::int[]) AND empresa_id = $2 AND estado_conciliacion != 'conciliado'`,
-        [operacionIds, empresaId]
+    // 1b. Enforce chronological order — comparison done in SQL to avoid JS Date/string coercion bugs
+    const { rows: conflictoRows } = await client.query<{ existe: boolean }>(
+      `SELECT EXISTS(
+         SELECT 1 FROM finanzas_conciliaciones
+         WHERE cuenta_id = $1 AND empresa_id = $2
+           AND COALESCE(estatus, 'cerrada') = 'cerrada'
+           AND fecha_corte >= $3::date
+       ) AS existe`,
+      [cuentaId, empresaId, fechaCorte]
+    );
+    if (conflictoRows[0]?.existe) {
+      throw Object.assign(
+        new Error(
+          'No puedes cerrar una conciliación con fecha de corte anterior o igual a la última conciliación vigente de la cuenta. ' +
+          'Primero deshaz la conciliación posterior si necesitas rehacerla.'
+        ),
+        { status: 422 }
       );
     }
 
-    // 4. Calculate saldo_sistema (saldo_inicial + ALL ops up to fechaCorte)
+    // 2. Fetch ALL cotejados for this account up to fechaCorte — authoritative set, not frontend-provided
+    const { rows: cotejadosRows } = await client.query<{
+      id: number;
+      tipo_movimiento: string;
+      monto: string;
+    }>(
+      `SELECT id, tipo_movimiento, monto
+       FROM finanzas_operaciones
+       WHERE cuenta_id = $1 AND empresa_id = $2 AND fecha <= $3::date AND estado_conciliacion = 'cotejado'`,
+      [cuentaId, empresaId, fechaCorte]
+    );
+    const cotejadosIds = cotejadosRows.map((r) => r.id);
+
+    // 3. Compute totals from the same authoritative set
+    let totalDepositosCotejados = 0;
+    let totalRetirosCotejados = 0;
+    for (const row of cotejadosRows) {
+      if (row.tipo_movimiento === 'Deposito') totalDepositosCotejados += Number(row.monto);
+      else totalRetirosCotejados += Number(row.monto);
+    }
+
+    const saldoConciliadoCalculado = saldoConciliadoAnterior + totalDepositosCotejados - totalRetirosCotejados;
+    const diferencia = Number(saldoBanco) - saldoConciliadoCalculado;
+
+    // 4. Mark exactly the same set as 'conciliado'
+    if (cotejadosIds.length > 0) {
+      await client.query(
+        `UPDATE finanzas_operaciones SET estado_conciliacion = 'conciliado'
+         WHERE id = ANY($1::int[]) AND empresa_id = $2 AND estado_conciliacion = 'cotejado'`,
+        [cotejadosIds, empresaId]
+      );
+    }
+
+    // 5. Calculate saldo_sistema (informativo: saldo_inicial + ALL ops up to fechaCorte)
     const { rows: saldoRows } = await client.query<{ saldo_sistema: string }>(
       `SELECT $1::numeric + COALESCE(SUM(
          CASE WHEN tipo_movimiento = 'Deposito' THEN monto ELSE -monto END
@@ -2889,46 +2976,42 @@ export async function ejecutarCierreConciliacion(
       [saldoInicial, cuentaId, empresaId, fechaCorte]
     );
     const saldoSistema = Number(saldoRows[0]?.saldo_sistema ?? saldoInicial);
-    const diferencia = Number(saldoBanco) - saldoSistema;
 
-    // 5. Insert conciliación snapshot
+    // 6. Insert conciliación snapshot with full breakdown
     const { rows: concRows } = await client.query<{ id: number }>(
-      `INSERT INTO finanzas_conciliaciones
-         (empresa_id, cuenta_id, fecha_corte, saldo_banco, saldo_sistema, diferencia, observaciones, usuario_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO finanzas_conciliaciones (
+         empresa_id, cuenta_id, fecha_corte,
+         saldo_banco, saldo_sistema, diferencia,
+         saldo_conciliado_anterior, total_depositos_cotejados, total_retiros_cotejados, saldo_conciliado_calculado,
+         observaciones, usuario_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
-      [empresaId, cuentaId, fechaCorte, saldoBanco, saldoSistema, diferencia, observaciones ?? null, userId ?? null]
+      [
+        empresaId, cuentaId, fechaCorte,
+        saldoBanco, saldoSistema, diferencia,
+        saldoConciliadoAnterior, totalDepositosCotejados, totalRetirosCotejados, saldoConciliadoCalculado,
+        observaciones ?? null, userId ?? null,
+      ]
     );
     const conciliacionId = concRows[0].id;
 
-    // 6. Insert bridge records
-    if (operacionIds.length > 0) {
-      const vals = operacionIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+    // 7. Insert bridge records for exactly the same set
+    if (cotejadosIds.length > 0) {
+      const vals = cotejadosIds.map((_, i) => `($1, $${i + 2})`).join(', ');
       await client.query(
         `INSERT INTO finanzas_conciliaciones_operaciones (conciliacion_id, operacion_id)
          VALUES ${vals}
          ON CONFLICT (conciliacion_id, operacion_id) DO NOTHING`,
-        [conciliacionId, ...operacionIds]
+        [conciliacionId, ...cotejadosIds]
       );
     }
 
-    // 7. Recalculate saldo_conciliado (all-time conciliado ops for this account)
-    const { rows: scRows } = await client.query<{ saldo_conciliado: string }>(
-      `SELECT $1::numeric + COALESCE(SUM(
-         CASE WHEN tipo_movimiento = 'Deposito' THEN monto ELSE -monto END
-       ), 0) AS saldo_conciliado
-       FROM finanzas_operaciones
-       WHERE cuenta_id = $2 AND empresa_id = $3 AND estado_conciliacion = 'conciliado'`,
-      [saldoInicial, cuentaId, empresaId]
-    );
-    const saldoConciliado = Number(scRows[0]?.saldo_conciliado ?? saldoInicial);
-
-    // 8. Update finanzas_cuentas
+    // 8. Update finanzas_cuentas: saldo and fecha_corte (not now() — "up to which date is the account reconciled")
     await client.query(
       `UPDATE finanzas_cuentas
-       SET saldo_conciliado = $1, fecha_ultima_conciliacion = now()
+       SET saldo_conciliado = $1, fecha_ultima_conciliacion = $4::date
        WHERE id = $2 AND empresa_id = $3`,
-      [saldoConciliado, cuentaId, empresaId]
+      [saldoConciliadoCalculado, cuentaId, empresaId, fechaCorte]
     );
 
     await client.query('COMMIT');
@@ -2937,8 +3020,269 @@ export async function ejecutarCierreConciliacion(
       conciliacion_id: conciliacionId,
       saldo_banco: Number(saldoBanco),
       saldo_sistema: saldoSistema,
+      saldo_conciliado_anterior: saldoConciliadoAnterior,
+      total_depositos_cotejados: totalDepositosCotejados,
+      total_retiros_cotejados: totalRetirosCotejados,
+      saldo_conciliado_calculado: saldoConciliadoCalculado,
       diferencia,
-      operaciones_conciliadas: operacionIds.length,
+      operaciones_conciliadas: cotejadosIds.length,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// =============================================================================
+// Historial y anulación de conciliaciones
+// =============================================================================
+
+export type HistorialConciliacion = {
+  id: number;
+  cuenta_id: number;
+  fecha_corte: string;
+  saldo_banco: number;
+  saldo_sistema: number | null;
+  saldo_conciliado_anterior: number | null;
+  total_depositos_cotejados: number | null;
+  total_retiros_cotejados: number | null;
+  saldo_conciliado_calculado: number | null;
+  diferencia: number | null;
+  estatus: 'cerrada' | 'anulada';
+  fecha_conciliacion: string;
+  anulada_en: string | null;
+  anulada_por: number | null;
+  motivo_anulacion: string | null;
+  cantidad_movimientos: number;
+  es_ultima_reversible: boolean;
+};
+
+export async function listarHistorialConciliaciones(
+  cuentaId: number,
+  empresaId: number
+): Promise<HistorialConciliacion[]> {
+  const { rows } = await pool.query<{
+    id: string;
+    cuenta_id: string;
+    fecha_corte: string;
+    saldo_banco: string;
+    saldo_sistema: string | null;
+    saldo_conciliado_anterior: string | null;
+    total_depositos_cotejados: string | null;
+    total_retiros_cotejados: string | null;
+    saldo_conciliado_calculado: string | null;
+    diferencia: string | null;
+    estatus: 'cerrada' | 'anulada';
+    fecha_conciliacion: string;
+    anulada_en: string | null;
+    anulada_por: string | null;
+    motivo_anulacion: string | null;
+    cantidad_movimientos: string;
+    es_ultima_reversible: boolean;
+  }>(`
+    SELECT
+      fc.id,
+      fc.cuenta_id,
+      fc.fecha_corte,
+      fc.saldo_banco,
+      fc.saldo_sistema,
+      fc.saldo_conciliado_anterior,
+      fc.total_depositos_cotejados,
+      fc.total_retiros_cotejados,
+      fc.saldo_conciliado_calculado,
+      fc.diferencia,
+      COALESCE(fc.estatus, 'cerrada') AS estatus,
+      fc.fecha_creacion AS fecha_conciliacion,
+      fc.anulada_en,
+      fc.anulada_por,
+      fc.motivo_anulacion,
+      COUNT(fco.id)::int AS cantidad_movimientos,
+      CASE WHEN fc.id = (
+        SELECT id FROM finanzas_conciliaciones
+        WHERE cuenta_id = fc.cuenta_id AND empresa_id = fc.empresa_id
+          AND COALESCE(estatus, 'cerrada') = 'cerrada'
+        ORDER BY fecha_corte DESC, id DESC
+        LIMIT 1
+      ) THEN true ELSE false END AS es_ultima_reversible
+    FROM finanzas_conciliaciones fc
+    LEFT JOIN finanzas_conciliaciones_operaciones fco ON fco.conciliacion_id = fc.id
+    WHERE fc.cuenta_id = $1 AND fc.empresa_id = $2
+    GROUP BY fc.id
+    ORDER BY fc.fecha_corte DESC, fc.id DESC
+  `, [cuentaId, empresaId]);
+
+  return rows.map((r) => ({
+    id: Number(r.id),
+    cuenta_id: Number(r.cuenta_id),
+    fecha_corte: r.fecha_corte,
+    saldo_banco: Number(r.saldo_banco),
+    saldo_sistema: r.saldo_sistema != null ? Number(r.saldo_sistema) : null,
+    saldo_conciliado_anterior: r.saldo_conciliado_anterior != null ? Number(r.saldo_conciliado_anterior) : null,
+    total_depositos_cotejados: r.total_depositos_cotejados != null ? Number(r.total_depositos_cotejados) : null,
+    total_retiros_cotejados: r.total_retiros_cotejados != null ? Number(r.total_retiros_cotejados) : null,
+    saldo_conciliado_calculado: r.saldo_conciliado_calculado != null ? Number(r.saldo_conciliado_calculado) : null,
+    diferencia: r.diferencia != null ? Number(r.diferencia) : null,
+    estatus: r.estatus,
+    fecha_conciliacion: r.fecha_conciliacion,
+    anulada_en: r.anulada_en,
+    anulada_por: r.anulada_por != null ? Number(r.anulada_por) : null,
+    motivo_anulacion: r.motivo_anulacion,
+    cantidad_movimientos: Number(r.cantidad_movimientos),
+    es_ultima_reversible: r.es_ultima_reversible,
+  }));
+}
+
+export type DeshacerConciliacionResult = {
+  conciliacion_id: number;
+  estatus: 'anulada';
+  saldo_conciliado_restaurado: number;
+  fecha_ultima_conciliacion: string | null;
+  movimientos_regresados_a_cotejado: number;
+};
+
+export async function deshacerConciliacion(
+  conciliacionId: number,
+  empresaId: number,
+  userId: number | null,
+  motivo: string
+): Promise<DeshacerConciliacionResult> {
+  if (!motivo || motivo.trim().length < 5) {
+    throw Object.assign(
+      new Error('El motivo de anulación es requerido y debe tener al menos 5 caracteres.'),
+      { status: 400 }
+    );
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Lock and fetch the conciliation
+    const { rows: concRows } = await client.query<{
+      id: number;
+      cuenta_id: number;
+      estatus: string;
+      saldo_conciliado_anterior: string | null;
+    }>(
+      `SELECT id, cuenta_id, COALESCE(estatus, 'cerrada') AS estatus, saldo_conciliado_anterior
+       FROM finanzas_conciliaciones
+       WHERE id = $1 AND empresa_id = $2
+       FOR UPDATE`,
+      [conciliacionId, empresaId]
+    );
+    if (concRows.length === 0) {
+      throw Object.assign(new Error('Conciliación no encontrada.'), { status: 404 });
+    }
+    const conc = concRows[0];
+    if (conc.estatus !== 'cerrada') {
+      throw Object.assign(
+        new Error('Solo se pueden deshacer conciliaciones con estatus "cerrada".'),
+        { status: 422 }
+      );
+    }
+    const cuentaId = Number(conc.cuenta_id);
+
+    // Fetch account's saldo_inicial — authoritative fallback when no prior cerrada conciliation exists
+    const { rows: cuentaRows } = await client.query<{ saldo_inicial: string }>(
+      `SELECT saldo_inicial FROM finanzas_cuentas
+       WHERE id = $1 AND empresa_id = $2
+       FOR UPDATE`,
+      [cuentaId, empresaId]
+    );
+    const saldoInicial = Number(cuentaRows[0]?.saldo_inicial ?? 0);
+
+    // 2. Validate it's the last 'cerrada' for this account
+    const { rows: ultimaRows } = await client.query<{ id: number }>(
+      `SELECT id FROM finanzas_conciliaciones
+       WHERE cuenta_id = $1 AND empresa_id = $2 AND COALESCE(estatus, 'cerrada') = 'cerrada'
+       ORDER BY fecha_corte DESC, id DESC
+       LIMIT 1`,
+      [cuentaId, empresaId]
+    );
+    if (ultimaRows.length === 0 || Number(ultimaRows[0].id) !== conciliacionId) {
+      throw Object.assign(
+        new Error('Solo se puede deshacer la conciliación cerrada más reciente de la cuenta.'),
+        { status: 422 }
+      );
+    }
+
+    // 3. Get linked operations from bridge
+    const { rows: bridgeRows } = await client.query<{ operacion_id: number }>(
+      `SELECT operacion_id FROM finanzas_conciliaciones_operaciones WHERE conciliacion_id = $1`,
+      [conciliacionId]
+    );
+    const operacionIds = bridgeRows.map((r) => Number(r.operacion_id));
+
+    // 4. Validate linked ops belong to same cuenta/empresa and are all 'conciliado'
+    if (operacionIds.length > 0) {
+      const { rows: invalidRows } = await client.query<{ id: number }>(
+        `SELECT id FROM finanzas_operaciones
+         WHERE id = ANY($1::int[]) AND empresa_id = $2
+           AND (cuenta_id != $3 OR estado_conciliacion != 'conciliado')`,
+        [operacionIds, empresaId, cuentaId]
+      );
+      if (invalidRows.length > 0) {
+        throw Object.assign(
+          new Error(
+            `${invalidRows.length} movimiento(s) ligados no están en estado conciliado o no pertenecen a la cuenta. No se puede deshacer.`
+          ),
+          { status: 422 }
+        );
+      }
+
+      // 5. Return operations to 'cotejado' (found in bank, just undoing the close)
+      await client.query(
+        `UPDATE finanzas_operaciones SET estado_conciliacion = 'cotejado'
+         WHERE id = ANY($1::int[]) AND empresa_id = $2 AND estado_conciliacion = 'conciliado'`,
+        [operacionIds, empresaId]
+      );
+    }
+
+    // 6. Mark conciliation as 'anulada'
+    await client.query(
+      `UPDATE finanzas_conciliaciones
+       SET estatus = 'anulada', anulada_en = NOW(), anulada_por = $1, motivo_anulacion = $2
+       WHERE id = $3 AND empresa_id = $4`,
+      [userId, motivo.trim(), conciliacionId, empresaId]
+    );
+
+    // 7. Find the new last 'cerrada' conciliation — its saldo_conciliado_calculado is the authoritative restored balance.
+    //    Using fecha_corte::text avoids the pg Date-object coercion bug.
+    const { rows: nuevaUltimaRows } = await client.query<{
+      fecha_corte: string;
+      saldo_conciliado_calculado: string | null;
+    }>(
+      `SELECT fecha_corte::text AS fecha_corte, saldo_conciliado_calculado
+       FROM finanzas_conciliaciones
+       WHERE cuenta_id = $1 AND empresa_id = $2 AND COALESCE(estatus, 'cerrada') = 'cerrada'
+       ORDER BY fecha_corte DESC, id DESC
+       LIMIT 1`,
+      [cuentaId, empresaId]
+    );
+    const nuevaFechaUltima: string | null = nuevaUltimaRows[0]?.fecha_corte ?? null;
+    // Use the previous cerrada's saldo_conciliado_calculado, or saldo_inicial if no prior cerrada exists
+    const saldoConciliadoRestaurado = nuevaUltimaRows.length > 0 && nuevaUltimaRows[0].saldo_conciliado_calculado != null
+      ? Number(nuevaUltimaRows[0].saldo_conciliado_calculado)
+      : saldoInicial;
+
+    // 8. Restore saldo_conciliado and fecha_ultima_conciliacion
+    await client.query(
+      `UPDATE finanzas_cuentas
+       SET saldo_conciliado = $1, fecha_ultima_conciliacion = $2::date
+       WHERE id = $3 AND empresa_id = $4`,
+      [saldoConciliadoRestaurado, nuevaFechaUltima, cuentaId, empresaId]
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      conciliacion_id: conciliacionId,
+      estatus: 'anulada',
+      saldo_conciliado_restaurado: saldoConciliadoRestaurado,
+      fecha_ultima_conciliacion: nuevaFechaUltima,
+      movimientos_regresados_a_cotejado: operacionIds.length,
     };
   } catch (err) {
     await client.query('ROLLBACK');

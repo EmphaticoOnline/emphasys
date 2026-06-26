@@ -12,6 +12,13 @@ import {
 import { crearConciliacion } from '../../services/finanzasService';
 import type { ConciliacionPayload } from '../../types/finanzas';
 
+const toCivilDate = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 interface ConciliacionDialogProps {
   open: boolean;
   cuentaId: number | null;
@@ -27,7 +34,7 @@ export function ConciliacionDialog({ open, cuentaId, onClose, onSaved }: Concili
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setFechaCorte(new Date().toISOString().slice(0, 10));
+    setFechaCorte(toCivilDate());
     setSaldoBanco('');
     setObservaciones('');
     setError(null);

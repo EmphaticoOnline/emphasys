@@ -20,6 +20,9 @@ import type {
   ConciliacionMovimientosResult,
   CierrePayload,
   CierreResult,
+  HistorialConciliacion,
+  DeshacerConciliacionPayload,
+  DeshacerConciliacionResult,
 } from '../types/finanzas';
 
 const BASE = '/api/finanzas';
@@ -286,6 +289,22 @@ export async function cotejarMovimientosSvc(
 
 export async function cerrarConciliacion(payload: CierrePayload): Promise<CierreResult> {
   return apiFetch(`${BASE}/conciliacion-bancaria/cerrar`, {
+    method: 'POST',
+    body: payload as any,
+  });
+}
+
+export async function fetchHistorialConciliaciones(
+  cuentaId: number
+): Promise<HistorialConciliacion[]> {
+  return apiFetch(`${BASE}/conciliacion-bancaria/historial?cuenta_id=${cuentaId}`);
+}
+
+export async function deshacerConciliacionSvc(
+  id: number,
+  payload: DeshacerConciliacionPayload
+): Promise<DeshacerConciliacionResult> {
+  return apiFetch(`${BASE}/conciliacion-bancaria/${id}/deshacer`, {
     method: 'POST',
     body: payload as any,
   });

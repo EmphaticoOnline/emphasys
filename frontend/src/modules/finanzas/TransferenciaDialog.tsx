@@ -17,6 +17,13 @@ import {
 import type { FinanzasCuenta, TransferenciaPayload, TransferenciaUpdatePayload } from '../../types/finanzas';
 import { crearTransferencia, actualizarTransferencia } from '../../services/finanzasService';
 
+const toCivilDate = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 interface TransferenciaDialogProps {
   open: boolean;
   cuentas: FinanzasCuenta[];
@@ -57,7 +64,7 @@ export function TransferenciaDialog({ open, cuentas, defaultOrigenId, transferen
     if (open) {
       setCuentaOrigen(defaultOrigenId || '');
       setCuentaDestino('');
-      setFecha(new Date().toISOString().slice(0, 10));
+      setFecha(toCivilDate());
   setMonto('');
       setReferencia('');
       setObservaciones('');

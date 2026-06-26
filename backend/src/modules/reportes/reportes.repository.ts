@@ -1637,7 +1637,7 @@ export async function obtenerVencimientosProveedores(params: {
          COALESCE(d.numero_externo, 0)::int                            AS numero_externo,
          COALESCE(d.total, 0)::numeric                                  AS total,
          (COALESCE(d.total, 0)::numeric - COALESCE(
-           (SELECT SUM(a.monto)
+           (SELECT SUM(a.monto_moneda_documento)
             FROM aplicaciones_saldo a
             WHERE a.documento_destino_id = d.id
               AND a.empresa_id = d.empresa_id
@@ -1728,7 +1728,7 @@ export async function obtenerVencimientosClientes(params: {
          COALESCE(d.numero, 0)::int                                    AS numero,
          COALESCE(d.total, 0)::numeric                                  AS total,
          (COALESCE(d.total, 0)::numeric - COALESCE(
-           (SELECT SUM(a.monto)
+           (SELECT SUM(a.monto_moneda_documento)
             FROM aplicaciones_saldo a
             WHERE a.documento_destino_id = d.id
               AND a.empresa_id = d.empresa_id

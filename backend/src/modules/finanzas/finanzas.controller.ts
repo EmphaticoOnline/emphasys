@@ -37,6 +37,8 @@ import {
   obtenerMovimientosConciliacion,
   cotejarMovimientos,
   ejecutarCierreConciliacion,
+  listarHistorialConciliaciones,
+  deshacerConciliacion,
 } from './finanzas.repository';
 
 export async function getReporteAging(req: Request, res: Response) {
@@ -529,11 +531,10 @@ export async function postCerrarConciliacion(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId as number;
     if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
-    const { cuenta_id, fecha_corte, saldo_banco, operacion_ids, observaciones } = req.body as {
+    const { cuenta_id, fecha_corte, saldo_banco, observaciones } = req.body as {
       cuenta_id: number;
       fecha_corte: string;
       saldo_banco: number;
-      operacion_ids?: number[];
       observaciones?: string | null;
     };
     if (!cuenta_id || !fecha_corte || saldo_banco === undefined || saldo_banco === null)
@@ -543,7 +544,6 @@ export async function postCerrarConciliacion(req: Request, res: Response) {
         cuentaId: Number(cuenta_id),
         fechaCorte: fecha_corte,
         saldoBanco: Number(saldo_banco),
-        operacionIds: Array.isArray(operacion_ids) ? operacion_ids : [],
         observaciones: observaciones ?? null,
       },
       empresaId,
@@ -552,5 +552,41 @@ export async function postCerrarConciliacion(req: Request, res: Response) {
     return res.status(201).json(result);
   } catch (err: any) {
     return res.status(err?.status ?? 400).json({ message: err.message || 'Error al cerrar la conciliación' });
+  }
+}
+
+export async function getHistorialConciliaciones(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+    const cuentaId = Number(req.query.cuenta_id);
+    if (!Number.isFinite(cuentaId) || cuentaId <= 0)
+      return res.status(400).json({ message: 'cuenta_id requerido y debe ser válido' });
+    const result = await listarHistorialConciliaciones(cuentaId, empresaId);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(err?.status ?? 400).json({ message: err.message || 'Error al obtener historial de conciliaciones' });
+  }
+}
+
+export async function postDeshacerConciliacion(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+    const conciliacionId = Number(req.params.id);
+    if (!Number.isFinite(conciliacionId) || conciliacionId <= 0)
+      return res.status(400).json({ message: 'ID de conciliación inválido' });
+    const { motivo } = req.body as { motivo?: string };
+    if (!motivo || motivo.trim().length < 5)
+      return res.status(400).json({ message: 'El motivo de anulación es requerido y debe tener al menos 5 caracteres.' });
+    const result = await deshacerConciliacion(
+      conciliacionId,
+      empresaId,
+      req.auth?.userId ?? null,
+      motivo
+    );
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(err?.status ?? 400).json({ message: err.message || 'Error al deshacer la conciliación' });
   }
 }

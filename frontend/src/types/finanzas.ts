@@ -297,12 +297,20 @@ export interface MovimientoConciliacion {
   contacto_nombre: string | null;
   concepto_nombre: string | null;
   metodo_pago_nombre: string | null;
-  documento_folio: string | null;
+  documento_tipo_documento: string | null;
+  documento_serie: string | null;
+  documento_numero: number | null;
+  documento_serie_externa: string | null;
+  documento_numero_externo: number | null;
 }
 
 export interface ConciliacionMovimientosResult {
   movimientos: MovimientoConciliacion[];
   saldo_sistema: number;
+  saldo_conciliado_anterior: number;
+  total_depositos_cotejados: number;
+  total_retiros_cotejados: number;
+  saldo_conciliado_calculado: number;
   moneda: string;
 }
 
@@ -310,7 +318,6 @@ export interface CierrePayload {
   cuenta_id: number;
   fecha_corte: string;
   saldo_banco: number;
-  operacion_ids: number[];
   observaciones?: string | null;
 }
 
@@ -318,6 +325,42 @@ export interface CierreResult {
   conciliacion_id: number;
   saldo_banco: number;
   saldo_sistema: number;
+  saldo_conciliado_anterior: number;
+  total_depositos_cotejados: number;
+  total_retiros_cotejados: number;
+  saldo_conciliado_calculado: number;
   diferencia: number;
   operaciones_conciliadas: number;
+}
+
+export interface HistorialConciliacion {
+  id: number;
+  cuenta_id: number;
+  fecha_corte: string;
+  saldo_banco: number;
+  saldo_sistema: number | null;
+  saldo_conciliado_anterior: number | null;
+  total_depositos_cotejados: number | null;
+  total_retiros_cotejados: number | null;
+  saldo_conciliado_calculado: number | null;
+  diferencia: number | null;
+  estatus: 'cerrada' | 'anulada';
+  fecha_conciliacion: string;
+  anulada_en: string | null;
+  anulada_por: number | null;
+  motivo_anulacion: string | null;
+  cantidad_movimientos: number;
+  es_ultima_reversible: boolean;
+}
+
+export interface DeshacerConciliacionPayload {
+  motivo: string;
+}
+
+export interface DeshacerConciliacionResult {
+  conciliacion_id: number;
+  estatus: 'anulada';
+  saldo_conciliado_restaurado: number;
+  fecha_ultima_conciliacion: string | null;
+  movimientos_regresados_a_cotejado: number;
 }

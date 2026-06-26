@@ -40,6 +40,13 @@ import {
 } from '../../services/finanzasService';
 import { apiFetch } from '../../api/apiClient';
 
+const toCivilDate = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 interface ProgramacionPagoDialogProps {
   open: boolean;
   // Cuando se abre desde VencimientosProveedores, la factura ya viene prefijada
@@ -103,7 +110,7 @@ export default function ProgramacionPagoDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = toCivilDate();
   const proveedorEfectivo = proveedorBloqueado ?? proveedor;
   const metodoSeleccionado = metodosPago.find((m) => m.id === Number(metodoPagoId)) ?? null;
   const referenciaObligatoria = metodoSeleccionado?.requiere_referencia === true;
@@ -201,15 +208,8 @@ export default function ProgramacionPagoDialog({
         setSeleccion((prev) => {
           const nuevo: SeleccionMap = new Map();
           for (const det of programacion.detalles ?? []) {
-            // Mantener si sigue en la lista (disponible) o si ya estaba pagada antes (saldo 0 ok)
-            const enLista = data.find((f) => f.id === det.documento_id);
             const montoStr = formatMonto(det.monto_programado);
-            if (enLista) {
-              nuevo.set(det.documento_id, prev.get(det.documento_id) ?? montoStr);
-            } else {
-              // La factura no aparece en pendientes (ya pagada parcialmente, etc.) pero la mantenemos en selección
-              nuevo.set(det.documento_id, prev.get(det.documento_id) ?? montoStr);
-            }
+            nuevo.set(det.documento_id, prev.get(det.documento_id) ?? montoStr);
           }
           return nuevo;
         });

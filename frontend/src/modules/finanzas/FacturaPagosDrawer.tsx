@@ -57,6 +57,13 @@ const formatDateShort = (value?: string | null) => {
   return `${day}/${month}/${year}`;
 };
 
+const toCivilDate = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 type DocumentoDrawerMeta = {
   folio: string;
   fechaDocumento: string;
@@ -272,7 +279,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
         documento_destino_id: documentoDestinoId,
         monto,
         monto_moneda_documento: monto,
-        fecha_aplicacion: new Date().toISOString().slice(0, 10),
+        fecha_aplicacion: toCivilDate(),
       });
       setSnackbar({ open: true, message: successMessage, severity: 'success' });
       setMontosDocumento((prev) => ({ ...prev, [doc.id]: '' }));
@@ -301,7 +308,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
           documento_destino_id: doc.id,
           monto: aplicar,
           monto_moneda_documento: aplicar,
-          fecha_aplicacion: new Date().toISOString().slice(0, 10),
+          fecha_aplicacion: toCivilDate(),
         });
         disponible -= aplicar;
       }
@@ -699,7 +706,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                 initialValues={{
                   empresa_id: documentoMeta?.empresaId ?? undefined,
                   contacto_principal_id: contactoId,
-                  fecha_documento: new Date().toISOString().slice(0, 10),
+                  fecha_documento: toCivilDate(),
                   moneda: documentoMeta?.moneda || saldoDocumento?.moneda || 'MXN',
                 }}
                 lockedFields={{ contacto_principal_id: true }}
@@ -730,7 +737,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                 initialValues={{
                   empresa_id: documentoMeta?.empresaId ?? undefined,
                   contacto_principal_id: contactoId,
-                  fecha_documento: new Date().toISOString().slice(0, 10),
+                  fecha_documento: toCivilDate(),
                   moneda: documentoMeta?.moneda || saldoDocumento?.moneda || 'MXN',
                 }}
                 lockedFields={{ contacto_principal_id: true }}

@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-06-24T04:50:08.035Z
+-- Generated at: 2026-06-26T02:44:42.575Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict pmGeJeKMdNHv4LkeOqjHygO8cnppF20fHfGRKO7LFqbdUUbTxVO3zIREK0NI2AM
+\restrict 0bIZzGRrWQiaVG6AkDiscTXvmf7Qo6c9bCRmWUbYymNnqWUfVgI8iCfPkMq2v4V
 
 -- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -4326,6 +4326,7 @@ CREATE TABLE public.aplicaciones_saldo (
     num_parcialidad integer,
     imp_saldo_ant numeric(20,6),
     imp_saldo_insoluto numeric(20,6),
+    created_by integer,
     CONSTRAINT chk_aplicacion_origen CHECK ((((finanzas_operacion_id IS NOT NULL) AND (documento_origen_id IS NULL)) OR ((finanzas_operacion_id IS NULL) AND (documento_origen_id IS NOT NULL))))
 );
 
@@ -4426,6 +4427,13 @@ aplicaciones previas al momento del INSERT.';
 COMMENT ON COLUMN public.aplicaciones_saldo.imp_saldo_insoluto IS 'Saldo de la factura (documento_destino) después de esta aplicación, en la moneda
 del documento destino. Equivale al campo ImpSaldoInsoluto del complemento SAT
 Pagos 2.0. Calculado como: imp_saldo_ant - monto_moneda_documento.';
+
+
+--
+-- Name: COLUMN aplicaciones_saldo.created_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.aplicaciones_saldo.created_by IS 'ID del usuario que registró la aplicación de saldo (ref. tabla usuarios). NULL en registros anteriores a Fase 1.';
 
 
 --
@@ -6066,8 +6074,40 @@ CREATE TABLE public.finanzas_conciliaciones (
     saldo_banco numeric(15,2) NOT NULL,
     observaciones text,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    usuario_id integer
+    usuario_id integer,
+    saldo_conciliado_anterior numeric(15,2),
+    total_depositos_cotejados numeric(15,2),
+    total_retiros_cotejados numeric(15,2),
+    saldo_conciliado_calculado numeric(15,2)
 );
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.saldo_conciliado_anterior; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_conciliado_anterior IS 'Valor de finanzas_cuentas.saldo_conciliado antes de ejecutar este cierre (base del cuadre).';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.total_depositos_cotejados; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.total_depositos_cotejados IS 'Suma de depósitos con estado cotejado incluidos en este cierre.';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.total_retiros_cotejados; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.total_retiros_cotejados IS 'Suma de retiros con estado cotejado incluidos en este cierre.';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.saldo_conciliado_calculado; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_conciliado_calculado IS 'saldo_conciliado_anterior + total_depositos_cotejados - total_retiros_cotejados. Base correcta de cuadre con saldo_banco.';
 
 
 --
@@ -6166,6 +6206,64 @@ ALTER SEQUENCE public.finanzas_cuentas_id_seq OWNED BY public.finanzas_cuentas.i
 
 
 --
+-- Name: finanzas_metodos_pago; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finanzas_metodos_pago (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    clave character varying(40) NOT NULL,
+    nombre character varying(100) NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    requiere_referencia boolean DEFAULT false NOT NULL,
+    es_efectivo boolean DEFAULT false NOT NULL,
+    forma_pago_sat text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE finanzas_metodos_pago; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finanzas_metodos_pago IS 'Catálogo operativo de métodos de pago por empresa (efectivo, SPEI, cheque, tarjeta…). No confundir con sat.formas_pago (CFDI).';
+
+
+--
+-- Name: COLUMN finanzas_metodos_pago.requiere_referencia; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_metodos_pago.requiere_referencia IS 'Si true, la operación debe informar el campo referencia (número de cheque, SPEI, etc.).';
+
+
+--
+-- Name: COLUMN finanzas_metodos_pago.forma_pago_sat; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_metodos_pago.forma_pago_sat IS 'Código SAT sugerido (informativo). No se usa para timbrar ni modifica documentos.forma_pago.';
+
+
+--
+-- Name: finanzas_metodos_pago_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finanzas_metodos_pago_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finanzas_metodos_pago_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finanzas_metodos_pago_id_seq OWNED BY public.finanzas_metodos_pago.id;
+
+
+--
 -- Name: finanzas_operaciones; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6188,9 +6286,18 @@ CREATE TABLE public.finanzas_operaciones (
     concepto_id integer,
     naturaleza_operacion character varying(30) DEFAULT 'movimiento_general'::character varying NOT NULL,
     documento_origen_id integer,
+    created_by integer,
+    metodo_pago_id integer,
     CONSTRAINT chk_fo_conciliacion CHECK (((estado_conciliacion)::text = ANY (ARRAY[('pendiente'::character varying)::text, ('cotejado'::character varying)::text, ('conciliado'::character varying)::text]))),
     CONSTRAINT chk_fo_tipo CHECK (((tipo_movimiento)::text = ANY (ARRAY[('Deposito'::character varying)::text, ('Retiro'::character varying)::text])))
 );
+
+
+--
+-- Name: COLUMN finanzas_operaciones.created_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_operaciones.created_by IS 'ID del usuario que creó la operación (ref. tabla usuarios). NULL en registros anteriores a Fase 1.';
 
 
 --
@@ -6211,6 +6318,154 @@ CREATE SEQUENCE public.finanzas_operaciones_id_seq
 --
 
 ALTER SEQUENCE public.finanzas_operaciones_id_seq OWNED BY public.finanzas_operaciones.id;
+
+
+--
+-- Name: finanzas_programacion_pagos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finanzas_programacion_pagos (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    documento_id integer,
+    proveedor_id integer,
+    fecha_programada date NOT NULL,
+    monto_programado numeric(20,6) NOT NULL,
+    moneda character varying(3) DEFAULT 'MXN'::character varying NOT NULL,
+    cuenta_origen_id integer,
+    metodo_pago_id integer,
+    referencia character varying(100),
+    estatus character varying(20) DEFAULT 'programado'::character varying NOT NULL,
+    notas text,
+    created_by integer,
+    updated_by integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    documento_pago_id integer,
+    finanzas_operacion_id integer,
+    CONSTRAINT chk_programacion_estatus CHECK (((estatus)::text = ANY ((ARRAY['programado'::character varying, 'pagado'::character varying, 'cancelado'::character varying])::text[]))),
+    CONSTRAINT chk_programacion_monto CHECK ((monto_programado > (0)::numeric))
+);
+
+
+--
+-- Name: TABLE finanzas_programacion_pagos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finanzas_programacion_pagos IS 'Programación (plan) de pagos a proveedores sobre facturas de compra. No genera movimientos financieros; el pago real se registra con finanzas_operaciones.';
+
+
+--
+-- Name: COLUMN finanzas_programacion_pagos.documento_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_programacion_pagos.documento_id IS 'LEGACY: apuntaba a la única factura en el modelo v1. NULL para programaciones creadas con el modelo v2 (multi-factura). La información canónica de facturas está en finanzas_programacion_pagos_detalle.';
+
+
+--
+-- Name: COLUMN finanzas_programacion_pagos.proveedor_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_programacion_pagos.proveedor_id IS 'Desnormalizado de documentos.contacto_principal_id para eficiencia de listado.';
+
+
+--
+-- Name: COLUMN finanzas_programacion_pagos.estatus; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_programacion_pagos.estatus IS 'programado: pendiente de pagar. pagado: se ejecutó el pago real (Fase 3.2B). cancelado: anulado sin pagar.';
+
+
+--
+-- Name: COLUMN finanzas_programacion_pagos.documento_pago_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_programacion_pagos.documento_pago_id IS 'Documento pago_proveedor creado al ejecutar el pago real (Fase 3.2B). NULL hasta que se pague.';
+
+
+--
+-- Name: COLUMN finanzas_programacion_pagos.finanzas_operacion_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_programacion_pagos.finanzas_operacion_id IS 'Operación bancaria (finanzas_operaciones) creada al ejecutar el pago. NULL hasta que se pague.';
+
+
+--
+-- Name: finanzas_programacion_pagos_detalle; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finanzas_programacion_pagos_detalle (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    programacion_id integer NOT NULL,
+    documento_id integer NOT NULL,
+    monto_programado numeric(20,6) NOT NULL,
+    moneda character varying(3) DEFAULT 'MXN'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_det_monto CHECK ((monto_programado > (0)::numeric))
+);
+
+
+--
+-- Name: TABLE finanzas_programacion_pagos_detalle; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finanzas_programacion_pagos_detalle IS 'Detalle de programación de pago: una fila por factura de compra cubierta. Permite pagar varias facturas del mismo proveedor en un solo movimiento bancario.';
+
+
+--
+-- Name: COLUMN finanzas_programacion_pagos_detalle.programacion_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_programacion_pagos_detalle.programacion_id IS 'FK al encabezado. ON DELETE CASCADE: al cancelar/borrar la programación se eliminan sus detalles.';
+
+
+--
+-- Name: COLUMN finanzas_programacion_pagos_detalle.documento_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_programacion_pagos_detalle.documento_id IS 'FK a la factura de compra que se pagará parcial o totalmente.';
+
+
+--
+-- Name: finanzas_programacion_pagos_detalle_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finanzas_programacion_pagos_detalle_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finanzas_programacion_pagos_detalle_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finanzas_programacion_pagos_detalle_id_seq OWNED BY public.finanzas_programacion_pagos_detalle.id;
+
+
+--
+-- Name: finanzas_programacion_pagos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finanzas_programacion_pagos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finanzas_programacion_pagos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finanzas_programacion_pagos_id_seq OWNED BY public.finanzas_programacion_pagos.id;
 
 
 --
@@ -8311,10 +8566,31 @@ ALTER TABLE ONLY public.finanzas_cuentas ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
+-- Name: finanzas_metodos_pago id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_metodos_pago ALTER COLUMN id SET DEFAULT nextval('public.finanzas_metodos_pago_id_seq'::regclass);
+
+
+--
 -- Name: finanzas_operaciones id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.finanzas_operaciones ALTER COLUMN id SET DEFAULT nextval('public.finanzas_operaciones_id_seq'::regclass);
+
+
+--
+-- Name: finanzas_programacion_pagos id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos ALTER COLUMN id SET DEFAULT nextval('public.finanzas_programacion_pagos_id_seq'::regclass);
+
+
+--
+-- Name: finanzas_programacion_pagos_detalle id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle ALTER COLUMN id SET DEFAULT nextval('public.finanzas_programacion_pagos_detalle_id_seq'::regclass);
 
 
 --
@@ -9094,11 +9370,35 @@ ALTER TABLE ONLY public.finanzas_cuentas
 
 
 --
+-- Name: finanzas_metodos_pago finanzas_metodos_pago_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_metodos_pago
+    ADD CONSTRAINT finanzas_metodos_pago_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finanzas_operaciones finanzas_operaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.finanzas_operaciones
     ADD CONSTRAINT finanzas_operaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finanzas_programacion_pagos_detalle finanzas_programacion_pagos_detalle_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle
+    ADD CONSTRAINT finanzas_programacion_pagos_detalle_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finanzas_programacion_pagos finanzas_programacion_pagos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos
+    ADD CONSTRAINT finanzas_programacion_pagos_pkey PRIMARY KEY (id);
 
 
 --
@@ -9214,11 +9514,27 @@ ALTER TABLE ONLY public.crm_ruteo_leads
 
 
 --
+-- Name: finanzas_programacion_pagos_detalle uq_det_prog_doc; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle
+    ADD CONSTRAINT uq_det_prog_doc UNIQUE (programacion_id, documento_id);
+
+
+--
 -- Name: documentos_partidas_vinculos uq_doc_partidas_vinculos; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.documentos_partidas_vinculos
     ADD CONSTRAINT uq_doc_partidas_vinculos UNIQUE (partida_origen_id, partida_destino_id);
+
+
+--
+-- Name: finanzas_metodos_pago uq_finanzas_metodos_pago_empresa_clave; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_metodos_pago
+    ADD CONSTRAINT uq_finanzas_metodos_pago_empresa_clave UNIQUE (empresa_id, clave);
 
 
 --
@@ -10897,6 +11213,13 @@ COMMENT ON INDEX public.idx_fa_operacion IS 'Permite localizar rápidamente las 
 
 
 --
+-- Name: idx_finanzas_metodos_pago_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_metodos_pago_empresa ON public.finanzas_metodos_pago USING btree (empresa_id);
+
+
+--
 -- Name: idx_finanzas_operaciones_documento_origen; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10908,6 +11231,13 @@ CREATE INDEX idx_finanzas_operaciones_documento_origen ON public.finanzas_operac
 --
 
 CREATE INDEX idx_finanzas_operaciones_empresa_naturaleza ON public.finanzas_operaciones USING btree (empresa_id, naturaleza_operacion);
+
+
+--
+-- Name: idx_finanzas_operaciones_metodo_pago; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_operaciones_metodo_pago ON public.finanzas_operaciones USING btree (metodo_pago_id) WHERE (metodo_pago_id IS NOT NULL);
 
 
 --
@@ -10999,6 +11329,62 @@ CREATE INDEX idx_productos_descripcion_trgm ON public.productos USING gin (descr
 --
 
 CREATE INDEX idx_productos_impuestos_producto ON public.productos_impuestos USING btree (producto_id);
+
+
+--
+-- Name: idx_prog_pagos_det_documento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prog_pagos_det_documento ON public.finanzas_programacion_pagos_detalle USING btree (documento_id);
+
+
+--
+-- Name: idx_prog_pagos_det_empresa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prog_pagos_det_empresa ON public.finanzas_programacion_pagos_detalle USING btree (empresa_id);
+
+
+--
+-- Name: idx_prog_pagos_det_programacion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prog_pagos_det_programacion ON public.finanzas_programacion_pagos_detalle USING btree (programacion_id);
+
+
+--
+-- Name: idx_prog_pagos_doc_pago; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prog_pagos_doc_pago ON public.finanzas_programacion_pagos USING btree (documento_pago_id) WHERE (documento_pago_id IS NOT NULL);
+
+
+--
+-- Name: idx_prog_pagos_documento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prog_pagos_documento ON public.finanzas_programacion_pagos USING btree (documento_id);
+
+
+--
+-- Name: idx_prog_pagos_empresa_fecha; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prog_pagos_empresa_fecha ON public.finanzas_programacion_pagos USING btree (empresa_id, fecha_programada);
+
+
+--
+-- Name: idx_prog_pagos_estatus; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prog_pagos_estatus ON public.finanzas_programacion_pagos USING btree (empresa_id, estatus);
+
+
+--
+-- Name: idx_prog_pagos_proveedor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_prog_pagos_proveedor ON public.finanzas_programacion_pagos USING btree (empresa_id, proveedor_id) WHERE (proveedor_id IS NOT NULL);
 
 
 --
@@ -12001,6 +12387,70 @@ ALTER TABLE ONLY public.documentos
 
 
 --
+-- Name: finanzas_operaciones finanzas_operaciones_metodo_pago_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_operaciones
+    ADD CONSTRAINT finanzas_operaciones_metodo_pago_id_fkey FOREIGN KEY (metodo_pago_id) REFERENCES public.finanzas_metodos_pago(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finanzas_programacion_pagos finanzas_programacion_pagos_cuenta_origen_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos
+    ADD CONSTRAINT finanzas_programacion_pagos_cuenta_origen_id_fkey FOREIGN KEY (cuenta_origen_id) REFERENCES public.finanzas_cuentas(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finanzas_programacion_pagos_detalle finanzas_programacion_pagos_detalle_documento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle
+    ADD CONSTRAINT finanzas_programacion_pagos_detalle_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finanzas_programacion_pagos_detalle finanzas_programacion_pagos_detalle_programacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle
+    ADD CONSTRAINT finanzas_programacion_pagos_detalle_programacion_id_fkey FOREIGN KEY (programacion_id) REFERENCES public.finanzas_programacion_pagos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finanzas_programacion_pagos finanzas_programacion_pagos_documento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos
+    ADD CONSTRAINT finanzas_programacion_pagos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finanzas_programacion_pagos finanzas_programacion_pagos_documento_pago_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos
+    ADD CONSTRAINT finanzas_programacion_pagos_documento_pago_id_fkey FOREIGN KEY (documento_pago_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finanzas_programacion_pagos finanzas_programacion_pagos_finanzas_operacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos
+    ADD CONSTRAINT finanzas_programacion_pagos_finanzas_operacion_id_fkey FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finanzas_programacion_pagos finanzas_programacion_pagos_metodo_pago_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_programacion_pagos
+    ADD CONSTRAINT finanzas_programacion_pagos_metodo_pago_id_fkey FOREIGN KEY (metodo_pago_id) REFERENCES public.finanzas_metodos_pago(id) ON DELETE SET NULL;
+
+
+--
 -- Name: aplicaciones_saldo fk_aplicaciones_doc_destino; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12620,5 +13070,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict pmGeJeKMdNHv4LkeOqjHygO8cnppF20fHfGRKO7LFqbdUUbTxVO3zIREK0NI2AM
+\unrestrict 0bIZzGRrWQiaVG6AkDiscTXvmf7Qo6c9bCRmWUbYymNnqWUfVgI8iCfPkMq2v4V
 

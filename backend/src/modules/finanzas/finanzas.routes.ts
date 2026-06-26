@@ -38,6 +38,8 @@ import {
   getConciliacionMovimientos,
   postCotejarMovimientos,
   postCerrarConciliacion,
+  getHistorialConciliaciones,
+  postDeshacerConciliacion,
 } from './finanzas.controller';
 
 const router = Router();
@@ -94,5 +96,7 @@ router.post('/programacion-pagos/:id/pagar',           postPagarProgramacion);
 router.get('/conciliacion-bancaria/movimientos', getConciliacionMovimientos);
 router.post('/conciliacion-bancaria/cotejar',    postCotejarMovimientos);
 router.post('/conciliacion-bancaria/cerrar',     postCerrarConciliacion);
+router.get('/conciliacion-bancaria/historial',   getHistorialConciliaciones);
+router.post('/conciliacion-bancaria/:id/deshacer', postDeshacerConciliacion);
 
 export default router;
