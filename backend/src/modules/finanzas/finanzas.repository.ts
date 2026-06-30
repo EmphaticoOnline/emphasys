@@ -1899,7 +1899,16 @@ export type FacturaCompraPendiente = {
 
 export async function listarFacturasCompraPendientes(
   empresaId: number,
-  opts?: { proveedorId?: number | null; search?: string | null; excludeProgramacionId?: number | null }
+  opts?: {
+    proveedorId?: number | null;
+    search?: string | null;
+    excludeProgramacionId?: number | null;
+    moneda?: string | null;
+    fechaDesde?: string | null;
+    fechaHasta?: string | null;
+    vencimiento?: 'vencidas' | 'por_vencer' | null;
+    limit?: number | null;
+  }
 ): Promise<FacturaCompraPendiente[]> {
   // $1 = empresaId, $2 = excludeProgramacionId (puede ser null)
   const excludeProgId = opts?.excludeProgramacionId ?? null;
@@ -1914,6 +1923,25 @@ export async function listarFacturasCompraPendientes(
     args.push(`%${opts.search}%`);
     filtros.push(`AND (c.nombre ILIKE $${args.length} OR CAST(d.numero AS text) ILIKE $${args.length} OR d.serie_externa ILIKE $${args.length})`);
   }
+  if (opts?.moneda) {
+    args.push(opts.moneda.toUpperCase());
+    filtros.push(`AND UPPER(d.moneda) = $${args.length}`);
+  }
+  if (opts?.fechaDesde) {
+    args.push(opts.fechaDesde);
+    filtros.push(`AND d.fecha_documento::date >= $${args.length}::date`);
+  }
+  if (opts?.fechaHasta) {
+    args.push(opts.fechaHasta);
+    filtros.push(`AND d.fecha_documento::date <= $${args.length}::date`);
+  }
+  if (opts?.vencimiento === 'vencidas') {
+    filtros.push(`AND d.fecha_vencimiento::date < (CURRENT_TIMESTAMP AT TIME ZONE 'America/Mexico_City')::date`);
+  } else if (opts?.vencimiento === 'por_vencer') {
+    filtros.push(`AND (d.fecha_vencimiento IS NULL OR d.fecha_vencimiento::date >= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Mexico_City')::date)`);
+  }
+
+  const limit = Math.min(Math.max(Number(opts?.limit ?? 50) || 50, 1), 500);
 
   const { rows } = await pool.query(
     `SELECT
@@ -1948,7 +1976,7 @@ export async function listarFacturasCompraPendientes(
        AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada', 'borrador')
        ${filtros.join(' ')}
      ORDER BY d.fecha_documento DESC, d.id DESC
-     LIMIT 50`,
+     LIMIT ${limit}`,
     args
   );
 
@@ -2347,6 +2375,185 @@ export async function crearProgramacionPago(
     const record = list[0];
     if (!record) throw new Error('No se pudo recuperar la programación creada');
     return record;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export type ProgramacionMasivaInput = {
+  fecha_programada: string;
+  cuenta_origen_id?: number | null;
+  metodo_pago_id?: number | null;
+  referencia?: string | null;
+  notas?: string | null;
+  facturas: Array<{ documento_id: number; monto_programado: number }>;
+};
+
+export async function crearProgramacionesMasiva(
+  data: ProgramacionMasivaInput,
+  empresaId: number,
+  userId?: number | null
+): Promise<ProgramacionPago[]> {
+  if (!data.fecha_programada) {
+    throw Object.assign(new Error('fecha_programada es requerida'), { status: 422 });
+  }
+  if (!data.facturas || data.facturas.length === 0) {
+    throw Object.assign(new Error('Debe incluir al menos una factura'), { status: 422 });
+  }
+  const docIds = data.facturas.map((f) => f.documento_id);
+  if (new Set(docIds).size !== docIds.length) {
+    throw Object.assign(new Error('No se puede incluir la misma factura más de una vez'), { status: 422 });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Validar cuenta y método de pago una sola vez
+    if (data.cuenta_origen_id) {
+      const { rows } = await client.query(
+        `SELECT id FROM finanzas_cuentas WHERE id = $1 AND empresa_id = $2 AND NOT COALESCE(cuenta_cerrada, false)`,
+        [data.cuenta_origen_id, empresaId]
+      );
+      if (!rows[0]) throw Object.assign(new Error('La cuenta origen no existe o está cerrada'), { status: 422 });
+    }
+    if (data.metodo_pago_id) {
+      const { rows } = await client.query<{ requiere_referencia: boolean }>(
+        `SELECT requiere_referencia FROM finanzas_metodos_pago WHERE id = $1 AND empresa_id = $2 AND activo = true`,
+        [data.metodo_pago_id, empresaId]
+      );
+      if (!rows[0]) throw Object.assign(new Error('El método de pago no existe o está inactivo'), { status: 422 });
+      if (rows[0].requiere_referencia && !data.referencia?.trim()) {
+        throw Object.assign(new Error('El método de pago seleccionado requiere una referencia'), { status: 422 });
+      }
+    }
+
+    // Leer datos de cada documento y agrupar por proveedor_id + moneda
+    type GrupoKey = string;
+    type GrupoValue = {
+      proveedor_id: number;
+      moneda: string;
+      facturas: Array<{ documento_id: number; monto_programado: number }>;
+    };
+    const grupos = new Map<GrupoKey, GrupoValue>();
+
+    for (const factura of data.facturas) {
+      if (!(factura.monto_programado > 0)) {
+        throw Object.assign(
+          new Error(`El monto para la factura ${factura.documento_id} debe ser mayor a 0`),
+          { status: 422 }
+        );
+      }
+      const { rows: docRows } = await client.query<{
+        tipo_documento: string;
+        estatus_documento: string;
+        moneda: string;
+        contacto_principal_id: number | null;
+      }>(
+        `SELECT tipo_documento, estatus_documento, moneda, contacto_principal_id
+         FROM documentos WHERE id = $1 AND empresa_id = $2`,
+        [factura.documento_id, empresaId]
+      );
+      const doc = docRows[0];
+      if (!doc) {
+        throw Object.assign(new Error(`Documento ${factura.documento_id} no encontrado`), { status: 404 });
+      }
+      if (doc.tipo_documento !== 'factura_compra') {
+        throw Object.assign(
+          new Error(`El documento ${factura.documento_id} no es una factura de compra`),
+          { status: 422 }
+        );
+      }
+      if (['cancelado', 'cancelada', 'borrador'].includes(String(doc.estatus_documento ?? '').toLowerCase())) {
+        throw Object.assign(
+          new Error(`El documento ${factura.documento_id} está cancelado o en borrador`),
+          { status: 422 }
+        );
+      }
+      if (!doc.contacto_principal_id) {
+        throw Object.assign(
+          new Error(`El documento ${factura.documento_id} no tiene proveedor asignado`),
+          { status: 422 }
+        );
+      }
+      const moneda = String(doc.moneda ?? 'MXN').toUpperCase();
+      const key: GrupoKey = `${doc.contacto_principal_id}_${moneda}`;
+      if (!grupos.has(key)) {
+        grupos.set(key, { proveedor_id: doc.contacto_principal_id, moneda, facturas: [] });
+      }
+      grupos.get(key)!.facturas.push(factura);
+    }
+
+    // Por cada grupo: validar saldo disponible e insertar
+    const createdIds: number[] = [];
+    for (const grupo of grupos.values()) {
+      let total = 0;
+      for (const det of grupo.facturas) {
+        const { rows: saldoRows } = await client.query<{ saldo: string }>(
+          `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
+             (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
+              WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
+           )) AS saldo FROM documentos d WHERE d.id = $1`,
+          [det.documento_id]
+        );
+        const saldoDoc = Number(saldoRows[0]?.saldo ?? 0);
+
+        const { rows: progRows } = await client.query<{ total: string }>(
+          `SELECT COALESCE(SUM(det2.monto_programado), 0) AS total
+           FROM finanzas_programacion_pagos_detalle det2
+           JOIN finanzas_programacion_pagos pp ON pp.id = det2.programacion_id
+           WHERE det2.documento_id = $1 AND det2.empresa_id = $2 AND pp.estatus = 'programado'`,
+          [det.documento_id, empresaId]
+        );
+        const totalProgExistente = Number(progRows[0]?.total ?? 0);
+        const disponible = saldoDoc - totalProgExistente;
+
+        if (det.monto_programado > disponible + 0.000001) {
+          throw Object.assign(
+            new Error(
+              `El monto ${det.monto_programado} para la factura ${det.documento_id} excede el saldo disponible para programar (${disponible.toFixed(2)})`
+            ),
+            { status: 422 }
+          );
+        }
+        total += det.monto_programado;
+      }
+
+      const { rows: insRows } = await client.query<{ id: number }>(
+        `INSERT INTO finanzas_programacion_pagos
+           (empresa_id, documento_id, proveedor_id, fecha_programada, monto_programado, moneda,
+            cuenta_origen_id, metodo_pago_id, referencia, estatus, notas, created_by, updated_by)
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 'programado', $9, $10, $10)
+         RETURNING id`,
+        [
+          empresaId,
+          grupo.proveedor_id,
+          data.fecha_programada,
+          total,
+          grupo.moneda,
+          data.cuenta_origen_id ?? null,
+          data.metodo_pago_id ?? null,
+          data.referencia?.trim() || null,
+          data.notas?.trim() || null,
+          userId ?? null,
+        ]
+      );
+      const id = insRows[0]!.id;
+      await insertarDetalles(client, id, empresaId, grupo.facturas, grupo.moneda);
+      createdIds.push(id);
+    }
+
+    await client.query('COMMIT');
+
+    const result: ProgramacionPago[] = [];
+    for (const id of createdIds) {
+      const list = await listarProgramacionesPago(empresaId, { id });
+      if (list[0]) result.push(list[0]);
+    }
+    return result;
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

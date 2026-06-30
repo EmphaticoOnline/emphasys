@@ -32,6 +32,7 @@ import {
   getFacturasCompraPendientes,
   getProgramacionesPago,
   postProgramacionPago,
+  postProgramacionesMasiva,
   putProgramacionPago,
   postCancelarProgramacion,
   postPagarProgramacion,
@@ -88,6 +89,7 @@ router.put('/metodos-pago/:id', putMetodoPago);
 router.get('/facturas-compra-pendientes',              getFacturasCompraPendientes);
 router.get('/programacion-pagos',                      getProgramacionesPago);
 router.post('/programacion-pagos',                     postProgramacionPago);
+router.post('/programacion-pagos/masiva',              postProgramacionesMasiva);
 router.put('/programacion-pagos/:id',                  putProgramacionPago);
 router.post('/programacion-pagos/:id/cancelar',        postCancelarProgramacion);
 router.post('/programacion-pagos/:id/pagar',           postPagarProgramacion);

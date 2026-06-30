@@ -31,6 +31,7 @@ import {
   listarFacturasCompraPendientes,
   listarProgramacionesPago,
   crearProgramacionPago,
+  crearProgramacionesMasiva,
   actualizarProgramacionPago,
   cancelarProgramacionPago,
   pagarProgramacionPago,
@@ -409,7 +410,23 @@ export async function getFacturasCompraPendientes(req: Request, res: Response) {
     const excludeProgramacionId = req.query.exclude_programacion_id
       ? Number(req.query.exclude_programacion_id)
       : null;
-    const rows = await listarFacturasCompraPendientes(empresaId, { proveedorId, search, excludeProgramacionId });
+    const moneda = req.query.moneda ? String(req.query.moneda) : null;
+    const fechaDesde = req.query.fecha_desde ? String(req.query.fecha_desde) : null;
+    const fechaHasta = req.query.fecha_hasta ? String(req.query.fecha_hasta) : null;
+    const vencimiento = req.query.vencimiento === 'vencidas' || req.query.vencimiento === 'por_vencer'
+      ? (req.query.vencimiento as 'vencidas' | 'por_vencer')
+      : null;
+    const limit = req.query.limit ? Number(req.query.limit) : null;
+    const rows = await listarFacturasCompraPendientes(empresaId, {
+      proveedorId,
+      search,
+      excludeProgramacionId,
+      moneda,
+      fechaDesde,
+      fechaHasta,
+      vencimiento,
+      limit,
+    });
     return res.json(rows);
   } catch (err: any) {
     return res.status(500).json({ message: err.message || 'Error al obtener facturas' });
@@ -445,6 +462,18 @@ export async function postProgramacionPago(req: Request, res: Response) {
   } catch (err: any) {
     const status = (err as any)?.status ?? 400;
     return res.status(status).json({ message: err.message || 'No se pudo crear la programación' });
+  }
+}
+
+export async function postProgramacionesMasiva(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+    const result = await crearProgramacionesMasiva(req.body, empresaId, req.auth?.userId ?? null);
+    return res.status(201).json(result);
+  } catch (err: any) {
+    const status = (err as any)?.status ?? 400;
+    return res.status(status).json({ message: err.message || 'No se pudieron crear las programaciones' });
   }
 }
 
