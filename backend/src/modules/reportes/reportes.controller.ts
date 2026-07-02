@@ -21,6 +21,11 @@ import {
   obtenerPosicionTesoreria,
   obtenerCarteraVencida,
   obtenerMovimientosNoConciliados,
+  obtenerExistenciasPorAlmacen,
+  obtenerKardexProducto,
+  obtenerMovimientosInventarioPeriodo,
+  obtenerProductosBajoMinimo,
+  obtenerInventarioValorizado,
   type MovimientoEstadoCuenta,
   type EstadoCuentaResult,
   type VolumenContactoResult,
@@ -30,8 +35,27 @@ import {
   type MovimientosPorPeriodoResult,
   type PendientesFacturarResult,
   type Agrupacion,
+  type ExistenciasPorAlmacenResult,
+  type KardexResult,
+  type MovimientosInventarioPeriodoResult,
+  type ProductosBajoMinimoResult,
+  type InventarioValorizadoResult,
 } from './reportes.repository';
-import { generarEstadoCuentaPDF, generarVolumenContactoPDF, generarVolumenProductoPDF, generarOCPendientesPDF, generarVencimientosProveedoresPDF, generarHistorialPreciosPDF, generarMovimientosPorPeriodoPDF, generarPendientesFacturarPDF } from './reportes.pdf';
+import {
+  generarEstadoCuentaPDF,
+  generarVolumenContactoPDF,
+  generarVolumenProductoPDF,
+  generarOCPendientesPDF,
+  generarVencimientosProveedoresPDF,
+  generarHistorialPreciosPDF,
+  generarMovimientosPorPeriodoPDF,
+  generarPendientesFacturarPDF,
+  generarExistenciasPorAlmacenPDF,
+  generarKardexPDF,
+  generarMovimientosInventarioPDF,
+  generarProductosBajoMinimoPDF,
+  generarInventarioValorizadoPDF,
+} from './reportes.pdf';
 
 const fmtFechaMX = (iso: string): string => {
   if (!iso || iso.length < 10) return iso;
@@ -1164,6 +1188,261 @@ export async function getMovimientosNoConciliados(req: Request, res: Response) {
     }
 
     return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVENTARIO
+// ════════════════════════════════════════════════════════════════════════════
+
+function formatFolioInv(l: { doc_serie: string | null; doc_numero: number | null; doc_serie_externa: string | null; doc_numero_externo: number | null; doc_tipo: string | null }): string {
+  const esCompra = l.doc_tipo === 'factura_compra' || l.doc_tipo === 'nota_credito_compra';
+  const s = esCompra && (l.doc_serie_externa != null || l.doc_numero_externo != null) ? (l.doc_serie_externa ?? '') : (l.doc_serie ?? '');
+  const n = esCompra && (l.doc_serie_externa != null || l.doc_numero_externo != null) ? (l.doc_numero_externo ?? 0) : (l.doc_numero ?? 0);
+  if (!s && !n) return '';
+  const sLimpia = s.trim();
+  const ancho = Math.abs(n) < 1000 ? 3 : 6;
+  const numStr = Math.abs(n).toString().padStart(ancho, '0');
+  return sLimpia ? `${sLimpia}-${numStr}` : numStr;
+}
+
+const COLUMNAS_EXISTENCIAS: ExportColumna[] = [
+  { field: 'clave',             headerName: 'Clave'          },
+  { field: 'descripcion',       headerName: 'Descripción'    },
+  { field: 'familia',           headerName: 'Familia'        },
+  { field: 'almacen',           headerName: 'Almacén'        },
+  { field: 'existencia',        headerName: 'Existencia'     },
+  { field: 'minimo_inventario', headerName: 'Mínimo'         },
+  { field: 'diferencia_minimo', headerName: 'Dif. vs Mín.'  },
+  { field: 'costo_unitario',    headerName: 'Costo Unit.'    },
+  { field: 'valor_inventario',  headerName: 'Valor Inv.'     },
+  { field: 'ultima_fecha',      headerName: 'Últ. Movim.'    },
+];
+
+async function sendExistencias(
+  res: Response,
+  resultado: ExistenciasPorAlmacenResult,
+  formato: string
+) {
+  if (formato === 'excel') {
+    const buffer = generarExcelBuffer(resultado.lineas.map((l) => ({ ...l })), COLUMNAS_EXISTENCIAS, 'Existencias por Almacén');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="existencias-por-almacen.xlsx"');
+    return res.send(buffer);
+  }
+  if (formato === 'pdf') {
+    const buffer = await generarExistenciasPorAlmacenPDF(resultado);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="existencias-por-almacen.pdf"');
+    return res.send(buffer);
+  }
+  return res.json(resultado);
+}
+
+export async function getExistenciasPorAlmacen(req: Request, res: Response) {
+  const empresaId         = req.context?.empresaId as number | undefined;
+  const almacenId         = req.query.almacen_id  ? Number(req.query.almacen_id)  : null;
+  const productoId        = req.query.producto_id ? Number(req.query.producto_id) : null;
+  const soloConExistencia = req.query.solo_con_existencia === 'true';
+  const soloBajoMinimo    = req.query.solo_bajo_minimo    === 'true';
+  const familia           = (req.query.familia as string | undefined) || null;
+  const formato           = ((req.query.formato as string) || 'json').toLowerCase();
+
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const resultado = await obtenerExistenciasPorAlmacen({ empresaId, almacenId, productoId, soloConExistencia, soloBajoMinimo, familia });
+    return sendExistencias(res, resultado, formato);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+const COLUMNAS_KARDEX: ExportColumna[] = [
+  { field: 'fecha',              headerName: 'Fecha'          },
+  { field: 'tipo_movimiento',    headerName: 'Tipo'           },
+  { field: 'folio',              headerName: 'Folio'          },
+  { field: 'almacen',            headerName: 'Almacén'        },
+  { field: 'entrada',            headerName: 'Entrada'        },
+  { field: 'salida',             headerName: 'Salida'         },
+  { field: 'existencia_despues', headerName: 'Existencia'     },
+  { field: 'costo_unitario',     headerName: 'Costo Unit.'    },
+  { field: 'valor',              headerName: 'Valor'          },
+  { field: 'observaciones',      headerName: 'Observaciones'  },
+];
+
+async function sendKardex(res: Response, resultado: KardexResult, formato: string) {
+  if (formato === 'excel') {
+    const lineasExcel = resultado.lineas.map((l) => ({ ...l, folio: formatFolioInv(l) }));
+    const buffer = generarExcelBuffer(lineasExcel, COLUMNAS_KARDEX, 'Kardex');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="kardex-${resultado.producto_clave}.xlsx"`);
+    return res.send(buffer);
+  }
+  if (formato === 'pdf') {
+    const buffer = await generarKardexPDF(resultado);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="kardex-${resultado.producto_clave}.pdf"`);
+    return res.send(buffer);
+  }
+  return res.json(resultado);
+}
+
+export async function getKardexProducto(req: Request, res: Response) {
+  const empresaId      = req.context?.empresaId as number | undefined;
+  const productoId     = req.query.producto_id ? Number(req.query.producto_id) : null;
+  const almacenId      = req.query.almacen_id  ? Number(req.query.almacen_id)  : null;
+  const fechaInicio    = (req.query.fecha_inicio as string) || '';
+  const fechaFin       = (req.query.fecha_fin   as string) || '';
+  const tipoMovimiento = (req.query.tipo_movimiento as string | undefined) || null;
+  const formato        = ((req.query.formato as string) || 'json').toLowerCase();
+
+  if (!empresaId)   return res.status(400).json({ message: 'Empresa requerida' });
+  if (!productoId)  return res.status(400).json({ message: 'producto_id es requerido' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  try {
+    const resultado = await obtenerKardexProducto({ empresaId, productoId, almacenId, fechaInicio, fechaFin, tipoMovimiento });
+    return sendKardex(res, resultado, formato);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+const COLUMNAS_MOV_INV: ExportColumna[] = [
+  { field: 'fecha',                headerName: 'Fecha'          },
+  { field: 'tipo_movimiento',      headerName: 'Tipo'           },
+  { field: 'producto_clave',       headerName: 'Clave'          },
+  { field: 'producto_descripcion', headerName: 'Descripción'    },
+  { field: 'almacen',              headerName: 'Almacén'        },
+  { field: 'tipo_signo',           headerName: 'Entrada/Salida' },
+  { field: 'cantidad',             headerName: 'Cantidad'       },
+  { field: 'costo_unitario',       headerName: 'Costo Unit.'    },
+  { field: 'valor',                headerName: 'Valor'          },
+  { field: 'folio_documento',      headerName: 'Documento'      },
+  { field: 'observaciones',        headerName: 'Observaciones'  },
+];
+
+async function sendMovimientosInv(res: Response, resultado: MovimientosInventarioPeriodoResult, formato: string) {
+  if (formato === 'excel') {
+    const lineasExcel = resultado.lineas.map((l) => ({ ...l, folio_documento: formatFolioInv(l) }));
+    const buffer = generarExcelBuffer(lineasExcel, COLUMNAS_MOV_INV, 'Movimientos de Inventario');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="movimientos-inventario.xlsx"');
+    return res.send(buffer);
+  }
+  if (formato === 'pdf') {
+    const buffer = await generarMovimientosInventarioPDF(resultado);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="movimientos-inventario.pdf"');
+    return res.send(buffer);
+  }
+  return res.json(resultado);
+}
+
+export async function getMovimientosInventarioPeriodo(req: Request, res: Response) {
+  const empresaId      = req.context?.empresaId as number | undefined;
+  const fechaInicio    = (req.query.fecha_inicio as string) || '';
+  const fechaFin       = (req.query.fecha_fin   as string) || '';
+  const almacenId      = req.query.almacen_id   ? Number(req.query.almacen_id)  : null;
+  const productoId     = req.query.producto_id  ? Number(req.query.producto_id) : null;
+  const tipoMovimiento = (req.query.tipo_movimiento as string | undefined) || null;
+  const formato        = ((req.query.formato as string) || 'json').toLowerCase();
+
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  try {
+    const resultado = await obtenerMovimientosInventarioPeriodo({ empresaId, fechaInicio, fechaFin, almacenId, productoId, tipoMovimiento });
+    return sendMovimientosInv(res, resultado, formato);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+const COLUMNAS_BAJO_MINIMO: ExportColumna[] = [
+  { field: 'clave',             headerName: 'Clave'          },
+  { field: 'descripcion',       headerName: 'Descripción'    },
+  { field: 'familia',           headerName: 'Familia'        },
+  { field: 'almacen',           headerName: 'Almacén'        },
+  { field: 'existencia',        headerName: 'Existencia'     },
+  { field: 'minimo_inventario', headerName: 'Mínimo'         },
+  { field: 'faltante',          headerName: 'Faltante'       },
+  { field: 'proveedor_nombre',  headerName: 'Proveedor'      },
+  { field: 'ultimo_costo',      headerName: 'Último Costo'   },
+  { field: 'valor_faltante',    headerName: 'Valor Faltante' },
+];
+
+async function sendBajoMinimo(res: Response, resultado: ProductosBajoMinimoResult, formato: string) {
+  if (formato === 'excel') {
+    const buffer = generarExcelBuffer(resultado.lineas.map((l) => ({ ...l })), COLUMNAS_BAJO_MINIMO, 'Productos Bajo Mínimo');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="productos-bajo-minimo.xlsx"');
+    return res.send(buffer);
+  }
+  if (formato === 'pdf') {
+    const buffer = await generarProductosBajoMinimoPDF(resultado);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="productos-bajo-minimo.pdf"');
+    return res.send(buffer);
+  }
+  return res.json(resultado);
+}
+
+export async function getProductosBajoMinimo(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number | undefined;
+  const almacenId = req.query.almacen_id ? Number(req.query.almacen_id) : null;
+  const familia   = (req.query.familia as string | undefined) || null;
+  const formato   = ((req.query.formato as string) || 'json').toLowerCase();
+
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const resultado = await obtenerProductosBajoMinimo({ empresaId, almacenId, familia });
+    return sendBajoMinimo(res, resultado, formato);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+const COLUMNAS_VALORIZADO: ExportColumna[] = [
+  { field: 'clave',            headerName: 'Clave'           },
+  { field: 'descripcion',      headerName: 'Descripción'     },
+  { field: 'familia',          headerName: 'Familia'         },
+  { field: 'almacen',          headerName: 'Almacén'         },
+  { field: 'existencia',       headerName: 'Existencia'      },
+  { field: 'costo_promedio',   headerName: 'C. Promedio'     },
+  { field: 'ultimo_costo',     headerName: 'Último Costo'    },
+  { field: 'costo_valuacion',  headerName: 'Costo Valuación' },
+  { field: 'tipo_costo',       headerName: 'Tipo Costo'      },
+  { field: 'valor_inventario', headerName: 'Valor Inv.'      },
+];
+
+async function sendInventarioValorizado(res: Response, resultado: InventarioValorizadoResult, formato: string) {
+  if (formato === 'excel') {
+    const buffer = generarExcelBuffer(resultado.lineas.map((l) => ({ ...l })), COLUMNAS_VALORIZADO, 'Inventario Valorizado');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="inventario-valorizado.xlsx"');
+    return res.send(buffer);
+  }
+  if (formato === 'pdf') {
+    const buffer = await generarInventarioValorizadoPDF(resultado);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="inventario-valorizado.pdf"');
+    return res.send(buffer);
+  }
+  return res.json(resultado);
+}
+
+export async function getInventarioValorizado(req: Request, res: Response) {
+  const empresaId  = req.context?.empresaId as number | undefined;
+  const almacenId  = req.query.almacen_id  ? Number(req.query.almacen_id)  : null;
+  const productoId = req.query.producto_id ? Number(req.query.producto_id) : null;
+  const familia    = (req.query.familia as string | undefined) || null;
+  const formato    = ((req.query.formato as string) || 'json').toLowerCase();
+
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const resultado = await obtenerInventarioValorizado({ empresaId, almacenId, productoId, familia });
+    return sendInventarioValorizado(res, resultado, formato);
   } catch (err: unknown) {
     return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
   }

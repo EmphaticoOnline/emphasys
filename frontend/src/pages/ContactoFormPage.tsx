@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
-  Button,
   FormControl,
   FormControlLabel,
   Autocomplete,
@@ -25,6 +24,7 @@ import type { SelectChangeEvent } from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
 import MobileBackIconButton from '../components/MobileBackIconButton';
 import MobileSaveFab from '../components/MobileSaveFab';
+import FloatingFormActions from '../components/FloatingFormActions';
 import { getContacto, crearContacto, actualizarContacto, obtenerCatalogosConfigurablesContacto, guardarCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../services/contactos.api';
 import { apiFetch } from '../services/apiFetch';
 import { fetchVendedores } from '../services/contactosService';
@@ -672,36 +672,12 @@ function validarRFC(rfc: string) {
           onSubmit={handleSubmit}
           sx={{
             p: 3,
-            pb: isMobile ? 'calc(104px + env(safe-area-inset-bottom, 0px))' : 3,
+            pb: isMobile ? 'calc(104px + env(safe-area-inset-bottom, 0px))' : '96px',
             display: 'flex',
             flexDirection: 'column',
             gap: 2,
           }}
         >
-          {!isMobile ? (
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 1,
-                position: 'sticky',
-                top: 0,
-                zIndex: 1,
-                backgroundColor: '#fff',
-                pb: 1.5,
-                mb: 1,
-                borderBottom: '1px solid #e5e7eb',
-              }}
-            >
-              <Button variant="outlined" color="secondary" onClick={() => navigate('/contactos')} disabled={saving}>
-                Cancelar
-              </Button>
-              <Button type="submit" variant="contained" color="primary" disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar'}
-              </Button>
-            </Box>
-          ) : null}
-
           <Stack spacing={2}>
             <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" allowScrollButtonsMobile>
               <Tab label="Información general" />
@@ -1297,7 +1273,15 @@ function validarRFC(rfc: string) {
               disabled={saving}
               type="submit"
             />
-          ) : null}
+          ) : (
+            <FloatingFormActions
+              onBack={() => navigate('/contactos')}
+              backDisabled={saving}
+              saveType="submit"
+              saving={saving}
+              saveDisabled={saving}
+            />
+          )}
 
         </Paper>
       </Box>

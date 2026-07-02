@@ -88,6 +88,18 @@ export interface ProgramacionPagoInput {
   }>;
 }
 
+export interface ProgramacionMasivaInput {
+  fecha_programada: string;
+  cuenta_origen_id?: number | null;
+  metodo_pago_id?: number | null;
+  referencia?: string | null;
+  notas?: string | null;
+  facturas: Array<{
+    documento_id: number;
+    monto_programado: number;
+  }>;
+}
+
 export interface FinanzasMetodoPago {
   id: number;
   empresa_id: number;

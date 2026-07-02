@@ -115,7 +115,33 @@ const CATEGORIAS: Categoria[] = [
     label: 'Inventario',
     icon: InventoryIcon,
     color: '#7c3aed',
-    reportes: [],
+    reportes: [
+      {
+        label: 'Existencias por Almacén',
+        descripcion: 'Inventario actual por producto y almacén con existencia, mínimos y valor económico.',
+        path: '/informes/inventario/existencias-por-almacen',
+      },
+      {
+        label: 'Kardex de Producto',
+        descripcion: 'Historial cronológico de movimientos de un producto con saldo acumulado.',
+        path: '/informes/inventario/kardex',
+      },
+      {
+        label: 'Movimientos de Inventario',
+        descripcion: 'Auditoría de entradas y salidas de inventario en un período de tiempo.',
+        path: '/informes/inventario/movimientos',
+      },
+      {
+        label: 'Productos Bajo Mínimo',
+        descripcion: 'Productos cuya existencia actual está por debajo del mínimo configurado.',
+        path: '/informes/inventario/bajo-minimo',
+      },
+      {
+        label: 'Inventario Valorizado',
+        descripcion: 'Valor económico del inventario actual usando costo promedio, último o estándar.',
+        path: '/informes/inventario/valorizado',
+      },
+    ],
   },
   {
     label: 'Finanzas',

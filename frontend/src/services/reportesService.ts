@@ -866,3 +866,275 @@ export async function fetchMovimientosNoConciliados(
 export function buildMovimientosNoConciliadosExportUrl(params: MovimientosNoConciliadosParams, formato: 'excel'): string {
   return `${BASE}/finanzas/movimientos-no-conciliados?${buildMovNCQs(params, { formato }).toString()}`;
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVENTARIO
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── 1. Existencias por Almacén ────────────────────────────────────────────────
+
+export type ExistenciaPorAlmacen = {
+  producto_id: number;
+  clave: string;
+  descripcion: string;
+  familia: string;
+  almacen_id: number;
+  almacen: string;
+  existencia: number;
+  minimo_inventario: number;
+  diferencia_minimo: number;
+  costo_unitario: number;
+  valor_inventario: number;
+  ultima_fecha: string | null;
+};
+
+export type ExistenciasPorAlmacenResult = {
+  lineas: ExistenciaPorAlmacen[];
+  total_valor: number;
+  total_productos: number;
+};
+
+export type ExistenciasPorAlmacenParams = {
+  almacen_id?: number | null;
+  producto_id?: number | null;
+  solo_con_existencia?: boolean;
+  solo_bajo_minimo?: boolean;
+  familia?: string | null;
+};
+
+function buildExistenciasQs(params: ExistenciasPorAlmacenParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams(extras);
+  if (params.almacen_id)         qs.set('almacen_id',          String(params.almacen_id));
+  if (params.producto_id)        qs.set('producto_id',         String(params.producto_id));
+  if (params.solo_con_existencia) qs.set('solo_con_existencia', 'true');
+  if (params.solo_bajo_minimo)   qs.set('solo_bajo_minimo',    'true');
+  if (params.familia)            qs.set('familia',              params.familia);
+  return qs;
+}
+
+export async function fetchExistenciasPorAlmacen(params: ExistenciasPorAlmacenParams): Promise<ExistenciasPorAlmacenResult> {
+  const res = await apiFetch(`${BASE}/inventario/existencias-por-almacen?${buildExistenciasQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener existencias');
+  }
+  return res.json() as Promise<ExistenciasPorAlmacenResult>;
+}
+
+export function buildExistenciasExportUrl(params: ExistenciasPorAlmacenParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/inventario/existencias-por-almacen?${buildExistenciasQs(params, { formato }).toString()}`;
+}
+
+// ── 2. Kardex ────────────────────────────────────────────────────────────────
+
+export type KardexLinea = {
+  fecha: string;
+  tipo_movimiento: string;
+  doc_serie: string | null;
+  doc_numero: number | null;
+  doc_serie_externa: string | null;
+  doc_numero_externo: number | null;
+  doc_tipo: string | null;
+  almacen: string;
+  entrada: number;
+  salida: number;
+  existencia_despues: number;
+  costo_unitario: number | null;
+  valor: number;
+  observaciones: string | null;
+};
+
+export type KardexResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  producto_id: number;
+  producto_clave: string;
+  producto_descripcion: string;
+  lineas: KardexLinea[];
+};
+
+export type KardexParams = {
+  producto_id: number;
+  almacen_id?: number | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  tipo_movimiento?: string | null;
+};
+
+function buildKardexQs(params: KardexParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams({ producto_id: String(params.producto_id), fecha_inicio: params.fecha_inicio, fecha_fin: params.fecha_fin, ...extras });
+  if (params.almacen_id)       qs.set('almacen_id',       String(params.almacen_id));
+  if (params.tipo_movimiento)  qs.set('tipo_movimiento',  params.tipo_movimiento);
+  return qs;
+}
+
+export async function fetchKardexProducto(params: KardexParams): Promise<KardexResult> {
+  const res = await apiFetch(`${BASE}/inventario/kardex?${buildKardexQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener kardex');
+  }
+  return res.json() as Promise<KardexResult>;
+}
+
+export function buildKardexExportUrl(params: KardexParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/inventario/kardex?${buildKardexQs(params, { formato }).toString()}`;
+}
+
+// ── 3. Movimientos por período ────────────────────────────────────────────────
+
+export type MovimientoInventario = {
+  fecha: string;
+  tipo_movimiento: string;
+  producto_id: number;
+  producto_clave: string;
+  producto_descripcion: string;
+  almacen: string;
+  cantidad: number;
+  signo: number;
+  tipo_signo: string;
+  costo_unitario: number | null;
+  valor: number;
+  doc_serie: string | null;
+  doc_numero: number | null;
+  doc_serie_externa: string | null;
+  doc_numero_externo: number | null;
+  doc_tipo: string | null;
+  observaciones: string | null;
+};
+
+export type MovimientosPeriodoInvResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  lineas: MovimientoInventario[];
+  total_entradas: number;
+  total_salidas: number;
+  total_valor: number;
+};
+
+export type MovimientosPeriodoInvParams = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  almacen_id?: number | null;
+  producto_id?: number | null;
+  tipo_movimiento?: string | null;
+};
+
+function buildMovPeriodoQs(params: MovimientosPeriodoInvParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams({ fecha_inicio: params.fecha_inicio, fecha_fin: params.fecha_fin, ...extras });
+  if (params.almacen_id)      qs.set('almacen_id',      String(params.almacen_id));
+  if (params.producto_id)     qs.set('producto_id',     String(params.producto_id));
+  if (params.tipo_movimiento) qs.set('tipo_movimiento', params.tipo_movimiento);
+  return qs;
+}
+
+export async function fetchMovimientosInventarioPeriodo(params: MovimientosPeriodoInvParams): Promise<MovimientosPeriodoInvResult> {
+  const res = await apiFetch(`${BASE}/inventario/movimientos-por-periodo?${buildMovPeriodoQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener movimientos de inventario');
+  }
+  return res.json() as Promise<MovimientosPeriodoInvResult>;
+}
+
+export function buildMovimientosPeriodoInvExportUrl(params: MovimientosPeriodoInvParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/inventario/movimientos-por-periodo?${buildMovPeriodoQs(params, { formato }).toString()}`;
+}
+
+// ── 4. Productos bajo mínimo ──────────────────────────────────────────────────
+
+export type ProductoBajoMinimo = {
+  producto_id: number;
+  clave: string;
+  descripcion: string;
+  familia: string;
+  almacen_id: number | null;
+  almacen: string | null;
+  existencia: number;
+  minimo_inventario: number;
+  faltante: number;
+  proveedor_nombre: string | null;
+  ultimo_costo: number;
+  valor_faltante: number;
+};
+
+export type ProductosBajoMinimoResult = {
+  lineas: ProductoBajoMinimo[];
+  total_productos: number;
+  total_valor_faltante: number;
+};
+
+export type ProductosBajoMinimoParams = {
+  almacen_id?: number | null;
+  familia?: string | null;
+};
+
+function buildBajoMinimoQs(params: ProductosBajoMinimoParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams(extras);
+  if (params.almacen_id) qs.set('almacen_id', String(params.almacen_id));
+  if (params.familia)    qs.set('familia',    params.familia);
+  return qs;
+}
+
+export async function fetchProductosBajoMinimo(params: ProductosBajoMinimoParams): Promise<ProductosBajoMinimoResult> {
+  const res = await apiFetch(`${BASE}/inventario/productos-bajo-minimo?${buildBajoMinimoQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener productos bajo mínimo');
+  }
+  return res.json() as Promise<ProductosBajoMinimoResult>;
+}
+
+export function buildBajoMinimoExportUrl(params: ProductosBajoMinimoParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/inventario/productos-bajo-minimo?${buildBajoMinimoQs(params, { formato }).toString()}`;
+}
+
+// ── 5. Inventario valorizado ──────────────────────────────────────────────────
+
+export type InventarioValorizadoLinea = {
+  producto_id: number;
+  clave: string;
+  descripcion: string;
+  familia: string;
+  almacen_id: number;
+  almacen: string;
+  existencia: number;
+  costo_promedio: number;
+  ultimo_costo: number;
+  costo_valuacion: number;
+  tipo_costo: string;
+  valor_inventario: number;
+};
+
+export type InventarioValorizadoResult = {
+  lineas: InventarioValorizadoLinea[];
+  total_valor: number;
+  total_unidades: number;
+};
+
+export type InventarioValorizadoParams = {
+  almacen_id?: number | null;
+  producto_id?: number | null;
+  familia?: string | null;
+};
+
+function buildValorizadoQs(params: InventarioValorizadoParams, extras: Record<string, string> = {}): URLSearchParams {
+  const qs = new URLSearchParams(extras);
+  if (params.almacen_id)  qs.set('almacen_id',  String(params.almacen_id));
+  if (params.producto_id) qs.set('producto_id', String(params.producto_id));
+  if (params.familia)     qs.set('familia',     params.familia);
+  return qs;
+}
+
+export async function fetchInventarioValorizado(params: InventarioValorizadoParams): Promise<InventarioValorizadoResult> {
+  const res = await apiFetch(`${BASE}/inventario/inventario-valorizado?${buildValorizadoQs(params).toString()}`);
+  if (!res.ok) {
+    const data = (await res.json()) as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener inventario valorizado');
+  }
+  return res.json() as Promise<InventarioValorizadoResult>;
+}
+
+export function buildInventarioValorizadoExportUrl(params: InventarioValorizadoParams, formato: 'excel' | 'pdf'): string {
+  return `${BASE}/inventario/inventario-valorizado?${buildValorizadoQs(params, { formato }).toString()}`;
+}

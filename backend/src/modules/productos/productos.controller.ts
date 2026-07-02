@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { generarExcelBuffer } from '../../utils/exportar';
 import type { ExportColumna } from '../../utils/exportar';
+import { sanitizarRichTextBasico } from '../../utils/richTextSanitize';
 import {
   getProductosRepository,
   getProductosPaginadosRepository,
@@ -15,6 +16,17 @@ import {
   eliminarProductoArchivoRepository,
   marcarProductoArchivoPrincipalRepository,
 } from './productos.repository';
+
+function sanitizarPayloadProducto(body: any) {
+  if (typeof body?.especificaciones === 'string') {
+    return {
+      ...body,
+      especificaciones: sanitizarRichTextBasico(body.especificaciones),
+    };
+  }
+  return body;
+}
+
 // POST /api/productos
 export async function crearProducto(req: Request, res: Response) {
   try {
@@ -23,7 +35,7 @@ export async function crearProducto(req: Request, res: Response) {
       return res.status(400).json({ message: "empresaId no disponible en contexto" });
     }
 
-    const producto = await insertarProductoRepository(req.body, Number(empresaId));
+    const producto = await insertarProductoRepository(sanitizarPayloadProducto(req.body), Number(empresaId));
     res.status(201).json(producto);
   } catch (error) {
     // Mostrar el error real en la respuesta para depuración
@@ -84,7 +96,7 @@ export async function updateProducto(req: Request, res: Response) {
       return res.status(400).json({ message: "empresaId no disponible en contexto" });
     }
 
-    const producto = await updateProductoRepository(id, req.body, Number(empresaId));
+    const producto = await updateProductoRepository(id, sanitizarPayloadProducto(req.body), Number(empresaId));
     if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json(producto);
   } catch (error) {

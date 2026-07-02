@@ -39,6 +39,7 @@ import {
 } from '../../services/finanzasService';
 import type { ProgramacionPago } from '../../types/finanzas';
 import ProgramacionPagoDialog from '../../modules/finanzas/ProgramacionPagoDialog';
+import ProgramacionMasivaDrawer from '../../modules/finanzas/ProgramacionMasivaDrawer';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -238,6 +239,7 @@ export default function ProgramacionPagosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editandoProgramacion, setEditandoProgramacion] = useState<ProgramacionPago | null>(null);
   const [pagandoId, setPagandoId] = useState<number | null>(null);
+  const [masivaOpen, setMasivaOpen] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -336,12 +338,18 @@ export default function ProgramacionPagosPage() {
   }, []);
 
   const handleNueva = () => {
-    setEditandoProgramacion(null);
-    setDialogOpen(true);
+    setMasivaOpen(true);
   };
 
   const handleSaved = () => {
     setSnackbarMsg('Programación guardada');
+    setSnackbarSeverity('success');
+    setSnackbarOpen(true);
+    void cargar();
+  };
+
+  const handleMasivaSaved = (cantidad: number) => {
+    setSnackbarMsg(`Se ${cantidad === 1 ? 'creó 1 programación' : `crearon ${cantidad} programaciones`} de pago`);
     setSnackbarSeverity('success');
     setSnackbarOpen(true);
     void cargar();
@@ -580,6 +588,12 @@ export default function ProgramacionPagosPage() {
         programacion={editandoProgramacion}
         onClose={() => setDialogOpen(false)}
         onSaved={handleSaved}
+      />
+
+      <ProgramacionMasivaDrawer
+        open={masivaOpen}
+        onClose={() => setMasivaOpen(false)}
+        onSaved={handleMasivaSaved}
       />
 
       <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={() => setSnackbarOpen(false)}>

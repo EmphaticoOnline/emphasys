@@ -9,6 +9,13 @@ import {
 import { obtenerOCrearProductoTecnicoNcComercialRepository } from '../productos/productos.repository';
 import { reservarNumeroParaSerieExistente, resolverSerieDocumento, resolverYReservarSerieDocumento } from './series-documento.service';
 import { DocumentoDeleteValidationError } from './documentos-delete.service';
+import { sanitizarRichTextBasico } from '../../utils/richTextSanitize';
+
+function sanitizarObservacionesPartida(observaciones: unknown): string | null {
+  return typeof observaciones === 'string' && observaciones
+    ? sanitizarRichTextBasico(observaciones)
+    : null;
+}
 
 function normalizarCamposFiscalesSat(data: Record<string, any>): void {
   if (Object.prototype.hasOwnProperty.call(data, 'rfc_receptor')) {
@@ -67,6 +74,8 @@ export type Partida = {
   precio_editado_manual?: boolean;
   precio_origen?: string | null;
   descuento?: number;
+  descuento_tipo?: 'porcentaje' | 'monto';
+  descuento_monto?: number;
   subtotal_partida: number;
   total_partida: number;
   es_parte_oportunidad?: boolean;
@@ -394,6 +403,8 @@ export type PartidaInput = {
   precio_editado_manual?: boolean;
   precio_origen?: string | null;
   descuento?: number | null;
+  descuento_tipo?: 'porcentaje' | 'monto' | null;
+  descuento_monto?: number | null;
   subtotal_partida?: number | null;
   total_partida?: number | null;
   es_parte_oportunidad?: boolean;
@@ -401,6 +412,31 @@ export type PartidaInput = {
   producto_archivo_id?: number | null;
   observaciones?: string | null;
 };
+
+/**
+ * Normaliza descuento_tipo/descuento/descuento_monto de una partida:
+ * - descuento_tipo sólo puede ser 'porcentaje' o 'monto' (default 'porcentaje').
+ * - Sólo el campo correspondiente al tipo activo se persiste con valor; el otro queda en 0
+ *   para evitar que ambos descuentos se apliquen a la vez.
+ * - descuento_monto se acota entre 0 y el importe bruto (cantidad * precio_unitario).
+ * - descuento (porcentaje) se acota entre 0 y 100.
+ */
+function normalizarDescuentoPartida(data: PartidaInput): { descuento: number; descuento_tipo: 'porcentaje' | 'monto'; descuento_monto: number } {
+  const esMonto = String(data.descuento_tipo ?? 'porcentaje').toLowerCase() === 'monto';
+  const cantidad = Number(data.cantidad ?? 0) || 0;
+  const precioUnitario = Number(data.precio_unitario ?? 0) || 0;
+  const importeBruto = cantidad * precioUnitario;
+
+  if (esMonto) {
+    const montoCrudo = Number(data.descuento_monto ?? 0) || 0;
+    const descuentoMonto = Math.min(Math.max(montoCrudo, 0), Math.max(importeBruto, 0));
+    return { descuento: 0, descuento_tipo: 'monto', descuento_monto: Number(descuentoMonto.toFixed(2)) };
+  }
+
+  const porcentajeCrudo = Number(data.descuento ?? 0) || 0;
+  const descuento = Math.min(Math.max(porcentajeCrudo, 0), 100);
+  return { descuento, descuento_tipo: 'porcentaje', descuento_monto: 0 };
+}
 
 const normalizarImagenPartida = (data: PartidaInput, permiteImagen: boolean) => {
   if (!permiteImagen) {
@@ -1236,6 +1272,7 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
 
     const permiteImagen = true;
     const imagen = normalizarImagenPartida(data, permiteImagen);
+    const descuentoNormalizado = normalizarDescuentoPartida(data);
 
     const campos: string[] = ['documento_id'];
     const valores: any[] = [documentoId];
@@ -1250,6 +1287,8 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       'precio_editado_manual',
       'precio_origen',
       'descuento',
+      'descuento_tipo',
+      'descuento_monto',
       'subtotal_partida',
       'total_partida',
       'es_parte_oportunidad',
@@ -1265,6 +1304,12 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
         return;
       }
 
+      if (campo === 'descuento' || campo === 'descuento_tipo' || campo === 'descuento_monto') {
+        campos.push(campo);
+        valores.push(descuentoNormalizado[campo]);
+        return;
+      }
+
       if (campo === 'archivo_imagen_1') {
         campos.push(campo);
         valores.push(imagen.archivo_imagen_1);
@@ -1274,6 +1319,12 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       if (campo === 'producto_archivo_id') {
         campos.push(campo);
         valores.push(imagen.producto_archivo_id);
+        return;
+      }
+
+      if (campo === 'observaciones') {
+        campos.push(campo);
+        valores.push(sanitizarObservacionesPartida(data.observaciones));
         return;
       }
 
@@ -1401,19 +1452,22 @@ export async function reemplazarPartidasRepository(
         precio_editado_manual,
         precio_origen,
         descuento,
+        descuento_tipo,
+        descuento_monto,
         subtotal_partida,
         total_partida,
         es_parte_oportunidad,
         archivo_imagen_1,
         producto_archivo_id,
         observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `;
 
     const insertedRows: any[] = [];
     for (const [idx, partida] of partidas.entries()) {
       const imagen = normalizarImagenPartida(partida, permiteImagen);
+      const descuentoNormalizado = normalizarDescuentoPartida(partida);
       const productoTecnico = usaProductoTecnicoNc && !partida.producto_id
         ? await obtenerOCrearProductoTecnicoNcComercialRepository(empresaId, executor)
         : null;
@@ -1427,13 +1481,15 @@ export async function reemplazarPartidasRepository(
         partida.precio_lista_id ?? null,
         partida.precio_editado_manual === true,
         partida.precio_origen ?? null,
-        partida.descuento ?? 0,
+        descuentoNormalizado.descuento,
+        descuentoNormalizado.descuento_tipo,
+        descuentoNormalizado.descuento_monto,
         partida.subtotal_partida ?? 0,
         partida.total_partida ?? partida.subtotal_partida ?? 0,
         partida.es_parte_oportunidad ?? true,
         imagen.archivo_imagen_1,
         imagen.producto_archivo_id,
-        partida.observaciones ?? null,
+        sanitizarObservacionesPartida(partida.observaciones),
       ];
       console.log('[documentos] reemplazarPartidasRepository - insert partida', {
         documentoId,

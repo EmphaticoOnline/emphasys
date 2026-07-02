@@ -21,6 +21,11 @@ import {
   getPosicionTesoreria,
   getCarteraVencida,
   getMovimientosNoConciliados,
+  getExistenciasPorAlmacen,
+  getKardexProducto,
+  getMovimientosInventarioPeriodo,
+  getProductosBajoMinimo,
+  getInventarioValorizado,
 } from './reportes.controller';
 
 const router = Router();
@@ -47,5 +52,11 @@ router.get('/finanzas/pagos-proveedores',              getPagosProveedores);
 router.get('/finanzas/posicion-tesoreria',             getPosicionTesoreria);
 router.get('/finanzas/cartera-vencida',                getCarteraVencida);
 router.get('/finanzas/movimientos-no-conciliados',     getMovimientosNoConciliados);
+
+router.get('/inventario/existencias-por-almacen',      getExistenciasPorAlmacen);
+router.get('/inventario/kardex',                       getKardexProducto);
+router.get('/inventario/movimientos-por-periodo',      getMovimientosInventarioPeriodo);
+router.get('/inventario/productos-bajo-minimo',        getProductosBajoMinimo);
+router.get('/inventario/inventario-valorizado',        getInventarioValorizado);
 
 export default router;

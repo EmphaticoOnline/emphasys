@@ -294,19 +294,19 @@ export async function obtenerContactosPaginados(
     const idx = params.length;
     whereClauses.push(
       `(
-        contactos.nombre ILIKE $${idx}
-        OR contactos.nombre_contacto ILIKE $${idx}
+        sat.unaccent(contactos.nombre) ILIKE sat.unaccent($${idx})
+        OR sat.unaccent(contactos.nombre_contacto) ILIKE sat.unaccent($${idx})
         OR contactos.email ILIKE $${idx}
         OR contactos.rfc ILIKE $${idx}
         OR cdf.rfc ILIKE $${idx}
         OR contactos.telefono ILIKE $${idx}
         OR contactos.telefono_secundario ILIKE $${idx}
-        OR COALESCE(contactos.interes_inicial, '') ILIKE $${idx}
-        OR COALESCE(contactos.observaciones, '') ILIKE $${idx}
+        OR sat.unaccent(COALESCE(contactos.interes_inicial, '')) ILIKE sat.unaccent($${idx})
+        OR sat.unaccent(COALESCE(contactos.observaciones, '')) ILIKE sat.unaccent($${idx})
         OR contactos.tipo_contacto::text ILIKE $${idx}
-        OR contactos.vendedor_id::text ILIKE $${idx}
-        OR vendedor.nombre ILIKE $${idx}
-        OR c.descripcion ILIKE $${idx}
+        OR sat.unaccent(vendedor.nombre) ILIKE sat.unaccent($${idx})
+        OR sat.unaccent(clasificacion.descripcion) ILIKE sat.unaccent($${idx})
+        OR sat.unaccent(origen.descripcion) ILIKE sat.unaccent($${idx})
       )`
     );
   }
@@ -388,14 +388,6 @@ export async function obtenerContactosPaginados(
         AND lista_directa.empresa_id = contactos.empresa_id
        LEFT JOIN contactos_datos_fiscales cdf
          ON cdf.contacto_id = contactos.id
-       LEFT JOIN core.entidades_catalogos ec
-         ON ec.empresa_id = contactos.empresa_id
-        AND ec.entidad_id = contactos.id
-        AND ec.entidad_tipo_id = (
-          SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
-        )
-       LEFT JOIN core.catalogos c
-         ON c.id = ec.catalogo_id
        LEFT JOIN LATERAL (
     SELECT c2.clave,
       c2.descripcion
@@ -772,19 +764,19 @@ export async function obtenerContactosParaExportar(
     const idx = params.length;
     whereClauses.push(
       `(
-        contactos.nombre ILIKE $${idx}
-        OR contactos.nombre_contacto ILIKE $${idx}
+        sat.unaccent(contactos.nombre) ILIKE sat.unaccent($${idx})
+        OR sat.unaccent(contactos.nombre_contacto) ILIKE sat.unaccent($${idx})
         OR contactos.email ILIKE $${idx}
         OR contactos.rfc ILIKE $${idx}
         OR cdf.rfc ILIKE $${idx}
         OR contactos.telefono ILIKE $${idx}
         OR contactos.telefono_secundario ILIKE $${idx}
-        OR COALESCE(contactos.interes_inicial, '') ILIKE $${idx}
-        OR COALESCE(contactos.observaciones, '') ILIKE $${idx}
+        OR sat.unaccent(COALESCE(contactos.interes_inicial, '')) ILIKE sat.unaccent($${idx})
+        OR sat.unaccent(COALESCE(contactos.observaciones, '')) ILIKE sat.unaccent($${idx})
         OR contactos.tipo_contacto::text ILIKE $${idx}
-        OR contactos.vendedor_id::text ILIKE $${idx}
-        OR vendedor.nombre ILIKE $${idx}
-        OR c.descripcion ILIKE $${idx}
+        OR sat.unaccent(vendedor.nombre) ILIKE sat.unaccent($${idx})
+        OR sat.unaccent(clasificacion.descripcion) ILIKE sat.unaccent($${idx})
+        OR sat.unaccent(origen.descripcion) ILIKE sat.unaccent($${idx})
       )`
     );
   }
@@ -859,14 +851,6 @@ export async function obtenerContactosParaExportar(
       AND lista_directa.empresa_id = contactos.empresa_id
      LEFT JOIN contactos_datos_fiscales cdf
        ON cdf.contacto_id = contactos.id
-     LEFT JOIN core.entidades_catalogos ec
-       ON ec.empresa_id = contactos.empresa_id
-      AND ec.entidad_id = contactos.id
-      AND ec.entidad_tipo_id = (
-        SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
-      )
-     LEFT JOIN core.catalogos c
-       ON c.id = ec.catalogo_id
      LEFT JOIN LATERAL (
        SELECT c2.clave, c2.descripcion
          FROM core.entidades_catalogos ec2

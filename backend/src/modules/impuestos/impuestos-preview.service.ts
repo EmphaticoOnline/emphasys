@@ -10,6 +10,8 @@ export type PreviewCalculoInput = {
   cantidad?: number | null;
   precioUnitario?: number | null;
   descuento?: number | null;
+  descuentoTipo?: 'porcentaje' | 'monto' | null;
+  descuentoMonto?: number | null;
   descuentoGlobal?: number | null;
   tratamientoImpuestos?: TratamientoImpuestos | null;
 };
@@ -33,17 +35,21 @@ export async function calcularImpuestosPreview({
   cantidad,
   precioUnitario,
   descuento,
+  descuentoTipo,
+  descuentoMonto,
   descuentoGlobal,
   tratamientoImpuestos,
 }: PreviewCalculoInput): Promise<PreviewCalculoResultado> {
   console.log('[impuestos-preview] tratamiento recibido', tratamientoImpuestos);
   const cantidadNum = Number(cantidad ?? 0) || 0;
   const precioNum = Number(precioUnitario ?? 0) || 0;
-  const descuentoNum = Math.min(100, Math.max(0, Number(descuento ?? 0) || 0));
-  const descuentoGlobalNum = Math.min(100, Math.max(0, Number(descuentoGlobal ?? 0) || 0));
   const baseBruta = Number((cantidadNum * precioNum).toFixed(2));
-  const descuentoMonto = Number((baseBruta * (descuentoNum / 100)).toFixed(2));
-  const subtotalDespuesDescuentoPartida = Number((baseBruta - descuentoMonto).toFixed(2));
+  const esDescuentoMonto = String(descuentoTipo ?? 'porcentaje').toLowerCase() === 'monto';
+  const descuentoGlobalNum = Math.min(100, Math.max(0, Number(descuentoGlobal ?? 0) || 0));
+  const descuentoImporte = esDescuentoMonto
+    ? Math.min(Math.max(Number(descuentoMonto ?? 0) || 0, 0), Math.max(baseBruta, 0))
+    : Number((baseBruta * (Math.min(100, Math.max(0, Number(descuento ?? 0) || 0)) / 100)).toFixed(2));
+  const subtotalDespuesDescuentoPartida = Number((baseBruta - descuentoImporte).toFixed(2));
   const descuentoGlobalMonto = Number((subtotalDespuesDescuentoPartida * (descuentoGlobalNum / 100)).toFixed(2));
   const subtotal_partida = Number((subtotalDespuesDescuentoPartida - descuentoGlobalMonto).toFixed(2));
 

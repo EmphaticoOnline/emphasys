@@ -2255,3 +2255,467 @@ export async function obtenerMovimientosNoConciliados(params: {
 
   return { fecha_corte: fechaCorte, movimientos };
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVENTARIO
+// ════════════════════════════════════════════════════════════════════════════
+
+function isoDate(v: unknown): string {
+  if (!v) return '';
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v).slice(0, 10);
+}
+
+export type ExistenciaPorAlmacen = {
+  producto_id: number;
+  clave: string;
+  descripcion: string;
+  familia: string;
+  almacen_id: number;
+  almacen: string;
+  existencia: number;
+  minimo_inventario: number;
+  diferencia_minimo: number;
+  costo_unitario: number;
+  valor_inventario: number;
+  ultima_fecha: string | null;
+};
+
+export type ExistenciasPorAlmacenResult = {
+  lineas: ExistenciaPorAlmacen[];
+  total_valor: number;
+  total_productos: number;
+};
+
+export async function obtenerExistenciasPorAlmacen(params: {
+  empresaId: number;
+  almacenId: number | null;
+  productoId: number | null;
+  soloConExistencia: boolean;
+  soloBajoMinimo: boolean;
+  familia: string | null;
+}): Promise<ExistenciasPorAlmacenResult> {
+  const { empresaId, almacenId, productoId, soloConExistencia, soloBajoMinimo, familia } = params;
+
+  const { rows } = await pool.query(
+    `SELECT
+       p.id       AS producto_id,
+       p.clave,
+       p.descripcion,
+       COALESCE(p.familia, '')  AS familia,
+       a.id       AS almacen_id,
+       a.nombre   AS almacen,
+       COALESCE(e.existencia, 0)                                                          AS existencia,
+       COALESCE(p.minimo_inventario, 0)                                                   AS minimo_inventario,
+       COALESCE(e.existencia, 0) - COALESCE(p.minimo_inventario, 0)                      AS diferencia_minimo,
+       COALESCE(p.costo_promedio, p.ultimo_costo, p.costo_estandar, 0)                   AS costo_unitario,
+       COALESCE(e.existencia, 0) * COALESCE(p.costo_promedio, p.ultimo_costo, p.costo_estandar, 0) AS valor_inventario,
+       e.updated_at AS ultima_fecha
+     FROM inventario.existencias e
+     JOIN inventario.almacenes a ON a.id = e.almacen_id AND a.empresa_id = e.empresa_id
+     JOIN public.productos p     ON p.id = e.producto_id AND p.empresa_id = e.empresa_id
+     WHERE e.empresa_id = $1
+       AND ($2::int IS NULL OR e.almacen_id = $2)
+       AND ($3::int IS NULL OR e.producto_id = $3)
+       AND (NOT $4::boolean OR e.existencia > 0)
+       AND (NOT $5::boolean OR (p.minimo_inventario IS NOT NULL AND p.minimo_inventario > 0 AND e.existencia < p.minimo_inventario))
+       AND ($6::text IS NULL OR p.familia = $6)
+     ORDER BY p.descripcion, a.nombre`,
+    [empresaId, almacenId, productoId, soloConExistencia, soloBajoMinimo, familia]
+  );
+
+  const lineas: ExistenciaPorAlmacen[] = rows.map((r) => ({
+    producto_id:      Number(r.producto_id),
+    clave:            String(r.clave),
+    descripcion:      String(r.descripcion),
+    familia:          String(r.familia ?? ''),
+    almacen_id:       Number(r.almacen_id),
+    almacen:          String(r.almacen),
+    existencia:       Number(r.existencia ?? 0),
+    minimo_inventario: Number(r.minimo_inventario ?? 0),
+    diferencia_minimo: Number(r.diferencia_minimo ?? 0),
+    costo_unitario:   Number(r.costo_unitario ?? 0),
+    valor_inventario: Number(r.valor_inventario ?? 0),
+    ultima_fecha:     r.ultima_fecha ? isoDate(r.ultima_fecha) : null,
+  }));
+
+  return {
+    lineas,
+    total_valor:     lineas.reduce((s, l) => s + l.valor_inventario, 0),
+    total_productos: lineas.length,
+  };
+}
+
+// ── Kardex ───────────────────────────────────────────────────────────────────
+
+export type KardexLinea = {
+  fecha: string;
+  tipo_movimiento: string;
+  doc_serie: string | null;
+  doc_numero: number | null;
+  doc_serie_externa: string | null;
+  doc_numero_externo: number | null;
+  doc_tipo: string | null;
+  almacen: string;
+  entrada: number;
+  salida: number;
+  existencia_despues: number;
+  costo_unitario: number | null;
+  valor: number;
+  observaciones: string | null;
+};
+
+export type KardexResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  producto_id: number;
+  producto_clave: string;
+  producto_descripcion: string;
+  lineas: KardexLinea[];
+};
+
+export async function obtenerKardexProducto(params: {
+  empresaId: number;
+  productoId: number;
+  almacenId: number | null;
+  fechaInicio: string;
+  fechaFin: string;
+  tipoMovimiento: string | null;
+}): Promise<KardexResult> {
+  const { empresaId, productoId, almacenId, fechaInicio, fechaFin, tipoMovimiento } = params;
+
+  const [{ rows: prodRows }, { rows }] = await Promise.all([
+    pool.query(
+      `SELECT clave, descripcion FROM public.productos WHERE id = $1 AND empresa_id = $2`,
+      [productoId, empresaId]
+    ),
+    pool.query(
+      `SELECT
+         mp.fecha_movimiento::date                                          AS fecha,
+         m.tipo_movimiento,
+         d.serie                                                            AS doc_serie,
+         d.numero                                                           AS doc_numero,
+         d.serie_externa                                                    AS doc_serie_externa,
+         d.numero_externo                                                   AS doc_numero_externo,
+         d.tipo_documento                                                   AS doc_tipo,
+         a.nombre                                                           AS almacen,
+         CASE WHEN mp.signo = 1 THEN mp.cantidad ELSE 0 END                AS entrada,
+         CASE WHEN mp.signo = -1 THEN mp.cantidad ELSE 0 END               AS salida,
+         mp.existencia_resultante                                           AS existencia_despues,
+         mp.costo_unitario,
+         mp.cantidad * COALESCE(mp.costo_unitario, 0)                      AS valor,
+         m.observaciones
+       FROM inventario.movimientos_partidas mp
+       JOIN inventario.movimientos m  ON m.id = mp.movimiento_id AND m.empresa_id = mp.empresa_id
+       JOIN inventario.almacenes a    ON a.id = mp.almacen_id    AND a.empresa_id = mp.empresa_id
+       LEFT JOIN public.documentos d  ON d.id = m.documento_id   AND d.empresa_id = mp.empresa_id
+       WHERE mp.empresa_id = $1
+         AND mp.producto_id = $2
+         AND ($3::int IS NULL OR mp.almacen_id = $3)
+         AND mp.fecha_movimiento >= $4::date
+         AND mp.fecha_movimiento <  $5::date + INTERVAL '1 day'
+         AND ($6::text IS NULL OR m.tipo_movimiento = $6)
+       ORDER BY mp.fecha_movimiento, mp.id`,
+      [empresaId, productoId, almacenId, fechaInicio, fechaFin, tipoMovimiento]
+    ),
+  ]);
+
+  const prod = prodRows[0] ?? null;
+
+  const lineas: KardexLinea[] = rows.map((r) => ({
+    fecha:              isoDate(r.fecha),
+    tipo_movimiento:    String(r.tipo_movimiento ?? ''),
+    doc_serie:          r.doc_serie          ? String(r.doc_serie)          : null,
+    doc_numero:         r.doc_numero         != null ? Number(r.doc_numero) : null,
+    doc_serie_externa:  r.doc_serie_externa  ? String(r.doc_serie_externa)  : null,
+    doc_numero_externo: r.doc_numero_externo != null ? Number(r.doc_numero_externo) : null,
+    doc_tipo:           r.doc_tipo           ? String(r.doc_tipo)           : null,
+    almacen:            String(r.almacen ?? ''),
+    entrada:            Number(r.entrada ?? 0),
+    salida:             Number(r.salida ?? 0),
+    existencia_despues: Number(r.existencia_despues ?? 0),
+    costo_unitario:     r.costo_unitario != null ? Number(r.costo_unitario) : null,
+    valor:              Number(r.valor ?? 0),
+    observaciones:      r.observaciones ? String(r.observaciones) : null,
+  }));
+
+  return {
+    fecha_inicio:         fechaInicio,
+    fecha_fin:            fechaFin,
+    producto_id:          productoId,
+    producto_clave:       prod ? String(prod.clave) : '',
+    producto_descripcion: prod ? String(prod.descripcion) : '',
+    lineas,
+  };
+}
+
+// ── Movimientos por período ───────────────────────────────────────────────────
+
+export type MovimientoInventario = {
+  fecha: string;
+  tipo_movimiento: string;
+  producto_id: number;
+  producto_clave: string;
+  producto_descripcion: string;
+  almacen: string;
+  cantidad: number;
+  signo: number;
+  tipo_signo: string;
+  costo_unitario: number | null;
+  valor: number;
+  doc_serie: string | null;
+  doc_numero: number | null;
+  doc_serie_externa: string | null;
+  doc_numero_externo: number | null;
+  doc_tipo: string | null;
+  observaciones: string | null;
+};
+
+export type MovimientosInventarioPeriodoResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  lineas: MovimientoInventario[];
+  total_entradas: number;
+  total_salidas: number;
+  total_valor: number;
+};
+
+export async function obtenerMovimientosInventarioPeriodo(params: {
+  empresaId: number;
+  fechaInicio: string;
+  fechaFin: string;
+  almacenId: number | null;
+  productoId: number | null;
+  tipoMovimiento: string | null;
+}): Promise<MovimientosInventarioPeriodoResult> {
+  const { empresaId, fechaInicio, fechaFin, almacenId, productoId, tipoMovimiento } = params;
+
+  const { rows } = await pool.query(
+    `SELECT
+       mp.fecha_movimiento::date                                            AS fecha,
+       m.tipo_movimiento,
+       p.id                                                                 AS producto_id,
+       p.clave                                                              AS producto_clave,
+       p.descripcion                                                        AS producto_descripcion,
+       a.nombre                                                             AS almacen,
+       mp.cantidad,
+       mp.signo,
+       CASE WHEN mp.signo = 1 THEN 'Entrada' ELSE 'Salida' END            AS tipo_signo,
+       mp.costo_unitario,
+       mp.cantidad * COALESCE(mp.costo_unitario, 0)                        AS valor,
+       d.serie                                                              AS doc_serie,
+       d.numero                                                             AS doc_numero,
+       d.serie_externa                                                      AS doc_serie_externa,
+       d.numero_externo                                                     AS doc_numero_externo,
+       d.tipo_documento                                                     AS doc_tipo,
+       m.observaciones
+     FROM inventario.movimientos_partidas mp
+     JOIN inventario.movimientos m ON m.id = mp.movimiento_id AND m.empresa_id = mp.empresa_id
+     JOIN public.productos p       ON p.id = mp.producto_id   AND p.empresa_id = mp.empresa_id
+     JOIN inventario.almacenes a   ON a.id = mp.almacen_id    AND a.empresa_id = mp.empresa_id
+     LEFT JOIN public.documentos d ON d.id = m.documento_id   AND d.empresa_id = mp.empresa_id
+     WHERE mp.empresa_id = $1
+       AND mp.fecha_movimiento >= $2::date
+       AND mp.fecha_movimiento <  $3::date + INTERVAL '1 day'
+       AND ($4::int IS NULL OR mp.almacen_id = $4)
+       AND ($5::int IS NULL OR mp.producto_id = $5)
+       AND ($6::text IS NULL OR m.tipo_movimiento = $6)
+     ORDER BY mp.fecha_movimiento, mp.id`,
+    [empresaId, fechaInicio, fechaFin, almacenId, productoId, tipoMovimiento]
+  );
+
+  const lineas: MovimientoInventario[] = rows.map((r) => ({
+    fecha:                isoDate(r.fecha),
+    tipo_movimiento:      String(r.tipo_movimiento ?? ''),
+    producto_id:          Number(r.producto_id),
+    producto_clave:       String(r.producto_clave ?? ''),
+    producto_descripcion: String(r.producto_descripcion ?? ''),
+    almacen:              String(r.almacen ?? ''),
+    cantidad:             Number(r.cantidad ?? 0),
+    signo:                Number(r.signo ?? 1),
+    tipo_signo:           String(r.tipo_signo ?? ''),
+    costo_unitario:       r.costo_unitario != null ? Number(r.costo_unitario) : null,
+    valor:                Number(r.valor ?? 0),
+    doc_serie:            r.doc_serie   ? String(r.doc_serie)   : null,
+    doc_numero:           r.doc_numero  != null ? Number(r.doc_numero) : null,
+    doc_serie_externa:    r.doc_serie_externa  ? String(r.doc_serie_externa)  : null,
+    doc_numero_externo:   r.doc_numero_externo != null ? Number(r.doc_numero_externo) : null,
+    doc_tipo:             r.doc_tipo    ? String(r.doc_tipo)    : null,
+    observaciones:        r.observaciones ? String(r.observaciones) : null,
+  }));
+
+  const totalEntradas = lineas.filter((l) => l.signo === 1).reduce((s, l) => s + l.cantidad, 0);
+  const totalSalidas  = lineas.filter((l) => l.signo === -1).reduce((s, l) => s + l.cantidad, 0);
+  const totalValor    = lineas.reduce((s, l) => s + l.valor, 0);
+
+  return { fecha_inicio: fechaInicio, fecha_fin: fechaFin, lineas, total_entradas: totalEntradas, total_salidas: totalSalidas, total_valor: totalValor };
+}
+
+// ── Productos bajo mínimo ─────────────────────────────────────────────────────
+
+export type ProductoBajoMinimo = {
+  producto_id: number;
+  clave: string;
+  descripcion: string;
+  familia: string;
+  almacen_id: number | null;
+  almacen: string | null;
+  existencia: number;
+  minimo_inventario: number;
+  faltante: number;
+  proveedor_nombre: string | null;
+  ultimo_costo: number;
+  valor_faltante: number;
+};
+
+export type ProductosBajoMinimoResult = {
+  lineas: ProductoBajoMinimo[];
+  total_productos: number;
+  total_valor_faltante: number;
+};
+
+export async function obtenerProductosBajoMinimo(params: {
+  empresaId: number;
+  almacenId: number | null;
+  familia: string | null;
+}): Promise<ProductosBajoMinimoResult> {
+  const { empresaId, almacenId, familia } = params;
+
+  const { rows } = await pool.query(
+    `SELECT
+       p.id                                                                           AS producto_id,
+       p.clave,
+       p.descripcion,
+       COALESCE(p.familia, '')                                                        AS familia,
+       e.almacen_id,
+       a.nombre                                                                       AS almacen,
+       COALESCE(e.existencia, 0)                                                     AS existencia,
+       p.minimo_inventario,
+       p.minimo_inventario - COALESCE(e.existencia, 0)                               AS faltante,
+       c.nombre                                                                       AS proveedor_nombre,
+       COALESCE(p.ultimo_costo, p.costo_promedio, p.costo_estandar, 0)              AS ultimo_costo,
+       (p.minimo_inventario - COALESCE(e.existencia, 0))
+         * COALESCE(p.ultimo_costo, p.costo_promedio, p.costo_estandar, 0)          AS valor_faltante
+     FROM public.productos p
+     LEFT JOIN inventario.existencias e
+       ON e.producto_id = p.id AND e.empresa_id = p.empresa_id
+       AND ($1::int IS NULL OR e.almacen_id = $1)
+     LEFT JOIN inventario.almacenes a
+       ON a.id = e.almacen_id AND a.empresa_id = e.empresa_id
+     LEFT JOIN public.contactos c
+       ON c.id = COALESCE(p.proveedor_preferido_id, p.proveedor_principal_id)
+       AND c.empresa_id = p.empresa_id
+     WHERE p.empresa_id = $2
+       AND p.activo = true
+       AND p.minimo_inventario IS NOT NULL AND p.minimo_inventario > 0
+       AND COALESCE(e.existencia, 0) < p.minimo_inventario
+       AND ($3::text IS NULL OR p.familia = $3)
+     ORDER BY faltante DESC, p.descripcion`,
+    [almacenId, empresaId, familia]
+  );
+
+  const lineas: ProductoBajoMinimo[] = rows.map((r) => ({
+    producto_id:       Number(r.producto_id),
+    clave:             String(r.clave),
+    descripcion:       String(r.descripcion),
+    familia:           String(r.familia ?? ''),
+    almacen_id:        r.almacen_id != null ? Number(r.almacen_id) : null,
+    almacen:           r.almacen ? String(r.almacen) : null,
+    existencia:        Number(r.existencia ?? 0),
+    minimo_inventario: Number(r.minimo_inventario ?? 0),
+    faltante:          Number(r.faltante ?? 0),
+    proveedor_nombre:  r.proveedor_nombre ? String(r.proveedor_nombre) : null,
+    ultimo_costo:      Number(r.ultimo_costo ?? 0),
+    valor_faltante:    Number(r.valor_faltante ?? 0),
+  }));
+
+  return {
+    lineas,
+    total_productos:     lineas.length,
+    total_valor_faltante: lineas.reduce((s, l) => s + l.valor_faltante, 0),
+  };
+}
+
+// ── Inventario valorizado ─────────────────────────────────────────────────────
+
+export type InventarioValorizadoLinea = {
+  producto_id: number;
+  clave: string;
+  descripcion: string;
+  familia: string;
+  almacen_id: number;
+  almacen: string;
+  existencia: number;
+  costo_promedio: number;
+  ultimo_costo: number;
+  costo_valuacion: number;
+  tipo_costo: string;
+  valor_inventario: number;
+};
+
+export type InventarioValorizadoResult = {
+  lineas: InventarioValorizadoLinea[];
+  total_valor: number;
+  total_unidades: number;
+};
+
+export async function obtenerInventarioValorizado(params: {
+  empresaId: number;
+  almacenId: number | null;
+  productoId: number | null;
+  familia: string | null;
+}): Promise<InventarioValorizadoResult> {
+  const { empresaId, almacenId, productoId, familia } = params;
+
+  const { rows } = await pool.query(
+    `SELECT
+       p.id                                                                             AS producto_id,
+       p.clave,
+       p.descripcion,
+       COALESCE(p.familia, '')                                                          AS familia,
+       a.id                                                                             AS almacen_id,
+       a.nombre                                                                         AS almacen,
+       e.existencia,
+       COALESCE(p.costo_promedio, 0)                                                    AS costo_promedio,
+       COALESCE(p.ultimo_costo,   0)                                                    AS ultimo_costo,
+       COALESCE(p.costo_promedio, p.ultimo_costo, p.costo_estandar, 0)                 AS costo_valuacion,
+       CASE
+         WHEN p.costo_promedio IS NOT NULL AND p.costo_promedio > 0 THEN 'Promedio'
+         WHEN p.ultimo_costo   IS NOT NULL AND p.ultimo_costo   > 0 THEN 'Último'
+         WHEN p.costo_estandar IS NOT NULL AND p.costo_estandar > 0 THEN 'Estándar'
+         ELSE 'Sin costo'
+       END                                                                               AS tipo_costo,
+       e.existencia * COALESCE(p.costo_promedio, p.ultimo_costo, p.costo_estandar, 0)  AS valor_inventario
+     FROM inventario.existencias e
+     JOIN inventario.almacenes a ON a.id = e.almacen_id AND a.empresa_id = e.empresa_id
+     JOIN public.productos p     ON p.id = e.producto_id AND p.empresa_id = e.empresa_id
+     WHERE e.empresa_id = $1
+       AND e.existencia > 0
+       AND ($2::int IS NULL OR e.almacen_id = $2)
+       AND ($3::int IS NULL OR e.producto_id = $3)
+       AND ($4::text IS NULL OR p.familia = $4)
+     ORDER BY valor_inventario DESC, p.descripcion`,
+    [empresaId, almacenId, productoId, familia]
+  );
+
+  const lineas: InventarioValorizadoLinea[] = rows.map((r) => ({
+    producto_id:      Number(r.producto_id),
+    clave:            String(r.clave),
+    descripcion:      String(r.descripcion),
+    familia:          String(r.familia ?? ''),
+    almacen_id:       Number(r.almacen_id),
+    almacen:          String(r.almacen),
+    existencia:       Number(r.existencia ?? 0),
+    costo_promedio:   Number(r.costo_promedio ?? 0),
+    ultimo_costo:     Number(r.ultimo_costo ?? 0),
+    costo_valuacion:  Number(r.costo_valuacion ?? 0),
+    tipo_costo:       String(r.tipo_costo ?? 'Sin costo'),
+    valor_inventario: Number(r.valor_inventario ?? 0),
+  }));
+
+  return {
+    lineas,
+    total_valor:    lineas.reduce((s, l) => s + l.valor_inventario, 0),
+    total_unidades: lineas.reduce((s, l) => s + l.existencia, 0),
+  };
+}

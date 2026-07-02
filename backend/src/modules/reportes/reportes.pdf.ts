@@ -18,6 +18,11 @@ import type {
   PeriodoResumen,
   DocumentoPeriodo,
   PendientesFacturarResult,
+  ExistenciasPorAlmacenResult,
+  KardexResult,
+  MovimientosInventarioPeriodoResult,
+  ProductosBajoMinimoResult,
+  InventarioValorizadoResult,
 } from './reportes.repository';
 
 const BRAND       = '#1d2f68';
@@ -37,6 +42,17 @@ const fmtFecha = (iso: string): string => {
   const [yr, mo, da] = iso.slice(0, 10).split('-');
   return `${da}-${mo}-${yr}`;
 };
+
+function fmtFolioInv(l: { doc_serie: string | null; doc_numero: number | null; doc_serie_externa: string | null; doc_numero_externo: number | null; doc_tipo: string | null }): string {
+  const esCompra = l.doc_tipo === 'factura_compra' || l.doc_tipo === 'nota_credito_compra';
+  const s = esCompra && (l.doc_serie_externa != null || l.doc_numero_externo != null) ? (l.doc_serie_externa ?? '') : (l.doc_serie ?? '');
+  const n = esCompra && (l.doc_serie_externa != null || l.doc_numero_externo != null) ? (l.doc_numero_externo ?? 0) : (l.doc_numero ?? 0);
+  if (!s && !n) return '';
+  const sLimpia = s.trim();
+  const ancho = Math.abs(n) < 1000 ? 3 : 6;
+  const numStr = Math.abs(n).toString().padStart(ancho, '0');
+  return sLimpia ? `${sLimpia}-${numStr}` : numStr;
+}
 
 // ── Columnas modo estándar ────────────────────────────────────────────────────
 const COL = {
@@ -1916,6 +1932,431 @@ export function generarPendientesFacturarPDF(
         PF_LEFT, y, { lineBreak: false }
       );
 
+    doc.end();
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// INVENTARIO – helpers
+// ════════════════════════════════════════════════════════════════════════════
+
+const INV_BRAND  = '#7c3aed';
+const INV_LEFT   = 40;
+const INV_RIGHT  = 556;
+const INV_W      = INV_RIGHT - INV_LEFT;
+
+type InvCol = { header: string; x: number; w: number; align: 'left' | 'right' };
+
+function invPageHeader(doc: InstanceType<typeof PDFDocument>, titulo: string): number {
+  doc.rect(0, 0, PAGE_W, 28).fill(INV_BRAND);
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff')
+    .text('Emphasys', INV_LEFT, 8, { lineBreak: false });
+  doc.font('Helvetica').fontSize(7.5).fillColor('#ffffff')
+    .text(titulo, INV_LEFT + 62, 9, { lineBreak: false });
+  return 34;
+}
+
+function invTableHeader(doc: InstanceType<typeof PDFDocument>, cols: InvCol[], y: number): number {
+  doc.rect(INV_LEFT, y, INV_W, HEADER_H).fill(INV_BRAND);
+  const pad = 3;
+  for (const col of cols) {
+    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor('#ffffff');
+    if (col.align === 'right') {
+      doc.text(col.header, col.x, y + pad + 1, { width: col.w - pad, align: 'right', lineBreak: false });
+    } else {
+      doc.text(col.header, col.x + pad, y + pad + 1, { width: col.w - pad * 2, lineBreak: false });
+    }
+  }
+  return y + HEADER_H;
+}
+
+function invRow(
+  doc: InstanceType<typeof PDFDocument>,
+  cols: InvCol[],
+  vals: Record<string, string>,
+  y: number,
+  shade: boolean,
+  opts: Partial<Record<string, { bold?: boolean; color?: string }>> = {}
+) {
+  if (shade) doc.rect(INV_LEFT, y, INV_W, ROW_H).fill(GRAY_LIGHT);
+  const pad = 3;
+  for (const col of cols) {
+    const text  = vals[col.header] ?? '';
+    const style = opts[col.header] ?? {};
+    doc.font(style.bold ? 'Helvetica-Bold' : 'Helvetica')
+       .fontSize(FONT_SM)
+       .fillColor(style.color ?? BLACK);
+    if (col.align === 'right') {
+      doc.text(text, col.x, y + pad, { width: col.w - pad, align: 'right', lineBreak: false });
+    } else {
+      doc.text(text, col.x + pad, y + pad, { width: col.w - pad * 2, lineBreak: false, ellipsis: true });
+    }
+  }
+}
+
+function invFooter(doc: InstanceType<typeof PDFDocument>, y: number) {
+  doc.font('Helvetica').fontSize(6.5).fillColor(GRAY_MID)
+    .text(
+      `Generado el ${new Date().toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' })}`,
+      INV_LEFT, y, { lineBreak: false }
+    );
+}
+
+// ── 1. Existencias por Almacén ────────────────────────────────────────────────
+
+export function generarExistenciasPorAlmacenPDF(resultado: ExistenciasPorAlmacenResult): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end',  () => resolve(Buffer.concat(chunks)));
+
+    const titulo = 'Existencias por Almacén';
+    const cols: InvCol[] = [
+      { header: 'Clave',       x: INV_LEFT,       w: 62,  align: 'left'  },
+      { header: 'Descripción', x: INV_LEFT + 62,  w: 145, align: 'left'  },
+      { header: 'Familia',     x: INV_LEFT + 207, w: 68,  align: 'left'  },
+      { header: 'Almacén',     x: INV_LEFT + 275, w: 70,  align: 'left'  },
+      { header: 'Existencia',  x: INV_LEFT + 345, w: 55,  align: 'right' },
+      { header: 'Mínimo',      x: INV_LEFT + 400, w: 50,  align: 'right' },
+      { header: 'Costo',       x: INV_LEFT + 450, w: 50,  align: 'right' },
+      { header: 'Valor',       x: INV_LEFT + 500, w: 56,  align: 'right' },
+    ];
+
+    let y = 0;
+    const newPage = () => {
+      doc.addPage({ size: 'A4', margin: 0 });
+      y = invPageHeader(doc, titulo);
+      y = invTableHeader(doc, cols, y);
+    };
+    newPage();
+
+    let shade = 0;
+    let totalValor = 0;
+    for (const l of resultado.lineas) {
+      if (y + ROW_H > PAGE_H - MARGIN_BOTTOM) { newPage(); shade = 0; }
+      const bajoMinimo = l.minimo_inventario > 0 && l.existencia < l.minimo_inventario;
+      invRow(doc, cols, {
+        'Clave':       l.clave,
+        'Descripción': l.descripcion,
+        'Familia':     l.familia || '—',
+        'Almacén':     l.almacen,
+        'Existencia':  l.existencia.toLocaleString('es-MX', { maximumFractionDigits: 4 }),
+        'Mínimo':      l.minimo_inventario > 0 ? l.minimo_inventario.toLocaleString('es-MX', { maximumFractionDigits: 4 }) : '—',
+        'Costo':       l.costo_unitario > 0 ? fmt(l.costo_unitario) : '—',
+        'Valor':       fmt(l.valor_inventario),
+      }, y, shade % 2 === 0, {
+        'Existencia': bajoMinimo ? { color: RED, bold: true } : {},
+        'Valor':      { bold: true, color: INV_BRAND },
+      });
+      totalValor += l.valor_inventario;
+      y += ROW_H;
+      shade++;
+    }
+
+    if (resultado.lineas.length === 0) {
+      doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID)
+        .text('Sin existencias con los filtros indicados.', INV_LEFT + 4, y + 6, { lineBreak: false });
+      y += ROW_H;
+    }
+
+    y += 4;
+    doc.rect(INV_LEFT, y, INV_W, 1).fill(INV_BRAND);
+    y += 5;
+    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+      .text('Total valor:', INV_LEFT, y, { width: INV_W - 60, align: 'right', lineBreak: false });
+    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(INV_BRAND)
+      .text(`$${fmt(totalValor)}`, INV_LEFT + INV_W - 56, y, { width: 56, align: 'right', lineBreak: false });
+    y += 18;
+    invFooter(doc, y);
+    doc.end();
+  });
+}
+
+// ── 2. Kardex ────────────────────────────────────────────────────────────────
+
+export function generarKardexPDF(resultado: KardexResult): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end',  () => resolve(Buffer.concat(chunks)));
+
+    const titulo = `Kardex – ${resultado.producto_clave}: ${resultado.producto_descripcion}`;
+    const cols: InvCol[] = [
+      { header: 'Fecha',      x: INV_LEFT,       w: 58,  align: 'left'  },
+      { header: 'Tipo',       x: INV_LEFT + 58,  w: 70,  align: 'left'  },
+      { header: 'Folio',      x: INV_LEFT + 128, w: 62,  align: 'left'  },
+      { header: 'Almacén',    x: INV_LEFT + 190, w: 72,  align: 'left'  },
+      { header: 'Entrada',    x: INV_LEFT + 262, w: 56,  align: 'right' },
+      { header: 'Salida',     x: INV_LEFT + 318, w: 56,  align: 'right' },
+      { header: 'Existencia', x: INV_LEFT + 374, w: 58,  align: 'right' },
+      { header: 'Costo',      x: INV_LEFT + 432, w: 50,  align: 'right' },
+      { header: 'Valor',      x: INV_LEFT + 482, w: 54,  align: 'right' },
+    ];
+
+    let y = 0;
+    const newPage = () => {
+      doc.addPage({ size: 'A4', margin: 0 });
+      y = invPageHeader(doc, titulo);
+      doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+        .text(`Período: ${fmtFecha(resultado.fecha_inicio)} – ${fmtFecha(resultado.fecha_fin)}`, INV_LEFT, y, { lineBreak: false });
+      y += 12;
+      y = invTableHeader(doc, cols, y);
+    };
+    newPage();
+
+    let shade = 0;
+    for (const l of resultado.lineas) {
+      if (y + ROW_H > PAGE_H - MARGIN_BOTTOM) { newPage(); shade = 0; }
+      invRow(doc, cols, {
+        'Fecha':      fmtFecha(l.fecha),
+        'Tipo':       l.tipo_movimiento,
+        'Folio':      fmtFolioInv(l),
+        'Almacén':    l.almacen,
+        'Entrada':    l.entrada > 0 ? l.entrada.toLocaleString('es-MX', { maximumFractionDigits: 4 }) : '',
+        'Salida':     l.salida  > 0 ? l.salida.toLocaleString('es-MX',  { maximumFractionDigits: 4 }) : '',
+        'Existencia': l.existencia_despues.toLocaleString('es-MX', { maximumFractionDigits: 4 }),
+        'Costo':      l.costo_unitario != null ? fmt(l.costo_unitario) : '—',
+        'Valor':      l.valor > 0 ? fmt(l.valor) : '',
+      }, y, shade % 2 === 0, {
+        'Entrada':    { color: GREEN },
+        'Salida':     { color: RED },
+        'Existencia': { bold: true },
+      });
+      y += ROW_H;
+      shade++;
+    }
+
+    if (resultado.lineas.length === 0) {
+      doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID)
+        .text('Sin movimientos en el período indicado.', INV_LEFT + 4, y + 6, { lineBreak: false });
+      y += ROW_H;
+    }
+
+    y += 10;
+    invFooter(doc, y);
+    doc.end();
+  });
+}
+
+// ── 3. Movimientos de Inventario por Período ──────────────────────────────────
+
+export function generarMovimientosInventarioPDF(resultado: MovimientosInventarioPeriodoResult): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end',  () => resolve(Buffer.concat(chunks)));
+
+    const titulo = 'Movimientos de Inventario';
+    const cols: InvCol[] = [
+      { header: 'Fecha',       x: INV_LEFT,       w: 54,  align: 'left'  },
+      { header: 'Tipo',        x: INV_LEFT + 54,  w: 64,  align: 'left'  },
+      { header: 'Clave',       x: INV_LEFT + 118, w: 54,  align: 'left'  },
+      { header: 'Descripción', x: INV_LEFT + 172, w: 110, align: 'left'  },
+      { header: 'Almacén',     x: INV_LEFT + 282, w: 62,  align: 'left'  },
+      { header: 'E/S',         x: INV_LEFT + 344, w: 32,  align: 'left'  },
+      { header: 'Cantidad',    x: INV_LEFT + 376, w: 52,  align: 'right' },
+      { header: 'Costo',       x: INV_LEFT + 428, w: 48,  align: 'right' },
+      { header: 'Valor',       x: INV_LEFT + 476, w: 56,  align: 'right' },
+    ];
+
+    let y = 0;
+    const newPage = () => {
+      doc.addPage({ size: 'A4', margin: 0 });
+      y = invPageHeader(doc, titulo);
+      doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+        .text(`Período: ${fmtFecha(resultado.fecha_inicio)} – ${fmtFecha(resultado.fecha_fin)}`, INV_LEFT, y, { lineBreak: false });
+      y += 12;
+      y = invTableHeader(doc, cols, y);
+    };
+    newPage();
+
+    let shade = 0;
+    for (const l of resultado.lineas) {
+      if (y + ROW_H > PAGE_H - MARGIN_BOTTOM) { newPage(); shade = 0; }
+      const esEntrada = l.signo === 1;
+      invRow(doc, cols, {
+        'Fecha':       fmtFecha(l.fecha),
+        'Tipo':        l.tipo_movimiento,
+        'Clave':       l.producto_clave,
+        'Descripción': l.producto_descripcion,
+        'Almacén':     l.almacen,
+        'E/S':         esEntrada ? 'E' : 'S',
+        'Cantidad':    l.cantidad.toLocaleString('es-MX', { maximumFractionDigits: 4 }),
+        'Costo':       l.costo_unitario != null ? fmt(l.costo_unitario) : '—',
+        'Valor':       l.valor > 0 ? fmt(l.valor) : '',
+      }, y, shade % 2 === 0, {
+        'E/S':   esEntrada ? { color: GREEN, bold: true } : { color: RED, bold: true },
+        'Valor': { color: INV_BRAND },
+      });
+      y += ROW_H;
+      shade++;
+    }
+
+    if (resultado.lineas.length === 0) {
+      doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID)
+        .text('Sin movimientos en el período indicado.', INV_LEFT + 4, y + 6, { lineBreak: false });
+      y += ROW_H;
+    }
+
+    y += 4;
+    doc.rect(INV_LEFT, y, INV_W, 1).fill(INV_BRAND);
+    y += 5;
+    doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+      .text(
+        `Entradas: ${resultado.total_entradas.toLocaleString('es-MX', { maximumFractionDigits: 4 })}   Salidas: ${resultado.total_salidas.toLocaleString('es-MX', { maximumFractionDigits: 4 })}   Valor total: $${fmt(resultado.total_valor)}`,
+        INV_LEFT, y, { lineBreak: false }
+      );
+    y += 18;
+    invFooter(doc, y);
+    doc.end();
+  });
+}
+
+// ── 4. Productos Bajo Mínimo ──────────────────────────────────────────────────
+
+export function generarProductosBajoMinimoPDF(resultado: ProductosBajoMinimoResult): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end',  () => resolve(Buffer.concat(chunks)));
+
+    const titulo = 'Productos Bajo Mínimo';
+    const cols: InvCol[] = [
+      { header: 'Clave',       x: INV_LEFT,       w: 58,  align: 'left'  },
+      { header: 'Descripción', x: INV_LEFT + 58,  w: 118, align: 'left'  },
+      { header: 'Almacén',     x: INV_LEFT + 176, w: 68,  align: 'left'  },
+      { header: 'Existencia',  x: INV_LEFT + 244, w: 52,  align: 'right' },
+      { header: 'Mínimo',      x: INV_LEFT + 296, w: 52,  align: 'right' },
+      { header: 'Faltante',    x: INV_LEFT + 348, w: 52,  align: 'right' },
+      { header: 'Proveedor',   x: INV_LEFT + 400, w: 86,  align: 'left'  },
+      { header: 'Valor Falt.', x: INV_LEFT + 486, w: 70,  align: 'right' },
+    ];
+
+    let y = 0;
+    const newPage = () => {
+      doc.addPage({ size: 'A4', margin: 0 });
+      y = invPageHeader(doc, titulo);
+      y = invTableHeader(doc, cols, y);
+    };
+    newPage();
+
+    let shade = 0;
+    let totalValorFaltante = 0;
+    for (const l of resultado.lineas) {
+      if (y + ROW_H > PAGE_H - MARGIN_BOTTOM) { newPage(); shade = 0; }
+      invRow(doc, cols, {
+        'Clave':       l.clave,
+        'Descripción': l.descripcion,
+        'Almacén':     l.almacen ?? '(Global)',
+        'Existencia':  l.existencia.toLocaleString('es-MX', { maximumFractionDigits: 4 }),
+        'Mínimo':      l.minimo_inventario.toLocaleString('es-MX', { maximumFractionDigits: 4 }),
+        'Faltante':    l.faltante.toLocaleString('es-MX', { maximumFractionDigits: 4 }),
+        'Proveedor':   l.proveedor_nombre ?? '—',
+        'Valor Falt.': fmt(l.valor_faltante),
+      }, y, shade % 2 === 0, {
+        'Existencia': { color: RED },
+        'Faltante':   { color: RED, bold: true },
+        'Valor Falt.':{ bold: true, color: RED },
+      });
+      totalValorFaltante += l.valor_faltante;
+      y += ROW_H;
+      shade++;
+    }
+
+    if (resultado.lineas.length === 0) {
+      doc.font('Helvetica').fontSize(FONT_SM).fillColor(GREEN)
+        .text('No hay productos bajo mínimo. ¡Inventario OK!', INV_LEFT + 4, y + 6, { lineBreak: false });
+      y += ROW_H;
+    }
+
+    y += 4;
+    doc.rect(INV_LEFT, y, INV_W, 1).fill(INV_BRAND);
+    y += 5;
+    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+      .text(`${resultado.total_productos} producto(s) bajo mínimo`, INV_LEFT, y, { lineBreak: false });
+    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(RED)
+      .text(`Valor faltante aprox.: $${fmt(totalValorFaltante)}`, INV_LEFT + INV_W - 170, y, { width: 170, align: 'right', lineBreak: false });
+    y += 18;
+    invFooter(doc, y);
+    doc.end();
+  });
+}
+
+// ── 5. Inventario Valorizado ──────────────────────────────────────────────────
+
+export function generarInventarioValorizadoPDF(resultado: InventarioValorizadoResult): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end',  () => resolve(Buffer.concat(chunks)));
+
+    const titulo = 'Inventario Valorizado';
+    const cols: InvCol[] = [
+      { header: 'Clave',       x: INV_LEFT,       w: 58,  align: 'left'  },
+      { header: 'Descripción', x: INV_LEFT + 58,  w: 130, align: 'left'  },
+      { header: 'Familia',     x: INV_LEFT + 188, w: 60,  align: 'left'  },
+      { header: 'Almacén',     x: INV_LEFT + 248, w: 68,  align: 'left'  },
+      { header: 'Existencia',  x: INV_LEFT + 316, w: 54,  align: 'right' },
+      { header: 'C. Valuac.',  x: INV_LEFT + 370, w: 58,  align: 'right' },
+      { header: 'Tipo',        x: INV_LEFT + 428, w: 44,  align: 'left'  },
+      { header: 'Valor Inv.',  x: INV_LEFT + 472, w: 64,  align: 'right' },
+    ];
+
+    let y = 0;
+    const newPage = () => {
+      doc.addPage({ size: 'A4', margin: 0 });
+      y = invPageHeader(doc, titulo);
+      y = invTableHeader(doc, cols, y);
+    };
+    newPage();
+
+    let shade = 0;
+    let totalValor    = 0;
+    let totalUnidades = 0;
+    for (const l of resultado.lineas) {
+      if (y + ROW_H > PAGE_H - MARGIN_BOTTOM) { newPage(); shade = 0; }
+      invRow(doc, cols, {
+        'Clave':       l.clave,
+        'Descripción': l.descripcion,
+        'Familia':     l.familia || '—',
+        'Almacén':     l.almacen,
+        'Existencia':  l.existencia.toLocaleString('es-MX', { maximumFractionDigits: 4 }),
+        'C. Valuac.':  l.costo_valuacion > 0 ? fmt(l.costo_valuacion) : '—',
+        'Tipo':        l.tipo_costo,
+        'Valor Inv.':  fmt(l.valor_inventario),
+      }, y, shade % 2 === 0, {
+        'Valor Inv.': { bold: true, color: INV_BRAND },
+        'Tipo':       { color: GRAY_MID },
+      });
+      totalValor    += l.valor_inventario;
+      totalUnidades += l.existencia;
+      y += ROW_H;
+      shade++;
+    }
+
+    if (resultado.lineas.length === 0) {
+      doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID)
+        .text('Sin existencias para valorizar con los filtros indicados.', INV_LEFT + 4, y + 6, { lineBreak: false });
+      y += ROW_H;
+    }
+
+    y += 4;
+    doc.rect(INV_LEFT, y, INV_W, 1).fill(INV_BRAND);
+    y += 5;
+    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+      .text(`${resultado.lineas.length} líneas`, INV_LEFT, y, { lineBreak: false });
+    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(INV_BRAND)
+      .text(`Valor total inventario: $${fmt(totalValor)}`, INV_LEFT + INV_W - 180, y, { width: 180, align: 'right', lineBreak: false });
+    y += 18;
+    doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+      .text(`Unidades totales: ${totalUnidades.toLocaleString('es-MX', { maximumFractionDigits: 4 })}`, INV_LEFT, y, { lineBreak: false });
+    y += 12;
+    invFooter(doc, y);
     doc.end();
   });
 }

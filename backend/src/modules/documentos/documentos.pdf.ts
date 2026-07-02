@@ -9,6 +9,7 @@ import { DOCUMENT_LAYOUTS, type DocumentLayout } from '../../config/document-lay
 import { obtenerPlantillaParaDocumento } from '../plantillas/plantillas.service';
 import { renderPlantillaHTML, type PlantillaData } from '../plantillas/plantillas.render.service';
 import puppeteer from 'puppeteer';
+import { heightOfRichTextBasicoPdf, renderRichTextBasicoPdf, richTextBasicoEstaVacio } from './richTextPdf';
 
 type TimbreCfdi = {
   uuid?: string | null;
@@ -88,6 +89,20 @@ const formatDate = (value?: string | Date | null) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('es-MX');
+};
+
+const formatTelefonoParaImpresion = (telefono: string): string => {
+  const soloDigitos = telefono.replace(/\D/g, '');
+  if (soloDigitos.length === 13 && soloDigitos.startsWith('521')) {
+    return soloDigitos.slice(-10);
+  }
+  if (soloDigitos.length === 12 && soloDigitos.startsWith('52')) {
+    return soloDigitos.slice(-10);
+  }
+  if (soloDigitos.length === 10) {
+    return soloDigitos;
+  }
+  return telefono;
 };
 
 const formatDateTime = (value?: string | Date | null) => {
@@ -992,36 +1007,33 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
       if (esCotizacion) {
         const clienteNombre = documento?.nombre_receptor || documento?.cliente_nombre || 'Cliente';
+        const clienteTelefono = documento?.cliente_telefono || null;
+        const clienteEmail = documento?.cliente_email || null;
         const clienteRfc = documento?.cliente_rfc || documento?.rfc_receptor || null;
         const clienteDireccion = documento?.cliente_direccion || null;
-  const indent = 24;
-  const lineHeight = 12;
-  const labelColWidth = 80;
-  const gapCols = 8;
-  const labelX = doc.page.margins.left;
-  const valueX = labelX + labelColWidth + gapCols;
-  const valueWidth = contentWidth - labelColWidth - gapCols;
-        const blockHeight = lineHeight * 3;
+        const lineHeight = 12;
+        const labelColWidth = 80;
+        const gapCols = 8;
+        const labelX = doc.page.margins.left;
+        const valueX = labelX + labelColWidth + gapCols;
+        const valueWidth = contentWidth - labelColWidth - gapCols;
         const tableGap = 12;
+
+        type ClienteRow = { label: string; value: string; prominent?: boolean };
+        const clienteRows: ClienteRow[] = [{ label: 'Atención', value: clienteNombre, prominent: true }];
+        if (clienteTelefono) clienteRows.push({ label: 'Teléfono', value: formatTelefonoParaImpresion(clienteTelefono) });
+        if (clienteEmail) clienteRows.push({ label: 'Correo', value: clienteEmail });
+        if (clienteRfc) clienteRows.push({ label: 'RFC', value: clienteRfc });
+        if (clienteDireccion) clienteRows.push({ label: 'Domicilio', value: clienteDireccion, prominent: true });
+
         let currentY = bloqueY;
-
-  setFont(false, 10, '#000000');
-  doc.text('Atención:', labelX, currentY, { width: labelColWidth, align: 'right' });
-  doc.text(clienteNombre, valueX, currentY, { width: valueWidth, align: 'left' });
-        currentY += lineHeight;
-
-        setFont(false, 9, textColor);
-        if (clienteRfc) {
-          doc.text(`RFC: ${clienteRfc}`, doc.page.margins.left + indent, currentY, { width: contentWidth - indent });
-        }
-        currentY += lineHeight;
-
-        if (clienteDireccion) {
-          setFont(false, 10, '#000000');
-          doc.text('Domicilio:', labelX, currentY, { width: labelColWidth, align: 'right' });
-          doc.text(clienteDireccion, valueX, currentY, { width: valueWidth, align: 'left' });
-        }
-        currentY = bloqueY + blockHeight;
+        clienteRows.forEach((row) => {
+          setFont(false, row.prominent ? 10 : 9, row.prominent ? '#000000' : textColor);
+          doc.text(`${row.label}:`, labelX, currentY, { width: labelColWidth, align: 'right' });
+          doc.text(row.value, valueX, currentY, { width: valueWidth, align: 'left' });
+          const rowHeight = doc.heightOfString(row.value, { width: valueWidth });
+          currentY += Math.max(lineHeight, rowHeight);
+        });
 
         doc.y = currentY + tableGap;
         return;
@@ -1066,11 +1078,11 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       const imagenPartidaGap = 10;
       const observacionesFontSize = 8;
       const observacionesPadding = 3;
-      const observacionesFontName = hasTrebuchetItalic
-        ? 'Trebuchet-Italic'
-        : hasTrebuchet
-          ? 'Trebuchet'
-          : 'Helvetica-Oblique';
+      const observacionesRichTextFonts = {
+        regular: hasTrebuchet ? 'Trebuchet' : 'Helvetica',
+        bold: hasTrebuchetBold ? 'Trebuchet-Bold' : 'Helvetica-Bold',
+        italic: hasTrebuchetItalic ? 'Trebuchet-Italic' : 'Helvetica-Oblique',
+      };
       const imageCache = new Map<string, Buffer | null>();
 
       const getPartidaImageBuffer = async (imageUrl?: string | null) => {
@@ -1115,14 +1127,15 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           width: columnWidths[descripcionIndex] - 12,
         });
 
-        const obsText = showObservaciones ? (observaciones ?? '').trim() : '';
+        const obsHtml = observaciones ?? '';
+        const obsText = showObservaciones && !richTextBasicoEstaVacio(obsHtml) ? obsHtml : '';
         let obsHeight = 0;
         if (obsText) {
-          doc.save();
-          doc.font(observacionesFontName);
-          doc.fontSize(observacionesFontSize).fillColor(mutedText);
-          obsHeight = doc.heightOfString(obsText, { width: columnWidths[descripcionIndex] - 12 });
-          doc.restore();
+          obsHeight = heightOfRichTextBasicoPdf(doc, obsText, {
+            width: columnWidths[descripcionIndex] - 12,
+            fontSize: observacionesFontSize,
+            fonts: observacionesRichTextFonts,
+          });
         }
 
         const textBlockHeight = Math.max(baseRowHeight, maxTextHeight + bodyPaddingY * 2) + (obsHeight ? obsHeight + observacionesPadding : 0);
@@ -1179,9 +1192,12 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         if (!isHeader && obsHeight > 0 && obsText) {
           const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
           const obsY = y + bodyPaddingY + descriptionHeight + observacionesPadding;
-          doc.font(observacionesFontName);
-          doc.fontSize(observacionesFontSize).fillColor(mutedText);
-          doc.text(obsText, descX, obsY, { width: columnWidths[descripcionIndex] - 12, align: 'left' });
+          renderRichTextBasicoPdf(doc, obsText, descX, obsY, {
+            width: columnWidths[descripcionIndex] - 12,
+            fontSize: observacionesFontSize,
+            fonts: observacionesRichTextFonts,
+            color: mutedText,
+          });
         }
 
         if (!isHeader && imageBuffer) {

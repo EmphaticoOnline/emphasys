@@ -92,6 +92,8 @@ type PartidaGeneracionRow = {
   cantidad_origen: number | string;
   precio_unitario: number | string | null;
   descuento: number | string | null;
+  descuento_tipo: string | null;
+  descuento_monto: number | string | null;
   documento_descuento_global: number | string | null;
   documento_serie: string | null;
   documento_numero: number | null;
@@ -444,6 +446,8 @@ async function cargarPartidasOrigen(documentoIds: number[], client: PoolClient):
             dp.cantidad AS cantidad_origen,
             dp.precio_unitario,
             dp.descuento,
+            dp.descuento_tipo,
+            dp.descuento_monto,
             d.descuento_global AS documento_descuento_global,
             d.serie AS documento_serie,
             d.numero AS documento_numero,
@@ -494,10 +498,17 @@ function construirRespuestaPreparacion(
     partidas: partidas.map((partida) => {
       const yaGenerada = cantidadesGeneradas.get(Number(partida.partida_id)) || 0;
       const pendiente = Math.max(Number(partida.cantidad_origen) - yaGenerada, 0);
-      const descuentoPartida = Math.min(100, Math.max(0, Number(partida.descuento ?? 0) || 0));
+      const precioUnitario = Number(partida.precio_unitario ?? 0);
+      const cantidadOrigen = Number(partida.cantidad_origen ?? 0);
+      const esDescuentoMonto = String(partida.descuento_tipo ?? 'porcentaje').toLowerCase() === 'monto';
       const descuentoGlobal = Math.min(100, Math.max(0, Number(partida.documento_descuento_global ?? 0) || 0));
-      const factorNeto = (1 - (descuentoPartida / 100)) * (1 - (descuentoGlobal / 100));
-      const importeMaximo = Number((pendiente * Number(partida.precio_unitario ?? 0) * Math.max(factorNeto, 0)).toFixed(2));
+      const baseBrutaPendiente = pendiente * precioUnitario;
+      const descuentoPartidaPendiente = esDescuentoMonto
+        ? (cantidadOrigen > 0
+            ? Math.min(Math.max(Number(partida.descuento_monto ?? 0) || 0, 0), cantidadOrigen * precioUnitario) * (pendiente / cantidadOrigen)
+            : 0)
+        : baseBrutaPendiente * (Math.min(100, Math.max(0, Number(partida.descuento ?? 0) || 0)) / 100);
+      const importeMaximo = Number((Math.max(baseBrutaPendiente - descuentoPartidaPendiente, 0) * (1 - descuentoGlobal / 100)).toFixed(2));
       return {
         partida_id: Number(partida.partida_id),
         documento_origen_id: Number(partida.documento_id),
@@ -718,6 +729,8 @@ export class DocumentGenerationService {
                 dp.cantidad AS cantidad_origen,
                 dp.precio_unitario,
                 dp.descuento,
+                dp.descuento_tipo,
+                dp.descuento_monto,
                 dp.numero_partida,
                 d.descuento_global AS documento_descuento_global,
                 d.serie AS documento_serie,
@@ -1067,16 +1080,29 @@ export class DocumentGenerationService {
         }
 
         const precioUnitario = Number(partidaOrigen.precio_unitario ?? 0);
-        const descuento = Math.min(100, Math.max(0, Number(partidaOrigen.descuento ?? 0) || 0));
+        const esDescuentoMonto = String(partidaOrigen.descuento_tipo ?? 'porcentaje').toLowerCase() === 'monto';
+        const descuento = esDescuentoMonto ? 0 : Math.min(100, Math.max(0, Number(partidaOrigen.descuento ?? 0) || 0));
         const descuentoGlobalOrigen = Math.min(100, Math.max(0, Number(partidaOrigen.documento_descuento_global ?? 0) || 0));
         const cantidadOrigen = Number(partidaOrigen.cantidad_origen ?? 0);
         const cantidadYaGenerada = cantidadesGeneradas.get(Number(partidaOrigen.partida_id)) || 0;
         const cantidadDisponible = Math.max(Number((cantidadOrigen - cantidadYaGenerada).toFixed(6)), 0);
         const baseBruta = Number((cantidad * precioUnitario).toFixed(2));
-        const subtotalDespuesDescuentoPartida = Number((baseBruta - (baseBruta * (descuento / 100))).toFixed(2));
+        // El descuento por monto fijo se prorratea según la proporción de la cantidad generada
+        // respecto a la cantidad total de la partida origen, de forma análoga a como el
+        // descuento porcentual escala naturalmente con la cantidad.
+        const baseBrutaOrigenTotal = Number((cantidadOrigen * precioUnitario).toFixed(2));
+        const descuentoMontoOrigenTotal = esDescuentoMonto
+          ? Math.min(Math.max(Number(partidaOrigen.descuento_monto ?? 0) || 0, 0), Math.max(baseBrutaOrigenTotal, 0))
+          : Number((baseBrutaOrigenTotal * (descuento / 100)).toFixed(2));
+        const descuentoPartidaMonto = esDescuentoMonto
+          ? Number((cantidadOrigen > 0 ? descuentoMontoOrigenTotal * (cantidad / cantidadOrigen) : 0).toFixed(2))
+          : Number((baseBruta * (descuento / 100)).toFixed(2));
+        const subtotalDespuesDescuentoPartida = Number((baseBruta - descuentoPartidaMonto).toFixed(2));
         const subtotalPartidaDefault = Number((subtotalDespuesDescuentoPartida - (subtotalDespuesDescuentoPartida * (descuentoGlobalOrigen / 100))).toFixed(2));
-        const factorNeto = precioUnitario > 0
-          ? Number((((1 - (descuento / 100)) * (1 - (descuentoGlobalOrigen / 100))) || 0).toFixed(6))
+        // Tasa neta promedio de la partida origen completa, usada sólo para convertir un monto
+        // de bonificación en una cantidad equivalente (ver bloque esBonificacion más abajo).
+        const factorNeto = precioUnitario > 0 && baseBrutaOrigenTotal > 0
+          ? Number(((((baseBrutaOrigenTotal - descuentoMontoOrigenTotal) / baseBrutaOrigenTotal)) * (1 - (descuentoGlobalOrigen / 100)) || 0).toFixed(6))
           : 0;
 
         let cantidadVinculo = cantidad;
@@ -1117,6 +1143,9 @@ export class DocumentGenerationService {
           subtotalPartida,
         });
 
+        const descuentoTipoDestino = !esBonificacion && esDescuentoMonto ? 'monto' : 'porcentaje';
+        const descuentoMontoDestino = !esBonificacion && esDescuentoMonto ? descuentoPartidaMonto : 0;
+
         const { rows: partidaInsertRows } = await client.query(
           `INSERT INTO documentos_partidas (
               documento_id,
@@ -1126,9 +1155,11 @@ export class DocumentGenerationService {
               cantidad,
               precio_unitario,
               descuento,
+              descuento_tipo,
+              descuento_monto,
               subtotal_partida,
               total_partida
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING id`,
           [
             documentoDestino.id,
@@ -1140,6 +1171,8 @@ export class DocumentGenerationService {
             cantidadDestino,
             precioUnitarioDestino,
             esBonificacion ? 0 : descuento,
+            descuentoTipoDestino,
+            descuentoMontoDestino,
             subtotalPartida,
             0, // total_partida lo calculará calcularImpuestosPartida
           ]

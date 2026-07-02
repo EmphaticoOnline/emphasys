@@ -69,6 +69,11 @@ import CamposObligatoriosPage from './pages/configuracion/CamposObligatoriosPage
 import AutorizacionesBandejaPage from './pages/AutorizacionesBandejaPage';
 import AutorizacionesReglasPage from './pages/configuracion/AutorizacionesReglasPage';
 import MetodosPagoPage from './pages/configuracion/MetodosPagoPage';
+import ExistenciasPorAlmacenPage from './pages/informes/inventario/ExistenciasPorAlmacenPage';
+import KardexProductoPage from './pages/informes/inventario/KardexProductoPage';
+import MovimientosInventarioPage from './pages/informes/inventario/MovimientosInventarioPage';
+import ProductosBajoMinimoPage from './pages/informes/inventario/ProductosBajoMinimoPage';
+import InventarioValorizadoPage from './pages/informes/inventario/InventarioValorizadoPage';
 
 export default function App() {
   return (
@@ -141,6 +146,11 @@ export default function App() {
               <Route path="/informes/finanzas/posicion-tesoreria"              element={<PosicionTesoreriaPage />} />
               <Route path="/informes/finanzas/cartera-vencida"                 element={<CarteraVencidaPage />} />
               <Route path="/informes/finanzas/movimientos-no-conciliados"     element={<MovimientosNoConciliadosPage />} />
+              <Route path="/informes/inventario/existencias-por-almacen"    element={<ExistenciasPorAlmacenPage />} />
+              <Route path="/informes/inventario/kardex"                     element={<KardexProductoPage />} />
+              <Route path="/informes/inventario/movimientos"                element={<MovimientosInventarioPage />} />
+              <Route path="/informes/inventario/bajo-minimo"                element={<ProductosBajoMinimoPage />} />
+              <Route path="/informes/inventario/valorizado"                 element={<InventarioValorizadoPage />} />
 
               {/* Configuración */}
               <Route path="/configuracion" element={<ConfiguracionPage />} />

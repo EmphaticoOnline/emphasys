@@ -558,6 +558,8 @@ function construirPartidasDuplicadas(partidas: Array<Record<string, any>>): Part
     cantidad: Number(partida.cantidad ?? 0),
     precio_unitario: Number(partida.precio_unitario ?? 0),
     descuento: Number(partida.descuento ?? 0),
+    descuento_tipo: partida.descuento_tipo === 'monto' ? 'monto' : 'porcentaje',
+    descuento_monto: Number(partida.descuento_monto ?? 0),
     subtotal_partida: Number(partida.subtotal_partida ?? 0),
     total_partida: Number(partida.total_partida ?? partida.subtotal_partida ?? 0),
     es_parte_oportunidad: partida.es_parte_oportunidad ?? true,

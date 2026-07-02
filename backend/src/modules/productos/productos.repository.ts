@@ -250,7 +250,7 @@ const CAMPOS = [
   'ubicacion_almacen', 'proveedor_principal_id', 'proveedor_alternativo_1_id', 'proveedor_alternativo_2_id',
   'archivo_fotografia_1', 'archivo_fotografia_2', 'archivo_ficha_tecnica', 'archivo_certificado', 'es_estacional',
   'demanda_mensual_estimado', 'factor_demanda', 'observaciones', 'observaciones_compras', 'observaciones_diseno',
-  'fecha_creacion'
+  'especificaciones', 'fecha_creacion'
 ];
 
 // Inserta un nuevo producto usando empresa_id

@@ -60,6 +60,6 @@ export async function fetchContactosPaginados(options: {
 }
 
 export async function fetchVendedores(): Promise<Contacto[]> {
-  const contactos = await apiFetch('/api/contactos');
-  return (contactos as Contacto[]).filter((c) => (c.tipo_contacto || '').toLowerCase() === 'vendedor');
+  const contactos = await fetchContactos(['Vendedor']);
+  return contactos.filter((c) => (c.tipo_contacto || '').toLowerCase() === 'vendedor');
 }

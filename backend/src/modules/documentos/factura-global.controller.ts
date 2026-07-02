@@ -228,6 +228,8 @@ export async function generarFacturaGlobal(req: Request, res: Response) {
           cantidad,
           precio_unitario,
           descuento,
+          descuento_tipo,
+          descuento_monto,
           subtotal_partida,
           total_partida,
           es_parte_oportunidad
@@ -239,6 +241,8 @@ export async function generarFacturaGlobal(req: Request, res: Response) {
                dp.cantidad,
                dp.precio_unitario,
                dp.descuento,
+               dp.descuento_tipo,
+               dp.descuento_monto,
                dp.subtotal_partida,
                COALESCE(dp.total_partida, dp.subtotal_partida),
                false

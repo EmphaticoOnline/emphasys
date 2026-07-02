@@ -46,7 +46,6 @@ import { createFilterOptions } from '@mui/material/Autocomplete';
 
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
-import SaveIcon from '@mui/icons-material/Save';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -57,8 +56,11 @@ import { resolveDocumentoFormPath, resolveDocumentoModulo, resolveDocumentosList
 import DynamicFieldControl from '../components/DynamicFieldControl';
 import MobileBackIconButton from '../components/MobileBackIconButton';
 import MobileSaveFab from '../components/MobileSaveFab';
+import FloatingFormActions from '../components/FloatingFormActions';
 import ContactCaptureDialog, { type ContactCaptureDetailedFields } from '../components/contactos/ContactCaptureDialog';
 import ProductoCaptureDialog from '../components/productos/ProductoCaptureDialog';
+import ObservacionesEncabezadoCampo from '../components/ObservacionesEncabezadoCampo';
+import PartidaObservacionesEditor from '../components/documentos/PartidaObservacionesEditor';
 import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 
 import type {
@@ -156,18 +158,31 @@ const getPartidaBaseBruta = (partida: Pick<PartidaForm, 'cantidad' | 'precio_uni
   return cantidad * precio;
 };
 
-const getPartidaDiscountAmount = (partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>) => {
+const clampDiscountMonto = (value: unknown, baseBruta: number) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.min(Math.max(numeric, 0), Math.max(baseBruta, 0));
+};
+
+type PartidaDescuentoFields = Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento' | 'descuento_tipo' | 'descuento_monto'>;
+
+const esDescuentoPartidaPorMonto = (partida: Pick<PartidaForm, 'descuento_tipo'>) => partida.descuento_tipo === 'monto';
+
+const getPartidaDiscountAmount = (partida: PartidaDescuentoFields) => {
   const baseBruta = getPartidaBaseBruta(partida);
+  if (esDescuentoPartidaPorMonto(partida)) {
+    return clampDiscountMonto(partida.descuento_monto, baseBruta);
+  }
   const descuento = clampDiscountPercent(partida.descuento);
   return baseBruta * (descuento / 100);
 };
 
-const getPartidaSubtotalAfterLineDiscount = (partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>) => (
+const getPartidaSubtotalAfterLineDiscount = (partida: PartidaDescuentoFields) => (
   getPartidaBaseBruta(partida) - getPartidaDiscountAmount(partida)
 );
 
 const getPartidaGlobalDiscountAmount = (
-  partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>,
+  partida: PartidaDescuentoFields,
   descuentoGlobal: unknown
 ) => {
   const subtotalDespuesDescuentoPartida = getPartidaSubtotalAfterLineDiscount(partida);
@@ -176,12 +191,12 @@ const getPartidaGlobalDiscountAmount = (
 };
 
 const getPartidaTotalDiscountAmount = (
-  partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>,
+  partida: PartidaDescuentoFields,
   descuentoGlobal: unknown
 ) => getPartidaDiscountAmount(partida) + getPartidaGlobalDiscountAmount(partida, descuentoGlobal);
 
 const getPartidaDiscountBreakdown = (
-  partida: Pick<PartidaForm, 'cantidad' | 'precio_unitario' | 'descuento'>,
+  partida: PartidaDescuentoFields,
   descuentoGlobal: unknown
 ) => {
   const precioBruto = getPartidaBaseBruta(partida);
@@ -204,6 +219,9 @@ type PartidaForm = Omit<CotizacionPartidaPayload, 'impuestos'> & {
   producto?: Producto | null;
   impuestos?: (ImpuestoEntrada | ImpuestoPartida)[];
   impuestos_calculados?: ImpuestoCalculadoUI[];
+  // Solo para fallback visual mientras carga el catálogo de productos; no se envían al guardar.
+  producto_clave?: string | null;
+  producto_descripcion?: string | null;
 };
 
 type FinancialSummary = {
@@ -298,6 +316,8 @@ const emptyPartida = (): PartidaForm => ({
   precio_editado_manual: false,
   precio_origen: null,
   descuento: 0,
+  descuento_tipo: 'porcentaje',
+  descuento_monto: 0,
   subtotal_partida: 0,
   total_partida: 0,
   es_parte_oportunidad: true,
@@ -420,6 +440,29 @@ const buildCreateProductoOption = (): ProductoAutocompleteOption => ({
   clave: 'Crear producto...',
   descripcion: 'Registrar y asignar producto',
 });
+
+// Objeto liviano solo para mostrar el label mientras el catálogo completo de productos
+// (que puede tardar en empresas con muchos registros) todavía no incluye este id.
+const buildProductoDisplayFallback = (id: number, clave?: string | null, descripcion?: string | null): Producto =>
+  ({
+    id,
+    clave: clave || '',
+    descripcion: descripcion || '',
+  } as unknown as Producto);
+
+// Análogo a buildProductoDisplayFallback pero para el selector de cliente/contacto.
+const buildContactoDisplayFallback = (
+  id: number,
+  nombre?: string | null,
+  email?: string | null,
+  telefono?: string | null
+): Contacto =>
+  ({
+    id,
+    nombre: nombre || '',
+    email: email ?? null,
+    telefono: telefono ?? null,
+  } as unknown as Contacto);
 
 const buildCreateConceptoOption = (inputValue: string): ConceptoAutocompleteOption => ({
   kind: 'create',
@@ -576,6 +619,7 @@ export default function DocumentosFormPage({
   const [partidaImagenesProductoLoadingId, setPartidaImagenesProductoLoadingId] = useState<number | null>(null);
   const [partidaImagenesProductoError, setPartidaImagenesProductoError] = useState<string | null>(null);
   const [contactos, setContactos] = useState<Contacto[]>([]);
+  const [contactoFallback, setContactoFallback] = useState<Contacto | null>(null);
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -812,6 +856,8 @@ export default function DocumentosFormPage({
         cantidad: partida.cantidad ?? 0,
         precio_unitario: partida.precio_unitario ?? 0,
         descuento: partida.descuento ?? 0,
+        descuento_tipo: esDescuentoPartidaPorMonto(partida) ? 'monto' : 'porcentaje',
+        descuento_monto: partida.descuento_monto ?? 0,
         descuento_global: descuentoGlobalActual ?? descuentoGlobalRef.current,
         tratamiento_impuestos: tratamientoActual,
       });
@@ -1012,6 +1058,17 @@ export default function DocumentosFormPage({
 
     return [...productosDisponibles, buildCreateProductoOption()];
   }, [productoCreationMode, productosDisponibles]);
+
+  // Mientras el catálogo completo de contactos no incluya al cliente ya asignado al documento
+  // (empresas con muchos contactos tardan más en cargarlo), se muestra un fallback visual
+  // construido con los datos que ya trajo el documento, para no dejar el campo en blanco.
+  const contactoSeleccionado = useMemo<Contacto | null>(() => {
+    if (form.contacto_principal_id == null) return null;
+    const real = contactos.find((c) => c.id === form.contacto_principal_id);
+    if (real) return real;
+    if (contactoFallback && contactoFallback.id === form.contacto_principal_id) return contactoFallback;
+    return null;
+  }, [contactos, contactoFallback, form.contacto_principal_id]);
 
   const partidaImagenActual = partidaImagenDialog.index !== null ? partidas[partidaImagenDialog.index] ?? null : null;
   const partidaImagenProductoId = partidaImagenActual?.producto_id ?? null;
@@ -1305,23 +1362,17 @@ export default function DocumentosFormPage({
   const isSinIva = (t: TratamientoImpuestos | null | undefined) => (t ?? '').toLowerCase() === 'sin_iva';
   const isOperacionEstandar = (t: TratamientoImpuestos | null | undefined) => ['normal', 'operacion_estandar'].includes((t ?? '').toLowerCase());
 
-  const partidasGridTemplate = useMemo(
-    () =>
-      (partidasMostrarEsParteOportunidad || partidasMostrarImagenes
-        ? '180px 1fr 80px 120px 88px 120px 120px 120px 120px 52px 40px 48px'
-        : '180px 1fr 80px 120px 88px 120px 120px 120px 40px 48px'),
-    [partidasMostrarEsParteOportunidad, partidasMostrarImagenes]
-  );
-
   const useCompactMobilePartidas = isMobile && !esDocumentoMonetario && !usaCapturaEspecialNotaCredito && usaPartidas;
 
   const calcularPartida = (partida: PartidaForm, descuentoGlobalOverride?: number | null): PartidaForm => {
     const cantidad = Number(partida.cantidad) || 0;
     const precio = Number(partida.precio_unitario) || 0;
-    const descuento = clampDiscountPercent(partida.descuento);
-    const descuentoGlobal = clampDiscountPercent(descuentoGlobalOverride ?? descuentoGlobalRef.current ?? 0);
     const baseBruta = cantidad * precio;
-    const descuentoMonto = baseBruta * (descuento / 100);
+    const esMonto = esDescuentoPartidaPorMonto(partida);
+    const descuento = esMonto ? 0 : clampDiscountPercent(partida.descuento);
+    const descuentoMontoInput = esMonto ? clampDiscountMonto(partida.descuento_monto, baseBruta) : 0;
+    const descuentoGlobal = clampDiscountPercent(descuentoGlobalOverride ?? descuentoGlobalRef.current ?? 0);
+    const descuentoMonto = esMonto ? descuentoMontoInput : baseBruta * (descuento / 100);
     const subtotalDespuesDescuentoPartida = baseBruta - descuentoMonto;
     const descuentoGlobalMonto = subtotalDespuesDescuentoPartida * (descuentoGlobal / 100);
     const subtotal_partida = subtotalDespuesDescuentoPartida - descuentoGlobalMonto;
@@ -1338,6 +1389,8 @@ export default function DocumentosFormPage({
       cantidad,
       precio_unitario: precio,
       descuento,
+      descuento_tipo: esMonto ? 'monto' as const : 'porcentaje' as const,
+      descuento_monto: descuentoMontoInput,
       subtotal_partida,
       total_partida,
       impuestos: impuestosLista as any,
@@ -1677,6 +1730,16 @@ export default function DocumentosFormPage({
         serie_externa: (doc as any).serie_externa ?? null,
         numero_externo: (doc as any).numero_externo ?? null,
       });
+      setContactoFallback(
+        doc.contacto_principal_id
+          ? buildContactoDisplayFallback(
+              doc.contacto_principal_id,
+              (doc as any).cliente_nombre,
+              (doc as any).cliente_email,
+              (doc as any).cliente_telefono
+            )
+          : null
+      );
       const motivoDocumentoActual = ((doc as any).motivo_nc ?? null) as MotivoNotaCredito | null;
       if (isNotaCredito && (motivoDocumentoActual === 'devolucion' || motivoDocumentoActual === 'bonificacion')) {
         const capturasActuales = data.partidas.reduce<Record<number, {
@@ -1747,6 +1810,8 @@ export default function DocumentosFormPage({
         return calcularPartida({
           id: p.id,
           producto_id: p.producto_id,
+          producto_clave: p.producto_clave ?? null,
+          producto_descripcion: p.producto_descripcion ?? null,
           descripcion_alterna: p.descripcion_alterna ?? p.producto_descripcion ?? '',
           cantidad: p.cantidad,
           precio_unitario: p.precio_unitario,
@@ -1754,6 +1819,8 @@ export default function DocumentosFormPage({
           precio_editado_manual: p.precio_editado_manual === true,
           precio_origen: p.precio_origen ?? null,
           descuento: p.descuento ?? 0,
+          descuento_tipo: p.descuento_tipo === 'monto' ? 'monto' : 'porcentaje',
+          descuento_monto: p.descuento_monto ?? 0,
           subtotal_partida: p.subtotal_partida,
           total_partida: p.total_partida,
           es_parte_oportunidad: p.es_parte_oportunidad ?? true,
@@ -2546,6 +2613,8 @@ export default function DocumentosFormPage({
         precio_editado_manual: p.precio_editado_manual === true,
         precio_origen: p.precio_origen ?? null,
         descuento: p.descuento ?? 0,
+        descuento_tipo: p.descuento_tipo === 'monto' ? 'monto' : 'porcentaje',
+        descuento_monto: p.descuento_monto ?? 0,
         subtotal_partida: p.subtotal_partida ?? 0,
         total_partida: p.total_partida ?? 0,
         ...(partidasMostrarEsParteOportunidad
@@ -2848,10 +2917,17 @@ export default function DocumentosFormPage({
     }
   };
 
-  const handleCantidadPrecioChange = (index: number, field: 'cantidad' | 'precio_unitario' | 'descuento', value: string) => {
+  const handleCantidadPrecioChange = (index: number, field: 'cantidad' | 'precio_unitario' | 'descuento' | 'descuento_monto', value: string) => {
     console.log('[calc] onChange input', { index, field, value });
     setPartidaAt(index, (prev) => {
-      const nextValue = field === 'descuento' ? clampDiscountPercent(value) : Number(value);
+      let nextValue: number;
+      if (field === 'descuento') {
+        nextValue = clampDiscountPercent(value);
+      } else if (field === 'descuento_monto') {
+        nextValue = clampDiscountMonto(value, getPartidaBaseBruta(prev));
+      } else {
+        nextValue = Number(value);
+      }
       return {
         ...prev,
         [field]: nextValue,
@@ -2860,6 +2936,16 @@ export default function DocumentosFormPage({
         impuestos: prev.impuestos ?? [],
       };
     });
+  };
+
+  const handleDescuentoTipoPartidaChange = (index: number, tipo: 'porcentaje' | 'monto') => {
+    setPartidaAt(index, (prev) => ({
+      ...prev,
+      descuento_tipo: tipo,
+      descuento: tipo === 'porcentaje' ? (prev.descuento ?? 0) : 0,
+      descuento_monto: tipo === 'monto' ? (prev.descuento_monto ?? 0) : 0,
+      impuestos: prev.impuestos ?? [],
+    }));
   };
 
   const handleDescuentoGlobalChange = (value: string) => {
@@ -2953,6 +3039,9 @@ export default function DocumentosFormPage({
   const handleObservacionesChange = (index: number, value: string) => {
     setPartidaAt(index, (prev) => ({ ...prev, observaciones: value }));
   };
+
+  const obtenerProductoDePartida = (partida: PartidaForm): Producto | null =>
+    partida.producto ?? productos.find((item) => item.id === partida.producto_id) ?? null;
 
   const toggleObservaciones = (index: number) => {
     setExpandedObs((prev) => {
@@ -3262,7 +3351,7 @@ export default function DocumentosFormPage({
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: mostrarResumenFinancieroStickyVisible ? { xs: 10, sm: 9 } : 0 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: mostrarResumenFinancieroStickyVisible ? { xs: 10, sm: 9 } : { xs: 0, sm: 10 } }}>
       {isMobile ? (
         <Box
           sx={{
@@ -3310,15 +3399,6 @@ export default function DocumentosFormPage({
           alignItems="center"
           sx={{ width: '100%', minWidth: 0, display: isMobile ? 'none' : 'flex' }}
         >
-          {!isMobile ? (
-            <Button
-              variant="text"
-              onClick={() => void handleNavigateBack()}
-              sx={{ alignSelf: 'center' }}
-            >
-              Volver
-            </Button>
-          ) : null}
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="h5" fontWeight={700} color="#1d2f68">
               {isEdit ? textos.editar : textos.nuevo}
@@ -3432,14 +3512,6 @@ export default function DocumentosFormPage({
                   {downloadingPdf ? 'Generando...' : 'Ver / Imprimir PDF'}
                 </Button>
               )}
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={handleSave}
-                disabled={saving || loading || tieneDerivadosActivos || trazabilidadActiva}
-              >
-                {saving ? 'Guardando...' : 'Guardar'}
-              </Button>
             </>
           )}
         </Stack>
@@ -3451,7 +3523,15 @@ export default function DocumentosFormPage({
           disabled={saving || loading || tieneDerivadosActivos || trazabilidadActiva}
           onClick={handleSave}
         />
-      ) : null}
+      ) : (
+        <FloatingFormActions
+          onBack={() => void handleNavigateBack()}
+          onSave={handleSave}
+          saving={saving}
+          saveDisabled={saving || loading || tieneDerivadosActivos || trazabilidadActiva}
+          bottomOffset={mostrarResumenFinancieroStickyVisible ? 96 : 24}
+        />
+      )}
 
       {anticipoConfig && (documentoActualId || hasAnticiposRegistrados || Number(form.total || 0) > 0) ? (
         <Paper
@@ -3605,7 +3685,7 @@ export default function DocumentosFormPage({
                           }
                           return option?.id === value?.id;
                         }}
-                        value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
+                        value={contactoSeleccionado}
                         disabled={lockedContacto || trazabilidadActiva}
                         onChange={(_, value) => {
                           if (lockedContacto) return;
@@ -3751,14 +3831,11 @@ export default function DocumentosFormPage({
                       </Grid>
                     )}
                     <Grid size={{ xs: 12, md: 3 }}>
-                      <TextField
+                      <ObservacionesEncabezadoCampo
                         label="Referencia / observaciones"
                         value={form.observaciones || ''}
-                        onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
+                        onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
                         disabled={trazabilidadActiva}
-                        fullWidth
-                        size="small"
-                        InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                         sx={campoEncabezadoSx}
                       />
                     </Grid>
@@ -3869,7 +3946,7 @@ export default function DocumentosFormPage({
                       }
                       return option?.id === value?.id;
                     }}
-                    value={contactos.find((c) => c.id === form.contacto_principal_id) || null}
+                    value={contactoSeleccionado}
                     disabled={lockedContacto || trazabilidadActiva}
                     onChange={(_, value) => {
                       if (lockedContacto) return;
@@ -4113,15 +4190,11 @@ export default function DocumentosFormPage({
                 )}
                 {!esDocumentoMonetario && (
                   <Grid size={{ xs: 12, md: 3 }}>
-                    <TextField
+                    <ObservacionesEncabezadoCampo
                       label="Observaciones"
                       value={form.observaciones || ''}
-                      onChange={(e) => setForm((prev) => ({ ...prev, observaciones: e.target.value }))}
+                      onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
                       disabled={trazabilidadActiva}
-                      fullWidth
-                      size="small"
-                      InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                      inputProps={{ style: { fontSize: 13 } }}
                     />
                   </Grid>
                 )}
@@ -4717,7 +4790,11 @@ export default function DocumentosFormPage({
               <Stack spacing={1}>
                 {partidas.map((partida, index) => (
                   (() => {
-                    const productoSeleccionado = productos.find((p) => p.id === partida.producto_id) || null;
+                    const productoSeleccionado =
+                      productos.find((p) => p.id === partida.producto_id) ??
+                      (partida.producto_id != null
+                        ? buildProductoDisplayFallback(partida.producto_id, partida.producto_clave, partida.producto_descripcion)
+                        : null);
                     const ivaPartida = (partida.impuestos ?? []).reduce((acc, imp: any) => {
                       const monto = Number(imp.monto ?? 0);
                       const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
@@ -4999,12 +5076,33 @@ export default function DocumentosFormPage({
                                 </Box>
 
                                 <TextField
-                                  label="% Desc."
+                                  label={esDescuentoPartidaPorMonto(partida) ? 'Desc. $' : '% Desc.'}
                                   type="number"
-                                  value={partida.descuento ?? 0}
-                                  onChange={(e) => handleCantidadPrecioChange(index, 'descuento', e.target.value)}
+                                  value={esDescuentoPartidaPorMonto(partida) ? (partida.descuento_monto ?? 0) : (partida.descuento ?? 0)}
+                                  onChange={(e) => handleCantidadPrecioChange(
+                                    index,
+                                    esDescuentoPartidaPorMonto(partida) ? 'descuento_monto' : 'descuento',
+                                    e.target.value
+                                  )}
                                   size="small"
-                                  inputProps={{ min: 0, max: 100, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
+                                  InputProps={{
+                                    startAdornment: (
+                                      <InputAdornment position="start" sx={{ mr: 0.25 }}>
+                                        <ButtonBase
+                                          onClick={() => handleDescuentoTipoPartidaChange(
+                                            index,
+                                            esDescuentoPartidaPorMonto(partida) ? 'porcentaje' : 'monto'
+                                          )}
+                                          disabled={trazabilidadActiva}
+                                          title="Cambiar tipo de descuento"
+                                          sx={{ fontSize: 12, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: '#1d2f68', bgcolor: '#eef2ff' }}
+                                        >
+                                          {esDescuentoPartidaPorMonto(partida) ? '$' : '%'}
+                                        </ButtonBase>
+                                      </InputAdornment>
+                                    ),
+                                  }}
+                                  inputProps={{ min: 0, max: esDescuentoPartidaPorMonto(partida) ? undefined : 100, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
                                   disabled={trazabilidadActiva}
                                 />
 
@@ -5103,17 +5201,10 @@ export default function DocumentosFormPage({
                                 )}
 
                                 {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
-                                  <TextField
-                                    label="Observaciones de la partida"
-                                    placeholder="Texto adicional para impresión"
+                                  <PartidaObservacionesEditor
                                     value={partida.observaciones ?? ''}
-                                    onChange={(e) => handleObservacionesChange(index, e.target.value)}
-                                    fullWidth
-                                    multiline
-                                    minRows={2}
-                                    variant="outlined"
-                                    size="small"
-                                    InputProps={{ sx: { fontSize: 13 } }}
+                                    onChange={(value) => handleObservacionesChange(index, value)}
+                                    producto={obtenerProductoDePartida(partida)}
                                     disabled={trazabilidadActiva}
                                   />
                                 )}
@@ -5135,16 +5226,20 @@ export default function DocumentosFormPage({
                             borderColor: '#96a7c7',
                             bgcolor: '#ffffff',
                             boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
-                            display: 'grid',
-                            gridTemplateColumns: {
-                              xs: '1fr',
-                              md: partidasGridTemplate,
-                            },
+                            display: 'flex',
+                            flexDirection: 'column',
                             gap: { xs: 1, md: 1.25 },
-                            alignItems: 'center',
                             mb: 2,
                           }}
                         >
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              alignItems: 'center',
+                              gap: { xs: 1, md: 1.25 },
+                            }}
+                          >
                           <Autocomplete<ProductoAutocompleteOption>
                             options={productosAutocompleteOptions}
                             loading={productos.length === 0}
@@ -5242,19 +5337,8 @@ export default function DocumentosFormPage({
                                 inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
                               />
                             )}
-                            sx={{ minWidth: 0 }}
+                            sx={{ flex: '1 1 200px', minWidth: { xs: '100%', sm: 180 } }}
                             disabled={trazabilidadActiva}
-                          />
-
-                          <TextField
-                            label="Descripción"
-                            value={partida.descripcion_alterna ?? ''}
-                            onChange={(e) => handleDescripcionChange(index, e.target.value)}
-                            size="small"
-                            InputProps={{ sx: { fontSize: 13 } }}
-                            inputProps={{ style: { fontSize: 13 } }}
-                            sx={{ minWidth: 0 }}
-                            disabled
                           />
 
                           <TextField
@@ -5306,6 +5390,7 @@ export default function DocumentosFormPage({
                               cantidadRefs.current[index] = el;
                             }}
                             disabled={trazabilidadActiva}
+                            sx={{ flex: '0 1 92px', minWidth: { xs: 'calc(50% - 8px)', sm: 80 } }}
                           />
 
                           <TextField
@@ -5355,16 +5440,39 @@ export default function DocumentosFormPage({
                               precioRefs.current[index] = el;
                             }}
                             disabled={trazabilidadActiva}
+                            sx={{ flex: '0 1 112px', minWidth: { xs: 'calc(50% - 8px)', sm: 96 } }}
                           />
 
                           <TextField
-                            label="% Desc."
+                            label={esDescuentoPartidaPorMonto(partida) ? 'Desc. $' : '% Desc.'}
                             type="number"
-                            value={partida.descuento ?? 0}
-                            onChange={(e) => handleCantidadPrecioChange(index, 'descuento', e.target.value)}
+                            value={esDescuentoPartidaPorMonto(partida) ? (partida.descuento_monto ?? 0) : (partida.descuento ?? 0)}
+                            onChange={(e) => handleCantidadPrecioChange(
+                              index,
+                              esDescuentoPartidaPorMonto(partida) ? 'descuento_monto' : 'descuento',
+                              e.target.value
+                            )}
                             size="small"
-                            inputProps={{ min: 0, max: 100, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start" sx={{ mr: 0.25 }}>
+                                  <ButtonBase
+                                    onClick={() => handleDescuentoTipoPartidaChange(
+                                      index,
+                                      esDescuentoPartidaPorMonto(partida) ? 'porcentaje' : 'monto'
+                                    )}
+                                    disabled={trazabilidadActiva}
+                                    title="Cambiar tipo de descuento"
+                                    sx={{ fontSize: 12, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: '#1d2f68', bgcolor: '#eef2ff' }}
+                                  >
+                                    {esDescuentoPartidaPorMonto(partida) ? '$' : '%'}
+                                  </ButtonBase>
+                                </InputAdornment>
+                              ),
+                            }}
+                            inputProps={{ min: 0, max: esDescuentoPartidaPorMonto(partida) ? undefined : 100, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
                             disabled={trazabilidadActiva}
+                            sx={{ flex: '0 1 104px', minWidth: { xs: 'calc(50% - 8px)', sm: 92 } }}
                           />
 
                           <Tooltip
@@ -5388,6 +5496,7 @@ export default function DocumentosFormPage({
                               value={formatter.format(partida.subtotal_partida ?? 0)}
                               InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
                               size="small"
+                              sx={{ flex: '0 1 112px', minWidth: { xs: 'calc(50% - 8px)', sm: 96 } }}
                             />
                           </Tooltip>
 
@@ -5396,6 +5505,7 @@ export default function DocumentosFormPage({
                             value={formatter.format(ivaPartida)}
                             InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
                             size="small"
+                            sx={{ flex: '0 1 104px', minWidth: { xs: 'calc(50% - 8px)', sm: 92 } }}
                           />
 
                           <TextField
@@ -5403,8 +5513,18 @@ export default function DocumentosFormPage({
                             value={formatter.format(partida.total_partida ?? 0)}
                             InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
                             size="small"
+                            sx={{ flex: '0 1 112px', minWidth: { xs: 'calc(50% - 8px)', sm: 96 } }}
                           />
 
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              flex: '0 0 auto',
+                              ml: 'auto',
+                            }}
+                          >
                           {partidasMostrarEsParteOportunidad && (
                             <Box display="flex" justifyContent="center" alignItems="center" sx={{ minHeight: 40 }}>
                               <Tooltip title="Cuenta para oportunidad">
@@ -5486,11 +5606,24 @@ export default function DocumentosFormPage({
                           <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small" disabled={trazabilidadActiva}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
+                          </Box>
+                          </Box>
+
+                          <TextField
+                            label="Descripción"
+                            value={partida.descripcion_alterna ?? ''}
+                            onChange={(e) => handleDescripcionChange(index, e.target.value)}
+                            size="small"
+                            fullWidth
+                            InputProps={{ sx: { fontSize: 13 } }}
+                            inputProps={{ style: { fontSize: 13 } }}
+                            disabled
+                          />
 
                         {camposPartida.campos.length > 0 && (
                           <Box
                             sx={{
-                              gridColumn: { xs: '1', md: '1 / -1' },
+                              width: '100%',
                               mt: 0.5,
                               '& .MuiInputBase-input': {
                                 fontSize: 13,
@@ -5526,18 +5659,11 @@ export default function DocumentosFormPage({
                         )}
 
                         {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
-                          <Box sx={{ gridColumn: '1 / -1', mt: { xs: 0.5, md: 0.25 } }}>
-                            <TextField
-                              label="Observaciones de la partida"
-                              placeholder="Texto adicional para impresión"
+                          <Box sx={{ width: '100%', mt: { xs: 0.5, md: 0.25 } }}>
+                            <PartidaObservacionesEditor
                               value={partida.observaciones ?? ''}
-                              onChange={(e) => handleObservacionesChange(index, e.target.value)}
-                              fullWidth
-                              multiline
-                              minRows={2}
-                              variant="outlined"
-                              size="small"
-                              InputProps={{ sx: { fontSize: 13 } }}
+                              onChange={(value) => handleObservacionesChange(index, value)}
+                              producto={obtenerProductoDePartida(partida)}
                               disabled={trazabilidadActiva}
                             />
                           </Box>

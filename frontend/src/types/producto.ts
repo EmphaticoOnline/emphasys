@@ -51,6 +51,7 @@ export interface Producto {
   observaciones: string | null;
   observaciones_compras: string | null;
   observaciones_diseno: string | null;
+  especificaciones: string | null;
   fecha_creacion: string;
   unidad_venta_clave?: string;
   unidad_venta_descripcion?: string;
@@ -67,4 +68,5 @@ export interface ProductoBasico {
   clave_producto_sat?: string | null;
   unidad_venta_id?: number | null;
   unidad_inventario_id?: number | null;
+  especificaciones?: string | null;
 }

@@ -114,6 +114,8 @@ export default function ConciliacionBancariaPage() {
   const [motivoAnulacion, setMotivoAnulacion] = useState('');
   const [deshaciendo, setDeshaciendo] = useState(false);
 
+  const [procesandoFila, setProcesandoFila] = useState<Set<number>>(new Set());
+
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     msg: string;
@@ -218,6 +220,24 @@ export default function ConciliacionBancariaPage() {
     }
   };
 
+  const handleToggleFila = useCallback(async (row: MovimientoConciliacion) => {
+    const nuevoEstado: 'pendiente' | 'cotejado' =
+      row.estado_conciliacion === 'cotejado' ? 'pendiente' : 'cotejado';
+    setProcesandoFila((prev) => new Set(prev).add(row.id));
+    try {
+      await cotejarMovimientosSvc([row.id], nuevoEstado);
+      await cargar();
+    } catch (err: any) {
+      setSnackbar({ open: true, msg: err.message || 'Error al actualizar estado', sev: 'error' });
+    } finally {
+      setProcesandoFila((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
+    }
+  }, [cargar]);
+
   const handleCerrar = async () => {
     setConfirmarCerrar(false);
     if (!cuentaId) return;
@@ -244,6 +264,37 @@ export default function ConciliacionBancariaPage() {
 
   const columns: GridColDef<MovimientoConciliacion>[] = useMemo(
     () => [
+      {
+        field: '__toggle',
+        headerName: '',
+        width: 40,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        renderCell: ({ row }) => {
+          const esCotejado = row.estado_conciliacion === 'cotejado';
+          const cargando = procesandoFila.has(row.id);
+          return (
+            <Tooltip title={esCotejado ? 'Volver a pendiente' : 'Marcar en banco'} placement="right">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={cargando}
+                  onClick={(e) => { e.stopPropagation(); void handleToggleFila(row); }}
+                  sx={{ p: 0.25 }}
+                >
+                  {cargando
+                    ? <CircularProgress size={14} />
+                    : esCotejado
+                      ? <CheckCircleOutlineIcon sx={{ fontSize: 18, color: 'success.main' }} />
+                      : <RadioButtonUncheckedIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+                  }
+                </IconButton>
+              </span>
+            </Tooltip>
+          );
+        },
+      },
       {
         field: 'estado_conciliacion',
         headerName: 'Estado',
@@ -330,7 +381,7 @@ export default function ConciliacionBancariaPage() {
       },
       { field: 'observaciones', headerName: 'Observaciones', flex: 1, minWidth: 140 },
     ],
-    []
+    [handleToggleFila, procesandoFila]
   );
 
   return (

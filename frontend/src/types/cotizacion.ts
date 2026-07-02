@@ -1,6 +1,7 @@
 import type { TipoDocumento } from './documentos.types';
 
 export type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
+export type DescuentoPartidaTipo = 'porcentaje' | 'monto';
 export type EstadoSeguimiento = 'abierta' | 'pausada' | 'convertida' | 'perdida' | 'no seleccionada' | 'cancelada';
 
 export interface CotizacionListado {
@@ -84,6 +85,8 @@ export interface CotizacionPartida {
   precio_editado_manual?: boolean;
   precio_origen?: string | null;
   descuento?: number;
+  descuento_tipo?: DescuentoPartidaTipo;
+  descuento_monto?: number;
   subtotal_partida: number;
   total_partida: number;
   es_parte_oportunidad?: boolean;
@@ -172,6 +175,8 @@ export interface CotizacionPartidaPayload {
   precio_editado_manual?: boolean;
   precio_origen?: string | null;
   descuento?: number;
+  descuento_tipo?: DescuentoPartidaTipo;
+  descuento_monto?: number;
   subtotal_partida: number;
   total_partida: number;
   es_parte_oportunidad?: boolean;

@@ -304,6 +304,8 @@ export function calcularImpuestosPreview(payload: {
   cantidad?: number | null;
   precio_unitario?: number | null;
   descuento?: number | null;
+  descuento_tipo?: 'porcentaje' | 'monto' | null;
+  descuento_monto?: number | null;
   descuento_global?: number | null;
   tratamiento_impuestos?: string | null;
 }) {

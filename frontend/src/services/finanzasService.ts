@@ -14,6 +14,7 @@ import type {
   OperacionDisponible,
   ProgramacionPago,
   ProgramacionPagoInput,
+  ProgramacionMasivaInput,
   TipoMovimiento,
   TransferenciaPayload,
   TransferenciaUpdatePayload,
@@ -203,11 +204,21 @@ export async function fetchFacturasCompraPendientes(opts?: {
   proveedorId?: number | null;
   search?: string | null;
   excludeProgramacionId?: number | null;
+  moneda?: string | null;
+  fechaDesde?: string | null;
+  fechaHasta?: string | null;
+  vencimiento?: 'vencidas' | 'por_vencer' | null;
+  limit?: number | null;
 }): Promise<FacturaCompraPendiente[]> {
   const qs = new URLSearchParams();
   if (opts?.proveedorId) qs.set('proveedor_id', String(opts.proveedorId));
   if (opts?.search) qs.set('search', opts.search);
   if (opts?.excludeProgramacionId) qs.set('exclude_programacion_id', String(opts.excludeProgramacionId));
+  if (opts?.moneda) qs.set('moneda', opts.moneda);
+  if (opts?.fechaDesde) qs.set('fecha_desde', opts.fechaDesde);
+  if (opts?.fechaHasta) qs.set('fecha_hasta', opts.fechaHasta);
+  if (opts?.vencimiento) qs.set('vencimiento', opts.vencimiento);
+  if (opts?.limit) qs.set('limit', String(opts.limit));
   const q = qs.toString() ? `?${qs.toString()}` : '';
   return apiFetch(`${BASE}/facturas-compra-pendientes${q}`);
 }
@@ -241,6 +252,12 @@ export async function crearProgramacionPago(
   payload: ProgramacionPagoInput
 ): Promise<ProgramacionPago> {
   return apiFetch(`${BASE}/programacion-pagos`, { method: 'POST', body: payload as any });
+}
+
+export async function crearProgramacionesMasiva(
+  payload: ProgramacionMasivaInput
+): Promise<ProgramacionPago[]> {
+  return apiFetch(`${BASE}/programacion-pagos/masiva`, { method: 'POST', body: payload as any });
 }
 
 export async function actualizarProgramacionPago(

@@ -696,6 +696,8 @@ export const calcularImpuestosPreviewHandler = async (req: Request, res: Respons
       cantidad,
       precio_unitario,
       descuento,
+      descuento_tipo,
+      descuento_monto,
       descuento_global,
       tratamiento_impuestos,
     } = req.body || {};
@@ -706,6 +708,8 @@ export const calcularImpuestosPreviewHandler = async (req: Request, res: Respons
       cantidad: cantidad != null ? Number(cantidad) : null,
       precioUnitario: precio_unitario != null ? Number(precio_unitario) : null,
       descuento: descuento != null ? Number(descuento) : null,
+      descuentoTipo: descuento_tipo === 'monto' ? 'monto' : 'porcentaje',
+      descuentoMonto: descuento_monto != null ? Number(descuento_monto) : null,
       descuentoGlobal: descuento_global != null ? Number(descuento_global) : null,
       tratamientoImpuestos: tratamiento_impuestos ?? 'normal',
     });

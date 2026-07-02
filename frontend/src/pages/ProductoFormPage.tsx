@@ -21,13 +21,14 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
-import SaveIcon from '@mui/icons-material/Save';
 import StarBorderOutlinedIcon from '@mui/icons-material/StarBorderOutlined';
 import StarIcon from '@mui/icons-material/Star';
+
+import FloatingFormActions from '../components/FloatingFormActions';
+import RichTextEditor from '../components/RichTextEditor';
 
 import type { ProductoBasico, Producto } from '../types/producto';
 import {
@@ -60,6 +61,7 @@ const initialForm: ProductoBasico = {
   clave_producto_sat: null,
   unidad_venta_id: null,
   unidad_inventario_id: null,
+  especificaciones: '',
 };
 
 type ProductoServicioSatOption = {
@@ -174,6 +176,7 @@ export default function ProductoFormPage() {
           clave_producto_sat: producto.clave_producto_sat ?? null,
           unidad_venta_id: producto.unidad_venta_id ?? null,
           unidad_inventario_id: producto.unidad_inventario_id ?? null,
+          especificaciones: producto.especificaciones ?? '',
         });
         if (producto.clave_producto_sat) {
           void loadProductosSat(producto.clave_producto_sat);
@@ -319,6 +322,7 @@ export default function ProductoFormPage() {
       descripcion: form.descripcion.trim(),
       clasificacion: form.clasificacion?.trim() || null,
       tipo_producto: form.tipo_producto || 'Inventariable',
+      especificaciones: form.especificaciones?.trim() || null,
     };
 
     try {
@@ -420,12 +424,9 @@ export default function ProductoFormPage() {
   const imagenPrincipal = archivos.find((archivo) => archivo.principal) ?? archivos[0] ?? null;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: '96px' }}>
+      <Toolbar disableGutters sx={{ alignItems: 'center', pb: 1 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <Button variant="text" startIcon={<ArrowBackIcon />} onClick={() => navigate('/productos')}>
-            Volver
-          </Button>
           <Box>
             <Typography variant="h5" fontWeight={700} color="#1d2f68">
               {title}
@@ -435,14 +436,6 @@ export default function ProductoFormPage() {
             </Typography>
           </Box>
         </Stack>
-        <Button
-          variant="contained"
-          startIcon={<SaveIcon />}
-          onClick={handleSubmit}
-          disabled={saving || loading}
-        >
-          {saving ? 'Guardando...' : 'Guardar'}
-        </Button>
       </Toolbar>
 
       {error && (
@@ -463,6 +456,7 @@ export default function ProductoFormPage() {
               <Tab label="General" />
               <Tab label="Comercial" />
               <Tab label="Archivos" />
+              <Tab label="Especificaciones" />
             </Tabs>
 
             {activeTab === 0 && (
@@ -831,6 +825,22 @@ export default function ProductoFormPage() {
                 )}
               </Stack>
             )}
+
+            {activeTab === 3 && (
+              <Stack spacing={1.5}>
+                <Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
+                  Especificaciones
+                </Typography>
+                <Typography variant="body2" color="#4b5563">
+                  Captura especificaciones técnicas o comerciales del producto con formato básico.
+                </Typography>
+                <RichTextEditor
+                  content={form.especificaciones ?? ''}
+                  onChange={(html) => handleChange('especificaciones', html)}
+                  placeholder="Captura aquí las especificaciones técnicas o comerciales del producto..."
+                />
+              </Stack>
+            )}
           </Stack>
         )}
       </Paper>
@@ -845,6 +855,13 @@ export default function ProductoFormPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <FloatingFormActions
+        onBack={() => navigate('/productos')}
+        onSave={handleSubmit}
+        saving={saving}
+        saveDisabled={saving || loading}
+      />
     </Box>
   );
 }
