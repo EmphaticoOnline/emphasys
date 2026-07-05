@@ -262,7 +262,7 @@ export default function ActividadFormPage() {
           setContacto(contactoBase
             ? {
               id: contactoBase.id,
-              nombre: normalizarContactoNombre(contactoData),
+              nombre: normalizarContactoNombre(contactoData!),
             }
             : null);
           setForm({

@@ -45,6 +45,9 @@ import ChangePasswordDialog from '../ChangePasswordDialog';
 import { compareDocumentoVisualOrder } from '../../modules/documentos/documentoVisualOrder';
 import { fetchTiposDocumentoHabilitados } from '../../services/tiposDocumentoService';
 import { fetchParametrosSistema } from '../../services/parametrosService';
+import { apiFetch } from '../../api/apiClient';
+import type { RolResumen } from '../../session/sessionTypes';
+import { esRolAdmin, esRolVendedor } from '../../session/rolScope';
 
 const BRAND = '#1d2f68';
 // Brand teal used as left-rail accent on active nav items
@@ -98,6 +101,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Configuración', path: '/configuracion',         icon: SettingsIcon },
 ];
 
+// Módulos comerciales visibles/accesibles para el rol "vendedor". Solo UX — la
+// restricción real de datos vive en backend (ver scope-comercial.ts).
+const ALLOWED_PREFIXES_VENDEDOR = ['/contactos', '/productos', '/crm', '/ventas'];
+const RUTA_DEFAULT_VENDEDOR = '/crm';
+
 function getBreadcrumbs(pathname: string): string[] {
   if (pathname.startsWith('/contactos'))     return ['Catálogos', 'Contactos'];
   if (pathname.startsWith('/productos'))     return ['Catálogos', 'Productos'];
@@ -135,6 +143,7 @@ interface SidebarNavProps {
   isMobile: boolean;
   pathname: string;
   userName: string;
+  navItems: NavItem[];
   onToggleCollapse: () => void;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -146,6 +155,7 @@ function SidebarNav({
   isMobile,
   pathname,
   userName,
+  navItems,
   onToggleCollapse,
   onNavigate,
   onLogout,
@@ -215,7 +225,7 @@ function SidebarNav({
         '&::-webkit-scrollbar': { width: 4 },
         '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.15)', borderRadius: 2 },
       }}>
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = isNavActive(item.path, pathname);
           const Icon = item.icon;
           return (
@@ -318,7 +328,7 @@ export default function SidebarLayout() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const navigate = useNavigate();
-  const { session, logout } = useSession();
+  const { session, setSession, logout } = useSession();
 
   const [collapsed, setCollapsed] = React.useState<boolean>(() => {
     try { return localStorage.getItem('em_sidebar_collapsed') === 'true'; } catch { return false; }
@@ -333,6 +343,46 @@ export default function SidebarLayout() {
 
   const [ventasTabs, setVentasTabs] = React.useState<DocumentoTabDef[]>([]);
   const [comprasTabs, setComprasTabs] = React.useState<DocumentoTabDef[]>([]);
+
+  // Roles del usuario en la empresa activa: solo determinan qué se muestra en el
+  // menú (UX). La restricción real de datos vive en backend (scope-comercial.ts).
+  const sessionRef = React.useRef(session);
+  sessionRef.current = session;
+
+  React.useEffect(() => {
+    if (!empresaId) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const response = await apiFetch('/auth/me');
+        if (!response.ok || !active) return;
+        const data = await response.json();
+        if (!active) return;
+        const roles: RolResumen[] = Array.isArray(data?.roles) ? data.roles : [];
+        setSession({ ...sessionRef.current, roles });
+      } catch (error) {
+        console.error('[SidebarLayout] Error cargando roles del usuario:', error);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [empresaId]);
+
+  const esVendedorSinAdmin = esRolVendedor(session.roles) && !esRolAdmin(session.roles);
+  const visibleNavItems = esVendedorSinAdmin
+    ? NAV_ITEMS.filter((item) => ALLOWED_PREFIXES_VENDEDOR.some((prefix) => item.path.startsWith(prefix)))
+    : NAV_ITEMS;
+
+  // UX: si un vendedor navega directo por URL a un módulo no permitido, se redirige.
+  // La seguridad real de los datos la aplica siempre el backend, no esta redirección.
+  React.useEffect(() => {
+    if (!esVendedorSinAdmin) return;
+    const permitido = ALLOWED_PREFIXES_VENDEDOR.some((prefix) => location.pathname.startsWith(prefix));
+    if (!permitido) {
+      navigate(RUTA_DEFAULT_VENDEDOR, { replace: true });
+    }
+  }, [esVendedorSinAdmin, location.pathname, navigate]);
 
   React.useEffect(() => {
     const loadDocTabs = async () => {
@@ -486,6 +536,7 @@ export default function SidebarLayout() {
     isMobile,
     pathname: location.pathname,
     userName,
+    navItems: visibleNavItems,
     onToggleCollapse: handleToggleCollapse,
     onNavigate: handleNavigate,
     onLogout: handleLogout,

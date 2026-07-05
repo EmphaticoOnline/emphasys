@@ -290,7 +290,7 @@ export default function ProductoFormPage() {
   };
 
   const esCampoVacio = (campo: string): boolean => {
-    const value = (form as Record<string, unknown>)[campo];
+    const value = (form as unknown as Record<string, unknown>)[campo];
     if (typeof value === 'boolean') return false;
     if (value === null || value === undefined) return true;
     return !String(value).trim();

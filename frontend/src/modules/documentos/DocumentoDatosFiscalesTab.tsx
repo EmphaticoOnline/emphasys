@@ -67,7 +67,7 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled, visibleF
           top: 'calc(50% - 14px)',
         },
       }
-    : undefined;
+    : {};
   const textFieldProps = compact
     ? {
         size: 'small' as const,

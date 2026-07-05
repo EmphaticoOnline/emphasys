@@ -6,6 +6,7 @@ import {
   actualizarConversacionSalienteWhatsapp,
   getOrCreateConversacionWhatsapp,
   getOrCreateWhatsappContacto,
+  obtenerIdExternoMensaje,
   registrarMensajeAudioSalienteWhatsapp,
   registrarMensajeDocumentoSalienteWhatsapp,
   registrarMensajeImagenSalienteWhatsapp,
@@ -129,7 +130,43 @@ function logWhatsappSendError(context: string, error: unknown) {
   console.error(`[WhatsApp Send] ${context}: error`, typedError?.response?.data || typedError?.message || error);
 }
 
-export const sendTextMessage = async (empresaId: number, to: string, text: string) => {
+// Resuelve el id_externo (gsId de Gupshup para mensajes salientes, wamid de WhatsApp para
+// entrantes) del mensaje citado, para anidarlo como context.msgId dentro del `message` que
+// se manda a Gupshup y que WhatsApp renderice la cita nativa en el teléfono del destinatario.
+// Si no hay mensaje citado, no tiene id_externo, o falla la consulta, se omite en silencio:
+// el mensaje se envía igual, solo sin la cita nativa.
+async function resolveReplyContext(
+  empresaId: number,
+  mensajeRespuestaId?: number | null
+): Promise<{ msgId: string } | undefined> {
+  if (!mensajeRespuestaId) return undefined;
+
+  try {
+    const idExterno = await obtenerIdExternoMensaje(empresaId, mensajeRespuestaId);
+    if (!idExterno) {
+      console.warn('[WhatsApp Send] Mensaje citado sin id_externo, se envía sin context de Gupshup', {
+        empresaId,
+        mensajeRespuestaId,
+      });
+      return undefined;
+    }
+    return { msgId: idExterno };
+  } catch (error) {
+    console.warn('[WhatsApp Send] No se pudo resolver el mensaje citado para el context de Gupshup', {
+      empresaId,
+      mensajeRespuestaId,
+      error: (error as Error)?.message,
+    });
+    return undefined;
+  }
+}
+
+export const sendTextMessage = async (
+  empresaId: number,
+  to: string,
+  text: string,
+  mensajeRespuestaId?: number | null
+) => {
   try {
     const config = await getWhatsappConfig(empresaId);
 
@@ -143,14 +180,23 @@ export const sendTextMessage = async (empresaId: number, to: string, text: strin
 
     await validateWhatsapp24hWindow(empresaId, conversacionId);
 
+    const replyContext = await resolveReplyContext(empresaId, mensajeRespuestaId);
+
+    const textMessagePayload = {
+      type: "text",
+      text,
+      ...(replyContext ? { context: replyContext } : {})
+    };
+
+    if (replyContext) {
+      console.log('[WhatsApp Send][Reply] message final a Gupshup (texto):', JSON.stringify(textMessagePayload, null, 2));
+    }
+
     const payload = qs.stringify({
       channel: "whatsapp",
       source: config.phone_number,
       destination: destinoNormalizado,
-      message: JSON.stringify({
-        type: "text",
-        text
-      })
+      message: JSON.stringify(textMessagePayload)
     });
 
     const response = await axios.post(
@@ -171,7 +217,8 @@ export const sendTextMessage = async (empresaId: number, to: string, text: strin
       conversacionId,
       destinoNormalizado,
       text,
-      response.data?.messageId || null
+      response.data?.messageId || null,
+      mensajeRespuestaId ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -188,7 +235,8 @@ export const sendImageMessage = async (
   empresaId: number,
   to: string,
   mediaUrl: string,
-  caption?: string | null
+  caption?: string | null,
+  mensajeRespuestaId?: number | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -203,16 +251,25 @@ export const sendImageMessage = async (
 
     await validateWhatsapp24hWindow(empresaId, conversacionId);
 
+    const replyContext = await resolveReplyContext(empresaId, mensajeRespuestaId);
+
+    const imageMessagePayload = {
+      type: "image",
+      originalUrl: mediaUrl,
+      previewUrl: mediaUrl,
+      caption: caption ?? undefined,
+      ...(replyContext ? { context: replyContext } : {})
+    };
+
+    if (replyContext) {
+      console.log('[WhatsApp Send][Reply] message final a Gupshup (imagen):', JSON.stringify(imageMessagePayload, null, 2));
+    }
+
     const payload = qs.stringify({
       channel: "whatsapp",
       source: config.phone_number,
       destination: destinoNormalizado,
-      message: JSON.stringify({
-        type: "image",
-        originalUrl: mediaUrl,
-        previewUrl: mediaUrl,
-        caption: caption ?? undefined
-      })
+      message: JSON.stringify(imageMessagePayload)
     });
 
     const response = await axios.post(
@@ -234,7 +291,8 @@ export const sendImageMessage = async (
       destinoNormalizado,
       mediaUrl,
       caption ?? null,
-      response.data?.messageId || null
+      response.data?.messageId || null,
+      mensajeRespuestaId ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -251,7 +309,7 @@ export const sendDocumentMessage = async (
   to: string,
   mediaUrl: string,
   filename?: string | null,
-  options?: { skipWindowValidation?: boolean }
+  options?: { skipWindowValidation?: boolean; mensajeRespuestaId?: number | null }
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -288,15 +346,24 @@ export const sendDocumentMessage = async (
       skipWindowValidation: Boolean(options?.skipWindowValidation),
     });
 
+    const replyContext = await resolveReplyContext(empresaId, options?.mensajeRespuestaId);
+
+    const documentMessagePayload = {
+      type: "file",
+      url: mediaUrl,
+      filename: filename ?? undefined,
+      ...(replyContext ? { context: replyContext } : {})
+    };
+
+    if (replyContext) {
+      console.log('[WhatsApp Send][Reply] message final a Gupshup (documento):', JSON.stringify(documentMessagePayload, null, 2));
+    }
+
     const payload = qs.stringify({
       channel: "whatsapp",
       source: config.phone_number,
       destination: destinoGupshup,
-      message: JSON.stringify({
-        type: "file",
-        url: mediaUrl,
-        filename: filename ?? undefined
-      })
+      message: JSON.stringify(documentMessagePayload)
     });
 
     console.log('[WhatsApp Media] Payload documento', payload);
@@ -334,7 +401,8 @@ export const sendDocumentMessage = async (
       destinoGupshup,
       mediaUrl,
       filename ?? null,
-      response.data?.messageId || null
+      response.data?.messageId || null,
+      options?.mensajeRespuestaId ?? null
     );
 
     console.info('[WhatsApp Media] Registro interno documento completado', {
@@ -359,7 +427,8 @@ export const sendDocumentMessage = async (
 export const sendAudioMessage = async (
   empresaId: number,
   to: string,
-  mediaUrl: string
+  mediaUrl: string,
+  mensajeRespuestaId?: number | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -374,14 +443,23 @@ export const sendAudioMessage = async (
 
     await validateWhatsapp24hWindow(empresaId, conversacionId);
 
+    const replyContext = await resolveReplyContext(empresaId, mensajeRespuestaId);
+
+    const audioMessagePayload = {
+      type: "audio",
+      url: mediaUrl,
+      ...(replyContext ? { context: replyContext } : {})
+    };
+
+    if (replyContext) {
+      console.log('[WhatsApp Send][Reply] message final a Gupshup (audio):', JSON.stringify(audioMessagePayload, null, 2));
+    }
+
     const payload = qs.stringify({
       channel: "whatsapp",
       source: config.phone_number,
       destination: destinoNormalizado,
-      message: JSON.stringify({
-        type: "audio",
-        url: mediaUrl
-      })
+      message: JSON.stringify(audioMessagePayload)
     });
 
     const response = await axios.post(
@@ -402,7 +480,8 @@ export const sendAudioMessage = async (
       conversacionId,
       destinoNormalizado,
       mediaUrl,
-      response.data?.messageId || null
+      response.data?.messageId || null,
+      mensajeRespuestaId ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);

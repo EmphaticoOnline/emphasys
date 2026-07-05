@@ -419,6 +419,12 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     const cfdi = await obtenerCfdiDocumento(precheckClient, input.documentoId);
     cfdiUuid = limpiarTexto(cfdi?.uuid);
     requiereCancelacionFacturama = Boolean(cfdiUuid) && !cfdi?.fecha_cancelacion;
+
+    if (String(documento.tipo_documento ?? '').trim().toLowerCase() === 'factura' && !cfdiUuid) {
+      throw new DocumentoCancelValidationError(
+        'Esta factura no está timbrada; no aplica cancelación fiscal. Use la opción Eliminar en su lugar.'
+      );
+    }
   } finally {
     precheckClient.release();
   }

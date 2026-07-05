@@ -88,6 +88,11 @@ export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
 		soloSuperadmin: true,
 	},
 	{
+		titulo: 'Descarga de CFDIs del SAT',
+		descripcion: 'Configura la e.firma (FIEL) y la autorización de uso para consultar CFDIs del SAT.',
+		path: '/configuracion/cfdi-sat',
+	},
+	{
 		titulo: 'Etiquetas de WhatsApp',
 		descripcion: 'Administra el catálogo de etiquetas para conversaciones y leads.',
 		path: '/configuracion/whatsapp-etiquetas',

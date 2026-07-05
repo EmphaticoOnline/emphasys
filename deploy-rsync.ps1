@@ -385,23 +385,12 @@ try {
   }
 
   # =============================
-  # Instalar dependencias condicionalmente y reiniciar PM2
+  # Instalar dependencias y reiniciar PM2
   # =============================
-  Write-Host "Chequeando cambios de lockfile para decidir npm install..."
-  $localLock = (Get-FileHash "$backendLockLocal" -Algorithm SHA256).Hash.ToLower()
-  $remoteLock = ssh $sshOpts $server "cd $remotePath; sha256sum package-lock.json 2>/dev/null | awk '{print $1}'" 2>$null
-
-  $installNeeded = $true
   if ($skipRemoteInstall -eq "true") {
     Write-Host "Skipping remote npm install (SKIP_REMOTE_INSTALL=true)..."
-    $installNeeded = $false
-  } elseif ($remoteLock -and ($remoteLock.Trim().ToLower() -eq $localLock)) {
-    Write-Host "Lockfile sin cambios: saltando npm install"
-    $installNeeded = $false
-  }
-
-  if ($installNeeded) {
-    Write-Host "Lockfile cambió o no existe: npm install --omit=dev"
+  } else {
+    Write-Host "Ejecutando npm install --omit=dev (npm ya es idempotente si no hay cambios reales)..."
     Invoke-SSH -Command "cd $remotePath; npm install --omit=dev" -Label "npm install"
   }
 

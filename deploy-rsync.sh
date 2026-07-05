@@ -16,16 +16,6 @@ BUILD_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 
 log() { echo "==> $*"; }
 
-sha256_file() {
-  local file="$1"
-
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$file" | awk '{print $1}'
-  else
-    shasum -a 256 "$file" | awk '{print $1}'
-  fi
-}
-
 command -v rsync >/dev/null 2>&1 || { echo "rsync no está instalado. Instálalo (brew/apt/yum) o usa el deploy original."; exit 1; }
 
 if [[ "$SKIP_FRONTEND" != "true" ]]; then
@@ -86,20 +76,12 @@ fi
 log "Sincronizando ecosystem.config.js..."
 rsync -az -e "${RSYNC_SSH[*]}" "$PM2_CONFIG" "$SERVER:$REMOTE_PATH/"
 
-log "Chequeando cambios de lockfile para decidir npm install..."
-local_lock=$(sha256_file "$BACKEND_DIR/package-lock.json")
-remote_lock=$(ssh "${SSH_OPTS[@]}" "$SERVER" "cd $REMOTE_PATH && sha256sum package-lock.json 2>/dev/null | awk '{print \$1}'" || true)
-
 ssh "${SSH_OPTS[@]}" "$SERVER" <<REMOTE
 set -e
 cd $REMOTE_PATH
 if [ "$SKIP_REMOTE_INSTALL" != "true" ]; then
-  if [ "$local_lock" != "$remote_lock" ]; then
-    echo "Lockfile cambió: ejecutando npm install --omit=dev"
-    npm install --omit=dev
-  else
-    echo "Lockfile sin cambios: saltando npm install"
-  fi
+  echo "Ejecutando npm install --omit=dev (npm ya es idempotente si no hay cambios reales)"
+  npm install --omit=dev
 else
   echo "Skipping remote npm install (SKIP_REMOTE_INSTALL=true)..."
 fi

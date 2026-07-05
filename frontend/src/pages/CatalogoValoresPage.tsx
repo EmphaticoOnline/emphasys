@@ -100,7 +100,7 @@ function resolveConfiguredParentTipoId(
     )
   );
 
-  return parentTipoIds.length === 1 ? parentTipoIds[0] : null;
+  return parentTipoIds.length === 1 ? parentTipoIds[0]! : null;
 }
 
 export default function CatalogoValoresPage() {

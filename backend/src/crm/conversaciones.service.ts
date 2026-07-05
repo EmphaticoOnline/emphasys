@@ -145,6 +145,24 @@ export const getOrCreateConversacionWhatsapp = async (empresaId: number, contact
   return getOrCreateConversacionContacto(empresaId, contactoId);
 };
 
+export const obtenerIdExternoMensaje = async (
+  empresaId: number,
+  mensajeId: number
+): Promise<string | null> => {
+  const { rows } = await pool.query<{ id_externo: string | null }>(
+    `
+      SELECT id_externo
+      FROM crm.mensajes
+      WHERE id = $1
+        AND empresa_id = $2
+      LIMIT 1
+      `,
+    [mensajeId, empresaId]
+  );
+
+  return rows[0]?.id_externo ?? null;
+};
+
 export const registrarMensajeEmailSaliente = async (params: {
   empresaId: number;
   contactoId: number | null;
@@ -217,7 +235,8 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
   conversacionId: number,
   telefono: string,
   text: string,
-  externalId: string | null
+  externalId: string | null,
+  mensajeRespuestaId?: number | null
 ) => {
   await pool.query(
     `
@@ -233,9 +252,10 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
         fecha_envio,
         id_externo,
         status,
+        mensaje_respuesta_id,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,NOW())
       `,
     [
       empresaId,
@@ -246,7 +266,8 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
       'text',
       text,
       externalId,
-      'sent'
+      'sent',
+      mensajeRespuestaId ?? null
     ]
   );
 };
@@ -257,7 +278,8 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
   telefono: string,
   mediaUrl: string,
   caption: string | null,
-  externalId: string | null
+  externalId: string | null,
+  mensajeRespuestaId?: number | null
 ) => {
   await pool.query(
     `
@@ -274,9 +296,10 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
         fecha_envio,
         id_externo,
         status,
+        mensaje_respuesta_id,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,NOW())
       `,
     [
       empresaId,
@@ -288,7 +311,8 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
       caption,
       mediaUrl,
       externalId,
-      'sent'
+      'sent',
+      mensajeRespuestaId ?? null
     ]
   );
 };
@@ -299,7 +323,8 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
   telefono: string,
   mediaUrl: string,
   filename: string | null,
-  externalId: string | null
+  externalId: string | null,
+  mensajeRespuestaId?: number | null
 ) => {
   await pool.query(
     `
@@ -316,9 +341,10 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
         fecha_envio,
         id_externo,
         status,
+        mensaje_respuesta_id,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,NOW())
       `,
     [
       empresaId,
@@ -330,7 +356,8 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
       filename,
       mediaUrl,
       externalId,
-      'sent'
+      'sent',
+      mensajeRespuestaId ?? null
     ]
   );
 };
@@ -340,7 +367,8 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
   conversacionId: number,
   telefono: string,
   mediaUrl: string,
-  externalId: string | null
+  externalId: string | null,
+  mensajeRespuestaId?: number | null
 ) => {
   await pool.query(
     `
@@ -356,9 +384,10 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
         fecha_envio,
         id_externo,
         status,
+        mensaje_respuesta_id,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,NOW())
       `,
     [
       empresaId,
@@ -369,7 +398,8 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
       'audio',
       mediaUrl,
       externalId,
-      'sent'
+      'sent',
+      mensajeRespuestaId ?? null
     ]
   );
 };
@@ -417,7 +447,13 @@ export const registrarMensajeEntranteWhatsapp = async (
   telefono: string,
   contenido: string,
   timestamp: string | number | Date | null | undefined,
-  messageId: string
+  messageId: string,
+  media?: {
+    tipoContenido?: 'text' | 'image' | 'audio' | 'document';
+    mediaUrl?: string | null;
+    caption?: string | null;
+    mimeType?: string | null;
+  }
 ) => {
   await pool.query(
     `
@@ -432,9 +468,13 @@ export const registrarMensajeEntranteWhatsapp = async (
         fecha_envio,
         id_externo,
         status,
+        tipo_contenido,
+        media_url,
+        caption,
+        mime_type,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
       `,
     [
       empresaId,
@@ -445,7 +485,11 @@ export const registrarMensajeEntranteWhatsapp = async (
       contenido,
       timestamp,
       messageId,
-      'received'
+      'received',
+      media?.tipoContenido || 'text',
+      media?.mediaUrl ?? null,
+      media?.caption ?? null,
+      media?.mimeType ?? null,
     ]
   );
 };

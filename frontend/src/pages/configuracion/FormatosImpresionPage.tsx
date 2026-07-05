@@ -28,20 +28,39 @@ const TIPOS_DOCUMENTO = [
   { value: 'remision', label: 'Remisión' },
 ];
 
-type TipoCampoLayout = 'boolean' | 'text' | 'number' | 'color';
+type TipoCampoLayout = 'boolean' | 'text' | 'number' | 'color' | 'select';
 
 type CampoLayout = {
   key: keyof LayoutConfig;
   label: string;
   type: TipoCampoLayout;
   section: string;
+  options?: { value: string; label: string }[];
 };
+
+const OPCIONES_POSICION_IMAGEN_PARTIDA: { value: string; label: string }[] = [
+  { value: 'ninguna', label: 'No imprimir imagen' },
+  { value: 'debajo', label: 'Debajo de la descripción' },
+  { value: 'columna', label: 'En columna' },
+];
 
 const CAMPOS_LAYOUT: CampoLayout[] = [
   {
     key: 'mostrarLogo',
     label: 'Mostrar logo',
     type: 'boolean',
+    section: 'Encabezado',
+  },
+  {
+    key: 'maxAnchoLogo',
+    label: 'Ancho máximo de logo',
+    type: 'number',
+    section: 'Encabezado',
+  },
+  {
+    key: 'altoLogo',
+    label: 'Alto de logo',
+    type: 'number',
     section: 'Encabezado',
   },
   {
@@ -87,6 +106,13 @@ const CAMPOS_LAYOUT: CampoLayout[] = [
     section: 'Partidas',
   },
   {
+    key: 'posicionImagenPartida',
+    label: 'Imagen en partidas',
+    type: 'select',
+    section: 'Partidas',
+    options: OPCIONES_POSICION_IMAGEN_PARTIDA,
+  },
+  {
     key: 'altoImagenPartida',
     label: 'Alto de imagen de partida',
     type: 'number',
@@ -102,10 +128,7 @@ const CAMPOS_LAYOUT: CampoLayout[] = [
 
 const agruparCamposLayoutPorSeccion = (campos: CampoLayout[]) =>
   campos.reduce<Record<string, CampoLayout[]>>((acc, campo) => {
-    if (!acc[campo.section]) {
-      acc[campo.section] = [];
-    }
-    acc[campo.section].push(campo);
+    (acc[campo.section] ??= []).push(campo);
     return acc;
   }, {});
 
@@ -114,8 +137,16 @@ const esCampoLayoutDeshabilitado = (campo: CampoLayout, config: LayoutConfig) =>
     return !config.mostrarPartidas;
   }
 
-  if (campo.key === 'altoImagenPartida' || campo.key === 'maxAnchoImagenPartida') {
+  if (
+    campo.key === 'altoImagenPartida' ||
+    campo.key === 'maxAnchoImagenPartida' ||
+    campo.key === 'posicionImagenPartida'
+  ) {
     return !config.mostrarImagenPartida;
+  }
+
+  if (campo.key === 'altoLogo' || campo.key === 'maxAnchoLogo') {
+    return !config.mostrarLogo;
   }
 
   return false;
@@ -231,6 +262,26 @@ export default function FormatosImpresionPage() {
       void loadLayout({ serieOverride: '' });
     }
   }, [serie]);
+
+  const handleCampoChange = (key: keyof LayoutConfig, nuevoValor: string | number | boolean | null) => {
+    setConfig((prev) => {
+      const next: LayoutConfig = { ...prev, [key]: nuevoValor };
+
+      // Mantiene sincronizados mostrarImagenPartida y posicionImagenPartida para
+      // que las plantillas anteriores (sin posicionImagenPartida) sigan siendo consistentes.
+      if (key === 'posicionImagenPartida') {
+        next.mostrarImagenPartida = nuevoValor !== 'ninguna';
+      } else if (key === 'mostrarImagenPartida') {
+        if (!nuevoValor) {
+          next.posicionImagenPartida = 'ninguna';
+        } else if (!prev.posicionImagenPartida || prev.posicionImagenPartida === 'ninguna') {
+          next.posicionImagenPartida = 'debajo';
+        }
+      }
+
+      return next;
+    });
+  };
 
   const handleGuardar = async () => {
     try {
@@ -349,13 +400,15 @@ export default function FormatosImpresionPage() {
                         <DynamicFieldControl
                           label={campo.label}
                           type={campo.type}
-                          value={config[campo.key] ?? null}
+                          options={campo.options}
+                          value={
+                            campo.key === 'posicionImagenPartida'
+                              ? config.posicionImagenPartida ?? 'debajo'
+                              : config[campo.key] ?? null
+                          }
                           disabled={esCampoLayoutDeshabilitado(campo, config)}
-                          onChange={(nuevoValor) =>
-                            setConfig((prev) => ({
-                              ...prev,
-                              [campo.key]: nuevoValor,
-                            }))
+                          onChange={(nuevoValor: string | number | boolean | null) =>
+                            handleCampoChange(campo.key, nuevoValor)
                           }
                         />
                       </Grid>

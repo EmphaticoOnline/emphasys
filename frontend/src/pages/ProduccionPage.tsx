@@ -63,7 +63,7 @@ function normalizeHexColor(color: string | null | undefined) {
     return null;
   }
 
-  return `#${match[1].toUpperCase()}`;
+  return `#${match[1]!.toUpperCase()}`;
 }
 
 function getContrastingTextColor(color: string | null | undefined) {

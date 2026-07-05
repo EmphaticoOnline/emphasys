@@ -1,4 +1,4 @@
-import { Autocomplete, Box, CircularProgress, FormControlLabel, Popover, Switch, TextField } from '@mui/material';
+import { Autocomplete, Box, CircularProgress, FormControl, FormControlLabel, InputLabel, MenuItem, Popover, Select, Switch, TextField } from '@mui/material';
 import type { CampoConfiguracion, CampoValorPayload, CatalogoValor } from '../types/camposDinamicos';
 import { useMemo, useState } from 'react';
 import { HexColorPicker } from 'react-colorful';
@@ -12,13 +12,14 @@ type PropsCampos = {
   onChange: (value: CampoValorPayload) => void;
 };
 
-type TipoControlDinamico = 'boolean' | 'text' | 'number' | 'color';
+type TipoControlDinamico = 'boolean' | 'text' | 'number' | 'color' | 'select';
 
 type PropsDirectos = {
   label: string;
   type: TipoControlDinamico;
   value?: string | number | boolean | null;
   disabled?: boolean;
+  options?: { value: string; label: string }[] | undefined;
   onChange: (value: string | number | boolean | null) => void;
 };
 
@@ -128,7 +129,7 @@ function CampoColorDirecto({ label, value, disabled, onChange }: Omit<PropsDirec
   );
 }
 
-function DynamicFieldControlDirecto({ label, type, value, disabled, onChange }: PropsDirectos) {
+function DynamicFieldControlDirecto({ label, type, value, disabled, options, onChange }: PropsDirectos) {
   if (type === 'boolean') {
     return (
       <FormControlLabel
@@ -160,7 +161,26 @@ function DynamicFieldControlDirecto({ label, type, value, disabled, onChange }: 
   }
 
   if (type === 'color') {
-    return <CampoColorDirecto label={label} value={value} disabled={disabled} onChange={onChange} />;
+    return <CampoColorDirecto label={label} value={value ?? null} disabled={Boolean(disabled)} onChange={onChange} />;
+  }
+
+  if (type === 'select') {
+    return (
+      <FormControl fullWidth size="small" disabled={Boolean(disabled)}>
+        <InputLabel>{label}</InputLabel>
+        <Select
+          label={label}
+          value={value != null ? String(value) : ''}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {(options ?? []).map((opt) => (
+            <MenuItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    );
   }
 
   return (

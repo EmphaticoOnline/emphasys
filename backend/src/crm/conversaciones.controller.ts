@@ -17,7 +17,7 @@ import {
   resolverTipoPlantillaWhatsapp,
 } from "../whatsapp/whatsapp-template-type.service";
 import { obtenerPlantillaWhatsappPorId } from "../whatsapp/whatsapp-plantillas.service";
-import { obtenerRolesDeUsuarioEnEmpresa, obtenerUsuarioPorId } from "../modules/auth/auth.service";
+import { resolverContextoScopeComercial } from "../modules/auth/scope-comercial";
 import {
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappRepo,
   crearEtiquetaWhatsapp,
@@ -73,11 +73,6 @@ type RuteoLeadsRow = {
   ultimo_vendedor_id: number | null;
   vendedor_fijo_id: number | null;
 };
-
-const ADMIN_ROLE_NAMES = new Set(["administrador", "admin"]);
-const VENDEDOR_ROLE_NAMES = new Set(["vendedor", "ventas"]);
-
-const normalizarRolNombre = (nombre?: string | null) => (nombre ?? "").trim().toLowerCase();
 
 async function resolverVendedorRoundRobin(
   client: any,
@@ -259,38 +254,13 @@ async function asignarVendedorSiAplica(empresaId: number, contactoId: number): P
   }
 }
 
-async function resolverContextoVisibilidad(empresaId: number, userId?: number, esSuperadmin?: boolean) {
-  if (!userId) {
-    return {
-      esAdmin: Boolean(esSuperadmin),
-      esVendedor: false,
-      vendedorContactoId: null as number | null,
-    };
-  }
-
-  const [usuario, roles] = await Promise.all([
-    obtenerUsuarioPorId(userId),
-    obtenerRolesDeUsuarioEnEmpresa(userId, empresaId),
-  ]);
-
-  const roleNames = roles.map((rol) => normalizarRolNombre(rol.nombre));
-  const esAdminRole = roleNames.some((name) => ADMIN_ROLE_NAMES.has(name));
-  const esVendedorRole = roleNames.some((name) => VENDEDOR_ROLE_NAMES.has(name));
-
-  return {
-    esAdmin: Boolean(esSuperadmin || esAdminRole),
-    esVendedor: Boolean(esVendedorRole),
-    vendedorContactoId: usuario?.vendedor_contacto_id ?? null,
-  };
-}
-
 async function validarAccesoConversacion(
   empresaId: number,
   conversacionId: number,
   authUserId?: number,
   esSuperadmin?: boolean
 ) {
-  const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoVisibilidad(
+  const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoScopeComercial(
     empresaId,
     authUserId,
     esSuperadmin
@@ -579,6 +549,8 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       conversacionId,
       telefono,
       messageId: normalized.messageId,
+      tipoContenido: normalized.tipoContenido,
+      tieneMediaUrl: Boolean(normalized.mediaUrl),
     });
     await registrarMensajeEntranteWhatsapp(
       empresaId,
@@ -586,7 +558,13 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       telefono,
       normalized.text,
       normalized.timestamp,
-      normalized.messageId
+      normalized.messageId,
+      {
+        tipoContenido: normalized.tipoContenido,
+        mediaUrl: normalized.mediaUrl,
+        caption: normalized.caption,
+        mimeType: normalized.mimeType,
+      }
     );
     console.log("[WhatsApp Webhook] Mensaje insertado", { conversacionId });
 
@@ -608,7 +586,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
 export const enviarWhatsapp = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
-    const { telefono, mensaje, tipo, media_url } = req.body || {};
+    const { telefono, mensaje, tipo, media_url, mensaje_respuesta_id } = req.body || {};
 
     console.log("[WhatsApp Enviar] Solicitud recibida", {
       empresaId,
@@ -616,6 +594,7 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
       tipo,
       media_url,
       mensaje,
+      mensaje_respuesta_id,
     });
 
     if (!empresaId) {
@@ -627,13 +606,17 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
     }
 
     const tipoMensaje = String(tipo || "text").toLowerCase();
+    const mensajeRespuestaId = mensaje_respuesta_id !== undefined && mensaje_respuesta_id !== null && mensaje_respuesta_id !== ""
+      && Number.isFinite(Number(mensaje_respuesta_id))
+      ? Number(mensaje_respuesta_id)
+      : null;
 
     if (tipoMensaje === "text") {
       if (!mensaje) {
         return res.status(400).json({ message: "mensaje es requerido" });
       }
 
-      const respuesta = await sendTextMessage(Number(empresaId), String(telefono), String(mensaje));
+      const respuesta = await sendTextMessage(Number(empresaId), String(telefono), String(mensaje), mensajeRespuestaId);
       return res.status(200).json(respuesta);
     }
 
@@ -646,7 +629,8 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
         Number(empresaId),
         String(telefono),
         String(media_url),
-        mensaje ? String(mensaje) : null
+        mensaje ? String(mensaje) : null,
+        mensajeRespuestaId
       );
       return res.status(200).json(respuesta);
     }
@@ -660,7 +644,8 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
         Number(empresaId),
         String(telefono),
         String(media_url),
-        mensaje ? String(mensaje) : null
+        mensaje ? String(mensaje) : null,
+        { mensajeRespuestaId }
       );
       return res.status(200).json(respuesta);
     }
@@ -673,7 +658,8 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
       const respuesta = await sendAudioMessage(
         Number(empresaId),
         String(telefono),
-        String(media_url)
+        String(media_url),
+        mensajeRespuestaId
       );
       return res.status(200).json(respuesta);
     }
@@ -703,7 +689,7 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
     const sinceDate = sinceRaw ? new Date(String(sinceRaw)) : null;
     const sinceFilter = sinceDate && !Number.isNaN(sinceDate.getTime());
 
-    const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoVisibilidad(
+    const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoScopeComercial(
       empresaId,
       authUserId,
       req.auth?.esSuperadmin
@@ -827,7 +813,7 @@ export const obtenerConversacionWhatsapp = async (req: Request, res: Response) =
       return res.status(400).json({ message: "id de conversación requerido" });
     }
 
-    const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoVisibilidad(
+    const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoScopeComercial(
       empresaId,
       authUserId,
       req.auth?.esSuperadmin
@@ -866,27 +852,33 @@ export const obtenerConversacionWhatsapp = async (req: Request, res: Response) =
     }
 
     const sinceWhere = sinceFilter
-      ? " AND (fecha_envio > $3 OR (fecha_envio IS NULL AND creado_en > $3))"
+      ? " AND (m.fecha_envio > $3 OR (m.fecha_envio IS NULL AND m.creado_en > $3))"
       : "";
 
     const messages = await pool.query(
       `
       SELECT
-        id,
-        telefono,
-        tipo_mensaje,
-        canal,
-        tipo_contenido,
-        media_url,
-        caption,
-        contenido,
-        fecha_envio,
-        status,
-        creado_en
-      FROM crm.mensajes
-      WHERE conversacion_id = $1 AND empresa_id = $2
+        m.id,
+        m.telefono,
+        m.tipo_mensaje,
+        m.canal,
+        m.tipo_contenido,
+        m.media_url,
+        m.caption,
+        m.contenido,
+        m.fecha_envio,
+        m.status,
+        m.creado_en,
+        m.mensaje_respuesta_id,
+        r.tipo_mensaje AS respuesta_tipo_mensaje,
+        r.tipo_contenido AS respuesta_tipo_contenido,
+        r.contenido AS respuesta_contenido,
+        r.caption AS respuesta_caption
+      FROM crm.mensajes m
+      LEFT JOIN crm.mensajes r ON r.id = m.mensaje_respuesta_id AND r.empresa_id = m.empresa_id
+      WHERE m.conversacion_id = $1 AND m.empresa_id = $2
       ${sinceWhere}
-      ORDER BY fecha_envio ASC NULLS LAST, creado_en ASC NULLS LAST
+      ORDER BY m.fecha_envio ASC NULLS LAST, m.creado_en ASC NULLS LAST
       `,
       params
     );
@@ -933,7 +925,7 @@ export const actualizarEtapaConversacion = async (req: Request, res: Response) =
       return res.status(400).json({ message: "etapa_oportunidad inválida" });
     }
 
-    const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoVisibilidad(
+    const { esAdmin, esVendedor, vendedorContactoId } = await resolverContextoScopeComercial(
       empresaId,
       authUserId,
       req.auth?.esSuperadmin

@@ -14,6 +14,14 @@ export interface RichTextPdfOptions {
   fontSize: number;
   fonts: RichTextPdfFonts;
   color?: string;
+  // Coordenada Y absoluta de la página a partir de la cual se deja de dibujar.
+  // Al fijar `height` en cada doc.text() evita que PDFKit inserte páginas
+  // automáticamente por desbordamiento; el contenido simplemente se recorta.
+  maxY?: number;
+  // Overrides opcionales de espaciado entre bloques (por defecto PARAGRAPH_SPACING/
+  // LIST_ITEM_SPACING) para permitir un render más compacto tipo "letra pequeña legal".
+  paragraphSpacing?: number;
+  listItemSpacing?: number;
 }
 
 type HtmlNode =
@@ -229,18 +237,25 @@ function drawLine(doc: PDFKit.PDFDocument, line: RichLine, x: number, y: number,
     return y + height;
   }
 
+  // Si se definió un límite de página, se acota `height` en cada doc.text()
+  // para que PDFKit recorte el contenido en vez de insertar páginas nuevas.
+  if (options.maxY != null && y >= options.maxY) {
+    return y + height;
+  }
+  const boundedHeight = options.maxY != null ? Math.max(options.maxY - y, 0) : undefined;
+
   doc.fontSize(options.fontSize).fillColor(options.color ?? '#000000');
 
   const uniformStyle = line.every((run) => run.bold === line[0].bold && run.italic === line[0].italic);
   if (uniformStyle) {
     doc.font(resolveFont(line[0], options.fonts));
-    doc.text(plainText, x, y, { width });
+    doc.text(plainText, x, y, { width, height: boundedHeight });
   } else {
     line.forEach((run, idx) => {
       doc.font(resolveFont(run, options.fonts));
       const isLast = idx === line.length - 1;
       if (idx === 0) {
-        doc.text(run.text, x, y, { width, continued: !isLast });
+        doc.text(run.text, x, y, { width, height: boundedHeight, continued: !isLast });
       } else {
         doc.text(run.text, { continued: !isLast });
       }
@@ -254,19 +269,22 @@ export function heightOfRichTextBasicoPdf(doc: PDFKit.PDFDocument, html: string,
   const blocks = parseRichTextBasico(html);
   if (!blocks.length) return 0;
 
+  const paragraphSpacing = options.paragraphSpacing ?? PARAGRAPH_SPACING;
+  const listItemSpacing = options.listItemSpacing ?? LIST_ITEM_SPACING;
+
   doc.save();
   doc.font(options.fonts.regular).fontSize(options.fontSize);
 
   let total = 0;
   blocks.forEach((block, idx) => {
-    if (idx > 0) total += PARAGRAPH_SPACING;
+    if (idx > 0) total += paragraphSpacing;
     if (block.kind === 'paragraph') {
       block.lines.forEach((line) => {
         total += lineHeight(doc, line, options.width);
       });
     } else {
       block.items.forEach((item, itemIdx) => {
-        if (itemIdx > 0) total += LIST_ITEM_SPACING;
+        if (itemIdx > 0) total += listItemSpacing;
         item.forEach((line) => {
           total += lineHeight(doc, line, options.width - LIST_INDENT);
         });
@@ -282,21 +300,28 @@ export function renderRichTextBasicoPdf(doc: PDFKit.PDFDocument, html: string, x
   const blocks = parseRichTextBasico(html);
   if (!blocks.length) return y;
 
+  const paragraphSpacing = options.paragraphSpacing ?? PARAGRAPH_SPACING;
+  const listItemSpacing = options.listItemSpacing ?? LIST_ITEM_SPACING;
+
   doc.save();
   let cursorY = y;
 
   blocks.forEach((block, idx) => {
-    if (idx > 0) cursorY += PARAGRAPH_SPACING;
+    if (idx > 0) cursorY += paragraphSpacing;
     if (block.kind === 'paragraph') {
       block.lines.forEach((line) => {
         cursorY = drawLine(doc, line, x, cursorY, options.width, options);
       });
     } else {
       block.items.forEach((item, itemIdx) => {
-        if (itemIdx > 0) cursorY += LIST_ITEM_SPACING;
+        if (itemIdx > 0) cursorY += listItemSpacing;
+        if (options.maxY != null && cursorY >= options.maxY) {
+          return;
+        }
         doc.font(options.fonts.regular).fontSize(options.fontSize).fillColor(options.color ?? '#000000');
         const prefix = block.ordered ? `${itemIdx + 1}.` : '•';
-        doc.text(prefix, x, cursorY, { width: LIST_INDENT - 2 });
+        const prefixHeight = options.maxY != null ? Math.max(options.maxY - cursorY, 0) : undefined;
+        doc.text(prefix, x, cursorY, { width: LIST_INDENT - 2, height: prefixHeight });
         item.forEach((line) => {
           cursorY = drawLine(doc, line, x + LIST_INDENT, cursorY, options.width - LIST_INDENT, options);
         });

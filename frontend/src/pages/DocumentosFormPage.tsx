@@ -589,6 +589,10 @@ export default function DocumentosFormPage({
     ...initialValues,
   });
 
+  // Aislado de `form` (tipado estrictamente como CotizacionCrearPayload) porque
+  // uuid_cfdi_origen es de solo lectura aquí: nunca se envía de vuelta al guardar.
+  const [uuidCfdiOrigen, setUuidCfdiOrigen] = useState<string | null>(null);
+
   const syncDocumentoMonetarioTotals = useCallback((value: string | number | null | undefined) => {
     const amount = typeof value === 'number'
       ? Math.max(0, value || 0)
@@ -1340,7 +1344,7 @@ export default function DocumentosFormPage({
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setMostrarResumenFinancieroSticky(!entry.isIntersecting);
+        setMostrarResumenFinancieroSticky(!entry?.isIntersecting);
       },
       {
         threshold: 0.12,
@@ -1573,7 +1577,7 @@ export default function DocumentosFormPage({
       motivo_nc: valor,
       descuento_global: 0,
       descuento: 0,
-      concepto_id: valor === 'otro' ? prev.concepto_id : null,
+      concepto_id: valor === 'otro' ? (prev.concepto_id ?? null) : null,
     }));
 
     if (valor === 'otro') {
@@ -1730,6 +1734,7 @@ export default function DocumentosFormPage({
         serie_externa: (doc as any).serie_externa ?? null,
         numero_externo: (doc as any).numero_externo ?? null,
       });
+      setUuidCfdiOrigen((doc as any).uuid_cfdi_origen ?? null);
       setContactoFallback(
         doc.contacto_principal_id
           ? buildContactoDisplayFallback(
@@ -2229,7 +2234,7 @@ export default function DocumentosFormPage({
       const next: Record<number, string> = {};
       partidasNotaCreditoDisponibles.forEach((partida) => {
         if (bonificacionInputFocusedId === partida.partida_id && prev[partida.partida_id] !== undefined) {
-          next[partida.partida_id] = prev[partida.partida_id];
+          next[partida.partida_id] = prev[partida.partida_id]!;
           return;
         }
         next[partida.partida_id] = formatMontoBonificacionInput(Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0));
@@ -2367,7 +2372,7 @@ export default function DocumentosFormPage({
     const subtotal = Number(calculoManual?.subtotal ?? form.subtotal ?? 0);
     const totalPartida = Number(calculoManual?.total ?? form.total ?? subtotal);
 
-    let impuestosPayload: CotizacionPartidaPayload['impuestos'] = [];
+    let impuestosPayload: ImpuestoPartida[] = [];
     if (subtotal > 0) {
       const preview: any = await calcularImpuestosPreview({
         producto_id: null,
@@ -2538,7 +2543,7 @@ export default function DocumentosFormPage({
 
         const resultado = await generarDocumentoDesdeOrigen({
           documento_origen_ids: documentosOrigenSeleccionados.map((doc) => doc.id),
-          documento_destino_id: documentoActualId ? Number(documentoActualId) : undefined,
+          ...(documentoActualId ? { documento_destino_id: Number(documentoActualId) } : {}),
           tipo_documento_destino: tipoDocumento,
           datos_encabezado: {
             serie: form.serie?.trim() || null,
@@ -4230,6 +4235,19 @@ export default function DocumentosFormPage({
                         sx={campoEncabezadoSx}
                       />
                     </Grid>
+                    {uuidCfdiOrigen && (
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Tooltip title={`UUID origen: ${uuidCfdiOrigen}`}>
+                          <Chip
+                            label="Vinculada con CFDI SAT"
+                            size="small"
+                            color="info"
+                            onClick={() => navigate(`/configuracion/cfdi-sat?uuid=${encodeURIComponent(uuidCfdiOrigen)}`)}
+                            sx={{ fontWeight: 600, cursor: 'pointer' }}
+                          />
+                        </Tooltip>
+                      </Grid>
+                    )}
                   </>
                 )}
                 {!esDocumentoMonetario && !usaPartidas && (
@@ -4688,7 +4706,7 @@ export default function DocumentosFormPage({
                                     size="small"
                                     InputProps={isNotaCreditoBonificacion ? {
                                       startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                                    } : undefined}
+                                    } : {}}
                                     sx={isNotaCreditoBonificacion ? {
                                       '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
                                         WebkitAppearance: 'none',
@@ -4697,7 +4715,7 @@ export default function DocumentosFormPage({
                                       '& input[type=number], & input[type=text]': {
                                         MozAppearance: 'textfield',
                                       },
-                                    } : undefined}
+                                    } : {}}
                                     inputProps={{
                                       inputMode: isNotaCreditoBonificacion ? 'decimal' : undefined,
                                       min: 0,
@@ -5945,7 +5963,7 @@ export default function DocumentosFormPage({
                 parcial: { label: 'Parcial', bgcolor: '#fef3c7', color: '#92400e' },
                 cerrada: { label: 'Cerrada', bgcolor: '#dcfce7', color: '#166534' },
               };
-              const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta;
+              const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta!;
               return (
                 <Chip
                   label={label}

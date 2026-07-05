@@ -11,7 +11,6 @@ import type {
   FinanzasMetodoPago,
   FinanzasOperacion,
   NaturalezaOperacion,
-  OperacionDisponible,
   ProgramacionPago,
   ProgramacionPagoInput,
   ProgramacionMasivaInput,
@@ -113,14 +112,6 @@ export async function crearConciliacion(payload: ConciliacionPayload): Promise<a
 
 export async function fetchOperacionDetalle(id: number): Promise<FinanzasOperacion> {
   return apiFetch(`${BASE}/finanzas_operaciones/${id}`);
-}
-
-export async function fetchOperacionDisponible(_id: number): Promise<OperacionDisponible> {
-  throw new Error('fetchOperacionDisponible ya no está disponible en el modelo documental');
-}
-
-export async function fetchAplicacionesPorOperacion(_id: number): Promise<AplicacionOperacion[]> {
-  throw new Error('fetchAplicacionesPorOperacion ya no está disponible en el modelo documental');
 }
 
 export async function fetchAplicacionesDocumento(id: number): Promise<AplicacionOperacion[]> {

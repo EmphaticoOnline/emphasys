@@ -55,7 +55,9 @@ const emptyForm = (): FormState => ({
   test_to: '',
 });
 
-function mapConfigToForm(config: Partial<ConfiguracionCorreo> | null | undefined): FormState {
+function mapConfigToForm(
+  config: (Partial<Omit<ConfiguracionCorreo, 'smtp_port'>> & { smtp_port?: string | number | null }) | null | undefined
+): FormState {
   const base = emptyForm();
   if (!config) return base;
   return {
@@ -519,7 +521,7 @@ export default function ConfiguracionCorreoPage() {
       const result = await probarConfiguracionCorreo({
         ...buildPayload(empresaForm, true),
         scope: 'empresa',
-        to: empresaForm.test_to.trim() || undefined,
+        ...(empresaForm.test_to.trim() ? { to: empresaForm.test_to.trim() } : {}),
       });
       setEmpresaSuccess(result.message);
     } catch (error) {
@@ -542,7 +544,7 @@ export default function ConfiguracionCorreoPage() {
       try {
         const result = await probarConfiguracionCorreo({
           scope: 'empresa',
-          to: usuarioForm.test_to.trim() || undefined,
+          ...(usuarioForm.test_to.trim() ? { to: usuarioForm.test_to.trim() } : {}),
         });
         setUsuarioSuccess(`Usando configuración de empresa: ${result.message}`);
       } catch (error) {
@@ -566,7 +568,7 @@ export default function ConfiguracionCorreoPage() {
         ...buildPayload(nextForm, true),
         scope: 'usuario',
         usuario_id: Number(selectedUsuarioId),
-        to: usuarioForm.test_to.trim() || undefined,
+        ...(usuarioForm.test_to.trim() ? { to: usuarioForm.test_to.trim() } : {}),
       });
       setUsuarioSuccess(result.message);
     } catch (error) {
@@ -630,7 +632,7 @@ export default function ConfiguracionCorreoPage() {
                 label="Usuario"
                 value={selectedUsuarioId}
                 onChange={(e) => {
-                  const value = e.target.value;
+                  const value = e.target.value as number | '';
                   setSelectedUsuarioId(value === '' ? '' : Number(value));
                 }}
               >

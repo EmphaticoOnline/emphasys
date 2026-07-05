@@ -210,6 +210,52 @@ async function assertOrdenCompraModificable(
 }
 
 /**
+ * Una factura solo puede eliminarse (DELETE físico) si nunca tuvo efecto fiscal ni
+ * financiero: sin timbrar y sin pagos aplicados. Si ya está timbrada, debe seguir el
+ * flujo formal de cancelación de CFDI en lugar de eliminarse.
+ */
+async function assertFacturaEliminable(
+  documentoId: number,
+  empresaId: number,
+  tipo_documento: unknown,
+  estatus_documento: unknown,
+  executor: Pick<import('pg').PoolClient, 'query'>
+) {
+  if (String(tipo_documento ?? '').trim().toLowerCase() !== 'factura') return;
+
+  if (String(estatus_documento ?? '').trim().toLowerCase() === 'timbrado') {
+    throw new DocumentoDeleteValidationError(
+      'No se puede eliminar una factura timbrada. Utilice la cancelación fiscal (CFDI) en su lugar.'
+    );
+  }
+
+  const { rows: cfdiRows } = await executor.query<{ uuid: string | null }>(
+    `SELECT uuid FROM documentos_cfdi WHERE documento_id = $1 LIMIT 1`,
+    [documentoId]
+  );
+  if (cfdiRows[0]?.uuid) {
+    throw new DocumentoDeleteValidationError(
+      'No se puede eliminar una factura timbrada. Utilice la cancelación fiscal (CFDI) en su lugar.'
+    );
+  }
+
+  const { rows: aplicacionesRows } = await executor.query<{ existe: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM aplicaciones_saldo a
+        WHERE a.empresa_id = $1
+          AND (a.documento_origen_id = $2 OR a.documento_destino_id = $2)
+     ) AS existe`,
+    [empresaId, documentoId]
+  );
+  if (Boolean(aplicacionesRows[0]?.existe)) {
+    throw new DocumentoDeleteValidationError(
+      'No se puede eliminar la factura porque tiene pagos aplicados.'
+    );
+  }
+}
+
+/**
  * Devuelve true si el documento tiene un intento de cancelación en estado
  * 'externo_ok_interno_pendiente', es decir: Facturama ya canceló el CFDI pero
  * la transacción interna aún no se completó. El documento debe ser de solo lectura
@@ -467,7 +513,12 @@ const normalizarImagenPartida = (data: PartidaInput, permiteImagen: boolean) => 
   };
 };
 
-export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, empresaId: number, search?: string | null) {
+export async function listarDocumentosRepository(
+  tipoDocumento: TipoDocumento,
+  empresaId: number,
+  search?: string | null,
+  agenteIdForzado?: number | null
+) {
   const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
   const selectSaldo = esFactura
@@ -547,6 +598,11 @@ export async function listarDocumentosRepository(tipoDocumento: TipoDocumento, e
     )`);
   }
 
+  if (agenteIdForzado) {
+    values.push(agenteIdForzado);
+    whereClauses.push(`d.agente_id = $${values.length}`);
+  }
+
   const query = `
     SELECT
       d.id,
@@ -598,7 +654,8 @@ export async function listarDocumentosRepositoryPaginado(
   empresaId: number,
   pagination: { page: number; limit: number },
   search?: string | null,
-  additionalFilters?: DocumentosAdditionalFilters
+  additionalFilters?: DocumentosAdditionalFilters,
+  agenteIdForzado?: number | null
 ): Promise<{ data: any[]; total: number }> {
   const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
@@ -732,6 +789,11 @@ export async function listarDocumentosRepositoryPaginado(
     }
   }
 
+  if (agenteIdForzado) {
+    values.push(agenteIdForzado);
+    whereClauses.push(`d.agente_id = $${values.length}`);
+  }
+
   const offset = (pagination.page - 1) * pagination.limit;
   values.push(pagination.limit, offset);
   const limitIdx = values.length - 1;
@@ -748,6 +810,7 @@ export async function listarDocumentosRepositoryPaginado(
       d.fecha_documento,
       d.contacto_principal_id,
       d.agente_id,
+      d.oportunidad_id,
       c.nombre AS nombre_cliente,
       c.email AS contacto_email,
       c.telefono AS cliente_telefono,
@@ -781,8 +844,24 @@ export async function listarDocumentosRepositoryPaginado(
   return { data, total };
 }
 
-export async function obtenerDocumentoRepository(id: number, empresaId: number, tipoDocumento?: TipoDocumento) {
+export async function obtenerDocumentoRepository(
+  id: number,
+  empresaId: number,
+  tipoDocumento?: TipoDocumento,
+  agenteIdForzado?: number | null
+) {
   const executor = pool;
+  const params: Array<number | string> = [empresaId, id];
+  let condTipo = '';
+  if (tipoDocumento) {
+    params.push(tipoDocumento);
+    condTipo = `AND LOWER(d.tipo_documento) = LOWER($${params.length})`;
+  }
+  let condAgente = '';
+  if (agenteIdForzado) {
+    params.push(agenteIdForzado);
+    condAgente = `AND d.agente_id = $${params.length}`;
+  }
   const docQuery = `
     SELECT
       d.*,
@@ -796,16 +875,18 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
       d.uso_cfdi,
       d.forma_pago,
       d.metodo_pago,
-      d.codigo_postal_receptor
+      d.codigo_postal_receptor,
+      ag.nombre AS agente_nombre
     FROM documentos d
     LEFT JOIN finanzas_operaciones fo ON fo.id = d.finanzas_operacion_id AND fo.empresa_id = d.empresa_id
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     LEFT JOIN contactos_domicilios cd ON cd.contacto_id = c.id AND cd.es_principal = true
+    LEFT JOIN contactos ag ON ag.id = d.agente_id
     WHERE d.empresa_id = $1 AND d.id = $2
-      ${tipoDocumento ? 'AND LOWER(d.tipo_documento) = LOWER($3)' : ''}
+      ${condTipo}
+      ${condAgente}
     LIMIT 1
   `;
-  const params = tipoDocumento ? [empresaId, id, tipoDocumento] : [empresaId, id];
   console.log('[BACK SQL DEBUG] obtenerDocumento docQuery', docQuery);
   console.log('[BACK SQL DEBUG] obtenerDocumento params', params);
   const { rows: docRows } = await executor.query(docQuery, params);
@@ -942,6 +1023,82 @@ export async function obtenerDocumentoRepository(id: number, empresaId: number, 
     : null;
 
   return { documento, partidas };
+}
+
+export type DocumentoRelacionado = {
+  id: number;
+  tipo_documento: string;
+  serie: string | null;
+  numero: number | null;
+  fecha_documento: string;
+  estatus_documento: string;
+  total: number;
+  relacion: 'origen' | 'destino';
+};
+
+export async function obtenerDocumentosRelacionadosRepository(
+  id: number,
+  empresaId: number
+): Promise<DocumentoRelacionado[]> {
+  const MAX_SALTOS = 6;
+  const visitados = new Map<number, 'origen' | 'destino'>();
+  let frontier = [id];
+  let saltos = 0;
+
+  while (frontier.length > 0 && saltos < MAX_SALTOS) {
+    const { rows } = await pool.query<{ documento_id: number; relacionado_id: number; relacion: 'origen' | 'destino' }>(
+      `SELECT DISTINCT
+         dp.documento_id AS documento_id,
+         CASE WHEN dpv.documento_origen_id = dp.documento_id THEN dpv.documento_destino_id ELSE dpv.documento_origen_id END AS relacionado_id,
+         CASE WHEN dpv.documento_origen_id = dp.documento_id THEN 'destino' ELSE 'origen' END AS relacion
+       FROM documentos_partidas dp
+       JOIN documentos_partidas_vinculos dpv
+         ON dpv.partida_origen_id = dp.id OR dpv.partida_destino_id = dp.id
+       WHERE dp.documento_id = ANY($1::int[])`,
+      [frontier]
+    );
+
+    const siguienteFrontier: number[] = [];
+    for (const row of rows) {
+      const relacionadoId = Number(row.relacionado_id);
+      if (!relacionadoId || relacionadoId === id || visitados.has(relacionadoId)) continue;
+      visitados.set(relacionadoId, row.relacion);
+      siguienteFrontier.push(relacionadoId);
+    }
+    frontier = siguienteFrontier;
+    saltos += 1;
+  }
+
+  if (visitados.size === 0) return [];
+
+  const ids = Array.from(visitados.keys());
+  const { rows: documentosRows } = await pool.query<{
+    id: number;
+    tipo_documento: string;
+    serie: string | null;
+    numero: number | null;
+    fecha_documento: string;
+    estatus_documento: string;
+    total: string;
+  }>(
+    `SELECT id, tipo_documento, serie, numero, fecha_documento, estatus_documento, total
+       FROM documentos
+      WHERE empresa_id = $1 AND id = ANY($2::int[])`,
+    [empresaId, ids]
+  );
+
+  return documentosRows
+    .map((doc) => ({
+      id: doc.id,
+      tipo_documento: doc.tipo_documento,
+      serie: doc.serie,
+      numero: doc.numero,
+      fecha_documento: doc.fecha_documento,
+      estatus_documento: doc.estatus_documento,
+      total: Number(doc.total),
+      relacion: visitados.get(doc.id) ?? 'destino',
+    }))
+    .sort((a, b) => a.fecha_documento.localeCompare(b.fecha_documento));
 }
 
 export async function crearDocumentoRepository(
@@ -1542,6 +1699,7 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
 
     if (documentoActual) {
       assertFacturaCompraNoEmitida(documentoActual.tipo_documento, documentoActual.estatus_documento);
+      await assertFacturaEliminable(id, empresaId, documentoActual.tipo_documento, documentoActual.estatus_documento, client);
     }
 
     const { rows: _vinculosEliminar } = await client.query(

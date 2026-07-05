@@ -26,12 +26,12 @@ import LinkIcon from '@mui/icons-material/Link';
 import {
   crearAplicacion,
   eliminarAplicacion,
-  fetchAplicacionesPorOperacion,
+  fetchAplicacionesDocumento,
   fetchEstadoCuenta,
   fetchOperacionDetalle,
-  fetchOperacionDisponible,
+  fetchSaldoDocumento,
 } from '../../services/finanzasService';
-import type { AplicacionOperacion, EstadoCuentaItem, FinanzasOperacion, OperacionDisponible } from '../../types/finanzas';
+import type { AplicacionOperacion, DocumentoSaldo, EstadoCuentaItem, FinanzasOperacion } from '../../types/finanzas';
 import { formatearFolioDocumento } from '../../utils/documentos.utils';
 
 const compatibilidadNaturaleza: Record<string, string[]> = {
@@ -69,7 +69,7 @@ interface OperacionDetalleDrawerProps {
 
 export function OperacionDetalleDrawer({ operacionId, open, onClose }: OperacionDetalleDrawerProps) {
   const [operacion, setOperacion] = useState<FinanzasOperacion | null>(null);
-  const [disponible, setDisponible] = useState<OperacionDisponible | null>(null);
+  const [disponible, setDisponible] = useState<DocumentoSaldo | null>(null);
   const [aplicaciones, setAplicaciones] = useState<AplicacionOperacion[]>([]);
   const [estadoCuenta, setEstadoCuenta] = useState<EstadoCuentaItem[]>([]);
   const [montos, setMontos] = useState<Record<number, string>>({});
@@ -106,14 +106,22 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   const fetchAll = async (id: number) => {
     try {
       setLoading(true);
-      const [op, disp, apps] = await Promise.all([
-        fetchOperacionDetalle(id),
-        fetchOperacionDisponible(id),
-        fetchAplicacionesPorOperacion(id),
-      ]);
+      const op = await fetchOperacionDetalle(id);
       setOperacion(op);
-      setDisponible(disp);
-      setAplicaciones(apps ?? []);
+
+      const documentoOrigenId = op.documento_origen_id ?? null;
+      if (documentoOrigenId) {
+        const [saldoData, apps] = await Promise.all([
+          fetchSaldoDocumento(documentoOrigenId),
+          fetchAplicacionesDocumento(documentoOrigenId),
+        ]);
+        setDisponible(saldoData);
+        setAplicaciones(apps ?? []);
+      } else {
+        setDisponible(null);
+        setAplicaciones([]);
+      }
+
       if (op.contacto_id) {
         const estado = await fetchEstadoCuenta(op.contacto_id);
         setEstadoCuenta((estado ?? []).filter((item) => item.origen === 'documento'));
@@ -151,14 +159,15 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   };
 
   const handleAplicar = async (doc: EstadoCuentaItem) => {
-    if (!operacionId || !disponible) return;
+    const documentoOrigenId = operacion?.documento_origen_id ?? null;
+    if (!operacionId || !documentoOrigenId || !disponible) return;
     const raw = montos[doc.id] ?? '';
 
     let monto: number;
 
     if (raw === '' || raw === null) {
       const saldoFactura = Number(doc.saldo ?? 0);
-      const disponibleMovimiento = Number(disponible.monto_disponible ?? 0);
+      const disponibleMovimiento = Number(disponible.saldo ?? 0);
       if (saldoFactura <= 0) {
         setSnackbar({ open: true, message: 'Saldo del documento agotado', severity: 'error' });
         return;
@@ -178,7 +187,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
         setSnackbar({ open: true, message: 'El monto excede el saldo del documento', severity: 'error' });
         return;
       }
-      if (monto > disponible.monto_disponible) {
+      if (monto > disponible.saldo) {
         setSnackbar({ open: true, message: 'El monto excede el disponible del pago', severity: 'error' });
         return;
       }
@@ -186,7 +195,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
     try {
       setApplyingId(doc.id);
       await crearAplicacion({
-        finanzas_operacion_id: operacionId,
+        documento_origen_id: documentoOrigenId,
         documento_destino_id: doc.id,
         monto,
         monto_moneda_documento: monto,
@@ -215,10 +224,12 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   );
 
   const esMovimientoGeneral = operacion?.naturaleza_operacion === 'movimiento_general';
+  const sinDocumentoOrigen = !esMovimientoGeneral && !!operacion && !operacion.documento_origen_id;
 
   const handleAplicarAutomatico = async () => {
-    if (!operacionId || !disponible || esMovimientoGeneral) return;
-    let available = disponible.monto_disponible;
+    const documentoOrigenId = operacion?.documento_origen_id ?? null;
+    if (!operacionId || !documentoOrigenId || !disponible || esMovimientoGeneral) return;
+    let available = disponible.saldo;
     const pendientesOrdenados = [...facturasPendientes].sort((a, b) => a.fecha.localeCompare(b.fecha));
     if (available <= 0 || pendientesOrdenados.length === 0) return;
     try {
@@ -229,7 +240,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
         const aplicar = Math.min(available, saldo);
         if (aplicar <= 0) continue;
         await crearAplicacion({
-          finanzas_operacion_id: operacionId,
+          documento_origen_id: documentoOrigenId,
           documento_destino_id: doc.id,
           monto: aplicar,
           monto_moneda_documento: aplicar,
@@ -286,7 +297,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
           </Stack>
         )}
 
-        {!loading && operacion && disponible && (
+        {!loading && operacion && (
           <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2, background: '#f8fafc' }}>
             <Typography variant="subtitle2" color="text.secondary">
               Resumen
@@ -314,14 +325,16 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                   {formatter.format(Number(operacion.monto || 0))}
                 </Typography>
               </Stack>
-              <Stack spacing={0.5}>
-                <Typography variant="body2" color="text.secondary">
-                  Disponible para aplicar
-                </Typography>
-                <Typography variant="body1" fontWeight={700} color="#006261">
-                  {formatter.format(Number(disponible.monto_disponible || 0))}
-                </Typography>
-              </Stack>
+              {disponible && (
+                <Stack spacing={0.5}>
+                  <Typography variant="body2" color="text.secondary">
+                    Disponible para aplicar
+                  </Typography>
+                  <Typography variant="body1" fontWeight={700} color="#006261">
+                    {formatter.format(Number(disponible.saldo || 0))}
+                  </Typography>
+                </Stack>
+              )}
             </Stack>
           </Box>
         )}
@@ -406,7 +419,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                 Selecciona una factura y aplica un monto al documento.
               </Typography>
             </Box>
-            {!esMovimientoGeneral && disponible && facturasPendientes.length > 0 && disponible.monto_disponible > 0 && (
+            {!esMovimientoGeneral && disponible && facturasPendientes.length > 0 && disponible.saldo > 0 && (
               <Button
                 variant="contained"
                 size="small"
@@ -420,6 +433,10 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
           </Stack>
           {esMovimientoGeneral ? (
             <Alert severity="info">Este movimiento no permite aplicar documentos.</Alert>
+          ) : sinDocumentoOrigen ? (
+            <Alert severity="info">
+              Este movimiento no tiene un documento de origen vinculado, por lo que no es posible aplicarlo a facturas. Edítalo para asociarlo a un documento.
+            </Alert>
           ) : (
             <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
               <TableContainer

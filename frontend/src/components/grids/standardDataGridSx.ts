@@ -1,4 +1,5 @@
-import type { SystemStyleObject, Theme } from '@mui/material/styles';
+import type { Theme } from '@mui/material/styles';
+import type { SystemStyleObject } from '@mui/system';
 
 export const STANDARD_DATA_GRID_HEADER_HEIGHT = 38;
 export const STANDARD_DATA_GRID_ROW_HEIGHT = 34;

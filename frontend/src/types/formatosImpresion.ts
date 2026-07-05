@@ -7,10 +7,13 @@ export type LayoutConfig = {
   mostrarImagenPartida?: boolean;
   altoImagenPartida?: number | null;
   maxAnchoImagenPartida?: number | null;
+  posicionImagenPartida?: 'debajo' | 'columna' | 'ninguna';
   titulo?: string | null;
   colorPrimario?: string | null;
   colorTablaHeader?: string | null;
   mostrarLogo?: boolean;
+  maxAnchoLogo?: number | null;
+  altoLogo?: number | null;
 };
 
 export type LayoutSerie = {

@@ -10,6 +10,11 @@ import {
   listarSeriesDocumentoAdmin,
   type SerieDocumentoPayload,
 } from './series-documento.repository';
+import { sanitizarRichTextBasico } from '../../../utils/richTextSanitize';
+
+function sanitizarCondicionesImpresion(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? sanitizarRichTextBasico(value) : null;
+}
 
 function getEmpresaId(req: Request): number {
   return Number(req.context?.empresaId ?? 0);
@@ -37,6 +42,7 @@ function normalizarSeriePayload(body: any, { incluirFolio = false } = {}): Serie
     tipo_documento: tipoDocumento,
     es_fiscal: esFiscal,
     activa,
+    condiciones_impresion: sanitizarCondicionesImpresion(body?.condiciones_impresion),
   };
 
   if (incluirFolio && body?.ultimo_numero !== undefined) {

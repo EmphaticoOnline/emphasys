@@ -290,6 +290,65 @@ export async function listarAplicacionesPorDocumento(documentoId: number, empres
   return rows;
 }
 
+export async function listarPagosAplicadosPorDocumento(documentoId: number, empresaId: number) {
+  const sql = `
+    SELECT a.id,
+           a.monto_moneda_documento,
+           a.monto,
+           a.fecha_aplicacion,
+           a.imp_saldo_ant,
+           a.imp_saldo_insoluto,
+           a.num_parcialidad,
+           fo.id AS finanzas_operacion_id,
+           fo.fecha AS fecha_pago,
+           fo.referencia,
+           fc.identificador AS cuenta_identificador,
+           mp.nombre AS metodo_pago_nombre,
+           doc_pago.id AS documento_pago_id,
+           doc_pago.serie AS documento_pago_serie,
+           doc_pago.numero AS documento_pago_numero,
+           doc_pago.tipo_documento AS documento_pago_tipo_documento,
+           doc_pago.estatus_documento AS documento_pago_estatus
+    FROM aplicaciones_saldo a
+    JOIN finanzas_operaciones fo ON fo.id = a.finanzas_operacion_id AND fo.empresa_id = a.empresa_id
+    LEFT JOIN documentos doc_pago ON doc_pago.id = fo.documento_origen_id AND doc_pago.empresa_id = fo.empresa_id
+    LEFT JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
+    LEFT JOIN finanzas_metodos_pago mp ON mp.id = fo.metodo_pago_id AND mp.empresa_id = fo.empresa_id
+    WHERE a.empresa_id = $2
+      AND a.documento_destino_id = $1
+      AND a.finanzas_operacion_id IS NOT NULL
+    ORDER BY a.fecha_aplicacion, a.id
+  `;
+  const { rows } = await pool.query(sql, [documentoId, empresaId]);
+  return rows;
+}
+
+export async function listarNotasCreditoAplicadasPorDocumento(documentoId: number, empresaId: number) {
+  const sql = `
+    SELECT a.id,
+           a.monto_moneda_documento,
+           a.monto,
+           a.fecha_aplicacion,
+           doc_nc.id AS documento_nc_id,
+           doc_nc.serie AS documento_nc_serie,
+           doc_nc.numero AS documento_nc_numero,
+           doc_nc.tipo_documento AS documento_nc_tipo_documento,
+           doc_nc.fecha_documento AS documento_nc_fecha,
+           doc_nc.motivo_nc,
+           doc_nc.total AS documento_nc_total,
+           doc_nc.estatus_documento AS documento_nc_estatus
+    FROM aplicaciones_saldo a
+    JOIN documentos doc_nc ON doc_nc.id = a.documento_origen_id AND doc_nc.empresa_id = a.empresa_id
+    WHERE a.empresa_id = $2
+      AND a.documento_destino_id = $1
+      AND a.documento_origen_id IS NOT NULL
+      AND LOWER(doc_nc.tipo_documento) IN ('nota_credito', 'nota_credito_compra')
+    ORDER BY a.fecha_aplicacion, a.id
+  `;
+  const { rows } = await pool.query(sql, [documentoId, empresaId]);
+  return rows;
+}
+
 export async function listarEstadoCuentaContacto(contactoId: number, empresaId: number) {
   const sql = `
     SELECT d.id,

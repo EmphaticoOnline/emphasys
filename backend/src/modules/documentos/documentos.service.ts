@@ -3,7 +3,7 @@ import type { PoolClient } from 'pg';
 import type { TipoDocumento } from '../../types/documentos';
 import { calcularImpuestosPartida } from '../impuestos/impuestos.service';
 import { crearAplicacionEnTransaccion, upsertOperacionDocumentoEnTransaccion } from '../finanzas/finanzas.repository';
-import { OPORTUNIDAD_ESTADOS_SEGUIMIENTO, normalizarEstadoSeguimientoCotizacion } from './cotizacion-status';
+import { OPORTUNIDAD_ESTADOS_CERRADOS, OPORTUNIDAD_ESTADOS_SEGUIMIENTO, normalizarEstadoSeguimientoCotizacion } from './cotizacion-status';
 import { actualizarDocumentoRepository, crearDocumentoRepository, obtenerDocumentoRepository, reemplazarPartidasRepository, type PartidaInput } from './documentos.repository';
 
 type DocumentoCrearPayload = Record<string, any> & {
@@ -586,6 +586,22 @@ export async function duplicarCotizacionService(documentoId: number, empresaId: 
 
     if (!oportunidadId) {
       throw new Error('VALIDATION_ERROR: La cotización no está ligada a una oportunidad.');
+    }
+
+    const { rows: oportunidadRows } = await client.query<{ estatus: string | null }>(
+      `SELECT estatus
+         FROM crm.oportunidades_venta
+        WHERE id = $1
+          AND empresa_id = $2
+        LIMIT 1`,
+      [oportunidadId, empresaId]
+    );
+
+    const oportunidadEstatus = String(oportunidadRows[0]?.estatus ?? '').trim().toLowerCase();
+    if (OPORTUNIDAD_ESTADOS_CERRADOS.includes(oportunidadEstatus)) {
+      throw new Error(
+        `VALIDATION_ERROR: No se puede duplicar la cotización porque la oportunidad asociada está ${oportunidadEstatus}.`
+      );
     }
 
     const nuevoDocumento = await crearDocumentoRepository(

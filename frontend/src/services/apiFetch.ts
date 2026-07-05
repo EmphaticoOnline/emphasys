@@ -23,7 +23,7 @@ function readSession(): SessionState | null {
   }
 }
 
-function isJsonSerializable(body: any) {
+function isJsonSerializable(body: ApiFetchOptions["body"]): body is Record<string, unknown> | unknown[] {
   if (body === null || body === undefined) return false;
   if (typeof body === "string") return false;
   if (body instanceof FormData) return false;
@@ -33,7 +33,22 @@ function isJsonSerializable(body: any) {
   return typeof body === "object";
 }
 
-export async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+export type ApiFetchOptions = Omit<RequestInit, "body"> & {
+  body?: BodyInit | Record<string, unknown> | unknown[] | null;
+};
+
+/**
+ * Error lanzado por apiFetch en respuestas no-OK. `payload`/`status` son
+ * aditivos (no rompen el uso existente de `error.message`): permiten a un
+ * caller puntual leer campos extra del cuerpo de error, ej. un `code`
+ * machine-readable, sin tener que rehacer el fetch a mano.
+ */
+export type ApiFetchError = Error & {
+  status?: number;
+  payload?: unknown;
+};
+
+export async function apiFetch<T>(url: string, options: ApiFetchOptions = {}): Promise<T> {
   const session = readSession();
   const finalUrl = buildUrl(url);
 
@@ -70,13 +85,16 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
 
   if (!response.ok) {
     const message = (payload as any)?.message || (payload as any)?.error || (typeof payload === "string" ? payload : "Error de la API");
-    throw new Error(message || `Error HTTP ${response.status}`);
+    const error = new Error(message || `Error HTTP ${response.status}`) as ApiFetchError;
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
   }
 
   return payload as T;
 }
 
-export async function apiFetchBlob(url: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {
+export async function apiFetchBlob(url: string, options: ApiFetchOptions = {}): Promise<{ blob: Blob; filename: string }> {
   const session = readSession();
   const finalUrl = buildUrl(url);
   const headers = new Headers(options.headers || {});
@@ -112,7 +130,7 @@ export async function apiFetchBlob(url: string, options: RequestInit = {}): Prom
   const blob = await response.blob();
   const disposition = response.headers.get('content-disposition') || '';
   const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-  const filename = match ? match[1].replace(/['"]/g, '') : 'exportacion.xlsx';
+  const filename = match?.[1] ? match[1].replace(/['"]/g, '') : 'exportacion.xlsx';
 
   return { blob, filename };
 }

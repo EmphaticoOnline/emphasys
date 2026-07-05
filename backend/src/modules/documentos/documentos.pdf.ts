@@ -10,6 +10,7 @@ import { obtenerPlantillaParaDocumento } from '../plantillas/plantillas.service'
 import { renderPlantillaHTML, type PlantillaData } from '../plantillas/plantillas.render.service';
 import puppeteer from 'puppeteer';
 import { heightOfRichTextBasicoPdf, renderRichTextBasicoPdf, richTextBasicoEstaVacio } from './richTextPdf';
+import { obtenerCondicionesImpresionSerie } from '../configuracion/series-documento/series-documento.repository';
 
 type TimbreCfdi = {
   uuid?: string | null;
@@ -45,6 +46,7 @@ type DocumentoCotizacion = {
   metodo_pago?: string | null;
   codigo_postal_receptor?: string | null;
   nombre_receptor?: string | null;
+  agente_nombre?: string | null;
   observaciones?: string | null;
   tratamiento_impuestos?: string | null;
   total?: number | null;
@@ -559,6 +561,13 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const esOrdenServicio = tipoDocumentoNormalizado === 'orden_servicio';
   const esNotaCredito = tipoDocumentoNormalizado === 'nota_credito' || tipoDocumentoNormalizado === 'nota_credito_compra';
   const esNotaCreditoComercial = esNotaCredito && (documento?.motivo_nc ?? null) === 'otro';
+  const condicionesImpresionSerie = esCotizacion
+    ? await obtenerCondicionesImpresionSerie(
+        (documento as any)?.empresa_id ?? empresaId,
+        documento?.tipo_documento ?? '',
+        documento?.serie ?? ''
+      )
+    : null;
   const partidasConMontos = (partidas ?? []).map((partida) => {
     const cantidad = Number(partida.cantidad ?? 0);
     const precioUnitario = Number(partida.precio_unitario ?? 0);
@@ -791,26 +800,68 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
     const startX = doc.page.margins.left;
     const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const columnWidths = esNotaCreditoComercial
-      ? [
-          tableWidth - (58 + 76 + 68 + 68), // Descripción absorbe el espacio del producto oculto
-          58, // Cantidad
-          76, // Precio unitario
-          68, // Desc.
-          68, // Importe (alineado a margen derecho)
-        ]
-      : [
-          84, // Producto (se mantiene)
-          tableWidth - (84 + 58 + 76 + 68 + 68), // Descripción absorbe espacio extra
-          58, // Cantidad
-          76, // Precio unitario
-          68, // Desc.
-          68, // Importe (alineado a margen derecho)
-        ];
-    const headers = esNotaCreditoComercial
-      ? ['Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe']
-      : ['Producto', 'Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe'];
-    const descripcionIndex = esNotaCreditoComercial ? 0 : 1;
+
+    // Configuración de imagen de partida: gobierna si se muestra y en qué posición
+    // (debajo de la descripción, en columna propia, o no se muestra).
+    const showImagenPartida = layout.mostrarImagenPartida === true;
+    const rawImagenPartidaHeight = Number(layout.altoImagenPartida ?? 60);
+    const imagenPartidaHeight = Number.isFinite(rawImagenPartidaHeight) && rawImagenPartidaHeight > 0
+      ? rawImagenPartidaHeight
+      : 60;
+    const rawMaxAnchoImagenPartida = Number(layout.maxAnchoImagenPartida);
+    const maxAnchoImagenPartida = Number.isFinite(rawMaxAnchoImagenPartida) && rawMaxAnchoImagenPartida > 0
+      ? rawMaxAnchoImagenPartida
+      : null;
+    const posicionImagenPartida: 'debajo' | 'columna' | 'ninguna' = !showImagenPartida
+      ? 'ninguna'
+      : (layout.posicionImagenPartida ?? 'debajo');
+    const imagenPartidaVisible = showImagenPartida && posicionImagenPartida !== 'ninguna';
+    const imagenPartidaEnColumna = imagenPartidaVisible && posicionImagenPartida === 'columna';
+    const imagenPartidaGap = 10;
+    // Ancho moderado y fijo para la columna de imagen: maxAnchoImagenPartida actúa como
+    // tope, no como valor objetivo, para que la columna no le robe espacio a la tabla.
+    const imageColumnCap = 70;
+    const imageColumnContentWidth = Math.min(maxAnchoImagenPartida ?? imageColumnCap, imageColumnCap);
+    const imageColumnWidth = imageColumnContentWidth + 12;
+
+    const numericColumnsWidth = 58 + 76 + 68 + 68; // Cantidad + Precio unitario + Desc. + Importe
+
+    let columnWidths: number[];
+    let headers: string[];
+    let descripcionIndex: number;
+    let imagenColumnIndex: number | null = null;
+
+    if (imagenPartidaEnColumna) {
+      // Layout especial: Imagen | Producto/Descripción combinado | Cantidad | Precio unitario | Desc. | Importe
+      const combinedWidth = tableWidth - imageColumnWidth - numericColumnsWidth;
+      columnWidths = [imageColumnWidth, combinedWidth, 58, 76, 68, 68];
+      headers = esNotaCreditoComercial
+        ? ['Imagen', 'Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe']
+        : ['Imagen', 'Producto / Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe'];
+      descripcionIndex = 1;
+      imagenColumnIndex = 0;
+    } else {
+      columnWidths = esNotaCreditoComercial
+        ? [
+            tableWidth - numericColumnsWidth, // Descripción absorbe el espacio del producto oculto
+            58, // Cantidad
+            76, // Precio unitario
+            68, // Desc.
+            68, // Importe (alineado a margen derecho)
+          ]
+        : [
+            84, // Producto (se mantiene)
+            tableWidth - (84 + numericColumnsWidth), // Descripción absorbe espacio extra
+            58, // Cantidad
+            76, // Precio unitario
+            68, // Desc.
+            68, // Importe (alineado a margen derecho)
+          ];
+      headers = esNotaCreditoComercial
+        ? ['Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe']
+        : ['Producto', 'Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe'];
+      descripcionIndex = esNotaCreditoComercial ? 0 : 1;
+    }
 
     const obtenerDescripcionPartidaPdf = (partida: PartidaCotizacion) => {
       if (esNotaCreditoComercial) {
@@ -828,14 +879,16 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       const headerHeight = esOrdenServicio ? 82 : 122;
       const headerWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-      // Logo (mismo espacio que antes, escalado con proporción dentro de un cuadro fijo)
-      const logoMaxHeight = esOrdenServicio ? 54 : headerHeight * 0.7;
-      const logoMaxWidth = 200; // ancho máximo permitido sin cambiar layout
-      if (hasLogo && layout.mostrarLogo !== false) {
-        doc.image(logoPath, doc.page.margins.left, headerTop, {
-          fit: [logoMaxWidth, logoMaxHeight],
-        });
-      }
+      // maxAnchoLogo/altoLogo son configurables desde Formatos de impresión; si vienen
+      // vacíos/inválidos se usa el comportamiento actual (hardcodeado) como default.
+      const logoMaxWidthDefault = 200;
+      const logoMaxHeightDefault = esOrdenServicio ? 54 : headerHeight * 0.7;
+
+      const rawMaxAnchoLogo = Number(layout.maxAnchoLogo);
+      const logoMaxWidth = Number.isFinite(rawMaxAnchoLogo) && rawMaxAnchoLogo > 0 ? rawMaxAnchoLogo : logoMaxWidthDefault;
+
+      const rawAltoLogo = Number(layout.altoLogo);
+      const logoMaxHeight = Number.isFinite(rawAltoLogo) && rawAltoLogo > 0 ? rawAltoLogo : logoMaxHeightDefault;
 
       const folio = formatearFolioDocumento(documento?.serie ?? '', Number(documento?.numero ?? 0));
       const fechaTimbrado = documento?.timbre?.fecha_timbrado ? formatDateTime(documento.timbre.fecha_timbrado) : 'N/D';
@@ -862,6 +915,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         ['Folio', folio || 'N/D'],
         ['Fecha elaboración', fechaEmision],
       ];
+      if (esCotizacion && documento?.agente_nombre) {
+        boxData.push(['Agente', documento.agente_nombre]);
+      }
       if (!esCotizacion && estaTimbrado) {
         boxData.push(
           ['Fecha timbrado', fechaTimbrado],
@@ -884,6 +940,42 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         : esOrdenServicio
           ? 54
           : headerHeight;
+
+      // Logo: se calcula su altura real de render (PDFKit solo alinea
+      // arriba-izquierda por defecto con `fit`) para centrarlo verticalmente
+      // respecto a la altura del recuadro derecho ("Cotización"/folio) y así
+      // quede en la misma banda visual, sin dejar espacio muerto de más.
+      let logoActualHeight = 0;
+      let logoY = headerTop;
+
+      if (hasLogo && layout.mostrarLogo !== false) {
+        let logoNaturalWidth = logoMaxWidth;
+        let logoNaturalHeight = logoMaxHeight;
+        try {
+          const logoImageInfo = (doc as any).openImage(logoPath) as { width: number; height: number };
+          logoNaturalWidth = logoImageInfo.width;
+          logoNaturalHeight = logoImageInfo.height;
+        } catch (error) {
+          console.warn('[pdf] No se pudieron leer las dimensiones del logo, se usa el tamaño máximo configurado', {
+            logoPath,
+            error: (error as Error)?.message,
+          });
+        }
+
+        const logoAspect = logoNaturalWidth / logoNaturalHeight;
+        const boxAspect = logoMaxWidth / logoMaxHeight;
+        logoActualHeight = logoAspect > boxAspect ? logoMaxWidth / logoAspect : logoMaxHeight;
+
+        // Sube el logo moderadamente respecto al tope del recuadro derecho,
+        // acotado para no invadir de más el margen superior de la página.
+        const logoRaise = esCotizacion ? 6 : 0;
+        const centeredOffset = Math.max((boxH - logoActualHeight) / 2, 0);
+        logoY = Math.max(headerTop + centeredOffset - logoRaise, doc.page.margins.top - 10);
+
+        doc.image(logoPath, doc.page.margins.left, logoY, {
+          fit: [logoMaxWidth, logoMaxHeight],
+        });
+      }
 
       doc.roundedRect(boxX, boxY, boxW, boxH, 6).fill('#eeeeee');
       doc.fillColor('#111827');
@@ -918,9 +1010,11 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           : headerTop + headerHeight;
       doc.y = Math.max(headerBottom, cursorY) + (esOrdenServicio ? 4 : 10);
       if (esCotizacion || esOrdenServicio) {
-        const logoBottom = headerTop + logoMaxHeight;
-        const lineGapTop = esOrdenServicio ? 4 : 18;
-        const lineGapBottom = esOrdenServicio ? 4 : 14;
+        // Se usa la altura real del logo (no el máximo reservado) para no
+        // dejar espacio muerto de más cuando el logo termina antes de esa cota.
+        const logoBottom = logoY + logoActualHeight;
+        const lineGapTop = esOrdenServicio ? 4 : 8;
+        const lineGapBottom = esOrdenServicio ? 4 : 8;
         const lineY = Math.max(logoBottom, boxY + boxH) + lineGapTop;
         doc
           .moveTo(doc.page.margins.left, lineY)
@@ -1060,22 +1154,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
     const renderPartidas = async () => {
       // Tabla de partidas (sin título "Partidas")
-      const layoutWithImageConfig = layout as DocumentLayout & { maxAnchoImagenPartida?: number | null };
       const showObservaciones = (esCotizacion || esOrdenServicio || esNotaCredito) && layout.mostrarObservacionesPartida !== false;
-      const showImagenPartida = layout.mostrarImagenPartida === true;
-      const rawImagenPartidaHeight = Number(layout.altoImagenPartida ?? 60);
-      const imagenPartidaHeight = Number.isFinite(rawImagenPartidaHeight) && rawImagenPartidaHeight > 0
-        ? rawImagenPartidaHeight
-        : 60;
-      const rawMaxAnchoImagenPartida = Number(layoutWithImageConfig.maxAnchoImagenPartida);
-      const maxAnchoImagenPartida = Number.isFinite(rawMaxAnchoImagenPartida) && rawMaxAnchoImagenPartida > 0
-        ? rawMaxAnchoImagenPartida
-        : null;
-      console.log({
-        altoImagenPartida: layout.altoImagenPartida,
-        maxAnchoImagenPartida: layoutWithImageConfig.maxAnchoImagenPartida,
-      });
-      const imagenPartidaGap = 10;
       const observacionesFontSize = 8;
       const observacionesPadding = 3;
       const observacionesRichTextFonts = {
@@ -1087,7 +1166,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
       const getPartidaImageBuffer = async (imageUrl?: string | null) => {
         const normalizedUrl = resolvePublicUrl(imageUrl);
-        if (!showImagenPartida || !normalizedUrl) return null;
+        if (!imagenPartidaVisible || !normalizedUrl) return null;
         if (imageCache.has(normalizedUrl)) return imageCache.get(normalizedUrl) ?? null;
 
         try {
@@ -1139,8 +1218,13 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         }
 
         const textBlockHeight = Math.max(baseRowHeight, maxTextHeight + bodyPaddingY * 2) + (obsHeight ? obsHeight + observacionesPadding : 0);
-        const imageBlockHeight = hasImage ? imagenPartidaHeight + imagenPartidaGap : 0;
-        const rowHeight = Math.max(textBlockHeight, descriptionHeight + bodyPaddingY * 2 + (obsHeight ? obsHeight + observacionesPadding : 0) + imageBlockHeight);
+        const imageBlockHeight = hasImage && !imagenPartidaEnColumna ? imagenPartidaHeight + imagenPartidaGap : 0;
+        const imageColumnMinHeight = hasImage && imagenPartidaEnColumna ? imagenPartidaHeight + bodyPaddingY * 2 : 0;
+        const rowHeight = Math.max(
+          textBlockHeight,
+          descriptionHeight + bodyPaddingY * 2 + (obsHeight ? obsHeight + observacionesPadding : 0) + imageBlockHeight,
+          imageColumnMinHeight,
+        );
 
         return { rowHeight, bodyPaddingY, descriptionHeight, obsHeight, obsText, imageBlockHeight };
       };
@@ -1183,10 +1267,25 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         }
         values.forEach((text, idx) => {
           const x = startX + columnWidths.slice(0, idx).reduce((acc, w) => acc + w, 0) + 6;
-          setFont(isHeader, isHeader ? headerFontSize : 9, isHeader ? '#ffffff' : mutedText);
           const textY = isHeader ? headerTextY : y + bodyPaddingY;
-          const align = idx === descripcionIndex ? 'left' : 'right';
-          doc.text(text, x, textY, { width: columnWidths[idx] - 12, align });
+          const esColumnaImagenHeader = isHeader && imagenPartidaEnColumna && idx === imagenColumnIndex;
+          const align = esColumnaImagenHeader ? 'center' : idx === descripcionIndex ? 'left' : 'right';
+          const colWidth = columnWidths[idx] - 12;
+
+          if (!isHeader && imagenPartidaEnColumna && idx === descripcionIndex && text.includes('\n')) {
+            const separatorIdx = text.indexOf('\n');
+            const claveText = text.slice(0, separatorIdx);
+            const descText = text.slice(separatorIdx + 1);
+            setFont(true, 9, mutedText);
+            doc.text(claveText, x, textY, { width: colWidth, align: 'left' });
+            const claveHeight = doc.heightOfString(claveText, { width: colWidth });
+            setFont(false, 9, mutedText);
+            doc.text(descText, x, textY + claveHeight, { width: colWidth, align: 'left' });
+            return;
+          }
+
+          setFont(isHeader, isHeader ? headerFontSize : 9, isHeader ? '#ffffff' : mutedText);
+          doc.text(text, x, textY, { width: colWidth, align });
         });
 
         if (!isHeader && obsHeight > 0 && obsText) {
@@ -1200,7 +1299,25 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           });
         }
 
-        if (!isHeader && imageBuffer) {
+        if (!isHeader && imageBuffer && imagenPartidaEnColumna && imagenColumnIndex !== null) {
+          const imagePaddingX = 10;
+          const colX = startX + columnWidths.slice(0, imagenColumnIndex).reduce((acc, w) => acc + w, 0);
+          const colWidth = columnWidths[imagenColumnIndex];
+          const extraVerticalSpace = Math.max(0, rowHeight - bodyPaddingY * 2 - imagenPartidaHeight);
+          const imageY = y + bodyPaddingY + extraVerticalSpace / 2;
+          try {
+            doc.image(imageBuffer, colX + imagePaddingX, imageY, {
+              fit: [colWidth - imagePaddingX * 2, imagenPartidaHeight],
+              align: 'center',
+              valign: 'center',
+            });
+          } catch (error) {
+            console.warn('[pdf] No se pudo renderizar imagen de partida en columna', {
+              documentoId: documento?.id ?? null,
+              error: (error as Error)?.message ?? error,
+            });
+          }
+        } else if (!isHeader && imageBuffer && !imagenPartidaEnColumna) {
           const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
           const imageY = y + bodyPaddingY + descriptionHeight + (obsHeight > 0 && obsText ? obsHeight + observacionesPadding : 0) + imagenPartidaGap;
           const imageWidth = columnWidths[descripcionIndex] - 12;
@@ -1234,7 +1351,18 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         const subtotalBruto = cantidad * precioUnitario;
         const descuento = Math.max(0, subtotalBruto - subtotalNeto);
         const descripcionPartida = obtenerDescripcionPartidaPdf(p as PartidaCotizacion);
-        const values = esNotaCreditoComercial
+        const values = imagenPartidaEnColumna
+          ? [
+              '', // Imagen: se dibuja aparte, no como texto
+              esNotaCreditoComercial
+                ? descripcionPartida
+                : (p.producto_clave ? `${p.producto_clave}\n${descripcionPartida}` : descripcionPartida),
+              cantidad.toFixed(2),
+              formatCurrency(precioUnitario),
+              formatCurrency(descuento),
+              formatCurrency(subtotalNeto),
+            ]
+          : esNotaCreditoComercial
           ? [
               descripcionPartida,
               cantidad.toFixed(2),
@@ -1364,7 +1492,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         estaTimbrado,
       });
 
-      if (documento?.observaciones) {
+      if (documento?.observaciones && !esCotizacion) {
         const obsWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
         const obsHeight = doc.heightOfString(documento.observaciones, { width: obsWidth }) + (esOrdenServicio ? 18 : 28);
         console.log('[PDF DEBUG]', {
@@ -1403,7 +1531,57 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         const totalsHeight = totalRows.length * rowHeightCompact + totalsPaddingY * 2;
         const gapBottom = esOrdenServicio ? 10 : 14;
         const bloqueHeight = totalsHeight;
-        const anchorY = pageBottom - gapBottom - bloqueHeight;
+
+        // Condiciones de impresión de la serie: se reserva el espacio de pie
+        // de página necesario ANTES de anclar los recuadros de Observaciones
+        // y Totales, para que el bloque quede debajo de ambos en la misma página.
+        // Usa un margen inferior propio (más breve que el margen general del
+        // documento) y espaciado compacto tipo "letra pequeña legal".
+        const condicionesFonts = { regular: 'Helvetica', bold: 'Helvetica-Bold', italic: 'Helvetica-Oblique' };
+        const condicionesColor = '#6b7280';
+        const condicionesBottomMargin = 20;
+        const condicionesGapTop = 6;
+        const condicionesTitleGap = 2;
+        const condicionesBottomPadding = 3;
+        const condicionesParagraphSpacing = 1.5;
+        const condicionesListItemSpacing = 1;
+        const condicionesMaxReserved = 110;
+        const condicionesFontTiers = [7, 6.5, 6];
+        const condicionesActivo =
+          esCotizacion && !!condicionesImpresionSerie && !richTextBasicoEstaVacio(condicionesImpresionSerie);
+
+        let condicionesTituloHeight = 0;
+        let condicionesTextHeight = 0;
+        let condicionesFontSize = condicionesFontTiers[condicionesFontTiers.length - 1];
+        let condicionesReservedHeight = 0;
+
+        if (condicionesActivo) {
+          setFont(true, 7, textColor);
+          condicionesTituloHeight = doc.heightOfString('CONDICIONES', { width: contentWidth });
+
+          for (const size of condicionesFontTiers) {
+            const altura = heightOfRichTextBasicoPdf(doc, condicionesImpresionSerie as string, {
+              width: contentWidth,
+              fontSize: size,
+              fonts: condicionesFonts,
+              paragraphSpacing: condicionesParagraphSpacing,
+              listItemSpacing: condicionesListItemSpacing,
+            });
+            condicionesFontSize = size;
+            condicionesTextHeight = altura;
+            if (condicionesTituloHeight + condicionesTitleGap + altura <= condicionesMaxReserved) {
+              break;
+            }
+          }
+
+          const bloqueCondicionesSinRecortar = condicionesTituloHeight + condicionesTitleGap + condicionesTextHeight;
+          condicionesReservedHeight = Math.min(bloqueCondicionesSinRecortar, condicionesMaxReserved) + condicionesBottomPadding;
+        }
+
+        const condicionesReserva = condicionesActivo ? condicionesGapTop + condicionesReservedHeight : 0;
+        const anchorY = condicionesActivo
+          ? doc.page.height - condicionesBottomMargin - bloqueHeight - condicionesReserva
+          : pageBottom - gapBottom - bloqueHeight;
         const totalsAmountRightX = startX + columnWidths.reduce((acc, width) => acc + width, 0);
         const totalsPanelRightX = totalsAmountRightX + totalsRightExtra;
         const totalsPanelWidth = totalsPaddingX + totalsLabelWidth + totalsInnerGap + totalsValueWidth + totalsRightExtra;
@@ -1411,6 +1589,47 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
         if (doc.y + bloqueHeight > anchorY) {
           doc.addPage();
+        }
+
+        if (esCotizacion && documento?.observaciones) {
+          const obsGap = 16;
+          const obsPaddingX = 10;
+          const obsPaddingY = 8;
+          const obsTitleGap = 4;
+          const obsLeftX = startX;
+          const obsTopY = anchorY - 4;
+          const obsWidth = totalsPanelLeftX - obsGap - obsLeftX;
+
+          if (obsWidth > 40) {
+            const obsInnerWidth = obsWidth - obsPaddingX * 2;
+            setFont(true, 8, textColor);
+            const obsTitleHeight = doc.heightOfString('OBSERVACIONES', { width: obsInnerWidth });
+            const obsAvailableHeight = totalsHeight - obsPaddingY * 2 - obsTitleHeight - obsTitleGap;
+
+            const obsFontTiers = [9, 8, 7, 6];
+            let obsFontSize = obsFontTiers[obsFontTiers.length - 1];
+            for (const size of obsFontTiers) {
+              setFont(false, size, mutedText);
+              if (doc.heightOfString(documento.observaciones, { width: obsInnerWidth }) <= obsAvailableHeight) {
+                obsFontSize = size;
+                break;
+              }
+            }
+
+            doc
+              .roundedRect(obsLeftX, obsTopY, obsWidth, totalsHeight, 5)
+              .fillAndStroke('#f3f4f6', '#e5e7eb');
+
+            setFont(true, 8, textColor);
+            doc.text('OBSERVACIONES', obsLeftX + obsPaddingX, obsTopY + obsPaddingY, { width: obsInnerWidth });
+
+            setFont(false, obsFontSize, mutedText);
+            doc.text(documento.observaciones, obsLeftX + obsPaddingX, obsTopY + obsPaddingY + obsTitleHeight + obsTitleGap, {
+              width: obsInnerWidth,
+              height: obsAvailableHeight,
+              ellipsis: true,
+            });
+          }
         }
 
         doc
@@ -1435,7 +1654,49 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           totY += rowHeightCompact;
         });
 
-        doc.y = totY;
+        if (condicionesActivo) {
+          const boxBottomY = anchorY - 4 + totalsHeight;
+          const condicionesY = boxBottomY + condicionesGapTop;
+          const condicionesTextY = condicionesY + condicionesTituloHeight + condicionesTitleGap;
+          const condicionesLimiteY = doc.page.height - condicionesBottomMargin;
+          const clipHeight = condicionesMaxReserved - condicionesTituloHeight - condicionesTitleGap;
+          const necesitaRecorte = condicionesTextHeight > clipHeight;
+
+          setFont(true, 7, textColor);
+          // Se acota `height` explícitamente: el margen inferior reducido de este
+          // bloque queda por debajo del margen general del documento (40pt), y sin
+          // este límite PDFKit insertaría una página nueva al detectar "desborde".
+          doc.text('CONDICIONES', startX, condicionesY, {
+            width: contentWidth,
+            height: Math.max(condicionesLimiteY - condicionesY, 1),
+          });
+
+          if (necesitaRecorte) {
+            // Último recurso: si el texto no cabe ni con la fuente más pequeña,
+            // se recorta visualmente sin romper el layout ni desbordar la página.
+            doc.save();
+            doc.rect(startX, condicionesTextY, contentWidth, Math.max(clipHeight, 0)).clip();
+          }
+
+          renderRichTextBasicoPdf(doc, condicionesImpresionSerie as string, startX, condicionesTextY, {
+            width: contentWidth,
+            fontSize: condicionesFontSize,
+            fonts: condicionesFonts,
+            color: condicionesColor,
+            paragraphSpacing: condicionesParagraphSpacing,
+            listItemSpacing: condicionesListItemSpacing,
+            // Red de seguridad: nunca debe insertar páginas nuevas por desbordamiento.
+            maxY: condicionesLimiteY,
+          });
+
+          if (necesitaRecorte) {
+            doc.restore();
+          }
+
+          doc.y = condicionesY + condicionesReservedHeight;
+        } else {
+          doc.y = totY;
+        }
         return;
       }
 

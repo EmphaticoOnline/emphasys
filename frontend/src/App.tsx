@@ -27,6 +27,7 @@ import FormatosImpresionPage from './pages/configuracion/FormatosImpresionPage';
 import SeriesDocumentosPage from './pages/configuracion/SeriesDocumentosPage';
 import ConfiguracionCorreoPage from './pages/configuracion/ConfiguracionCorreoPage';
 import CfdiPacConfigPage from './pages/configuracion/CfdiPacConfigPage';
+import CfdiSatPage from './pages/configuracion/CfdiSatPage';
 import WhatsappEtiquetasPage from './pages/configuracion/WhatsappEtiquetasPage';
 import WhatsappPlantillasPage from './pages/configuracion/WhatsappPlantillasPage';
 import FinanzasPage from './pages/FinanzasPage';
@@ -166,6 +167,7 @@ export default function App() {
               <Route path="/configuracion/series-documento" element={<SeriesDocumentosPage />} />
               <Route path="/configuracion/correo" element={<ConfiguracionCorreoPage />} />
               <Route path="/configuracion/cfdi-pac" element={<CfdiPacConfigPage />} />
+              <Route path="/configuracion/cfdi-sat" element={<CfdiSatPage />} />
               <Route path="/configuracion/whatsapp-etiquetas" element={<WhatsappEtiquetasPage />} />
               <Route path="/configuracion/whatsapp-plantillas" element={<WhatsappPlantillasPage />} />
               <Route path="/configuracion/produccion-etapas" element={<ConfiguracionEtapasProduccionPage />} />

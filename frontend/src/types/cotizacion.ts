@@ -12,6 +12,7 @@ export interface CotizacionListado {
   fecha_documento: string;
   contacto_principal_id: number | null;
   agente_id?: number | null;
+  oportunidad_id?: number | null;
   nombre_cliente: string | null;
   cliente_telefono?: string | null;
   subtotal: number;
@@ -19,6 +20,8 @@ export interface CotizacionListado {
   descuento?: number;
   iva: number;
   total: number;
+  moneda?: string | null;
+  tratamiento_impuestos?: TratamientoImpuestos | null;
   estatus_documento: string;
   producto_resumen?: string | null;
   estado_seguimiento?: EstadoSeguimiento | null;
@@ -144,6 +147,7 @@ export interface CotizacionCrearPayload {
   descuento?: number;
   iva?: number;
   total: number;
+  estatus_documento?: string;
   usuario_creacion_id?: number | null;
   producto_resumen?: string | null;
   estado_seguimiento?: EstadoSeguimiento | null;

@@ -12,6 +12,7 @@ export type SerieDocumentoAdminRow = {
   es_fiscal: boolean;
   activa: boolean;
   ultimo_numero: number;
+  condiciones_impresion: string | null;
 };
 
 export type SerieDocumentoPayload = {
@@ -21,6 +22,7 @@ export type SerieDocumentoPayload = {
   es_fiscal: boolean;
   activa?: boolean;
   ultimo_numero?: number;
+  condiciones_impresion?: string | null;
 };
 
 export type AsignacionSerieUsuarioRow = {
@@ -62,7 +64,8 @@ const SELECT_SERIE_BASE = `
          td.nombre AS tipo_documento_nombre,
          sd.es_fiscal,
          sd.activa,
-         COALESCE(sd.ultimo_numero, 0) AS ultimo_numero
+         COALESCE(sd.ultimo_numero, 0) AS ultimo_numero,
+         sd.condiciones_impresion
     FROM public.series_documento sd
     LEFT JOIN core.tipos_documento td
       ON LOWER(td.codigo) = LOWER(sd.tipo_documento)
@@ -188,6 +191,26 @@ async function reemplazarAsignacionPorUsuarioYTipo(
   );
 }
 
+export async function obtenerCondicionesImpresionSerie(
+  empresaId: number,
+  tipoDocumento: string,
+  serie: string
+): Promise<string | null> {
+  if (!empresaId || !tipoDocumento || !serie) return null;
+
+  const { rows } = await pool.query<{ condiciones_impresion: string | null }>(
+    `SELECT condiciones_impresion
+       FROM public.series_documento
+      WHERE empresa_id = $1
+        AND LOWER(tipo_documento) = LOWER($2)
+        AND serie = $3
+      LIMIT 1`,
+    [empresaId, tipoDocumento, serie]
+  );
+
+  return rows[0]?.condiciones_impresion ?? null;
+}
+
 export async function listarSeriesDocumentoAdmin(empresaId: number): Promise<SerieDocumentoAdminRow[]> {
   const { rows } = await pool.query<SerieDocumentoAdminRow>(
     `${SELECT_SERIE_BASE}
@@ -211,10 +234,11 @@ export async function crearSerieDocumentoAdmin(
         es_fiscal,
         activa,
         ultimo_numero,
+        condiciones_impresion,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, LOWER($4), $5, $6, 0, NOW(), NOW())
+      VALUES ($1, $2, $3, LOWER($4), $5, $6, 0, $7, NOW(), NOW())
       RETURNING id`,
     [
       empresaId,
@@ -223,6 +247,7 @@ export async function crearSerieDocumentoAdmin(
       payload.tipo_documento,
       payload.es_fiscal,
       payload.activa ?? true,
+      payload.condiciones_impresion ?? null,
     ]
   );
 
@@ -248,6 +273,7 @@ export async function actualizarSerieDocumentoAdmin(
               es_fiscal = $6,
               activa = $7,
               ultimo_numero = $8,
+              condiciones_impresion = $9,
               updated_at = NOW()
         WHERE empresa_id = $1
           AND id = $2`
@@ -257,13 +283,14 @@ export async function actualizarSerieDocumentoAdmin(
               tipo_documento = LOWER($5),
               es_fiscal = $6,
               activa = $7,
+              condiciones_impresion = $8,
               updated_at = NOW()
         WHERE empresa_id = $1
           AND id = $2`;
 
   const params = actualizarFolio
-    ? [empresaId, serieId, payload.serie, payload.descripcion ?? null, payload.tipo_documento, payload.es_fiscal, payload.activa ?? true, payload.ultimo_numero]
-    : [empresaId, serieId, payload.serie, payload.descripcion ?? null, payload.tipo_documento, payload.es_fiscal, payload.activa ?? true];
+    ? [empresaId, serieId, payload.serie, payload.descripcion ?? null, payload.tipo_documento, payload.es_fiscal, payload.activa ?? true, payload.ultimo_numero, payload.condiciones_impresion ?? null]
+    : [empresaId, serieId, payload.serie, payload.descripcion ?? null, payload.tipo_documento, payload.es_fiscal, payload.activa ?? true, payload.condiciones_impresion ?? null];
 
   const { rowCount } = await pool.query(sql, params);
 

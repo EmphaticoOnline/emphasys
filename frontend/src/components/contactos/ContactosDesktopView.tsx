@@ -99,7 +99,7 @@ export default function ContactosDesktopView({
               variant="outlined"
               startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
               onClick={onExport}
-              disabled={exportLoading}
+              disabled={Boolean(exportLoading)}
             >
               Exportar
             </Button>

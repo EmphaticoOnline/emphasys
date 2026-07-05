@@ -7,6 +7,7 @@ import {
   normalizarEstadoSeguimientoCotizacion,
 } from '../modules/documentos/cotizacion-status';
 import { DocumentoDeleteValidationError, eliminarOportunidadConValidacion } from '../modules/documentos/documentos-delete.service';
+import { evaluarScopeVentas, resolverContextoScopeComercial } from '../modules/auth/scope-comercial';
 
 type OportunidadVentaRow = {
   id: number;
@@ -65,6 +66,13 @@ export const listarOportunidadesPorConversacion = async (req: Request, res: Resp
       return res.status(400).json({ message: 'conversacionId inválido' });
     }
 
+    const scope = evaluarScopeVentas(
+      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
+    );
+    if (scope.sinAcceso) {
+      return res.json([]);
+    }
+
     const params: Array<number> = [Number(empresaId)];
     const conversacionFilter = conversacionId == null
       ? ''
@@ -73,6 +81,12 @@ export const listarOportunidadesPorConversacion = async (req: Request, res: Resp
 
     if (conversacionId != null) {
       params.push(Number(conversacionId));
+    }
+
+    let vendedorFilter = '';
+    if (scope.restringido && scope.agenteId) {
+      params.push(scope.agenteId);
+      vendedorFilter = ` AND o.vendedor_id = $${params.length}`;
     }
 
     const { rows } = await pool.query<OportunidadVentaRow>(
@@ -120,7 +134,7 @@ export const listarOportunidadesPorConversacion = async (req: Request, res: Resp
          ON c.id = o.contacto_id
        LEFT JOIN contactos v
          ON v.id = o.vendedor_id
-       WHERE o.empresa_id = $1${conversacionFilter}
+       WHERE o.empresa_id = $1${conversacionFilter}${vendedorFilter}
        GROUP BY
          o.id,
          o.estatus,
@@ -158,6 +172,20 @@ export const obtenerOportunidadPorId = async (req: Request, res: Response) => {
 
     if (!Number.isFinite(oportunidadId) || oportunidadId <= 0) {
       return res.status(400).json({ message: 'id de oportunidad inválido' });
+    }
+
+    const scope = evaluarScopeVentas(
+      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
+    );
+    if (scope.sinAcceso) {
+      return res.status(403).json({ message: 'Su usuario no tiene un vendedor asociado; no puede consultar oportunidades.' });
+    }
+
+    const paramsOportunidad: Array<number> = [Number(empresaId), oportunidadId];
+    let vendedorFilter = '';
+    if (scope.restringido && scope.agenteId) {
+      paramsOportunidad.push(scope.agenteId);
+      vendedorFilter = ` AND o.vendedor_id = $${paramsOportunidad.length}`;
     }
 
     const { rows } = await pool.query<OportunidadVentaRow>(
@@ -204,7 +232,7 @@ export const obtenerOportunidadPorId = async (req: Request, res: Response) => {
        LEFT JOIN contactos v
          ON v.id = o.vendedor_id
        WHERE o.empresa_id = $1
-         AND o.id = $2
+         AND o.id = $2${vendedorFilter}
        GROUP BY
          o.id,
          o.estatus,
@@ -221,7 +249,7 @@ export const obtenerOportunidadPorId = async (req: Request, res: Response) => {
          d.tipo_documento,
          d.serie
        LIMIT 1`,
-      [Number(empresaId), oportunidadId]
+      paramsOportunidad
     );
 
     if (!rows.length) {
@@ -257,14 +285,28 @@ export const actualizarEstatusOportunidad = async (req: Request, res: Response) 
       return res.status(400).json({ message: 'estatus inválido' });
     }
 
+    const scope = evaluarScopeVentas(
+      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
+    );
+    if (scope.sinAcceso) {
+      return res.status(403).json({ message: 'Su usuario no tiene un vendedor asociado; no puede modificar oportunidades.' });
+    }
+
+    const paramsUpdate: Array<number> = [oportunidadId, Number(empresaId)];
+    let vendedorFilterUpdate = '';
+    if (scope.restringido && scope.agenteId) {
+      paramsUpdate.push(scope.agenteId);
+      vendedorFilterUpdate = ` AND vendedor_id = $${paramsUpdate.length}`;
+    }
+
     const { rows: oportunidadRows } = await pool.query<{ cotizacion_principal_id: number | null; estatus: string | null }>(
       `SELECT cotizacion_principal_id,
               estatus
        FROM crm.oportunidades_venta
        WHERE id = $1
-         AND empresa_id = $2
+         AND empresa_id = $2${vendedorFilterUpdate}
        LIMIT 1`,
-      [oportunidadId, Number(empresaId)]
+      paramsUpdate
     );
 
     if (!oportunidadRows.length) {
@@ -407,6 +449,23 @@ export const eliminarOportunidad = async (req: Request, res: Response) => {
 
     if (!Number.isFinite(oportunidadId) || oportunidadId <= 0) {
       return res.status(400).json({ error: 'id de oportunidad inválido' });
+    }
+
+    const scope = evaluarScopeVentas(
+      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
+    );
+    if (scope.sinAcceso) {
+      return res.status(403).json({ error: 'Su usuario no tiene un vendedor asociado; no puede eliminar oportunidades.' });
+    }
+
+    if (scope.restringido && scope.agenteId) {
+      const { rows: propiedadRows } = await pool.query(
+        `SELECT id FROM crm.oportunidades_venta WHERE id = $1 AND empresa_id = $2 AND vendedor_id = $3 LIMIT 1`,
+        [oportunidadId, Number(empresaId), scope.agenteId]
+      );
+      if (!propiedadRows.length) {
+        return res.status(404).json({ error: 'Oportunidad no encontrada' });
+      }
     }
 
     const deleted = await eliminarOportunidadConValidacion(oportunidadId, Number(empresaId));

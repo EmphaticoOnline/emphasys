@@ -15,6 +15,8 @@ export const OPORTUNIDAD_ESTADOS_SEGUIMIENTO = [
   'cancelada',
 ] as const;
 
+export const OPORTUNIDAD_ESTADOS_CERRADOS: readonly string[] = ['convertida', 'perdida', 'cancelada'];
+
 export const COTIZACION_ESTATUS_DOCUMENTO = [
   'Borrador',
   'Enviado',

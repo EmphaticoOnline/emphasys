@@ -323,8 +323,8 @@ export default function InventarioMovimientosPage() {
                     <TableCell
                       align="right"
                       sx={{
-                        color: p.cantidad > 0 ? '#16a34a' : p.cantidad < 0 ? '#dc2626' : undefined,
-                        fontWeight: p.cantidad !== 0 ? 700 : undefined,
+                        ...(p.cantidad > 0 ? { color: '#16a34a' } : p.cantidad < 0 ? { color: '#dc2626' } : {}),
+                        ...(p.cantidad !== 0 ? { fontWeight: 700 } : {}),
                       }}
                     >
                       {formatCantidad(p.cantidad)}

@@ -97,14 +97,14 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
         return (
           <MenuItem
             key={action.id}
-            disabled={action.disabled}
+            disabled={Boolean(action.disabled)}
             onClick={(event) => {
               if (action.closeOnClick !== false) {
                 onClose();
               }
               void action.onClick?.(event);
             }}
-            sx={action.destructive ? { color: '#b91c1c !important' } : undefined}
+            sx={action.destructive ? { color: '#b91c1c !important' } : {}}
           >
             {action.icon ? (
               <ListItemIcon

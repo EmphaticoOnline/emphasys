@@ -344,7 +344,7 @@ export default function InventarioMovimientoFormPage() {
                         loadingText="Cargando productos…"
                         renderInput={(params) => (
                           <TextField
-                            {...params}
+                            {...(params as any)}
                             label="Producto"
                             placeholder="Buscar por clave o descripción"
                             disabled={loadingProductos}

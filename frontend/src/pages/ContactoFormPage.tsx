@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Box,
   FormControl,
@@ -135,6 +135,7 @@ const normalizeContactoMexicoMobilePhone = (telefono: string): string => {
 export default function ContactoFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -143,7 +144,21 @@ function validarRFC(rfc: string) {
   return regex.test(rfc);
 }
 
-  const [form, setForm] = useState<FormState>(initialState);
+  // Prellenado desde otras pantallas (ej. "Crear proveedor" al importar un CFDI
+  // del SAT sin proveedor existente): solo aplica al crear (no al editar).
+  const [form, setForm] = useState<FormState>(() => {
+    if (id) return initialState;
+    const rfcPrefill = searchParams.get('rfc');
+    const nombrePrefill = searchParams.get('nombre');
+    const tipoPrefill = searchParams.get('tipo_contacto');
+    if (!rfcPrefill && !nombrePrefill && !tipoPrefill) return initialState;
+    return {
+      ...initialState,
+      ...(nombrePrefill ? { nombre: nombrePrefill } : {}),
+      ...(rfcPrefill ? { rfc_fiscal: rfcPrefill } : {}),
+      ...(tipoPrefill ? { tipo_contacto: tipoPrefill } : {}),
+    };
+  });
   const [activeTab, setActiveTab] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(!!id);
   const [saving, setSaving] = useState<boolean>(false);

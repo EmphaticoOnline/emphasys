@@ -14,6 +14,7 @@ export function loadSession(): SessionState {
       user: null,
       empresas: [],
       empresaActivaId: null,
+      roles: [],
     };
   }
 
@@ -24,6 +25,7 @@ export function loadSession(): SessionState {
       user: parsed?.user ?? null,
       empresas: parsed?.empresas ?? [],
       empresaActivaId: parsed?.empresaActivaId ?? null,
+      roles: parsed?.roles ?? [],
     };
   } catch (error) {
     console.warn("No se pudo parsear la sesión almacenada, se limpia.", error);
@@ -33,6 +35,7 @@ export function loadSession(): SessionState {
       user: null,
       empresas: [],
       empresaActivaId: null,
+      roles: [],
     };
   }
 }

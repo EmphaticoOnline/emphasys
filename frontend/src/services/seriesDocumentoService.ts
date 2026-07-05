@@ -9,6 +9,7 @@ export type SerieDocumentoItem = {
   es_fiscal: boolean;
   activa: boolean;
   ultimo_numero: number;
+  condiciones_impresion: string | null;
 };
 
 export type SerieDocumentoPayload = {
@@ -18,6 +19,7 @@ export type SerieDocumentoPayload = {
   es_fiscal: boolean;
   activa?: boolean;
   ultimo_numero?: number;
+  condiciones_impresion?: string | null;
 };
 
 export type AsignacionSerieDocumentoItem = {

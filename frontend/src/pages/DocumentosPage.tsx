@@ -39,7 +39,7 @@ import {
   Checkbox,
 } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import type {
   GridColDef,
   GridRowParams,
@@ -51,6 +51,7 @@ import type {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
@@ -101,6 +102,7 @@ import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfi
 import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
 import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicacionDialog';
 import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
+import DocumentoDetalleDrawer from '../components/documentos/DocumentoDetalleDrawer';
 import { DocumentoWhatsappDialog } from '../modules/documentos/DocumentoWhatsappDialog';
 import { GridContextMenu } from '../components/grids/GridContextMenu';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
@@ -110,6 +112,9 @@ import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standa
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
 import { useDeviceProfile } from '../hooks/useDeviceProfile';
 import { useGridPreferences } from '../hooks/useGridPreferences';
+import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
+import ActividadSeguimientoDrawer, { type SeguimientoTarget } from '../components/crm/ActividadSeguimientoDrawer';
+import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
 import {
   navigateToGeneratedDocument,
   parseGeneratedDocumentFocus,
@@ -178,7 +183,7 @@ function normalizeHexColor(color: string | null | undefined) {
     return null;
   }
 
-  return `#${match[1].toUpperCase()}`;
+  return `#${match[1]!.toUpperCase()}`;
 }
 
 function getContrastingTextColor(color: string | null | undefined) {
@@ -237,7 +242,9 @@ const FILTROS_COTIZACION_INICIALES = {
   agenteId: null,
   montoMin: '',
   montoMax: '',
-} satisfies {
+} satisfies FiltrosCotizacion;
+
+type FiltrosCotizacion = {
   fechaDesde: string;
   fechaHasta: string;
   clienteId: number | null;
@@ -296,6 +303,14 @@ const getDocumentoEstatusColor = (value: unknown): 'default' | 'info' | 'success
 
 const isFacturaTimbrada = (value: unknown): boolean => normalizeDocumentoEstatus(value) === 'timbrado';
 
+// Espeja la regla del backend (cancelarDocumentoService): una factura sin CFDI no admite
+// cancelación fiscal formal, sin importar su tratamiento de impuestos. Debe eliminarse en su lugar.
+const esFacturaNoTimbrada = (tipoDocumento: TipoDocumento, estatusDocumento: unknown): boolean =>
+  tipoDocumento === 'factura' && !isFacturaTimbrada(estatusDocumento);
+
+const MENSAJE_FACTURA_NO_TIMBRADA_CANCELAR =
+  'Esta factura no está timbrada; no aplica cancelación fiscal. Use la opción Eliminar en su lugar.';
+
 const normalizeCotizacionEstatusDocumento = (value: unknown): CotizacionEstatusDocumento => {
   const normalized = String(value ?? 'borrador')
     .trim()
@@ -328,6 +343,17 @@ const getCotizacionEstatusPresentation = (value: unknown) => {
 
 const getCotizacionEstatusEditableOptions = (value: unknown): StatusOption[] => {
   return normalizeCotizacionEstatusDocumento(value) === 'enviado' ? COTIZACION_ESTATUS_EDITABLE_OPTIONS : [];
+};
+
+// Tipografía/proporciones del chip de la columna "Estatus" (estado_seguimiento) de
+// cotizaciones. Se reutiliza en el chip de "Seguimiento" para que ambas columnas
+// queden visualmente consistentes.
+const ESTATUS_CHIP_BASE_SX = {
+  borderRadius: 1,
+  fontWeight: 700,
+  fontSize: 11,
+  height: 22,
+  px: 0.5,
 };
 
 const normalizeTipoDocumento = (value: unknown): TipoDocumento =>
@@ -464,12 +490,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+  const [facturaNoTimbradaDialogOpen, setFacturaNoTimbradaDialogOpen] = useState(false);
   const [timbrandoId, setTimbrandoId] = useState<number | null>(null);
   const [cancelandoId, setCancelandoId] = useState<number | null>(null);
   type SnackbarSeverity = 'success' | 'error' | 'info' | 'warning';
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: SnackbarSeverity }>(
     { open: false, message: '', severity: 'success' }
   );
+  const {
+    seguimientoError: seguimientoActividadError,
+    loadSeguimientoResumen,
+    getSeguimientoChipPresentation,
+  } = useSeguimientoActividades(esCotizacion);
+  const [actividadSeguimientoDrawerOpen, setActividadSeguimientoDrawerOpen] = useState(false);
+  const [actividadSeguimientoRow, setActividadSeguimientoRow] = useState<CotizacionListado | null>(null);
   const [cancelarDialog, setCancelarDialog] = useState<{
     open: boolean;
     id: number | null;
@@ -557,6 +591,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     saldo: number;
     tipoDocumento: TipoDocumento | null;
   }>({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
+  const [detalleDrawer, setDetalleDrawer] = useState<{ open: boolean; documentoId: number | null }>({
+    open: false,
+    documentoId: null,
+  });
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [soloPendientes, setSoloPendientes] = useState(false);
@@ -577,14 +615,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     currentValue: null,
   });
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('todos');
-  const [filtrosCotizacion, setFiltrosCotizacion] = useState<{
-    fechaDesde: string;
-    fechaHasta: string;
-    clienteId: number | null;
-    agenteId: number | null;
-    montoMin: string;
-    montoMax: string;
-  }>(FILTROS_COTIZACION_INICIALES);
+  const [filtrosCotizacion, setFiltrosCotizacion] = useState<FiltrosCotizacion>(FILTROS_COTIZACION_INICIALES);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [focusedDocumentId, setFocusedDocumentId] = useState<number | null>(null);
   const [highlightedDocumentId, setHighlightedDocumentId] = useState<number | null>(null);
@@ -606,7 +637,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     search: string;
     soloPendientes: boolean;
     quickFilter: QuickFilter;
-    filtrosCotizacion: typeof FILTROS_COTIZACION_INICIALES;
+    filtrosCotizacion: FiltrosCotizacion;
   }>({
     pantalla: `${modulo}.${tipoDocumento}.list`,
     perfilDispositivo,
@@ -626,7 +657,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       if (value.filtrosCotizacion && typeof value.filtrosCotizacion === 'object') {
         setFiltrosCotizacion({
           ...FILTROS_COTIZACION_INICIALES,
-          ...(value.filtrosCotizacion as typeof FILTROS_COTIZACION_INICIALES),
+          ...(value.filtrosCotizacion as FiltrosCotizacion),
         });
       }
     },
@@ -1089,7 +1120,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         return acc;
       }, {});
       const tratamientosOrigen = Array.from(new Set((data.documentos_origen ?? []).map((doc) => normalizarTratamiento(doc.tratamiento_impuestos))));
-      const tratamientoInicial = tratamientosOrigen.length === 1 ? tratamientosOrigen[0] : normalizarTratamiento(data.documento_origen?.tratamiento_impuestos);
+      const tratamientoInicial = tratamientosOrigen.length === 1 ? tratamientosOrigen[0]! : normalizarTratamiento(data.documento_origen?.tratamiento_impuestos);
       setGeneracionDialog({
         open: true,
         loading: false,
@@ -1120,7 +1151,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const completeGeneratedDocumentNavigation = useCallback((options: {
     documentoId: number;
     tipoDocumento: TipoDocumento;
-    pathname?: string | null;
+    pathname?: string | null | undefined;
   }) => {
     navigateToGeneratedDocument(navigate, {
       documentoId: options.documentoId,
@@ -1336,8 +1367,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const folio = resolverFolioVisual(row, tipoDocumento);
     const emailInicial = obtenerEmailDocumento(row);
     const esCotizacion = tipoDocumento === 'cotizacion';
-    const etiquetaDocumento = esCotizacion ? 'Cotizacion' : documentoTypeConfig.label;
-    const textoDocumento = esCotizacion ? 'cotizacion' : documentoTypeConfig.textos.singular;
+    const etiquetaDocumento = esCotizacion ? 'Cotizacion' : documentoTypeConfig?.label;
+    const textoDocumento = esCotizacion ? 'cotizacion' : documentoTypeConfig?.textos?.singular;
     setEnviarCotizacionDialog({
       open: true,
       id: Number(row.id),
@@ -1350,6 +1381,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   };
 
   const abrirDialogoCancelar = (row: CotizacionListado) => {
+    if (esFacturaNoTimbrada(tipoDocumento, row.estatus_documento)) {
+      setFacturaNoTimbradaDialogOpen(true);
+      return;
+    }
     setCancelarDialog({
       open: true,
       id: Number(row.id),
@@ -1502,6 +1537,39 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     }
   };
 
+  useEffect(() => {
+    if (seguimientoActividadError) {
+      setSnackbar({ open: true, message: seguimientoActividadError, severity: 'error' });
+    }
+  }, [seguimientoActividadError]);
+
+  const openActividadSeguimientoDrawer = useCallback((row: CotizacionListado) => {
+    if (!row.oportunidad_id) {
+      return;
+    }
+    setActividadSeguimientoRow(row);
+    setActividadSeguimientoDrawerOpen(true);
+  }, []);
+
+  const closeActividadSeguimientoDrawer = useCallback(() => {
+    setActividadSeguimientoDrawerOpen(false);
+  }, []);
+
+  const actividadSeguimientoTarget = useMemo<SeguimientoTarget | null>(() => {
+    if (!actividadSeguimientoRow || !actividadSeguimientoRow.oportunidad_id) {
+      return null;
+    }
+
+    return {
+      kind: 'oportunidad',
+      id: actividadSeguimientoRow.oportunidad_id,
+      title: resolverFolioVisual(actividadSeguimientoRow, tipoDocumento) || 'Sin folio',
+      subtitle: actividadSeguimientoRow.nombre_cliente || 'Sin cliente',
+      montoLabel: 'Total cotización',
+      montoValor: Number(actividadSeguimientoRow.total ?? 0),
+    };
+  }, [actividadSeguimientoRow, tipoDocumento]);
+
   const baseColumns: GridColDef[] = useMemo(() => {
     const columns: GridColDef[] = [
       {
@@ -1582,8 +1650,35 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       },
       ...(esCotizacion
         ? ([{
-            field: 'estado_seguimiento',
+            field: 'seguimiento_actividad',
             headerName: 'Seguimiento',
+            width: 140,
+            minWidth: 130,
+            sortable: false,
+            filterable: false,
+            disableColumnMenu: true,
+            headerClassName: 'finanzas-header',
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: (params: any) => {
+              const row = params.row as CotizacionListado;
+              const oportunidadId = row.oportunidad_id;
+
+              return (
+                <SeguimientoActividadCell
+                  hasOportunidad={Boolean(oportunidadId)}
+                  presentation={oportunidadId ? getSeguimientoChipPresentation(oportunidadId) : undefined}
+                  onOpen={oportunidadId ? () => openActividadSeguimientoDrawer(row) : undefined}
+                  chipSx={ESTATUS_CHIP_BASE_SX}
+                />
+              );
+            },
+          }] as GridColDef[])
+        : []),
+      ...(esCotizacion
+        ? ([{
+            field: 'estado_seguimiento',
+            headerName: 'Estatus',
             width: 150,
             headerClassName: 'finanzas-header',
             renderCell: (params: any) => {
@@ -1598,13 +1693,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   deleteIcon={<ArrowDropDownIcon sx={{ fontSize: 16, color: config.textColor }} />}
                   onDelete={(event) => handleOpenSeguimientoMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado)}
                   sx={{
+                    ...ESTATUS_CHIP_BASE_SX,
                     bgcolor: config.color,
                     color: config.textColor,
-                    borderRadius: 1,
-                    fontWeight: 700,
-                    fontSize: 11,
-                    height: 22,
-                    px: 0.5,
                     cursor: 'pointer',
                   }}
                 />
@@ -1673,7 +1764,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                 parcial: { label: 'Parcial',  bgcolor: '#fef3c7', color: '#92400e' },
                 cerrada: { label: 'Cerrada',  bgcolor: '#dcfce7', color: '#166534' },
               };
-              const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta;
+              const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta!;
               return (
                 <Chip
                   label={label}
@@ -1710,7 +1801,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       },
       {
         field: 'estatus_documento',
-        headerName: 'Estatus',
+        headerName: esCotizacion ? 'Estado' : 'Estatus',
         width: 140,
         headerClassName: 'finanzas-header',
         renderCell: (params: any) => {
@@ -1724,9 +1815,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               color={esCotizacion ? undefined : (getDocumentoEstatusColor(estatus) as any)}
               clickable={canEdit}
               disabled={actualizandoEstatusId === Number(params.row?.id)}
-              onClick={canEdit ? (event) => handleOpenEstatusMenu(event, params.row as CotizacionListado) : undefined}
-              deleteIcon={canEdit ? <ArrowDropDownIcon sx={{ fontSize: 16, color: esCotizacion ? cotizacionConfig?.textColor : undefined }} /> : undefined}
-              onDelete={canEdit ? (event) => handleOpenEstatusMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado) : undefined}
+              {...(canEdit
+                ? {
+                    onClick: (event: React.MouseEvent<HTMLElement>) => handleOpenEstatusMenu(event, params.row as CotizacionListado),
+                    deleteIcon: <ArrowDropDownIcon sx={{ fontSize: 16, color: esCotizacion ? cotizacionConfig?.textColor : undefined }} />,
+                    onDelete: (event: React.MouseEvent<HTMLElement>) => handleOpenEstatusMenu(event, params.row as CotizacionListado),
+                  }
+                : {})}
               sx={{
                 height: 22,
                 fontSize: '0.72rem',
@@ -1761,6 +1856,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         const mensajeFacturaNoTimbrada = 'La factura debe estar timbrada antes de enviarse.';
         const estatusDocumentoNormalizado = String(params.row?.estatus_documento ?? '').trim().toLowerCase();
         const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
+        const esFacturaSinTimbrar = esFacturaNoTimbrada(tipoDocumento, params.row?.estatus_documento);
 
         return (
         <Stack direction="row" spacing={0.5} alignItems="center">
@@ -1966,12 +2062,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
-          <Tooltip title={documentoCancelado ? 'Documento ya cancelado' : 'Cancelar documento'}>
+          <Tooltip
+            title={
+              documentoCancelado
+                ? 'Documento ya cancelado'
+                : esFacturaSinTimbrar
+                  ? 'La factura no está timbrada: use Eliminar en lugar de Cancelar'
+                  : 'Cancelar documento'
+            }
+          >
             <span>
               <IconButton
                 size="small"
                 color="error"
-                disabled={loading || documentoCancelado || cancelandoId === Number(params.row?.id)}
+                disabled={loading || documentoCancelado || esFacturaSinTimbrar || cancelandoId === Number(params.row?.id)}
                 onClick={(e) => {
                   e.stopPropagation();
                   abrirDialogoCancelar(params.row as CotizacionListado);
@@ -2059,6 +2163,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     esCotizacion,
     hasAction,
     cancelandoId,
+    getSeguimientoChipPresentation,
+    openActividadSeguimientoDrawer,
   ]);
 
   const columns: GridColDef[] = useMemo(
@@ -2105,8 +2211,21 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       String(contextMenuRow?.estatus_documento ?? '').toLowerCase() !== 'cancelado';
     const estatusDocumentoNormalizado = String(contextMenuRow?.estatus_documento ?? '').trim().toLowerCase();
     const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
+    const esFacturaSinTimbrar = esFacturaNoTimbrada(tipoDocumento, contextMenuRow?.estatus_documento);
 
     return [
+      {
+        id: 'ver-detalle',
+        label: 'Ver detalle',
+        icon: <VisibilityIcon fontSize="small" />,
+        onClick: () => {
+          setDetalleDrawer({ open: true, documentoId: rowId });
+        },
+      },
+      {
+        id: 'separator-detalle',
+        type: 'separator',
+      },
       {
         id: 'editar',
         label: 'Editar',
@@ -2264,10 +2383,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       },
       {
         id: 'cancelar-documento',
-        label: 'Cancelar documento',
+        label: esFacturaSinTimbrar ? 'Cancelar documento (factura no timbrada, use Eliminar)' : 'Cancelar documento',
         icon: <CancelIcon fontSize="small" />,
         destructive: true,
-        disabled: loading || documentoCancelado || cancelandoId === rowId,
+        disabled: loading || documentoCancelado || esFacturaSinTimbrar || cancelandoId === rowId,
         onClick: () => abrirDialogoCancelar(contextMenuRow),
       },
       {
@@ -2305,6 +2424,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     abrirDialogoCancelar,
     obtenerEmailDocumento,
     setError,
+    setDetalleDrawer,
     timbrandoId,
     tipoDocumento,
     cancelandoId,
@@ -2699,36 +2819,70 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     <Box
       sx={{
         display: 'grid',
-        gap: 1,
-        gridTemplateColumns: {
+        gap: esCotizacion ? 0.75 : 1,
+        gridTemplateColumns: esCotizacion ? {
+          xs: '1fr',
+          sm: 'repeat(2, minmax(0, 1fr))',
+          md: 'repeat(3, minmax(0, 1fr))',
+          lg: 'repeat(7, minmax(0, 1fr))',
+        } : {
           xs: '1fr',
           sm: 'repeat(2, minmax(0, 1fr))',
           lg: 'repeat(6, minmax(0, 1fr))',
         },
       }}
     >
-      {[
-        { label: 'Total general', value: resumenTotales.general, color: '#2563eb' },
-        ...statusOptions.map((status) => ({
-          label: status.label,
-          value: Number(resumenTotales.porEstado[status.value] ?? 0),
-          color: status.textColor || '#374151',
-        })),
-      ].map((item) => (
+      {(() => {
+        const totalColor = '#2563eb';
+        return esCotizacion
+          ? [
+              {
+                label: 'Total general',
+                value: resumenTotales.general,
+                color: totalColor,
+                bgColor: alpha(totalColor, 0.1),
+                borderColor: alpha(totalColor, 0.35),
+              },
+              ...statusOptions.map((status) => ({
+                label: status.label,
+                value: Number(resumenTotales.porEstado[status.value] ?? 0),
+                color: status.textColor || '#374151',
+                bgColor: status.color || '#f8fafc',
+                borderColor: alpha(status.textColor || '#94a3b8', 0.35),
+              })),
+            ]
+          : [
+              { label: 'Total general', value: resumenTotales.general, color: totalColor, bgColor: undefined, borderColor: undefined },
+              ...statusOptions.map((status) => ({
+                label: status.label,
+                value: Number(resumenTotales.porEstado[status.value] ?? 0),
+                color: status.textColor || '#374151',
+                bgColor: undefined,
+                borderColor: undefined,
+              })),
+            ];
+      })().map((item) => (
         <Paper
           key={item.label}
           variant="outlined"
-          sx={{
+          sx={esCotizacion ? {
+            px: 0.75,
+            py: 0.3,
+            borderRadius: 1.5,
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+            backgroundColor: item.bgColor,
+            borderColor: item.borderColor,
+          } : {
             px: 1,
             py: 0.8,
             borderRadius: 1.5,
             boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
           }}
         >
-          <Typography sx={{ color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
+          <Typography sx={esCotizacion ? { fontSize: 10, fontWeight: 800, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.4, lineHeight: 1.1 } : { color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
             {item.label}
           </Typography>
-          <Typography sx={{ color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
+          <Typography sx={esCotizacion ? { mt: 0.1, fontSize: 14, lineHeight: 1.02, fontWeight: 800, color: item.color } : { color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
             {currency.format(item.value)}
           </Typography>
         </Paper>
@@ -2885,9 +3039,6 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           handleOpenSeguimientoMenu(event as unknown as React.MouseEvent<HTMLElement>, params.row as CotizacionListado);
           return;
         }
-        if (params.field === 'actions') {
-          return;
-        }
       }}
       onRowClick={(params: GridRowParams, event) => {
         if ((event as any).defaultMuiPrevented) return;
@@ -3016,16 +3167,23 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
-        {estatusDocumentoOptions.map((status) => (
-          <MenuItem
-            key={status.value}
-            selected={estatusMenu.currentValue === status.value}
-            disabled={actualizandoEstatusId !== null}
-            onClick={() => void handleSeleccionarEstatus(status.value)}
-          >
-            {status.label}
-          </MenuItem>
-        ))}
+        {estatusDocumentoOptions.map((status) => {
+          const estatusMenuRow = estatusMenu.rowId ? rows.find((r) => Number(r.id) === estatusMenu.rowId) : null;
+          const opcionCancelarNoAplica =
+            status.value === 'cancelado' && esFacturaNoTimbrada(tipoDocumento, estatusMenuRow?.estatus_documento);
+
+          return (
+            <MenuItem
+              key={status.value}
+              selected={estatusMenu.currentValue === status.value}
+              disabled={actualizandoEstatusId !== null || opcionCancelarNoAplica}
+              onClick={() => void handleSeleccionarEstatus(status.value)}
+            >
+              {status.label}
+              {opcionCancelarNoAplica ? ' (use Eliminar)' : ''}
+            </MenuItem>
+          );
+        })}
       </Menu>
 
       {esCotizacion && (
@@ -3135,6 +3293,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         />
       ) : null}
 
+      <DocumentoDetalleDrawer
+        open={detalleDrawer.open}
+        documentoId={detalleDrawer.documentoId}
+        tipoDocumento={tipoDocumento}
+        onClose={() => setDetalleDrawer({ open: false, documentoId: null })}
+      />
+
+      {esCotizacion ? (
+        <ActividadSeguimientoDrawer
+          open={actividadSeguimientoDrawerOpen}
+          onClose={closeActividadSeguimientoDrawer}
+          target={actividadSeguimientoTarget}
+          onActivitiesChanged={loadSeguimientoResumen}
+        />
+      ) : null}
+
       <Dialog
         open={generacionDialog.open}
         onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false })}
@@ -3207,7 +3381,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                 <TableBody>
                   {generacionDialog.data.partidas.map((p) => (
                     <TableRow key={p.partida_id} hover>
-                      {generacionDialog.data.es_consolidado && <TableCell>{p.documento_origen_folio || p.documento_origen_id}</TableCell>}
+                      {generacionDialog.data!.es_consolidado && <TableCell>{p.documento_origen_folio || p.documento_origen_id}</TableCell>}
                       <TableCell>{p.descripcion || `Producto ${p.producto_id ?? ''}`}</TableCell>
                       <TableCell align="right">{p.cantidad_origen}</TableCell>
                       <TableCell align="right">{p.cantidad_pendiente_sugerida}</TableCell>
@@ -3431,10 +3605,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   tipoDocumento,
                 });
                 await load();
-                setSnackbar({ open: true, message: `${documentoTypeConfig.label} enviada correctamente`, severity: 'success' });
+                setSnackbar({ open: true, message: `${documentoTypeConfig?.label} enviada correctamente`, severity: 'success' });
                 setEnviarCotizacionDialog({ open: false, id: null, email: '', subject: '', message: '', enviando: false, error: null });
               } catch (err: any) {
-                const msg = err?.message || `No se pudo enviar ${documentoTypeConfig.textos.singular}`;
+                const msg = err?.message || `No se pudo enviar ${documentoTypeConfig?.textos?.singular}`;
                 setEnviarCotizacionDialog((prev) => ({ ...prev, enviando: false, error: msg }));
                 setSnackbar({ open: true, message: msg, severity: 'error' });
               }
@@ -3756,6 +3930,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </DialogContent>
         <DialogActions>
           <Button variant="contained" onClick={() => setDeleteBlockedDialog({ open: false, message: '' })}>
+            Entendido
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={facturaNoTimbradaDialogOpen}
+        onClose={() => setFacturaNoTimbradaDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>No se puede cancelar esta factura</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ pt: 1, color: '#475569' }}>
+            {MENSAJE_FACTURA_NO_TIMBRADA_CANCELAR}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setFacturaNoTimbradaDialogOpen(false)}>
             Entendido
           </Button>
         </DialogActions>

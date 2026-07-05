@@ -22,6 +22,7 @@ import {
   obtenerRecepcionResumenHandler,
 } from './documentos.controller';
 import { obtenerCamposDocumento } from './documentos-campos.controller';
+import { obtenerDetalleDocumentoHandler } from './documentos-detalle.controller';
 
 const router = Router();
 
@@ -30,6 +31,9 @@ router.get('/', requireAuth, requireEmpresaActiva, listarCotizaciones);
 
 // GET /api/documentos/:id
 router.get('/:id', requireAuth, requireEmpresaActiva, obtenerCotizacion);
+
+// GET /api/documentos/:id/detalle (drawer de consulta: partidas, pagos, NC, relacionados, inventario)
+router.get('/:id/detalle', requireAuth, requireEmpresaActiva, obtenerDetalleDocumentoHandler);
 
 // GET /api/documentos/:id/recepcion-resumen
 router.get('/:id/recepcion-resumen', requireAuth, requireEmpresaActiva, obtenerRecepcionResumenHandler);

@@ -56,7 +56,9 @@ import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
 import { useDeviceProfile } from '../hooks/useDeviceProfile';
 import { useGridPreferences } from '../hooks/useGridPreferences';
+import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
+import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
 
 dayjs.locale('es');
 
@@ -173,33 +175,6 @@ type OportunidadUpdatePayload = {
   fecha_estimada_cierre?: string | null;
   fecha_reactivacion_estimada?: string | null;
   observaciones?: string;
-};
-
-type TipoActividad = 'llamada' | 'whatsapp' | 'visita' | 'tarea';
-
-type Actividad = {
-  id: number;
-  tipo_actividad: TipoActividad;
-  fecha_programada: string;
-  estatus: 'pendiente' | 'realizada' | 'cancelada' | string;
-  notas: string | null;
-  oportunidad_id: number | null;
-  descripcion?: string | null;
-  observaciones?: string | null;
-  resultado?: string | null;
-  fecha_realizacion?: string | null;
-};
-
-type ActividadesPendientesAgrupadas = {
-  vencidas: Actividad[];
-  hoy: Actividad[];
-  futuras: Actividad[];
-};
-
-type SeguimientoResumen = {
-  pendingCount: number;
-  overdueCount: number;
-  todayCount: number;
 };
 
 const INITIAL_ADVANCED_FILTERS: AdvancedFilters = {
@@ -361,6 +336,16 @@ function getStatusPresentation(estatus: string) {
   return { label: OPORTUNIDAD_STATUS_LABELS.abierta, backgroundColor: '#eff6ff', textColor: '#1e40af', borderColor: '#bfdbfe' };
 }
 
+// Tipografía/proporciones compartida por los chips de "Estatus" y "Seguimiento",
+// para que ambas columnas se vean compactas y consistentes entre sí.
+const ESTATUS_CHIP_BASE_SX = {
+  borderRadius: 1,
+  fontWeight: 700,
+  fontSize: 11,
+  height: 22,
+  px: 0.5,
+};
+
 function getStatusChipColor(estatus: string): 'primary' | 'warning' | 'success' | 'error' | 'default' {
   const bucket = getQuickBucket(estatus);
   if (bucket === 'convertidas') return 'success';
@@ -435,10 +420,6 @@ async function fetchOportunidadesList() {
   return apiFetch<OportunidadApiResponse[]>('/api/crm/oportunidades');
 }
 
-async function fetchActividadesPendientesUsuario() {
-  return apiFetch<ActividadesPendientesAgrupadas>('/api/crm/actividades');
-}
-
 function getDeleteOportunidadErrorMessage(error: unknown) {
   const fallbackMessage = 'No se pudo eliminar la oportunidad.';
 
@@ -483,8 +464,11 @@ export default function OportunidadesPage() {
   const [appliedFilters, setAppliedFilters] = useState<AdvancedFilters>(INITIAL_ADVANCED_FILTERS);
   const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
   const [seguimientoOportunidadId, setSeguimientoOportunidadId] = useState<number | null>(null);
-  const [seguimientoResumenByOportunidad, setSeguimientoResumenByOportunidad] = useState<Record<number, SeguimientoResumen>>({});
-  const [loadingSeguimientoResumen, setLoadingSeguimientoResumen] = useState(false);
+  const {
+    seguimientoError,
+    loadSeguimientoResumen,
+    getSeguimientoChipPresentation,
+  } = useSeguimientoActividades();
 
   const {
     loadingPreferences,
@@ -557,60 +541,11 @@ export default function OportunidadesPage() {
     });
   }, [persistExternalFilters, searchTerm, filtroEstatus, appliedFilters]);
 
-  const loadSeguimientoResumen = useCallback(async () => {
-    setLoadingSeguimientoResumen(true);
-
-    try {
-      const data = await fetchActividadesPendientesUsuario();
-      const nextSummary: Record<number, SeguimientoResumen> = {};
-
-      const register = (items: Actividad[], kind: 'vencidas' | 'hoy' | 'futuras') => {
-        for (const actividad of items) {
-          const oportunidadId = actividad.oportunidad_id;
-
-          if (!oportunidadId || actividad.estatus !== 'pendiente') {
-            continue;
-          }
-
-          const current = nextSummary[oportunidadId] ?? {
-            pendingCount: 0,
-            overdueCount: 0,
-            todayCount: 0,
-          };
-
-          current.pendingCount += 1;
-
-          if (kind === 'vencidas') {
-            current.overdueCount += 1;
-          }
-
-          if (kind === 'hoy') {
-            current.todayCount += 1;
-          }
-
-          nextSummary[oportunidadId] = current;
-        }
-      };
-
-      register(Array.isArray(data?.vencidas) ? data.vencidas : [], 'vencidas');
-      register(Array.isArray(data?.hoy) ? data.hoy : [], 'hoy');
-      register(Array.isArray(data?.futuras) ? data.futuras : [], 'futuras');
-
-      setSeguimientoResumenByOportunidad(nextSummary);
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: err instanceof Error ? err.message : 'No se pudo cargar el resumen de seguimiento.',
-        severity: 'error',
-      });
-    } finally {
-      setLoadingSeguimientoResumen(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadSeguimientoResumen();
-  }, [loadSeguimientoResumen]);
+    if (seguimientoError) {
+      setSnackbar({ open: true, message: seguimientoError, severity: 'error' });
+    }
+  }, [seguimientoError]);
 
   const vendedoresOptions = useMemo(
     () => Array.from(new Set(oportunidades.map((item) => item.vendedor_nombre))).sort((a, b) => a.localeCompare(b)),
@@ -1022,62 +957,6 @@ export default function OportunidadesPage() {
     [columnWidths]
   );
 
-  const handleOpenRealizarActividadDialog = useCallback((actividad: Actividad) => {
-    setRealizarActividadDialog({
-      open: true,
-      actividad,
-      resultado: '',
-      error: null,
-    });
-  }, []);
-
-  const getSeguimientoChipPresentation = useCallback((oportunidadId: number) => {
-    if (loadingSeguimientoResumen) {
-      return {
-        label: '...',
-        backgroundColor: '#f8fafc',
-        textColor: '#64748b',
-        borderColor: '#cbd5e1',
-      };
-    }
-
-    const summary = seguimientoResumenByOportunidad[oportunidadId];
-
-    if (!summary || summary.pendingCount === 0) {
-      return {
-        label: 'Al dia',
-        backgroundColor: '#ecfdf5',
-        textColor: '#047857',
-        borderColor: '#a7f3d0',
-      };
-    }
-
-    if (summary.overdueCount > 0) {
-      return {
-        label: `Vencida (${summary.overdueCount})`,
-        backgroundColor: '#fef2f2',
-        textColor: '#b91c1c',
-        borderColor: '#fecaca',
-      };
-    }
-
-    if (summary.todayCount > 0) {
-      return {
-        label: 'Hoy',
-        backgroundColor: '#fff7ed',
-        textColor: '#b45309',
-        borderColor: '#fdba74',
-      };
-    }
-
-    return {
-      label: `Pendiente (${summary.pendingCount})`,
-      backgroundColor: '#eff6ff',
-      textColor: '#1d4ed8',
-      borderColor: '#bfdbfe',
-    };
-  }, [loadingSeguimientoResumen, seguimientoResumenByOportunidad]);
-
   const {
     contextMenuRow,
     anchorPosition: contextMenuPosition,
@@ -1197,41 +1076,13 @@ export default function OportunidadesPage() {
       disableColumnMenu: true,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params: GridRenderCellParams<Oportunidad>) => {
-        const presentation = getSeguimientoChipPresentation(params.row.id);
-
-        return (
-          <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="center" sx={{ width: '100%' }}>
-            <Chip
-              size="small"
-              label={presentation.label}
-              sx={{
-                maxWidth: 110,
-                fontWeight: 700,
-                bgcolor: presentation.backgroundColor,
-                color: presentation.textColor,
-                border: '1px solid',
-                borderColor: presentation.borderColor,
-                '& .MuiChip-label': {
-                  px: 1,
-                },
-              }}
-            />
-            <Tooltip title="Ver seguimiento">
-              <IconButton
-                size="small"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openSeguimientoDrawer(params.row);
-                }}
-                sx={{ color: '#1d2f68' }}
-              >
-                <AssignmentOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        );
-      },
+      renderCell: (params: GridRenderCellParams<Oportunidad>) => (
+        <SeguimientoActividadCell
+          hasOportunidad
+          presentation={getSeguimientoChipPresentation(params.row.id)}
+          onOpen={() => openSeguimientoDrawer(params.row)}
+        />
+      ),
     },
     {
       field: 'acciones',
@@ -1281,6 +1132,7 @@ export default function OportunidadesPage() {
         return (
           <Chip
             label={presentation.label}
+            size="small"
             clickable={!disabled}
             disabled={disabled}
             onClick={(event: MouseEvent<HTMLElement>) => handleOpenStatusMenu(event, params.row)}
@@ -1289,15 +1141,9 @@ export default function OportunidadesPage() {
               onDelete: (event: MouseEvent<HTMLElement>) => handleOpenStatusMenu(event, params.row),
             } : {})}
             sx={{
-              borderRadius: 1,
-              fontWeight: 700,
-              fontSize: 12.5,
-              height: 28,
-              px: 0.75,
-              textTransform: 'capitalize',
+              ...ESTATUS_CHIP_BASE_SX,
               bgcolor: presentation.backgroundColor,
               color: presentation.textColor,
-              border: '1px solid',
               borderColor: presentation.borderColor,
               '& .MuiChip-deleteIcon': {
                 color: presentation.textColor,

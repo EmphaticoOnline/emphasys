@@ -34,6 +34,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
+import RichTextEditor from '../../components/RichTextEditor';
 import { compareDocumentoVisualOrder } from '../../modules/documentos/documentoVisualOrder';
 import {
   createAsignacionSerieDocumento,
@@ -64,6 +65,7 @@ type SerieFormState = {
   es_fiscal: boolean;
   activa: boolean;
   ultimo_numero: number;
+  condiciones_impresion: string;
 };
 
 type AsignacionFormState = {
@@ -81,6 +83,7 @@ const emptySerieForm = (): SerieFormState => ({
   es_fiscal: false,
   activa: true,
   ultimo_numero: 0,
+  condiciones_impresion: '',
 });
 
 const emptyAsignacionForm = (): AsignacionFormState => ({
@@ -194,6 +197,7 @@ export default function SeriesDocumentosPage() {
       es_fiscal: item.es_fiscal,
       activa: item.activa,
       ultimo_numero: item.ultimo_numero ?? 0,
+      condiciones_impresion: item.condiciones_impresion ?? '',
     });
     setSerieFormError(null);
     setSerieDialogOpen(true);
@@ -234,6 +238,7 @@ export default function SeriesDocumentosPage() {
         tipo_documento: serieForm.tipo_documento,
         es_fiscal: serieTipoSoportaFiscal ? serieForm.es_fiscal : false,
         activa: serieForm.activa,
+        condiciones_impresion: serieForm.condiciones_impresion || null,
         ...(serieForm.id && isSuperadmin ? { ultimo_numero: serieForm.ultimo_numero } : {}),
       };
 
@@ -568,6 +573,21 @@ export default function SeriesDocumentosPage() {
               }
               label={`Activa: ${formatBooleanLabel(serieForm.activa)}`}
             />
+
+            <Stack spacing={0.5}>
+              <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                Condiciones para impresión
+              </Typography>
+              <Typography variant="caption" color="#4b5563">
+                Texto que aparecerá al pie del PDF para esta serie documental.
+              </Typography>
+              <RichTextEditor
+                content={serieForm.condiciones_impresion}
+                onChange={(html) => handleSerieFormChange('condiciones_impresion', html)}
+                placeholder="Captura condiciones, advertencias o notas legales para esta serie..."
+                minHeight={180}
+              />
+            </Stack>
 
             {serieForm.id && isSuperadmin && (
               <TextField

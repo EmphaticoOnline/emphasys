@@ -20,7 +20,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const logout = useCallback(() => {
     clearSession();
-    setSessionState({ token: null, user: null, empresas: [], empresaActivaId: null });
+    setSessionState({ token: null, user: null, empresas: [], empresaActivaId: null, roles: [] });
   }, []);
 
   const value = useMemo(() => ({ session, setSession, logout }), [session, setSession, logout]);

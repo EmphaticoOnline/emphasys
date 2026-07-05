@@ -13,9 +13,17 @@ export type User = {
   vendedor_contacto_nombre?: string | null;
 };
 
+export type RolResumen = {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+};
+
 export type SessionState = {
   token: string | null;
   user: User | null;
   empresas: Empresa[];
   empresaActivaId: number | null;
+  /** Roles del usuario en la empresa activa. Se resuelven vía /auth/me al entrar a la app. */
+  roles: RolResumen[];
 };

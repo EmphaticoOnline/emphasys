@@ -166,13 +166,6 @@ export interface FinanzasOperacion {
   transferencia_destino_nombre?: string | null;
 }
 
-export interface OperacionDisponible {
-  id: number;
-  monto_total: number;
-  monto_aplicado: number;
-  monto_disponible: number;
-}
-
 export interface AplicacionOperacion {
   id: number;
   empresa_id: number;

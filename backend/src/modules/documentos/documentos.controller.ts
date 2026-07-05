@@ -26,6 +26,7 @@ import { cancelarDocumentoService, DocumentoCancelValidationError } from './docu
 import { aplicarInventarioDesdeDocumentoEnTransaccion } from '../inventario/inventario.service';
 import { formatearFolioDocumento } from '../../utils/documentos';
 import { obtenerJwtSecret } from '../auth/auth.service';
+import { evaluarScopeVentas, resolverContextoScopeComercial } from '../auth/scope-comercial';
 import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
 import { resolverTipoPlantillaWhatsapp, type WhatsappTemplateType } from '../../whatsapp/whatsapp-template-type.service';
 
@@ -354,6 +355,10 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
     const empresaId = req.context?.empresaId;
     if (!empresaId) return res.status(400).json({ message: 'empresaId no disponible en contexto' });
 
+    const scope = evaluarScopeVentas(
+      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
+    );
+
     const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
     const search = typeof req.query.search === 'string' ? req.query.search : null;
 
@@ -361,8 +366,14 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
     const limitRaw = req.query.limit;
     const page = typeof pageRaw === 'string' ? Number(pageRaw) : undefined;
     const limit = typeof limitRaw === 'string' ? Number(limitRaw) : undefined;
+    const esPaginado = Number.isFinite(page) && Number.isFinite(limit) && page && page >= 1 && limit && limit >= 1 && limit <= 100;
 
-    if (Number.isFinite(page) && Number.isFinite(limit) && page && page >= 1 && limit && limit >= 1 && limit <= 100) {
+    if (scope.sinAcceso) {
+      if (esPaginado) return res.json({ data: [], total: 0, page, limit });
+      return res.json([]);
+    }
+
+    if (esPaginado) {
       const quickFilter = typeof req.query.quick_filter === 'string' ? req.query.quick_filter.trim() : undefined;
       const soloPendientes = req.query.solo_pendientes === 'true';
       const clienteIdRaw = typeof req.query.cliente_id === 'string' ? Number(req.query.cliente_id) : null;
@@ -375,7 +386,7 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
       const result = await listarDocumentosRepositoryPaginado(
         tipo,
         Number(empresaId),
-        { page, limit },
+        { page: page as number, limit: limit as number },
         search,
         {
           soloPendientes,
@@ -386,12 +397,13 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
           fechaHasta,
           montoMin: montoMinRaw !== null && !isNaN(montoMinRaw) ? montoMinRaw : null,
           montoMax: montoMaxRaw !== null && !isNaN(montoMaxRaw) ? montoMaxRaw : null,
-        }
+        },
+        scope.agenteId
       );
       return res.json({ data: result.data, total: result.total, page, limit });
     }
 
-    const data = await listarDocumentosRepository(tipo, Number(empresaId), search);
+    const data = await listarDocumentosRepository(tipo, Number(empresaId), search, scope.agenteId);
     res.json(data);
   } catch (error) {
     console.error(`Error al listar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
@@ -405,8 +417,15 @@ const buildObtenerHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) 
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
+    const scope = evaluarScopeVentas(
+      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
+    );
+    if (scope.sinAcceso) {
+      return res.status(403).json({ message: 'Su usuario no tiene un vendedor asociado; no puede consultar documentos.' });
+    }
+
     const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
-    const result = await obtenerDocumentoRepository(id, Number(empresaId), tipo);
+    const result = await obtenerDocumentoRepository(id, Number(empresaId), tipo, scope.agenteId);
     if (!result) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
     res.json(result);
   } catch (error) {
@@ -512,6 +531,9 @@ const buildEliminarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false)
     if (!deleted) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
     res.status(204).send();
   } catch (error) {
+    if (error instanceof DocumentoDeleteValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
     console.error(`Error al eliminar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
     res.status(500).json({ message: `Error al eliminar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}` });
   }
@@ -743,10 +765,16 @@ export async function exportarDocumentos(req: Request, res: Response) {
       return res.status(400).json({ message: 'No hay columnas válidas para exportar' });
     }
 
+    const scope = evaluarScopeVentas(
+      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
+    );
+
     const tipo = normalizarTipo(filters.tipo_documento, 'cotizacion');
     const search = typeof filters.search === 'string' ? filters.search : null;
 
-    let filas: Record<string, any>[] = await listarDocumentosRepository(tipo, Number(empresaId), search);
+    let filas: Record<string, any>[] = scope.sinAcceso
+      ? []
+      : await listarDocumentosRepository(tipo, Number(empresaId), search, scope.agenteId);
 
     if (filters.soloPendientes === true) {
       filas = filas.filter((row) => Number(row['saldo'] ?? 0) > 0);

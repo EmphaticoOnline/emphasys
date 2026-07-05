@@ -396,7 +396,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
         tipo_actividad: createActividadDialog.tipo_actividad,
         fecha_programada: new Date(createActividadDialog.fecha_programada).toISOString(),
         notas: createActividadDialog.notas.trim() || null,
-        contacto_id: target.kind === 'contacto' ? target.id : undefined,
+        contacto_id: target.kind === 'contacto' ? target.id : null,
         oportunidad_id: target.kind === 'oportunidad' ? target.id : null,
         recordatorio: createActividadDialog.recordatorio,
         recordatorio_minutos: createActividadDialog.recordatorio ? Number(recordatorioMinutos) : null,

@@ -704,7 +704,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                 tipoDocumento={tipoNuevoPago}
                 embedded
                 initialValues={{
-                  empresa_id: documentoMeta?.empresaId ?? undefined,
+                  ...(documentoMeta?.empresaId != null ? { empresa_id: documentoMeta.empresaId } : {}),
                   contacto_principal_id: contactoId,
                   fecha_documento: toCivilDate(),
                   moneda: documentoMeta?.moneda || saldoDocumento?.moneda || 'MXN',
@@ -735,7 +735,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                 tipoDocumento={tipoNuevoAjuste}
                 embedded
                 initialValues={{
-                  empresa_id: documentoMeta?.empresaId ?? undefined,
+                  ...(documentoMeta?.empresaId != null ? { empresa_id: documentoMeta.empresaId } : {}),
                   contacto_principal_id: contactoId,
                   fecha_documento: toCivilDate(),
                   moneda: documentoMeta?.moneda || saldoDocumento?.moneda || 'MXN',

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Box, Chip, IconButton, Snackbar } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
-import type { GridColDef, GridRenderCellParams, GridRowParams } from '@mui/x-data-grid';
+import type { GridColDef, GridColumnVisibilityModel, GridRenderCellParams, GridRowParams } from '@mui/x-data-grid';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 
@@ -263,7 +263,7 @@ export default function ProductosPage() {
     return [...(menuColumn ? [menuColumn] : []), ...ordered, ...remaining];
   }, [columnOrder, columns]);
 
-  const effectiveColumnVisibilityModel = useMemo(
+  const effectiveColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
     () => ({ ...columnVisibilityModel, menu: true, actions: SHOW_GRID_ACTIONS }),
     [columnVisibilityModel]
   );

@@ -26,10 +26,21 @@ type CotizacionHermanaRow = {
 async function cotizacionTieneDocumentosPosteriores(documentoId: number, client: PoolClient) {
   const { rows } = await client.query<{ tiene_descendientes: boolean }>(
     `SELECT EXISTS (
+       -- Derivados directos vía documento_origen_id
        SELECT 1
-       FROM documentos
-       WHERE documento_origen_id = $1
-         AND LOWER(COALESCE(tipo_documento, '')) <> 'cotizacion'
+         FROM documentos d
+        WHERE d.documento_origen_id = $1
+          AND LOWER(COALESCE(d.tipo_documento, '')) <> 'cotizacion'
+          AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+       UNION ALL
+       -- Derivados vinculados vía documentos_partidas_vinculos (p. ej. facturas parciales)
+       SELECT 1
+         FROM documentos_partidas_vinculos dpv
+         JOIN documentos d_dest ON d_dest.id = dpv.documento_destino_id
+        WHERE dpv.documento_origen_id = $1
+          AND d_dest.id <> $1
+          AND LOWER(COALESCE(d_dest.tipo_documento, '')) <> 'cotizacion'
+          AND LOWER(TRIM(COALESCE(d_dest.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
      ) AS tiene_descendientes`,
     [documentoId]
   );
@@ -119,6 +130,24 @@ async function obtenerCotizacionesHermanas(
         AND d.id <> $3
       ORDER BY d.fecha_documento DESC NULLS LAST, d.id DESC`,
     [empresaId, oportunidadId, cotizacionExcluirId]
+  );
+
+  return rows;
+}
+
+async function obtenerCotizacionesLigadasAOportunidad(
+  oportunidadId: number,
+  cotizacionPrincipalId: number | null,
+  empresaId: number,
+  client: PoolClient
+) {
+  const { rows } = await client.query<CotizacionHermanaRow>(
+    `SELECT DISTINCT d.id
+       FROM documentos d
+      WHERE d.empresa_id = $1
+        AND LOWER(d.tipo_documento) = 'cotizacion'
+        AND (d.oportunidad_id = $2 OR d.id = $3)`,
+    [empresaId, oportunidadId, cotizacionPrincipalId]
   );
 
   return rows;
@@ -261,30 +290,26 @@ export async function eliminarOportunidadConValidacion(oportunidadId: number, em
       return false;
     }
 
-    const cotizacionPrincipalId = oportunidad.cotizacion_principal_id;
+    const cotizaciones = await obtenerCotizacionesLigadasAOportunidad(
+      oportunidadId,
+      oportunidad.cotizacion_principal_id,
+      empresaId,
+      client
+    );
 
-    if (!cotizacionPrincipalId) {
-      const deleted = await eliminarOportunidadBase(oportunidadId, empresaId, client);
-      await client.query('COMMIT');
-      return deleted;
-    }
-
-    const documento = await obtenerCotizacion(cotizacionPrincipalId, empresaId, client);
-
-    if (documento) {
-      const tipoDocumento = String(documento.tipo_documento ?? '').toLowerCase();
-      if (tipoDocumento === 'cotizacion') {
-        const puedeEliminar = await puedeEliminarCotizacion(cotizacionPrincipalId, empresaId, client);
-        if (!puedeEliminar.canDelete) {
-          throw new DocumentoDeleteValidationError('No se puede eliminar la oportunidad porque su cotización ya generó documentos posteriores.');
-        }
+    for (const cotizacion of cotizaciones) {
+      const puedeEliminar = await puedeEliminarCotizacion(cotizacion.id, empresaId, client);
+      if (!puedeEliminar.canDelete) {
+        throw new DocumentoDeleteValidationError(
+          'No se puede eliminar la oportunidad porque una de sus cotizaciones ya generó documentos posteriores.'
+        );
       }
     }
 
     await eliminarOportunidadBase(oportunidadId, empresaId, client);
 
-    if (documento && String(documento.tipo_documento ?? '').toLowerCase() === 'cotizacion') {
-      await eliminarDocumentoBase(cotizacionPrincipalId, empresaId, 'cotizacion', client);
+    for (const cotizacion of cotizaciones) {
+      await eliminarDocumentoBase(cotizacion.id, empresaId, 'cotizacion', client);
     }
 
     await client.query('COMMIT');

@@ -54,6 +54,7 @@ import { createCotizacion, deleteCotizacion, duplicateCotizacion, getCotizacione
 import { fetchContactos } from '../services/contactosService';
 import { crearContacto } from '../services/contactos.api';
 import ContactCaptureDialog from '../components/contactos/ContactCaptureDialog';
+import type { ContactoTipoPermitido } from '../modules/documentos/documentoTypes';
 import { fetchProductos } from '../services/productosService';
 import type { Producto } from '../types/producto';
 import type { Contacto } from '../types/contactos.types';
@@ -164,7 +165,7 @@ export default function CotizacionesGridPage() {
   const [crearClienteLoading, setCrearClienteLoading] = useState(false);
   const [crearClienteRowId, setCrearClienteRowId] = useState<number | null>(null);
   const [crearClienteParaNuevo, setCrearClienteParaNuevo] = useState(false);
-  const [crearClienteTipo, setCrearClienteTipo] = useState<'Lead' | 'Cliente'>('Lead');
+  const [crearClienteTipo, setCrearClienteTipo] = useState<ContactoTipoPermitido>('Lead');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [agenteVentaFiltro, setAgenteVentaFiltro] = useState('');
   const [filtros, setFiltros] = useState<{
@@ -535,7 +536,7 @@ export default function CotizacionesGridPage() {
     return result;
   }, [rows, quickFilter, filtros]);
 
-  const resumenTotales = useMemo(() => {
+  const resumenTotales = useMemo<{ general: number; [key: string]: number }>(() => {
     const sum = (arr: typeof filteredRows) => arr.reduce((acc, r) => acc + Number(r.subtotal ?? 0), 0);
     const porEstado = (estado: EstadoSeguimiento) => sum(filteredRows.filter((r) => normalizeEstadoSeguimiento(r.estado_seguimiento) === estado));
     return {
@@ -920,7 +921,7 @@ export default function CotizacionesGridPage() {
                 color: '#0b5ed7',
               }, ...ESTADOS_SEGUIMIENTO.map((estado) => ({
                 label: estado.label,
-                value: resumenTotales[estado.value],
+                value: resumenTotales[estado.value] ?? 0,
                 color: estado.textColor,
               }))].map((item) => (
                 <Box

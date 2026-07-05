@@ -325,7 +325,7 @@ export default function ContactosPage() {
     return [...(menuColumn ? [menuColumn] : []), ...ordered, ...remaining];
   }, [columnOrder, columns]);
 
-  const effectiveColumnVisibilityModel = useMemo(
+  const effectiveColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
     () => ({ ...columnVisibilityModel, menu: true, actions: SHOW_GRID_ACTIONS }),
     [columnVisibilityModel]
   );

@@ -151,7 +151,7 @@ export default function Layout({ children }: LayoutProps) {
 
         const sortDocs = (docs: typeof ventas) => [...docs].sort(compareDocumentoVisualOrder);
         const mergeNavigationDocs = (docs: typeof ventas, modulo: 'ventas' | 'compras'): DocumentoTabDef[] => {
-          const base = sortDocs(docs).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }));
+          const base: DocumentoTabDef[] = sortDocs(docs).map((d) => ({ label: d.nombre_plural || d.nombre || d.codigo, value: d.codigo, icon: d.icono }));
           NAVIGATION_DOCUMENT_OVERRIDES[modulo].forEach((extra) => {
             const index = base.findIndex((tab) => tab.value === extra.value);
             if (index >= 0) {
@@ -249,7 +249,7 @@ export default function Layout({ children }: LayoutProps) {
     }
 
     const [siguiente, ...resto] = recordatoriosQueue;
-    setRecordatorioActual(siguiente);
+    setRecordatorioActual(siguiente!);
     setRecordatoriosQueue(resto);
   }, [recordatorioActual, recordatoriosQueue]);
 

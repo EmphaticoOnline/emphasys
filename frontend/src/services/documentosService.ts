@@ -1,4 +1,5 @@
 import type { CotizacionDetalle, CotizacionListado, CotizacionCrearPayload, CotizacionPartidaPayload } from '../types/cotizacion';
+import type { DocumentoDetalleResponse } from '../types/documentoDetalle';
 import type { TipoDocumento } from '../types/documentos.types';
 import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 import { clearSession, loadSession } from '../session/sessionStorage';
@@ -115,6 +116,10 @@ export function getDocumento(id: number, tipo: TipoDocumento): Promise<Cotizacio
   const base = getBasePath(tipo);
   const url = withTipoQuery(`${base}/${id}`, tipo);
   return apiFetch(url);
+}
+
+export function getDocumentoDetalle(id: number, tipo: TipoDocumento): Promise<DocumentoDetalleResponse> {
+  return apiFetch(`/api/documentos/${id}/detalle?tipo_documento=${tipo}`);
 }
 
 export function createDocumento(tipo: TipoDocumento, data: CotizacionCrearPayload) {

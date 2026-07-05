@@ -39,6 +39,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, buildAuthHeaders } from '../api/apiClient';
 import { useSession } from '../session/useSession';
@@ -84,6 +87,17 @@ type ConversationMessage = {
   fecha_envio: string | null;
   creado_en?: string | null;
   status: string | null;
+  mensaje_respuesta_id?: string | number | null;
+  respuesta_tipo_mensaje?: 'entrante' | 'saliente' | null;
+  respuesta_tipo_contenido?: 'text' | 'image' | 'audio' | 'document' | null;
+  respuesta_contenido?: string | null;
+  respuesta_caption?: string | null;
+};
+
+type ReplyPreview = {
+  id: string;
+  from: 'lead' | 'me';
+  preview: string;
 };
 
 type OportunidadVenta = {
@@ -135,6 +149,7 @@ type Lead = {
     caption?: string | null;
     status?: 'sending' | 'sent' | 'failed';
     tempId?: string;
+    replyTo?: ReplyPreview | null;
   }>;
   contactoId: string | null;
   vendedor_id: number | null;
@@ -153,6 +168,7 @@ type QuickFilter = 'todos' | 'seguimiento' | 'alta' | 'activos';
 type OpportunityFilter = 'todos' | 'con' | 'sin';
 type LeadScope = 'mis' | 'todos';
 type UserRole = { id: number; nombre: string; descripcion?: string | null };
+const MANAGE_TAGS_OPTION_VALUE = '__manage_tags__';
 const AUDIO_MIME_PREFERENCES = [
   'audio/ogg;codecs=opus',
   'audio/ogg',
@@ -436,6 +452,17 @@ const getLastWhatsappPreview = (conversation: ConversationView[]): { text: strin
   };
 };
 
+const buildReplyPreviewText = (
+  tipoContenido: 'text' | 'image' | 'audio' | 'document',
+  contenido: string | null | undefined,
+  caption: string | null | undefined
+): string => {
+  if (tipoContenido === 'image') return caption || 'Foto';
+  if (tipoContenido === 'audio') return 'Audio';
+  if (tipoContenido === 'document') return caption || 'Documento';
+  return contenido || '';
+};
+
 const mapMessages = (messages: ConversationMessage[]): ConversationView[] => messages.map((msg) => {
   const sentAt = msg.fecha_envio || msg.creado_en || null;
   const tipoContenido = msg.tipo_contenido ?? 'text';
@@ -444,6 +471,14 @@ const mapMessages = (messages: ConversationMessage[]): ConversationView[] => mes
   if ((tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document') && !mediaUrl) {
     mediaUrl = msg.contenido ?? null;
   }
+
+  const replyTo: ReplyPreview | null = msg.mensaje_respuesta_id
+    ? {
+      id: String(msg.mensaje_respuesta_id),
+      from: msg.respuesta_tipo_mensaje === 'entrante' ? 'lead' : 'me',
+      preview: buildReplyPreviewText(msg.respuesta_tipo_contenido ?? 'text', msg.respuesta_contenido, msg.respuesta_caption),
+    }
+    : null;
 
   return {
     id: msg.id,
@@ -457,6 +492,7 @@ const mapMessages = (messages: ConversationMessage[]): ConversationView[] => mes
     mediaUrl,
     caption: msg.caption ?? null,
     status: ((msg.status || '').toLowerCase().trim() as 'sending' | 'sent' | 'delivered' | 'read' | 'failed') || 'sent',
+    replyTo,
   } as ConversationView;
 });
 
@@ -469,6 +505,7 @@ export default function LeadsPage() {
   const [isLoadingConversations, setIsLoadingConversations] = React.useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [quickReply, setQuickReply] = React.useState('');
+  const [replyingTo, setReplyingTo] = React.useState<ReplyPreview | null>(null);
   const [uploadPreviewUrl, setUploadPreviewUrl] = React.useState<string | null>(null);
   const [uploadFileType, setUploadFileType] = React.useState<'image' | 'document' | 'audio' | null>(null);
   const [uploadFileName, setUploadFileName] = React.useState<string | null>(null);
@@ -495,6 +532,16 @@ export default function LeadsPage() {
   const [isCreatingTag, setIsCreatingTag] = React.useState(false);
   const [newTagName, setNewTagName] = React.useState('');
   const [newTagColor, setNewTagColor] = React.useState('#25D366');
+  const [tagsSelectOpen, setTagsSelectOpen] = React.useState(false);
+  const [manageTagsOpen, setManageTagsOpen] = React.useState(false);
+  const [tagFormOpen, setTagFormOpen] = React.useState(false);
+  const [tagFormId, setTagFormId] = React.useState<number | null>(null);
+  const [tagFormName, setTagFormName] = React.useState('');
+  const [tagFormColor, setTagFormColor] = React.useState('#25D366');
+  const [tagFormSaving, setTagFormSaving] = React.useState(false);
+  const [tagFormError, setTagFormError] = React.useState<string | null>(null);
+  const [tagActionError, setTagActionError] = React.useState<string | null>(null);
+  const [tagDeactivatingId, setTagDeactivatingId] = React.useState<number | null>(null);
   const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
   const [opportunityFilter, setOpportunityFilter] = React.useState<OpportunityFilter>('todos');
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -1071,11 +1118,12 @@ export default function LeadsPage() {
 
   const handleReplyAction = (leadId: string) => {
     setSelectedLeadId(leadId);
+    setReplyingTo(null);
     focusReplyInput();
   };
 
   const handleGenerarCotizacion = () => {
-    if (!selectedContactoId) return;
+    if (!selectedContactoId || !selectedLead) return;
     navigate(`/ventas/cotizacion/nuevo?contactoId=${selectedContactoId}&conversacionId=${selectedLead.id}`);
   };
 
@@ -1264,9 +1312,9 @@ export default function LeadsPage() {
     return () => clearInterval(interval);
   }, [getLastSentAtForLead, loadConversations, loadMessages, refreshIdleTimers, selectedLeadId]);
 
-  const scrollToBottom = React.useCallback(() => {
+  const scrollToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (conversationEndRef.current) {
-      conversationEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      conversationEndRef.current.scrollIntoView({ behavior, block: 'end' });
     }
   }, []);
 
@@ -1294,6 +1342,15 @@ export default function LeadsPage() {
     lastConversationLengthRef.current = currentLength;
 
     if (isFilterTransitionRef.current) return;
+
+    // Al abrir/cambiar de conversación siempre se posiciona al final (mensajes más
+    // recientes), sin importar en qué punto se había quedado el scroll anterior.
+    if (leadChanged) {
+      setIsAtBottom(true);
+      scrollToBottom('auto');
+      return;
+    }
+
     if (!isAtBottom) return;
     if (!hasNewMessage) return;
 
@@ -1438,6 +1495,128 @@ export default function LeadsPage() {
     }
   };
 
+  const handleOpenManageTags = () => {
+    setTagActionError(null);
+    setManageTagsOpen(true);
+  };
+
+  const handleCloseManageTags = () => {
+    setManageTagsOpen(false);
+    setTagFormOpen(false);
+    setTagFormId(null);
+    setTagFormName('');
+    setTagFormColor('#25D366');
+    setTagFormError(null);
+    setTagActionError(null);
+  };
+
+  const handleOpenCreateTagForm = () => {
+    setTagFormId(null);
+    setTagFormName('');
+    setTagFormColor('#25D366');
+    setTagFormError(null);
+    setTagFormOpen(true);
+  };
+
+  const handleOpenEditTagForm = (tag: WhatsappEtiqueta) => {
+    setTagFormId(tag.id);
+    setTagFormName(tag.nombre);
+    setTagFormColor(tag.color);
+    setTagFormError(null);
+    setTagFormOpen(true);
+  };
+
+  const handleCancelTagForm = () => {
+    setTagFormOpen(false);
+    setTagFormId(null);
+    setTagFormName('');
+    setTagFormColor('#25D366');
+    setTagFormError(null);
+  };
+
+  const handleSubmitTagForm = async () => {
+    const nombre = tagFormName.trim();
+    const color = tagFormColor.trim();
+
+    if (!nombre) {
+      setTagFormError('El nombre de la etiqueta es requerido');
+      return;
+    }
+    if (!/^#([0-9A-Fa-f]{6})$/.test(color)) {
+      setTagFormError('Selecciona un color válido');
+      return;
+    }
+    const nombreLower = nombre.toLowerCase();
+    const duplicada = availableTags.some(
+      (tag) => tag.id !== tagFormId && tag.nombre.trim().toLowerCase() === nombreLower
+    );
+    if (duplicada) {
+      setTagFormError('Ya existe una etiqueta con ese nombre');
+      return;
+    }
+
+    setTagFormSaving(true);
+    setTagFormError(null);
+    try {
+      if (tagFormId == null) {
+        const response = await apiFetch('/api/whatsapp/etiquetas', {
+          method: 'POST',
+          body: JSON.stringify({ nombre, color }),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.message || 'No se pudo crear la etiqueta');
+        }
+        const created: WhatsappEtiqueta = data;
+        setAvailableTags((prev) => [...prev, created].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      } else {
+        const response = await apiFetch(`/api/whatsapp/etiquetas/${tagFormId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ nombre, color }),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.message || 'No se pudo actualizar la etiqueta');
+        }
+        const updated: WhatsappEtiqueta = data;
+        setAvailableTags((prev) =>
+          prev.map((tag) => (tag.id === updated.id ? updated : tag)).sort((a, b) => a.nombre.localeCompare(b.nombre))
+        );
+        setConversationTags((prev) => prev.map((tag) => (tag.id === updated.id ? updated : tag)));
+      }
+      handleCancelTagForm();
+    } catch (error) {
+      setTagFormError(error instanceof Error ? error.message : 'Ocurrió un error inesperado');
+    } finally {
+      setTagFormSaving(false);
+    }
+  };
+
+  const handleDeactivateTag = async (tag: WhatsappEtiqueta) => {
+    setTagDeactivatingId(tag.id);
+    setTagActionError(null);
+    try {
+      const response = await apiFetch(`/api/whatsapp/etiquetas/${tag.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ activo: false }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || 'No se pudo desactivar la etiqueta');
+      }
+      setAvailableTags((prev) => prev.filter((t) => t.id !== tag.id));
+      setSelectedTagIds((prev) => prev.filter((id) => id !== tag.id));
+      setConversationTags((prev) => prev.filter((t) => t.id !== tag.id));
+      if (tagFormId === tag.id) {
+        handleCancelTagForm();
+      }
+    } catch (error) {
+      setTagActionError(error instanceof Error ? error.message : 'Ocurrió un error inesperado');
+    } finally {
+      setTagDeactivatingId(null);
+    }
+  };
+
   const handleSelectEtapa = async (etapa: EtapaOportunidad) => {
     if (!etapaMenu?.leadId) return;
     const leadId = etapaMenu.leadId;
@@ -1563,6 +1742,7 @@ export default function LeadsPage() {
             ? (uploadFileName || null)
             : null,
         status: 'sending' as const,
+        replyTo: replyingTo,
       };
 
       updateLead(selectedLead.id, {
@@ -1599,6 +1779,7 @@ export default function LeadsPage() {
                   contenido: trimmedMessage || '',
                 }
                 : { mensaje: trimmedMessage }),
+          ...(replyingTo ? { mensaje_respuesta_id: replyingTo.id } : {}),
         }),
       });
 
@@ -1621,6 +1802,7 @@ export default function LeadsPage() {
 
       updateMessageStatus(selectedLead.id, tempId, 'sent');
       setQuickReply('');
+      setReplyingTo(null);
       setUploadPreviewUrl(null);
     setUploadFileType(null);
     setUploadFileName(null);
@@ -1888,7 +2070,10 @@ export default function LeadsPage() {
       <ListItem disablePadding key={lead.id}>
         <ListItemButton
           selected={lead.id === selectedLead?.id}
-          onClick={() => setSelectedLeadId(lead.id)}
+          onClick={() => {
+            setSelectedLeadId(lead.id);
+            setReplyingTo(null);
+          }}
           sx={{
             alignItems: 'center',
             px: 1.5,
@@ -2091,6 +2276,135 @@ export default function LeadsPage() {
         )}
       </Menu>
 
+      <Dialog open={manageTagsOpen} onClose={handleCloseManageTags} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5 }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <LocalOfferIcon fontSize="small" color="primary" />
+            <Typography variant="subtitle1" fontWeight={700}>
+              Administrar etiquetas
+            </Typography>
+          </Stack>
+          <IconButton size="small" onClick={handleCloseManageTags} aria-label="Cerrar">
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 2 }}>
+          {tagActionError && (
+            <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setTagActionError(null)}>
+              {tagActionError}
+            </Alert>
+          )}
+
+          <Stack spacing={1} sx={{ maxHeight: 260, overflowY: 'auto', mb: 1.5, pr: 0.5 }}>
+            {availableTags.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                Aún no hay etiquetas. Crea la primera abajo.
+              </Typography>
+            ) : availableTags.map((tag) => (
+              <Stack
+                key={tag.id}
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                sx={{
+                  px: 1.25,
+                  py: 0.75,
+                  borderRadius: 2,
+                  bgcolor: 'grey.50',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color, flexShrink: 0 }} />
+                <Chip
+                  size="small"
+                  label={tag.nombre}
+                  sx={{
+                    bgcolor: `${tag.color}22`,
+                    color: 'text.primary',
+                    fontWeight: 600,
+                    maxWidth: 160,
+                  }}
+                />
+                <Box sx={{ flex: 1 }} />
+                <Tooltip title="Editar">
+                  <IconButton size="small" onClick={() => handleOpenEditTagForm(tag)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Desactivar">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeactivateTag(tag)}
+                      disabled={tagDeactivatingId === tag.id}
+                    >
+                      <VisibilityOffIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            ))}
+          </Stack>
+
+          <Divider sx={{ mb: 1.5 }} />
+
+          {tagFormOpen ? (
+            <Stack spacing={1.25}>
+              <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                {tagFormId == null ? 'Nueva etiqueta' : 'Editar etiqueta'}
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="flex-start">
+                <TextField
+                  size="small"
+                  label="Nombre"
+                  value={tagFormName}
+                  onChange={(event) => setTagFormName(event.target.value)}
+                  fullWidth
+                  autoFocus
+                />
+                <TextField
+                  size="small"
+                  label="Color"
+                  type="color"
+                  value={tagFormColor}
+                  onChange={(event) => setTagFormColor(event.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ width: 88 }}
+                />
+              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="caption" color="text.secondary">
+                  Vista previa:
+                </Typography>
+                <Chip
+                  size="small"
+                  label={tagFormName.trim() || 'Nombre de etiqueta'}
+                  sx={{ bgcolor: `${tagFormColor}22`, color: 'text.primary', fontWeight: 600 }}
+                />
+              </Stack>
+              {tagFormError && (
+                <Typography variant="caption" color="error">
+                  {tagFormError}
+                </Typography>
+              )}
+              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <Button size="small" onClick={handleCancelTagForm} disabled={tagFormSaving}>
+                  Cancelar
+                </Button>
+                <Button size="small" variant="contained" onClick={handleSubmitTagForm} disabled={tagFormSaving}>
+                  {tagFormId == null ? 'Guardar etiqueta' : 'Guardar cambios'}
+                </Button>
+              </Stack>
+            </Stack>
+          ) : (
+            <Button size="small" startIcon={<AddIcon />} onClick={handleOpenCreateTagForm}>
+              Nueva etiqueta
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Stack direction="row" alignItems="center" spacing={2}>
         <Typography variant="h5" fontWeight={700}>
           Leads
@@ -2183,16 +2497,27 @@ export default function LeadsPage() {
               value={selectedTagIds}
               onChange={(event) => {
                 const value = event.target.value;
-                const nextValues = Array.isArray(value)
-                  ? value.map((item) => Number(item))
+                const rawValues = Array.isArray(value)
+                  ? value
                   : typeof value === 'string'
-                    ? value.split(',').map((item) => Number(item)).filter((item) => Number.isFinite(item))
+                    ? value.split(',')
                     : [];
+
+                if (rawValues.includes(MANAGE_TAGS_OPTION_VALUE)) {
+                  setTagsSelectOpen(false);
+                  handleOpenManageTags();
+                  return;
+                }
+
+                const nextValues = rawValues.map((item) => Number(item)).filter((item) => Number.isFinite(item));
                 setSelectedTagIds(nextValues);
               }}
               SelectProps={{
                 multiple: true,
                 displayEmpty: true,
+                open: tagsSelectOpen,
+                onOpen: () => setTagsSelectOpen(true),
+                onClose: () => setTagsSelectOpen(false),
                 renderValue: () => (
                   <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                     {selectedTags.length ? selectedTags.map((tag) => (
@@ -2213,7 +2538,6 @@ export default function LeadsPage() {
               }}
               inputProps={{ 'aria-label': 'Etiquetas' }}
               sx={leadFilterSelectSx}
-              disabled={availableTags.length === 0}
             >
               {availableTags.length === 0 ? (
                 <MenuItem value="" disabled>
@@ -2229,6 +2553,15 @@ export default function LeadsPage() {
                   </Stack>
                 </MenuItem>
               ))}
+              <Divider sx={{ my: 0.5 }} />
+              <MenuItem value={MANAGE_TAGS_OPTION_VALUE} sx={{ color: 'primary.main' }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <SettingsIcon fontSize="small" />
+                  <Typography variant="body2" fontWeight={600}>
+                    Administrar etiquetas
+                  </Typography>
+                </Stack>
+              </MenuItem>
             </TextField>
             {isAdmin && leadScope === 'mis' && (
               <Typography variant="caption" color="text.secondary">
@@ -2802,23 +3135,36 @@ export default function LeadsPage() {
                 </Paper>
               </Stack>
 
-              <Stack spacing={1} sx={{ flex: 1, minHeight: 0 }}>
+              <Stack spacing={1}>
                 <Typography variant="subtitle2" color="text.secondary">
                   Conversación
                 </Typography>
                 <Paper
                   variant="outlined"
                   ref={conversationScrollRef}
-                  sx={{ p: 1.25, height: 280, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}
+                  sx={{ p: 1.25, maxHeight: '50vh', minHeight: 260, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}
                 >
-                  {selectedLead.conversation.map((msg) => (
-                    <Box
-                      key={msg.id}
-                      sx={{
-                        display: 'flex',
-                        justifyContent: msg.from === 'me' ? 'flex-end' : 'flex-start',
-                      }}
-                    >
+                  {selectedLead.conversation.map((msg) => {
+                    const replyButton = (
+                      <IconButton
+                        className="reply-hover-btn"
+                        size="small"
+                        aria-label="Responder mensaje"
+                        onClick={() => {
+                          setReplyingTo({
+                            id: msg.id,
+                            from: msg.from,
+                            preview: msg.text || buildReplyPreviewText(msg.tipoContenido ?? 'text', msg.text, msg.caption),
+                          });
+                          focusReplyInput();
+                        }}
+                        sx={{ opacity: 0, transition: 'opacity 0.15s', p: 0.5 }}
+                      >
+                        <ReplyIcon fontSize="small" />
+                      </IconButton>
+                    );
+
+                    const bubble = (
                       <Box
                         sx={{
                           maxWidth: '75%',
@@ -2829,19 +3175,61 @@ export default function LeadsPage() {
                           color: msg.from === 'me' ? 'primary.contrastText' : 'text.primary',
                         }}
                       >
+                        {msg.replyTo && (
+                          <Box
+                            sx={{
+                              borderLeft: '3px solid',
+                              borderColor: msg.from === 'me' ? 'rgba(255,255,255,0.6)' : 'primary.main',
+                              bgcolor: msg.from === 'me' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)',
+                              borderRadius: 1,
+                              px: 1,
+                              py: 0.5,
+                              mb: 0.5,
+                            }}
+                          >
+                            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', opacity: 0.9 }}>
+                              {msg.replyTo.from === 'me' ? 'Tú' : (selectedLead.name || 'Contacto')}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                opacity: 0.8,
+                                display: '-webkit-box',
+                                WebkitLineClamp: 1,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {msg.replyTo.preview}
+                            </Typography>
+                          </Box>
+                        )}
                         {msg.tipoContenido === 'image' && msg.mediaUrl && (
                           <Box
-                            component="img"
-                            src={msg.mediaUrl}
-                            alt="Imagen enviada"
-                            sx={{
-                              display: 'block',
-                              maxWidth: 250,
-                              maxHeight: 250,
-                              borderRadius: 1,
-                              mb: msg.text ? 0.5 : 0,
-                            }}
-                          />
+                            component="a"
+                            href={msg.mediaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{ display: 'block' }}
+                          >
+                            <Box
+                              component="img"
+                              src={msg.mediaUrl}
+                              alt="Imagen enviada"
+                              sx={{
+                                display: 'block',
+                                maxWidth: 250,
+                                maxHeight: 250,
+                                borderRadius: 1,
+                                mb: msg.text ? 0.5 : 0,
+                              }}
+                            />
+                          </Box>
+                        )}
+                        {(msg.tipoContenido === 'image' || msg.tipoContenido === 'audio' || msg.tipoContenido === 'document') && !msg.mediaUrl && (
+                          <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.85 }}>
+                            {msg.caption || 'Archivo recibido'}
+                          </Typography>
                         )}
                         {msg.tipoContenido === 'document' && msg.mediaUrl && (
                           <Stack direction="row" spacing={1} alignItems="center">
@@ -2893,13 +3281,67 @@ export default function LeadsPage() {
                           )}
                         </Box>
                       </Box>
-                    </Box>
-                  ))}
+                    );
+
+                    return (
+                      <Box
+                        key={msg.id}
+                        sx={{
+                          display: 'flex',
+                          justifyContent: msg.from === 'me' ? 'flex-end' : 'flex-start',
+                          alignItems: 'center',
+                          gap: 0.25,
+                          '&:hover .reply-hover-btn': { opacity: 1 },
+                        }}
+                      >
+                        {msg.from === 'me' ? (
+                          <>
+                            {replyButton}
+                            {bubble}
+                          </>
+                        ) : (
+                          <>
+                            {bubble}
+                            {replyButton}
+                          </>
+                        )}
+                      </Box>
+                    );
+                  })}
                   <Box ref={conversationEndRef} />
                 </Paper>
               </Stack>
 
               <Paper variant="outlined" sx={{ p: 1.25 }}>
+                {replyingTo && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1,
+                      mb: 1,
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      bgcolor: 'grey.100',
+                      borderLeft: '3px solid',
+                      borderColor: 'primary.main',
+                    }}
+                  >
+                    <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', display: 'block' }}>
+                        {replyingTo.from === 'me' ? 'Tú' : (selectedLead.name || 'Contacto')}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                        {replyingTo.preview}
+                      </Typography>
+                    </Box>
+                    <IconButton size="small" aria-label="Cancelar respuesta" onClick={() => setReplyingTo(null)}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
                 <Box component="form" onSubmit={handleSendWhatsapp}>
                   <Stack direction="row" spacing={1} alignItems="center">
                     <input
@@ -2927,9 +3369,18 @@ export default function LeadsPage() {
                     <TextField
                       fullWidth
                       size="small"
+                      multiline
+                      minRows={1}
+                      maxRows={3}
                       placeholder="Escribe una respuesta rápida"
                       value={quickReply}
                       onChange={(e) => setQuickReply(e.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault();
+                          handleSendWhatsapp();
+                        }
+                      }}
                       inputRef={quickReplyRef}
                     />
                     <IconButton

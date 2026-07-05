@@ -30,10 +30,11 @@ export default function LoginPage() {
         user,
         empresas: empresasList,
         empresaActivaId,
+        roles: [],
       });
 
       if (empresaActivaId) {
-        navigate(await resolveRutaInicio({ token, user, empresas: empresasList, empresaActivaId }), { replace: true });
+        navigate(await resolveRutaInicio({ token, user, empresas: empresasList, empresaActivaId, roles: [] }), { replace: true });
       } else {
         navigate("/seleccionar-empresa");
       }

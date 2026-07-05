@@ -154,7 +154,7 @@ export default function ContactosAdvancedFilters({
                 onChange={(_, value) => onSelectedTiposChange(value)}
                 renderInput={(params) => (
                   <TextField
-                    {...params}
+                    {...(params as any)}
                     label="Tipo de contacto"
                     placeholder={filters.selectedTipos.length ? '' : 'Todos'}
                     InputLabelProps={{ ...(params.InputLabelProps as any), shrink: true }}
@@ -173,7 +173,7 @@ export default function ContactosAdvancedFilters({
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 renderInput={(params) => (
                   <TextField
-                    {...params}
+                    {...(params as any)}
                     label="Origen de contacto"
                     placeholder="Todos"
                     InputLabelProps={{ ...(params.InputLabelProps as any), shrink: true }}
@@ -205,7 +205,7 @@ export default function ContactosAdvancedFilters({
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 renderInput={(params) => (
                   <TextField
-                    {...params}
+                    {...(params as any)}
                     label="Vendedor"
                     placeholder="Todos"
                     InputLabelProps={{ ...(params.InputLabelProps as any), shrink: true }}
