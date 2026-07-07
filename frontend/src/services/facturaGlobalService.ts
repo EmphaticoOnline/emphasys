@@ -30,6 +30,8 @@ export type FacturaGlobalGenerarResult = {
   subtotal: number;
   iva: number;
   total: number;
+  timbrado: boolean;
+  timbrado_error: string | null;
 };
 
 export async function previewFacturaGlobal(

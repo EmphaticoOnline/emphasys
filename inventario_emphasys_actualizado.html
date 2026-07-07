@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; margin: 2cm; color: #1a1a1a; }
+  h1 { font-size: 20pt; color: #1d2f68; border-bottom: 3px solid #1d2f68; padding-bottom: 6pt; margin-top: 0; }
+  h2 { font-size: 15pt; color: #1d2f68; border-bottom: 1px solid #c0c0c0; padding-bottom: 4pt; margin-top: 24pt; }
+  h3 { font-size: 12pt; color: #2c4a9e; margin-top: 16pt; margin-bottom: 4pt; }
+  h4 { font-size: 11pt; color: #444; margin-top: 12pt; margin-bottom: 2pt; }
+  p { margin: 4pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10pt 0; font-size: 10pt; }
+  th { background-color: #1d2f68; color: white; padding: 6pt 8pt; text-align: left; }
+  td { border: 1px solid #d0d0d0; padding: 5pt 8pt; vertical-align: top; }
+  tr:nth-child(even) td { background-color: #f5f7fc; }
+  .badge-red    { background:#e53935; color:white; padding:2pt 6pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-yellow { background:#f57c00; color:white; padding:2pt 6pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-green  { background:#388e3c; color:white; padding:2pt 6pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-blue   { background:#1d2f68; color:white; padding:2pt 6pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .bar { display:inline-block; height:10pt; background:#1d2f68; vertical-align:middle; }
+  .bar-bg { display:inline-block; height:10pt; background:#e0e0e0; vertical-align:middle; }
+  ul { margin: 4pt 0 4pt 16pt; padding: 0; }
+  li { margin-bottom: 2pt; }
+  .seccion-critica   { border-left: 4px solid #e53935; padding-left: 10pt; margin-bottom: 12pt; }
+  .seccion-importante{ border-left: 4px solid #f57c00; padding-left: 10pt; margin-bottom: 12pt; }
+  .seccion-deseable  { border-left: 4px solid #388e3c; padding-left: 10pt; margin-bottom: 12pt; }
+  .cover { text-align:center; padding: 40pt 0 30pt 0; }
+  .cover h1 { border: none; font-size: 28pt; }
+  .cover .subtitulo { font-size: 14pt; color: #555; margin-top: 8pt; }
+  .cover .fecha { font-size: 10pt; color: #888; margin-top: 16pt; }
+  pre { background:#f4f4f4; padding:8pt; font-size:9pt; border:1px solid #ccc; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 16pt 0; }
+
+  /* ---- Estados de avance (nuevo) ---- */
+  .badge-hecho     { background:#2e7d32; color:white; padding:2pt 7pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-parcial   { background:#f9a825; color:#1a1a1a; padding:2pt 7pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-pendiente { background:#8d8d8d; color:white; padding:2pt 7pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .badge-noverif   { background:#5e35b1; color:white; padding:2pt 7pt; border-radius:3pt; font-weight:bold; font-size:9pt; }
+  .tachado { text-decoration: line-through; opacity: 0.62; }
+  .estado-box { background:#f7f7fa; border:1px solid #ddd; border-left:4px solid #2c4a9e; padding:6pt 10pt; margin:6pt 0 10pt 0; font-size:9.5pt; }
+  .estado-box.hecho     { border-left-color:#2e7d32; }
+  .estado-box.parcial   { border-left-color:#f9a825; }
+  .estado-box.pendiente { border-left-color:#8d8d8d; background:#fafafa; }
+  .estado-box .etiqueta { font-weight:bold; color:#1d2f68; }
+  .resumen-avance table td:first-child { font-weight:bold; }
+  .resumen-ejecutivo { background:#f5f7fc; border:1px solid #c9d3ec; padding:12pt 16pt; margin:12pt 0; }
+  .discrepancia { background:#fff3e0; border:1px solid #f9a825; padding:6pt 10pt; font-size:9.5pt; margin:6pt 0; }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div class="cover">
+  <h1>Emphasys ERP</h1>
+  <div class="subtitulo">Inventario de módulos implementados<br>y análisis de funcionalidades faltantes<br><strong>— Actualización de avance —</strong></div>
+  <div class="fecha">Actualizado el 6 de julio de 2026 · Documento base generado el 8 de junio de 2026</div>
+</div>
+
+<hr>
+
+<!-- ==================== RESUMEN EJECUTIVO ==================== -->
+<h1>Resumen ejecutivo de avance</h1>
+
+<div class="resumen-ejecutivo">
+<p>Este documento actualiza el inventario original (<code>inventario_emphasys.html</code>, 8 de junio de 2026) contra el estado real del código a hoy. Cada uno de los <strong>30 puntos</strong> de la Parte 2 (funcionalidades faltantes) fue verificado leyendo el backend, frontend, migraciones de base de datos e historial de commits — no solo por nombres de archivo.</p>
+</div>
+
+<table class="resumen-avance">
+  <tr><th>Métrica</th><th>Valor</th></tr>
+  <tr><td>Total de puntos revisados (Parte 2)</td><td>30</td></tr>
+  <tr><td><span class="badge-hecho">HECHO</span></td><td>3 puntos (10%)</td></tr>
+  <tr><td><span class="badge-parcial">PARCIAL</span></td><td>9 puntos (30%)</td></tr>
+  <tr><td><span class="badge-pendiente">PENDIENTE</span></td><td>18 puntos (60%)</td></tr>
+  <tr><td><span class="badge-noverif">NO VERIFICABLE</span></td><td>0 puntos (0%)</td></tr>
+  <tr><td><strong>Avance ponderado sobre los 30 puntos</strong><br><span style="font-weight:normal; font-size:9pt; color:#666;">(HECHO = 1, PARCIAL = 0.5, PENDIENTE = 0)</span></td>
+      <td><strong>~25%</strong><br>
+      <span class="bar" style="width:100pt;"></span><span class="bar-bg" style="width:300pt;"></span>
+      </td></tr>
+</table>
+
+<p>Adicionalmente, la <strong>cobertura ERP total estimada</strong> (tabla 6 de la Parte 1) subió de <strong>~45%</strong> a aproximadamente <strong>~57%</strong>, principalmente por avances en Compras, Finanzas/Tesorería, CFDI e Inventario. Contabilidad y Nómina siguen en 0%.</p>
+
+<p style="font-size:9pt; color:#888;">Nota metodológica: ningún punto quedó como "NO VERIFICABLE" porque en todos los casos se encontró evidencia directa en código (ya sea de la funcionalidad, o de su ausencia confirmada por búsqueda exhaustiva). Esto no significa que todo lo "PENDIENTE" sea imposible de verificar en el futuro — significa que en esta revisión se encontró evidencia suficiente para clasificarlo con confianza.</p>
+
+<hr>
+
+<!-- ==================== CAMBIOS DETECTADOS ==================== -->
+<h1>Cambios detectados desde el inventario original</h1>
+
+<ol>
+  <li><strong>Complemento de Pago (CFDI Pagos 2.0 / PPD) implementado end-to-end.</strong> Nodo <code>Complemento.Payments</code> completo (moneda, tipo de cambio, parcialidades, saldo insoluto, impuestos proporcionales), relación explícita al UUID del CFDI origen, timbrado real vía Facturama y actualización de saldo. Antes era un pendiente crítico; hoy está <span class="badge-hecho">HECHO</span>.</li>
+  <li><strong>El "esqueleto" de Compras se convirtió en un módulo funcional completo</strong>, pero con una arquitectura distinta a la esperada: en vez de un módulo aislado, se resolvió extendiendo el motor universal de <em>tipos de documento configurables</em> (requisición → orden de compra → recepción → factura de compra → pago a proveedor), apoyado en un nuevo <strong>motor de autorizaciones configurable</strong> (flujos de aprobación por transición documental) y en <strong>programación de pagos a múltiples facturas</strong> (commit "Programación de pagos a múltiples facturas").</li>
+  <li><strong>Nuevo módulo de CFDI SAT (descarga masiva de comprobantes recibidos)</strong>, construido en varias fases (migraciones de julio 2026, commit "Descarga CFDIs"): conexión real al webservice de descarga masiva del SAT vía FIEL, extracción de paquetes, vinculación contra facturas de compra y bitácora, con UI dedicada. No estaba ni siquiera esbozado en el inventario original más allá de mencionarse como pendiente importante (punto 15).</li>
+  <li><strong>Facturación Global implementada</strong> (agrupación de ventas sin CFDI individual + periodicidad configurable + nodo <code>GlobalInformation</code>), aunque el timbrado final sigue siendo una acción manual del usuario, no automática.</li>
+  <li><strong>Conciliación bancaria y Tesorería nuevas</strong>: cotejo de movimientos de finanzas contra saldo de banco, cierre de conciliación, reportes de posición de tesorería y cartera vencida. Es conciliación manual asistida, no integración bancaria automatizada (sin lectura de layouts/XML bancarios ni SPEI/CoDi real).</li>
+  <li><strong>Exportación a Excel centralizada en backend</strong> (librería <code>xlsx</code>) para inventario, productos e informes — resuelve el punto 8 del inventario original.</li>
+  <li><strong>Inventario mejoró de forma notable</strong>: kardex por producto valorizado, traspasos entre almacenes (bajo el nombre "transferencia"), valuación por costo promedio y reporte de productos bajo mínimo. Sigue sin números de serie/lote, caducidad, punto de reorden real ni toma física.</li>
+  <li><strong>Duplicado de cotizaciones (individual y masivo)</strong>: funcionalidad nueva no contemplada en el inventario original. Cubre documentos/cotizaciones; <strong>no existe todavía para oportunidades</strong> del CRM.</li>
+  <li><strong>Plantillas de WhatsApp con parámetros configurables</strong>: se agregó contenido de plantilla y mapeo de variables (<code>{{1}}, {{2}}</code>...) a datos del contacto/documento.</li>
+  <li><strong>Mejoras en impresión de cotizaciones</strong> (commit "Agregar teléfono y correo..."): teléfono/correo del cliente en el PDF, fix de clave de producto en edición, y especificaciones de producto trasladables a observaciones de partida con formato enriquecido.
+    <div class="discrepancia"><strong>Discrepancia detectada:</strong> el mensaje de ese commit también dice "Aparecer observaciones de encabezado en viñetas", pero no se encontró en el código actual ningún parseo de viñetas para las observaciones de encabezado del documento (el campo sigue siendo texto plano tanto en el editor como en el PDF). Se marca como <span class="badge-noverif">NO VERIFICABLE / NO ENCONTRADO</span> para ese sub-punto específico — no se asume que esté hecho solo por el mensaje del commit.</div>
+  </li>
+  <li><strong>Notas de crédito</strong> ya cubren el aspecto fiscal/financiero de una devolución (aplicación de saldo contra un CFDI), pero sigue sin existir un flujo operativo de RMA (autorización de devolución física, recepción en almacén, estado del producto).</li>
+</ol>
+
+<hr>
+
+<!-- ==================== PARTE 1: INVENTARIO ==================== -->
+
+<h1>Parte 1 — Inventario del sistema actual</h1>
+
+<!-- MÓDULOS IMPLEMENTADOS -->
+<h2>1. Módulos implementados</h2>
+
+<table>
+  <tr>
+    <th>Módulo</th>
+    <th>Backend</th>
+    <th>Frontend</th>
+    <th>Estado</th>
+  </tr>
+  <tr><td>Autenticación (JWT, roles, permisos)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Multiempresa</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Contactos (clientes / proveedores)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Productos y catálogo</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Documentos universales (cotizaciones, facturas, etc.)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>CFDI / Facturama (timbrado y cancelación)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>CFDI Complemento de Pago (PPD) <span class="badge-hecho">NUEVO</span></td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Facturación Global <span class="badge-hecho">NUEVO</span></td><td>✔</td><td>✔</td><td>Timbrado manual (no automático)</td></tr>
+  <tr><td>CFDI SAT — descarga masiva de recibidos <span class="badge-hecho">NUEVO</span></td><td>✔</td><td>✔</td><td>Funcional, ejecución asistida (no cron desatendido)</td></tr>
+  <tr><td>Finanzas (cuentas, operaciones, aging)</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Conciliación bancaria / Tesorería <span class="badge-hecho">NUEVO</span></td><td>✔</td><td>✔</td><td>Manual asistida</td></tr>
+  <tr><td>Autorizaciones / flujos de aprobación <span class="badge-hecho">NUEVO</span></td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Compras (requisición → OC → recepción → factura → pago) <span class="badge-hecho">ACTUALIZADO</span></td><td>✔</td><td>✔</td><td>Completo (vía documentos configurables)</td></tr>
+  <tr><td>Inventario y almacenes</td><td>✔</td><td>✔</td><td>Mejorado (kardex, traspasos, valuación)</td></tr>
+  <tr><td>Producción (etapas, seguimiento)</td><td>✔</td><td>✔</td><td>Básico</td></tr>
+  <tr><td>CRM (actividades, oportunidades)</td><td>✔</td><td>✔</td><td>Básico</td></tr>
+  <tr><td>WhatsApp Business (mensajes, plantillas, etiquetas)</td><td>✔</td><td>✔</td><td>Completo (plantillas con parámetros)</td></tr>
+  <tr><td>Email / SMTP configurable</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Precios y listas de precios</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Campos dinámicos configurables</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Reportes con IA (OpenAI)</td><td>✔</td><td>✔</td><td>Básico</td></tr>
+  <tr><td>Reportes estándar predefinidos (~20 reportes) <span class="badge-hecho">NUEVO</span></td><td>✔</td><td>✔</td><td>Amplio (faltan DIOT, rentabilidad, libro formal)</td></tr>
+  <tr><td>Exportación a Excel desde grillas/informes <span class="badge-hecho">NUEVO</span></td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Configuración y parámetros del sistema</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+  <tr><td>Grid preferences por usuario</td><td>✔</td><td>✔</td><td>Completo</td></tr>
+</table>
+
+<!-- PÁGINAS FRONTEND -->
+<h2>2. Pantallas del frontend</h2>
+<p style="font-size:9pt; color:#666;">El listado original de 45 páginas se mantiene vigente como base; se agregaron pantallas nuevas para los módulos marcados como "NUEVO" arriba (CFDI SAT, Conciliación Bancaria, Programación de Pagos, Autorizaciones, Factura Global, Informes por carpeta), sin quitar ninguna de las páginas ya documentadas.</p>
+
+<h3>Páginas principales</h3>
+<table>
+  <tr><th>Página</th><th>Descripción</th></tr>
+  <tr><td>LoginPage</td><td>Autenticación</td></tr>
+  <tr><td>SeleccionEmpresaPage</td><td>Selección de empresa activa</td></tr>
+  <tr><td>CRMPage</td><td>Dashboard CRM integrado</td></tr>
+  <tr><td>ActividadesPage / ActividadFormPage</td><td>Actividades comerciales</td></tr>
+  <tr><td>OportunidadesPage / OportunidadDetallePage</td><td>Oportunidades de venta (grilla, sin Kanban)</td></tr>
+  <tr><td>LeadsPage</td><td>Conversaciones / leads de WhatsApp</td></tr>
+  <tr><td>ContactosPage / ContactoFormPage</td><td>Gestión de clientes y proveedores</td></tr>
+  <tr><td>ProductosPage / ProductoFormPage</td><td>Catálogo de productos (con especificaciones)</td></tr>
+  <tr><td>DocumentosPage / DocumentosFormPage</td><td>Documentos (cotizaciones, facturas, compras, etc.), con duplicado individual y masivo</td></tr>
+  <tr><td>CotizacionesGridPage</td><td>Vista grilla de cotizaciones, con duplicado</td></tr>
+  <tr><td>FinanzasPage</td><td>Módulo financiero</td></tr>
+  <tr><td>ProgramacionPagosPage <span class="badge-hecho">NUEVO</span></td><td>Programación de pagos a proveedor (individual y masiva)</td></tr>
+  <tr><td>ConciliacionBancariaPage <span class="badge-hecho">NUEVO</span></td><td>Cotejo de movimientos vs saldo de banco</td></tr>
+  <tr><td>AutorizacionesBandejaPage <span class="badge-hecho">NUEVO</span></td><td>Bandeja de autorizaciones pendientes</td></tr>
+  <tr><td>CfdiSatPage <span class="badge-hecho">NUEVO</span></td><td>Descarga masiva SAT, bitácora, vinculación e importación de compras</td></tr>
+  <tr><td>InventarioMovimientosPage / InventarioMovimientoFormPage</td><td>Movimientos de inventario, incl. transferencias entre almacenes</td></tr>
+  <tr><td>informes/ (compras, ventas, finanzas, inventario) <span class="badge-hecho">NUEVO</span></td><td>~20 reportes estándar predefinidos con exportación a Excel</td></tr>
+  <tr><td>ProduccionPage</td><td>Seguimiento de producción</td></tr>
+  <tr><td>AIReportesPage</td><td>Reportes con inteligencia artificial</td></tr>
+  <tr><td>CamposConfiguracionPage</td><td>Campos dinámicos</td></tr>
+  <tr><td>CatalogosConfigurablesPage</td><td>Catálogos configurables por módulo</td></tr>
+  <tr><td>ConceptosPage</td><td>Conceptos de documentos</td></tr>
+  <tr><td>ConfiguracionEtapasProduccionPage</td><td>Etapas de producción</td></tr>
+</table>
+
+<h3>Páginas de configuración</h3>
+<table>
+  <tr><th>Página</th><th>Descripción</th></tr>
+  <tr><td>EmpresasPage</td><td>Gestión de empresas</td></tr>
+  <tr><td>UsuariosPage</td><td>Gestión de usuarios</td></tr>
+  <tr><td>RolesPage</td><td>Roles y permisos</td></tr>
+  <tr><td>ParametrosPage / OpcionesParametrosPage</td><td>Parámetros del sistema</td></tr>
+  <tr><td>DocumentosConfiguracionPage</td><td>Tipos y configuración de documentos (incl. tipos de compras)</td></tr>
+  <tr><td>ConceptosPage (config)</td><td>Conceptos configurables</td></tr>
+  <tr><td>EmpresaImpuestosDefaultPage</td><td>Impuestos default por empresa</td></tr>
+  <tr><td>FormatosImpresionPage</td><td>Formatos de impresión personalizables</td></tr>
+  <tr><td>ListasPreciosPage / PreciosPage</td><td>Listas y tabla de precios</td></tr>
+  <tr><td>SeriesDocumentosPage</td><td>Series de documentos con folio automático</td></tr>
+  <tr><td>ConfiguracionCorreoPage</td><td>Configuración SMTP</td></tr>
+  <tr><td>CfdiPacConfigPage</td><td>Configuración de Facturama</td></tr>
+  <tr><td>CfdiSatPage <span class="badge-hecho">NUEVO</span></td><td>Configuración de credenciales FIEL y automatización de descarga SAT</td></tr>
+  <tr><td>WhatsappEtiquetasPage / WhatsappPlantillasPage</td><td>WhatsApp: etiquetas y plantillas (ahora con parámetros configurables)</td></tr>
+  <tr><td>CamposObligatoriosPage</td><td>Campos obligatorios por entidad y contexto</td></tr>
+</table>
+
+<!-- BASE DE DATOS -->
+<h2>3. Base de datos</h2>
+
+<table>
+  <tr><th>Esquema</th><th>Tablas principales</th></tr>
+  <tr>
+    <td><strong>public</strong></td>
+    <td>documentos, documentos_partidas, documentos_partidas_impuestos, documentos_cfdi, aplicaciones_saldo, productos (+ especificaciones), productos_archivos, contactos, plantillas_documento, series_documento, precios, precios_listas, conceptos, unidades, impuestos_empresa_default, campos_configuracion, campos_documento_valor</td>
+  </tr>
+  <tr>
+    <td><strong>inventario</strong></td>
+    <td>almacenes, movimientos, movimientos_partidas, existencias</td>
+  </tr>
+  <tr>
+    <td><strong>produccion</strong></td>
+    <td>etapas, seguimientos, seguimientos_historial</td>
+  </tr>
+  <tr>
+    <td><strong>finanzas_operaciones</strong></td>
+    <td>finanzas_operaciones (+ created_by), finanzas_operaciones_conciliacion, <strong>programación de pagos y detalle</strong> <span class="badge-hecho">NUEVO</span></td>
+  </tr>
+  <tr>
+    <td><strong>crm</strong></td>
+    <td>actividades, oportunidades_venta, reglas_seguimiento (umbrales de riesgo, sin automatización de envío), configuracion_email_empresa, configuracion_email_usuario, email_plantillas</td>
+  </tr>
+  <tr>
+    <td><strong>whatsapp</strong></td>
+    <td>config, plantillas (+ contenido, configuracion_parametros), etiquetas, conversacion_etiquetas, conversaciones, mensajes</td>
+  </tr>
+  <tr>
+    <td><strong>core</strong></td>
+    <td>empresas, usuarios, roles, catalogos, tipos_documento, entidades_tipos, cfdi_pac_config, grid_preferences, campos_obligatorios, <strong>empresas_tipos_documento_transiciones (autorizaciones)</strong> <span class="badge-hecho">NUEVO</span></td>
+  </tr>
+  <tr>
+    <td><strong>configuracion / cfdi_sat</strong> <span class="badge-hecho">NUEVO</span></td>
+    <td>cfdi_sat_solicitudes, cfdi_sat_paquetes, cfdi_sat_comprobantes, cfdi_sat_bitacora, cfdi_sat_credenciales, cfdi_sat_automatizacion</td>
+  </tr>
+</table>
+
+<!-- COBERTURA -->
+<h2>4. Cobertura actual estimada (actualizada)</h2>
+
+<table>
+  <tr><th>Área</th><th>Cobertura original</th><th>Cobertura actual</th><th>Observación</th></tr>
+  <tr><td>Comercial básico</td><td>80 %</td><td><strong>~85 %</strong></td><td>Duplicado de cotizaciones y especificaciones de producto agregados; faltan descuentos avanzados y comisiones</td></tr>
+  <tr><td>Facturación / CFDI</td><td>60 %</td><td><strong>~80 %</strong></td><td>Complemento de Pagos y Factura Global implementados, CFDI SAT recibidos operativo; falta Carta Porte y timbrado automático de factura global</td></tr>
+  <tr><td>Finanzas operativas</td><td>70 %</td><td><strong>~85 %</strong></td><td>CxP con aging, programación de pagos y conciliación bancaria manual ya existen; falta integración bancaria automatizada real (SPEI/CoDi/layouts)</td></tr>
+  <tr><td>CRM</td><td>50 %</td><td><strong>~55 %</strong></td><td>Solo mejoras puntuales (duplicado de cotización, plantillas WhatsApp); sigue sin pipeline Kanban, forecast, scoring ni cadencias automatizadas</td></tr>
+  <tr><td>Inventario</td><td>50 %</td><td><strong>~65 %</strong></td><td>Kardex valorizado, traspasos y costo promedio implementados; falta series/lotes, caducidad, punto de reorden real y toma física</td></tr>
+  <tr><td>Compras</td><td>20 %</td><td><strong>~85 %</strong></td><td>Resuelto vía documentos configurables + autorizaciones + programación de pagos; sin cambios funcionales pendientes relevantes</td></tr>
+  <tr><td>Contabilidad</td><td>0 %</td><td><strong>0 %</strong></td><td>Módulo no iniciado — sin cambios</td></tr>
+  <tr><td>Nómina</td><td>0 %</td><td><strong>0 %</strong></td><td>Módulo no iniciado — sin cambios</td></tr>
+  <tr><td>Reportes / BI</td><td>30 %</td><td><strong>~60 %</strong></td><td>~20 reportes estándar con exportación a Excel; faltan DIOT, rentabilidad, libro formal, dashboard de KPIs y gráficas interactivas</td></tr>
+  <tr><td><strong>Cobertura ERP total</strong></td><td><strong>~45 %</strong></td><td><strong>~57 %</strong></td><td>Estimación aproximada, ponderación simple por área</td></tr>
+</table>
+
+<hr>
+
+<!-- ==================== PARTE 2: FALTANTES ==================== -->
+
+<h1>Parte 2 — Funcionalidades faltantes para ERP competitivo en México — Estado actualizado</h1>
+
+<!-- CRÍTICAS -->
+<h2>🔴 Críticas — Bloquean ventas o cumplimiento fiscal</h2>
+
+<div class="seccion-critica">
+<h3 class="tachado">1. Complemento de Pagos (CFDI Pagos 2.0 / PPD)</h3>
+<span class="badge-hecho">HECHO</span>
+<div class="estado-box hecho">
+<span class="etiqueta">Verificado en código:</span> <code>pago-complement.builder.ts</code> arma el nodo <code>Complemento.Payments</code> completo (moneda, tipo de cambio, importe pagado, saldo anterior/insoluto, impuestos proporcionales). <code>cfdi-pago.service.ts</code> relaciona el UUID del CFDI origen, calcula parcialidades desde <code>aplicaciones_saldo</code> y timbra vía Facturama (<code>facturama.client.ts</code>). Endpoint <code>POST /api/documentos/:id/timbrar-complemento-pago</code> con botón funcional en <code>DocumentosPage.tsx</code>. Sin huecos relevantes.
+</div>
+<p class="tachado">El sistema genera facturas pero no emite el complemento de pagos cuando el cliente paga en parcialidades (método de pago PPD). Es <strong>obligación fiscal SAT</strong>; sin él el cliente no puede deducir la factura.</p>
+<ul class="tachado">
+  <li>Relación de documentos relacionados (UUID del CFDI origen)</li>
+  <li>Nodo <em>Pagos 2.0</em> con moneda, tipo de cambio, importe pagado</li>
+  <li>Impuestos trasladados y retenidos en el nodo de pagos</li>
+  <li>Actualización de saldo del documento al timbrar el complemento</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>2. CFDI de Nómina (Complemento Nómina 1.2)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente">
+<span class="etiqueta">Verificado en código:</span> búsqueda exhaustiva de "nomina", "payroll", "empleado" en backend, frontend y migraciones sin coincidencias reales (los únicos hits son falsos positivos: "operación nominativa", "cheque nominativo"). No existe tabla de empleados ni módulo de RH.
+</div>
+<p>No existe ningún módulo de nómina. Para empresas con empleados formales es <strong>obligación ISR/IMSS</strong>.</p>
+<ul>
+  <li>Alta de empleados (RFC, CURP, NSS, datos laborales, banco)</li>
+  <li>Cálculo de percepciones y deducciones</li>
+  <li>Cálculo de ISR (tabla mensual/quincenal/semanal)</li>
+  <li>Timbrado de recibos de nómina como CFDI</li>
+  <li>Integración con IMSS (SUA/IDSE)</li>
+  <li>Declaraciones mensuales y anuales (PTU)</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>3. Contabilidad General y e-Contabilidad</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente">
+<span class="etiqueta">Verificado en código:</span> búsqueda de "poliza", "plan_cuentas", "mayor_general", "balanza", "estado_resultados", "contabilidad" en todo el repositorio sin ningún resultado. No hay catálogo de cuentas ni generación de pólizas.
+</div>
+<p>No hay módulo contable. Para competir con CONTPAQi, Aspel NOI, SAE o cualquier ERP regional es indispensable. El SAT exige e-Contabilidad (XML) a todas las personas morales.</p>
+<ul>
+  <li>Plan de cuentas (catálogo de cuentas SAT)</li>
+  <li>Pólizas de diario, ingresos y egresos</li>
+  <li>Mayor general y auxiliares</li>
+  <li>Balanza de comprobación</li>
+  <li>Estado de resultados y balance general</li>
+  <li>e-Contabilidad: XML de catálogo, balanza y pólizas para el SAT</li>
+  <li>Generación automática de pólizas desde documentos</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>4. CFDI Carta Porte (Complemento 3.0)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente">
+<span class="etiqueta">Verificado en código:</span> búsqueda de "carta_porte", "cartaporte", "autotransporte", "figura_transporte" en todo el repositorio sin ningún resultado.
+</div>
+<p>Obligatorio desde 2022 para <strong>cualquier traslado de mercancía</strong> en territorio nacional. Clientes con logística o distribución no pueden operar legalmente sin él.</p>
+<ul>
+  <li>Datos del autotransporte (placas, año modelo, permisos SCT)</li>
+  <li>Figuras de transporte (operador, propietario, arrendatario)</li>
+  <li>Ubicaciones origen y destino con coordenadas</li>
+  <li>Mercancías con clave de producto SAT, peso, dimensiones</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3 class="tachado">5. Módulo de Compras completo</h3>
+<span class="badge-hecho">HECHO</span>
+<div class="estado-box hecho">
+<span class="etiqueta">Verificado en código:</span> resuelto con una arquitectura distinta a la esperada — no es un módulo <code>compras/</code> aislado, sino <strong>tipos de documento configurables</strong> (<code>requisicion</code>, <code>orden_compra</code>, <code>recepcion</code>, <code>factura_compra</code>, <code>pago_proveedor</code>) dentro del motor universal de Documentos. Requisiciones con flujo de autorización vía el nuevo módulo genérico <code>autorizaciones/</code> (políticas por transición documental). OC con PDF y envío a proveedor (<code>cotizacion-email.service.ts</code>). Recepción → entrada a inventario vía vista <code>oc_partidas_recepcion</code> + <code>inventario.service.ts</code>. Facturas de proveedor vinculadas a la OC (<code>documentos_partidas_vinculos</code>). CxP con aging y <strong>programación de pagos a múltiples facturas</strong> (<code>finanzas.routes.ts</code>: <code>/programacion-pagos</code>, <code>/masiva</code>). UI en <code>ProgramacionPagosPage.tsx</code> e informes de compras por proveedor/producto/periodo.
+</div>
+<p class="tachado">Existe el esqueleto de rutas pero el flujo no está implementado. Sin compras no hay control real del ciclo comercial.</p>
+<ul class="tachado">
+  <li>Requisiciones de compra con flujo de autorización</li>
+  <li>Órdenes de compra con PDF y envío a proveedor</li>
+  <li>Recepción de mercancía (entrada a inventario)</li>
+  <li>Facturas de proveedor (registro y conciliación contra OC)</li>
+  <li>Cuentas por pagar y programación de pagos</li>
+  <li>Aging de cuentas por pagar</li>
+</ul>
+</div>
+
+<div class="seccion-critica">
+<h3>6. Facturación Global (Ventas al público general)</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> <code>factura-global.controller.ts</code> agrupa correctamente ventas sin CFDI individual (filtro por <code>tratamiento_impuestos='venta_publico_general'</code>), valida periodicidad/mes/año SAT, copia partidas/impuestos y genera el nodo <code>GlobalInformation</code> en <code>cfdi.service.ts</code>, todo dentro de una transacción. Hay UI con periodicidad configurable (<code>FacturaGlobalDialog.tsx</code>).<br>
+<span class="etiqueta">Qué falta:</span> la factura global se crea en estatus <strong>"Borrador" y no se timbra automáticamente</strong> — el usuario debe timbrarla manualmente con el botón normal después de generarla. No hay timbrado automático programado.
+</div>
+<p>Para negocios B2C (retail, restaurantes, tiendas) es <strong>obligación SAT</strong> emitir una factura global periódica con RFC genérico (XAXX010101000 o XEXX010101000) por las ventas sin factura individual.</p>
+<ul>
+  <li class="tachado">Agrupación de tickets/ventas sin CFDI individual</li>
+  <li class="tachado">Periodicidad configurable (diaria, semanal, mensual)</li>
+  <li>Timbrado automático de factura global <span class="badge-pendiente" style="font-size:8pt;">falta automatizar</span></li>
+</ul>
+</div>
+
+<!-- IMPORTANTES -->
+<h2>🟡 Importantes — Necesarias para ser competitivo</h2>
+
+<div class="seccion-importante">
+<h3>7. Dashboard ejecutivo con KPIs</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente">
+<span class="etiqueta">Verificado en código:</span> no existe ninguna página de Dashboard/Inicio en <code>frontend/src/pages/</code>. La ruta raíz en <code>App.tsx</code> redirige directo a <code>/contactos</code>, sin pantalla de métricas.
+</div>
+<p>No existe página de inicio con métricas del negocio. Es la primera pantalla que ven los directores y vendedores en cualquier ERP.</p>
+<ul>
+  <li>Ventas del día / mes / año vs año anterior</li>
+  <li>Facturas vencidas y por vencer (semáforo)</li>
+  <li>Top clientes y top productos del período</li>
+  <li>Flujo de caja proyectado</li>
+  <li>Indicadores de inventario (productos bajo mínimo)</li>
+  <li>Actividades pendientes del vendedor</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3 class="tachado">8. Exportación a Excel / CSV desde grillas</h3>
+<span class="badge-hecho">HECHO</span>
+<div class="estado-box hecho">
+<span class="etiqueta">Verificado en código:</span> dependencia <code>xlsx</code> en <code>backend/package.json</code>, utilidad centralizada <code>backend/src/utils/exportar.ts</code> (<code>generarExcelBuffer</code>) usada por endpoints de exportación en inventario, productos y todos los informes. Botón "Exportar" funcional en las páginas de grilla e informes (descarga <code>.xlsx</code> generado en backend).
+</div>
+<p class="tachado">Las grillas tienen preferencias de columnas pero no exportan datos. Es la funcionalidad más solicitada en cualquier ERP por usuarios de administración y contabilidad.</p>
+</div>
+
+<div class="seccion-importante">
+<h3>9. Control de inventario avanzado</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> valuación por costo promedio (<code>productos.costo_promedio</code>), <strong>kardex por producto valorizado</strong> (<code>KardexProductoPage.tsx</code> + <code>obtenerKardexProducto</code>), <strong>traspasos entre almacenes</strong> (implementados como movimiento tipo "transferencia", no con ese nombre literal), mínimo de inventario con reporte de "productos bajo mínimo".<br>
+<span class="etiqueta">Qué falta:</span> no hay FIFO (solo costo promedio único), no hay campo de máximo ni punto de reorden real, no hay alertas automáticas (el reporte de bajo mínimo es solo bajo demanda, sin cron/notificación), no existen números de serie, lotes, fecha de caducidad ni toma física. <code>cantidad_minima_venta</code> es un mínimo de <em>venta</em>, no de stock.
+</div>
+<ul>
+  <li class="tachado">Valuación de inventario (costo promedio ponderado <span class="badge-hecho" style="font-size:8pt;">✓</span>, FIFO <span class="badge-pendiente" style="font-size:8pt;">✗</span>)</li>
+  <li>Números de serie y lotes</li>
+  <li>Fecha de caducidad y alertas de vencimiento</li>
+  <li>Mínimos <span class="badge-hecho" style="font-size:8pt;">✓</span>, máximos y punto de reorden <span class="badge-pendiente" style="font-size:8pt;">✗</span></li>
+  <li>Alertas automáticas de stock bajo (solo reporte bajo demanda, sin push)</li>
+  <li>Toma física (conteo vs sistema, diferencias)</li>
+  <li class="tachado">Kardex por producto con valorización</li>
+  <li class="tachado">Traspasos entre almacenes con documento</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>10. Reportes estándar predefinidos</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> ~20 reportes reales y funcionales en <code>reportes.routes.ts</code>/<code>frontend/src/pages/informes/</code>: compras (estado de cuenta proveedor, compras por proveedor/producto/periodo, OC pendientes, historial de precios), ventas (por cliente/producto/periodo, estado de cuenta cliente, pedidos pendientes de facturar), finanzas (vencimientos, pagos, posición de tesorería, cartera vencida, movimientos no conciliados) e inventario (existencias, kardex, productos bajo mínimo, inventario valorizado). Todos exportables a Excel.<br>
+<span class="etiqueta">Qué falta:</span> DIOT, libro de ventas/compras formal (con ese nombre y formato), análisis de rentabilidad por producto/línea, y flujo de caja proyectado explícito (existe "posición de tesorería" como aproximación).
+</div>
+<p>Los reportes IA son innovadores pero no reemplazan reportes operativos confiables y auditables que los contadores y gerentes necesitan cotidianamente.</p>
+<ul>
+  <li class="tachado">Ventas por período, vendedor, producto y cliente</li>
+  <li>Libro de ventas y libro de compras (formato formal)</li>
+  <li>Análisis de rentabilidad por producto o línea</li>
+  <li class="tachado">Inventario valorizado a fecha</li>
+  <li>Flujo de caja real vs proyectado</li>
+  <li>DIOT (Declaración Informativa de Operaciones con Terceros)</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>11. Descuentos avanzados y promociones</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> descuento por partida (porcentaje o monto fijo) vía <code>descuento_tipo</code>/<code>descuento_monto</code> en <code>documentos_partidas</code>, normalizado en <code>documentos.repository.ts</code>.<br>
+<span class="etiqueta">Qué falta:</span> no hay descuentos por volumen (escalas), por cliente/grupo de clientes, vigencia de precios especiales, límite de descuento por rol, ni promociones tipo 2x1 o condicionadas.
+</div>
+<ul>
+  <li>Descuentos por volumen (escala de precios)</li>
+  <li>Descuentos por cliente o grupo de clientes</li>
+  <li>Vigencia de precios especiales</li>
+  <li>Descuento máximo permitido por rol de usuario</li>
+  <li>Promociones (2x1, producto de regalo, descuento condicionado)</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>12. Comisiones de vendedores</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente">
+<span class="etiqueta">Verificado en código:</span> búsqueda de "comision"/"comisión" en todo el backend sin ningún resultado.
+</div>
+<ul>
+  <li>Porcentaje de comisión configurable por vendedor, producto o categoría</li>
+  <li>Cálculo automático al facturar o al cobrar (configurable)</li>
+  <li>Reporte de comisiones por período y vendedor</li>
+  <li>Integración con nómina (cuando exista)</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>13. Importación masiva de datos (Excel / CSV)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente">
+<span class="etiqueta">Verificado en código:</span> las únicas coincidencias de "import"/"multer" en productos corresponden a subida de archivos adjuntos de un producto individual, no a carga masiva. El módulo de contactos no tiene ninguna referencia de importación.
+</div>
+<ul>
+  <li>Carga masiva de productos (alta inicial y actualización de precios)</li>
+  <li>Carga masiva de contactos (clientes y prospectos)</li>
+  <li>Carga de saldos iniciales (cuentas por cobrar y pagar)</li>
+  <li>Plantillas de importación descargables con validación</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>14. Punto de venta (POS)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente">
+<span class="etiqueta">Verificado en código:</span> sin ninguna coincidencia relacionada tras excluir falsos positivos.
+</div>
+<p>Para clientes con tienda física, mostrador o restaurante.</p>
+<ul>
+  <li>Interfaz de cobro rápida (pantalla táctil)</li>
+  <li>Impresora de tickets (Hasar, Epson)</li>
+  <li>Manejo de caja con apertura y corte</li>
+  <li>Pagos en efectivo, tarjeta y combinados</li>
+  <li>Facturación electrónica al momento o diferida</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>15. Descarga y validación de CFDIs recibidos (SAT)</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> módulo completo y real (no scaffolding) en <code>backend/src/modules/configuracion/cfdi-sat/</code>: conexión al webservice de descarga masiva del SAT vía FIEL (<code>sat-client.ts</code>, librería <code>@nodecfdi/sat-ws-descarga-masiva</code>), descarga y extracción de paquetes ZIP (XML/metadata), validación de RFC del emisor y vinculación contra facturas de compra ya capturadas (tolerancia de $0.01 en total), con UI dedicada (<code>CfdiSatPage.tsx</code> + componentes de automatización, bitácora, comprobantes e importación de compras).<br>
+<span class="etiqueta">Qué falta:</span> el estatus vigente/cancelado se toma de la metadata que reporta el SAT al momento de la descarga, no de una consulta en vivo al servicio de verificación; la conciliación es contra <em>facturas de compra ya capturadas</em>, no contra órdenes de compra; y la automatización es <strong>ejecución asistida, no un cron desatendido</strong> (comentario explícito en el código: "Ejecución asistida de Fase 9: NO es un cron desatendido" — requiere que un administrador capture la contraseña de la FIEL cada vez).
+</div>
+<p>Integración con el webservice del SAT para descargar las facturas recibidas de proveedores.</p>
+<ul>
+  <li class="tachado">Conexión al buzón tributario SAT</li>
+  <li class="tachado">Descarga masiva de XML de facturas recibidas</li>
+  <li>Validación de RFC y estatus (vigente / cancelado) — basada en metadata, no en consulta en vivo</li>
+  <li>Conciliación automática con órdenes de compra — actualmente es vinculación manual asistida contra facturas de compra</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>16. Portal de clientes (self-service)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente">
+<span class="etiqueta">Verificado en código:</span> sin coincidencias de "portal"/"self-service" para clientes.
+</div>
+<ul>
+  <li>Acceso web para que el cliente vea sus facturas y estado de cuenta</li>
+  <li>Descarga de XML y PDF sin contactar al proveedor</li>
+  <li>Aprobación o rechazo de cotizaciones en línea</li>
+  <li>Historial de compras</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>17. CRM avanzado</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> etapas de conversación configurables (<code>PATCH /whatsapp/conversaciones/:id/etapa</code>), <code>crm.reglas_seguimiento</code> con umbrales que calculan una bandera de "riesgo" visible en el listado de conversaciones.<br>
+<span class="etiqueta">Qué falta:</span> <code>OportunidadesPage.tsx</code> es una grilla (MUI DataGrid), <strong>no un Kanban visual</strong> (sin drag & drop ni columnas por etapa); no hay forecast/pronóstico de ventas; no hay scoring automático de leads; no hay historial unificado del contacto (solo conversaciones de WhatsApp, sin timeline con emails/llamadas/documentos); las "reglas de seguimiento" son solo informativas — no disparan mensajes ni acciones automáticas (sin cron ni jobs).
+</div>
+<ul>
+  <li>Pipeline visual tipo Kanban por etapa de venta</li>
+  <li>Pronóstico de ventas (forecast mensual / trimestral)</li>
+  <li>Scoring automático de leads (calificación por comportamiento)</li>
+  <li>Historial unificado del contacto (emails, llamadas, documentos, WhatsApp)</li>
+  <li>Campañas de seguimiento automatizado (cadencias) — hoy solo hay indicador visual de riesgo, sin disparo automático</li>
+</ul>
+</div>
+
+<div class="seccion-importante">
+<h3>18. Auditoría y trazabilidad completa</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> columna <code>created_by</code> agregada a <code>finanzas_operaciones</code>, <code>aplicaciones_saldo</code> y la nueva tabla de programación de pagos (migración "fase1_trazabilidad_usuario_finanzas").<br>
+<span class="etiqueta">Qué falta:</span> cobertura extremadamente acotada — solo registra quién creó el registro en 3 tablas de Finanzas, sin <code>updated_by</code>, sin historial de cambios (before/after), y sin ninguna cobertura en productos, documentos, contactos o inventario. No existe una tabla de <code>audit_log</code> real; las coincidencias de "AUDIT" en el código son solo mensajes de <code>console.log/warn</code> de depuración.
+</div>
+<ul>
+  <li>Log de todos los cambios (quién cambió qué y cuándo) — solo "quién creó", en 3 tablas de Finanzas</li>
+  <li>Historial de versiones por registro</li>
+  <li>Exportación de logs para auditoría externa o SAT</li>
+  <li>Alertas de acciones sensibles (eliminaciones, cancelaciones)</li>
+</ul>
+</div>
+
+<!-- DESEABLES -->
+<h2>🟢 Deseables — Diferenciadores o para segmentos específicos</h2>
+
+<div class="seccion-deseable">
+<h3>19. Integración bancaria (SPEI / CoDi / Open Banking)</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> módulo de <strong>Conciliación Bancaria</strong> (<code>ConciliacionBancariaPage.tsx</code>, <code>finanzas.repository.ts</code>): lista movimientos de <code>finanzas_operaciones</code> pendientes, permite cotejarlos manualmente y cerrar la conciliación comparando contra un saldo de banco que el usuario captura a mano.<br>
+<span class="etiqueta">Qué falta:</span> no es integración bancaria real — no hay lectura de layouts/estados de cuenta bancarios (CSV/XML/OFX), no hay conexión SPEI/CoDi con bancos, y la "programación de pagos" solo registra el movimiento contable, sin generar el archivo de dispersión para el banco. "SPEI" solo aparece como texto libre de referencia de pago.
+</div>
+<ul>
+  <li>Complemento de pago automático al detectar transferencia SPEI recibida</li>
+  <li>Conciliación bancaria <span class="badge-parcial" style="font-size:8pt;">manual, no automática</span> vía XML bancario (BBVA, Banorte, Santander)</li>
+  <li>Generación de layouts de pago masivo (SPEI empresa)</li>
+  <li>Cobro con código QR / CoDi</li>
+  <li>Integración con Mercado Pago, Stripe o Conekta</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>20. E-commerce / Tienda en línea</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> sin coincidencias de "ecommerce"/"tienda en línea"/carrito de compra.</div>
+<ul>
+  <li>Catálogo de productos públicos con fotos y descripciones</li>
+  <li>Carrito de compra y proceso de checkout</li>
+  <li>Pago con tarjeta, SPEI o CoDi</li>
+  <li>Sincronización de inventario en tiempo real</li>
+  <li>Facturación automática al confirmar el pago</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>21. App móvil (PWA o nativa)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> el único hit es un comentario HTML para íconos meta ("Android/PWA"); no hay <code>manifest.webmanifest</code> real ni service worker.</div>
+<ul>
+  <li>Vendedores en campo: cotizaciones y captura de pedidos</li>
+  <li>Almacenistas: movimientos de inventario con escáner de código de barras</li>
+  <li>Directivos: dashboard con KPIs en tiempo real</li>
+  <li>Notificaciones push</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>22. Gestión de Recursos Humanos</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> sin coincidencias de "empleado"/"vacaciones"/"asistencia".</div>
+<ul>
+  <li>Expediente digital del empleado (documentos, historial)</li>
+  <li>Organigrama</li>
+  <li>Control de asistencia y vacaciones</li>
+  <li>Evaluaciones de desempeño</li>
+  <li>Onboarding y offboarding</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>23. Control de activos fijos</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> sin coincidencias.</div>
+<ul>
+  <li>Registro de activos (equipo, vehículos, mobiliario, software)</li>
+  <li>Depreciación automática (fiscal y contable)</li>
+  <li>Bajas, traspasos y revalorizaciones</li>
+  <li>Pólizas contables automáticas</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>24. Gestión de proyectos</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> sin coincidencias en <code>backend/src/modules</code>.</div>
+<p>Para empresas de servicios profesionales, construcción o manufactura.</p>
+<ul>
+  <li>Proyectos con fases y tareas</li>
+  <li>Presupuesto de proyecto vs. ejecutado</li>
+  <li>Asociación de documentos (facturas, compras) al proyecto</li>
+  <li>Análisis de rentabilidad por proyecto</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>25. Notificaciones en tiempo real (WebSocket)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> <code>socket.io</code>/<code>ws</code> no aparecen en ningún <code>package.json</code> del proyecto.</div>
+<ul>
+  <li>Notificaciones in-app sin recargar la página</li>
+  <li>Alertas de documentos pendientes de aprobación</li>
+  <li>Recordatorios automáticos de cobranza</li>
+  <li>Avisos de inventario bajo mínimo</li>
+  <li>Notificaciones de nuevos mensajes de WhatsApp</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>26. Business Intelligence / Dashboards avanzados</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> ninguna librería de gráficas (<code>recharts</code>, <code>chart.js</code>, <code>d3</code>, <code>apexcharts</code>) está presente en <code>frontend/package.json</code>. Los ~20 reportes nuevos (punto 10) son tablas, no visualizaciones.</div>
+<ul>
+  <li>Gráficas interactivas de ventas y tendencias</li>
+  <li>Comparativos vs. período anterior</li>
+  <li>Cubos de datos configurables por el usuario</li>
+  <li>Exportación a PDF de dashboards</li>
+  <li>Alertas automáticas por umbrales (venta baja, inventario crítico)</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>27. Autenticación avanzada (2FA / SSO)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> sin <code>totp</code>/<code>saml</code>/<code>oauth</code>/<code>authenticator</code> en <code>backend/src/modules/auth</code>.</div>
+<ul>
+  <li>Doble factor de autenticación (Google Authenticator / SMS)</li>
+  <li>Single Sign-On con Google Workspace o Microsoft 365</li>
+  <li>Política de contraseñas configurable por empresa</li>
+  <li>Gestión de sesiones activas y cierre remoto</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>28. Gestión de garantías y devoluciones (RMA)</h3>
+<span class="badge-parcial">PARCIAL</span>
+<div class="estado-box parcial">
+<span class="etiqueta">Qué sí está hecho:</span> notas de crédito como tipo de documento (migraciones "notas_credito_tipos_documento" y "notas_credito_campos"), integradas con aplicación de saldo contra el CFDI original — cubre el <strong>aspecto fiscal/financiero</strong> de una devolución.<br>
+<span class="etiqueta">Qué falta:</span> no hay flujo operativo de RMA — sin solicitud de devolución desde el documento de venta, sin autorización dedicada, sin reingreso automático a inventario ni seguimiento del ciclo de garantía.
+</div>
+<ul>
+  <li>Solicitud de devolución desde el documento de venta</li>
+  <li class="tachado">Generación automática de nota de crédito</li>
+  <li>Reingreso al inventario con motivo</li>
+  <li>Seguimiento del ciclo de garantía</li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>29. Cotizador avanzado (CPQ — Configure Price Quote)</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> sin coincidencias de "cpq"/"configurador"/"bundle".</div>
+<p>Para empresas con productos complejos o configurables.</p>
+<ul>
+  <li>Reglas de configuración de productos (opciones mutuamente excluyentes)</li>
+  <li>Bundles y kits dinámicos con precio calculado automáticamente</li>
+  <li>Plantillas de cotización con imágenes y especificaciones técnicas <span class="badge-parcial" style="font-size:8pt;">especificaciones sí existen</span></li>
+</ul>
+</div>
+
+<div class="seccion-deseable">
+<h3>30. API pública documentada</h3>
+<span class="badge-pendiente">PENDIENTE</span>
+<div class="estado-box pendiente"><span class="etiqueta">Verificado en código:</span> sin <code>swagger</code>/<code>openapi</code> en <code>backend/package.json</code> ni en el código.</div>
+<ul>
+  <li>API REST con autenticación por API Key</li>
+  <li>Documentación con Swagger / OpenAPI</li>
+  <li>Webhooks de salida configurables (integraciones de terceros)</li>
+  <li>SDK o ejemplos para integradores</li>
+</ul>
+</div>
+
+<hr>
+
+<!-- RESUMEN FINAL -->
+<h2>Resumen de funcionalidades faltantes — comparativo</h2>
+
+<table>
+  <tr>
+    <th>Clasificación (inventario original)</th>
+    <th>Cantidad original</th>
+    <th>Estado actual</th>
+  </tr>
+  <tr>
+    <td><span class="badge-red">CRÍTICAS</span></td>
+    <td>6</td>
+    <td><span class="badge-hecho">2 HECHO</span> (Complemento Pagos, Compras) · <span class="badge-parcial">1 PARCIAL</span> (Factura Global) · <span class="badge-pendiente">3 PENDIENTE</span> (Nómina, Contabilidad, Carta Porte)</td>
+  </tr>
+  <tr>
+    <td><span class="badge-yellow">IMPORTANTES</span></td>
+    <td>12</td>
+    <td><span class="badge-hecho">1 HECHO</span> (Exportar Excel) · <span class="badge-parcial">6 PARCIAL</span> (Inventario avanzado, Reportes estándar, Descuentos, CFDIs recibidos SAT, CRM avanzado, Auditoría) · <span class="badge-pendiente">5 PENDIENTE</span> (Dashboard KPIs, Comisiones, Importación masiva, POS, Portal clientes)</td>
+  </tr>
+  <tr>
+    <td><span class="badge-green">DESEABLES</span></td>
+    <td>12</td>
+    <td><span class="badge-parcial">2 PARCIAL</span> (Integración bancaria, RMA) · <span class="badge-pendiente">10 PENDIENTE</span> (E-commerce, App móvil, RRHH, Activos fijos, Proyectos, Notificaciones real-time, BI avanzado, 2FA/SSO, CPQ, API pública)</td>
+  </tr>
+  <tr>
+    <td><strong>Total</strong></td>
+    <td><strong>30</strong></td>
+    <td><strong>3 HECHO · 9 PARCIAL · 18 PENDIENTE</strong></td>
+  </tr>
+</table>
+
+<h2>Hoja de ruta sugerida (actualizada)</h2>
+<table>
+  <tr><th>Fase</th><th>Período sugerido</th><th>Módulos</th></tr>
+  <tr>
+    <td><span class="badge-red">Fase 1</span></td>
+    <td>1–3 meses</td>
+    <td><span class="tachado">Complemento de Pagos</span> · Carta Porte · <span class="tachado">Módulo de Compras</span> · Automatizar timbrado de Factura Global</td>
+  </tr>
+  <tr>
+    <td><span class="badge-yellow">Fase 2</span></td>
+    <td>3–6 meses</td>
+    <td>Contabilidad básica + e-Contabilidad · Dashboard KPIs · <span class="tachado">Exportar Excel</span> · Series/lotes/caducidad/toma física en Inventario · DIOT y rentabilidad en Reportes</td>
+  </tr>
+  <tr>
+    <td><span class="badge-yellow">Fase 3</span></td>
+    <td>6–12 meses</td>
+    <td>Nómina CFDI · POS · Portal clientes · Comisiones · Importación masiva · Auditoría completa (más allá de Finanzas) · Automatizar el cron de descarga CFDI SAT</td>
+  </tr>
+  <tr>
+    <td><span class="badge-green">Fase 4</span></td>
+    <td>12–18 meses</td>
+    <td>App móvil · Integración bancaria real (layouts/SPEI/CoDi) · E-commerce · CRM avanzado (Kanban/forecast/scoring/cadencias) · BI avanzado · API pública</td>
+  </tr>
+</table>
+
+<p style="font-size:9pt; color:#888; text-align:center; margin-top:30pt;">
+  Documento generado por Claude Code — Emphasys ERP — Actualización de avance, julio 2026<br>
+  Basado en el inventario original de junio 2026, verificado contra el código real del repositorio.
+</p>
+
+</body>
+</html>

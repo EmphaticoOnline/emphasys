@@ -31,6 +31,7 @@ import CfdiSatPage from './pages/configuracion/CfdiSatPage';
 import WhatsappEtiquetasPage from './pages/configuracion/WhatsappEtiquetasPage';
 import WhatsappPlantillasPage from './pages/configuracion/WhatsappPlantillasPage';
 import FinanzasPage from './pages/FinanzasPage';
+import ContabilidadPage from './pages/ContabilidadPage';
 import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
@@ -121,6 +122,11 @@ export default function App() {
 
               {/* Finanzas / Inventario / Informes */}
               <Route path="/finanzas" element={<FinanzasPage />} />
+              <Route path="/contabilidad" element={<ContabilidadPage />} />
+              <Route path="/contabilidad/polizas" element={<ContabilidadPage />} />
+              <Route path="/contabilidad/tipos-poliza" element={<ContabilidadPage />} />
+              <Route path="/contabilidad/rangos" element={<ContabilidadPage />} />
+              <Route path="/contabilidad/configuracion" element={<ContabilidadPage />} />
               <Route path="/finanzas/programacion-pagos" element={<ProgramacionPagosPage />} />
               <Route path="/finanzas/conciliacion-bancaria" element={<ConciliacionBancariaPage />} />
               <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />

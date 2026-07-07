@@ -42,6 +42,7 @@ import AddIcon from '@mui/icons-material/Add';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SettingsIcon from '@mui/icons-material/Settings';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, buildAuthHeaders } from '../api/apiClient';
 import { useSession } from '../session/useSession';
@@ -61,6 +62,16 @@ type EtapaOportunidad =
   | 'convertida'
   | 'perdida';
 
+type MotivoFinalizacion =
+  | 'venta_cerrada'
+  | 'informacion_entregada'
+  | 'no_interesado'
+  | 'sin_respuesta'
+  | 'fuera_de_perfil'
+  | 'duplicada'
+  | 'prueba'
+  | 'otro';
+
 type ConversationSummary = {
   id: string;
   contactoId: string | null;
@@ -71,6 +82,12 @@ type ConversationSummary = {
   nombre?: string | null;
   vendedor_id?: number | null;
   etapa_oportunidad?: EtapaOportunidad | null;
+  estado?: string | null;
+  finalizada_en?: string | null;
+  finalizada_por?: number | null;
+  motivo_finalizacion?: MotivoFinalizacion | null;
+  observaciones_finalizacion?: string | null;
+  reactivada_en?: string | null;
   tiene_oportunidad?: boolean;
   tags?: WhatsappEtiqueta[];
 };
@@ -161,6 +178,11 @@ type Lead = {
   etapa_oportunidad: EtapaOportunidad;
   tiene_oportunidad: boolean;
   tags?: WhatsappEtiqueta[];
+  estado: string | null;
+  finalizada_en: string | null;
+  motivo_finalizacion: MotivoFinalizacion | null;
+  observaciones_finalizacion: string | null;
+  reactivada_en: string | null;
 };
 
 type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
@@ -189,6 +211,26 @@ const leadSelectMenuProps = {
 const nextActionOptions: NextAction[] = ['Responder', 'Llamar', 'Enviar cotización', 'Agendar demo', 'Cerrar'];
 const priorityOptions: Priority[] = ['Alta', 'Media', 'Baja'];
 const etapaOptions: EtapaOportunidad[] = ['nuevo', 'contactado', 'interesado', 'cotizado', 'negociacion', 'convertida', 'perdida'];
+const motivoFinalizacionOptions: Array<{ value: MotivoFinalizacion; label: string }> = [
+  { value: 'venta_cerrada', label: 'Venta cerrada' },
+  { value: 'informacion_entregada', label: 'Información entregada' },
+  { value: 'no_interesado', label: 'No interesado' },
+  { value: 'sin_respuesta', label: 'Sin respuesta' },
+  { value: 'fuera_de_perfil', label: 'Fuera de perfil' },
+  { value: 'duplicada', label: 'Duplicada' },
+  { value: 'prueba', label: 'Prueba' },
+  { value: 'otro', label: 'Otro' },
+];
+const motivoFinalizacionLabel: Record<MotivoFinalizacion, string> = motivoFinalizacionOptions.reduce(
+  (acc, opt) => ({ ...acc, [opt.value]: opt.label }),
+  {} as Record<MotivoFinalizacion, string>
+);
+function formatFechaHora(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+}
 const REFRESH_INTERVAL_MS = 5000;
 const DEFAULT_REGLAS_SEGUIMIENTO: ReglasSeguimiento = {
   tiempo_tolerancia_respuesta_a_cliente: 30,
@@ -545,6 +587,14 @@ export default function LeadsPage() {
   const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
   const [opportunityFilter, setOpportunityFilter] = React.useState<OpportunityFilter>('todos');
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [vistaFinalizadas, setVistaFinalizadas] = React.useState(false);
+  const [finalizarDialogOpen, setFinalizarDialogOpen] = React.useState(false);
+  const [finalizarTargetLeadId, setFinalizarTargetLeadId] = React.useState<string | null>(null);
+  const [finalizarMotivo, setFinalizarMotivo] = React.useState<MotivoFinalizacion | ''>('');
+  const [finalizarObservaciones, setFinalizarObservaciones] = React.useState('');
+  const [finalizarSaving, setFinalizarSaving] = React.useState(false);
+  const [finalizarError, setFinalizarError] = React.useState<string | null>(null);
+  const [reabrirSavingId, setReabrirSavingId] = React.useState<string | null>(null);
   const [leadScope, setLeadScope] = React.useState<LeadScope>('todos');
   const [scopeTouched, setScopeTouched] = React.useState(false);
   const [isAdmin, setIsAdmin] = React.useState(Boolean(session.user?.es_superadmin));
@@ -796,6 +846,7 @@ export default function LeadsPage() {
 
   const selectedLead = leadsConPrioridad.find((l) => l.id === selectedLeadId) ?? leadsConPrioridad[0];
   const selectedLeadPriority = selectedLead?.computedPriority ?? 'Media';
+  const finalizarTargetLead = leadsConPrioridad.find((l) => l.id === finalizarTargetLeadId) ?? null;
   const selectedContactoId = selectedLead?.contactoId ? Number(selectedLead.contactoId) : null;
   const selectedContacto = selectedContactoId ? contactosById[selectedContactoId] : undefined;
   const selectedVendedorId = selectedLead?.vendedor_id ?? null;
@@ -846,6 +897,11 @@ export default function LeadsPage() {
       etapa_oportunidad: normalizeEtapaOportunidad(conv.etapa_oportunidad),
       tiene_oportunidad: Boolean(conv.tiene_oportunidad),
       tags: conv.tags ?? [],
+      estado: conv.estado ?? null,
+      finalizada_en: conv.finalizada_en ?? null,
+      motivo_finalizacion: conv.motivo_finalizacion ?? null,
+      observaciones_finalizacion: conv.observaciones_finalizacion ?? null,
+      reactivada_en: conv.reactivada_en ?? null,
     };
     return applyDerivedLeadState(baseLead, reglasSeguimiento);
   }, [reglasSeguimiento]);
@@ -878,6 +934,9 @@ export default function LeadsPage() {
       }
       if (selectedTagIds.length > 0) {
         params.set('tag_ids', selectedTagIds.join(','));
+      }
+      if (vistaFinalizadas) {
+        params.set('estado', 'finalizada');
       }
 
       const queryString = params.toString();
@@ -983,6 +1042,11 @@ export default function LeadsPage() {
               etapa_oportunidad: conv.etapa_oportunidad ? normalizeEtapaOportunidad(conv.etapa_oportunidad) : existing.etapa_oportunidad,
               tiene_oportunidad: conv.tiene_oportunidad ?? existing.tiene_oportunidad,
               tags: conv.tags ?? existing.tags ?? [],
+              estado: conv.estado ?? existing.estado,
+              finalizada_en: conv.finalizada_en ?? existing.finalizada_en,
+              motivo_finalizacion: conv.motivo_finalizacion ?? existing.motivo_finalizacion,
+              observaciones_finalizacion: conv.observaciones_finalizacion ?? existing.observaciones_finalizacion,
+              reactivada_en: conv.reactivada_en ?? existing.reactivada_en,
             };
             map.set(conv.id, applyDerivedLeadState(updatedLead, reglasSeguimiento));
           } else {
@@ -1014,7 +1078,7 @@ export default function LeadsPage() {
         isFilterTransitionRef.current = false;
       }
     }
-  }, [buildLeadFromConversation, isAdmin, leadScope, reglasSeguimiento, selectedLeadId, selectedTagIds, vendedorContactoId, vendedorFilterId]);
+  }, [buildLeadFromConversation, isAdmin, leadScope, reglasSeguimiento, selectedLeadId, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas]);
 
   const loadMessages = React.useCallback(async (
     conversationId: string,
@@ -1228,7 +1292,7 @@ export default function LeadsPage() {
     isFilterTransitionRef.current = true;
     setSelectedLeadId('');
     loadConversations();
-  }, [leadScope, selectedTagIds, vendedorContactoId, vendedorFilterId]);
+  }, [leadScope, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas]);
 
   React.useEffect(() => {
     if (!session.token || !session.empresaActivaId) return;
@@ -1645,6 +1709,95 @@ export default function LeadsPage() {
     }
   };
 
+  const handleOpenFinalizarDialog = (leadId: string) => {
+    setFinalizarTargetLeadId(leadId);
+    setFinalizarMotivo('');
+    setFinalizarObservaciones('');
+    setFinalizarError(null);
+    setFinalizarDialogOpen(true);
+  };
+
+  const handleCloseFinalizarDialog = () => {
+    if (finalizarSaving) return;
+    setFinalizarDialogOpen(false);
+    setFinalizarTargetLeadId(null);
+  };
+
+  const handleConfirmFinalizar = async () => {
+    if (!finalizarTargetLeadId) return;
+    const targetLeadId = finalizarTargetLeadId;
+
+    if (!finalizarMotivo) {
+      setFinalizarError('Selecciona un motivo');
+      return;
+    }
+    if (finalizarMotivo === 'otro' && !finalizarObservaciones.trim()) {
+      setFinalizarError('Las observaciones son obligatorias cuando el motivo es "Otro"');
+      return;
+    }
+
+    setFinalizarSaving(true);
+    setFinalizarError(null);
+    try {
+      const response = await apiFetch(`/api/whatsapp/conversaciones/${targetLeadId}/finalizar`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          motivo_finalizacion: finalizarMotivo,
+          observaciones_finalizacion: finalizarObservaciones.trim() || null,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || 'No se pudo finalizar la conversación');
+      }
+
+      updateLead(targetLeadId, {
+        estado: data?.estado ?? 'finalizada',
+        finalizada_en: data?.finalizada_en ?? new Date().toISOString(),
+        motivo_finalizacion: data?.motivo_finalizacion ?? finalizarMotivo,
+        observaciones_finalizacion: data?.observaciones_finalizacion ?? (finalizarObservaciones.trim() || null),
+      });
+      setSnackbar({ open: true, message: 'Conversación marcada como finalizada', severity: 'success' });
+      setFinalizarDialogOpen(false);
+      setFinalizarTargetLeadId(null);
+    } catch (error) {
+      setFinalizarError(error instanceof Error ? error.message : 'Ocurrió un error inesperado');
+    } finally {
+      setFinalizarSaving(false);
+    }
+  };
+
+  const handleReabrirConversacion = async (leadId: string) => {
+    setReabrirSavingId(leadId);
+    try {
+      const response = await apiFetch(`/api/whatsapp/conversaciones/${leadId}/reabrir`, {
+        method: 'PATCH',
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || 'No se pudo reabrir la conversación');
+      }
+
+      updateLead(leadId, {
+        estado: data?.estado ?? 'abierta',
+        finalizada_en: null,
+        motivo_finalizacion: null,
+        observaciones_finalizacion: null,
+        reactivada_en: data?.reactivada_en ?? new Date().toISOString(),
+        etapa_oportunidad: normalizeEtapaOportunidad(data?.etapa_oportunidad ?? 'contactado'),
+      });
+      setSnackbar({ open: true, message: 'Conversación reabierta', severity: 'success' });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'No se pudo reabrir la conversación',
+        severity: 'error',
+      });
+    } finally {
+      setReabrirSavingId(null);
+    }
+  };
+
   const handleSuggestMessage = async () => {
     if (!selectedLead) return;
     setIsSuggesting(true);
@@ -2024,9 +2177,9 @@ export default function LeadsPage() {
   const followUpLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes >= 60 && l.idleMinutes <= 180);
   const newLeads = leadsFiltradosOrdenados.filter((l) => l.idleMinutes < 60);
 
-  const leadsRiesgo = leadsFiltradosOrdenados.filter((l) => l.computedPriority === 'Alta');
-  const leadsSeguimiento = leadsFiltradosOrdenados.filter((l) => l.computedPriority === 'Media');
-  const leadsActividad = leadsFiltradosOrdenados.filter((l) => l.computedPriority === 'Baja');
+  const leadsRiesgo = leadsFiltradosOrdenados.filter((l) => l.estado !== 'finalizada' && l.computedPriority === 'Alta');
+  const leadsSeguimiento = leadsFiltradosOrdenados.filter((l) => l.estado !== 'finalizada' && l.computedPriority === 'Media');
+  const leadsActividad = leadsFiltradosOrdenados.filter((l) => l.estado !== 'finalizada' && l.computedPriority === 'Baja');
   const toleranciaRespuestaMin = reglasSeguimiento.tiempo_tolerancia_respuesta_a_cliente;
   const seguimientoDespuesRespuestaHoras = reglasSeguimiento.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente;
   const maxSinRespuestaHoras = reglasSeguimiento.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente;
@@ -2116,6 +2269,21 @@ export default function LeadsPage() {
                   clickable
                 />
               )}
+              {lead.estado !== 'finalizada' && (
+                <Tooltip title="Marcar como finalizada" arrow>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenFinalizarDialog(lead.id);
+                    }}
+                    aria-label="Marcar como finalizada"
+                    sx={{ color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}
+                  >
+                    <TaskAltIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Stack>
 
             <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: 'text.secondary' }}>
@@ -2179,6 +2347,26 @@ export default function LeadsPage() {
                 }}
               />
             </Stack>
+            {lead.estado === 'finalizada' && (
+              <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" sx={{ color: 'text.secondary' }}>
+                <Typography variant="caption">
+                  Finalizada {formatFechaHora(lead.finalizada_en)}
+                  {lead.motivo_finalizacion ? ` · ${motivoFinalizacionLabel[lead.motivo_finalizacion]}` : ''}
+                </Typography>
+                <Button
+                  size="small"
+                  variant="text"
+                  disabled={reabrirSavingId === lead.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleReabrirConversacion(lead.id);
+                  }}
+                  sx={{ textTransform: 'none', minWidth: 'auto', px: 0.5 }}
+                >
+                  {reabrirSavingId === lead.id ? 'Reabriendo…' : 'Reabrir'}
+                </Button>
+              </Stack>
+            )}
           </Stack>
         </ListItemButton>
       </ListItem>
@@ -2655,18 +2843,35 @@ export default function LeadsPage() {
                 }}
               />
             ))}
+            <Chip
+              label="Finalizadas"
+              onClick={() => setVistaFinalizadas((prev) => !prev)}
+              sx={{
+                fontWeight: 700,
+                color: vistaFinalizadas ? '#ffffff' : 'text.secondary',
+                backgroundColor: vistaFinalizadas ? 'text.secondary' : 'transparent',
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
+            />
           </Stack>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Typography variant="h6" fontWeight={700}>
-              Leads abiertos
+              {vistaFinalizadas ? 'Conversaciones finalizadas' : 'Leads abiertos'}
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }}>
               <AccessTimeIcon fontSize="small" />
-              <Typography variant="body2">Riesgo: {leadsRiesgo.length}</Typography>
-              <Typography variant="body2" color="text.disabled">· Seguimiento: {leadsSeguimiento.length}</Typography>
-              <Typography variant="body2" color="text.disabled">· Actividad reciente: {leadsActividad.length}</Typography>
-              <Typography variant="body2" color="text.disabled">· Visibles: {leadsFiltradosOrdenados.length}</Typography>
+              {vistaFinalizadas ? (
+                <Typography variant="body2">Finalizadas: {leadsFiltradosOrdenados.length}</Typography>
+              ) : (
+                <>
+                  <Typography variant="body2">Riesgo: {leadsRiesgo.length}</Typography>
+                  <Typography variant="body2" color="text.disabled">· Seguimiento: {leadsSeguimiento.length}</Typography>
+                  <Typography variant="body2" color="text.disabled">· Actividad reciente: {leadsActividad.length}</Typography>
+                  <Typography variant="body2" color="text.disabled">· Visibles: {leadsFiltradosOrdenados.length}</Typography>
+                </>
+              )}
             </Stack>
           </Box>
 
@@ -2675,8 +2880,12 @@ export default function LeadsPage() {
             <Stack spacing={1.5} sx={{ overflow: 'auto', pr: 0.5 }}>
               {leadsFiltradosOrdenados.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ px: 1 }}>
-                  No hay más leads en cola.
+                  {vistaFinalizadas ? 'No hay conversaciones finalizadas.' : 'No hay más leads en cola.'}
                 </Typography>
+              ) : vistaFinalizadas ? (
+                <List disablePadding>
+                  {leadsFiltradosOrdenados.map(renderLeadCard)}
+                </List>
               ) : (
                 <>
                   {leadsRiesgo.length > 0 && (
@@ -3019,6 +3228,14 @@ export default function LeadsPage() {
                       Generar cotización
                     </Button>
                   </Stack>
+                  {selectedLead.estado === 'finalizada' && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      Finalizada el {formatFechaHora(selectedLead.finalizada_en)}
+                      {selectedLead.motivo_finalizacion ? ` · Motivo: ${motivoFinalizacionLabel[selectedLead.motivo_finalizacion]}` : ''}
+                      {selectedLead.observaciones_finalizacion ? ` · ${selectedLead.observaciones_finalizacion}` : ''}
+                      {' · Usa "Reabrir" desde la conversación en la lista para reactivarla.'}
+                    </Alert>
+                  )}
                 </Stack>
               </Paper>
 
@@ -3488,6 +3705,64 @@ export default function LeadsPage() {
                     disabled={!completeContactForm.nombre.trim() || !selectedContactoId}
                   >
                     Guardar
+                  </Button>
+                </DialogActions>
+              </Dialog>
+              <Dialog
+                open={finalizarDialogOpen}
+                onClose={handleCloseFinalizarDialog}
+                fullWidth
+                maxWidth="sm"
+              >
+                <DialogTitle>Marcar conversación como finalizada</DialogTitle>
+                <DialogContent dividers>
+                  <Stack spacing={2} sx={{ pt: 0.5 }}>
+                    {finalizarTargetLead && (
+                      <Typography variant="body2">
+                        Conversación: <strong>{finalizarTargetLead.name?.trim() || `WhatsApp ${finalizarTargetLead.phone}`}</strong>
+                      </Typography>
+                    )}
+                    <Typography variant="body2" color="text.secondary">
+                      Las conversaciones finalizadas ya no aparecerán en Riesgo de perder, Requiere atención ni Actividad reciente.
+                    </Typography>
+                    <TextField
+                      select
+                      label="Motivo"
+                      value={finalizarMotivo}
+                      onChange={(e) => setFinalizarMotivo(e.target.value as MotivoFinalizacion)}
+                      required
+                      fullWidth
+                    >
+                      {motivoFinalizacionOptions.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    {finalizarMotivo === 'otro' && (
+                      <TextField
+                        label="Observaciones"
+                        value={finalizarObservaciones}
+                        onChange={(e) => setFinalizarObservaciones(e.target.value)}
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        required
+                      />
+                    )}
+                    {finalizarError && <Alert severity="error">{finalizarError}</Alert>}
+                  </Stack>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleCloseFinalizarDialog} variant="text" disabled={finalizarSaving}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleConfirmFinalizar}
+                    variant="contained"
+                    disabled={finalizarSaving || !finalizarMotivo}
+                  >
+                    {finalizarSaving ? 'Guardando…' : 'Marcar como finalizada'}
                   </Button>
                 </DialogActions>
               </Dialog>

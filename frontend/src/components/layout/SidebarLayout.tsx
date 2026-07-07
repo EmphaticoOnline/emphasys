@@ -17,6 +17,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import BuildIcon from '@mui/icons-material/Build';
+import CalculateIcon from '@mui/icons-material/Calculate';
 import CategoryIcon from '@mui/icons-material/Category';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -94,6 +95,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Ventas',        path: '/ventas/cotizacion',      icon: PointOfSaleIcon },
   { label: 'Compras',       path: '/compras/orden_compra',   icon: ShoppingCartIcon },
   { label: 'Finanzas',      path: '/finanzas',              icon: AccountBalanceIcon },
+  { label: 'Contabilidad',  path: '/contabilidad',          icon: CalculateIcon },
   { label: 'Inventarios',   path: '/inventario/movimientos', icon: InventoryIcon },
   { label: 'Almacenes',     path: '/almacenes',             icon: WarehouseIcon },
   { label: 'Informes',      path: '/informes',              icon: BarChartIcon },

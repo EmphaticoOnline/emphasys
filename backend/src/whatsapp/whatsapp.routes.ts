@@ -6,6 +6,8 @@ import {
 	obtenerReglasSeguimientoWhatsapp,
 	obtenerConversacionWhatsapp,
 	actualizarEtapaConversacion,
+	finalizarConversacionWhatsapp,
+	reabrirConversacionWhatsapp,
 	enviarWhatsappPlantilla,
 	listarEtiquetasWhatsapp,
 	listarPlantillasWhatsapp,
@@ -30,6 +32,8 @@ router.get("/conversaciones", requireAuth, requireEmpresaActiva, listarConversac
 router.get("/reglas-seguimiento", requireAuth, requireEmpresaActiva, obtenerReglasSeguimientoWhatsapp);
 router.get("/conversacion/:id", requireAuth, requireEmpresaActiva, obtenerConversacionWhatsapp);
 router.patch("/conversaciones/:id/etapa", requireAuth, requireEmpresaActiva, actualizarEtapaConversacion);
+router.patch("/conversaciones/:id/finalizar", requireAuth, requireEmpresaActiva, finalizarConversacionWhatsapp);
+router.patch("/conversaciones/:id/reabrir", requireAuth, requireEmpresaActiva, reabrirConversacionWhatsapp);
 router.get("/plantillas", requireAuth, requireEmpresaActiva, listarPlantillasWhatsapp);
 router.post("/plantillas", requireAuth, requireSuperadmin, requireEmpresaActiva, crearPlantillaController);
 router.put("/plantillas/:id", requireAuth, requireSuperadmin, requireEmpresaActiva, actualizarPlantillaController);

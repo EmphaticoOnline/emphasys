@@ -8,12 +8,14 @@ import {
   eliminarEtiquetaWhatsappController as eliminarEtiquetaWhatsappControllerHandler,
   enviarWhatsapp as enviarWhatsappHandler,
   enviarWhatsappPlantilla as enviarWhatsappPlantillaHandler,
+  finalizarConversacionWhatsapp as finalizarConversacionWhatsappHandler,
   listarConversacionesWhatsapp as listarConversacionesWhatsappHandler,
   obtenerReglasSeguimientoWhatsapp as obtenerReglasSeguimientoWhatsappHandler,
   listarEtiquetasConversacionWhatsapp as listarEtiquetasConversacionWhatsappHandler,
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappHandler,
   obtenerConversacionWhatsapp as obtenerConversacionWhatsappHandler,
   quitarEtiquetaConversacionWhatsapp as quitarEtiquetaConversacionWhatsappHandler,
+  reabrirConversacionWhatsapp as reabrirConversacionWhatsappHandler,
   whatsappWebhook as whatsappWebhookHandler,
 } from "../crm/conversaciones.controller";
 import {
@@ -59,6 +61,10 @@ export const obtenerReglasSeguimientoWhatsapp = async (req: Request, res: Respon
 export const obtenerConversacionWhatsapp = async (req: Request, res: Response) => obtenerConversacionWhatsappHandler(req, res);
 
 export const actualizarEtapaConversacion = async (req: Request, res: Response) => actualizarEtapaConversacionController(req, res);
+
+export const finalizarConversacionWhatsapp = async (req: Request, res: Response) => finalizarConversacionWhatsappHandler(req, res);
+
+export const reabrirConversacionWhatsapp = async (req: Request, res: Response) => reabrirConversacionWhatsappHandler(req, res);
 
 export const listarEtiquetasWhatsapp = async (req: Request, res: Response) => listarEtiquetasWhatsappHandler(req, res);
 

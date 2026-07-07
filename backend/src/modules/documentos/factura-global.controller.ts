@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../../config/database';
 import type { PoolClient } from 'pg';
+import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 
 type VentaElegible = {
   id: number;
@@ -375,12 +376,28 @@ export async function generarFacturaGlobal(req: Request, res: Response) {
 
     await client.query('COMMIT');
 
+    // Timbrado automático — fuera de la transacción para no revertir la factura si falla
+    let timbrado = false;
+    let timbradoError: string | null = null;
+    try {
+      await cfdiService.timbrarDocumento(facturaGlobalId, empresaId);
+      timbrado = true;
+    } catch (timbreErr: any) {
+      const mensaje = timbreErr instanceof CfdiValidationError
+        ? timbreErr.message
+        : (timbreErr?.message || 'Error desconocido al timbrar');
+      timbradoError = mensaje;
+      console.error('[factura-global] timbrado falló (factura conservada):', mensaje);
+    }
+
     return res.status(201).json({
       factura_global_id: facturaGlobalId,
       ventas_incluidas: ventas.length,
       subtotal: subtotalGlobal,
       iva: ivaGlobal,
       total: totalGlobal,
+      timbrado,
+      timbrado_error: timbradoError,
     });
   } catch (err: any) {
     await client.query('ROLLBACK');

@@ -30,9 +30,13 @@ import {
 } from "../whatsapp/whatsapp-tags.repository";
 import {
   actualizarConversacionEntranteWhatsapp,
+  finalizarConversacion,
   getReglasSeguimiento,
   getOrCreateConversacionWhatsapp,
   getOrCreateWhatsappContacto,
+  MOTIVOS_FINALIZACION,
+  MotivoFinalizacion,
+  reabrirConversacion,
   registrarMensajeEntranteWhatsapp,
 } from "./conversaciones.service";
 
@@ -739,6 +743,19 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
       )`);
     }
 
+    const estadoParamRaw = req.query.estado;
+    const estadoParam = Array.isArray(estadoParamRaw) ? estadoParamRaw[0] : estadoParamRaw;
+    const soloFinalizadas = estadoParam === 'finalizada';
+
+    // Las conversaciones finalizadas no deben aparecer en el tablero operativo
+    // (Riesgo de perder / Requiere atención / Actividad reciente) salvo que se
+    // pida explícitamente la vista de Finalizadas.
+    filters.push(
+      soloFinalizadas
+        ? "(c.estado = 'finalizada' OR c.finalizada_en IS NOT NULL)"
+        : "NOT (c.estado = 'finalizada' OR c.finalizada_en IS NOT NULL)"
+    );
+
     const result = await pool.query(
       `
       SELECT
@@ -748,6 +765,12 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
         COALESCE(ct.nombre, NULL) AS nombre,
         ct.vendedor_id AS "vendedor_id",
         c.etapa_oportunidad,
+        c.estado,
+        c.finalizada_en,
+        c.finalizada_por,
+        c.motivo_finalizacion,
+        c.observaciones_finalizacion,
+        c.reactivada_en,
         EXISTS (
           SELECT 1
           FROM crm.oportunidades_venta o
@@ -984,6 +1007,99 @@ export const actualizarEtapaConversacion = async (req: Request, res: Response) =
   } catch (error) {
     console.error("Error actualizando etapa de conversación:", error);
     return res.status(500).json({ message: "No se pudo actualizar la etapa" });
+  }
+};
+
+export const finalizarConversacionWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const conversacionId = Number(req.params.id);
+    const authUserId = req.auth?.userId;
+    const { motivo_finalizacion, observaciones_finalizacion } = req.body || {};
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!Number.isFinite(conversacionId)) {
+      return res.status(400).json({ message: "id de conversación inválido" });
+    }
+
+    const motivo = typeof motivo_finalizacion === "string" ? motivo_finalizacion.trim() : "";
+    if (!MOTIVOS_FINALIZACION.includes(motivo as MotivoFinalizacion)) {
+      return res.status(400).json({ message: `motivo_finalizacion debe ser uno de: ${MOTIVOS_FINALIZACION.join(", ")}` });
+    }
+
+    const observaciones = typeof observaciones_finalizacion === "string" ? observaciones_finalizacion.trim() : "";
+    if (motivo === "otro" && !observaciones) {
+      return res.status(400).json({ message: "observaciones_finalizacion es requerido cuando el motivo es 'otro'" });
+    }
+
+    const acceso = await validarAccesoConversacion(
+      empresaId,
+      conversacionId,
+      authUserId,
+      req.auth?.esSuperadmin
+    );
+
+    if (!acceso) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    const actualizado = await finalizarConversacion(
+      empresaId,
+      conversacionId,
+      authUserId ?? null,
+      motivo as MotivoFinalizacion,
+      observaciones ? observaciones : null
+    );
+
+    if (!actualizado) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    return res.status(200).json(actualizado);
+  } catch (error) {
+    console.error("Error finalizando conversación de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo finalizar la conversación" });
+  }
+};
+
+export const reabrirConversacionWhatsapp = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const conversacionId = Number(req.params.id);
+    const authUserId = req.auth?.userId;
+
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    if (!Number.isFinite(conversacionId)) {
+      return res.status(400).json({ message: "id de conversación inválido" });
+    }
+
+    const acceso = await validarAccesoConversacion(
+      empresaId,
+      conversacionId,
+      authUserId,
+      req.auth?.esSuperadmin
+    );
+
+    if (!acceso) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    const actualizado = await reabrirConversacion(empresaId, conversacionId);
+
+    if (!actualizado) {
+      return res.status(404).json({ message: "Conversación no encontrada" });
+    }
+
+    return res.status(200).json(actualizado);
+  } catch (error) {
+    console.error("Error reabriendo conversación de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo reabrir la conversación" });
   }
 };
 

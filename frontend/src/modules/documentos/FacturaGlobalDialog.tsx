@@ -90,6 +90,7 @@ export default function FacturaGlobalDialog({ open, onClose, onGenerado }: Props
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const mesOpciones = getMesesOpciones(periodicidad);
@@ -97,6 +98,7 @@ export default function FacturaGlobalDialog({ open, onClose, onGenerado }: Props
   const handlePreview = useCallback(async () => {
     setError(null);
     setSuccess(null);
+    setWarning(null);
     setPreview(null);
     setLoadingPreview(true);
     try {
@@ -113,6 +115,7 @@ export default function FacturaGlobalDialog({ open, onClose, onGenerado }: Props
     if (!preview || preview.count === 0) return;
     setError(null);
     setSuccess(null);
+    setWarning(null);
     setGenerating(true);
     try {
       const result = await generarFacturaGlobal({
@@ -122,24 +125,35 @@ export default function FacturaGlobalDialog({ open, onClose, onGenerado }: Props
         mes,
         anio,
       });
-      setSuccess(
-        `Factura global generada (ID ${result.factura_global_id}). ` +
-        `${result.ventas_incluidas} ventas incluidas. Total: ${formatter.format(result.total)}.`
-      );
       setPreview(null);
       onGenerado?.(result.factura_global_id);
+
+      if (result.timbrado) {
+        setSuccess(
+          `Factura global generada y timbrada correctamente (ID ${result.factura_global_id}). ` +
+          `${result.ventas_incluidas} ventas incluidas. Total: ${formatter.format(result.total)}.`
+        );
+        onClose();
+      } else {
+        setWarning(
+          `Factura global generada (ID ${result.factura_global_id}) pero no pudo timbrarse: ` +
+          `${result.timbrado_error ?? 'Error desconocido'}. ` +
+          `Puede timbrarse manualmente desde la lista de facturas.`
+        );
+      }
     } catch (err: any) {
       setError(err?.message || 'No se pudo generar la factura global');
     } finally {
       setGenerating(false);
     }
-  }, [preview, fechaDesde, fechaHasta, periodicidad, mes, anio, onGenerado]);
+  }, [preview, fechaDesde, fechaHasta, periodicidad, mes, anio, onGenerado, onClose]);
 
   const handleClose = () => {
     if (generating) return;
     setPreview(null);
     setError(null);
     setSuccess(null);
+    setWarning(null);
     onClose();
   };
 
@@ -150,6 +164,7 @@ export default function FacturaGlobalDialog({ open, onClose, onGenerado }: Props
       <DialogContent>
         <Stack spacing={2.5} sx={{ pt: 0.5 }}>
           {error && <Alert severity="error">{error}</Alert>}
+          {warning && <Alert severity="warning">{warning}</Alert>}
           {success && <Alert severity="success">{success}</Alert>}
 
           <Box>
