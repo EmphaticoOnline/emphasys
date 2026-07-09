@@ -71,6 +71,17 @@ export async function contarCodigosAgrupadoresActivos(): Promise<number> {
   return Number(rows[0]?.count ?? 0);
 }
 
+// Mapa código -> activo, incluyendo INACTIVOS (a diferencia de
+// listarCodigosAgrupadores, que solo trae activos). El generador del XML de
+// catálogo de cuentas necesita distinguir "código inexistente" de "código
+// existente pero dado de baja" para reportar el error correcto.
+export async function obtenerMapaCodigosAgrupadores(): Promise<Map<string, boolean>> {
+  const { rows } = await pool.query<{ codigo: string; activo: boolean }>(
+    `SELECT codigo, activo FROM sat.codigos_agrupadores`
+  );
+  return new Map(rows.map((r) => [r.codigo, r.activo]));
+}
+
 // Usada al crear/editar una cuenta contable. No valida vacío (eso lo
 // decide el llamador: dejar el campo vacío siempre está permitido).
 export async function validarCodigoAgrupadorSat(codigo: string): Promise<void> {

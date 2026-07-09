@@ -42,6 +42,14 @@ import { getBalanzaAnalitica, getEstadoResultados, getBalanceGeneral } from './r
 import { getValidacionesEContabilidad, getSugerenciasCodigosAgrupadores } from './eContabilidad.controller';
 import { getCodigosAgrupadores } from './codigosAgrupadores.controller';
 import { getSaldosIniciales, patchSaldosInicialesLote } from './saldosIniciales.controller';
+import { getCatalogoXmlPreview, getCatalogoXmlDescargar } from './catalogoCuentasXml.controller';
+import { getBalanzaXmlPreview, getBalanzaXmlDescargar } from './balanzaComprobacionXml.controller';
+import { getPolizasSatPreview } from './polizasSat.controller';
+import { getPolizasXmlPreview, getPolizasXmlDescargar } from './polizasPeriodoXml.controller';
+import { getAuxiliarFoliosPreview, getAuxiliarFoliosDescargar } from './auxiliarFoliosXml.controller';
+import { getAuxiliarCuentasPreview, getAuxiliarCuentasDescargar } from './auxiliarCuentasXml.controller';
+import { getPaqueteZipPreview, getPaqueteZipDescargar } from './paqueteZip.controller';
+import { getBitacoraPaquetes } from './bitacoraPaquetes.controller';
 
 const router = Router();
 
@@ -96,5 +104,19 @@ router.get('/e-contabilidad/sugerencias-codigos-agrupadores', getSugerenciasCodi
 router.get('/e-contabilidad/codigos-agrupadores', getCodigosAgrupadores);
 router.get('/e-contabilidad/saldos-iniciales', getSaldosIniciales);
 router.patch('/e-contabilidad/saldos-iniciales', patchSaldosInicialesLote);
+router.get('/e-contabilidad/catalogo-xml/preview', getCatalogoXmlPreview);
+router.get('/e-contabilidad/catalogo-xml/descargar', getCatalogoXmlDescargar);
+router.get('/e-contabilidad/balanza-xml/preview', getBalanzaXmlPreview);
+router.get('/e-contabilidad/balanza-xml/descargar', getBalanzaXmlDescargar);
+router.get('/e-contabilidad/polizas-sat/preview', getPolizasSatPreview);
+router.get('/e-contabilidad/polizas-xml/preview', getPolizasXmlPreview);
+router.get('/e-contabilidad/polizas-xml/descargar', getPolizasXmlDescargar);
+router.get('/e-contabilidad/auxiliares-sat/folios/preview', getAuxiliarFoliosPreview);
+router.get('/e-contabilidad/auxiliares-sat/folios/descargar', getAuxiliarFoliosDescargar);
+router.get('/e-contabilidad/auxiliares-sat/cuentas/preview', getAuxiliarCuentasPreview);
+router.get('/e-contabilidad/auxiliares-sat/cuentas/descargar', getAuxiliarCuentasDescargar);
+router.get('/e-contabilidad/paquete-zip/preview', getPaqueteZipPreview);
+router.get('/e-contabilidad/paquete-zip/descargar', getPaqueteZipDescargar);
+router.get('/e-contabilidad/bitacora', getBitacoraPaquetes);
 
 export default router;

@@ -21,7 +21,6 @@ import {
   TableRow,
   Tab,
   Tabs,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -29,6 +28,13 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { SelectorMesesCompacto } from './SelectorMesesCompacto';
 import CatalogoCuentasSatView from './CatalogoCuentasSatView';
 import SaldosInicialesView from './SaldosInicialesView';
+import CatalogoXmlView from './CatalogoXmlView';
+import BalanzaXmlView from './BalanzaXmlView';
+import PolizasSatView from './PolizasSatView';
+import PolizasXmlView from './PolizasXmlView';
+import AuxiliaresSatView from './AuxiliaresSatView';
+import PaqueteZipView from './PaqueteZipView';
+import BitacoraView from './BitacoraView';
 import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService';
 import { fetchValidacionesEContabilidad } from '../../services/eContabilidadService';
 import type {
@@ -174,14 +180,17 @@ function ResumenTarjeta({ etiqueta, valor, color }: { etiqueta: string; valor: n
   );
 }
 
-const ACCIONES_FUTURAS = [
-  'Generar catálogo XML',
-  'Generar balanza XML',
-  'Generar pólizas XML',
-  'Auxiliares SAT',
-];
-
-type SubVistaEContabilidad = 'validaciones' | 'catalogo-sat' | 'saldos-iniciales';
+type SubVistaEContabilidad =
+  | 'validaciones'
+  | 'catalogo-sat'
+  | 'saldos-iniciales'
+  | 'catalogo-xml'
+  | 'balanza-xml'
+  | 'polizas-sat'
+  | 'polizas-xml'
+  | 'auxiliares-sat'
+  | 'paquete-zip'
+  | 'bitacora';
 
 export default function EContabilidadTab() {
   const [subVista, setSubVista] = React.useState<SubVistaEContabilidad>('validaciones');
@@ -232,7 +241,9 @@ export default function EContabilidadTab() {
         </Typography>
         <Typography variant="body2" color="text.secondary">
           Valida si el periodo está listo para generar catálogo de cuentas, balanza, pólizas y auxiliares en formato
-          SAT. Esta fase solo diagnostica; no genera archivos XML.
+          SAT. Catálogo de cuentas, balanza de comprobación, pólizas del periodo y auxiliares (folios fiscales y
+          cuentas) ya pueden generarse como XML (subtabs "Catálogo XML" / "Balanza XML" / "Pólizas XML" /
+          "Auxiliares SAT"), y agruparse en un solo ZIP desde "Paquete ZIP".
         </Typography>
       </Box>
 
@@ -251,6 +262,13 @@ export default function EContabilidadTab() {
         <Tab value="validaciones" label="Validaciones" />
         <Tab value="catalogo-sat" label="Catálogo de cuentas SAT" />
         <Tab value="saldos-iniciales" label="Saldos iniciales" />
+        <Tab value="catalogo-xml" label="Catálogo XML" />
+        <Tab value="balanza-xml" label="Balanza XML" />
+        <Tab value="polizas-sat" label="Pólizas SAT" />
+        <Tab value="polizas-xml" label="Pólizas XML" />
+        <Tab value="auxiliares-sat" label="Auxiliares SAT" />
+        <Tab value="paquete-zip" label="Paquete ZIP" />
+        <Tab value="bitacora" label="Bitácora" />
       </Tabs>
 
       {subVista === 'catalogo-sat' && (
@@ -258,6 +276,50 @@ export default function EContabilidadTab() {
       )}
 
       {subVista === 'saldos-iniciales' && <SaldosInicialesView />}
+
+      {subVista === 'catalogo-xml' && (
+        <CatalogoXmlView
+          onIrACatalogoSat={() => setSubVista('catalogo-sat')}
+          onIrAValidaciones={() => setSubVista('validaciones')}
+        />
+      )}
+
+      {subVista === 'balanza-xml' && (
+        <BalanzaXmlView
+          onIrACatalogoSat={() => setSubVista('catalogo-sat')}
+          onIrAValidaciones={() => setSubVista('validaciones')}
+          onIrASaldosIniciales={() => setSubVista('saldos-iniciales')}
+        />
+      )}
+
+      {subVista === 'polizas-sat' && <PolizasSatView onIrAValidaciones={() => setSubVista('validaciones')} />}
+
+      {subVista === 'polizas-xml' && (
+        <PolizasXmlView
+          onIrAPolizasSat={() => setSubVista('polizas-sat')}
+          onIrAValidaciones={() => setSubVista('validaciones')}
+        />
+      )}
+
+      {subVista === 'auxiliares-sat' && (
+        <AuxiliaresSatView
+          onIrAPolizasSat={() => setSubVista('polizas-sat')}
+          onIrAValidaciones={() => setSubVista('validaciones')}
+        />
+      )}
+
+      {subVista === 'paquete-zip' && (
+        <PaqueteZipView
+          onIrACatalogoXml={() => setSubVista('catalogo-xml')}
+          onIrABalanzaXml={() => setSubVista('balanza-xml')}
+          onIrAPolizasXml={() => setSubVista('polizas-xml')}
+          onIrAAuxiliaresSat={() => setSubVista('auxiliares-sat')}
+          onIrAValidaciones={() => setSubVista('validaciones')}
+          onIrABitacora={() => setSubVista('bitacora')}
+        />
+      )}
+
+      {subVista === 'bitacora' && <BitacoraView />}
 
       {subVista === 'validaciones' && (
         <>
@@ -338,23 +400,6 @@ export default function EContabilidadTab() {
           )}
         </>
       )}
-
-      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#f8fafc' }}>
-        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>
-          Acciones de generación
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-          {ACCIONES_FUTURAS.map((accion) => (
-            <Tooltip key={accion} title="Disponible en una fase posterior.">
-              <span>
-                <Button variant="outlined" disabled>
-                  {accion}
-                </Button>
-              </span>
-            </Tooltip>
-          ))}
-        </Box>
-      </Paper>
         </>
       )}
     </Box>
