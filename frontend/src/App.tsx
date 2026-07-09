@@ -76,6 +76,9 @@ import KardexProductoPage from './pages/informes/inventario/KardexProductoPage';
 import MovimientosInventarioPage from './pages/informes/inventario/MovimientosInventarioPage';
 import ProductosBajoMinimoPage from './pages/informes/inventario/ProductosBajoMinimoPage';
 import InventarioValorizadoPage from './pages/informes/inventario/InventarioValorizadoPage';
+import BalanzaAnaliticaPage from './pages/informes/contabilidad/BalanzaAnaliticaPage';
+import EstadoResultadosPage from './pages/informes/contabilidad/EstadoResultadosPage';
+import BalanceGeneralPage from './pages/informes/contabilidad/BalanceGeneralPage';
 
 export default function App() {
   return (
@@ -123,8 +126,10 @@ export default function App() {
               {/* Finanzas / Inventario / Informes */}
               <Route path="/finanzas" element={<FinanzasPage />} />
               <Route path="/contabilidad" element={<ContabilidadPage />} />
+              <Route path="/contabilidad/cuentas" element={<ContabilidadPage />} />
               <Route path="/contabilidad/polizas" element={<ContabilidadPage />} />
               <Route path="/contabilidad/tipos-poliza" element={<ContabilidadPage />} />
+              <Route path="/contabilidad/e-contabilidad" element={<ContabilidadPage />} />
               <Route path="/contabilidad/rangos" element={<ContabilidadPage />} />
               <Route path="/contabilidad/configuracion" element={<ContabilidadPage />} />
               <Route path="/finanzas/programacion-pagos" element={<ProgramacionPagosPage />} />
@@ -158,6 +163,9 @@ export default function App() {
               <Route path="/informes/inventario/movimientos"                element={<MovimientosInventarioPage />} />
               <Route path="/informes/inventario/bajo-minimo"                element={<ProductosBajoMinimoPage />} />
               <Route path="/informes/inventario/valorizado"                 element={<InventarioValorizadoPage />} />
+              <Route path="/informes/contabilidad/balanza-analitica"        element={<BalanzaAnaliticaPage />} />
+              <Route path="/informes/contabilidad/estado-resultados"       element={<EstadoResultadosPage />} />
+              <Route path="/informes/contabilidad/balance-general"         element={<BalanceGeneralPage />} />
 
               {/* Configuración */}
               <Route path="/configuracion" element={<ConfiguracionPage />} />

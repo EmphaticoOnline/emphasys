@@ -35,11 +35,13 @@ type DocumentoCotizacion = {
   concepto_id?: number | null;
   producto_resumen?: string | null;
   cliente_nombre?: string | null;
+  cliente_nombre_contacto?: string | null;
   cliente_email?: string | null;
   cliente_telefono?: string | null;
   cliente_rfc?: string | null;
   rfc_receptor?: string | null;
   cliente_direccion?: string | null;
+  cliente_ciudad_estado_cp?: string | null;
   uso_cfdi?: string | null;
   regimen_fiscal_receptor?: string | null;
   forma_pago?: string | null;
@@ -1100,11 +1102,12 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       };
 
       if (esCotizacion) {
-        const clienteNombre = documento?.nombre_receptor || documento?.cliente_nombre || 'Cliente';
+        const clienteNombreContacto = documento?.cliente_nombre_contacto || null;
+        const clienteEmpresa = documento?.nombre_receptor || documento?.cliente_nombre || null;
         const clienteTelefono = documento?.cliente_telefono || null;
         const clienteEmail = documento?.cliente_email || null;
-        const clienteRfc = documento?.cliente_rfc || documento?.rfc_receptor || null;
         const clienteDireccion = documento?.cliente_direccion || null;
+        const clienteCiudadEstadoCp = documento?.cliente_ciudad_estado_cp || null;
         const lineHeight = 12;
         const labelColWidth = 80;
         const gapCols = 8;
@@ -1113,12 +1116,16 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         const valueWidth = contentWidth - labelColWidth - gapCols;
         const tableGap = 12;
 
+        // Datos comerciales del cliente: cada renglón solo aparece si el
+        // contacto tiene ese dato capturado (no se muestran vacíos ni datos fiscales).
         type ClienteRow = { label: string; value: string; prominent?: boolean };
-        const clienteRows: ClienteRow[] = [{ label: 'Atención', value: clienteNombre, prominent: true }];
+        const clienteRows: ClienteRow[] = [];
+        if (clienteNombreContacto) clienteRows.push({ label: 'Atención', value: clienteNombreContacto, prominent: true });
+        if (clienteEmpresa) clienteRows.push({ label: 'Empresa', value: clienteEmpresa, prominent: !clienteNombreContacto });
         if (clienteTelefono) clienteRows.push({ label: 'Teléfono', value: formatTelefonoParaImpresion(clienteTelefono) });
         if (clienteEmail) clienteRows.push({ label: 'Correo', value: clienteEmail });
-        if (clienteRfc) clienteRows.push({ label: 'RFC', value: clienteRfc });
-        if (clienteDireccion) clienteRows.push({ label: 'Domicilio', value: clienteDireccion, prominent: true });
+        if (clienteDireccion) clienteRows.push({ label: 'Dirección', value: clienteDireccion });
+        if (clienteCiudadEstadoCp) clienteRows.push({ label: 'Ciudad', value: clienteCiudadEstadoCp });
 
         let currentY = bloqueY;
         clienteRows.forEach((row) => {
@@ -1129,7 +1136,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           currentY += Math.max(lineHeight, rowHeight);
         });
 
-        doc.y = currentY + tableGap;
+        doc.y = clienteRows.length ? currentY + tableGap : bloqueY;
         return;
       }
 

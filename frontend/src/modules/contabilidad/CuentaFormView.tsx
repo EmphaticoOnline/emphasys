@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Chip,
   CircularProgress,
@@ -12,7 +13,12 @@ import {
   Typography,
 } from '@mui/material';
 import type { Cuenta, NivelCuentaInfo } from '../../types/contabilidad';
+import type { CodigoAgrupadorSat } from '../../types/codigosAgrupadores';
+import type { RangoCuenta } from '../../types/rangosCuentas';
+import { NATURALEZA_SALDO_LABEL } from '../../types/rangosCuentas';
 import { crearCuenta, actualizarCuenta, validarNuevaCuenta, fetchConfiguracionContable } from '../../services/contabilidadService';
+import { fetchCodigosAgrupadores } from '../../services/eContabilidadService';
+import { fetchRangosCuentas } from '../../services/rangosCuentasService';
 import FloatingFormActions from '../../components/FloatingFormActions';
 import {
   limpiarCuentaInput,
@@ -24,12 +30,7 @@ import {
 interface FormState {
   cuenta: string;
   descripcion: string;
-  afectable: boolean;
-  rango_cuenta_id: string;
-  subgrupo: string;
   codigo_agrupador_sat: string;
-  rubro_presupuesto: string;
-  no_considerar_presupuesto: boolean;
   observaciones: string;
   activa: boolean;
 }
@@ -38,12 +39,7 @@ function buildForm(cuenta: Cuenta | null): FormState {
   return {
     cuenta: cuenta?.cuenta ?? '',
     descripcion: cuenta?.descripcion ?? '',
-    afectable: cuenta?.afectable ?? true,
-    rango_cuenta_id: cuenta?.rango_cuenta_id ? String(cuenta.rango_cuenta_id) : '',
-    subgrupo: cuenta?.subgrupo ?? '',
     codigo_agrupador_sat: cuenta?.codigo_agrupador_sat ?? '',
-    rubro_presupuesto: cuenta?.rubro_presupuesto ?? '',
-    no_considerar_presupuesto: cuenta?.no_considerar_presupuesto ?? true,
     observaciones: cuenta?.observaciones ?? '',
     activa: cuenta?.activa ?? true,
   };
@@ -63,15 +59,65 @@ export default function CuentaFormView({
   const [segmentLengths, setSegmentLengths] = React.useState<number[]>([]);
   const [caracterSeparador, setCaracterSeparador] = React.useState<string>('-');
   const [descripcionesFaltantes, setDescripcionesFaltantes] = React.useState<Record<string, string>>({});
-  const [validacion, setValidacion] = React.useState<{ cuentas: NivelCuentaInfo[]; cuentaExistente: boolean } | null>(null);
+  const [validacion, setValidacion] = React.useState<{
+    cuentas: NivelCuentaInfo[];
+    cuentaExistente: boolean;
+    naturalezaSaldo: 'D' | 'A' | null;
+  } | null>(null);
   const [validando, setValidando] = React.useState(false);
   const [errorValidacion, setErrorValidacion] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [codigosAgrupadores, setCodigosAgrupadores] = React.useState<CodigoAgrupadorSat[]>([]);
+  const [rangosCuentas, setRangosCuentas] = React.useState<RangoCuenta[]>([]);
 
   const handleChange = (field: keyof FormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
+
+  React.useEffect(() => {
+    fetchCodigosAgrupadores()
+      .then(setCodigosAgrupadores)
+      .catch(() => {
+        // Si falla la carga del catálogo, el selector queda sin opciones;
+        // el backend igual valida el código al guardar.
+      });
+  }, []);
+
+  const codigoAgrupadorSeleccionado = React.useMemo(
+    () => codigosAgrupadores.find((c) => c.codigo === form.codigo_agrupador_sat) ?? null,
+    [codigosAgrupadores, form.codigo_agrupador_sat]
+  );
+
+  React.useEffect(() => {
+    fetchRangosCuentas()
+      .then(setRangosCuentas)
+      .catch(() => {
+        // Si falla, la naturaleza en modo edición se muestra como "no
+        // determinada"; no bloquea el resto del formulario.
+      });
+  }, []);
+
+  const rangosPorId = React.useMemo(() => new Map(rangosCuentas.map((r) => [r.id, r])), [rangosCuentas]);
+
+  // En edición, rango_cuenta_id ya está fijo (la edición no lo recalcula,
+  // ver actualizarCuenta en el backend): la naturaleza es solo lectura de lo
+  // que ese rango dice hoy. En creación no hay cuenta.rango_cuenta_id
+  // todavía; se usa la previsualización que regresa validar-nueva (mismo
+  // cálculo que hará crearCuentaJerarquica al guardar).
+  const naturalezaResuelta: 'D' | 'A' | null = isEdit
+    ? (cuenta?.rango_cuenta_id != null ? rangosPorId.get(cuenta.rango_cuenta_id)?.naturaleza_saldo ?? null : null)
+    : (validacion?.naturalezaSaldo ?? null);
+
+  const bloqueNaturaleza = naturalezaResuelta ? (
+    <Typography variant="body2">
+      <strong>Naturaleza:</strong> {NATURALEZA_SALDO_LABEL[naturalezaResuelta]}
+    </Typography>
+  ) : (
+    <Alert severity="warning">
+      Naturaleza no determinada. Revisa los rangos de cuentas (pestaña Rangos) para que esta cuenta pueda guardarse.
+    </Alert>
+  );
 
   React.useEffect(() => {
     if (isEdit) return;
@@ -121,7 +167,11 @@ export default function CuentaFormView({
             return;
           }
           setErrorValidacion(null);
-          setValidacion({ cuentas: resp.cuentas ?? [], cuentaExistente: Boolean(resp.cuenta_existente) });
+          setValidacion({
+            cuentas: resp.cuentas ?? [],
+            cuentaExistente: Boolean(resp.cuenta_existente),
+            naturalezaSaldo: resp.naturaleza_saldo ?? null,
+          });
           setDescripcionesFaltantes((prev) => {
             const next: Record<string, string> = {};
             (resp.cuentas ?? []).forEach((nivelInfo) => {
@@ -174,6 +224,10 @@ export default function CuentaFormView({
         setFormError('La cuenta contable ya existe.');
         return;
       }
+      if (!validacion.naturalezaSaldo) {
+        setFormError('No se puede guardar la cuenta porque no tiene una naturaleza contable válida. Revise los rangos de cuentas.');
+        return;
+      }
       for (const nivelInfo of cuentasFaltantesIntermedias) {
         if (!descripcionesFaltantes[nivelInfo.cuenta]?.trim()) {
           setFormError(`Captura la descripción de la cuenta ${nivelInfo.cuenta}`);
@@ -182,8 +236,6 @@ export default function CuentaFormView({
       }
     }
 
-    const rangoCuentaId = form.rango_cuenta_id ? Number(form.rango_cuenta_id) : null;
-
     try {
       setSaving(true);
       setFormError(null);
@@ -191,24 +243,15 @@ export default function CuentaFormView({
       if (isEdit && cuenta) {
         await actualizarCuenta(cuenta.id, {
           descripcion: form.descripcion.trim(),
-          afectable: form.afectable,
-          rango_cuenta_id: rangoCuentaId,
-          subgrupo: form.subgrupo.trim() || null,
           codigo_agrupador_sat: form.codigo_agrupador_sat.trim() || null,
-          rubro_presupuesto: form.rubro_presupuesto.trim() || null,
-          no_considerar_presupuesto: form.no_considerar_presupuesto,
           observaciones: form.observaciones.trim() || null,
+          activa: form.activa,
         });
       } else {
         await crearCuenta({
           cuenta: form.cuenta,
           descripcion: form.descripcion.trim(),
-          afectable: form.afectable,
-          rango_cuenta_id: rangoCuentaId,
-          subgrupo: form.subgrupo.trim() || null,
           codigo_agrupador_sat: form.codigo_agrupador_sat.trim() || null,
-          rubro_presupuesto: form.rubro_presupuesto.trim() || null,
-          no_considerar_presupuesto: form.no_considerar_presupuesto,
           observaciones: form.observaciones.trim() || null,
           activa: form.activa,
           descripciones_faltantes: descripcionesFaltantes,
@@ -246,6 +289,8 @@ export default function CuentaFormView({
             }
           />
 
+          {isEdit && <Box>{bloqueNaturaleza}</Box>}
+
           {!isEdit && form.cuenta && (
             <Box>
               {validando && (
@@ -276,6 +321,8 @@ export default function CuentaFormView({
                       />
                     ))}
                   </Stack>
+
+                  {bloqueNaturaleza}
 
                   {cuentasFaltantesIntermedias.length > 0 && (
                     <Alert severity="info">
@@ -311,57 +358,29 @@ export default function CuentaFormView({
             fullWidth
           />
 
-          <FormControlLabel
-            control={<Switch checked={form.afectable} onChange={(e) => handleChange('afectable', e.target.checked)} />}
-            label={form.afectable ? 'Afectable' : 'No afectable (cuenta acumulativa)'}
-          />
-
-          <TextField
-            label="Rango de cuenta (ID)"
-            helperText="Aún no hay catálogo de rangos disponible; captura el ID si ya lo conoces."
-            value={form.rango_cuenta_id}
-            onChange={(e) => handleChange('rango_cuenta_id', e.target.value.replace(/\D/g, ''))}
-            size="small"
-            fullWidth
-          />
-
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="Subgrupo"
-              value={form.subgrupo}
-              onChange={(e) => handleChange('subgrupo', e.target.value)}
-              inputProps={{ maxLength: 60 }}
+          <Box>
+            <Autocomplete
+              options={codigosAgrupadores}
+              value={codigoAgrupadorSeleccionado}
+              getOptionLabel={(o) => `${o.codigo} — ${o.descripcion}`}
+              isOptionEqualToValue={(o, v) => o.codigo === v.codigo}
+              onChange={(_e, value) => handleChange('codigo_agrupador_sat', value?.codigo ?? '')}
               size="small"
               fullWidth
+              renderInput={(params) => (
+                <TextField
+                  {...(params as any)}
+                  label="Código agrupador SAT"
+                  helperText="Busca por código o descripción del catálogo oficial SAT."
+                />
+              )}
             />
-            <TextField
-              label="Código agrupador SAT"
-              value={form.codigo_agrupador_sat}
-              onChange={(e) => handleChange('codigo_agrupador_sat', e.target.value)}
-              inputProps={{ maxLength: 10 }}
-              size="small"
-              fullWidth
-            />
-          </Stack>
-
-          <TextField
-            label="Rubro de presupuesto"
-            value={form.rubro_presupuesto}
-            onChange={(e) => handleChange('rubro_presupuesto', e.target.value)}
-            inputProps={{ maxLength: 80 }}
-            size="small"
-            fullWidth
-          />
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={form.no_considerar_presupuesto}
-                onChange={(e) => handleChange('no_considerar_presupuesto', e.target.checked)}
-              />
-            }
-            label="No considerar en presupuesto"
-          />
+            {form.codigo_agrupador_sat && !codigoAgrupadorSeleccionado && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                El código actual no existe en el catálogo SAT: {form.codigo_agrupador_sat}
+              </Alert>
+            )}
+          </Box>
 
           <TextField
             label="Observaciones"
@@ -374,12 +393,17 @@ export default function CuentaFormView({
             inputProps={{ maxLength: 500 }}
           />
 
-          {!isEdit && (
+          <Box>
             <FormControlLabel
               control={<Switch checked={form.activa} onChange={(e) => handleChange('activa', e.target.checked)} />}
               label={form.activa ? 'Activa' : 'Inactiva'}
             />
-          )}
+            {isEdit && cuenta && !cuenta.afectable && cuenta.activa && !form.activa && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                Al desactivar esta cuenta, también se desactivarán sus subcuentas.
+              </Alert>
+            )}
+          </Box>
 
           {formError && (
             <Typography color="error" variant="body2">

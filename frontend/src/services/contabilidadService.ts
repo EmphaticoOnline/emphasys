@@ -7,6 +7,7 @@ import type {
   ConfiguracionContableInput,
   ValidarNuevaCuentaResponse,
 } from '../types/contabilidad';
+import type { CuentaAfectable } from '../types/polizas';
 
 const BASE = '/api/contabilidad/cuentas';
 const CONFIGURACION_BASE = '/api/contabilidad/configuracion';
@@ -34,11 +35,13 @@ export async function actualizarCuenta(id: number, payload: CuentaEdicionInput):
   });
 }
 
-export async function cambiarEstadoCuenta(id: number, activa: boolean): Promise<Cuenta> {
-  return apiFetch(`${BASE}/${id}/estado`, {
-    method: 'PATCH',
-    body: { activa } as any,
-  });
+export async function eliminarCuenta(id: number): Promise<void> {
+  await apiFetch(`${BASE}/${id}`, { method: 'DELETE' });
+}
+
+export async function fetchCuentasAfectables(buscar?: string): Promise<CuentaAfectable[]> {
+  const query = buscar?.trim() ? `?buscar=${encodeURIComponent(buscar.trim())}` : '';
+  return apiFetch(`${BASE}/afectables${query}`);
 }
 
 export async function fetchConfiguracionContable(): Promise<ConfiguracionContable> {
@@ -49,5 +52,36 @@ export async function actualizarConfiguracionContable(payload: ConfiguracionCont
   return apiFetch(CONFIGURACION_BASE, {
     method: 'PUT',
     body: payload as any,
+  });
+}
+
+export async function actualizarCodigoAgrupadorSatCuenta(id: number, codigoAgrupadorSat: string | null): Promise<Cuenta> {
+  return apiFetch(`${BASE}/${id}/codigo-agrupador-sat`, {
+    method: 'PATCH',
+    body: { codigo_agrupador_sat: codigoAgrupadorSat },
+  });
+}
+
+export interface ItemCodigoAgrupadorSatLote {
+  cuenta_id: number;
+  codigo_agrupador_sat: string | null;
+}
+
+export interface ErrorLoteCodigoAgrupadorSat {
+  cuenta_id: number;
+  motivo: string;
+}
+
+export interface ResultadoLoteCodigoAgrupadorSat {
+  actualizadas: number;
+  errores: ErrorLoteCodigoAgrupadorSat[];
+}
+
+export async function actualizarCodigosAgrupadoresSatLote(
+  items: ItemCodigoAgrupadorSatLote[]
+): Promise<ResultadoLoteCodigoAgrupadorSat> {
+  return apiFetch(`${BASE}/codigos-agrupadores-sat/lote`, {
+    method: 'PATCH',
+    body: { items } as any,
   });
 }

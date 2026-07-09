@@ -11,10 +11,25 @@ export const standardDataGridSx: SystemStyleObject<Theme> = {
     fontSize: 13,
     minHeight: STANDARD_DATA_GRID_HEADER_HEIGHT,
     maxHeight: STANDARD_DATA_GRID_HEADER_HEIGHT,
+    borderBottom: 'none',
   },
+  // MUI aplica la clase `MuiDataGrid-row--borderBottom` al contenedor de
+  // encabezados de forma incondicional (ver useGridColumnHeaders.js), lo
+  // que le mete `border-bottom: 1px solid var(--DataGrid-rowBorderColor)`
+  // a cada celda de encabezado. Ese color por defecto es un gris casi
+  // blanco (lighten(divider, 0.88) en tema claro), que contra el azul
+  // institucional se ve como una línea blanca separando el encabezado de
+  // la primera fila. El selector de MUI son dos clases encadenadas
+  // (mayor especificidad que un solo `.MuiDataGrid-columnHeader`), así
+  // que hace falta !important para ganarle sin importar el orden de las
+  // reglas en la hoja de estilos.
   '& .MuiDataGrid-columnHeader': {
     backgroundColor: '#1d2f68',
     color: '#ffffff',
+    borderBottom: 'none !important',
+  },
+  '& .MuiDataGrid-row--borderBottom .MuiDataGrid-filler, & .MuiDataGrid-row--borderBottom .MuiDataGrid-scrollbarFiller': {
+    borderBottom: 'none !important',
   },
   '& .MuiDataGrid-cell': {
     display: 'flex',

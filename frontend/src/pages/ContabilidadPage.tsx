@@ -4,6 +4,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { CONTABILIDAD_TABS } from '../components/contabilidadNavigation';
 import CuentasTab from '../modules/contabilidad/CuentasTab';
 import ConfiguracionTab from '../modules/contabilidad/ConfiguracionTab';
+import RangosTab from '../modules/contabilidad/RangosTab';
+import TiposPolizaTab from '../modules/contabilidad/TiposPolizaTab';
+import PolizasTab from '../modules/contabilidad/PolizasTab';
+import EContabilidadTab from '../modules/contabilidad/EContabilidadTab';
 
 type ContabilidadTabKey = (typeof CONTABILIDAD_TABS)[number]['key'];
 
@@ -21,7 +25,7 @@ const CONTABILIDAD_TAB_STYLE = {
 
 function getActiveTab(pathname: string): ContabilidadTabKey {
   const match = CONTABILIDAD_TABS.find((tab) => tab.path === pathname);
-  return match ? match.key : 'cuentas';
+  return match ? match.key : 'polizas';
 }
 
 function TabPlaceholder({ title, description }: { title: string; description: string }) {
@@ -90,10 +94,19 @@ export default function ContabilidadPage() {
 
       <Box sx={{ minHeight: 0 }}>
         {activeTab === 'cuentas' && <CuentasTab />}
+        {activeTab === 'polizas' && <PolizasTab />}
+        {activeTab === 'rangos' && <RangosTab />}
+        {activeTab === 'tipos-poliza' && <TiposPolizaTab />}
         {activeTab === 'configuracion' && <ConfiguracionTab />}
-        {activeTab !== 'cuentas' && activeTab !== 'configuracion' && (
-          <TabPlaceholder title={activeTabDef.title} description={activeTabDef.description} />
-        )}
+        {activeTab === 'e-contabilidad' && <EContabilidadTab />}
+        {activeTab !== 'cuentas' &&
+          activeTab !== 'polizas' &&
+          activeTab !== 'rangos' &&
+          activeTab !== 'tipos-poliza' &&
+          activeTab !== 'configuracion' &&
+          activeTab !== 'e-contabilidad' && (
+            <TabPlaceholder title={activeTabDef.title} description={activeTabDef.description} />
+          )}
       </Box>
     </Box>
   );

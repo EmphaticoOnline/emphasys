@@ -1,17 +1,24 @@
 export const CONTABILIDAD_TABS = [
 	{
+		key: 'polizas',
+		label: 'Pólizas',
+		path: '/contabilidad',
+		title: 'Pólizas contables',
+		description: 'Captura y consulta de pólizas contables.',
+	},
+	{
 		key: 'cuentas',
 		label: 'Cuentas',
-		path: '/contabilidad',
+		path: '/contabilidad/cuentas',
 		title: 'Catálogo de cuentas',
 		description: 'Administración del catálogo de cuentas contables.',
 	},
 	{
-		key: 'polizas',
-		label: 'Pólizas',
-		path: '/contabilidad/polizas',
-		title: 'Pólizas contables',
-		description: 'Captura y consulta de pólizas contables.',
+		key: 'e-contabilidad',
+		label: 'Contabilidad electrónica',
+		path: '/contabilidad/e-contabilidad',
+		title: 'Contabilidad electrónica',
+		description: 'Validaciones y generación de archivos para e-contabilidad SAT.',
 	},
 	{
 		key: 'tipos-poliza',

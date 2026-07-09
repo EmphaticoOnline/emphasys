@@ -15,6 +15,7 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import CalculateIcon from '@mui/icons-material/Calculate';
 import ForumIcon from '@mui/icons-material/Forum';
 import type { SvgIconComponent } from '@mui/icons-material';
 
@@ -182,6 +183,28 @@ const CATEGORIAS: Categoria[] = [
         label: 'Movimientos No Conciliados',
         descripcion: 'Operaciones bancarias pendientes o cotejadas sin conciliar, con días de antigüedad.',
         path: '/informes/finanzas/movimientos-no-conciliados',
+      },
+    ],
+  },
+  {
+    label: 'Contabilidad',
+    icon: CalculateIcon,
+    color: '#334155',
+    reportes: [
+      {
+        label: 'Balanza Analítica',
+        descripcion: 'Saldo inicial, cargos, abonos y saldo final por cuenta en un periodo o rango.',
+        path: '/informes/contabilidad/balanza-analitica',
+      },
+      {
+        label: 'Estado de Resultados',
+        descripcion: 'Ingresos, egresos y utilidad o pérdida del periodo.',
+        path: '/informes/contabilidad/estado-resultados',
+      },
+      {
+        label: 'Balance General',
+        descripcion: 'Situación financiera acumulada al cierre de un periodo: activo, pasivo y capital.',
+        path: '/informes/contabilidad/balance-general',
       },
     ],
   },

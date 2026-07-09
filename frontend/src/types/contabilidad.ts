@@ -19,24 +19,15 @@ export interface Cuenta {
 
 export type CuentaEdicionInput = {
   descripcion: string;
-  afectable?: boolean;
-  rango_cuenta_id?: number | null;
-  subgrupo?: string | null;
   codigo_agrupador_sat?: string | null;
-  rubro_presupuesto?: string | null;
-  no_considerar_presupuesto?: boolean;
   observaciones?: string | null;
+  activa?: boolean;
 };
 
 export type CuentaNuevaInput = {
   cuenta: string;
   descripcion: string;
-  afectable?: boolean;
-  rango_cuenta_id?: number | null;
-  subgrupo?: string | null;
   codigo_agrupador_sat?: string | null;
-  rubro_presupuesto?: string | null;
-  no_considerar_presupuesto?: boolean;
   observaciones?: string | null;
   activa?: boolean;
   descripciones_faltantes?: Record<string, string>;
@@ -57,6 +48,7 @@ export interface ValidarNuevaCuentaResponse {
   nivel?: number;
   cuentas?: NivelCuentaInfo[];
   cuenta_existente?: boolean;
+  naturaleza_saldo?: 'D' | 'A' | null;
 }
 
 export interface ConfiguracionContable {
