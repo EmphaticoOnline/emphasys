@@ -5,6 +5,15 @@ function getEmpresaId(req: Request): number {
   return Number(req.context?.empresaId ?? 0);
 }
 
+// undefined = el campo no vino en el body (no tocar el valor actual);
+// null = el usuario lo dejó vacío a propósito (limpiar la configuración).
+function parseTipoPolizaIdInput(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
 export async function getConfiguracion(req: Request, res: Response) {
   try {
     const empresaId = getEmpresaId(req);
@@ -26,6 +35,10 @@ export async function putConfiguracion(req: Request, res: Response) {
     const configuracion = await actualizarConfiguracion(empresaId, {
       estructura_cuentas: req.body?.estructura_cuentas,
       caracter_separador: req.body?.caracter_separador,
+      permitir_venta_no_timbrada:
+        typeof req.body?.permitir_venta_no_timbrada === 'boolean' ? req.body.permitir_venta_no_timbrada : undefined,
+      tipo_poliza_venta_factura_id: parseTipoPolizaIdInput(req.body?.tipo_poliza_venta_factura_id),
+      tipo_poliza_venta_cancelacion_id: parseTipoPolizaIdInput(req.body?.tipo_poliza_venta_cancelacion_id),
     });
     return res.json(configuracion);
   } catch (error) {

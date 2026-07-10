@@ -77,6 +77,8 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import CalculateIcon from '@mui/icons-material/Calculate';
 import { Tooltip } from '@mui/material';
 import Snackbar from '@mui/material/Snackbar';
 import AlertSnackbar from '@mui/material/Alert';
@@ -94,6 +96,12 @@ import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoP
 import { fetchAnticiposDisponiblesDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
+import {
+  fetchEstadoContableFacturasVentaLote,
+  type EstadoContableFacturaVentaInfo,
+} from '../services/facturaVentaContabilizacionService';
+import ContabilizarFacturaVentaDrawer from '../modules/contabilidad/ContabilizarFacturaVentaDrawer';
+import ContabilizarFacturasVentaLoteDialog from '../modules/contabilidad/ContabilizarFacturasVentaLoteDialog';
 import { resolverFolioVisual } from '../utils/documentos.utils';
 import { esES } from '@mui/x-data-grid/locales';
 import { useSession } from '../session/useSession';
@@ -595,6 +603,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     open: false,
     documentoId: null,
   });
+  const [contabilizarVentaDrawer, setContabilizarVentaDrawer] = useState<{
+    open: boolean;
+    documentoId: number | null;
+    folio: string;
+  }>({ open: false, documentoId: null, folio: '' });
+  const [openLoteContabilizacionVentas, setOpenLoteContabilizacionVentas] = useState(false);
+  const [estadoContableVentas, setEstadoContableVentas] = useState<Record<number, EstadoContableFacturaVentaInfo>>({});
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [soloPendientes, setSoloPendientes] = useState(false);
@@ -1326,6 +1341,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipoDocumento, page, pageSize, debouncedSearch, soloPendientes, quickFilter, filtrosCotizacion, loadingPreferences]);
 
+  // Estado contable de la contabilización de ventas: se resuelve aparte con
+  // un endpoint "barato" (sin resolver cuentas contables) para no multiplicar
+  // consultas pesadas por cada fila visible de la grilla.
+  useEffect(() => {
+    if (!esFacturaVentas || rows.length === 0) {
+      setEstadoContableVentas({});
+      return;
+    }
+    const ids = rows.map((row) => Number((row as any).id)).filter((id) => Number.isFinite(id) && id > 0);
+    fetchEstadoContableFacturasVentaLote(ids)
+      .then(setEstadoContableVentas)
+      .catch(() => setEstadoContableVentas({}));
+  }, [esFacturaVentas, rows]);
+
   const obtenerEmailDocumento = (row: any) =>
     row?.contacto_email ?? row?.email_contacto ?? row?.cliente_email ?? row?.email_cliente ?? row?.email ?? '';
 
@@ -1839,12 +1868,51 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           );
         },
       },
+      ...(esFacturaVentas
+        ? ([{
+            field: 'estado_contable',
+            headerName: 'Estado contable',
+            width: 150,
+            sortable: false,
+            filterable: false,
+            headerClassName: 'finanzas-header',
+            renderCell: (params: any) => {
+              const info = estadoContableVentas[Number(params.row?.id)];
+              if (!info) return null;
+              let label = 'No contabilizada';
+              let color: 'success' | 'warning' | undefined;
+              let tooltip: string | null = info.motivo;
+              if (info.estado === 'contabilizada') {
+                label = info.poliza_numero != null
+                  ? (info.tipo_poliza_identificador ? `${info.tipo_poliza_identificador} ${info.poliza_numero}` : `Póliza ${info.poliza_numero}`)
+                  : 'Contabilizada';
+                color = 'success';
+                tooltip = info.poliza_numero != null
+                  ? `Contabilizada en póliza ${info.tipo_poliza_identificador ?? ''} ${info.poliza_numero} del ${info.poliza_fecha ?? ''}`.replace(/\s+/g, ' ').trim()
+                  : 'Contabilizada';
+              } else if (info.estado === 'no_contabilizable') {
+                label = 'No contabilizable';
+              } else {
+                color = 'warning';
+              }
+              const chip = (
+                <Chip
+                  label={label}
+                  size="small"
+                  {...(color ? { color } : {})}
+                  sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5 }}
+                />
+              );
+              return tooltip ? <Tooltip title={tooltip}>{chip}</Tooltip> : chip;
+            },
+          }] as GridColDef[])
+        : []),
     ];
 
     columns.push({
       field: 'actions',
       headerName: 'Acciones',
-  width: esCotizacion ? 440 : 270,
+  width: esCotizacion ? 440 : esFacturaVentas ? 310 : 270,
       sortable: false,
       filterable: false,
       headerAlign: 'center',
@@ -2125,6 +2193,36 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </span>
             </Tooltip>
           )}
+          {esFacturaVentas && (
+            <Tooltip
+              title={
+                estadoContableVentas[Number(params.row?.id)]?.estado === 'contabilizada'
+                  ? 'Ver póliza de contabilización'
+                  : 'Previsualizar / contabilizar'
+              }
+            >
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setContabilizarVentaDrawer({
+                      open: true,
+                      documentoId: Number(params.row.id),
+                      folio: resolverFolioVisual(params.row, tipoDocumento) || String(params.row.id),
+                    });
+                  }}
+                >
+                  {estadoContableVentas[Number(params.row?.id)]?.estado === 'contabilizada' ? (
+                    <VisibilityOutlinedIcon fontSize="small" />
+                  ) : (
+                    <CalculateIcon fontSize="small" />
+                  )}
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
         </Stack>
       );
       },
@@ -2165,6 +2263,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     cancelandoId,
     getSeguimientoChipPresentation,
     openActividadSeguimientoDrawer,
+    esFacturaVentas,
+    estadoContableVentas,
   ]);
 
   const columns: GridColDef[] = useMemo(
@@ -2212,6 +2312,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const estatusDocumentoNormalizado = String(contextMenuRow?.estatus_documento ?? '').trim().toLowerCase();
     const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
     const esFacturaSinTimbrar = esFacturaNoTimbrada(tipoDocumento, contextMenuRow?.estatus_documento);
+    const estadoContableFacturaVentaMenu = estadoContableVentas[rowId];
 
     return [
       {
@@ -2298,6 +2399,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             contactoId: Number(contextMenuRow?.contacto_principal_id ?? 0) || null,
             saldo: Number(contextMenuRow?.saldo ?? 0),
             tipoDocumento,
+          });
+        },
+      },
+      {
+        id: 'contabilizar-factura-venta',
+        label: estadoContableFacturaVentaMenu?.estado === 'contabilizada' ? 'Ver póliza contable' : 'Contabilizar factura',
+        icon: estadoContableFacturaVentaMenu?.estado === 'contabilizada' ? <VisibilityOutlinedIcon fontSize="small" /> : <CalculateIcon fontSize="small" />,
+        hidden:
+          !esFacturaVentas ||
+          !estadoContableFacturaVentaMenu ||
+          estadoContableFacturaVentaMenu.estado === 'no_contabilizable',
+        onClick: () => {
+          setContabilizarVentaDrawer({
+            open: true,
+            documentoId: rowId,
+            folio: resolverFolioVisual(contextMenuRow, tipoDocumento) || String(rowId),
           });
         },
       },
@@ -2428,6 +2545,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     timbrandoId,
     tipoDocumento,
     cancelandoId,
+    esFacturaVentas,
+    estadoContableVentas,
+    setContabilizarVentaDrawer,
   ]);
 
   const resumenTotales = useMemo(() => {
@@ -2993,6 +3113,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           Factura global
         </Button>
       )}
+      {esFacturaVentas && (
+        <Button
+          variant="outlined"
+          startIcon={<CalculateIcon />}
+          onClick={() => setOpenLoteContabilizacionVentas(true)}
+        >
+          Contabilizar ventas
+        </Button>
+      )}
       <Button
         variant="outlined"
         startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
@@ -3299,6 +3428,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         tipoDocumento={tipoDocumento}
         onClose={() => setDetalleDrawer({ open: false, documentoId: null })}
       />
+
+      {esFacturaVentas && contabilizarVentaDrawer.documentoId ? (
+        <ContabilizarFacturaVentaDrawer
+          open={contabilizarVentaDrawer.open}
+          documentoId={contabilizarVentaDrawer.documentoId}
+          folio={contabilizarVentaDrawer.folio}
+          estadoContable={estadoContableVentas[contabilizarVentaDrawer.documentoId]}
+          onClose={() => setContabilizarVentaDrawer({ open: false, documentoId: null, folio: '' })}
+          onContabilizado={() => void load()}
+        />
+      ) : null}
+
+      {esFacturaVentas && (
+        <ContabilizarFacturasVentaLoteDialog
+          open={openLoteContabilizacionVentas}
+          onClose={() => setOpenLoteContabilizacionVentas(false)}
+          onContabilizado={() => void load()}
+        />
+      )}
 
       {esCotizacion ? (
         <ActividadSeguimientoDrawer

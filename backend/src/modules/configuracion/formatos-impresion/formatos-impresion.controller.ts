@@ -102,7 +102,13 @@ export async function guardarLayoutConfiguracion(req: Request, res: Response) {
       if (layoutId) {
         await actualizarLayoutConfiguracion(layoutId, configuracion);
       } else {
-        const creada = await crearLayoutConfiguracion(empresaId, tipoDocumento, nombrePlantilla, configuracion);
+        const creada = await crearLayoutConfiguracion(
+          empresaId,
+          tipoDocumento,
+          nombrePlantilla,
+          configuracion,
+          serieRow.serie
+        );
         if (!creada?.id) return res.status(500).json({ message: 'No se pudo crear la plantilla de layout' });
         layoutId = Number(creada.id);
         await asignarLayoutASerie(serieRow.id, layoutId);

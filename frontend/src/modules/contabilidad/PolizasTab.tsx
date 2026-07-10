@@ -129,6 +129,7 @@ export default function PolizasTab() {
   const [errorPolizas, setErrorPolizas] = React.useState<string | null>(null);
 
   const [polizaAEliminar, setPolizaAEliminar] = React.useState<PolizaEncabezado | null>(null);
+  const [polizaAplicadaBloqueada, setPolizaAplicadaBloqueada] = React.useState(false);
   const [eliminando, setEliminando] = React.useState(false);
   const [cambiandoEstatusId, setCambiandoEstatusId] = React.useState<number | null>(null);
 
@@ -233,7 +234,16 @@ export default function PolizasTab() {
     setVista('formulario');
   };
 
+  // Regla absoluta: una póliza aplicada nunca se puede eliminar (backend la
+  // rechaza sin importar el origen). El botón ya queda deshabilitado más
+  // abajo, pero esta validación es el respaldo real: si de algún modo se
+  // dispara la eliminación sobre una póliza aplicada, se avisa con un
+  // diálogo dedicado en vez de abrir la confirmación de borrado.
   const handlePedirEliminar = (row: PolizaEncabezado) => {
+    if (row.estatus === 'aplicada') {
+      setPolizaAplicadaBloqueada(true);
+      return;
+    }
     setPolizaAEliminar(row);
   };
 
@@ -253,11 +263,21 @@ export default function PolizasTab() {
       await eliminarPoliza(polizaAEliminar.id);
       setSnackbar({ open: true, message: 'Póliza eliminada', severity: 'success' });
       await cargarPolizas();
+      setPolizaAEliminar(null);
     } catch (err: any) {
-      setSnackbar({ open: true, message: err?.message || 'No se pudo eliminar la póliza', severity: 'error' });
+      // Respaldo por si la póliza pasó a "aplicada" entre que se abrió esta
+      // confirmación y se presionó Eliminar (ej. otra pestaña la aplicó):
+      // el backend igual la rechaza, y aquí se muestra el mismo diálogo
+      // dedicado en vez de un snackbar genérico.
+      if (String(err?.message ?? '').includes('No se puede eliminar una póliza aplicada')) {
+        setPolizaAEliminar(null);
+        setPolizaAplicadaBloqueada(true);
+      } else {
+        setSnackbar({ open: true, message: err?.message || 'No se pudo eliminar la póliza', severity: 'error' });
+        setPolizaAEliminar(null);
+      }
     } finally {
       setEliminando(false);
-      setPolizaAEliminar(null);
     }
   };
 
@@ -444,10 +464,17 @@ export default function PolizasTab() {
                 <EditIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Eliminar póliza">
-              <IconButton size="small" onClick={() => handlePedirEliminar(params.row)} sx={{ color: '#b91c1c', p: 0.25 }}>
-                <DeleteOutlineIcon sx={{ fontSize: 16 }} />
-              </IconButton>
+            <Tooltip title={aplicada ? 'No se puede eliminar una póliza aplicada' : 'Eliminar póliza'}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={aplicada}
+                  onClick={() => handlePedirEliminar(params.row)}
+                  sx={{ color: '#b91c1c', p: 0.25 }}
+                >
+                  <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </span>
             </Tooltip>
           </Stack>
         );
@@ -480,16 +507,38 @@ export default function PolizasTab() {
   );
 
   const columnasMovimientosBase: GridColDef<PolizaMovimiento>[] = React.useMemo(() => [
-    { field: 'cuenta', headerName: 'Cuenta', width: 120, headerAlign: 'center', headerClassName: 'finanzas-header' },
+    {
+      field: 'cuenta',
+      headerName: 'Cuenta',
+      width: 160,
+      headerAlign: 'center',
+      headerClassName: 'finanzas-header',
+      // La cuenta completa (todos los segmentos, incluyendo ceros finales) es
+      // el valor tal cual está en contabilidad.cuentas.cuenta; el ancho fijo
+      // anterior (120px, sin wrap ni tooltip) la recortaba visualmente en
+      // cuentas largas. Se ensancha y se agrega tooltip+nowrap, igual que la
+      // columna "Estatus" de la grilla de pólizas.
+      renderCell: ({ value }) => (
+        <Tooltip title={value || ''}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
+            {value ?? ''}
+          </span>
+        </Tooltip>
+      ),
+    },
     { field: 'cuenta_descripcion', headerName: 'Descripción', flex: 1.2, minWidth: 160, headerAlign: 'center', headerClassName: 'finanzas-header' },
     {
       field: 'concepto_descripcion',
       headerName: 'Concepto',
-      flex: 1,
-      minWidth: 120,
+      flex: 1.4,
+      minWidth: 200,
       headerAlign: 'center',
       headerClassName: 'finanzas-header',
-      renderCell: ({ value }) => value ?? '',
+      // concepto_texto (generado por procesos de contabilización automática,
+      // ej. facturas de venta) tiene prioridad sobre concepto_descripcion
+      // (nombre del catálogo genérico de conceptos), que solo aplica a
+      // pólizas capturadas manualmente con un concepto_id.
+      renderCell: (params) => params.row.concepto_texto || params.row.concepto_descripcion || '',
     },
     {
       field: 'cargo',
@@ -886,6 +935,18 @@ export default function PolizasTab() {
           </Button>
           <Button onClick={handleConfirmarEliminar} disabled={eliminando} color="error" variant="contained">
             {eliminando ? 'Eliminando...' : 'Eliminar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={polizaAplicadaBloqueada} onClose={() => setPolizaAplicadaBloqueada(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>No se puede eliminar</DialogTitle>
+        <DialogContent>
+          <DialogContentText>No se puede eliminar una póliza aplicada.</DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setPolizaAplicadaBloqueada(false)} variant="contained" sx={{ bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}>
+            Entendido
           </Button>
         </DialogActions>
       </Dialog>

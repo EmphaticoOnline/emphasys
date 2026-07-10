@@ -11,6 +11,7 @@ export type PlantillaLayoutRow = {
   id: number;
   empresa_id: number;
   tipo_documento: string | null;
+  serie: string | null;
   configuracion: Record<string, any> | null;
   activo: boolean;
   contenido_html: string | null;
@@ -61,6 +62,7 @@ export async function obtenerLayoutEmpresa(
       FROM public.plantillas_documento
      WHERE empresa_id = $1
        AND activo = true
+       AND serie IS NULL
        AND (tipo_documento IS NULL OR tipo_documento = $2)
   ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
      LIMIT 1
@@ -101,15 +103,16 @@ export async function crearLayoutConfiguracion(
   empresaId: number,
   tipoDocumento: string,
   nombre: string,
-  configuracion: Record<string, any>
+  configuracion: Record<string, any>,
+  serie: string | null = null
 ) {
   const query = `
     INSERT INTO public.plantillas_documento
-      (empresa_id, tipo_documento, nombre, contenido_html, configuracion, activo)
-    VALUES ($1, $2, $3, $4, $5, true)
+      (empresa_id, tipo_documento, nombre, contenido_html, configuracion, activo, serie)
+    VALUES ($1, $2, $3, $4, $5, true, $6)
     RETURNING id, configuracion
   `;
-  const { rows } = await pool.query(query, [empresaId, tipoDocumento, nombre, '', configuracion]);
+  const { rows } = await pool.query(query, [empresaId, tipoDocumento, nombre, '', configuracion, serie]);
   return rows[0] ?? null;
 }
 

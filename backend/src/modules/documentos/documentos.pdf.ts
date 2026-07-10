@@ -77,6 +77,8 @@ type DataCotizacion = {
 
 type EmpresaPdfInfo = {
   nombre: string | null;
+  rfc: string | null;
+  regimenFiscal: string | null;
   direccion: string | null;
   direccionLineas: string[];
   telefono: string | null;
@@ -317,6 +319,8 @@ async function obtenerEmpresaPdfInfo(empresaId?: number): Promise<EmpresaPdfInfo
     const { rows } = await pool.query<{
       nombre: string | null;
       razon_social: string | null;
+      rfc: string | null;
+      regimen_fiscal_id: string | null;
       calle: string | null;
       numero_exterior: string | null;
       numero_interior: string | null;
@@ -331,6 +335,8 @@ async function obtenerEmpresaPdfInfo(empresaId?: number): Promise<EmpresaPdfInfo
       `SELECT
          NULLIF(TRIM(COALESCE(e.nombre, '')), '') AS nombre,
          NULLIF(TRIM(COALESCE(e.razon_social, '')), '') AS razon_social,
+         NULLIF(TRIM(COALESCE(e.rfc, '')), '') AS rfc,
+         NULLIF(TRIM(COALESCE(e.regimen_fiscal_id, '')), '') AS regimen_fiscal_id,
          NULLIF(TRIM(COALESCE(e.calle, '')), '') AS calle,
          NULLIF(TRIM(COALESCE(e.numero_exterior, '')), '') AS numero_exterior,
          NULLIF(TRIM(COALESCE(e.numero_interior, '')), '') AS numero_interior,
@@ -369,6 +375,8 @@ async function obtenerEmpresaPdfInfo(empresaId?: number): Promise<EmpresaPdfInfo
 
     return {
       nombre: row.nombre ?? row.razon_social ?? null,
+      rfc: row.rfc ?? null,
+      regimenFiscal: row.regimen_fiscal_id ?? null,
       direccion: direccion || null,
       direccionLineas,
       telefono: row.telefono ?? null,
@@ -450,6 +458,7 @@ async function getDocumentLayout(documento?: any, empresaIdFallback?: number): P
            FROM public.plantillas_documento
           WHERE empresa_id = $1
             AND activo = true
+            AND serie IS NULL
             AND (tipo_documento IS NULL OR tipo_documento = $2)
        ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
           LIMIT 1`,
@@ -643,6 +652,15 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const fontItalicPath = path.join(assetsFontsPath, 'Trebuchet-Italic.ttf');
 
   const layout = await getDocumentLayout(documento, empresaId);
+  console.info('[pdf] Layout resuelto para observaciones de partida', {
+    documentoId: documento?.id,
+    empresaId: empresaId ?? (documento as any)?.empresa_id,
+    tipoDocumento: documento?.tipo_documento,
+    serie: documento?.serie ?? null,
+    mostrarObservacionesPartida: layout.mostrarObservacionesPartida,
+    partidasConObservaciones: (partidas ?? []).filter((p) => Boolean((p as PartidaCotizacion).observaciones)).length,
+    totalPartidas: (partidas ?? []).length,
+  });
 
   return await new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40, size: 'LETTER' });
@@ -1146,8 +1164,8 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
       let emisorY = bloqueY + 14;
       emisorY += drawLabelValue('Nombre', 'Emphasys', doc.page.margins.left, emisorY);
-      emisorY += drawLabelValue('RFC', documento?.cliente_rfc || documento?.rfc_receptor || 'N/D', doc.page.margins.left, emisorY);
-      emisorY += drawLabelValue('Régimen Fiscal', mapRegimen(documento?.regimen_fiscal_receptor), doc.page.margins.left, emisorY);
+      emisorY += drawLabelValue('RFC', empresaInfo?.rfc || timbre?.rfc_emisor || 'N/D', doc.page.margins.left, emisorY);
+      emisorY += drawLabelValue('Régimen Fiscal', mapRegimen(empresaInfo?.regimenFiscal), doc.page.margins.left, emisorY);
 
       let receptorY = bloqueY + 14;
       receptorY += drawLabelValue('Nombre', documento?.nombre_receptor || documento?.cliente_nombre, doc.page.margins.left + colWidth + 12, receptorY);
@@ -1161,7 +1179,18 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
     const renderPartidas = async () => {
       // Tabla de partidas (sin título "Partidas")
-      const showObservaciones = (esCotizacion || esOrdenServicio || esNotaCredito) && layout.mostrarObservacionesPartida !== false;
+      // La visibilidad de observaciones de partida la decide exclusivamente el
+      // layout configurado (Formatos de impresión), no el tipo de documento:
+      // factura hereda mostrarObservacionesPartida=false por defecto
+      // (DOCUMENT_LAYOUTS) pero puede activarse por empresa o por serie.
+      const showObservaciones = layout.mostrarObservacionesPartida === true;
+      console.info('[pdf] Decisión de impresión de observaciones de partida', {
+        documentoId: documento?.id,
+        tipoDocumento: documento?.tipo_documento,
+        serie: documento?.serie ?? null,
+        mostrarObservacionesPartida: layout.mostrarObservacionesPartida,
+        showObservaciones,
+      });
       const observacionesFontSize = 8;
       const observacionesPadding = 3;
       const observacionesRichTextFonts = {

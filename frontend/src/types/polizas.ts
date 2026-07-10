@@ -30,6 +30,7 @@ export interface PolizaMovimiento {
   cuenta_descripcion: string;
   concepto_id: number | null;
   concepto_descripcion: string | null;
+  concepto_texto: string | null;
   cargo: number;
   abono: number;
   fecha: string | null;
@@ -40,6 +41,7 @@ export interface PolizaMovimiento {
 export type PolizaMovimientoInput = {
   cuenta_id: number;
   concepto_id?: number | null;
+  concepto_texto?: string | null;
   cargo?: number;
   abono?: number;
   uuid_cfdi?: string | null;

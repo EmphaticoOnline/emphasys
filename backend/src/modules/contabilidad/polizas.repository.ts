@@ -33,6 +33,7 @@ export interface PolizaMovimiento {
   cuenta_descripcion: string;
   concepto_id: number | null;
   concepto_descripcion: string | null;
+  concepto_texto: string | null;
   cargo: number;
   abono: number;
   fecha: string | null;
@@ -43,6 +44,10 @@ export interface PolizaMovimiento {
 export type PolizaMovimientoInput = {
   cuenta_id: number;
   concepto_id?: number | null;
+  // Concepto libre del renglón (ej. generado por contabilización automática
+  // de facturas). Independiente de concepto_id, que sigue siendo el catálogo
+  // genérico de public.conceptos.
+  concepto_texto?: string | null;
   cargo?: number;
   abono?: number;
   uuid_cfdi?: string | null;
@@ -442,7 +447,7 @@ export async function listarMovimientosPoliza(polizaId: number, empresaId: numbe
     `SELECT
        pd.id, pd.poliza_id, pd.renglon, pd.cuenta_id,
        c.cuenta, c.descripcion AS cuenta_descripcion,
-       pd.concepto_id, co.nombre_concepto AS concepto_descripcion,
+       pd.concepto_id, co.nombre_concepto AS concepto_descripcion, pd.concepto_texto,
        pd.cargo, pd.abono, to_char(pd.fecha, 'YYYY-MM-DD') AS fecha, pd.uuid_cfdi, pd.rfc
      FROM contabilidad.polizas_detalle pd
      JOIN contabilidad.cuentas c ON c.id = pd.cuenta_id
@@ -481,16 +486,85 @@ export async function obtenerPolizaConMovimientos(
 //
 // Una póliza aplicada ya afectó saldos: eliminarla sin revertir dejaría
 // saldos huérfanos. Debe desaplicarse primero (cambiarEstatusPoliza).
+//
+// contabilidad.contabilizaciones apunta a la póliza (poliza_id) sin ON DELETE
+// CASCADE a propósito (ver 20260717_create_contabilidad_contabilizaciones):
+// borrar una póliza no debe arrastrar silenciosamente el registro de
+// contabilización. Aquí se borra explícitamente ese vínculo antes de la
+// póliza, dentro de la misma transacción, para no dejar huérfanos ni violar
+// la FK. Si la póliza es una contabilización original que ya tiene una
+// reversa registrada, se bloquea: borrar el original dejaría la reversa
+// apuntando a una contabilización inexistente.
 export async function eliminarPoliza(id: number, empresaId: number): Promise<boolean | null> {
   const actual = await obtenerPolizaPorId(id, empresaId);
   if (!actual) return null;
 
-  if (actual.estatus === 'aplicada') {
-    throw new Error('VALIDATION_ERROR: No se puede eliminar una póliza aplicada. Primero debe desaplicarse.');
+  const client = await pool.connect();
+  let encontrada = true;
+  try {
+    await client.query('BEGIN');
+
+    // Regla absoluta: una póliza aplicada nunca se puede eliminar, sin
+    // importar su origen (manual, ventas, lote, contabilización automática,
+    // etc.). Se revalida el estatus bajo lock (no solo la lectura de arriba)
+    // para cerrar la ventana de carrera con una aplicación concurrente
+    // disparada desde la grilla justo antes de este DELETE.
+    const { rows: filasLock } = await client.query<{ estatus: string }>(
+      `SELECT estatus FROM contabilidad.polizas WHERE id = $1 AND empresa_id = $2 FOR UPDATE`,
+      [id, empresaId]
+    );
+
+    if (!filasLock[0]) {
+      encontrada = false;
+    } else {
+      if (filasLock[0].estatus === 'aplicada') {
+        throw new Error('VALIDATION_ERROR: No se puede eliminar una póliza aplicada.');
+      }
+
+      // Lock de las contabilizaciones ligadas a esta póliza: cierra la ventana
+      // de carrera con un registro de reversa concurrente entre la validación
+      // de abajo y el DELETE.
+      const { rows: contabilizacionesPoliza } = await client.query<{ id: number; es_reversa: boolean }>(
+        `SELECT id, es_reversa FROM contabilidad.contabilizaciones
+          WHERE empresa_id = $1 AND poliza_id = $2
+          FOR UPDATE`,
+        [empresaId, id]
+      );
+
+      const originales = contabilizacionesPoliza.filter((c) => !c.es_reversa);
+      if (originales.length > 0) {
+        const idsOriginales = originales.map((c) => c.id);
+        const { rows: reversaRows } = await client.query<{ existe: boolean }>(
+          `SELECT EXISTS(
+             SELECT 1 FROM contabilidad.contabilizaciones
+             WHERE empresa_id = $1 AND es_reversa = true AND contabilizacion_origen_id = ANY($2::bigint[])
+           ) AS existe`,
+          [empresaId, idsOriginales]
+        );
+        if (reversaRows[0].existe) {
+          throw new Error('VALIDATION_ERROR: No se puede eliminar esta póliza porque tiene una reversa contable asociada.');
+        }
+      }
+
+      if (contabilizacionesPoliza.length > 0) {
+        await client.query(`DELETE FROM contabilidad.contabilizaciones WHERE empresa_id = $1 AND poliza_id = $2`, [
+          empresaId,
+          id,
+        ]);
+      }
+
+      await client.query(`DELETE FROM contabilidad.polizas WHERE empresa_id = $1 AND id = $2`, [empresaId, id]);
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
 
-  await pool.query(`DELETE FROM contabilidad.polizas WHERE empresa_id = $1 AND id = $2`, [empresaId, id]);
-  return true;
+  return encontrada ? true : null;
 }
 
 // Aplicar/desaplicar desde la grilla principal (acción rápida, sin pasar por
@@ -818,14 +892,15 @@ export async function crearPolizaConMovimientos(
       const mov = input.movimientos[i];
       await client.query(
         `INSERT INTO contabilidad.polizas_detalle
-           (empresa_id, poliza_id, renglon, cuenta_id, concepto_id, cargo, abono, uuid_cfdi, rfc)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+           (empresa_id, poliza_id, renglon, cuenta_id, concepto_id, concepto_texto, cargo, abono, uuid_cfdi, rfc)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           empresaId,
           polizaCreada.id,
           i + 1,
           mov.cuenta_id,
           mov.concepto_id ?? null,
+          mov.concepto_texto?.trim() || null,
           Number(mov.cargo ?? 0),
           Number(mov.abono ?? 0),
           mov.uuid_cfdi?.trim() || null,
@@ -928,14 +1003,15 @@ export async function actualizarPolizaConMovimientos(
       const mov = input.movimientos[i];
       await client.query(
         `INSERT INTO contabilidad.polizas_detalle
-           (empresa_id, poliza_id, renglon, cuenta_id, concepto_id, cargo, abono, uuid_cfdi, rfc)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+           (empresa_id, poliza_id, renglon, cuenta_id, concepto_id, concepto_texto, cargo, abono, uuid_cfdi, rfc)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           empresaId,
           polizaId,
           i + 1,
           mov.cuenta_id,
           mov.concepto_id ?? null,
+          mov.concepto_texto?.trim() || null,
           Number(mov.cargo ?? 0),
           Number(mov.abono ?? 0),
           mov.uuid_cfdi?.trim() || null,

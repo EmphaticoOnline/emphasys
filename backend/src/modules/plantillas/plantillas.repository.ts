@@ -22,6 +22,7 @@ export async function obtenerPlantillaActiva(
      WHERE empresa_id = $1
        AND LOWER(tipo_documento) = LOWER($2)
        AND activo = TRUE
+       AND serie IS NULL
      ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
      LIMIT 1;
   `;

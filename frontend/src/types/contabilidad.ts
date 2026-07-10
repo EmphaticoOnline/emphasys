@@ -56,11 +56,17 @@ export interface ConfiguracionContable {
   empresa_id: number;
   caracter_separador: string;
   estructura_cuentas: string;
+  permitir_venta_no_timbrada: boolean;
+  tipo_poliza_venta_factura_id: number | null;
+  tipo_poliza_venta_cancelacion_id: number | null;
   creado_en: string;
   actualizado_en: string;
 }
 
 export type ConfiguracionContableInput = {
-  estructura_cuentas: string;
-  caracter_separador: string;
+  estructura_cuentas?: string;
+  caracter_separador?: string;
+  permitir_venta_no_timbrada?: boolean;
+  tipo_poliza_venta_factura_id?: number | null;
+  tipo_poliza_venta_cancelacion_id?: number | null;
 };

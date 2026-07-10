@@ -50,6 +50,36 @@ import { getAuxiliarFoliosPreview, getAuxiliarFoliosDescargar } from './auxiliar
 import { getAuxiliarCuentasPreview, getAuxiliarCuentasDescargar } from './auxiliarCuentasXml.controller';
 import { getPaqueteZipPreview, getPaqueteZipDescargar } from './paqueteZip.controller';
 import { getBitacoraPaquetes } from './bitacoraPaquetes.controller';
+import {
+  getConfiguracionesCuentasContables,
+  getConfiguracionCuentaContable,
+  postConfiguracionCuentaContable,
+  putConfiguracionCuentaContable,
+  deleteConfiguracionCuentaContable,
+  getValoresProducto,
+} from './configuracionCuentasContables.controller';
+import {
+  getContabilizacionesDocumento,
+  getEstadoContableDocumento,
+  getEditableDocumento,
+  getContabilizacionesOperacionDinero,
+  getEstadoContableOperacionDinero,
+  getEditableOperacionDinero,
+  getContabilizacionesMovimientoInventario,
+  getEstadoContableMovimientoInventario,
+  getEditableMovimientoInventario,
+  getContabilizacionesPoliza,
+  getContabilizacion,
+  postContabilizacion,
+  postReversaContabilizacion,
+} from './contabilizaciones.controller';
+import {
+  postPreviewFacturaVenta,
+  postContabilizarFacturaVenta,
+  postContabilizarFacturasVentaLote,
+  postEstadoContableFacturasVentaLote,
+  postReversaCancelacionFacturaVenta,
+} from './facturaVentaContabilizacion.controller';
 
 const router = Router();
 
@@ -118,5 +148,32 @@ router.get('/e-contabilidad/auxiliares-sat/cuentas/descargar', getAuxiliarCuenta
 router.get('/e-contabilidad/paquete-zip/preview', getPaqueteZipPreview);
 router.get('/e-contabilidad/paquete-zip/descargar', getPaqueteZipDescargar);
 router.get('/e-contabilidad/bitacora', getBitacoraPaquetes);
+
+router.get('/configuracion-cuentas-contables/valores-producto', getValoresProducto);
+router.get('/configuracion-cuentas-contables', getConfiguracionesCuentasContables);
+router.get('/configuracion-cuentas-contables/:id', getConfiguracionCuentaContable);
+router.post('/configuracion-cuentas-contables', postConfiguracionCuentaContable);
+router.put('/configuracion-cuentas-contables/:id', putConfiguracionCuentaContable);
+router.delete('/configuracion-cuentas-contables/:id', deleteConfiguracionCuentaContable);
+
+router.get('/contabilizaciones/documento/:documentoId', getContabilizacionesDocumento);
+router.get('/contabilizaciones/documento/:documentoId/estado', getEstadoContableDocumento);
+router.get('/contabilizaciones/documento/:documentoId/editable', getEditableDocumento);
+router.get('/contabilizaciones/operacion-dinero/:operacionDineroId', getContabilizacionesOperacionDinero);
+router.get('/contabilizaciones/operacion-dinero/:operacionDineroId/estado', getEstadoContableOperacionDinero);
+router.get('/contabilizaciones/operacion-dinero/:operacionDineroId/editable', getEditableOperacionDinero);
+router.get('/contabilizaciones/movimiento-inventario/:movimientoInventarioId', getContabilizacionesMovimientoInventario);
+router.get('/contabilizaciones/movimiento-inventario/:movimientoInventarioId/estado', getEstadoContableMovimientoInventario);
+router.get('/contabilizaciones/movimiento-inventario/:movimientoInventarioId/editable', getEditableMovimientoInventario);
+router.get('/contabilizaciones/poliza/:polizaId', getContabilizacionesPoliza);
+router.get('/contabilizaciones/:id', getContabilizacion);
+router.post('/contabilizaciones', postContabilizacion);
+router.post('/contabilizaciones/:id/reversa', postReversaContabilizacion);
+
+router.post('/ventas/facturas/estado-contable-lote', postEstadoContableFacturasVentaLote);
+router.post('/ventas/facturas/:documentoId/preview', postPreviewFacturaVenta);
+router.post('/ventas/facturas/:documentoId/contabilizar', postContabilizarFacturaVenta);
+router.post('/ventas/facturas/lote', postContabilizarFacturasVentaLote);
+router.post('/ventas/facturas/:documentoId/reversa-cancelacion', postReversaCancelacionFacturaVenta);
 
 export default router;
