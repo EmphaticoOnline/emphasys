@@ -35,6 +35,7 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import ReplyIcon from '@mui/icons-material/Reply';
+import ReplayIcon from '@mui/icons-material/Replay';
 import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
@@ -141,6 +142,13 @@ type WhatsappEtiqueta = {
 
 type LeadStatusType = 'attention' | 'waiting' | 'neutral' | 'active';
 
+type WhatsappSendErrorInfo = {
+  codigo: string;
+  mensajeUsuario: string;
+  accionSugerida: string | null;
+  recuperable: boolean;
+};
+
 type Lead = {
   id: string;
   name: string;
@@ -167,6 +175,11 @@ type Lead = {
     status?: 'sending' | 'sent' | 'failed';
     tempId?: string;
     replyTo?: ReplyPreview | null;
+    errorInfo?: WhatsappSendErrorInfo | null;
+    // Solo para mensajes propios pendientes/fallidos: permite reintentar
+    // exactamente el mismo envío sin depender del estado actual del composer.
+    telefonoEnvio?: string;
+    requestBody?: Record<string, unknown>;
   }>;
   contactoId: string | null;
   vendedor_id: number | null;
@@ -324,6 +337,36 @@ function renderStatusIcon(status?: 'sending' | 'sent' | 'delivered' | 'read' | '
   }
 }
 
+// Traduce la respuesta de error del backend (o un fallo de red del propio
+// fetch) a un mensaje comprensible para el usuario. Nunca muestra códigos
+// HTTP, JSON crudo ni stack traces en la interfaz.
+function buildWhatsappSendErrorInfo(payload: any, isNetworkError: boolean): WhatsappSendErrorInfo {
+  if (isNetworkError) {
+    return {
+      codigo: 'CONEXION_FRONTEND_BACKEND',
+      mensajeUsuario: 'No se pudo conectar con el servidor de Emphasys.',
+      accionSugerida: 'Verifica tu conexión a internet e intenta nuevamente.',
+      recuperable: true,
+    };
+  }
+
+  if (payload?.codigo && payload?.mensaje_usuario) {
+    return {
+      codigo: String(payload.codigo),
+      mensajeUsuario: String(payload.mensaje_usuario),
+      accionSugerida: payload.accion_sugerida ? String(payload.accion_sugerida) : null,
+      recuperable: Boolean(payload.recuperable),
+    };
+  }
+
+  return {
+    codigo: 'ERROR_DESCONOCIDO',
+    mensajeUsuario: (typeof payload?.message === 'string' && payload.message) || 'No fue posible enviar el mensaje por una causa no identificada.',
+    accionSugerida: 'Intenta nuevamente. Si el problema continúa, repórtalo al administrador.',
+    recuperable: true,
+  };
+}
+
 function buildApiUrl(path: string) {
   const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '';
   const trimmedBase = baseUrl?.toString().replace(/\/$/, '') || '';
@@ -342,6 +385,19 @@ function minutesSince(dateString: string | null): number {
 
 function deriveNextAction(hasUnrepliedIncoming: boolean): NextAction {
   return hasUnrepliedIncoming ? 'Responder' : 'Responder';
+}
+
+// La ventana de 24h de WhatsApp solo se abre con un mensaje ENTRANTE real del
+// cliente (igual que el backend en validateWhatsapp24hWindow). Un mensaje
+// saliente, incluida una plantilla, nunca la reabre ni la simula.
+function findLastIncomingSentAt(conversation: Lead['conversation']): string | null {
+  for (let i = conversation.length - 1; i >= 0; i -= 1) {
+    const item = conversation[i];
+    if (item?.from === 'lead') {
+      return item.sentAt ?? null;
+    }
+  }
+  return null;
 }
 
 function deriveLeadState(lead: Lead, reglasSeguimiento: ReglasSeguimiento = DEFAULT_REGLAS_SEGUIMIENTO): {
@@ -382,15 +438,15 @@ function deriveLeadState(lead: Lead, reglasSeguimiento: ReglasSeguimiento = DEFA
         ? 'Media'
         : 'Baja';
   const nextAction = deriveNextAction(awaitingResponse);
-  const baseWithin24hWindow = lastFrom === 'lead'
-    ? idleMinutes <= 1440
-    : lastFrom === 'me'
-      ? true
-      : idleMinutes <= 1440;
-  const windowExpiresInMinutes = Math.max(0, 1440 - idleMinutes);
-  const within24hWindow = baseWithin24hWindow && windowExpiresInMinutes > 0;
+  // Ojo: se basa en el último mensaje ENTRANTE, no en el último mensaje de la
+  // conversación. Enviar una plantilla (o cualquier mensaje "me") no reabre
+  // la ventana; solo una respuesta real del cliente lo hace.
+  const lastIncomingSentAt = findLastIncomingSentAt(lead.conversation);
+  const minutesSinceLastIncoming = lastIncomingSentAt ? minutesSince(lastIncomingSentAt) : null;
+  const windowExpiresInMinutes = minutesSinceLastIncoming === null ? 0 : Math.max(0, 1440 - minutesSinceLastIncoming);
+  const within24hWindow = windowExpiresInMinutes > 0;
   const canSendFreeMessage = within24hWindow;
-  const requiresTemplate = !within24hWindow || windowExpiresInMinutes <= 0;
+  const requiresTemplate = !within24hWindow;
 
   return {
     awaitingResponse,
@@ -616,6 +672,14 @@ export default function LeadsPage() {
   const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
+  const [sendErrorDialog, setSendErrorDialog] = React.useState<{
+    leadId: string;
+    tempId: string;
+    mensajeUsuario: string;
+    accionSugerida: string | null;
+    recuperable: boolean;
+  } | null>(null);
+  const [ventanaCerradaDialogOpen, setVentanaCerradaDialogOpen] = React.useState(false);
   const quickReplyRef = React.useRef<HTMLInputElement | null>(null);
   const uploadInputRef = React.useRef<HTMLInputElement | null>(null);
   const conversationEndRef = React.useRef<HTMLDivElement | null>(null);
@@ -1426,11 +1490,18 @@ export default function LeadsPage() {
     setLeads((prev) => prev.map((l) => (l.id === id ? applyDerivedLeadState({ ...l, ...updates }, reglasSeguimiento) : l)));
   };
 
-  const updateMessageStatus = (leadId: string, tempId: string, status: 'sending' | 'sent' | 'failed') => {
+  const updateMessageStatus = (
+    leadId: string,
+    tempId: string,
+    status: 'sending' | 'sent' | 'failed',
+    errorInfo?: WhatsappSendErrorInfo | null
+  ) => {
     setLeads((prev) => prev.map((lead) => {
       if (lead.id !== leadId) return lead;
       const updatedConversation = lead.conversation.map((msg) => (
-        msg.tempId === tempId ? { ...msg, status } : msg
+        msg.tempId === tempId
+          ? { ...msg, status, errorInfo: status === 'failed' ? (errorInfo ?? null) : null }
+          : msg
       ));
       return applyDerivedLeadState({ ...lead, conversation: updatedConversation }, reglasSeguimiento);
     }));
@@ -1842,9 +1913,101 @@ export default function LeadsPage() {
     }
   };
 
+  // Compartido entre el envío inicial y "Reintentar": hace el POST, clasifica
+  // el resultado y actualiza el mismo mensaje (por tempId) en vez de crear
+  // uno nuevo, para no duplicar burbujas en la conversación.
+  const performWhatsappSend = async (
+    leadId: string,
+    tempId: string,
+    telefono: string,
+    requestBody: Record<string, unknown>
+  ) => {
+    setIsSending(true);
+    try {
+      const lastSentAtBeforeSend = getLastSentAtForLead(leadId);
+
+      let response: Response;
+      try {
+        response = await apiFetch('/api/whatsapp/enviar-mensaje', {
+          method: 'POST',
+          body: JSON.stringify({ telefono, ...requestBody }),
+        });
+      } catch (networkError) {
+        console.error('[WhatsApp Send] Error de red', networkError);
+        const info = buildWhatsappSendErrorInfo(null, true);
+        updateMessageStatus(leadId, tempId, 'failed', info);
+        setSendErrorDialog({
+          leadId,
+          tempId,
+          mensajeUsuario: info.mensajeUsuario,
+          accionSugerida: info.accionSugerida,
+          recuperable: info.recuperable,
+        });
+        return;
+      }
+
+      let responsePayload: any = null;
+      try {
+        responsePayload = await response.clone().json();
+      } catch {
+        responsePayload = null;
+      }
+
+      console.log('[WhatsApp Send] Respuesta', {
+        status: response.status,
+        ok: response.ok,
+        body: responsePayload,
+      });
+
+      if (!response.ok) {
+        const info = buildWhatsappSendErrorInfo(responsePayload, false);
+        updateMessageStatus(leadId, tempId, 'failed', info);
+        setSendErrorDialog({
+          leadId,
+          tempId,
+          mensajeUsuario: info.mensajeUsuario,
+          accionSugerida: info.accionSugerida,
+          recuperable: info.recuperable,
+        });
+        return;
+      }
+
+      updateMessageStatus(leadId, tempId, 'sent');
+      setQuickReply('');
+      setReplyingTo(null);
+      setUploadPreviewUrl(null);
+      setUploadFileType(null);
+      setUploadFileName(null);
+      setRecordedAudioUrl(null);
+      setUploadError(null);
+      setSendSuccess(true);
+      setTimeout(() => setSendSuccess(false), 2000);
+
+      setIsAtBottom(true);
+      await loadMessages(leadId, { since: lastSentAtBeforeSend, append: true, silent: true });
+      await loadConversations({ incremental: true });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleSendWhatsapp = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
-    if (!selectedLead) return;
+    // Guard contra doble envío: cubre tanto el click del botón (que ya queda
+    // disabled) como el atajo de Enter en el textarea, que no pasaba por el
+    // botón y podía disparar dos POST casi simultáneos.
+    if (!selectedLead || isSending) return;
+
+    // La ventana de 24h está cerrada: se intercepta ANTES de tocar el
+    // backend (no se arma el mensaje optimista ni se hace el POST), así no
+    // queda un mensaje "fallido" en el historial ni se pierde el texto ya
+    // escrito. El backend sigue siendo la validación definitiva por si el
+    // estado cambia entre que se calculó aquí y que se intenta enviar.
+    if (selectedLead.requiresTemplate) {
+      setVentanaCerradaDialogOpen(true);
+      return;
+    }
+
     const trimmedMessage = quickReply.trim();
     const fileUrl = uploadPreviewUrl?.trim() || null;
     const fileType = uploadFileType;
@@ -1854,126 +2017,95 @@ export default function LeadsPage() {
       return;
     }
 
-    setIsSending(true);
     const tempId = `temp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-    try {
-      const lastSentAtBeforeSend = getLastSentAtForLead(selectedLead.id);
-      const isImageMessage = fileType === 'image';
-      const isDocumentMessage = fileType === 'document';
-      const isAudioMessage = fileType === 'audio';
-      const nowIso = new Date().toISOString();
+    const isImageMessage = fileType === 'image';
+    const isDocumentMessage = fileType === 'document';
+    const isAudioMessage = fileType === 'audio';
+    const nowIso = new Date().toISOString();
 
-      console.log('[WhatsApp Send] Payload debug', {
-        telefono: selectedLead.phone,
-        message: trimmedMessage,
-        fileUrl,
-        fileType,
-        recordedAudioUrl,
-        isImageMessage,
-        isDocumentMessage,
-        isAudioMessage,
-      });
+    console.log('[WhatsApp Send] Payload debug', {
+      telefono: selectedLead.phone,
+      message: trimmedMessage,
+      fileUrl,
+      fileType,
+      recordedAudioUrl,
+      isImageMessage,
+      isDocumentMessage,
+      isAudioMessage,
+    });
 
-      const optimisticMessage = {
-        id: tempId,
-        tempId,
-        from: 'me' as const,
-        text: trimmedMessage,
-        minutesAgo: 0,
-        sentAt: nowIso,
-        tipoContenido: isImageMessage
-          ? ('image' as const)
-          : isDocumentMessage
-            ? ('document' as const)
-            : isAudioMessage
-              ? ('audio' as const)
-              : ('text' as const),
-        mediaUrl: fileUrl,
-        caption: isImageMessage
-          ? (trimmedMessage || null)
-          : isDocumentMessage
-            ? (uploadFileName || null)
-            : null,
-        status: 'sending' as const,
-        replyTo: replyingTo,
-      };
-
-      updateLead(selectedLead.id, {
-        conversation: [...selectedLead.conversation, optimisticMessage],
-        lastMessage: trimmedMessage
-          || (isImageMessage
-            ? 'Imagen enviada'
-            : isDocumentMessage
-              ? 'Documento enviado'
-              : isAudioMessage
-                ? 'Audio enviado'
-                : ''),
-        ultimoMensajeEn: nowIso,
-        lastMessageTimeMinutesAgo: 0,
-      });
-
-      const response = await apiFetch('/api/whatsapp/enviar-mensaje', {
-        method: 'POST',
-        body: JSON.stringify({
-          telefono: selectedLead.phone,
-          ...(fileUrl && isImageMessage
-            ? { tipo: 'image', media_url: fileUrl, mensaje: trimmedMessage || null }
-            : fileUrl && isDocumentMessage
-              ? {
-                tipo: 'document',
-                media_url: fileUrl,
-                mensaje: uploadFileName || null,
-                contenido: trimmedMessage || null,
-              }
-              : fileUrl && isAudioMessage
-                ? {
-                  tipo: 'audio',
-                  media_url: fileUrl,
-                  contenido: trimmedMessage || '',
-                }
-                : { mensaje: trimmedMessage }),
-          ...(replyingTo ? { mensaje_respuesta_id: replyingTo.id } : {}),
-        }),
-      });
-
-            let responsePayload: any = null;
-            try {
-              responsePayload = await response.clone().json();
-            } catch {
-              responsePayload = null;
+    const requestBody: Record<string, unknown> = {
+      ...(fileUrl && isImageMessage
+        ? { tipo: 'image', media_url: fileUrl, mensaje: trimmedMessage || null }
+        : fileUrl && isDocumentMessage
+          ? {
+            tipo: 'document',
+            media_url: fileUrl,
+            mensaje: uploadFileName || null,
+            contenido: trimmedMessage || null,
+          }
+          : fileUrl && isAudioMessage
+            ? {
+              tipo: 'audio',
+              media_url: fileUrl,
+              contenido: trimmedMessage || '',
             }
+            : { mensaje: trimmedMessage }),
+      ...(replyingTo ? { mensaje_respuesta_id: replyingTo.id } : {}),
+    };
 
-            console.log('[WhatsApp Send] Respuesta', {
-              status: response.status,
-              ok: response.ok,
-              body: responsePayload,
-            });
+    const optimisticMessage = {
+      id: tempId,
+      tempId,
+      from: 'me' as const,
+      text: trimmedMessage,
+      minutesAgo: 0,
+      sentAt: nowIso,
+      tipoContenido: isImageMessage
+        ? ('image' as const)
+        : isDocumentMessage
+          ? ('document' as const)
+          : isAudioMessage
+            ? ('audio' as const)
+            : ('text' as const),
+      mediaUrl: fileUrl,
+      caption: isImageMessage
+        ? (trimmedMessage || null)
+        : isDocumentMessage
+          ? (uploadFileName || null)
+          : null,
+      status: 'sending' as const,
+      replyTo: replyingTo,
+      telefonoEnvio: selectedLead.phone,
+      requestBody,
+    };
 
-      if (!response.ok) {
-        throw new Error('Error en la solicitud');
-      }
+    updateLead(selectedLead.id, {
+      conversation: [...selectedLead.conversation, optimisticMessage],
+      lastMessage: trimmedMessage
+        || (isImageMessage
+          ? 'Imagen enviada'
+          : isDocumentMessage
+            ? 'Documento enviado'
+            : isAudioMessage
+              ? 'Audio enviado'
+              : ''),
+      ultimoMensajeEn: nowIso,
+      lastMessageTimeMinutesAgo: 0,
+    });
 
-      updateMessageStatus(selectedLead.id, tempId, 'sent');
-      setQuickReply('');
-      setReplyingTo(null);
-      setUploadPreviewUrl(null);
-    setUploadFileType(null);
-    setUploadFileName(null);
-    setRecordedAudioUrl(null);
-      setUploadError(null);
-      setSendSuccess(true);
-      setTimeout(() => setSendSuccess(false), 2000);
+    await performWhatsappSend(selectedLead.id, tempId, selectedLead.phone, requestBody);
+  };
 
-      setIsAtBottom(true);
-      await loadMessages(selectedLead.id, { since: lastSentAtBeforeSend, append: true, silent: true });
-      await loadConversations({ incremental: true });
-    } catch (error) {
-      console.error('Error al enviar por WhatsApp:', error);
-      updateMessageStatus(selectedLead.id, tempId, 'failed');
-      alert('No se pudo enviar por WhatsApp.');
-    } finally {
-      setIsSending(false);
-    }
+  const handleRetryWhatsappSend = async (leadId: string, tempId: string) => {
+    if (isSending) return;
+    const lead = leads.find((l) => l.id === leadId);
+    const msg = lead?.conversation.find((m) => m.tempId === tempId);
+    if (!lead || !msg || !msg.requestBody || !msg.telefonoEnvio) return;
+
+    setSendErrorDialog(null);
+    updateMessageStatus(leadId, tempId, 'sending');
+    await performWhatsappSend(leadId, tempId, msg.telefonoEnvio, msg.requestBody);
   };
 
   const handleSelectUpload = () => {
@@ -2166,9 +2298,13 @@ export default function LeadsPage() {
     const nowIso = new Date().toISOString();
     updateLead(selectedLead.id, {
       ultimoMensajeEn: nowIso,
-      lastMessage: `Plantilla enviada: ${plantillaNombre}`,
+      lastMessage: 'Plantilla enviada — esperando respuesta del cliente',
     });
-    setSnackbar({ open: true, message: `Plantilla "${plantillaNombre}" enviada correctamente`, severity: 'success' });
+    setSnackbar({
+      open: true,
+      message: `Plantilla "${plantillaNombre}" enviada — esperando respuesta del cliente`,
+      severity: 'success',
+    });
     loadConversations({ incremental: true });
     setIsTemplateDialogOpen(false);
   };
@@ -3173,13 +3309,13 @@ export default function LeadsPage() {
                       title={(
                         <Box sx={{ maxWidth: 280 }}>
                           <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>
-                            No puedes enviar mensajes libres porque han pasado más de 24 horas desde el último mensaje del cliente.
+                            No puedes enviar un mensaje libre porque han pasado más de 24 horas desde el último mensaje del cliente.
                           </Typography>
                           <Typography variant="body2" sx={{ mb: 0.75 }}>
-                            WhatsApp requiere que, fuera de esta ventana, solo se envíen mensajes mediante plantillas aprobadas.
+                            Puedes enviar una plantilla autorizada, pero debes esperar a que el cliente responda antes de continuar con mensajes normales.
                           </Typography>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            👉 Para continuar la conversación, usa el botón “Enviar plantilla”.
+                            👉 Usa el botón “Enviar plantilla”.
                           </Typography>
                         </Box>
                       )}
@@ -3479,22 +3615,47 @@ export default function LeadsPage() {
                           <Typography variant="caption" sx={{ opacity: 0.75 }}>
                             {formatMinutesAgo(msg.minutesAgo)}
                           </Typography>
-                          {msg.from === 'me' && msg.status && (
+                          {msg.from === 'me' && msg.status && msg.status !== 'failed' && (
                             <Typography variant="caption" sx={{ opacity: 0.75 }}>
-                              {(() => {
-                                console.log("STATUS FRONT:", msg.status);
-                                console.log("FROM + STATUS:", msg.from, msg.status);
-                                console.log("STATUS ICON DEBUG", {
-                                  id: msg.id,
-                                  from: msg.from,
-                                  tipoMensaje: msg.tipoContenido,
-                                  status: msg.status,
-                                  normalizedStatus: String(msg.status ?? '').trim().toLowerCase(),
-                                });
-                                return null;
-                              })()}
                               {renderStatusIcon(msg.status)}
                             </Typography>
+                          )}
+                          {msg.from === 'me' && msg.status === 'failed' && (
+                            <Stack direction="row" spacing={0.25} alignItems="center">
+                              <Tooltip
+                                arrow
+                                title={(
+                                  <Box sx={{ maxWidth: 260 }}>
+                                    <Typography variant="body2">
+                                      {msg.errorInfo?.mensajeUsuario || 'No se pudo enviar el mensaje.'}
+                                    </Typography>
+                                    {msg.errorInfo?.accionSugerida && (
+                                      <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
+                                        {msg.errorInfo.accionSugerida}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                )}
+                              >
+                                <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
+                                  {renderStatusIcon(msg.status)}
+                                </Typography>
+                              </Tooltip>
+                              {msg.errorInfo?.recuperable && msg.tempId && (
+                                <Tooltip arrow title="Reintentar envío">
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      disabled={isSending}
+                                      onClick={() => handleRetryWhatsappSend(selectedLead.id, msg.tempId as string)}
+                                      sx={{ p: 0.25 }}
+                                    >
+                                      <ReplayIcon fontSize="inherit" />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              )}
+                            </Stack>
                           )}
                         </Box>
                       </Box>
@@ -3595,19 +3756,28 @@ export default function LeadsPage() {
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' && !event.shiftKey) {
                           event.preventDefault();
+                          if (isSending) return;
                           handleSendWhatsapp();
                         }
                       }}
                       inputRef={quickReplyRef}
                     />
-                    <IconButton
-                      color="primary"
-                      aria-label="Enviar"
-                      type="submit"
-                      disabled={isSending || isUploadingImage}
+                    <Tooltip
+                      arrow
+                      disableHoverListener={!selectedLead.requiresTemplate}
+                      title="La ventana de atención está cerrada. Envía una plantilla y espera la respuesta del cliente."
                     >
-                      <SendIcon />
-                    </IconButton>
+                      <span>
+                        <IconButton
+                          color="primary"
+                          aria-label="Enviar"
+                          type="submit"
+                          disabled={isSending || isUploadingImage}
+                        >
+                          <SendIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Stack>
                   <Stack spacing={0.5} sx={{ mt: 1 }}>
                     {isUploadingImage && (
@@ -3787,6 +3957,73 @@ export default function LeadsPage() {
         {snackbar.message}
       </Alert>
     </Snackbar>
+    <Dialog
+      open={Boolean(sendErrorDialog)}
+      onClose={() => setSendErrorDialog(null)}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle>No se pudo enviar el mensaje</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={1.5}>
+          <Typography variant="body2">{sendErrorDialog?.mensajeUsuario}</Typography>
+          {sendErrorDialog?.accionSugerida && (
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {sendErrorDialog.accionSugerida}
+            </Typography>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        {sendErrorDialog?.recuperable && (
+          <Button
+            onClick={() => {
+              if (sendErrorDialog) {
+                void handleRetryWhatsappSend(sendErrorDialog.leadId, sendErrorDialog.tempId);
+              }
+            }}
+            variant="outlined"
+          >
+            Reintentar
+          </Button>
+        )}
+        <Button onClick={() => setSendErrorDialog(null)} variant="contained">
+          Entendido
+        </Button>
+      </DialogActions>
+    </Dialog>
+    <Dialog
+      open={ventanaCerradaDialogOpen}
+      onClose={() => setVentanaCerradaDialogOpen(false)}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle>No puedes enviar este mensaje todavía</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={1.5}>
+          <Typography variant="body2">
+            Han pasado más de 24 horas desde el último mensaje del cliente.
+          </Typography>
+          <Typography variant="body2">
+            Puedes enviar una plantilla autorizada para contactarlo. Cuando el cliente responda, podrás continuar enviando mensajes normales.
+          </Typography>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setVentanaCerradaDialogOpen(false)} variant="text">
+          Entendido
+        </Button>
+        <Button
+          onClick={() => {
+            setVentanaCerradaDialogOpen(false);
+            handleSendTemplate();
+          }}
+          variant="contained"
+        >
+          Enviar plantilla
+        </Button>
+      </DialogActions>
+    </Dialog>
     </>
   );
 }

@@ -84,10 +84,16 @@ export async function apiFetch<T>(url: string, options: ApiFetchOptions = {}): P
   const payload = isJson ? await response.json().catch(() => null) : await response.text().catch(() => "");
 
   if (!response.ok) {
-    const message = (payload as any)?.message || (payload as any)?.error || (typeof payload === "string" ? payload : "Error de la API");
-    const error = new Error(message || `Error HTTP ${response.status}`) as ApiFetchError;
+    // Una respuesta no-JSON en un error (ej. la página HTML de un 502/503/504 de nginx u otro
+    // proxy delante del backend) nunca se muestra tal cual: solo el backend (JSON) puede dar
+    // un mensaje de negocio; cualquier otra cosa se traduce a un mensaje genérico y el cuerpo
+    // crudo no se conserva en `payload`.
+    const message = isJson
+      ? (payload as any)?.message || (payload as any)?.error || `Error HTTP ${response.status}`
+      : `El servidor no respondió correctamente (HTTP ${response.status}). Intenta nuevamente más tarde.`;
+    const error = new Error(message) as ApiFetchError;
     error.status = response.status;
-    error.payload = payload;
+    error.payload = isJson ? payload : null;
     throw error;
   }
 
@@ -121,10 +127,18 @@ export async function apiFetchBlob(url: string, options: ApiFetchOptions = {}): 
   }
 
   if (!response.ok) {
+    const contentType = response.headers.get('content-type') || '';
     const text = await response.text().catch(() => '');
-    let message = text;
-    try { message = JSON.parse(text)?.message || text; } catch { /* no-op */ }
-    throw new Error(message || `Error HTTP ${response.status}`);
+    let message: string | null = null;
+    if (contentType.includes('application/json')) {
+      try {
+        message = JSON.parse(text)?.message || null;
+      } catch {
+        /* no-op */
+      }
+    }
+    // Si no es JSON (ej. página HTML de un 502/503/504 de un proxy), nunca se muestra el cuerpo crudo.
+    throw new Error(message || `El servidor no respondió correctamente (HTTP ${response.status}). Intenta nuevamente más tarde.`);
   }
 
   const blob = await response.blob();

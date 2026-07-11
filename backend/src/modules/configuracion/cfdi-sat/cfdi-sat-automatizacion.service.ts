@@ -9,7 +9,7 @@ import {
 import { listarPaquetesPendientesOError } from './cfdi-sat-paquetes.repository';
 import { ejecutarDescargaSolicitud, ejecutarVerificacionSolicitud } from './cfdi-sat-solicitudes.service';
 import { registrarBitacora } from './cfdi-sat-bitacora.repository';
-import { SatClientError } from './sat-client';
+import { extraerDetalleErrorSat, SatClientError } from './sat-client';
 
 /**
  * Ejecución asistida de Fase 9: NO es un cron desatendido (ver
@@ -120,6 +120,13 @@ export async function ejecutarAutomatizacionAsistida(params: {
             const mensaje =
               error instanceof SatClientError ? error.message : 'No se pudo verificar la solicitud ante el SAT';
             resultado.mensajes.push(`Solicitud ${solicitud.id}: ${mensaje}`);
+            console.error('[CFDI SAT] Error al verificar solicitud (automatización asistida)', {
+              accion: 'verificar_solicitud_sat_automatico',
+              empresaId,
+              solicitudId: solicitud.id,
+              satRequestId: solicitud.sat_request_id,
+              ...extraerDetalleErrorSat(error),
+            });
             await registrarBitacora({
               empresaId,
               usuarioId,
@@ -165,6 +172,12 @@ export async function ejecutarAutomatizacionAsistida(params: {
           } catch (error: any) {
             const mensaje = String(error?.message ?? 'No se pudo descargar los paquetes').slice(0, 500);
             resultado.mensajes.push(`Solicitud ${solicitud.id}: ${mensaje}`);
+            console.error('[CFDI SAT] Error al descargar paquetes (automatización asistida)', {
+              accion: 'descargar_solicitud_sat_automatico',
+              empresaId,
+              solicitudId: solicitud.id,
+              ...extraerDetalleErrorSat(error),
+            });
             await registrarBitacora({
               empresaId,
               usuarioId,

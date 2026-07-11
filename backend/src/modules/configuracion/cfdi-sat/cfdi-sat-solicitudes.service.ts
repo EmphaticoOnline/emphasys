@@ -12,7 +12,13 @@ import { insertarComprobante } from './cfdi-sat-comprobantes.repository';
 import { extraerComprobantesDePaquete } from './cfdi-sat-package-extractor';
 import { guardarZipPrivado, guardarXmlPrivado } from './cfdi-sat-storage';
 import { registrarBitacora } from './cfdi-sat-bitacora.repository';
-import { descargarPaqueteSat, verificarSolicitudSat, SatClientError, type SatEstatusVerificacion } from './sat-client';
+import {
+  descargarPaqueteSat,
+  extraerDetalleErrorSat,
+  verificarSolicitudSat,
+  SatClientError,
+  type SatEstatusVerificacion,
+} from './sat-client';
 
 /**
  * Lógica de negocio de verify()/download() compartida entre el flujo manual
@@ -206,6 +212,15 @@ export async function ejecutarDescargaSolicitud(params: {
         error instanceof SatClientError
           ? error.message
           : sanitizarMensajeError(error?.message, 'No se pudo descargar el paquete');
+
+      console.error('[CFDI SAT] Error al descargar paquete del SAT', {
+        accion: 'descargar_paquete_sat',
+        empresaId,
+        solicitudId: solicitud.id,
+        paqueteId: paquete.id,
+        satPackageId: paquete.sat_package_id,
+        ...extraerDetalleErrorSat(error),
+      });
 
       await marcarPaqueteError(paquete.id, mensaje);
       await registrarBitacora({

@@ -5,6 +5,7 @@ import {
   listarSolicitudes,
   marcarSolicitudEnviada,
   marcarSolicitudError,
+  marcarSolicitudVerificando,
   obtenerSolicitudPorId,
 } from './cfdi-sat-solicitudes.repository';
 import {
@@ -21,7 +22,14 @@ import {
   getUserId,
   obtenerCredencialesFielListas,
 } from './cfdi-sat.shared';
-import { crearSolicitudSat, SatClientError, type SatEstatusComprobante, type SatTipoDescarga, type SatTipoSolicitud } from './sat-client';
+import {
+  crearSolicitudSat,
+  extraerDetalleErrorSat,
+  SatClientError,
+  type SatEstatusComprobante,
+  type SatTipoDescarga,
+  type SatTipoSolicitud,
+} from './sat-client';
 import { ejecutarDescargaSolicitud, ejecutarVerificacionSolicitud } from './cfdi-sat-solicitudes.service';
 
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -148,6 +156,13 @@ export async function crearSolicitudController(req: Request, res: Response) {
       const mensaje =
         error instanceof SatClientError ? error.message : 'No se pudo presentar la solicitud ante el SAT';
 
+      console.error('[CFDI SAT] Error al crear solicitud ante el SAT', {
+        accion: 'crear_solicitud_sat',
+        empresaId,
+        solicitudId,
+        ...extraerDetalleErrorSat(error),
+      });
+
       const actualizada = await marcarSolicitudError(solicitudId, mensaje);
       await registrarBitacora({
         empresaId,
@@ -158,7 +173,8 @@ export async function crearSolicitudController(req: Request, res: Response) {
       });
 
       const status = error instanceof SatClientError ? 422 : 500;
-      return res.status(status).json({ message: mensaje, solicitud: actualizada });
+      const code = error instanceof SatClientError ? error.code : undefined;
+      return res.status(status).json({ message: mensaje, code, solicitud: actualizada });
     }
 
     const actualizada = await marcarSolicitudEnviada(solicitudId, resultado.requestId);
@@ -231,6 +247,14 @@ export async function verificarSolicitudController(req: Request, res: Response) 
       const mensaje =
         error instanceof SatClientError ? error.message : 'No se pudo verificar la solicitud ante el SAT';
 
+      console.error('[CFDI SAT] Error al verificar solicitud ante el SAT', {
+        accion: 'verificar_solicitud_sat',
+        empresaId,
+        solicitudId,
+        satRequestId: solicitud.sat_request_id,
+        ...extraerDetalleErrorSat(error),
+      });
+
       await registrarBitacora({
         empresaId,
         usuarioId,
@@ -240,7 +264,8 @@ export async function verificarSolicitudController(req: Request, res: Response) 
       });
 
       const status = error instanceof SatClientError ? 422 : 500;
-      return res.status(status).json({ message: mensaje });
+      const code = error instanceof SatClientError ? error.code : undefined;
+      return res.status(status).json({ message: mensaje, code });
     }
 
     await registrarBitacora({

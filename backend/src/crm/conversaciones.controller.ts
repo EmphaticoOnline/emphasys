@@ -7,8 +7,13 @@ import {
   sendTemplateMessage,
   sendTemplateMensajeDirecta,
   sendTextMessage,
-  WhatsappWindowExpiredError,
 } from "../whatsapp/whatsapp.service";
+import {
+  buildWhatsappErrorInfo,
+  classifyWhatsappError,
+  logWhatsappFailureTechnical,
+  WhatsappErrorInfo,
+} from "../whatsapp/whatsapp-error";
 import pool from "../config/database";
 import { normalizarTelefono } from "../utils/telefono";
 import { getEmpresaActivaId } from "../shared/context/empresa";
@@ -587,11 +592,27 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
   }
 };
 
-export const enviarWhatsapp = async (req: Request, res: Response) => {
-  try {
-    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
-    const { telefono, mensaje, tipo, media_url, mensaje_respuesta_id } = req.body || {};
+function responderErrorWhatsapp(res: Response, info: WhatsappErrorInfo) {
+  return res.status(info.httpStatus).json({
+    success: false,
+    codigo: info.codigo,
+    mensaje_usuario: info.mensajeUsuario,
+    accion_sugerida: info.accionSugerida,
+    detalle_tecnico: info.detalleTecnico,
+    recuperable: info.recuperable,
+    // `message` se conserva por compatibilidad con clientes que ya leen
+    // este campo (ej. services/apiFetch.ts y los diálogos que lo usan).
+    message: info.mensajeUsuario,
+  });
+}
 
+export const enviarWhatsapp = async (req: Request, res: Response) => {
+  const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+  const { telefono, mensaje, tipo, media_url, mensaje_respuesta_id } = req.body || {};
+  const tipoMensaje = String(tipo || "text").toLowerCase();
+  const usuarioId = req.auth?.userId ?? null;
+
+  try {
     console.log("[WhatsApp Enviar] Solicitud recibida", {
       empresaId,
       telefono,
@@ -602,22 +623,24 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
     });
 
     if (!empresaId) {
-      return res.status(400).json({ message: "empresaId requerido" });
+      return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ERROR_DESCONOCIDO", "empresaId requerido", {
+        mensajeUsuario: "No se pudo determinar la empresa activa para enviar el mensaje.",
+        accionSugerida: "Vuelve a iniciar sesión. Si el problema continúa, repórtalo al administrador.",
+      }));
     }
 
     if (!telefono) {
-      return res.status(400).json({ message: "telefono es requerido" });
+      return responderErrorWhatsapp(res, buildWhatsappErrorInfo("NUMERO_INVALIDO", "telefono es requerido"));
     }
 
-    const tipoMensaje = String(tipo || "text").toLowerCase();
     const mensajeRespuestaId = mensaje_respuesta_id !== undefined && mensaje_respuesta_id !== null && mensaje_respuesta_id !== ""
       && Number.isFinite(Number(mensaje_respuesta_id))
       ? Number(mensaje_respuesta_id)
       : null;
 
     if (tipoMensaje === "text") {
-      if (!mensaje) {
-        return res.status(400).json({ message: "mensaje es requerido" });
+      if (!mensaje || !String(mensaje).trim()) {
+        return responderErrorWhatsapp(res, buildWhatsappErrorInfo("MENSAJE_VACIO", "mensaje es requerido"));
       }
 
       const respuesta = await sendTextMessage(Number(empresaId), String(telefono), String(mensaje), mensajeRespuestaId);
@@ -626,7 +649,9 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
 
     if (tipoMensaje === "image") {
       if (!media_url) {
-        return res.status(400).json({ message: "media_url es requerido" });
+        return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ARCHIVO_NO_PERMITIDO", "media_url es requerido", {
+          mensajeUsuario: "No se pudo enviar el archivo adjunto porque no fue posible cargarlo.",
+        }));
       }
 
       const respuesta = await sendImageMessage(
@@ -641,7 +666,9 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
 
     if (tipoMensaje === "document") {
       if (!media_url) {
-        return res.status(400).json({ message: "media_url es requerido" });
+        return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ARCHIVO_NO_PERMITIDO", "media_url es requerido", {
+          mensajeUsuario: "No se pudo enviar el archivo adjunto porque no fue posible cargarlo.",
+        }));
       }
 
       const respuesta = await sendDocumentMessage(
@@ -656,7 +683,9 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
 
     if (tipoMensaje === "audio") {
       if (!media_url) {
-        return res.status(400).json({ message: "media_url es requerido" });
+        return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ARCHIVO_NO_PERMITIDO", "media_url es requerido", {
+          mensajeUsuario: "No se pudo enviar el archivo adjunto porque no fue posible cargarlo.",
+        }));
       }
 
       const respuesta = await sendAudioMessage(
@@ -668,15 +697,20 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
       return res.status(200).json(respuesta);
     }
 
-    return res.status(400).json({ message: "tipo de mensaje no soportado" });
+    return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ERROR_DESCONOCIDO", `tipo de mensaje no soportado: ${tipoMensaje}`));
   } catch (error) {
-    console.error("Error al enviar mensaje de WhatsApp:", error);
+    const info = classifyWhatsappError(error);
 
-    if (error instanceof WhatsappWindowExpiredError) {
-      return res.status(error.status).json({ message: error.message });
-    }
+    logWhatsappFailureTechnical({
+      empresaId: empresaId ?? null,
+      telefono: telefono ?? null,
+      usuarioId,
+      tipoMensaje,
+      tieneAdjunto: Boolean(media_url),
+      info,
+    });
 
-    return res.status(500).json({ message: "No se pudo enviar el mensaje" });
+    return responderErrorWhatsapp(res, info);
   }
 };
 

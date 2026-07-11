@@ -560,7 +560,6 @@ export const sendTemplateMessage = async (
 
     console.log("[WhatsApp Template] Payload", payload);
 
-    console.log('[WhatsApp] API KEY EN USO:', config.api_key);
     const response = await axios.post(
       GUPSHUP_TEMPLATE_API_URL,
       payload,
@@ -696,7 +695,6 @@ export const sendTemplateDocumentMessage = async (
         },
       },
     });
-    console.log('[WhatsApp Template Document] API KEY EN USO:', config.api_key);
 
     const response = await axios.post(
       GUPSHUP_TEMPLATE_API_URL,

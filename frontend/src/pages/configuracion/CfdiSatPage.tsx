@@ -56,12 +56,29 @@ import PaquetesSolicitudDialog from '../../components/cfdi-sat/PaquetesSolicitud
 import ResumenSatCards from '../../components/cfdi-sat/ResumenSatCards';
 import BitacoraSatSection from '../../components/cfdi-sat/BitacoraSatSection';
 import AutomatizacionSatSection from '../../components/cfdi-sat/AutomatizacionSatSection';
+import type { ApiFetchError } from '../../services/apiFetch';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return raw;
   return date.toLocaleString('es-MX');
+}
+
+const GATEWAY_TIMEOUT_STATUS = new Set([502, 503, 504]);
+
+/**
+ * Si la respuesta nunca llegó a ser el JSON del backend (ej. un 502/503/504
+ * de nginx u otro proxy delante del backend porque el SAT tardó demasiado),
+ * apiFetch ya evita mostrar el cuerpo crudo (ver apiFetch.ts), pero aquí se
+ * da un mensaje específico del contexto SAT en vez del genérico de apiFetch.
+ */
+function describirErrorAccionSat(error: unknown, accionTexto: string, fallback: string): string {
+  const apiError = error as ApiFetchError;
+  if (apiError?.status != null && GATEWAY_TIMEOUT_STATUS.has(apiError.status)) {
+    return `El servidor tardó demasiado en responder al ${accionTexto} ante el SAT. Intenta nuevamente más tarde.`;
+  }
+  return error instanceof Error ? error.message : fallback;
 }
 
 const ESTATUS_SOLICITUD_COLOR: Record<CfdiSatSolicitudEstatus, 'default' | 'success' | 'error' | 'warning'> = {
@@ -310,7 +327,7 @@ export default function CfdiSatPage() {
       setSolicitudSuccess(`Solicitud creada ante el SAT. RequestId: ${solicitud.sat_request_id ?? '—'}`);
       setFielPassword('');
     } catch (error) {
-      setSolicitudError(error instanceof Error ? error.message : 'No se pudo crear la solicitud');
+      setSolicitudError(describirErrorAccionSat(error, 'crear la solicitud', 'No se pudo crear la solicitud'));
     } finally {
       setSolicitudSubmitting(false);
       // Crear una solicitud también cambia el resumen ("solicitudes totales") y la bitácora.
@@ -360,7 +377,8 @@ export default function CfdiSatPage() {
         );
       }
     } catch (error) {
-      setAccionError(error instanceof Error ? error.message : 'No se pudo completar la acción');
+      const accionTexto = accionDialog.accion === 'verificar' ? 'verificar la solicitud' : 'descargar los paquetes';
+      setAccionError(describirErrorAccionSat(error, accionTexto, 'No se pudo completar la acción'));
     } finally {
       setAccionSubmitting(false);
       setAccionPassword('');

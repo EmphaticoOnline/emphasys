@@ -4,6 +4,8 @@ import type { SatEstatusComprobante, SatEstatusVerificacion, SatTipoDescarga, Sa
 export type CfdiSatSolicitudEstatus =
   | 'pendiente'
   | 'solicitado'
+  /** Transitorio: ya se disparó verify() contra el SAT en segundo plano, aún sin resultado. */
+  | 'verificando'
   | 'en_proceso'
   | 'terminado'
   | 'sin_resultados'
@@ -92,6 +94,24 @@ export async function marcarSolicitudEnviada(id: number, satRequestId: string): 
       WHERE id = $1
       RETURNING *`,
     [id, satRequestId]
+  );
+
+  return rows[0];
+}
+
+/**
+ * Marca la solicitud como "verificando" justo antes de disparar verify() en
+ * segundo plano — así el usuario ve de inmediato que su clic surtió efecto,
+ * sin tener que esperar la respuesta real del SAT dentro de la misma request.
+ */
+export async function marcarSolicitudVerificando(id: number): Promise<CfdiSatSolicitudRow> {
+  const { rows } = await pool.query<CfdiSatSolicitudRow>(
+    `UPDATE core.cfdi_sat_solicitudes
+        SET estatus = 'verificando',
+            mensaje_error = NULL
+      WHERE id = $1
+      RETURNING *`,
+    [id]
   );
 
   return rows[0];

@@ -10,7 +10,8 @@
     "schema:export": "ts-node src/scripts/exportSchema.ts",
     "schema:export:single": "ts-node src/scripts/exportSchemaSingle.ts",
     "normalize-phones": "ts-node src/scripts/normalizePhones.ts",
-    "seed:contabilidad": "ts-node src/scripts/seedContabilidadDemoEmpresa8.ts"
+    "seed:contabilidad": "ts-node src/scripts/seedContabilidadDemoEmpresa8.ts",
+    "diagnosticar-sat": "ts-node src/scripts/diagnosticarSatDescarga.ts"
   },
   "keywords": [],
   "author": "",

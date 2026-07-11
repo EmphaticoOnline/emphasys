@@ -592,6 +592,47 @@ decidirla más adelante:
     `DOCUMENTO_YA_VINCULADO` cuando aplica) y que ningún documento queda en
     un estado intermedio o inconsistente.
 
+## Timeouts
+
+El backend nunca deja una llamada al SAT colgada indefinidamente ni depende
+de que un proxy la corte por él — controla su propio tiempo máximo y siempre
+responde JSON, para que el usuario nunca vea la página de error HTML de un
+proxy (nginx u otro) en vez de un mensaje claro.
+
+- **`SAT_HTTP_TIMEOUT_MS` (20s)** — timeout de cada petición HTTP individual
+  al SAT (`sat-client.ts`), pasado al `HttpsWebClient` de
+  `@nodecfdi/sat-ws-descarga-masiva`. Una operación de alto nivel
+  (query/verify/download) puede disparar hasta dos peticiones HTTP internas
+  (autenticación + la operación en sí), así que este valor por sí solo no
+  acota el tiempo total.
+- **`SAT_OPERATION_TIMEOUT_MS` (45s)** — techo total para una operación
+  completa (`crearSolicitudSat`/`verificarSolicitudSat`/`descargarPaqueteSat`),
+  implementado con un `withTimeout()` propio (no cancela la petición HTTP de
+  fondo — la librería no expone un `AbortController` — solo deja de
+  esperarla y responde). Si se cumple, se lanza `SatClientError` con
+  `code: 'SAT_TIMEOUT'` y el mensaje "No fue posible conectar con el
+  servicio del SAT. Intenta nuevamente más tarde.", que el controller
+  devuelve como JSON (`{ message, code }`) con status 422.
+- Los 45s se eligieron para quedar cómodamente por debajo del
+  `proxy_read_timeout` por defecto de nginx (60s si no está configurado
+  explícitamente), dejando ~15s de margen para el resto del procesamiento
+  (actualizar la solicitud en BD, registrar bitácora, serializar la
+  respuesta).
+- **Recomendación operativa (fuera de este repositorio, no se asume ni se
+  modifica ningún archivo de servidor):** si el proxy delante del backend
+  tiene un timeout menor a ~50s, súbanlo a 60s en `proxy_read_timeout` /
+  `proxy_connect_timeout` / `proxy_send_timeout` (o el equivalente del
+  proxy que uses) para dar margen completo a `SAT_OPERATION_TIMEOUT_MS`. El
+  backend ya está diseñado para responder antes de ese límite, así que este
+  ajuste es un refuerzo operativo, no un requisito estricto para que
+  funcione.
+- El batch de importación por lote y la ejecución asistida de automatización
+  (Fase 7 y Fase 9) llaman a las mismas funciones de `sat-client.ts`, así que
+  cada llamada individual dentro del lote ya respeta este mismo límite — pero
+  el tiempo total de un lote grande (muchas solicitudes/paquetes en una sola
+  request HTTP) puede seguir sumando más que el timeout del proxy. Ver
+  "Backlog futuro recomendado".
+
 ## Troubleshooting básico
 
 Problemas frecuentes y dónde revisarlos primero:
@@ -601,6 +642,8 @@ Problemas frecuentes y dónde revisarlos primero:
 | "No hay una e.firma (FIEL) cargada" pero ya se subió | El certificado se subió para otra empresa (revisa `X-Empresa-Id`/empresa activa en el selector de empresa). | `GET /credenciales` con la empresa activa correcta. |
 | "El RFC del certificado no coincide con el RFC de la empresa" al subir | El `.cer` es de otro RFC, o el RFC de la empresa en Emphasys está mal capturado. | Campo RFC de la empresa en Configuración de empresa. |
 | Crear/verificar/descargar solicitud falla con error de conexión | El SAT puede estar temporalmente caído, o el ambiente no tiene salida a internet hacia los endpoints `*.clouda.sat.gob.mx`. | Reintentar en unos minutos; revisar conectividad saliente del servidor. |
+| "No fue posible conectar con el servicio del SAT..." (código `SAT_TIMEOUT`) en vez de un 504 HTML de nginx | El SAT tardó más de 45s en responder (`SAT_OPERATION_TIMEOUT_MS` en `sat-client.ts`); el backend cortó antes de que nginx cortara y respondió JSON controlado en vez de dejar que el proxy devuelva su propia página de error. Es el comportamiento esperado, no un bug. | Reintentar más tarde; si es frecuente, revisar el estado del servicio del SAT o considerar subir/ajustar el timeout (ver "Timeouts" abajo). |
+| Sigue apareciendo un 504 HTML de nginx (no el JSON de `SAT_TIMEOUT`) | El timeout del proxy (`proxy_read_timeout` u equivalente) está configurado en menos de ~45s, o hay más de un proxy/balanceador en la ruta con su propio timeout más agresivo. | Ajustar el timeout del proxy a al menos 50-60s (ver "Timeouts" abajo); ese ajuste vive fuera de este repositorio. |
 | "No hay permisos de escritura en la carpeta configurada..." al descargar paquetes | `CFDI_SAT_STORAGE_DIR` no existe, o el usuario del proceso backend no tiene permisos de escritura ahí. | Log del servidor (busca `[CFDI SAT] Error de storage`, ahí sí aparece la ruta física completa) — nunca en la respuesta al usuario, ver "Seguridad de la FIEL". |
 | Comprobante queda en `sin_xml` y no se puede importar | La solicitud que lo trajo fue de tipo `metadata`, no `xml`. | Crear una nueva solicitud de tipo XML para ese rango/RFC. |
 | `proveedor_no_encontrado` aunque el proveedor "existe" | El RFC capturado en el contacto no coincide exactamente (mayúsculas/espacios) con el del CFDI, o está en un campo distinto al esperado (`contactos_datos_fiscales.rfc` tiene prioridad sobre `contactos.rfc`). | Revisar el RFC exacto del contacto en Contactos. |
@@ -659,6 +702,14 @@ como trabajo futuro si el negocio lo pide:
   pasa con `documentos.uuid_cfdi_origen` y `cfdi_sat_comprobantes.importado_compras`
   al revertir.
 - **Vinculación por lote**: hoy es uno por uno con confirmación explícita.
+- **Timeout total de operaciones por lote** (importar por lote, descargar
+  varios paquetes, ejecución asistida de automatización): cada llamada
+  individual al SAT ya respeta `SAT_OPERATION_TIMEOUT_MS` (45s), pero el
+  tiempo total de la request HTTP que envuelve el lote completo puede seguir
+  sumando más que el timeout del proxy si hay muchos ítems. Solucionarlo bien
+  requeriría mover esos flujos a un patrón de job en segundo plano con
+  polling desde el frontend, en vez de una sola request síncrona — cambio
+  estructural que no se hizo aquí para no rehacer el módulo.
 - **Cron real / importación automática**: solo es posible si se acepta el
   riesgo de mantener la contraseña de la FIEL disponible sin un humano
   presente — ver el diagnóstico completo en "Automatización (Fase 9)". No
