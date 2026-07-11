@@ -1,5 +1,6 @@
 import {
   actualizarSolicitudTrasVerificacion,
+  registrarErrorVerificacionSolicitud,
   type CfdiSatSolicitudRow,
 } from './cfdi-sat-solicitudes.repository';
 import {
@@ -44,9 +45,17 @@ export interface ResultadoVerificacionSolicitud {
 
 /**
  * Verifica una solicitud ya aceptada por el SAT. Requiere `solicitud.sat_request_id`
- * (el llamador debe filtrar/validar esto antes de invocar). Si la llamada al SAT
- * falla, la solicitud queda marcada con estatus 'error' y se relanza el error para
- * que el llamador decida el código de respuesta / bitácora.
+ * (el llamador debe filtrar/validar esto antes de invocar).
+ *
+ * Importante: si la llamada al SAT no llega a completarse (timeout u otro error
+ * de comunicación/librería antes de obtener una respuesta del SAT), la solicitud
+ * NO se marca como 'error' — un timeout no es un rechazo del SAT, es que el SAT no
+ * respondió (ver docs/cfdi-sat-descarga.md, "Diagnóstico: VerificaSolicitudDescargaService.svc
+ * no responde"). Se guarda el mensaje del intento fallido (registrarErrorVerificacionSolicitud)
+ * pero el estatus previo se conserva, así la solicitud sigue siendo reintentable (tanto
+ * manualmente como por la ejecución asistida, que solo reintenta 'solicitado'/'en_proceso').
+ * El estatus solo cambia a un valor terminal (error/rechazado/expirado) más abajo, cuando el
+ * SAT sí respondió y fue él quien reportó ese resultado.
  */
 export async function ejecutarVerificacionSolicitud(params: {
   solicitud: CfdiSatSolicitudRow;
@@ -68,11 +77,7 @@ export async function ejecutarVerificacionSolicitud(params: {
     const mensaje =
       error instanceof SatClientError ? error.message : 'No se pudo verificar la solicitud ante el SAT';
 
-    await actualizarSolicitudTrasVerificacion(solicitud.id, {
-      estatus: 'error',
-      cfdisEncontrados: solicitud.cfdis_encontrados ?? 0,
-      mensajeError: mensaje,
-    });
+    await registrarErrorVerificacionSolicitud(solicitud.id, mensaje);
 
     throw error instanceof SatClientError ? error : new SatClientError(mensaje);
   }

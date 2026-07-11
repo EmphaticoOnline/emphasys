@@ -45,6 +45,19 @@
  * principal para diagnosticar esta app):
  *   SAT_DIAG_CER_PATH=/ruta/al/certificado.cer SAT_DIAG_KEY_PATH=/ruta/a/la/llave.key SAT_DIAG_PASSWORD='...' npm run diagnosticar-sat
  *
+ * Uso — prueba manual/raw de verify() (SAT_DIAG_VERIFY_RAW=1): reconstruye a mano
+ * (sin pasar por HttpsWebClient de la librería) el mismo POST firmado que haría
+ * verify(), probando 3 variantes de transporte (SOAPAction sin/con comillas,
+ * Content-Length explícito + Connection: close vs. chunked como la librería), para
+ * aislar si el timeout depende de cómo arma el request la librería o si el SAT
+ * cuelga igual con un request "correcto" hecho a mano. Requiere SAT_DIAG_REQUEST_ID
+ * (usa el mismo Request ID, mismo token de authenticate(), mismo RFC y mismo
+ * envelope firmado real con la FIEL de la empresa; la firma/certificado solo se
+ * redactan al imprimir en consola, nunca al enviar):
+ *   SAT_DIAG_EMPRESA_ID=4 SAT_DIAG_PASSWORD='...' SAT_DIAG_REQUEST_ID='<uuid>' \
+ *     SAT_DIAG_VERIFY_RAW=1 SAT_DIAG_HTTP_TIMEOUT_MS=60000 SAT_DIAG_OPERATION_TIMEOUT_MS=90000 \
+ *     npm run diagnosticar-sat
+ *
  * Si no se define SAT_DIAG_EMPRESA_ID ni SAT_DIAG_CER_PATH/SAT_DIAG_KEY_PATH,
  * el script solo corre las pruebas de red genéricas (DNS/HTTPS/TLS/endpoints).
  *
@@ -331,6 +344,180 @@ async function ejecutarVerifyDiagnostico(
   return 'verificacion_solicitud';
 }
 
+interface VarianteVerifyRaw {
+  nombre: string;
+  soapActionConComillas: boolean;
+  contentLengthExplicito: boolean;
+  connectionClose: boolean;
+}
+
+/**
+ * Variantes mínimas de transporte para SAT_DIAG_VERIFY_RAW=1: prueban si el
+ * timeout de verify() depende de detalles HTTP que la librería no controla
+ * (comillas en SOAPAction, Content-Length explícito vs chunked) o si el SAT
+ * cuelga igual sin importar esos detalles — en cuyo caso el problema es del
+ * lado del SAT y no de cómo la librería arma el request.
+ */
+const VARIANTES_VERIFY_RAW: VarianteVerifyRaw[] = [
+  { nombre: 'A — equivalente a la librería (SOAPAction sin comillas, sin Content-Length, chunked)', soapActionConComillas: false, contentLengthExplicito: false, connectionClose: false },
+  { nombre: 'B — SOAPAction con comillas', soapActionConComillas: true, contentLengthExplicito: false, connectionClose: false },
+  { nombre: 'C — Content-Length explícito + Connection: close (sin chunked)', soapActionConComillas: true, contentLengthExplicito: true, connectionClose: true },
+];
+
+interface ResultadoVerifyRaw {
+  ok: boolean;
+  ms: number;
+  statusCode?: number;
+  error?: string;
+  fragmentoRespuesta?: string;
+}
+
+/**
+ * POST manual (sin pasar por HttpsWebClient de la librería) usando el mismo
+ * envelope firmado real que produce requestBuilder.verify(). Permite variar
+ * SOAPAction/Content-Length/Connection de forma controlada para aislar si el
+ * timeout depende de esos detalles de transporte.
+ */
+function ejecutarVerifyRawVariante(
+  variante: VarianteVerifyRaw,
+  endpointUrl: string,
+  soapActionBase: string,
+  bodyXml: string,
+  tokenValue: string,
+  httpTimeoutMs: number
+): Promise<ResultadoVerifyRaw> {
+  return new Promise((resolve) => {
+    const inicio = performance.now();
+    let target: URL;
+    try {
+      target = new URL(endpointUrl);
+    } catch (error: any) {
+      resolve({ ok: false, ms: ms(inicio), error: `URL inválida: ${error?.message ?? error}` });
+      return;
+    }
+
+    const soapActionValue = variante.soapActionConComillas ? `"${soapActionBase}"` : soapActionBase;
+    const bodyBuffer = Buffer.from(bodyXml, 'utf8');
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'text/xml; charset="utf-8"',
+      SOAPAction: soapActionValue,
+      Authorization: `WRAP access_token="${tokenValue}"`,
+    };
+    if (variante.contentLengthExplicito) {
+      headers['Content-Length'] = String(bodyBuffer.length);
+    }
+    if (variante.connectionClose) {
+      headers.Connection = 'close';
+    }
+
+    console.log(`\n     --- Variante ${variante.nombre} ---`);
+    console.log(`     Endpoint: ${target.toString()}`);
+    console.log(`     SOAPAction usado: ${soapActionValue}`);
+    console.log(`     Content-Type: ${headers['Content-Type']}`);
+    console.log(
+      `     Content-Length: ${variante.contentLengthExplicito ? headers['Content-Length'] : '(no enviado — Transfer-Encoding: chunked, igual que la librería)'}`
+    );
+    console.log('     Authorization: presente (WRAP access_token=<redactado>)');
+    console.log(`     Connection: ${variante.connectionClose ? 'close' : '(default, sin forzar)'}`);
+
+    const req = https.request(
+      {
+        hostname: target.hostname,
+        path: target.pathname,
+        method: 'POST',
+        timeout: httpTimeoutMs,
+        headers,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const bodyRespuesta = Buffer.concat(chunks).toString('utf8');
+          resolve({
+            ok: true,
+            ms: ms(inicio),
+            statusCode: res.statusCode,
+            fragmentoRespuesta: redactarSoapEnvelope(bodyRespuesta).slice(0, 300),
+          });
+        });
+      }
+    );
+
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false, ms: ms(inicio), error: `TIMEOUT (sin respuesta en ${httpTimeoutMs} ms)` });
+    });
+    req.on('error', (error: any) => {
+      resolve({ ok: false, ms: ms(inicio), error: error?.code ?? error?.message ?? String(error) });
+    });
+
+    if (variante.contentLengthExplicito) {
+      req.end(bodyBuffer);
+    } else {
+      req.write(bodyBuffer);
+      req.end();
+    }
+  });
+}
+
+/**
+ * Prueba controlada (SAT_DIAG_VERIFY_RAW=1): reconstruye el mismo POST que
+ * haría la librería para verify(), pero a mano y con variantes de transporte,
+ * para aislar si el timeout depende de cómo arma el request la librería
+ * (SOAPAction sin comillas, sin Content-Length -> chunked) o si el SAT cuelga
+ * igual con un request manual "correcto". Usa el envelope REAL firmado con la
+ * FIEL de la empresa (mismo que produce requestBuilder.verify()); solo se
+ * redacta la firma/certificado al imprimir en consola, nunca al enviar.
+ */
+async function probarVerifyRaw(
+  service: SatService,
+  requestBuilder: SatRequestBuilder,
+  requestId: string,
+  endpoints: SatEndpoints,
+  httpTimeoutMs: number
+): Promise<void> {
+  console.log('\n[H] Prueba manual/raw de verify() — variantes de transporte (SAT_DIAG_VERIFY_RAW=1)\n' + linea());
+
+  let token;
+  try {
+    token = await service.obtainCurrentToken();
+  } catch (error: any) {
+    console.log(`FAIL [Prueba raw] No se pudo obtener token para la prueba manual: ${error?.message ?? error}`);
+    return;
+  }
+  if (!token.isValid()) {
+    console.log('FAIL [Prueba raw] El token obtenido no es válido; se omite la prueba manual.');
+    return;
+  }
+
+  let rawXml: string;
+  try {
+    rawXml = requestBuilder.verify(requestId);
+  } catch (error: any) {
+    console.log(`FAIL [Prueba raw] No se pudo construir el envelope firmado: ${error?.message ?? error}`);
+    return;
+  }
+
+  const soapActionBase = 'http://DescargaMasivaTerceros.sat.gob.mx/IVerificaSolicitudDescargaService/VerificaSolicitudDescarga';
+  const endpointUrl = endpoints.getVerify();
+
+  console.log(`     Request ID: ${requestId}`);
+  console.log(`     Endpoint: ${endpointUrl}`);
+  console.log(`     Envelope firmado real a enviar (log redactado, firma/certificado ocultos solo para impresión, NO para el envío): ${redactarSoapEnvelope(rawXml).slice(0, 300)}...`);
+  console.log(`     Tamaño real del body a enviar: ${Buffer.byteLength(rawXml, 'utf8')} bytes`);
+
+  for (const variante of VARIANTES_VERIFY_RAW) {
+    const resultado = await ejecutarVerifyRawVariante(variante, endpointUrl, soapActionBase, rawXml, token.getValue(), httpTimeoutMs);
+    if (resultado.ok) {
+      console.log(`     RESULTADO: OK   status=${resultado.statusCode}  tiempo=${resultado.ms} ms`);
+      console.log(`     Fragmento de respuesta (redactado, primeros 300 caracteres): ${resultado.fragmentoRespuesta || '(vacío)'}`);
+    } else {
+      console.log(`     RESULTADO: FAIL ${resultado.error}  tiempo=${resultado.ms} ms`);
+    }
+  }
+}
+
 export interface OpcionesSolicitudPrueba {
   tipoDescarga: SatTipoDescarga;
   tipoSolicitud: SatTipoSolicitud;
@@ -426,7 +613,8 @@ async function diagnosticarPorEmpresa(
   requestIdOpcional: string | undefined,
   opcionesCrear: OpcionesSolicitudPrueba | null,
   httpTimeoutMs: number,
-  operationTimeoutMs: number
+  operationTimeoutMs: number,
+  verifyRawHabilitado: boolean
 ): Promise<EtapaDiagnostico> {
   console.log(`Modalidad: credenciales guardadas de la empresa #${empresaId} (mismo mecanismo que el módulo real).`);
 
@@ -528,6 +716,17 @@ async function diagnosticarPorEmpresa(
     console.log('[Verificación de solicitud existente] omitido (define SAT_DIAG_REQUEST_ID para probarlo).');
   }
 
+  // Etapa 6b (opcional): prueba manual/raw de verify() con variantes de transporte
+  // (SAT_DIAG_VERIFY_RAW=1). Requiere SAT_DIAG_REQUEST_ID. No cambia etapaVerifyExistente:
+  // es puramente informativa, para comparar contra lo que ya reportó la etapa 6.
+  if (verifyRawHabilitado) {
+    if (requestIdOpcional) {
+      await probarVerifyRaw(service, requestBuilder, requestIdOpcional, endpoints, httpTimeoutMs);
+    } else {
+      console.log('\n[H] Prueba manual/raw de verify(): omitida (SAT_DIAG_VERIFY_RAW=1 requiere también SAT_DIAG_REQUEST_ID).');
+    }
+  }
+
   // Etapa 7 (opcional): crear una solicitud de prueba NUEVA y verificarla de inmediato
   // (SAT_DIAG_CREAR_SOLICITUD=1). Sirve para distinguir "esta solicitud puntual" de
   // "cualquier verificación". Puede correr en la misma corrida que la etapa 6.
@@ -607,6 +806,7 @@ async function main() {
   const keyPath = process.env.SAT_DIAG_KEY_PATH;
   const httpTimeoutMs = parseTimeoutEnv(process.env.SAT_DIAG_HTTP_TIMEOUT_MS, DEFAULT_HTTP_TIMEOUT_MS);
   const operationTimeoutMs = parseTimeoutEnv(process.env.SAT_DIAG_OPERATION_TIMEOUT_MS, DEFAULT_OPERATION_TIMEOUT_MS);
+  const verifyRawHabilitado = process.env.SAT_DIAG_VERIFY_RAW === '1';
 
   // Prueba controlada opcional: crear solicitud nueva + verificar de inmediato.
   let opcionesCrear: OpcionesSolicitudPrueba | null = null;
@@ -639,7 +839,15 @@ async function main() {
     if (!Number.isInteger(empresaId) || empresaId <= 0) {
       console.log(`FAIL SAT_DIAG_EMPRESA_ID inválido: "${empresaIdRaw}"`);
     } else {
-      etapaAuth = await diagnosticarPorEmpresa(empresaId, password, requestIdOpcional, opcionesCrear, httpTimeoutMs, operationTimeoutMs);
+      etapaAuth = await diagnosticarPorEmpresa(
+        empresaId,
+        password,
+        requestIdOpcional,
+        opcionesCrear,
+        httpTimeoutMs,
+        operationTimeoutMs,
+        verifyRawHabilitado
+      );
     }
   } else if (cerPath && keyPath && password) {
     // Modalidad legacy: .cer/.key sueltos en disco (NO es la ruta principal para esta app;

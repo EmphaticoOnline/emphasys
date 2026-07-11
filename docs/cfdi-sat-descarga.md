@@ -633,6 +633,110 @@ proxy (nginx u otro) en vez de un mensaje claro.
   request HTTP) puede seguir sumando más que el timeout del proxy. Ver
   "Backlog futuro recomendado".
 
+## Diagnóstico: `VerificaSolicitudDescargaService.svc` no responde
+
+**Cerrado (2026-07-11).** Investigación registrada aquí para no repetirla si
+vuelve a surgir la duda de si es un problema de Emphasys.
+
+### Lo que sí funciona
+
+- DNS, HTTPS y TLS contra los 4 endpoints del SAT (`Autenticacion`,
+  `SolicitaDescargaService`, `VerificaSolicitudDescargaService`,
+  `DescargaMasivaService`).
+- Lectura y descifrado de la FIEL guardada (`core.cfdi_sat_credenciales` +
+  `utils/secret-crypto.ts`), contraseña correcta, `Fiel.isValid() = true`.
+- **Autenticación** (`Service.authenticate()`): responde y entrega token en
+  menos de 200 ms de forma consistente.
+- **Creación de solicitud** (`Service.query()` /
+  `SolicitaDescargaService.svc`): responde y entrega `RequestId` normalmente.
+
+### Lo que no funciona
+
+- **Verificación** (`Service.verify()` / `VerificaSolicitudDescargaService.svc`)
+  no responde: la petición HTTP se queda sin respuesta hasta agotar el
+  timeout, tanto para solicitudes ya existentes como para una solicitud
+  creada y verificada de inmediato, y tanto esperando unos segundos como
+  varios minutos entre crear y verificar.
+
+### Pruebas realizadas (en orden)
+
+1. Diagnóstico de red genérico (DNS/HTTPS/TLS a los 4 endpoints) — todo OK.
+2. Autenticación + verificación de una solicitud existente con los timeouts
+   normales de la app (20s HTTP / 45s operación) — verify() truena en
+   timeout.
+3. Igual, con timeouts ampliados (60s HTTP / 90s operación) para descartar
+   "solo necesita más tiempo" — sigue en timeout, a los 60s exactos.
+4. Crear una solicitud nueva y verificarla de inmediato — también timeout,
+   descartando que fuera un problema de una solicitud vieja/atorada.
+5. Repetir la verificación de la solicitud nueva esperando varios minutos —
+   sigue en timeout, descartando que fuera un problema de temporización
+   inmediata create→verify.
+6. **Prueba manual/raw**: reconstrucción a mano (sin pasar por
+   `HttpsWebClient` de la librería) del mismo POST SOAP firmado que hace
+   `verify()`, con 3 variantes de transporte, usando el mismo token, mismo
+   Request ID, mismo RFC y el mismo envelope firmado real con la FIEL:
+   - **Variante A** (equivalente exacto a la librería: `SOAPAction` sin
+     comillas, sin `Content-Length`, `Transfer-Encoding: chunked`) — timeout.
+   - **Variante B** (`SOAPAction` con comillas) — timeout.
+   - **Variante C** (`SOAPAction` con comillas + `Content-Length` explícito +
+     `Connection: close`, sin chunked) — timeout.
+
+Las tres variantes fallan igual, con y sin pasar por la librería. Se
+descartó código propio, la librería `@nodecfdi/sat-ws-descarga-masiva`,
+formato de `SOAPAction`, `Content-Length`/chunked, TLS, la FIEL y la
+contraseña como causa.
+
+### Conclusión operativa
+
+El servicio `VerificaSolicitudDescargaService.svc` del SAT no está
+respondiendo a peticiones de verificación reales en este momento. Es un
+problema del lado del SAT, no de Emphasys ni de la librería — consistente
+con reportes públicos independientes del mismo síntoma en el repositorio de
+`@nodecfdi/sat-ws-descarga-masiva` (issues #32 y #39), uno de ellos abierto
+contra la misma versión (v2.0.0) que usa este módulo.
+
+**Decisión:** en vez de seguir intentando "arreglar" un servicio externo que
+no responde, el módulo se ajustó para manejar esta realidad operativa de
+forma correcta — ver "Comportamiento ante timeout de verificación" abajo.
+
+## Comportamiento ante timeout de verificación
+
+Cuando `verify()` agota `SAT_OPERATION_TIMEOUT_MS` (ver "Timeouts" arriba):
+
+- El usuario ve: *"No fue posible verificar la solicitud ante el SAT. La
+  autenticación fue exitosa, pero el servicio de verificación del SAT no
+  respondió dentro del tiempo esperado. Intenta nuevamente más tarde."*
+  (`SAT_VERIFY_TIMEOUT_MENSAJE` en `sat-client.ts`, distinto del mensaje
+  genérico de timeout que usan crear solicitud y descarga de paquetes,
+  porque aquí sí sabemos que la autenticación se completó).
+- **La solicitud NO se marca como `error`** (estatus terminal que la
+  ejecución asistida nunca reintenta automáticamente). Conserva el estatus
+  que tenía antes de intentar verificar (típicamente `solicitado` o
+  `en_proceso`), así que sigue siendo reintentable tanto manualmente como
+  por la automatización asistida.
+- El mensaje del intento fallido sí se guarda en `mensaje_error` de la
+  solicitud (`registrarErrorVerificacionSolicitud()` en
+  `cfdi-sat-solicitudes.repository.ts`), visible como tooltip sobre el chip
+  de estatus en la tabla de solicitudes — no se agregó ninguna columna
+  nueva, se reutilizó el campo `mensaje_error` que ya existía desde la Fase 2.
+  Solo cuando el SAT **sí responde** y reporta explícitamente `Failure`/
+  `Rejected`/`Expired` la solicitud pasa a un estatus terminal
+  (`error`/`rechazado`/`expirado`), vía `actualizarSolicitudTrasVerificacion()`
+  — sin cambios respecto a como ya funcionaba.
+- El botón "Verificar" sigue disponible (nunca se deshabilitó por estatus,
+  solo requiere que la solicitud tenga `sat_request_id`), así que reintentar
+  es un clic normal.
+- El frontend nunca muestra HTML crudo de un proxy ni un mensaje técnico:
+  esto ya estaba resuelto por el manejo de errores de `apiFetch.ts` y
+  `describirErrorAccionSat()` en `CfdiSatPage.tsx` (ver "Timeouts" arriba);
+  no requirió cambios adicionales para este ajuste.
+
+Esto aplica también a la ejecución asistida de automatización (Fase 9), que
+comparte la misma función (`ejecutarVerificacionSolicitud()` en
+`cfdi-sat-solicitudes.service.ts`): un timeout de verify() durante una
+ejecución en lote tampoco marca esa solicitud como `error`, solo queda
+registrado su mensaje y sigue elegible para el siguiente intento.
+
 ## Troubleshooting básico
 
 Problemas frecuentes y dónde revisarlos primero:
@@ -643,6 +747,7 @@ Problemas frecuentes y dónde revisarlos primero:
 | "El RFC del certificado no coincide con el RFC de la empresa" al subir | El `.cer` es de otro RFC, o el RFC de la empresa en Emphasys está mal capturado. | Campo RFC de la empresa en Configuración de empresa. |
 | Crear/verificar/descargar solicitud falla con error de conexión | El SAT puede estar temporalmente caído, o el ambiente no tiene salida a internet hacia los endpoints `*.clouda.sat.gob.mx`. | Reintentar en unos minutos; revisar conectividad saliente del servidor. |
 | "No fue posible conectar con el servicio del SAT..." (código `SAT_TIMEOUT`) en vez de un 504 HTML de nginx | El SAT tardó más de 45s en responder (`SAT_OPERATION_TIMEOUT_MS` en `sat-client.ts`); el backend cortó antes de que nginx cortara y respondió JSON controlado en vez de dejar que el proxy devuelva su propia página de error. Es el comportamiento esperado, no un bug. | Reintentar más tarde; si es frecuente, revisar el estado del servicio del SAT o considerar subir/ajustar el timeout (ver "Timeouts" abajo). |
+| "No fue posible verificar la solicitud ante el SAT. La autenticación fue exitosa, pero el servicio de verificación..." al hacer clic en "Verificar" | `VerificaSolicitudDescargaService.svc` del SAT no está respondiendo — confirmado con diagnóstico exhaustivo (red, FIEL, librería, prueba manual/raw). No es un bug de Emphasys. La solicitud queda en su estatus previo (reintentable), no se marca `error`. | Reintentar "Verificar" más tarde (mismo botón, sin acción adicional); ver "Diagnóstico: VerificaSolicitudDescargaService.svc no responde" arriba. |
 | Sigue apareciendo un 504 HTML de nginx (no el JSON de `SAT_TIMEOUT`) | El timeout del proxy (`proxy_read_timeout` u equivalente) está configurado en menos de ~45s, o hay más de un proxy/balanceador en la ruta con su propio timeout más agresivo. | Ajustar el timeout del proxy a al menos 50-60s (ver "Timeouts" abajo); ese ajuste vive fuera de este repositorio. |
 | "No hay permisos de escritura en la carpeta configurada..." al descargar paquetes | `CFDI_SAT_STORAGE_DIR` no existe, o el usuario del proceso backend no tiene permisos de escritura ahí. | Log del servidor (busca `[CFDI SAT] Error de storage`, ahí sí aparece la ruta física completa) — nunca en la respuesta al usuario, ver "Seguridad de la FIEL". |
 | Comprobante queda en `sin_xml` y no se puede importar | La solicitud que lo trajo fue de tipo `metadata`, no `xml`. | Crear una nueva solicitud de tipo XML para ese rango/RFC. |

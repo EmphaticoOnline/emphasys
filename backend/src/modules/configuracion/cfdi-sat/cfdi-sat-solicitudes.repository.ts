@@ -134,6 +134,29 @@ export async function marcarSolicitudError(
   return rows[0];
 }
 
+/**
+ * Registra el último error de un intento de verify() que NO llegó a obtener
+ * respuesta del SAT (timeout u otro error de comunicación) SIN cambiar el
+ * estatus de la solicitud. A propósito no reutiliza marcarSolicitudError()
+ * (que sí marca estatus='error', un estado terminal que la ejecución asistida
+ * nunca reintenta — ver listarSolicitudesParaVerificar): un timeout de verify()
+ * no es un rechazo del SAT, es que el SAT no respondió, así que la solicitud
+ * debe seguir siendo reintentable (mismo sat_request_id, mismo estatus previo,
+ * ej. 'solicitado' o 'en_proceso'), solo con el mensaje visible para que el
+ * usuario sepa qué pasó la última vez que intentó verificar.
+ */
+export async function registrarErrorVerificacionSolicitud(id: number, mensajeError: string): Promise<CfdiSatSolicitudRow> {
+  const { rows } = await pool.query<CfdiSatSolicitudRow>(
+    `UPDATE core.cfdi_sat_solicitudes
+        SET mensaje_error = $2
+      WHERE id = $1
+      RETURNING *`,
+    [id, mensajeError.slice(0, 1000)]
+  );
+
+  return rows[0];
+}
+
 interface ActualizarTrasVerificacionParams {
   estatus: SatEstatusVerificacion;
   cfdisEncontrados: number;

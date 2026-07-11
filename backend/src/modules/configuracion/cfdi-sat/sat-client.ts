@@ -55,6 +55,17 @@ function withTimeout<T>(factory: () => Promise<T>, ms: number, code: string, men
 const SAT_TIMEOUT_MENSAJE = 'No fue posible conectar con el servicio del SAT. Intenta nuevamente más tarde.';
 
 /**
+ * Mensaje específico para el timeout de verify() (VerificaSolicitudDescargaService.svc).
+ * Diagnóstico técnico exhaustivo (DNS/TLS/FIEL/autenticación/creación de solicitud,
+ * más una prueba manual/raw con 3 variantes de transporte) descartó causas de Emphasys,
+ * de la librería o de la conexión: el servicio del SAT simplemente no responde. Distinto
+ * del mensaje genérico porque aquí la autenticación SÍ se completó (ver docs/cfdi-sat-descarga.md,
+ * sección "Diagnóstico: VerificaSolicitudDescargaService.svc no responde").
+ */
+const SAT_VERIFY_TIMEOUT_MENSAJE =
+  'No fue posible verificar la solicitud ante el SAT. La autenticación fue exitosa, pero el servicio de verificación del SAT no respondió dentro del tiempo esperado. Intenta nuevamente más tarde.';
+
+/**
  * Extrae un mensaje de texto seguro de CUALQUIER error que pueda salir de
  * @nodecfdi/sat-ws-descarga-masiva o de la red, sin asumir su forma.
  *
@@ -385,7 +396,7 @@ export async function verificarSolicitudSat(
       () => service.verify(params.satRequestId),
       SAT_OPERATION_TIMEOUT_MS,
       'SAT_TIMEOUT',
-      SAT_TIMEOUT_MENSAJE
+      SAT_VERIFY_TIMEOUT_MENSAJE
     );
   } catch (error: unknown) {
     if (error instanceof SatClientError) throw error;
