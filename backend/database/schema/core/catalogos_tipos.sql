@@ -6,9 +6,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict 3q4MOXjKrYJBVBfQXsLaEypeH2pAH0MKWJ2ZAtcw5k1RKyX9VUmiETeaWC4fmMJ
+\restrict hRiW8U0KJ3h72YtL8YmOfBUGhqbnXMtLCRuWYV0JLJhD3fNnCm8ejMfHuv1NVfr
 
--- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped from database version 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
@@ -171,5 +171,5 @@ ALTER TABLE ONLY core.catalogos_tipos
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 3q4MOXjKrYJBVBfQXsLaEypeH2pAH0MKWJ2ZAtcw5k1RKyX9VUmiETeaWC4fmMJ
+\unrestrict hRiW8U0KJ3h72YtL8YmOfBUGhqbnXMtLCRuWYV0JLJhD3fNnCm8ejMfHuv1NVfr
 

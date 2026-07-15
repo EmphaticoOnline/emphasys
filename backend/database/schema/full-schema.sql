@@ -1,13 +1,13 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-06-26T02:44:42.575Z
+-- Generated at: 2026-07-15T21:20:28.759Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict 0bIZzGRrWQiaVG6AkDiscTXvmf7Qo6c9bCRmWUbYymNnqWUfVgI8iCfPkMq2v4V
+\restrict 76eNPOXC5ZvHezKybEjgghCFo4XdKdPm3EfLfnYEjAzDDOMOHI9UDuegs9fl9sa
 
--- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped from database version 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
@@ -21,6 +21,20 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
+
+--
+-- Name: contabilidad; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA contabilidad;
+
+
+--
+-- Name: SCHEMA contabilidad; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON SCHEMA contabilidad IS 'Schema del módulo de contabilidad de Emphasys ERP.';
+
 
 --
 -- Name: core; Type: SCHEMA; Schema: -; Owner: -
@@ -125,6 +139,20 @@ CREATE EXTENSION IF NOT EXISTS postgres_fdw WITH SCHEMA sat;
 --
 
 COMMENT ON EXTENSION postgres_fdw IS 'foreign-data wrapper for remote PostgreSQL servers';
+
+
+--
+-- Name: unaccent; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA sat;
+
+
+--
+-- Name: EXTENSION unaccent; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION unaccent IS 'text search dictionary that removes accents';
 
 
 --
@@ -882,6 +910,1870 @@ $$;
 SET default_table_access_method = heap;
 
 --
+-- Name: configuracion; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.configuracion (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    caracter_separador character varying(1) DEFAULT '-'::character varying NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    estructura_cuentas character varying(30) DEFAULT '3-4-3'::character varying NOT NULL,
+    permitir_venta_no_timbrada boolean DEFAULT false NOT NULL,
+    tipo_poliza_venta_factura_id bigint,
+    tipo_poliza_venta_cancelacion_id bigint,
+    CONSTRAINT chk_contabilidad_configuracion_caracter_separador CHECK ((char_length((caracter_separador)::text) = 1))
+);
+
+
+--
+-- Name: TABLE configuracion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.configuracion IS 'Configuración general del módulo de contabilidad por empresa.';
+
+
+--
+-- Name: COLUMN configuracion.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.id IS 'Identificador interno de la configuración contable.';
+
+
+--
+-- Name: COLUMN configuracion.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.empresa_id IS 'Empresa a la que pertenece la configuración contable.';
+
+
+--
+-- Name: COLUMN configuracion.caracter_separador; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.caracter_separador IS 'Caracter utilizado para separar segmentos visibles de cuentas contables. Puede ser espacio, guion, punto u otro carácter único.';
+
+
+--
+-- Name: COLUMN configuracion.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN configuracion.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: COLUMN configuracion.estructura_cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.estructura_cuentas IS 'Estructura de segmentos del número de cuenta contable, expresada como longitudes separadas por guion (ej. 3-4-3, 3-4-3-3, 4-3-3).';
+
+
+--
+-- Name: COLUMN configuracion.permitir_venta_no_timbrada; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.permitir_venta_no_timbrada IS 'Permite contabilizar facturas de venta estándar (tratamiento_impuestos = normal) que aún no están timbradas ante el SAT. Default false: solo se contabilizan facturas ya timbradas.';
+
+
+--
+-- Name: COLUMN configuracion.tipo_poliza_venta_factura_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.tipo_poliza_venta_factura_id IS 'Tipo de póliza que debe usar el motor de contabilización automática al contabilizar la emisión de una factura de venta (individual o en lote). NULL = no configurado; en ese caso no se genera póliza y se informa al usuario.';
+
+
+--
+-- Name: COLUMN configuracion.tipo_poliza_venta_cancelacion_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion.tipo_poliza_venta_cancelacion_id IS 'Tipo de póliza que debe usar el motor de contabilización automática al generar la reversa por cancelación de una factura de venta ya contabilizada. NULL = no configurado; en ese caso no se genera la reversa y se informa al usuario.';
+
+
+--
+-- Name: CONSTRAINT chk_contabilidad_configuracion_caracter_separador ON configuracion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_contabilidad_configuracion_caracter_separador ON contabilidad.configuracion IS 'Garantiza que el separador sea exactamente un carácter.';
+
+
+--
+-- Name: configuracion_cuentas_contables; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.configuracion_cuentas_contables (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    cuenta_id bigint NOT NULL,
+    contacto_id integer,
+    producto_id integer,
+    almacen_id integer,
+    finanzas_cuenta_id integer,
+    concepto_id integer,
+    impuesto_id character varying(30),
+    producto_familia character varying(50),
+    producto_linea character varying(50),
+    producto_clasificacion character varying(50),
+    producto_tipo character varying(30),
+    uso_contable character varying(60) NOT NULL,
+    activa boolean DEFAULT true NOT NULL,
+    notas text,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_config_cuentas_una_sola_entidad CHECK (((((((((((((contacto_id IS NOT NULL))::integer + ((producto_id IS NOT NULL))::integer) + ((almacen_id IS NOT NULL))::integer) + ((finanzas_cuenta_id IS NOT NULL))::integer) + ((concepto_id IS NOT NULL))::integer) + ((impuesto_id IS NOT NULL))::integer) + ((producto_familia IS NOT NULL))::integer) + ((producto_linea IS NOT NULL))::integer) + ((producto_clasificacion IS NOT NULL))::integer) + ((producto_tipo IS NOT NULL))::integer) <= 1)),
+    CONSTRAINT chk_config_cuentas_uso_contable CHECK (((uso_contable)::text = ANY ((ARRAY['cliente_cxc'::character varying, 'proveedor_cxp'::character varying, 'banco_caja'::character varying, 'concepto_tesoreria'::character varying, 'venta_producto'::character varying, 'compra_producto'::character varying, 'inventario_almacen'::character varying, 'costo_ventas'::character varying, 'ajuste_inventario_positivo'::character varying, 'ajuste_inventario_negativo'::character varying, 'merma_inventario'::character varying, 'traspaso_inventario'::character varying, 'iva_trasladado'::character varying, 'iva_acreditable'::character varying, 'retencion_iva'::character varying, 'retencion_isr'::character varying, 'ieps'::character varying, 'impuesto_otro'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE configuracion_cuentas_contables; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.configuracion_cuentas_contables IS 'Tabla central para configurar las cuentas contables usadas por el motor de contabilización automática del ERP. Permite asignar cuentas a contactos, productos, almacenes, cuentas financieras, conceptos, impuestos y atributos de producto.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.id IS 'Identificador interno único del registro de configuración contable.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.empresa_id IS 'Empresa propietaria de esta configuración contable. Toda configuración es independiente por empresa.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.cuenta_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.cuenta_id IS 'Cuenta contable que será usada al generar pólizas. Apunta a contabilidad.cuentas.id.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.contacto_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.contacto_id IS 'Contacto al que aplica esta configuración. Se usa para clientes y proveedores. Si el contacto es cliente, normalmente representa CxC; si es proveedor, normalmente representa CxP.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.producto_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.producto_id IS 'Producto específico al que aplica esta configuración. Puede usarse para ventas, compras, inventario o costo de ventas.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.almacen_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.almacen_id IS 'Almacén específico al que aplica esta configuración. Se usa principalmente para determinar la cuenta de almacén o inventario en movimientos de inventario.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.finanzas_cuenta_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.finanzas_cuenta_id IS 'Cuenta financiera específica, banco o caja, a la que aplica esta configuración. Cada banco o caja debe tener su propia cuenta contable.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.concepto_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.concepto_id IS 'Concepto operativo al que aplica esta configuración. Se usa principalmente en movimientos de tesorería que no corresponden a cobros de clientes ni pagos a proveedores.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.impuesto_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.impuesto_id IS 'Impuesto al que aplica esta configuración. Se usa para IVA trasladado, IVA acreditable, retenciones, IEPS u otros impuestos.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.producto_familia; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.producto_familia IS 'Familia de producto a la que aplica esta configuración cuando no se desea configurar cuenta producto por producto.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.producto_linea; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.producto_linea IS 'Línea de producto a la que aplica esta configuración cuando se desea resolver cuentas por agrupación de producto.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.producto_clasificacion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.producto_clasificacion IS 'Clasificación de producto a la que aplica esta configuración cuando se desea resolver cuentas por clasificación.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.producto_tipo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.producto_tipo IS 'Tipo de producto al que aplica esta configuración, por ejemplo producto, servicio o manufacturable, según el valor usado en public.productos.tipo_producto.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.uso_contable; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.uso_contable IS 'Uso funcional de la cuenta dentro del motor contable. Define para qué se usa la cuenta: cliente_cxc, proveedor_cxp, banco_caja, venta_producto, inventario_almacen, costo_ventas, iva_trasladado, iva_acreditable, etc.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.activa; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.activa IS 'Indica si esta configuración está vigente. Si es false, el motor de contabilización debe ignorarla.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.notas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.notas IS 'Notas internas para documentar el criterio, alcance o motivo de esta configuración contable.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN configuracion_cuentas_contables.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_cuentas_contables.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: configuracion_cuentas_contables_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.configuracion_cuentas_contables_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: configuracion_cuentas_contables_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.configuracion_cuentas_contables_id_seq OWNED BY contabilidad.configuracion_cuentas_contables.id;
+
+
+--
+-- Name: configuracion_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.configuracion_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: configuracion_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.configuracion_id_seq OWNED BY contabilidad.configuracion.id;
+
+
+--
+-- Name: contabilizaciones; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.contabilizaciones (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    poliza_id bigint NOT NULL,
+    tipo_movimiento character varying(20) NOT NULL,
+    tipo_documento character varying(30) NOT NULL,
+    documento_id bigint,
+    operacion_dinero_id integer,
+    movimiento_inventario_id bigint,
+    evento_contable character varying(20) NOT NULL,
+    modo_contabilizacion character varying(20) NOT NULL,
+    fecha_documento date NOT NULL,
+    fecha_contabilizacion timestamp with time zone DEFAULT now() NOT NULL,
+    usuario_id integer,
+    es_reversa boolean DEFAULT false NOT NULL,
+    contabilizacion_origen_id bigint,
+    comentario character varying(500),
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_contabilizaciones_evento_contable CHECK (((evento_contable)::text = ANY ((ARRAY['emision'::character varying, 'recepcion'::character varying, 'cobro'::character varying, 'pago'::character varying, 'entrada_inventario'::character varying, 'salida_inventario'::character varying, 'cancelacion'::character varying, 'devolucion'::character varying, 'ajuste'::character varying, 'traspaso'::character varying])::text[]))),
+    CONSTRAINT chk_contabilizaciones_modo CHECK (((modo_contabilizacion)::text = ANY ((ARRAY['individual'::character varying, 'lote_individual'::character varying, 'lote_concentrado'::character varying, 'automatico'::character varying])::text[]))),
+    CONSTRAINT chk_contabilizaciones_reversa_origen CHECK ((((es_reversa = false) AND (contabilizacion_origen_id IS NULL)) OR ((es_reversa = true) AND (contabilizacion_origen_id IS NOT NULL)))),
+    CONSTRAINT chk_contabilizaciones_tipo_movimiento CHECK (((tipo_movimiento)::text = ANY ((ARRAY['venta'::character varying, 'compra'::character varying, 'inventario'::character varying, 'tesoreria'::character varying, 'cobranza'::character varying, 'pago'::character varying, 'ajuste'::character varying])::text[]))),
+    CONSTRAINT chk_contabilizaciones_una_referencia CHECK ((((((documento_id IS NOT NULL))::integer + ((operacion_dinero_id IS NOT NULL))::integer) + ((movimiento_inventario_id IS NOT NULL))::integer) = 1))
+);
+
+
+--
+-- Name: TABLE contabilizaciones; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.contabilizaciones IS 'Registro de control de la contabilización operativa: liga entidades operativas reales del ERP (documentos de public.documentos, operaciones de dinero de public.finanzas_operaciones o movimientos de inventario de inventario.movimientos) con la póliza contable generada para ellas. No genera pólizas por sí misma; solo documenta el resultado de un proceso de contabilización controlado (individual, lote o concentrado).';
+
+
+--
+-- Name: COLUMN contabilizaciones.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.id IS 'Identificador interno único del registro de contabilización.';
+
+
+--
+-- Name: COLUMN contabilizaciones.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.empresa_id IS 'Empresa propietaria de la contabilización.';
+
+
+--
+-- Name: COLUMN contabilizaciones.poliza_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.poliza_id IS 'Póliza contable generada. Varias filas pueden compartir la misma póliza cuando la contabilización fue concentrada.';
+
+
+--
+-- Name: COLUMN contabilizaciones.tipo_movimiento; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.tipo_movimiento IS 'Familia principal del movimiento: venta, compra, inventario, tesoreria, cobranza, pago o ajuste. No expresa el documento ni el evento (ver tipo_documento y evento_contable).';
+
+
+--
+-- Name: COLUMN contabilizaciones.tipo_documento; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.tipo_documento IS 'Clasificador descriptivo/operativo del origen (por ejemplo factura, nota_credito, cobro, pago, anticipo, transferencia, ajuste_inventario). No es la relación real: la relación real está en documento_id, operacion_dinero_id o movimiento_inventario_id.';
+
+
+--
+-- Name: COLUMN contabilizaciones.documento_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.documento_id IS 'Documento operativo contabilizado. Cubre facturas de venta y compra, notas de crédito, cobros, pagos, anticipos, devoluciones documentadas y ajustes documentales, todos ellos representados en public.documentos.';
+
+
+--
+-- Name: COLUMN contabilizaciones.operacion_dinero_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.operacion_dinero_id IS 'Operación de dinero contabilizada (depósito o retiro de banco/caja) cuando no está representada por un documento en public.documentos. Apunta a public.finanzas_operaciones.';
+
+
+--
+-- Name: COLUMN contabilizaciones.movimiento_inventario_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.movimiento_inventario_id IS 'Movimiento de inventario contabilizado (entrada, salida, traspaso, ajuste o merma) cuando no está representado por un documento en public.documentos. Apunta a inventario.movimientos.';
+
+
+--
+-- Name: COLUMN contabilizaciones.evento_contable; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.evento_contable IS 'Evento contable específico que originó la póliza: emision, recepcion, cobro, pago, entrada_inventario, salida_inventario, cancelacion, devolucion, ajuste o traspaso.';
+
+
+--
+-- Name: COLUMN contabilizaciones.modo_contabilizacion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.modo_contabilizacion IS 'Modo en que se generó la contabilización: individual, lote_individual (una póliza por documento dentro de un proceso por lote), lote_concentrado (una póliza para varios documentos) o automatico (reservado para una fase futura).';
+
+
+--
+-- Name: COLUMN contabilizaciones.fecha_documento; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.fecha_documento IS 'Fecha del documento u operación original, para reportes y validaciones por rango de fechas.';
+
+
+--
+-- Name: COLUMN contabilizaciones.fecha_contabilizacion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.fecha_contabilizacion IS 'Fecha y hora en que se ejecutó el proceso de contabilización.';
+
+
+--
+-- Name: COLUMN contabilizaciones.usuario_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.usuario_id IS 'Usuario que ejecutó la contabilización. Nulo si no se pudo determinar o se generó de forma automática.';
+
+
+--
+-- Name: COLUMN contabilizaciones.es_reversa; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.es_reversa IS 'Indica si esta fila es una reversa contable de otra contabilización (ligada mediante contabilizacion_origen_id) en lugar de una contabilización original.';
+
+
+--
+-- Name: COLUMN contabilizaciones.contabilizacion_origen_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.contabilizacion_origen_id IS 'Contabilización original que esta fila reversa. Obligatorio cuando es_reversa es true; debe ser nulo en caso contrario.';
+
+
+--
+-- Name: COLUMN contabilizaciones.comentario; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.comentario IS 'Comentario libre sobre la contabilización o la reversa, por ejemplo el motivo de la cancelación.';
+
+
+--
+-- Name: COLUMN contabilizaciones.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN contabilizaciones.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.contabilizaciones.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: CONSTRAINT chk_contabilizaciones_una_referencia ON contabilizaciones; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_contabilizaciones_una_referencia ON contabilidad.contabilizaciones IS 'Obliga a que cada fila tenga exactamente una referencia operativa: documento_id, operacion_dinero_id o movimiento_inventario_id.';
+
+
+--
+-- Name: contabilizaciones_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.contabilizaciones_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: contabilizaciones_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.contabilizaciones_id_seq OWNED BY contabilidad.contabilizaciones.id;
+
+
+--
+-- Name: cuentas; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.cuentas (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    cuenta character varying(64) NOT NULL,
+    descripcion character varying(200) NOT NULL,
+    afectable boolean DEFAULT true NOT NULL,
+    cuenta_padre_id bigint,
+    nivel smallint DEFAULT 1 NOT NULL,
+    subgrupo character varying(60),
+    codigo_agrupador_sat character varying(10),
+    rubro_presupuesto character varying(80),
+    no_considerar_presupuesto boolean DEFAULT true NOT NULL,
+    observaciones character varying(500),
+    activa boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    rango_cuenta_id bigint,
+    CONSTRAINT chk_cuentas_nivel CHECK ((nivel > 0))
+);
+
+
+--
+-- Name: TABLE cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.cuentas IS 'Catálogo de cuentas contables por empresa.';
+
+
+--
+-- Name: COLUMN cuentas.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.id IS 'Identificador interno de la cuenta contable.';
+
+
+--
+-- Name: COLUMN cuentas.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.empresa_id IS 'Empresa a la que pertenece la cuenta contable.';
+
+
+--
+-- Name: COLUMN cuentas.cuenta; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.cuenta IS 'Número o clave visible de la cuenta contable.';
+
+
+--
+-- Name: COLUMN cuentas.descripcion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.descripcion IS 'Nombre descriptivo de la cuenta contable.';
+
+
+--
+-- Name: COLUMN cuentas.afectable; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.afectable IS 'Indica si la cuenta puede recibir movimientos contables directamente.';
+
+
+--
+-- Name: COLUMN cuentas.cuenta_padre_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.cuenta_padre_id IS 'Cuenta contable superior dentro de la jerarquía.';
+
+
+--
+-- Name: COLUMN cuentas.nivel; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.nivel IS 'Nivel jerárquico de la cuenta dentro del catálogo contable.';
+
+
+--
+-- Name: COLUMN cuentas.subgrupo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.subgrupo IS 'Subgrupo adicional de clasificación contable.';
+
+
+--
+-- Name: COLUMN cuentas.codigo_agrupador_sat; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.codigo_agrupador_sat IS 'Código agrupador SAT asociado a la cuenta contable.';
+
+
+--
+-- Name: COLUMN cuentas.rubro_presupuesto; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.rubro_presupuesto IS 'Rubro presupuestal asociado a la cuenta.';
+
+
+--
+-- Name: COLUMN cuentas.no_considerar_presupuesto; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.no_considerar_presupuesto IS 'Indica si la cuenta debe excluirse de procesos presupuestales.';
+
+
+--
+-- Name: COLUMN cuentas.observaciones; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.observaciones IS 'Observaciones internas de la cuenta contable.';
+
+
+--
+-- Name: COLUMN cuentas.activa; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.activa IS 'Indica si la cuenta está activa para uso operativo.';
+
+
+--
+-- Name: COLUMN cuentas.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN cuentas.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: COLUMN cuentas.rango_cuenta_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas.rango_cuenta_id IS 'Rango contable asignado automáticamente a la cuenta. Referencia al identificador técnico de contabilidad.rangos_cuentas.';
+
+
+--
+-- Name: CONSTRAINT chk_cuentas_nivel ON cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_cuentas_nivel ON contabilidad.cuentas IS 'Garantiza que el nivel jerárquico sea mayor que cero.';
+
+
+--
+-- Name: cuentas_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.cuentas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cuentas_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.cuentas_id_seq OWNED BY contabilidad.cuentas.id;
+
+
+--
+-- Name: cuentas_saldos_iniciales; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.cuentas_saldos_iniciales (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    ejercicio integer NOT NULL,
+    cuenta_id bigint NOT NULL,
+    saldo_inicial numeric(19,2) DEFAULT 0 NOT NULL,
+    origen character varying(50) DEFAULT 'manual'::character varying NOT NULL,
+    observaciones text,
+    creado_por bigint,
+    actualizado_por bigint,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_cuentas_saldos_iniciales_ejercicio CHECK ((ejercicio >= 2000)),
+    CONSTRAINT chk_cuentas_saldos_iniciales_origen CHECK (((origen)::text = ANY ((ARRAY['manual'::character varying, 'importacion'::character varying, 'migracion'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE cuentas_saldos_iniciales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.cuentas_saldos_iniciales IS 'Saldo contable de arranque (apertura) de una cuenta para un ejercicio, capturado o migrado desde fuera de Emphasys. No representa movimientos ni pólizas; no se toca desde la lógica de cargos/abonos mensuales.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.id IS 'Identificador interno del saldo inicial.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.empresa_id IS 'Empresa a la que pertenece el saldo inicial.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.ejercicio; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.ejercicio IS 'Ejercicio contable al que corresponde el saldo de arranque.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.cuenta_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.cuenta_id IS 'Cuenta contable a la que pertenece el saldo inicial.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.saldo_inicial; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.saldo_inicial IS 'Saldo firmado de arranque del ejercicio: positivo = saldo deudor, negativo = saldo acreedor, independientemente de la naturaleza de la cuenta.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.origen; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.origen IS 'Origen del dato: manual (capturado a mano), importacion o migracion (cargado desde el sistema anterior).';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.observaciones; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.observaciones IS 'Notas libres sobre el origen o justificación del saldo inicial, por ejemplo referencia al sistema anterior.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.creado_por; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.creado_por IS 'Usuario que capturó el saldo inicial por primera vez.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.actualizado_por; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.actualizado_por IS 'Usuario que modificó por última vez el saldo inicial.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_iniciales.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_iniciales.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: CONSTRAINT chk_cuentas_saldos_iniciales_ejercicio ON cuentas_saldos_iniciales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_cuentas_saldos_iniciales_ejercicio ON contabilidad.cuentas_saldos_iniciales IS 'Descarta ejercicios claramente inválidos (antes del año 2000).';
+
+
+--
+-- Name: CONSTRAINT chk_cuentas_saldos_iniciales_origen ON cuentas_saldos_iniciales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_cuentas_saldos_iniciales_origen ON contabilidad.cuentas_saldos_iniciales IS 'Limita el origen del dato a los valores reconocidos por el sistema.';
+
+
+--
+-- Name: cuentas_saldos_iniciales_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.cuentas_saldos_iniciales_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cuentas_saldos_iniciales_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.cuentas_saldos_iniciales_id_seq OWNED BY contabilidad.cuentas_saldos_iniciales.id;
+
+
+--
+-- Name: cuentas_saldos_mensuales; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.cuentas_saldos_mensuales (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    cuenta_id bigint NOT NULL,
+    ejercicio integer NOT NULL,
+    periodo smallint NOT NULL,
+    cargos numeric(19,2) DEFAULT 0 NOT NULL,
+    abonos numeric(19,2) DEFAULT 0 NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_cuentas_saldos_mensuales_abonos CHECK ((abonos >= (0)::numeric)),
+    CONSTRAINT chk_cuentas_saldos_mensuales_cargos CHECK ((cargos >= (0)::numeric)),
+    CONSTRAINT chk_cuentas_saldos_mensuales_periodo CHECK (((periodo >= 1) AND (periodo <= 12)))
+);
+
+
+--
+-- Name: TABLE cuentas_saldos_mensuales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.cuentas_saldos_mensuales IS 'Acumulados mensuales de cargos y abonos por cuenta contable.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.id IS 'Identificador interno del acumulado mensual.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.empresa_id IS 'Empresa a la que pertenece el acumulado mensual.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.cuenta_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.cuenta_id IS 'Cuenta contable a la que pertenece el acumulado.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.ejercicio; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.ejercicio IS 'Ejercicio contable del acumulado.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.periodo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.periodo IS 'Periodo contable mensual del acumulado, del 1 al 12.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.cargos; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.cargos IS 'Total de cargos acumulados de la cuenta en el periodo.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.abonos; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.abonos IS 'Total de abonos acumulados de la cuenta en el periodo.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN cuentas_saldos_mensuales.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.cuentas_saldos_mensuales.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: CONSTRAINT chk_cuentas_saldos_mensuales_abonos ON cuentas_saldos_mensuales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_cuentas_saldos_mensuales_abonos ON contabilidad.cuentas_saldos_mensuales IS 'Garantiza que los abonos no sean negativos.';
+
+
+--
+-- Name: CONSTRAINT chk_cuentas_saldos_mensuales_cargos ON cuentas_saldos_mensuales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_cuentas_saldos_mensuales_cargos ON contabilidad.cuentas_saldos_mensuales IS 'Garantiza que los cargos no sean negativos.';
+
+
+--
+-- Name: CONSTRAINT chk_cuentas_saldos_mensuales_periodo ON cuentas_saldos_mensuales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_cuentas_saldos_mensuales_periodo ON contabilidad.cuentas_saldos_mensuales IS 'Garantiza que el periodo esté entre 1 y 12.';
+
+
+--
+-- Name: cuentas_saldos_mensuales_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.cuentas_saldos_mensuales_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cuentas_saldos_mensuales_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.cuentas_saldos_mensuales_id_seq OWNED BY contabilidad.cuentas_saldos_mensuales.id;
+
+
+--
+-- Name: documentos_polizas; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.documentos_polizas (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    documento_id bigint NOT NULL,
+    poliza_id bigint NOT NULL,
+    tipo character varying(20) DEFAULT 'original'::character varying NOT NULL,
+    documento_poliza_original_id bigint,
+    codigo_poliza_legacy character varying(16),
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_documentos_polizas_tipo CHECK (((tipo)::text = ANY ((ARRAY['original'::character varying, 'cancelacion'::character varying, 'reversa'::character varying, 'ajuste'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE documentos_polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.documentos_polizas IS 'Relación entre documentos operativos del ERP y las pólizas contables generadas.';
+
+
+--
+-- Name: COLUMN documentos_polizas.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.documentos_polizas.id IS 'Identificador interno de la relación entre documento y póliza.';
+
+
+--
+-- Name: COLUMN documentos_polizas.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.documentos_polizas.empresa_id IS 'Empresa a la que pertenece la relación.';
+
+
+--
+-- Name: COLUMN documentos_polizas.documento_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.documentos_polizas.documento_id IS 'Documento operativo relacionado con la póliza.';
+
+
+--
+-- Name: COLUMN documentos_polizas.poliza_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.documentos_polizas.poliza_id IS 'Póliza contable relacionada con el documento.';
+
+
+--
+-- Name: COLUMN documentos_polizas.tipo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.documentos_polizas.tipo IS 'Tipo de relación entre documento y póliza: original, cancelacion, reversa o ajuste.';
+
+
+--
+-- Name: COLUMN documentos_polizas.documento_poliza_original_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.documentos_polizas.documento_poliza_original_id IS 'Relación original asociada cuando este registro corresponde a una cancelación, reversa o ajuste.';
+
+
+--
+-- Name: COLUMN documentos_polizas.codigo_poliza_legacy; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.documentos_polizas.codigo_poliza_legacy IS 'Código de póliza heredado del sistema anterior, usado para importación o auditoría histórica.';
+
+
+--
+-- Name: COLUMN documentos_polizas.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.documentos_polizas.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: CONSTRAINT chk_documentos_polizas_tipo ON documentos_polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_documentos_polizas_tipo ON contabilidad.documentos_polizas IS 'Limita los tipos permitidos de relación entre documento y póliza.';
+
+
+--
+-- Name: documentos_polizas_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.documentos_polizas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: documentos_polizas_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.documentos_polizas_id_seq OWNED BY contabilidad.documentos_polizas.id;
+
+
+--
+-- Name: e_contabilidad_paquetes; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.e_contabilidad_paquetes (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    ejercicio integer NOT NULL,
+    periodo smallint NOT NULL,
+    nombre_zip character varying(255) NOT NULL,
+    archivos_incluidos jsonb NOT NULL,
+    parametros jsonb NOT NULL,
+    resumen jsonb NOT NULL,
+    hash_zip character varying(128),
+    hash_algoritmo character varying(20) DEFAULT 'SHA-256'::character varying,
+    generado_por bigint,
+    generado_en timestamp with time zone DEFAULT now() NOT NULL,
+    observaciones text,
+    estatus character varying(30) DEFAULT 'generado'::character varying NOT NULL,
+    enviado_sat boolean DEFAULT false NOT NULL,
+    enviado_sat_en timestamp with time zone,
+    acuse_sat text,
+    CONSTRAINT chk_e_contabilidad_paquetes_ejercicio CHECK ((ejercicio >= 2000)),
+    CONSTRAINT chk_e_contabilidad_paquetes_estatus CHECK (((estatus)::text = ANY ((ARRAY['generado'::character varying, 'enviado'::character varying, 'aceptado'::character varying, 'rechazado'::character varying])::text[]))),
+    CONSTRAINT chk_e_contabilidad_paquetes_periodo CHECK (((periodo >= 1) AND (periodo <= 12)))
+);
+
+
+--
+-- Name: TABLE e_contabilidad_paquetes; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.e_contabilidad_paquetes IS 'Bitácora interna de paquetes ZIP de e-contabilidad generados/descargados (Catálogo, Balanza, Pólizas, Auxiliares). Registra trazabilidad (parámetros, archivos incluidos, resumen, hash) pero NO almacena el ZIP ni los XML; cada descarga exitosa agrega un renglón nuevo, sin límite de regeneraciones por ejercicio/periodo.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.id IS 'Identificador interno del registro de bitácora.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.empresa_id IS 'Empresa para la que se generó el paquete.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.ejercicio; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.ejercicio IS 'Ejercicio contable del paquete generado.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.periodo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.periodo IS 'Periodo (mes, 1-12) del paquete generado.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.nombre_zip; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.nombre_zip IS 'Nombre del archivo ZIP generado (convención RFC+Año+Mes+"_econtabilidad.zip").';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.archivos_incluidos; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.archivos_incluidos IS 'Arreglo JSON con los archivos incluidos en el paquete: clave, título, nombre de archivo XML, ok, errores y advertencias por archivo (mismo detalle que expone el preview del paquete).';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.parametros; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.parametros IS 'Parámetros usados para generar el paquete: ejercicio, periodo, qué XML se incluyeron, TipoEnvio/FechaModBal de Balanza si aplica, TipoSolicitud/NumOrden/NumTramite si aplica.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.resumen; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.resumen IS 'Resumen agregado del paquete al momento de generarse: archivos seleccionados, correctos, con error, total de errores y advertencias.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.hash_zip; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.hash_zip IS 'Hash del buffer ZIP generado (hexadecimal), para detectar si una regeneración produjo un archivo idéntico o distinto.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.hash_algoritmo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.hash_algoritmo IS 'Algoritmo usado para hash_zip (por ahora siempre SHA-256).';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.generado_por; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.generado_por IS 'Usuario que generó/descargó el paquete (sin FK a core.usuarios, mismo criterio que contabilidad.polizas.creada_por_id).';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.generado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.generado_en IS 'Fecha y hora en que se generó/descargó el paquete.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.observaciones; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.observaciones IS 'Notas libres sobre el paquete generado (uso futuro; no capturadas desde la pantalla en esta fase).';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.estatus; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.estatus IS 'Estatus del paquete respecto a un futuro envío al SAT. En esta fase siempre queda en ''generado''.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.enviado_sat; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.enviado_sat IS 'Preparado para una fase futura de envío al SAT; no usado todavía (siempre false).';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.enviado_sat_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.enviado_sat_en IS 'Preparado para una fase futura de envío al SAT; no usado todavía.';
+
+
+--
+-- Name: COLUMN e_contabilidad_paquetes.acuse_sat; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.e_contabilidad_paquetes.acuse_sat IS 'Preparado para una fase futura de envío al SAT (acuse de recepción); no usado todavía.';
+
+
+--
+-- Name: CONSTRAINT chk_e_contabilidad_paquetes_ejercicio ON e_contabilidad_paquetes; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_e_contabilidad_paquetes_ejercicio ON contabilidad.e_contabilidad_paquetes IS 'Descarta ejercicios claramente inválidos (antes del año 2000).';
+
+
+--
+-- Name: CONSTRAINT chk_e_contabilidad_paquetes_estatus ON e_contabilidad_paquetes; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_e_contabilidad_paquetes_estatus ON contabilidad.e_contabilidad_paquetes IS 'Limita el estatus a los valores reconocidos por el sistema.';
+
+
+--
+-- Name: CONSTRAINT chk_e_contabilidad_paquetes_periodo ON e_contabilidad_paquetes; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_e_contabilidad_paquetes_periodo ON contabilidad.e_contabilidad_paquetes IS 'El periodo debe ser un mes válido (1-12).';
+
+
+--
+-- Name: e_contabilidad_paquetes_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.e_contabilidad_paquetes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: e_contabilidad_paquetes_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.e_contabilidad_paquetes_id_seq OWNED BY contabilidad.e_contabilidad_paquetes.id;
+
+
+--
+-- Name: polizas; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.polizas (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    codigo_legacy character varying(16),
+    tipo_poliza_id bigint NOT NULL,
+    ejercicio integer NOT NULL,
+    periodo smallint NOT NULL,
+    numero integer NOT NULL,
+    fecha date NOT NULL,
+    estatus character varying(20) DEFAULT 'borrador'::character varying NOT NULL,
+    referencia character varying(100),
+    observaciones text,
+    total_cargos numeric(19,2) DEFAULT 0 NOT NULL,
+    total_abonos numeric(19,2) DEFAULT 0 NOT NULL,
+    modulo_origen character varying(30),
+    almacen_id bigint,
+    uuid_cfdi uuid,
+    creada_por_id bigint,
+    modificada_por_id bigint,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_polizas_estatus CHECK (((estatus)::text = ANY ((ARRAY['borrador'::character varying, 'aplicada'::character varying, 'cancelada'::character varying])::text[]))),
+    CONSTRAINT chk_polizas_numero CHECK ((numero > 0)),
+    CONSTRAINT chk_polizas_periodo CHECK (((periodo >= 1) AND (periodo <= 12))),
+    CONSTRAINT chk_polizas_totales CHECK (((total_cargos >= (0)::numeric) AND (total_abonos >= (0)::numeric)))
+);
+
+
+--
+-- Name: TABLE polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.polizas IS 'Encabezado de pólizas contables.';
+
+
+--
+-- Name: COLUMN polizas.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.id IS 'Identificador interno de la póliza contable.';
+
+
+--
+-- Name: COLUMN polizas.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.empresa_id IS 'Empresa a la que pertenece la póliza.';
+
+
+--
+-- Name: COLUMN polizas.codigo_legacy; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.codigo_legacy IS 'Código de póliza heredado del sistema anterior, usado solo para importación o auditoría histórica.';
+
+
+--
+-- Name: COLUMN polizas.tipo_poliza_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.tipo_poliza_id IS 'Tipo de póliza contable.';
+
+
+--
+-- Name: COLUMN polizas.ejercicio; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.ejercicio IS 'Ejercicio contable de la póliza.';
+
+
+--
+-- Name: COLUMN polizas.periodo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.periodo IS 'Periodo contable mensual de la póliza, del 1 al 12.';
+
+
+--
+-- Name: COLUMN polizas.numero; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.numero IS 'Número consecutivo de la póliza dentro de empresa, tipo, ejercicio y periodo.';
+
+
+--
+-- Name: COLUMN polizas.fecha; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.fecha IS 'Fecha contable de la póliza.';
+
+
+--
+-- Name: COLUMN polizas.estatus; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.estatus IS 'Estatus operativo de la póliza: borrador, aplicada o cancelada.';
+
+
+--
+-- Name: COLUMN polizas.referencia; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.referencia IS 'Referencia externa o interna de la póliza.';
+
+
+--
+-- Name: COLUMN polizas.observaciones; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.observaciones IS 'Observaciones libres de la póliza.';
+
+
+--
+-- Name: COLUMN polizas.total_cargos; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.total_cargos IS 'Total de cargos de la póliza.';
+
+
+--
+-- Name: COLUMN polizas.total_abonos; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.total_abonos IS 'Total de abonos de la póliza.';
+
+
+--
+-- Name: COLUMN polizas.modulo_origen; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.modulo_origen IS 'Módulo que generó la póliza, cuando aplique.';
+
+
+--
+-- Name: COLUMN polizas.almacen_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.almacen_id IS 'Almacén relacionado con la póliza, cuando aplique.';
+
+
+--
+-- Name: COLUMN polizas.uuid_cfdi; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.uuid_cfdi IS 'UUID fiscal relacionado con la póliza, cuando aplique.';
+
+
+--
+-- Name: COLUMN polizas.creada_por_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.creada_por_id IS 'Usuario que creó la póliza.';
+
+
+--
+-- Name: COLUMN polizas.modificada_por_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.modificada_por_id IS 'Usuario que modificó por última vez la póliza.';
+
+
+--
+-- Name: COLUMN polizas.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN polizas.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: CONSTRAINT chk_polizas_estatus ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_polizas_estatus ON contabilidad.polizas IS 'Limita los estatus permitidos de la póliza.';
+
+
+--
+-- Name: CONSTRAINT chk_polizas_numero ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_polizas_numero ON contabilidad.polizas IS 'Garantiza que el número de póliza sea mayor que cero.';
+
+
+--
+-- Name: CONSTRAINT chk_polizas_periodo ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_polizas_periodo ON contabilidad.polizas IS 'Garantiza que el periodo esté entre 1 y 12.';
+
+
+--
+-- Name: CONSTRAINT chk_polizas_totales ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_polizas_totales ON contabilidad.polizas IS 'Garantiza que los totales de cargos y abonos no sean negativos.';
+
+
+--
+-- Name: polizas_detalle; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.polizas_detalle (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    poliza_id bigint NOT NULL,
+    renglon integer NOT NULL,
+    cuenta_id bigint NOT NULL,
+    concepto_id bigint,
+    cargo numeric(19,2) DEFAULT 0 NOT NULL,
+    abono numeric(19,2) DEFAULT 0 NOT NULL,
+    fecha date,
+    uuid_cfdi uuid,
+    rfc character varying(13),
+    cuenta_legacy character varying(64),
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    concepto_texto character varying(200),
+    CONSTRAINT chk_polizas_detalle_cargo_o_abono CHECK ((((cargo > (0)::numeric) AND (abono = (0)::numeric)) OR ((cargo = (0)::numeric) AND (abono > (0)::numeric)))),
+    CONSTRAINT chk_polizas_detalle_importes CHECK (((cargo >= (0)::numeric) AND (abono >= (0)::numeric)))
+);
+
+
+--
+-- Name: TABLE polizas_detalle; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.polizas_detalle IS 'Detalle de movimientos contables de cada póliza.';
+
+
+--
+-- Name: COLUMN polizas_detalle.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.id IS 'Identificador interno del movimiento contable.';
+
+
+--
+-- Name: COLUMN polizas_detalle.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.empresa_id IS 'Empresa a la que pertenece el movimiento contable.';
+
+
+--
+-- Name: COLUMN polizas_detalle.poliza_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.poliza_id IS 'Póliza a la que pertenece el movimiento contable.';
+
+
+--
+-- Name: COLUMN polizas_detalle.renglon; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.renglon IS 'Número de renglón o partida dentro de la póliza.';
+
+
+--
+-- Name: COLUMN polizas_detalle.cuenta_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.cuenta_id IS 'Cuenta contable afectada por el movimiento.';
+
+
+--
+-- Name: COLUMN polizas_detalle.concepto_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.concepto_id IS 'Concepto asociado al movimiento contable. Puede ser nulo.';
+
+
+--
+-- Name: COLUMN polizas_detalle.cargo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.cargo IS 'Importe cargado en la cuenta contable.';
+
+
+--
+-- Name: COLUMN polizas_detalle.abono; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.abono IS 'Importe abonado en la cuenta contable.';
+
+
+--
+-- Name: COLUMN polizas_detalle.fecha; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.fecha IS 'Fecha del movimiento contable, cuando difiera o se requiera a nivel partida.';
+
+
+--
+-- Name: COLUMN polizas_detalle.uuid_cfdi; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.uuid_cfdi IS 'UUID fiscal relacionado con el movimiento contable, cuando aplique.';
+
+
+--
+-- Name: COLUMN polizas_detalle.rfc; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.rfc IS 'RFC relacionado con el movimiento contable, cuando aplique.';
+
+
+--
+-- Name: COLUMN polizas_detalle.cuenta_legacy; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.cuenta_legacy IS 'Cuenta heredada del sistema anterior, usada para importación o auditoría histórica.';
+
+
+--
+-- Name: COLUMN polizas_detalle.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN polizas_detalle.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: COLUMN polizas_detalle.concepto_texto; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.polizas_detalle.concepto_texto IS 'Concepto descriptivo libre del renglón, generado por procesos de contabilización automática (ej. factura de venta) o capturado manualmente. Independiente de concepto_id (catálogo genérico de public.conceptos).';
+
+
+--
+-- Name: CONSTRAINT chk_polizas_detalle_cargo_o_abono ON polizas_detalle; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_polizas_detalle_cargo_o_abono ON contabilidad.polizas_detalle IS 'Garantiza que cada movimiento tenga cargo o abono, pero no ambos.';
+
+
+--
+-- Name: CONSTRAINT chk_polizas_detalle_importes ON polizas_detalle; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_polizas_detalle_importes ON contabilidad.polizas_detalle IS 'Garantiza que cargo y abono no sean negativos.';
+
+
+--
+-- Name: polizas_detalle_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.polizas_detalle_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: polizas_detalle_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.polizas_detalle_id_seq OWNED BY contabilidad.polizas_detalle.id;
+
+
+--
+-- Name: polizas_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.polizas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: polizas_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.polizas_id_seq OWNED BY contabilidad.polizas.id;
+
+
+--
+-- Name: rangos_cuentas; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.rangos_cuentas (
+    empresa_id bigint NOT NULL,
+    limite_superior smallint NOT NULL,
+    naturaleza_saldo character varying(1) NOT NULL,
+    descripcion character varying(80) NOT NULL,
+    rango character varying(30),
+    grupo character varying(40),
+    subgrupo character varying(60),
+    activo boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    id bigint NOT NULL,
+    CONSTRAINT chk_rangos_cuentas_naturaleza CHECK (((naturaleza_saldo)::text = ANY ((ARRAY['D'::character varying, 'A'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE rangos_cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.rangos_cuentas IS 'Catálogo de rangos o rubros de cuentas contables por empresa. Cada rango define un límite superior funcional para clasificar cuentas.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.empresa_id IS 'Empresa a la que pertenece el rango de cuentas.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.limite_superior; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.limite_superior IS 'Límite superior funcional del rango de cuentas. Se compara contra el primer segmento numérico de la cuenta contable.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.naturaleza_saldo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.naturaleza_saldo IS 'Naturaleza normal del saldo del rango: D para deudora, A para acreedora.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.descripcion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.descripcion IS 'Descripción del rango o rubro contable.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.rango; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.rango IS 'Texto descriptivo del rango de cuentas.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.grupo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.grupo IS 'Grupo contable al que pertenece el rango.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.subgrupo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.subgrupo IS 'Subgrupo contable al que pertenece el rango.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.activo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.activo IS 'Indica si el rango está activo.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: COLUMN rangos_cuentas.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.rangos_cuentas.id IS 'Identificador técnico interno del rango de cuentas.';
+
+
+--
+-- Name: CONSTRAINT chk_rangos_cuentas_naturaleza ON rangos_cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_rangos_cuentas_naturaleza ON contabilidad.rangos_cuentas IS 'Limita la naturaleza del saldo a deudora o acreedora.';
+
+
+--
+-- Name: rangos_cuentas_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.rangos_cuentas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: rangos_cuentas_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.rangos_cuentas_id_seq OWNED BY contabilidad.rangos_cuentas.id;
+
+
+--
+-- Name: tipos_poliza; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.tipos_poliza (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    identificador character varying(50) NOT NULL,
+    poliza_inicial integer DEFAULT 1 NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE tipos_poliza; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.tipos_poliza IS 'Catálogo de tipos de póliza contable por empresa.';
+
+
+--
+-- Name: COLUMN tipos_poliza.id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.tipos_poliza.id IS 'Identificador interno del tipo de póliza.';
+
+
+--
+-- Name: COLUMN tipos_poliza.empresa_id; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.tipos_poliza.empresa_id IS 'Empresa a la que pertenece el tipo de póliza.';
+
+
+--
+-- Name: COLUMN tipos_poliza.identificador; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.tipos_poliza.identificador IS 'Nombre o identificador visible del tipo de póliza, por ejemplo Diario, Ingresos o Egresos.';
+
+
+--
+-- Name: COLUMN tipos_poliza.poliza_inicial; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.tipos_poliza.poliza_inicial IS 'Número inicial sugerido para pólizas de este tipo.';
+
+
+--
+-- Name: COLUMN tipos_poliza.activo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.tipos_poliza.activo IS 'Indica si el tipo de póliza está activo para uso operativo.';
+
+
+--
+-- Name: COLUMN tipos_poliza.creado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.tipos_poliza.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN tipos_poliza.actualizado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.tipos_poliza.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: tipos_poliza_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.tipos_poliza_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tipos_poliza_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.tipos_poliza_id_seq OWNED BY contabilidad.tipos_poliza.id;
+
+
+--
+-- Name: v_cuentas; Type: VIEW; Schema: contabilidad; Owner: -
+--
+
+CREATE VIEW contabilidad.v_cuentas AS
+ SELECT c.id,
+    c.empresa_id,
+    c.cuenta,
+    c.descripcion,
+    c.afectable,
+    c.cuenta_padre_id,
+    c.nivel,
+    c.subgrupo,
+    c.codigo_agrupador_sat,
+    c.rubro_presupuesto,
+    c.no_considerar_presupuesto,
+    c.observaciones,
+    c.activa,
+    c.creado_en,
+    c.actualizado_en,
+    c.rango_cuenta_id,
+    regexp_replace((c.cuenta)::text, '(\s+0+)+$'::text, ''::text) AS formato_cuenta,
+    (repeat('  '::text, (c.nivel - 1)) || (c.descripcion)::text) AS formato_descripcion
+   FROM contabilidad.cuentas c;
+
+
+--
 -- Name: campos_configuracion; Type: TABLE; Schema: core; Owner: -
 --
 
@@ -1362,6 +3254,446 @@ CREATE SEQUENCE core.cfdi_pac_config_id_seq
 --
 
 ALTER SEQUENCE core.cfdi_pac_config_id_seq OWNED BY core.cfdi_pac_config.id;
+
+
+--
+-- Name: cfdi_sat_automatizacion; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.cfdi_sat_automatizacion (
+    empresa_id integer NOT NULL,
+    auto_verificar boolean DEFAULT false NOT NULL,
+    auto_descargar boolean DEFAULT false NOT NULL,
+    frecuencia_minutos integer DEFAULT 60 NOT NULL,
+    ultimo_run_en timestamp with time zone,
+    actualizado_por integer,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_cfdi_sat_automatizacion_frecuencia CHECK (((frecuencia_minutos >= 15) AND (frecuencia_minutos <= 1440)))
+);
+
+
+--
+-- Name: TABLE cfdi_sat_automatizacion; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.cfdi_sat_automatizacion IS 'Configuración de automatización asistida del módulo CFDI SAT por empresa. No implica un cron desatendido: la contraseña de la FIEL nunca se guarda, así que la verificación/descarga "automática" se ejecuta bajo demanda cuando un administrador la dispara y captura la contraseña una sola vez para procesar todo lo elegible.';
+
+
+--
+-- Name: COLUMN cfdi_sat_automatizacion.auto_verificar; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_automatizacion.auto_verificar IS 'Si está activo, la ejecución asistida intenta verificar todas las solicitudes en estatus solicitado/en_proceso de la empresa.';
+
+
+--
+-- Name: COLUMN cfdi_sat_automatizacion.auto_descargar; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_automatizacion.auto_descargar IS 'Si está activo, la ejecución asistida intenta descargar los paquetes pendientes de las solicitudes que ya quedaron terminadas.';
+
+
+--
+-- Name: COLUMN cfdi_sat_automatizacion.frecuencia_minutos; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_automatizacion.frecuencia_minutos IS 'Frecuencia sugerida (en minutos) con la que el administrador debería disparar la ejecución asistida; usada solo para mostrar un recordatorio visual, no dispara nada por sí sola.';
+
+
+--
+-- Name: COLUMN cfdi_sat_automatizacion.ultimo_run_en; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_automatizacion.ultimo_run_en IS 'Fecha y hora de la última ejecución asistida (manual, con contraseña capturada) que se haya completado.';
+
+
+--
+-- Name: cfdi_sat_autorizaciones; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.cfdi_sat_autorizaciones (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    version_texto character varying(20) NOT NULL,
+    aceptado_en timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE cfdi_sat_autorizaciones; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.cfdi_sat_autorizaciones IS 'Registro append-only de aceptación expresa del uso de la e.firma para descarga de CFDIs del SAT. La versión vigente se define en el backend (cfdi-sat-autorizacion-texto.ts).';
+
+
+--
+-- Name: cfdi_sat_autorizaciones_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.cfdi_sat_autorizaciones_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cfdi_sat_autorizaciones_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.cfdi_sat_autorizaciones_id_seq OWNED BY core.cfdi_sat_autorizaciones.id;
+
+
+--
+-- Name: cfdi_sat_bitacora; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.cfdi_sat_bitacora (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    accion character varying(40) NOT NULL,
+    resultado character varying(10) DEFAULT 'ok'::character varying NOT NULL,
+    detalle text,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_cfdi_sat_bitacora_accion CHECK (((accion)::text = ANY ((ARRAY['credencial_subida'::character varying, 'credencial_eliminada'::character varying, 'autorizacion_aceptada'::character varying, 'solicitud_creada'::character varying, 'verificacion'::character varying, 'descarga_paquete'::character varying, 'importado_compras'::character varying, 'verificacion_automatica'::character varying, 'descarga_automatica'::character varying, 'automatizacion_error'::character varying, 'vinculacion_documento'::character varying, 'error'::character varying])::text[]))),
+    CONSTRAINT ck_cfdi_sat_bitacora_resultado CHECK (((resultado)::text = ANY ((ARRAY['ok'::character varying, 'error'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE cfdi_sat_bitacora; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.cfdi_sat_bitacora IS 'Bitácora de auditoría de la funcionalidad de descarga masiva de CFDIs del SAT. No debe registrar contraseñas ni contenido de certificados.';
+
+
+--
+-- Name: cfdi_sat_bitacora_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.cfdi_sat_bitacora_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cfdi_sat_bitacora_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.cfdi_sat_bitacora_id_seq OWNED BY core.cfdi_sat_bitacora.id;
+
+
+--
+-- Name: cfdi_sat_comprobantes; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.cfdi_sat_comprobantes (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    solicitud_id integer NOT NULL,
+    paquete_id integer NOT NULL,
+    uuid character varying(36) NOT NULL,
+    rfc_emisor character varying(13) NOT NULL,
+    rfc_receptor character varying(13) NOT NULL,
+    nombre_emisor character varying(300),
+    nombre_receptor character varying(300),
+    fecha_emision timestamp without time zone,
+    tipo_comprobante character varying(1),
+    total numeric(15,2),
+    moneda character varying(3),
+    estatus_sat character varying(10),
+    tipo_descarga character varying(10) NOT NULL,
+    xml_path character varying(500),
+    importado_compras boolean DEFAULT false NOT NULL,
+    documento_id integer,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_cfdi_sat_comprobantes_estatus_sat CHECK (((estatus_sat IS NULL) OR ((estatus_sat)::text = ANY ((ARRAY['vigente'::character varying, 'cancelado'::character varying])::text[])))),
+    CONSTRAINT ck_cfdi_sat_comprobantes_tipo_comprobante CHECK (((tipo_comprobante IS NULL) OR ((tipo_comprobante)::text = ANY ((ARRAY['I'::character varying, 'E'::character varying, 'T'::character varying, 'N'::character varying, 'P'::character varying])::text[])))),
+    CONSTRAINT ck_cfdi_sat_comprobantes_tipo_descarga CHECK (((tipo_descarga)::text = ANY ((ARRAY['emitidos'::character varying, 'recibidos'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE cfdi_sat_comprobantes; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.cfdi_sat_comprobantes IS 'CFDIs descargados del SAT (XML o solo metadata, según el tipo de solicitud). Fase 3: solo registro, sin importación a compras.';
+
+
+--
+-- Name: COLUMN cfdi_sat_comprobantes.estatus_sat; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_comprobantes.estatus_sat IS 'Vigente/cancelado según el SAT. Solo se conoce de forma confiable en solicitudes de tipo metadata; en tipo xml puede quedar NULL.';
+
+
+--
+-- Name: COLUMN cfdi_sat_comprobantes.xml_path; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_comprobantes.xml_path IS 'Ruta relativa dentro de CFDI_SAT_STORAGE_DIR (storage privado). NULL cuando la solicitud fue de tipo metadata (no hay XML disponible).';
+
+
+--
+-- Name: COLUMN cfdi_sat_comprobantes.importado_compras; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_comprobantes.importado_compras IS 'Placeholder para una fase futura que importe los comprobantes recibidos al módulo de compras. No se usa todavía.';
+
+
+--
+-- Name: cfdi_sat_comprobantes_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.cfdi_sat_comprobantes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cfdi_sat_comprobantes_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.cfdi_sat_comprobantes_id_seq OWNED BY core.cfdi_sat_comprobantes.id;
+
+
+--
+-- Name: cfdi_sat_credenciales; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.cfdi_sat_credenciales (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    rfc_certificado character varying(13) NOT NULL,
+    cer_content_encrypted text NOT NULL,
+    key_content_encrypted text NOT NULL,
+    vigencia_desde timestamp with time zone NOT NULL,
+    vigencia_hasta timestamp with time zone NOT NULL,
+    cargado_por integer NOT NULL,
+    cargado_en timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE cfdi_sat_credenciales; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.cfdi_sat_credenciales IS 'Credencial e.firma (FIEL) por empresa para el Servicio de Descarga Masiva del SAT. No almacena la contraseña de la FIEL.';
+
+
+--
+-- Name: COLUMN cfdi_sat_credenciales.rfc_certificado; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_credenciales.rfc_certificado IS 'RFC extraído del certificado .cer, validado contra el RFC de la empresa al momento de subir.';
+
+
+--
+-- Name: COLUMN cfdi_sat_credenciales.cer_content_encrypted; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_credenciales.cer_content_encrypted IS 'Contenido binario del .cer (base64) cifrado con AES-256-GCM (utils/secret-crypto.ts). Nunca se sirve por rutas públicas.';
+
+
+--
+-- Name: COLUMN cfdi_sat_credenciales.key_content_encrypted; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_credenciales.key_content_encrypted IS 'Contenido binario del .key (base64) cifrado con AES-256-GCM (utils/secret-crypto.ts). Nunca se sirve por rutas públicas.';
+
+
+--
+-- Name: COLUMN cfdi_sat_credenciales.vigencia_desde; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_credenciales.vigencia_desde IS 'notBefore del certificado X.509.';
+
+
+--
+-- Name: COLUMN cfdi_sat_credenciales.vigencia_hasta; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_credenciales.vigencia_hasta IS 'notAfter del certificado X.509. Se usa para marcar la credencial como vencida.';
+
+
+--
+-- Name: cfdi_sat_credenciales_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.cfdi_sat_credenciales_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cfdi_sat_credenciales_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.cfdi_sat_credenciales_id_seq OWNED BY core.cfdi_sat_credenciales.id;
+
+
+--
+-- Name: cfdi_sat_paquetes; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.cfdi_sat_paquetes (
+    id integer NOT NULL,
+    solicitud_id integer NOT NULL,
+    sat_package_id character varying(80) NOT NULL,
+    estatus character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    zip_path character varying(500),
+    descargado_en timestamp with time zone,
+    mensaje_error text,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_cfdi_sat_paquetes_estatus CHECK (((estatus)::text = ANY ((ARRAY['pendiente'::character varying, 'descargado'::character varying, 'error'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE cfdi_sat_paquetes; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.cfdi_sat_paquetes IS 'Paquetes (ZIP) devueltos por la verificación de una solicitud al SAT. Uno o más por solicitud.';
+
+
+--
+-- Name: COLUMN cfdi_sat_paquetes.zip_path; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_paquetes.zip_path IS 'Ruta relativa dentro de CFDI_SAT_STORAGE_DIR (storage privado, fuera de uploads/) donde se guardó el ZIP crudo descargado del SAT.';
+
+
+--
+-- Name: cfdi_sat_paquetes_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.cfdi_sat_paquetes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cfdi_sat_paquetes_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.cfdi_sat_paquetes_id_seq OWNED BY core.cfdi_sat_paquetes.id;
+
+
+--
+-- Name: cfdi_sat_solicitudes; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.cfdi_sat_solicitudes (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    tipo_descarga character varying(10) NOT NULL,
+    fecha_inicio date NOT NULL,
+    fecha_fin date NOT NULL,
+    tipo_solicitud character varying(10) NOT NULL,
+    estatus_comprobante character varying(10),
+    sat_request_id character varying(80),
+    estatus character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    mensaje_error text,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    solicitado_en timestamp with time zone,
+    cfdis_encontrados integer,
+    verificado_en timestamp with time zone,
+    CONSTRAINT ck_cfdi_sat_solicitudes_estatus CHECK (((estatus)::text = ANY ((ARRAY['pendiente'::character varying, 'solicitado'::character varying, 'en_proceso'::character varying, 'terminado'::character varying, 'sin_resultados'::character varying, 'error'::character varying, 'expirado'::character varying, 'rechazado'::character varying])::text[]))),
+    CONSTRAINT ck_cfdi_sat_solicitudes_estatus_comprobante CHECK (((estatus_comprobante IS NULL) OR ((estatus_comprobante)::text = ANY ((ARRAY['activos'::character varying, 'cancelados'::character varying, 'todos'::character varying])::text[])))),
+    CONSTRAINT ck_cfdi_sat_solicitudes_fechas CHECK ((fecha_fin >= fecha_inicio)),
+    CONSTRAINT ck_cfdi_sat_solicitudes_tipo_descarga CHECK (((tipo_descarga)::text = ANY ((ARRAY['emitidos'::character varying, 'recibidos'::character varying])::text[]))),
+    CONSTRAINT ck_cfdi_sat_solicitudes_tipo_solicitud CHECK (((tipo_solicitud)::text = ANY ((ARRAY['xml'::character varying, 'metadata'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE cfdi_sat_solicitudes; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.cfdi_sat_solicitudes IS 'Solicitudes al Servicio Web de Descarga Masiva del SAT. Fase 2: solo llega hasta el paso de solicitud creada (sin verificación ni descarga de paquetes).';
+
+
+--
+-- Name: COLUMN cfdi_sat_solicitudes.sat_request_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_solicitudes.sat_request_id IS 'RequestId devuelto por el SAT cuando la solicitud es aceptada (query() exitoso).';
+
+
+--
+-- Name: COLUMN cfdi_sat_solicitudes.estatus; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_solicitudes.estatus IS 'Estado interno del flujo: pendiente (creada, aún sin llamar al SAT), solicitado (SAT aceptó), error (fallo técnico/de comunicación), rechazado (SAT respondió pero rechazó la solicitud).';
+
+
+--
+-- Name: COLUMN cfdi_sat_solicitudes.mensaje_error; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_solicitudes.mensaje_error IS 'Mensaje de error legible cuando estatus es error o rechazado. Nunca debe contener la contraseña de la FIEL.';
+
+
+--
+-- Name: COLUMN cfdi_sat_solicitudes.solicitado_en; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_solicitudes.solicitado_en IS 'Fecha y hora en que el SAT aceptó la solicitud (query() exitoso).';
+
+
+--
+-- Name: COLUMN cfdi_sat_solicitudes.cfdis_encontrados; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_solicitudes.cfdis_encontrados IS 'Número de CFDIs reportado por el SAT en la última verificación (VerifyResult.getNumberCfdis()).';
+
+
+--
+-- Name: COLUMN cfdi_sat_solicitudes.verificado_en; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.cfdi_sat_solicitudes.verificado_en IS 'Fecha y hora de la última llamada exitosa a verify() contra el SAT.';
+
+
+--
+-- Name: cfdi_sat_solicitudes_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.cfdi_sat_solicitudes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cfdi_sat_solicitudes_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.cfdi_sat_solicitudes_id_seq OWNED BY core.cfdi_sat_solicitudes.id;
 
 
 --
@@ -3030,8 +5362,15 @@ CREATE TABLE crm.conversaciones (
     prioridad character varying(10) DEFAULT 'media'::character varying NOT NULL,
     siguiente_accion character varying(30) DEFAULT 'responder'::character varying NOT NULL,
     etapa_oportunidad character varying(30) DEFAULT 'nuevo'::character varying NOT NULL,
+    finalizada_en timestamp with time zone,
+    finalizada_por integer,
+    motivo_finalizacion character varying(40),
+    observaciones_finalizacion text,
+    reactivada_en timestamp with time zone,
+    reactivada_por_evento character varying(30),
     CONSTRAINT chk_etapa_oportunidad CHECK (((etapa_oportunidad)::text = ANY ((ARRAY['nuevo'::character varying, 'contactado'::character varying, 'interesado'::character varying, 'cotizado'::character varying, 'negociacion'::character varying, 'convertida'::character varying, 'perdida'::character varying])::text[]))),
-    CONSTRAINT conversaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('abierta'::character varying)::text, ('cerrada'::character varying)::text])))
+    CONSTRAINT conversaciones_estado_check CHECK (((estado)::text = ANY ((ARRAY['abierta'::character varying, 'cerrada'::character varying, 'finalizada'::character varying])::text[]))),
+    CONSTRAINT conversaciones_motivo_finalizacion_chk CHECK (((motivo_finalizacion IS NULL) OR ((motivo_finalizacion)::text = ANY ((ARRAY['venta_cerrada'::character varying, 'informacion_entregada'::character varying, 'no_interesado'::character varying, 'sin_respuesta'::character varying, 'fuera_de_perfil'::character varying, 'duplicada'::character varying, 'prueba'::character varying, 'otro'::character varying])::text[]))))
 );
 
 
@@ -3061,6 +5400,48 @@ COMMENT ON COLUMN crm.conversaciones.contacto_id IS 'Contacto asociado a la conv
 --
 
 COMMENT ON COLUMN crm.conversaciones.etapa_oportunidad IS 'Etapa comercial del lead: nuevo, contactado, interesado, cotizado, negociacion, convertida o perdida.';
+
+
+--
+-- Name: COLUMN conversaciones.finalizada_en; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.finalizada_en IS 'Fecha en que el vendedor marcó la conversación como finalizada (ya no requiere seguimiento operativo).';
+
+
+--
+-- Name: COLUMN conversaciones.finalizada_por; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.finalizada_por IS 'Usuario (public.usuarios.id) que finalizó la conversación.';
+
+
+--
+-- Name: COLUMN conversaciones.motivo_finalizacion; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.motivo_finalizacion IS 'Motivo de finalización: venta_cerrada, informacion_entregada, no_interesado, sin_respuesta, fuera_de_perfil, duplicada, prueba u otro.';
+
+
+--
+-- Name: COLUMN conversaciones.observaciones_finalizacion; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.observaciones_finalizacion IS 'Observaciones capturadas al finalizar la conversación. Obligatorio cuando motivo_finalizacion = otro.';
+
+
+--
+-- Name: COLUMN conversaciones.reactivada_en; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.reactivada_en IS 'Fecha en que la conversación volvió a estado abierta después de estar finalizada.';
+
+
+--
+-- Name: COLUMN conversaciones.reactivada_por_evento; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.conversaciones.reactivada_por_evento IS 'Evento que reactivó la conversación: mensaje_entrante o reapertura_manual.';
 
 
 --
@@ -3226,6 +5607,7 @@ CREATE TABLE crm.mensajes (
     email_cc character varying(200),
     email_bcc character varying(200),
     in_reply_to character varying(150),
+    mensaje_respuesta_id bigint,
     CONSTRAINT mensajes_status_check CHECK ((((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('sent'::character varying)::text, ('delivered'::character varying)::text, ('read'::character varying)::text, ('failed'::character varying)::text, ('received'::character varying)::text])) OR (status IS NULL))),
     CONSTRAINT mensajes_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text)),
     CONSTRAINT mensajes_tipo_contenido_chk CHECK (((tipo_contenido)::text = ANY ((ARRAY['text'::character varying, 'image'::character varying, 'audio'::character varying, 'document'::character varying])::text[]))),
@@ -3315,6 +5697,13 @@ COMMENT ON COLUMN crm.mensajes.email_bcc IS 'Destinatarios en copia oculta para 
 --
 
 COMMENT ON COLUMN crm.mensajes.in_reply_to IS 'Identificador externo del mensaje al que responde un correo.';
+
+
+--
+-- Name: COLUMN mensajes.mensaje_respuesta_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.mensaje_respuesta_id IS 'Mensaje original al que responde este mensaje (respuesta estilo WhatsApp), nulo si no es una respuesta.';
 
 
 --
@@ -4802,6 +7191,18 @@ ALTER SEQUENCE public.autorizaciones_solicitudes_id_seq OWNED BY public.autoriza
 
 
 --
+-- Name: backup_contactos_telefonos_ernesto; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.backup_contactos_telefonos_ernesto (
+    id integer,
+    empresa_id integer,
+    nombre character varying(150),
+    telefono character varying(30)
+);
+
+
+--
 -- Name: conceptos; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5023,6 +7424,40 @@ ALTER SEQUENCE public.contactos_id_seq OWNED BY public.contactos.id;
 
 
 --
+-- Name: contactos_telefonos_normalizacion_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contactos_telefonos_normalizacion_log (
+    id bigint NOT NULL,
+    contacto_id integer NOT NULL,
+    campo character varying(30) NOT NULL,
+    valor_anterior character varying(30),
+    valor_nuevo character varying(30) NOT NULL,
+    empresa_id integer NOT NULL,
+    fecha timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: contactos_telefonos_normalizacion_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.contactos_telefonos_normalizacion_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: contactos_telefonos_normalizacion_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.contactos_telefonos_normalizacion_log_id_seq OWNED BY public.contactos_telefonos_normalizacion_log.id;
+
+
+--
 -- Name: credito_operaciones; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5186,6 +7621,7 @@ CREATE TABLE public.documentos (
     estado_autorizacion character varying(20) DEFAULT 'no_requerida'::character varying,
     serie_externa character varying(10),
     numero_externo integer,
+    uuid_cfdi_origen character varying(36),
     CONSTRAINT chk_documentos_motivo_nc CHECK (((motivo_nc IS NULL) OR ((motivo_nc)::text = ANY ((ARRAY['devolucion'::character varying, 'bonificacion'::character varying, 'otro'::character varying])::text[])))),
     CONSTRAINT documentos_estado_autorizacion_check CHECK (((estado_autorizacion)::text = ANY ((ARRAY['no_requerida'::character varying, 'pendiente'::character varying, 'aprobada'::character varying, 'rechazada'::character varying])::text[])))
 );
@@ -5287,6 +7723,13 @@ COMMENT ON COLUMN public.documentos.uuid_sustitucion IS 'UUID del CFDI sustituto
 --
 
 COMMENT ON COLUMN public.documentos.estado_autorizacion IS 'Ciclo de vida de autorización del documento. Valores: no_requerida (sin política activa o modo ninguna/directa), pendiente (solicitud de flujo creada y en espera), aprobada (autorizador aprobó; habilita re-ejecución de la transición), rechazada (autorizador rechazó). Solo modo=flujo transiciona entre pendiente/aprobada/rechazada; los otros modos permanecen en no_requerida.';
+
+
+--
+-- Name: COLUMN documentos.uuid_cfdi_origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos.uuid_cfdi_origen IS 'UUID del CFDI de origen cuando el documento fue importado desde la Descarga Masiva del SAT (ver core.cfdi_sat_comprobantes). NULL para documentos capturados/timbrados normalmente. No confundir con public.documentos_cfdi, reservada para CFDIs que Emphasys mismo timbra.';
 
 
 --
@@ -5589,7 +8032,11 @@ CREATE TABLE public.documentos_partidas (
     precio_lista_id bigint,
     precio_editado_manual boolean DEFAULT false NOT NULL,
     precio_origen character varying(30),
-    almacen_id integer
+    almacen_id integer,
+    descuento_tipo character varying(20) DEFAULT 'porcentaje'::character varying NOT NULL,
+    descuento_monto numeric(15,2) DEFAULT 0 NOT NULL,
+    CONSTRAINT chk_documentos_partidas_descuento_monto_no_negativo CHECK ((descuento_monto >= (0)::numeric)),
+    CONSTRAINT chk_documentos_partidas_descuento_tipo CHECK (((descuento_tipo)::text = ANY ((ARRAY['porcentaje'::character varying, 'monto'::character varying])::text[])))
 );
 
 
@@ -5626,6 +8073,20 @@ COMMENT ON COLUMN public.documentos_partidas.precio_origen IS 'Origen del precio
 --
 
 COMMENT ON COLUMN public.documentos_partidas.almacen_id IS 'Almacén específico de la partida. Si es NULL, se usa el almacén del documento.';
+
+
+--
+-- Name: COLUMN documentos_partidas.descuento_tipo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.descuento_tipo IS 'Tipo de descuento aplicado a la partida: porcentaje (usa la columna descuento) o monto (usa la columna descuento_monto).';
+
+
+--
+-- Name: COLUMN documentos_partidas.descuento_monto; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas.descuento_monto IS 'Descuento fijo en importe aplicado a la partida cuando descuento_tipo = monto. No debe exceder cantidad * precio_unitario (validado en aplicación).';
 
 
 --
@@ -6078,7 +8539,13 @@ CREATE TABLE public.finanzas_conciliaciones (
     saldo_conciliado_anterior numeric(15,2),
     total_depositos_cotejados numeric(15,2),
     total_retiros_cotejados numeric(15,2),
-    saldo_conciliado_calculado numeric(15,2)
+    saldo_conciliado_calculado numeric(15,2),
+    saldo_sistema numeric(15,2),
+    diferencia numeric(15,2),
+    estatus character varying(20) DEFAULT 'cerrada'::character varying NOT NULL,
+    anulada_en timestamp with time zone,
+    anulada_por integer,
+    motivo_anulacion text
 );
 
 
@@ -6108,6 +8575,48 @@ COMMENT ON COLUMN public.finanzas_conciliaciones.total_retiros_cotejados IS 'Sum
 --
 
 COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_conciliado_calculado IS 'saldo_conciliado_anterior + total_depositos_cotejados - total_retiros_cotejados. Base correcta de cuadre con saldo_banco.';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.saldo_sistema; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_sistema IS 'Saldo del sistema calculado al momento de cerrar la conciliación (saldo_inicial + movimientos hasta fecha_corte).';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.diferencia; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.diferencia IS 'Diferencia saldo_banco - saldo_sistema al momento del cierre.';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.estatus; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.estatus IS 'Estado de la conciliación: cerrada (vigente) o anulada (deshecha, solo para auditoría).';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.anulada_en; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.anulada_en IS 'Fecha y hora en que se deshizo la conciliación.';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.anulada_por; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.anulada_por IS 'ID del usuario que deshizo la conciliación.';
+
+
+--
+-- Name: COLUMN finanzas_conciliaciones.motivo_anulacion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_conciliaciones.motivo_anulacion IS 'Motivo capturado por el usuario al deshacer la conciliación, para auditoría.';
 
 
 --
@@ -6669,7 +9178,8 @@ CREATE TABLE public.plantillas_documento (
     activo boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    configuracion jsonb DEFAULT '{}'::jsonb NOT NULL
+    configuracion jsonb DEFAULT '{}'::jsonb NOT NULL,
+    serie character varying(20)
 );
 
 
@@ -6741,6 +9251,13 @@ COMMENT ON COLUMN public.plantillas_documento.updated_at IS 'Fecha de última ac
 --
 
 COMMENT ON COLUMN public.plantillas_documento.configuracion IS 'Configuración del layout en formato JSON (colores, visibilidad de secciones, etc.)';
+
+
+--
+-- Name: COLUMN plantillas_documento.serie; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.plantillas_documento.serie IS 'Serie a la que pertenece esta plantilla de layout (varchar igual que series_documento.serie). NULL indica la plantilla base de la empresa para el tipo_documento.';
 
 
 --
@@ -6923,8 +9440,16 @@ CREATE TABLE public.productos (
     cantidad_minima_compra numeric(15,4),
     proveedor_preferido_id integer,
     pais_origen_id text,
-    cantidad_minima_venta numeric(15,4)
+    cantidad_minima_venta numeric(15,4),
+    especificaciones text
 );
+
+
+--
+-- Name: COLUMN productos.especificaciones; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.productos.especificaciones IS 'Especificaciones comerciales/técnicas del producto en HTML sanitizado (negritas, cursivas, listas, párrafos).';
 
 
 --
@@ -7135,6 +9660,7 @@ CREATE TABLE public.series_documento (
     es_fiscal boolean DEFAULT false NOT NULL,
     activa boolean DEFAULT true NOT NULL,
     ultimo_numero integer DEFAULT 0 NOT NULL,
+    condiciones_impresion text,
     CONSTRAINT chk_series_tipo_lower CHECK ((tipo_documento = lower(tipo_documento)))
 );
 
@@ -7193,6 +9719,13 @@ COMMENT ON COLUMN public.series_documento.created_at IS 'Fecha de creación de l
 --
 
 COMMENT ON COLUMN public.series_documento.updated_at IS 'Fecha de última actualización de la serie';
+
+
+--
+-- Name: COLUMN series_documento.condiciones_impresion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.series_documento.condiciones_impresion IS 'Texto enriquecido con condiciones, advertencias o notas que se imprimen al pie de los documentos generados con esta serie.';
 
 
 --
@@ -7347,6 +9880,120 @@ CREATE TABLE sat.claves_unidades (
     simbolo text NOT NULL,
     search_vector tsvector
 );
+
+
+--
+-- Name: codigos_agrupadores; Type: TABLE; Schema: sat; Owner: -
+--
+
+CREATE TABLE sat.codigos_agrupadores (
+    id bigint NOT NULL,
+    codigo character varying(20) NOT NULL,
+    descripcion character varying(300) NOT NULL,
+    nivel smallint,
+    naturaleza character varying(1),
+    activo boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_codigos_agrupadores_naturaleza CHECK (((naturaleza IS NULL) OR ((naturaleza)::text = ANY ((ARRAY['D'::character varying, 'A'::character varying])::text[])))),
+    CONSTRAINT chk_codigos_agrupadores_nivel CHECK (((nivel IS NULL) OR (nivel > 0)))
+);
+
+
+--
+-- Name: TABLE codigos_agrupadores; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON TABLE sat.codigos_agrupadores IS 'Catálogo oficial de códigos agrupadores de cuentas del Anexo 24 (Contabilidad Electrónica). Se usa para validar contabilidad.cuentas.codigo_agrupador_sat.';
+
+
+--
+-- Name: COLUMN codigos_agrupadores.id; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON COLUMN sat.codigos_agrupadores.id IS 'Identificador interno del código agrupador.';
+
+
+--
+-- Name: COLUMN codigos_agrupadores.codigo; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON COLUMN sat.codigos_agrupadores.codigo IS 'Código agrupador tal como lo publica el SAT (ej. 102.01), usado para correlacionar con contabilidad.cuentas.codigo_agrupador_sat.';
+
+
+--
+-- Name: COLUMN codigos_agrupadores.descripcion; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON COLUMN sat.codigos_agrupadores.descripcion IS 'Descripción oficial del código agrupador.';
+
+
+--
+-- Name: COLUMN codigos_agrupadores.nivel; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON COLUMN sat.codigos_agrupadores.nivel IS 'Nivel jerárquico del código agrupador dentro del catálogo oficial, cuando el catálogo lo distingue.';
+
+
+--
+-- Name: COLUMN codigos_agrupadores.naturaleza; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON COLUMN sat.codigos_agrupadores.naturaleza IS 'Naturaleza esperada del código agrupador: D (deudora) o A (acreedora), cuando el catálogo lo distingue.';
+
+
+--
+-- Name: COLUMN codigos_agrupadores.activo; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON COLUMN sat.codigos_agrupadores.activo IS 'Indica si el código sigue vigente en el catálogo oficial. Un código dado de baja no debe usarse en cuentas nuevas, pero se conserva para no romper históricos.';
+
+
+--
+-- Name: COLUMN codigos_agrupadores.creado_en; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON COLUMN sat.codigos_agrupadores.creado_en IS 'Fecha y hora de creación del registro.';
+
+
+--
+-- Name: COLUMN codigos_agrupadores.actualizado_en; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON COLUMN sat.codigos_agrupadores.actualizado_en IS 'Fecha y hora de la última actualización del registro.';
+
+
+--
+-- Name: CONSTRAINT chk_codigos_agrupadores_naturaleza ON codigos_agrupadores; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_codigos_agrupadores_naturaleza ON sat.codigos_agrupadores IS 'Limita la naturaleza a Deudora o Acreedora cuando se captura.';
+
+
+--
+-- Name: CONSTRAINT chk_codigos_agrupadores_nivel ON codigos_agrupadores; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON CONSTRAINT chk_codigos_agrupadores_nivel ON sat.codigos_agrupadores IS 'Garantiza que el nivel, cuando se captura, sea mayor que cero.';
+
+
+--
+-- Name: codigos_agrupadores_id_seq; Type: SEQUENCE; Schema: sat; Owner: -
+--
+
+CREATE SEQUENCE sat.codigos_agrupadores_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: codigos_agrupadores_id_seq; Type: SEQUENCE OWNED BY; Schema: sat; Owner: -
+--
+
+ALTER SEQUENCE sat.codigos_agrupadores_id_seq OWNED BY sat.codigos_agrupadores.id;
 
 
 --
@@ -7822,7 +10469,13 @@ CREATE VIEW whatsapp.conversaciones AS
     conversaciones.cerrada_en,
     conversaciones.prioridad,
     conversaciones.siguiente_accion,
-    conversaciones.etapa_oportunidad
+    conversaciones.etapa_oportunidad,
+    conversaciones.finalizada_en,
+    conversaciones.finalizada_por,
+    conversaciones.motivo_finalizacion,
+    conversaciones.observaciones_finalizacion,
+    conversaciones.reactivada_en,
+    conversaciones.reactivada_por_evento
    FROM crm.conversaciones;
 
 
@@ -8181,6 +10834,90 @@ COMMENT ON VIEW whatsapp.vcontactos_telefonos IS 'Vista que expone contactos con
 
 
 --
+-- Name: configuracion id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion ALTER COLUMN id SET DEFAULT nextval('contabilidad.configuracion_id_seq'::regclass);
+
+
+--
+-- Name: configuracion_cuentas_contables id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables ALTER COLUMN id SET DEFAULT nextval('contabilidad.configuracion_cuentas_contables_id_seq'::regclass);
+
+
+--
+-- Name: contabilizaciones id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones ALTER COLUMN id SET DEFAULT nextval('contabilidad.contabilizaciones_id_seq'::regclass);
+
+
+--
+-- Name: cuentas id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas ALTER COLUMN id SET DEFAULT nextval('contabilidad.cuentas_id_seq'::regclass);
+
+
+--
+-- Name: cuentas_saldos_iniciales id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_iniciales ALTER COLUMN id SET DEFAULT nextval('contabilidad.cuentas_saldos_iniciales_id_seq'::regclass);
+
+
+--
+-- Name: cuentas_saldos_mensuales id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_mensuales ALTER COLUMN id SET DEFAULT nextval('contabilidad.cuentas_saldos_mensuales_id_seq'::regclass);
+
+
+--
+-- Name: documentos_polizas id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.documentos_polizas ALTER COLUMN id SET DEFAULT nextval('contabilidad.documentos_polizas_id_seq'::regclass);
+
+
+--
+-- Name: e_contabilidad_paquetes id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.e_contabilidad_paquetes ALTER COLUMN id SET DEFAULT nextval('contabilidad.e_contabilidad_paquetes_id_seq'::regclass);
+
+
+--
+-- Name: polizas id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas ALTER COLUMN id SET DEFAULT nextval('contabilidad.polizas_id_seq'::regclass);
+
+
+--
+-- Name: polizas_detalle id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas_detalle ALTER COLUMN id SET DEFAULT nextval('contabilidad.polizas_detalle_id_seq'::regclass);
+
+
+--
+-- Name: rangos_cuentas id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.rangos_cuentas ALTER COLUMN id SET DEFAULT nextval('contabilidad.rangos_cuentas_id_seq'::regclass);
+
+
+--
+-- Name: tipos_poliza id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.tipos_poliza ALTER COLUMN id SET DEFAULT nextval('contabilidad.tipos_poliza_id_seq'::regclass);
+
+
+--
 -- Name: campos_configuracion id; Type: DEFAULT; Schema: core; Owner: -
 --
 
@@ -8213,6 +10950,48 @@ ALTER TABLE ONLY core.catalogos_tipos ALTER COLUMN id SET DEFAULT nextval('core.
 --
 
 ALTER TABLE ONLY core.cfdi_pac_config ALTER COLUMN id SET DEFAULT nextval('core.cfdi_pac_config_id_seq'::regclass);
+
+
+--
+-- Name: cfdi_sat_autorizaciones id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_autorizaciones ALTER COLUMN id SET DEFAULT nextval('core.cfdi_sat_autorizaciones_id_seq'::regclass);
+
+
+--
+-- Name: cfdi_sat_bitacora id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_bitacora ALTER COLUMN id SET DEFAULT nextval('core.cfdi_sat_bitacora_id_seq'::regclass);
+
+
+--
+-- Name: cfdi_sat_comprobantes id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_comprobantes ALTER COLUMN id SET DEFAULT nextval('core.cfdi_sat_comprobantes_id_seq'::regclass);
+
+
+--
+-- Name: cfdi_sat_credenciales id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_credenciales ALTER COLUMN id SET DEFAULT nextval('core.cfdi_sat_credenciales_id_seq'::regclass);
+
+
+--
+-- Name: cfdi_sat_paquetes id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_paquetes ALTER COLUMN id SET DEFAULT nextval('core.cfdi_sat_paquetes_id_seq'::regclass);
+
+
+--
+-- Name: cfdi_sat_solicitudes id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_solicitudes ALTER COLUMN id SET DEFAULT nextval('core.cfdi_sat_solicitudes_id_seq'::regclass);
 
 
 --
@@ -8461,6 +11240,13 @@ ALTER TABLE ONLY public.contactos_domicilios ALTER COLUMN id SET DEFAULT nextval
 
 
 --
+-- Name: contactos_telefonos_normalizacion_log id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_telefonos_normalizacion_log ALTER COLUMN id SET DEFAULT nextval('public.contactos_telefonos_normalizacion_log_id_seq'::regclass);
+
+
+--
 -- Name: credito_operaciones id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -8678,6 +11464,13 @@ ALTER TABLE ONLY public.usuarios_series_documento ALTER COLUMN id SET DEFAULT ne
 
 
 --
+-- Name: codigos_agrupadores id; Type: DEFAULT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.codigos_agrupadores ALTER COLUMN id SET DEFAULT nextval('sat.codigos_agrupadores_id_seq'::regclass);
+
+
+--
 -- Name: unidades id; Type: DEFAULT; Schema: sat; Owner: -
 --
 
@@ -8703,6 +11496,244 @@ ALTER TABLE ONLY whatsapp.intentos_contacto ALTER COLUMN id SET DEFAULT nextval(
 --
 
 ALTER TABLE ONLY whatsapp.plantillas ALTER COLUMN id SET DEFAULT nextval('whatsapp.plantillas_id_seq'::regclass);
+
+
+--
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: configuracion configuracion_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion
+    ADD CONSTRAINT configuracion_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contabilizaciones contabilizaciones_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones
+    ADD CONSTRAINT contabilizaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cuentas cuentas_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas
+    ADD CONSTRAINT cuentas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cuentas_saldos_iniciales cuentas_saldos_iniciales_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_iniciales
+    ADD CONSTRAINT cuentas_saldos_iniciales_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cuentas_saldos_mensuales cuentas_saldos_mensuales_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_mensuales
+    ADD CONSTRAINT cuentas_saldos_mensuales_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: documentos_polizas documentos_polizas_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.documentos_polizas
+    ADD CONSTRAINT documentos_polizas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: e_contabilidad_paquetes e_contabilidad_paquetes_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.e_contabilidad_paquetes
+    ADD CONSTRAINT e_contabilidad_paquetes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rangos_cuentas pk_rangos_cuentas; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.rangos_cuentas
+    ADD CONSTRAINT pk_rangos_cuentas PRIMARY KEY (id);
+
+
+--
+-- Name: CONSTRAINT pk_rangos_cuentas ON rangos_cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT pk_rangos_cuentas ON contabilidad.rangos_cuentas IS 'Llave primaria técnica del catálogo de rangos de cuentas.';
+
+
+--
+-- Name: polizas_detalle polizas_detalle_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas_detalle
+    ADD CONSTRAINT polizas_detalle_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: polizas polizas_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas
+    ADD CONSTRAINT polizas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tipos_poliza tipos_poliza_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.tipos_poliza
+    ADD CONSTRAINT tipos_poliza_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: configuracion uq_contabilidad_configuracion_empresa; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion
+    ADD CONSTRAINT uq_contabilidad_configuracion_empresa UNIQUE (empresa_id);
+
+
+--
+-- Name: CONSTRAINT uq_contabilidad_configuracion_empresa ON configuracion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_contabilidad_configuracion_empresa ON contabilidad.configuracion IS 'Evita que una empresa tenga más de una configuración contable.';
+
+
+--
+-- Name: cuentas uq_cuentas_empresa_cuenta; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas
+    ADD CONSTRAINT uq_cuentas_empresa_cuenta UNIQUE (empresa_id, cuenta);
+
+
+--
+-- Name: CONSTRAINT uq_cuentas_empresa_cuenta ON cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_cuentas_empresa_cuenta ON contabilidad.cuentas IS 'Evita duplicar números de cuenta dentro de una empresa.';
+
+
+--
+-- Name: cuentas_saldos_iniciales uq_cuentas_saldos_iniciales; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_iniciales
+    ADD CONSTRAINT uq_cuentas_saldos_iniciales UNIQUE (empresa_id, ejercicio, cuenta_id);
+
+
+--
+-- Name: CONSTRAINT uq_cuentas_saldos_iniciales ON cuentas_saldos_iniciales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_cuentas_saldos_iniciales ON contabilidad.cuentas_saldos_iniciales IS 'Evita duplicar el saldo inicial de una misma cuenta en un mismo ejercicio para la misma empresa.';
+
+
+--
+-- Name: cuentas_saldos_mensuales uq_cuentas_saldos_mensuales; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_mensuales
+    ADD CONSTRAINT uq_cuentas_saldos_mensuales UNIQUE (empresa_id, cuenta_id, ejercicio, periodo);
+
+
+--
+-- Name: CONSTRAINT uq_cuentas_saldos_mensuales ON cuentas_saldos_mensuales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_cuentas_saldos_mensuales ON contabilidad.cuentas_saldos_mensuales IS 'Evita duplicar acumulados por empresa, cuenta, ejercicio y periodo.';
+
+
+--
+-- Name: polizas_detalle uq_polizas_detalle_poliza_renglon; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas_detalle
+    ADD CONSTRAINT uq_polizas_detalle_poliza_renglon UNIQUE (poliza_id, renglon);
+
+
+--
+-- Name: CONSTRAINT uq_polizas_detalle_poliza_renglon ON polizas_detalle; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_polizas_detalle_poliza_renglon ON contabilidad.polizas_detalle IS 'Evita duplicar renglones dentro de una misma póliza.';
+
+
+--
+-- Name: polizas uq_polizas_empresa_codigo_legacy; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas
+    ADD CONSTRAINT uq_polizas_empresa_codigo_legacy UNIQUE (empresa_id, codigo_legacy);
+
+
+--
+-- Name: CONSTRAINT uq_polizas_empresa_codigo_legacy ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_polizas_empresa_codigo_legacy ON contabilidad.polizas IS 'Evita duplicar códigos heredados de póliza por empresa durante la importación histórica.';
+
+
+--
+-- Name: polizas uq_polizas_empresa_tipo_ejercicio_periodo_numero; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas
+    ADD CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero UNIQUE (empresa_id, tipo_poliza_id, ejercicio, periodo, numero);
+
+
+--
+-- Name: CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero ON contabilidad.polizas IS 'Evita duplicar números de póliza por empresa, tipo, ejercicio y periodo.';
+
+
+--
+-- Name: rangos_cuentas uq_rangos_cuentas_empresa_limite_superior; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.rangos_cuentas
+    ADD CONSTRAINT uq_rangos_cuentas_empresa_limite_superior UNIQUE (empresa_id, limite_superior);
+
+
+--
+-- Name: CONSTRAINT uq_rangos_cuentas_empresa_limite_superior ON rangos_cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_rangos_cuentas_empresa_limite_superior ON contabilidad.rangos_cuentas IS 'Evita duplicar límites superiores de rango dentro de una misma empresa.';
+
+
+--
+-- Name: tipos_poliza uq_tipos_poliza_empresa_identificador; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.tipos_poliza
+    ADD CONSTRAINT uq_tipos_poliza_empresa_identificador UNIQUE (empresa_id, identificador);
+
+
+--
+-- Name: CONSTRAINT uq_tipos_poliza_empresa_identificador ON tipos_poliza; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_tipos_poliza_empresa_identificador ON contabilidad.tipos_poliza IS 'Evita duplicar identificadores de tipo de póliza dentro de una misma empresa.';
 
 
 --
@@ -8751,6 +11782,62 @@ ALTER TABLE ONLY core.cfdi_pac_config
 
 ALTER TABLE ONLY core.cfdi_pac_config
     ADD CONSTRAINT cfdi_pac_config_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cfdi_sat_automatizacion cfdi_sat_automatizacion_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_automatizacion
+    ADD CONSTRAINT cfdi_sat_automatizacion_pkey PRIMARY KEY (empresa_id);
+
+
+--
+-- Name: cfdi_sat_autorizaciones cfdi_sat_autorizaciones_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_autorizaciones
+    ADD CONSTRAINT cfdi_sat_autorizaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cfdi_sat_bitacora cfdi_sat_bitacora_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_bitacora
+    ADD CONSTRAINT cfdi_sat_bitacora_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cfdi_sat_comprobantes cfdi_sat_comprobantes_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_comprobantes
+    ADD CONSTRAINT cfdi_sat_comprobantes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cfdi_sat_credenciales cfdi_sat_credenciales_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_credenciales
+    ADD CONSTRAINT cfdi_sat_credenciales_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cfdi_sat_paquetes cfdi_sat_paquetes_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_paquetes
+    ADD CONSTRAINT cfdi_sat_paquetes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cfdi_sat_solicitudes cfdi_sat_solicitudes_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_solicitudes
+    ADD CONSTRAINT cfdi_sat_solicitudes_pkey PRIMARY KEY (id);
 
 
 --
@@ -8975,6 +12062,30 @@ ALTER TABLE ONLY core.usuarios
 
 ALTER TABLE ONLY core.usuarios_roles
     ADD CONSTRAINT usuarios_roles_pkey PRIMARY KEY (usuario_id, empresa_id, rol_id);
+
+
+--
+-- Name: cfdi_sat_comprobantes ux_cfdi_sat_comprobantes_empresa_uuid; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_comprobantes
+    ADD CONSTRAINT ux_cfdi_sat_comprobantes_empresa_uuid UNIQUE (empresa_id, uuid);
+
+
+--
+-- Name: cfdi_sat_credenciales ux_cfdi_sat_credenciales_empresa; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_credenciales
+    ADD CONSTRAINT ux_cfdi_sat_credenciales_empresa UNIQUE (empresa_id);
+
+
+--
+-- Name: cfdi_sat_paquetes ux_cfdi_sat_paquetes_solicitud_package; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_paquetes
+    ADD CONSTRAINT ux_cfdi_sat_paquetes_solicitud_package UNIQUE (solicitud_id, sat_package_id);
 
 
 --
@@ -9247,6 +12358,14 @@ ALTER TABLE ONLY public.contactos_domicilios
 
 ALTER TABLE ONLY public.contactos
     ADD CONSTRAINT contactos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contactos_telefonos_normalizacion_log contactos_telefonos_normalizacion_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_telefonos_normalizacion_log
+    ADD CONSTRAINT contactos_telefonos_normalizacion_log_pkey PRIMARY KEY (id);
 
 
 --
@@ -9626,6 +12745,14 @@ ALTER TABLE ONLY sat.claves_unidades
 
 
 --
+-- Name: codigos_agrupadores codigos_agrupadores_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.codigos_agrupadores
+    ADD CONSTRAINT codigos_agrupadores_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: codigos_postales codigos_postales_cp_key; Type: CONSTRAINT; Schema: sat; Owner: -
 --
 
@@ -9826,6 +12953,21 @@ ALTER TABLE ONLY sat.unidades
 
 
 --
+-- Name: codigos_agrupadores uq_codigos_agrupadores_codigo; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.codigos_agrupadores
+    ADD CONSTRAINT uq_codigos_agrupadores_codigo UNIQUE (codigo);
+
+
+--
+-- Name: CONSTRAINT uq_codigos_agrupadores_codigo ON codigos_agrupadores; Type: COMMENT; Schema: sat; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_codigos_agrupadores_codigo ON sat.codigos_agrupadores IS 'Evita duplicar códigos agrupadores en el catálogo.';
+
+
+--
 -- Name: usos_cfdi usos_cfdi_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
 --
 
@@ -9887,6 +13029,307 @@ ALTER TABLE ONLY whatsapp.intentos_contacto
 
 ALTER TABLE ONLY whatsapp.plantillas
     ADD CONSTRAINT plantillas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_config_cuentas_almacen; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_config_cuentas_almacen ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, almacen_id, uso_contable) WHERE ((almacen_id IS NOT NULL) AND (activa = true));
+
+
+--
+-- Name: idx_config_cuentas_concepto; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_config_cuentas_concepto ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, concepto_id, uso_contable) WHERE ((concepto_id IS NOT NULL) AND (activa = true));
+
+
+--
+-- Name: idx_config_cuentas_contacto; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_config_cuentas_contacto ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, contacto_id, uso_contable) WHERE ((contacto_id IS NOT NULL) AND (activa = true));
+
+
+--
+-- Name: idx_config_cuentas_empresa_uso; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_config_cuentas_empresa_uso ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, uso_contable) WHERE (activa = true);
+
+
+--
+-- Name: idx_config_cuentas_finanzas_cuenta; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_config_cuentas_finanzas_cuenta ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, finanzas_cuenta_id, uso_contable) WHERE ((finanzas_cuenta_id IS NOT NULL) AND (activa = true));
+
+
+--
+-- Name: idx_config_cuentas_impuesto; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_config_cuentas_impuesto ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, impuesto_id, uso_contable) WHERE ((impuesto_id IS NOT NULL) AND (activa = true));
+
+
+--
+-- Name: idx_config_cuentas_producto; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_config_cuentas_producto ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, producto_id, uso_contable) WHERE ((producto_id IS NOT NULL) AND (activa = true));
+
+
+--
+-- Name: idx_contabilizaciones_documento; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_documento ON contabilidad.contabilizaciones USING btree (documento_id) WHERE (documento_id IS NOT NULL);
+
+
+--
+-- Name: idx_contabilizaciones_empresa; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_empresa ON contabilidad.contabilizaciones USING btree (empresa_id);
+
+
+--
+-- Name: idx_contabilizaciones_evento_contable; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_evento_contable ON contabilidad.contabilizaciones USING btree (evento_contable);
+
+
+--
+-- Name: idx_contabilizaciones_fecha_contabilizacion; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_fecha_contabilizacion ON contabilidad.contabilizaciones USING btree (fecha_contabilizacion);
+
+
+--
+-- Name: idx_contabilizaciones_fecha_documento; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_fecha_documento ON contabilidad.contabilizaciones USING btree (fecha_documento);
+
+
+--
+-- Name: idx_contabilizaciones_movimiento_inventario; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_movimiento_inventario ON contabilidad.contabilizaciones USING btree (movimiento_inventario_id) WHERE (movimiento_inventario_id IS NOT NULL);
+
+
+--
+-- Name: idx_contabilizaciones_operacion_dinero; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_operacion_dinero ON contabilidad.contabilizaciones USING btree (operacion_dinero_id) WHERE (operacion_dinero_id IS NOT NULL);
+
+
+--
+-- Name: idx_contabilizaciones_origen; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_origen ON contabilidad.contabilizaciones USING btree (contabilizacion_origen_id);
+
+
+--
+-- Name: idx_contabilizaciones_poliza; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_poliza ON contabilidad.contabilizaciones USING btree (poliza_id);
+
+
+--
+-- Name: idx_contabilizaciones_tipo_documento; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_tipo_documento ON contabilidad.contabilizaciones USING btree (tipo_documento);
+
+
+--
+-- Name: idx_contabilizaciones_tipo_movimiento; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contabilizaciones_tipo_movimiento ON contabilidad.contabilizaciones USING btree (tipo_movimiento);
+
+
+--
+-- Name: idx_cuentas_rango_cuenta_id; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_cuentas_rango_cuenta_id ON contabilidad.cuentas USING btree (rango_cuenta_id);
+
+
+--
+-- Name: idx_cuentas_saldos_iniciales_empresa_ejercicio; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_cuentas_saldos_iniciales_empresa_ejercicio ON contabilidad.cuentas_saldos_iniciales USING btree (empresa_id, ejercicio);
+
+
+--
+-- Name: INDEX idx_cuentas_saldos_iniciales_empresa_ejercicio; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.idx_cuentas_saldos_iniciales_empresa_ejercicio IS 'Índice para consultar todos los saldos iniciales de una empresa en un ejercicio (pantalla de captura y validador de e-contabilidad).';
+
+
+--
+-- Name: idx_documentos_polizas_documento; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_documentos_polizas_documento ON contabilidad.documentos_polizas USING btree (documento_id);
+
+
+--
+-- Name: INDEX idx_documentos_polizas_documento; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.idx_documentos_polizas_documento IS 'Índice para consultar pólizas relacionadas a un documento operativo.';
+
+
+--
+-- Name: idx_documentos_polizas_empresa_documento_tipo; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_documentos_polizas_empresa_documento_tipo ON contabilidad.documentos_polizas USING btree (empresa_id, documento_id, tipo);
+
+
+--
+-- Name: INDEX idx_documentos_polizas_empresa_documento_tipo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.idx_documentos_polizas_empresa_documento_tipo IS 'Índice para determinar rápidamente si un documento de una empresa tiene póliza original, cancelación, reversa o ajuste.';
+
+
+--
+-- Name: idx_documentos_polizas_poliza; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_documentos_polizas_poliza ON contabilidad.documentos_polizas USING btree (poliza_id);
+
+
+--
+-- Name: INDEX idx_documentos_polizas_poliza; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.idx_documentos_polizas_poliza IS 'Índice para consultar documentos relacionados a una póliza contable.';
+
+
+--
+-- Name: idx_e_contabilidad_paquetes_empresa_ejercicio_periodo; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_e_contabilidad_paquetes_empresa_ejercicio_periodo ON contabilidad.e_contabilidad_paquetes USING btree (empresa_id, ejercicio, periodo);
+
+
+--
+-- Name: INDEX idx_e_contabilidad_paquetes_empresa_ejercicio_periodo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.idx_e_contabilidad_paquetes_empresa_ejercicio_periodo IS 'Índice para consultar la bitácora de una empresa filtrando por ejercicio/periodo.';
+
+
+--
+-- Name: idx_e_contabilidad_paquetes_generado_en; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_e_contabilidad_paquetes_generado_en ON contabilidad.e_contabilidad_paquetes USING btree (generado_en DESC);
+
+
+--
+-- Name: INDEX idx_e_contabilidad_paquetes_generado_en; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.idx_e_contabilidad_paquetes_generado_en IS 'Índice para listar la bitácora ordenada por fecha de generación más reciente.';
+
+
+--
+-- Name: idx_rangos_cuentas_empresa_limite_superior; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_rangos_cuentas_empresa_limite_superior ON contabilidad.rangos_cuentas USING btree (empresa_id, limite_superior);
+
+
+--
+-- Name: uq_config_cuentas_contables_unica; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_config_cuentas_contables_unica ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, uso_contable, COALESCE(contacto_id, '-1'::integer), COALESCE(producto_id, '-1'::integer), COALESCE(almacen_id, '-1'::integer), COALESCE(finanzas_cuenta_id, '-1'::integer), COALESCE(concepto_id, '-1'::integer), COALESCE(impuesto_id, ''::character varying), COALESCE(producto_familia, ''::character varying), COALESCE(producto_linea, ''::character varying), COALESCE(producto_clasificacion, ''::character varying), COALESCE(producto_tipo, ''::character varying));
+
+
+--
+-- Name: uq_documentos_polizas_documento_poliza_tipo; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_documentos_polizas_documento_poliza_tipo ON contabilidad.documentos_polizas USING btree (documento_id, poliza_id, tipo);
+
+
+--
+-- Name: INDEX uq_documentos_polizas_documento_poliza_tipo; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.uq_documentos_polizas_documento_poliza_tipo IS 'Evita duplicar una misma relación entre documento, póliza y tipo.';
+
+
+--
+-- Name: ux_contabilizaciones_documento_evento_activa; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_contabilizaciones_documento_evento_activa ON contabilidad.contabilizaciones USING btree (empresa_id, documento_id, evento_contable) WHERE ((documento_id IS NOT NULL) AND (es_reversa = false));
+
+
+--
+-- Name: INDEX ux_contabilizaciones_documento_evento_activa; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.ux_contabilizaciones_documento_evento_activa IS 'Impide duplicar una contabilización activa (no reversa) para el mismo documento y evento contable dentro de una empresa.';
+
+
+--
+-- Name: ux_contabilizaciones_movimiento_inventario_evento_activa; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_contabilizaciones_movimiento_inventario_evento_activa ON contabilidad.contabilizaciones USING btree (empresa_id, movimiento_inventario_id, evento_contable) WHERE ((movimiento_inventario_id IS NOT NULL) AND (es_reversa = false));
+
+
+--
+-- Name: INDEX ux_contabilizaciones_movimiento_inventario_evento_activa; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.ux_contabilizaciones_movimiento_inventario_evento_activa IS 'Impide duplicar una contabilización activa (no reversa) para el mismo movimiento de inventario y evento contable dentro de una empresa.';
+
+
+--
+-- Name: ux_contabilizaciones_operacion_dinero_evento_activa; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_contabilizaciones_operacion_dinero_evento_activa ON contabilidad.contabilizaciones USING btree (empresa_id, operacion_dinero_id, evento_contable) WHERE ((operacion_dinero_id IS NOT NULL) AND (es_reversa = false));
+
+
+--
+-- Name: INDEX ux_contabilizaciones_operacion_dinero_evento_activa; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.ux_contabilizaciones_operacion_dinero_evento_activa IS 'Impide duplicar una contabilización activa (no reversa) para la misma operación de dinero y evento contable dentro de una empresa.';
+
+
+--
+-- Name: ux_contabilizaciones_origen_reversa; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_contabilizaciones_origen_reversa ON contabilidad.contabilizaciones USING btree (contabilizacion_origen_id) WHERE (es_reversa = true);
+
+
+--
+-- Name: INDEX ux_contabilizaciones_origen_reversa; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON INDEX contabilidad.ux_contabilizaciones_origen_reversa IS 'Impide registrar más de una reversa para la misma contabilización original.';
 
 
 --
@@ -10317,6 +13760,48 @@ CREATE INDEX idx_usuarios_vendedor_contacto_id ON core.usuarios USING btree (ven
 
 
 --
+-- Name: ix_cfdi_sat_autorizaciones_empresa_version; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_cfdi_sat_autorizaciones_empresa_version ON core.cfdi_sat_autorizaciones USING btree (empresa_id, version_texto, aceptado_en DESC);
+
+
+--
+-- Name: ix_cfdi_sat_bitacora_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_cfdi_sat_bitacora_empresa ON core.cfdi_sat_bitacora USING btree (empresa_id, creado_en DESC);
+
+
+--
+-- Name: ix_cfdi_sat_comprobantes_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_cfdi_sat_comprobantes_empresa ON core.cfdi_sat_comprobantes USING btree (empresa_id, creado_en DESC);
+
+
+--
+-- Name: ix_cfdi_sat_comprobantes_solicitud; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_cfdi_sat_comprobantes_solicitud ON core.cfdi_sat_comprobantes USING btree (solicitud_id);
+
+
+--
+-- Name: ix_cfdi_sat_paquetes_solicitud; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_cfdi_sat_paquetes_solicitud ON core.cfdi_sat_paquetes USING btree (solicitud_id);
+
+
+--
+-- Name: ix_cfdi_sat_solicitudes_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_cfdi_sat_solicitudes_empresa ON core.cfdi_sat_solicitudes USING btree (empresa_id, creado_en DESC);
+
+
+--
 -- Name: ux_campos_configuracion_empresa_proposito_sistema; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -10433,6 +13918,13 @@ CREATE INDEX ix_conv_empresa_estado ON crm.conversaciones USING btree (empresa_i
 --
 
 CREATE INDEX ix_mensajes_empresa_fecha ON crm.mensajes USING btree (empresa_id, fecha_envio DESC);
+
+
+--
+-- Name: ix_mensajes_respuesta_id; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_mensajes_respuesta_id ON crm.mensajes USING btree (mensaje_respuesta_id) WHERE (mensaje_respuesta_id IS NOT NULL);
 
 
 --
@@ -11262,6 +14754,13 @@ CREATE INDEX idx_plantillas_documento_empresa_tipo_activo ON public.plantillas_d
 
 
 --
+-- Name: idx_plantillas_documento_empresa_tipo_serie; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_plantillas_documento_empresa_tipo_serie ON public.plantillas_documento USING btree (empresa_id, tipo_documento, serie);
+
+
+--
 -- Name: idx_plantillas_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11549,10 +15048,38 @@ CREATE UNIQUE INDEX ux_contactos_empresa_codigo_legacy ON public.contactos USING
 
 
 --
--- Name: ux_plantilla_activa; Type: INDEX; Schema: public; Owner: -
+-- Name: ux_documentos_empresa_uuid_cfdi_origen; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX ux_plantilla_activa ON public.plantillas_documento USING btree (empresa_id, tipo_documento) WHERE (activo = true);
+CREATE UNIQUE INDEX ux_documentos_empresa_uuid_cfdi_origen ON public.documentos USING btree (empresa_id, uuid_cfdi_origen) WHERE (uuid_cfdi_origen IS NOT NULL);
+
+
+--
+-- Name: ux_plantilla_activa_base; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_plantilla_activa_base ON public.plantillas_documento USING btree (empresa_id, tipo_documento) WHERE ((activo = true) AND (serie IS NULL));
+
+
+--
+-- Name: INDEX ux_plantilla_activa_base; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.ux_plantilla_activa_base IS 'Garantiza una única plantilla base activa por empresa y tipo_documento (serie IS NULL).';
+
+
+--
+-- Name: ux_plantilla_activa_serie; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_plantilla_activa_serie ON public.plantillas_documento USING btree (empresa_id, tipo_documento, serie) WHERE ((activo = true) AND (serie IS NOT NULL));
+
+
+--
+-- Name: INDEX ux_plantilla_activa_serie; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON INDEX public.ux_plantilla_activa_serie IS 'Garantiza una única plantilla activa por empresa, tipo_documento y serie (serie IS NOT NULL).';
 
 
 --
@@ -11787,6 +15314,457 @@ CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.plantillas_documento F
 
 
 --
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_almacen_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_almacen_id_fkey FOREIGN KEY (almacen_id) REFERENCES inventario.almacenes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_concepto_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_concepto_id_fkey FOREIGN KEY (concepto_id) REFERENCES public.conceptos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_contacto_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_cuenta_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_cuenta_id_fkey FOREIGN KEY (cuenta_id) REFERENCES contabilidad.cuentas(id);
+
+
+--
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_empresa_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_finanzas_cuenta_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_finanzas_cuenta_id_fkey FOREIGN KEY (finanzas_cuenta_id) REFERENCES public.finanzas_cuentas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_impuesto_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_impuesto_id_fkey FOREIGN KEY (impuesto_id) REFERENCES public.impuestos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: configuracion_cuentas_contables configuracion_cuentas_contables_producto_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables
+    ADD CONSTRAINT configuracion_cuentas_contables_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES public.productos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: configuracion configuracion_tipo_poliza_venta_cancelacion_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion
+    ADD CONSTRAINT configuracion_tipo_poliza_venta_cancelacion_id_fkey FOREIGN KEY (tipo_poliza_venta_cancelacion_id) REFERENCES contabilidad.tipos_poliza(id);
+
+
+--
+-- Name: configuracion configuracion_tipo_poliza_venta_factura_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion
+    ADD CONSTRAINT configuracion_tipo_poliza_venta_factura_id_fkey FOREIGN KEY (tipo_poliza_venta_factura_id) REFERENCES contabilidad.tipos_poliza(id);
+
+
+--
+-- Name: contabilizaciones contabilizaciones_contabilizacion_origen_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones
+    ADD CONSTRAINT contabilizaciones_contabilizacion_origen_id_fkey FOREIGN KEY (contabilizacion_origen_id) REFERENCES contabilidad.contabilizaciones(id);
+
+
+--
+-- Name: contabilizaciones contabilizaciones_documento_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones
+    ADD CONSTRAINT contabilizaciones_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: contabilizaciones contabilizaciones_empresa_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones
+    ADD CONSTRAINT contabilizaciones_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: contabilizaciones contabilizaciones_movimiento_inventario_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones
+    ADD CONSTRAINT contabilizaciones_movimiento_inventario_id_fkey FOREIGN KEY (movimiento_inventario_id) REFERENCES inventario.movimientos(id);
+
+
+--
+-- Name: contabilizaciones contabilizaciones_operacion_dinero_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones
+    ADD CONSTRAINT contabilizaciones_operacion_dinero_id_fkey FOREIGN KEY (operacion_dinero_id) REFERENCES public.finanzas_operaciones(id);
+
+
+--
+-- Name: contabilizaciones contabilizaciones_poliza_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones
+    ADD CONSTRAINT contabilizaciones_poliza_id_fkey FOREIGN KEY (poliza_id) REFERENCES contabilidad.polizas(id);
+
+
+--
+-- Name: contabilizaciones contabilizaciones_usuario_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.contabilizaciones
+    ADD CONSTRAINT contabilizaciones_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: configuracion fk_contabilidad_configuracion_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion
+    ADD CONSTRAINT fk_contabilidad_configuracion_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_contabilidad_configuracion_empresa ON configuracion; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_contabilidad_configuracion_empresa ON contabilidad.configuracion IS 'Relaciona la configuración contable con su empresa.';
+
+
+--
+-- Name: cuentas fk_cuentas_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas
+    ADD CONSTRAINT fk_cuentas_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_cuentas_empresa ON cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_cuentas_empresa ON contabilidad.cuentas IS 'Relaciona la cuenta contable con su empresa.';
+
+
+--
+-- Name: cuentas fk_cuentas_padre; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas
+    ADD CONSTRAINT fk_cuentas_padre FOREIGN KEY (cuenta_padre_id) REFERENCES contabilidad.cuentas(id);
+
+
+--
+-- Name: CONSTRAINT fk_cuentas_padre ON cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_cuentas_padre ON contabilidad.cuentas IS 'Relaciona una cuenta con su cuenta padre dentro del árbol contable.';
+
+
+--
+-- Name: cuentas fk_cuentas_rango; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas
+    ADD CONSTRAINT fk_cuentas_rango FOREIGN KEY (rango_cuenta_id) REFERENCES contabilidad.rangos_cuentas(id);
+
+
+--
+-- Name: CONSTRAINT fk_cuentas_rango ON cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_cuentas_rango ON contabilidad.cuentas IS 'Relaciona la cuenta contable con su rango contable técnico.';
+
+
+--
+-- Name: cuentas_saldos_iniciales fk_cuentas_saldos_iniciales_cuenta; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_iniciales
+    ADD CONSTRAINT fk_cuentas_saldos_iniciales_cuenta FOREIGN KEY (cuenta_id) REFERENCES contabilidad.cuentas(id);
+
+
+--
+-- Name: CONSTRAINT fk_cuentas_saldos_iniciales_cuenta ON cuentas_saldos_iniciales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_cuentas_saldos_iniciales_cuenta ON contabilidad.cuentas_saldos_iniciales IS 'Relaciona el saldo inicial con la cuenta contable.';
+
+
+--
+-- Name: cuentas_saldos_iniciales fk_cuentas_saldos_iniciales_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_iniciales
+    ADD CONSTRAINT fk_cuentas_saldos_iniciales_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_cuentas_saldos_iniciales_empresa ON cuentas_saldos_iniciales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_cuentas_saldos_iniciales_empresa ON contabilidad.cuentas_saldos_iniciales IS 'Relaciona el saldo inicial con su empresa.';
+
+
+--
+-- Name: cuentas_saldos_mensuales fk_cuentas_saldos_mensuales_cuenta; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_mensuales
+    ADD CONSTRAINT fk_cuentas_saldos_mensuales_cuenta FOREIGN KEY (cuenta_id) REFERENCES contabilidad.cuentas(id);
+
+
+--
+-- Name: CONSTRAINT fk_cuentas_saldos_mensuales_cuenta ON cuentas_saldos_mensuales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_cuentas_saldos_mensuales_cuenta ON contabilidad.cuentas_saldos_mensuales IS 'Relaciona el acumulado mensual con su cuenta contable.';
+
+
+--
+-- Name: cuentas_saldos_mensuales fk_cuentas_saldos_mensuales_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.cuentas_saldos_mensuales
+    ADD CONSTRAINT fk_cuentas_saldos_mensuales_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_cuentas_saldos_mensuales_empresa ON cuentas_saldos_mensuales; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_cuentas_saldos_mensuales_empresa ON contabilidad.cuentas_saldos_mensuales IS 'Relaciona el acumulado mensual con su empresa.';
+
+
+--
+-- Name: documentos_polizas fk_documentos_polizas_documento; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.documentos_polizas
+    ADD CONSTRAINT fk_documentos_polizas_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: CONSTRAINT fk_documentos_polizas_documento ON documentos_polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_documentos_polizas_documento ON contabilidad.documentos_polizas IS 'Relaciona la póliza con el documento operativo y elimina el enlace si se borra el documento.';
+
+
+--
+-- Name: documentos_polizas fk_documentos_polizas_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.documentos_polizas
+    ADD CONSTRAINT fk_documentos_polizas_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_documentos_polizas_empresa ON documentos_polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_documentos_polizas_empresa ON contabilidad.documentos_polizas IS 'Relaciona la relación documento-póliza con su empresa.';
+
+
+--
+-- Name: documentos_polizas fk_documentos_polizas_original; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.documentos_polizas
+    ADD CONSTRAINT fk_documentos_polizas_original FOREIGN KEY (documento_poliza_original_id) REFERENCES contabilidad.documentos_polizas(id);
+
+
+--
+-- Name: CONSTRAINT fk_documentos_polizas_original ON documentos_polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_documentos_polizas_original ON contabilidad.documentos_polizas IS 'Permite ligar una póliza de cancelación, reversa o ajuste con la relación original.';
+
+
+--
+-- Name: documentos_polizas fk_documentos_polizas_poliza; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.documentos_polizas
+    ADD CONSTRAINT fk_documentos_polizas_poliza FOREIGN KEY (poliza_id) REFERENCES contabilidad.polizas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: CONSTRAINT fk_documentos_polizas_poliza ON documentos_polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_documentos_polizas_poliza ON contabilidad.documentos_polizas IS 'Relaciona el documento con la póliza y elimina el enlace si se borra la póliza.';
+
+
+--
+-- Name: e_contabilidad_paquetes fk_e_contabilidad_paquetes_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.e_contabilidad_paquetes
+    ADD CONSTRAINT fk_e_contabilidad_paquetes_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_e_contabilidad_paquetes_empresa ON e_contabilidad_paquetes; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_e_contabilidad_paquetes_empresa ON contabilidad.e_contabilidad_paquetes IS 'Relaciona el paquete generado con su empresa.';
+
+
+--
+-- Name: polizas_detalle fk_polizas_detalle_concepto; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas_detalle
+    ADD CONSTRAINT fk_polizas_detalle_concepto FOREIGN KEY (concepto_id) REFERENCES public.conceptos(id);
+
+
+--
+-- Name: CONSTRAINT fk_polizas_detalle_concepto ON polizas_detalle; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_polizas_detalle_concepto ON contabilidad.polizas_detalle IS 'Relaciona el movimiento contable con el catálogo general de conceptos.';
+
+
+--
+-- Name: polizas_detalle fk_polizas_detalle_cuenta; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas_detalle
+    ADD CONSTRAINT fk_polizas_detalle_cuenta FOREIGN KEY (cuenta_id) REFERENCES contabilidad.cuentas(id);
+
+
+--
+-- Name: CONSTRAINT fk_polizas_detalle_cuenta ON polizas_detalle; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_polizas_detalle_cuenta ON contabilidad.polizas_detalle IS 'Relaciona el movimiento contable con la cuenta afectada.';
+
+
+--
+-- Name: polizas_detalle fk_polizas_detalle_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas_detalle
+    ADD CONSTRAINT fk_polizas_detalle_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_polizas_detalle_empresa ON polizas_detalle; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_polizas_detalle_empresa ON contabilidad.polizas_detalle IS 'Relaciona el movimiento contable con su empresa.';
+
+
+--
+-- Name: polizas_detalle fk_polizas_detalle_poliza; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas_detalle
+    ADD CONSTRAINT fk_polizas_detalle_poliza FOREIGN KEY (poliza_id) REFERENCES contabilidad.polizas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: CONSTRAINT fk_polizas_detalle_poliza ON polizas_detalle; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_polizas_detalle_poliza ON contabilidad.polizas_detalle IS 'Relaciona el movimiento contable con su póliza y lo elimina si se borra la póliza.';
+
+
+--
+-- Name: polizas fk_polizas_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas
+    ADD CONSTRAINT fk_polizas_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_polizas_empresa ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_polizas_empresa ON contabilidad.polizas IS 'Relaciona la póliza con su empresa.';
+
+
+--
+-- Name: polizas fk_polizas_tipo; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.polizas
+    ADD CONSTRAINT fk_polizas_tipo FOREIGN KEY (tipo_poliza_id) REFERENCES contabilidad.tipos_poliza(id);
+
+
+--
+-- Name: CONSTRAINT fk_polizas_tipo ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_polizas_tipo ON contabilidad.polizas IS 'Relaciona la póliza con su tipo de póliza.';
+
+
+--
+-- Name: rangos_cuentas fk_rangos_cuentas_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.rangos_cuentas
+    ADD CONSTRAINT fk_rangos_cuentas_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_rangos_cuentas_empresa ON rangos_cuentas; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_rangos_cuentas_empresa ON contabilidad.rangos_cuentas IS 'Relaciona el rango de cuentas con su empresa.';
+
+
+--
+-- Name: tipos_poliza fk_tipos_poliza_empresa; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.tipos_poliza
+    ADD CONSTRAINT fk_tipos_poliza_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: CONSTRAINT fk_tipos_poliza_empresa ON tipos_poliza; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_tipos_poliza_empresa ON contabilidad.tipos_poliza IS 'Relaciona el tipo de póliza con su empresa.';
+
+
+--
 -- Name: catalogos catalogos_tipo_catalogo_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -11800,6 +15778,126 @@ ALTER TABLE ONLY core.catalogos
 
 ALTER TABLE ONLY core.catalogos_tipos
     ADD CONSTRAINT catalogos_tipos_entidad_tipo_id_fkey FOREIGN KEY (entidad_tipo_id) REFERENCES core.entidades_tipos(id);
+
+
+--
+-- Name: cfdi_sat_automatizacion cfdi_sat_automatizacion_actualizado_por_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_automatizacion
+    ADD CONSTRAINT cfdi_sat_automatizacion_actualizado_por_fkey FOREIGN KEY (actualizado_por) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: cfdi_sat_automatizacion cfdi_sat_automatizacion_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_automatizacion
+    ADD CONSTRAINT cfdi_sat_automatizacion_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: cfdi_sat_autorizaciones cfdi_sat_autorizaciones_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_autorizaciones
+    ADD CONSTRAINT cfdi_sat_autorizaciones_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: cfdi_sat_autorizaciones cfdi_sat_autorizaciones_usuario_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_autorizaciones
+    ADD CONSTRAINT cfdi_sat_autorizaciones_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: cfdi_sat_bitacora cfdi_sat_bitacora_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_bitacora
+    ADD CONSTRAINT cfdi_sat_bitacora_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: cfdi_sat_bitacora cfdi_sat_bitacora_usuario_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_bitacora
+    ADD CONSTRAINT cfdi_sat_bitacora_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: cfdi_sat_comprobantes cfdi_sat_comprobantes_documento_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_comprobantes
+    ADD CONSTRAINT cfdi_sat_comprobantes_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: cfdi_sat_comprobantes cfdi_sat_comprobantes_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_comprobantes
+    ADD CONSTRAINT cfdi_sat_comprobantes_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: cfdi_sat_comprobantes cfdi_sat_comprobantes_paquete_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_comprobantes
+    ADD CONSTRAINT cfdi_sat_comprobantes_paquete_id_fkey FOREIGN KEY (paquete_id) REFERENCES core.cfdi_sat_paquetes(id);
+
+
+--
+-- Name: cfdi_sat_comprobantes cfdi_sat_comprobantes_solicitud_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_comprobantes
+    ADD CONSTRAINT cfdi_sat_comprobantes_solicitud_id_fkey FOREIGN KEY (solicitud_id) REFERENCES core.cfdi_sat_solicitudes(id);
+
+
+--
+-- Name: cfdi_sat_credenciales cfdi_sat_credenciales_cargado_por_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_credenciales
+    ADD CONSTRAINT cfdi_sat_credenciales_cargado_por_fkey FOREIGN KEY (cargado_por) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: cfdi_sat_credenciales cfdi_sat_credenciales_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_credenciales
+    ADD CONSTRAINT cfdi_sat_credenciales_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: cfdi_sat_paquetes cfdi_sat_paquetes_solicitud_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_paquetes
+    ADD CONSTRAINT cfdi_sat_paquetes_solicitud_id_fkey FOREIGN KEY (solicitud_id) REFERENCES core.cfdi_sat_solicitudes(id);
+
+
+--
+-- Name: cfdi_sat_solicitudes cfdi_sat_solicitudes_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_solicitudes
+    ADD CONSTRAINT cfdi_sat_solicitudes_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: cfdi_sat_solicitudes cfdi_sat_solicitudes_usuario_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.cfdi_sat_solicitudes
+    ADD CONSTRAINT cfdi_sat_solicitudes_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
 
 
 --
@@ -12200,6 +16298,14 @@ ALTER TABLE ONLY crm.mensajes
 
 ALTER TABLE ONLY crm.mensajes
     ADD CONSTRAINT fk_mensajes_conversaciones FOREIGN KEY (conversacion_id) REFERENCES crm.conversaciones(id);
+
+
+--
+-- Name: mensajes mensajes_mensaje_respuesta_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensajes
+    ADD CONSTRAINT mensajes_mensaje_respuesta_id_fkey FOREIGN KEY (mensaje_respuesta_id) REFERENCES crm.mensajes(id);
 
 
 --
@@ -13070,5 +17176,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 0bIZzGRrWQiaVG6AkDiscTXvmf7Qo6c9bCRmWUbYymNnqWUfVgI8iCfPkMq2v4V
+\unrestrict 76eNPOXC5ZvHezKybEjgghCFo4XdKdPm3EfLfnYEjAzDDOMOHI9UDuegs9fl9sa
 

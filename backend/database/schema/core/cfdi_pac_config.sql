@@ -6,9 +6,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict apC7FjauT8oijifIuSQIciysOYciu3TKnBqqedFZUxDVQWD8GXzSTQndu1JaMvr
+\restrict ACwBBkYqbMArYdaHjMDPxRRhZGh3xAW3X32dpbbfNM6HiMdOhhXwfMjxlUXxeb9
 
--- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped from database version 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
@@ -98,5 +98,5 @@ CREATE UNIQUE INDEX ux_cfdi_pac_config_activo_modo ON core.cfdi_pac_config USING
 -- PostgreSQL database dump complete
 --
 
-\unrestrict apC7FjauT8oijifIuSQIciysOYciu3TKnBqqedFZUxDVQWD8GXzSTQndu1JaMvr
+\unrestrict ACwBBkYqbMArYdaHjMDPxRRhZGh3xAW3X32dpbbfNM6HiMdOhhXwfMjxlUXxeb9
 

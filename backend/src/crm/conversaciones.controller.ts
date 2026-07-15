@@ -592,6 +592,13 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
   }
 };
 
+// Escapa los comodines de LIKE/ILIKE ('%', '_') y el propio carácter de
+// escape ('\') para que el texto que escribe el usuario se trate siempre
+// como literal dentro del patrón `%...%`, nunca como wildcard.
+function escapeLikePattern(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
 function responderErrorWhatsapp(res: Response, info: WhatsappErrorInfo) {
   return res.status(info.httpStatus).json({
     success: false,
@@ -789,6 +796,43 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
         ? "(c.estado = 'finalizada' OR c.finalizada_en IS NOT NULL)"
         : "NOT (c.estado = 'finalizada' OR c.finalizada_en IS NOT NULL)"
     );
+
+    const searchParamRaw = req.query.search ?? req.query.q;
+    const searchParamValue = Array.isArray(searchParamRaw) ? searchParamRaw[0] : searchParamRaw;
+    const searchTerm = typeof searchParamValue === "string" ? searchParamValue.trim() : "";
+
+    if (searchTerm) {
+      params.push(`%${escapeLikePattern(searchTerm)}%`);
+      const textIdx = params.length;
+
+      // Además del texto libre, si el término trae dígitos utilizables como
+      // teléfono se compara contra el teléfono normalizado (solo dígitos y "+"),
+      // igual que hacía el filtro anterior en el frontend.
+      const phoneDigits = searchTerm.replace(/[^\d+]/g, "");
+      let phoneClause = "FALSE";
+      if (phoneDigits) {
+        params.push(`%${escapeLikePattern(phoneDigits)}%`);
+        const phoneIdx = params.length;
+        phoneClause = `regexp_replace(COALESCE(ct.telefono, lm.telefono, ''), '[^0-9+]', '', 'g') ILIKE $${phoneIdx} ESCAPE '\\'`;
+      }
+
+      // EXISTS (en vez de JOIN) para no multiplicar filas por conversación ni
+      // romper la paginación/orden actuales; empresa_id se repite dentro del
+      // EXISTS como aislamiento explícito por tenant, aunque conversacion_id
+      // ya pertenece a una sola empresa.
+      filters.push(`(
+        sat.unaccent(COALESCE(ct.nombre, '')) ILIKE sat.unaccent($${textIdx}) ESCAPE '\\'
+        OR ${phoneClause}
+        OR EXISTS (
+          SELECT 1
+          FROM crm.mensajes msg_buscar
+          WHERE msg_buscar.empresa_id = c.empresa_id
+            AND msg_buscar.conversacion_id = c.id
+            AND msg_buscar.contenido IS NOT NULL
+            AND sat.unaccent(msg_buscar.contenido) ILIKE sat.unaccent($${textIdx}) ESCAPE '\\'
+        )
+      )`);
+    }
 
     const result = await pool.query(
       `

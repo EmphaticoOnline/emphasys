@@ -6,9 +6,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6apd3OQ1KwlT86NMC5umFrcuzxPLP0hEckdOK6FfeTkqSma2uv6Q8maI1p2xckE
+\restrict ykb9zTYBhdzqEq4gaFJAFwtBesKKQ7ZlkUXhrAUAUCPLANvSWjzgj8ttg8zUe2D
 
--- Dumped from database version 14.22 (Ubuntu 14.22-0ubuntu0.22.04.1)
+-- Dumped from database version 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
@@ -266,5 +266,5 @@ ALTER TABLE ONLY core.campos_configuracion
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6apd3OQ1KwlT86NMC5umFrcuzxPLP0hEckdOK6FfeTkqSma2uv6Q8maI1p2xckE
+\unrestrict ykb9zTYBhdzqEq4gaFJAFwtBesKKQ7ZlkUXhrAUAUCPLANvSWjzgj8ttg8zUe2D
 

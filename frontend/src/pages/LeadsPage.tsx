@@ -44,6 +44,7 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SettingsIcon from '@mui/icons-material/Settings';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, buildAuthHeaders } from '../api/apiClient';
 import { useSession } from '../session/useSession';
@@ -310,14 +311,6 @@ function formatMinutes(min: number): string {
   const d = Math.floor(min / 1440);
   const h = Math.floor((min % 1440) / 60);
   return `${d}d ${h}h`;
-}
-
-function normalizeLeadSearchValue(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function normalizeLeadPhoneValue(value: string): string {
-  return normalizeLeadSearchValue(value).replace(/[^\d+]/g, '');
 }
 
 function renderStatusIcon(status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed') {
@@ -649,6 +642,7 @@ export default function LeadsPage() {
   const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
   const [opportunityFilter, setOpportunityFilter] = React.useState<OpportunityFilter>('todos');
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = React.useState('');
   const [vistaFinalizadas, setVistaFinalizadas] = React.useState(false);
   const [finalizarDialogOpen, setFinalizarDialogOpen] = React.useState(false);
   const [finalizarTargetLeadId, setFinalizarTargetLeadId] = React.useState<string | null>(null);
@@ -891,27 +885,20 @@ export default function LeadsPage() {
       }
     });
 
-    const normalizedSearchTerm = normalizeLeadSearchValue(searchTerm);
-    const normalizedPhoneSearchTerm = normalizeLeadPhoneValue(searchTerm);
-    const filteredBySearch = normalizedSearchTerm
-      ? filtered.filter((lead) => {
-          const nombre = normalizeLeadSearchValue(lead.name || '');
-          const telefono = normalizeLeadPhoneValue(lead.phone || '');
-          return nombre.includes(normalizedSearchTerm)
-            || (normalizedPhoneSearchTerm ? telefono.includes(normalizedPhoneSearchTerm) : false);
-        })
-      : filtered;
-
-    const sorted = [...filteredBySearch].sort(ordenarLeads);
+    // La búsqueda por nombre, teléfono y contenido de mensajes ya se resuelve
+    // en el backend (ver `search` en loadConversations), por lo que `leads`
+    // aquí ya viene acotado al término buscado; no se vuelve a filtrar en el
+    // cliente para no tener dos implementaciones del mismo filtro.
+    const sorted = [...filtered].sort(ordenarLeads);
     console.log('[leads filtrados/ordenados]', {
       filtro: leadFilter,
       filtroOportunidad: opportunityFilter,
-      searchTerm: normalizedSearchTerm,
+      searchTerm: debouncedSearchTerm,
       total: sorted.length,
       ids: sorted.map((l) => l.id),
     });
     return sorted;
-  }, [leadFilter, leadsConPrioridad, opportunityFilter, searchTerm]);
+  }, [debouncedSearchTerm, leadFilter, leadsConPrioridad, opportunityFilter]);
 
   React.useEffect(() => {
     console.log('[LeadsPage] leadsConPrioridad updated', {
@@ -1027,6 +1014,9 @@ export default function LeadsPage() {
       }
       if (vistaFinalizadas) {
         params.set('estado', 'finalizada');
+      }
+      if (debouncedSearchTerm) {
+        params.set('search', debouncedSearchTerm);
       }
 
       const queryString = params.toString();
@@ -1168,7 +1158,7 @@ export default function LeadsPage() {
         isFilterTransitionRef.current = false;
       }
     }
-  }, [buildLeadFromConversation, isAdmin, leadScope, reglasSeguimiento, selectedLeadId, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas]);
+  }, [buildLeadFromConversation, debouncedSearchTerm, isAdmin, leadScope, reglasSeguimiento, selectedLeadId, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas]);
 
   const loadMessages = React.useCallback(async (
     conversationId: string,
@@ -1377,12 +1367,19 @@ export default function LeadsPage() {
   }, [reglasSeguimiento]);
 
   React.useEffect(() => {
+    const handler = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 300);
+    return () => window.clearTimeout(handler);
+  }, [searchTerm]);
+
+  React.useEffect(() => {
     console.log('[LeadsPage] useEffect(loadConversations) init');
     lastConversationsFetchRef.current = null;
     isFilterTransitionRef.current = true;
     setSelectedLeadId('');
     loadConversations();
-  }, [leadScope, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas]);
+  }, [leadScope, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas, debouncedSearchTerm]);
 
   React.useEffect(() => {
     if (!session.token || !session.empresaActivaId) return;
@@ -2781,6 +2778,16 @@ export default function LeadsPage() {
           Leads
         </Typography>
         <Chip label="MVP operativo" color="primary" variant="outlined" />
+        <Tooltip title="Guía de ayuda">
+          <IconButton
+            aria-label="Abrir guía de ayuda"
+            size="small"
+            onClick={() => window.open('/docs/guia-leads.html', '_blank')}
+            sx={{ color: '#64748b' }}
+          >
+            <HelpOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Stack>
 
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -2819,7 +2826,7 @@ export default function LeadsPage() {
 
           <TextField
             size="small"
-            placeholder="Buscar nombre o teléfono"
+            placeholder="Buscar por nombre, teléfono o mensajes"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             fullWidth
