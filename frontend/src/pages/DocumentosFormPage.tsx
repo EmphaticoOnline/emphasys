@@ -3525,7 +3525,7 @@ export default function DocumentosFormPage({
       {isMobile ? (
         <MobileSaveFab
           loading={saving}
-          disabled={saving || loading || tieneDerivadosActivos || trazabilidadActiva}
+          disabled={saving || loading || tieneDerivadosActivos}
           onClick={handleSave}
         />
       ) : (
@@ -3533,7 +3533,7 @@ export default function DocumentosFormPage({
           onBack={() => void handleNavigateBack()}
           onSave={handleSave}
           saving={saving}
-          saveDisabled={saving || loading || tieneDerivadosActivos || trazabilidadActiva}
+          saveDisabled={saving || loading || tieneDerivadosActivos}
           bottomOffset={mostrarResumenFinancieroStickyVisible ? 96 : 24}
         />
       )}
@@ -3608,7 +3608,7 @@ export default function DocumentosFormPage({
               </strong>.
             </>
           ) : null}
-          {' '}Si necesita realizar cambios, elimine este documento (si continúa en borrador) y vuelva a generarlo desde el documento origen. Este documento puede consultarse, pero no modificarse.
+          {' '}Si necesita realizar cambios en cantidades, precios, partidas u otros datos heredados, elimine este documento (si continúa en borrador) y vuelva a generarlo desde el documento origen. Solo las observaciones y la imagen de las partidas pueden editarse directamente aquí.
         </Alert>
       )}
 
@@ -3840,7 +3840,6 @@ export default function DocumentosFormPage({
                         label="Referencia / observaciones"
                         value={form.observaciones || ''}
                         onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
-                        disabled={trazabilidadActiva}
                         sx={campoEncabezadoSx}
                       />
                     </Grid>
@@ -4199,7 +4198,6 @@ export default function DocumentosFormPage({
                       label="Observaciones"
                       value={form.observaciones || ''}
                       onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
-                      disabled={trazabilidadActiva}
                     />
                   </Grid>
                 )}
@@ -5577,7 +5575,7 @@ export default function DocumentosFormPage({
                                     size="small"
                                     aria-label="Imagen de partida"
                                     onClick={() => abrirImagenDialog(index)}
-                                    disabled={Boolean(uploadingImagen[index]) || trazabilidadActiva}
+                                    disabled={Boolean(uploadingImagen[index])}
                                     sx={{
                                       color: partida.archivo_imagen_1
                                         ? '#2e7d32'
@@ -5601,7 +5599,7 @@ export default function DocumentosFormPage({
                                       size="small"
                                       aria-label="Eliminar imagen de partida"
                                       onClick={() => handleImagenRemove(index)}
-                                      disabled={Boolean(uploadingImagen[index]) || trazabilidadActiva}
+                                      disabled={Boolean(uploadingImagen[index])}
                                       color="error"
                                     >
                                       <DeleteIcon fontSize="small" />
@@ -5709,7 +5707,7 @@ export default function DocumentosFormPage({
                             abrirImagenDialog(targetIndex);
                           }
                         }}
-                        disabled={Boolean(uploadingImagen[mobilePartidaMenuIndex]) || trazabilidadActiva}
+                        disabled={Boolean(uploadingImagen[mobilePartidaMenuIndex])}
                       >
                         {partidas[mobilePartidaMenuIndex]?.archivo_imagen_1
                           ? 'Cambiar imagen'
@@ -5727,7 +5725,7 @@ export default function DocumentosFormPage({
                             handleImagenRemove(targetIndex);
                           }
                         }}
-                        disabled={Boolean(uploadingImagen[mobilePartidaMenuIndex]) || trazabilidadActiva}
+                        disabled={Boolean(uploadingImagen[mobilePartidaMenuIndex])}
                       >
                         Eliminar imagen
                       </MenuItem>

@@ -156,7 +156,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       accionesDisponibles: ['aplicar_pago', 'timbrar', 'enviar_email', 'enviar_whatsapp'],
     },
     partidas: {
-      mostrarImagenes: false,
+      mostrarImagenes: true,
       mostrarEsParteOportunidad: false,
       mostrarMontoOportunidad: false,
     },

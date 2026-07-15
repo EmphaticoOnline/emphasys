@@ -15,9 +15,15 @@ import {
 } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import type { ConfiguracionContableInput } from '../../types/contabilidad';
-import { fetchConfiguracionContable, actualizarConfiguracionContable } from '../../services/contabilidadService';
+import {
+  fetchConfiguracionContable,
+  actualizarConfiguracionContable,
+  fetchConfiguracionTiposAutomaticos,
+  actualizarConfiguracionTiposAutomaticos,
+} from '../../services/contabilidadService';
 import { fetchTiposPoliza } from '../../services/tiposPolizaService';
 import type { TipoPoliza } from '../../types/tiposPoliza';
+import { SECCIONES_TIPOS_AUTOMATICOS, type ClaveMovimientoTipoAutomatico } from '../../types/tiposAutomaticos';
 import ConfiguracionCuentasContablesView from './ConfiguracionCuentasContablesView';
 
 const BRAND = '#1d2f68';
@@ -195,22 +201,14 @@ function CuentasAutomaticasSection() {
   );
 }
 
-interface TiposAutomaticosFormState {
-  tipo_poliza_venta_factura_id: string;
-  tipo_poliza_venta_cancelacion_id: string;
-}
-
-const emptyTiposAutomaticosForm: TiposAutomaticosFormState = {
-  tipo_poliza_venta_factura_id: '',
-  tipo_poliza_venta_cancelacion_id: '',
-};
+type TiposAutomaticosFormState = Partial<Record<ClaveMovimientoTipoAutomatico, string>>;
 
 function TiposAutomaticosSection() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [tiposPoliza, setTiposPoliza] = React.useState<TipoPoliza[]>([]);
-  const [form, setForm] = React.useState<TiposAutomaticosFormState>(emptyTiposAutomaticosForm);
+  const [form, setForm] = React.useState<TiposAutomaticosFormState>({});
   const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
@@ -218,16 +216,16 @@ function TiposAutomaticosSection() {
   const loadDatos = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [configuracion, tipos] = await Promise.all([fetchConfiguracionContable(), fetchTiposPoliza(true)]);
+      const [configuraciones, tipos] = await Promise.all([
+        fetchConfiguracionTiposAutomaticos(),
+        fetchTiposPoliza(true),
+      ]);
       setTiposPoliza(tipos);
-      setForm({
-        tipo_poliza_venta_factura_id:
-          configuracion.tipo_poliza_venta_factura_id != null ? String(configuracion.tipo_poliza_venta_factura_id) : '',
-        tipo_poliza_venta_cancelacion_id:
-          configuracion.tipo_poliza_venta_cancelacion_id != null
-            ? String(configuracion.tipo_poliza_venta_cancelacion_id)
-            : '',
-      });
+      const siguiente: TiposAutomaticosFormState = {};
+      for (const item of configuraciones) {
+        siguiente[item.clave_movimiento] = item.tipo_poliza_id != null ? String(item.tipo_poliza_id) : '';
+      }
+      setForm(siguiente);
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'No se pudo cargar la configuración de tipos automáticos');
@@ -240,19 +238,21 @@ function TiposAutomaticosSection() {
     void loadDatos();
   }, [loadDatos]);
 
+  const handleChangeClave = (clave: ClaveMovimientoTipoAutomatico, value: string) => {
+    setForm((prev) => ({ ...prev, [clave]: value }));
+  };
+
   const handleSave = async () => {
-    const payload: ConfiguracionContableInput = {
-      tipo_poliza_venta_factura_id: form.tipo_poliza_venta_factura_id
-        ? Number(form.tipo_poliza_venta_factura_id)
-        : null,
-      tipo_poliza_venta_cancelacion_id: form.tipo_poliza_venta_cancelacion_id
-        ? Number(form.tipo_poliza_venta_cancelacion_id)
-        : null,
-    };
+    const items = SECCIONES_TIPOS_AUTOMATICOS.flatMap((seccion) =>
+      seccion.campos.map((campo) => ({
+        clave_movimiento: campo.clave,
+        tipo_poliza_id: form[campo.clave] ? Number(form[campo.clave]) : null,
+      }))
+    );
 
     try {
       setSaving(true);
-      await actualizarConfiguracionContable(payload);
+      await actualizarConfiguracionTiposAutomaticos(items);
       setSnackbar({ open: true, message: 'Configuración de tipos automáticos guardada', severity: 'success' });
       await loadDatos();
     } catch (err: any) {
@@ -267,89 +267,114 @@ function TiposAutomaticosSection() {
   };
 
   return (
-    <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.5 }}>
-      <Paper sx={{ p: 3, maxWidth: 560 }}>
-        <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>
-          Tipos automáticos
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Define qué tipo de póliza debe usar el motor de contabilización automática, para que ya no se pregunte en
-          cada operación.
-        </Typography>
+    <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 2, pb: 9 }}>
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 0.25 }}>
+        Tipos automáticos
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Define qué tipo de póliza debe usar el motor de contabilización automática en cada operación, para que ya no
+        se pregunte cada vez. Puedes dejar campos sin configurar; el motor avisará si le hace falta uno al momento de
+        contabilizar.
+      </Typography>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
-        <Typography variant="subtitle2" fontWeight={700} color={BRAND} sx={{ mb: 1.5 }}>
-          Ventas
-        </Typography>
+      {tiposPoliza.length === 0 && !loading && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          No hay tipos de póliza activos. Créalos primero en la pestaña "Tipos de póliza".
+        </Alert>
+      )}
 
-        <Stack spacing={2}>
-          <Stack spacing={0.5}>
-            <Typography variant="body2">Factura de venta</Typography>
-            <Select
-              size="small"
-              displayEmpty
-              value={form.tipo_poliza_venta_factura_id}
-              disabled={loading}
-              onChange={(e) => setForm((prev) => ({ ...prev, tipo_poliza_venta_factura_id: e.target.value }))}
-            >
-              <MenuItem value="">
-                <em>Sin configurar</em>
-              </MenuItem>
-              {tiposPoliza.map((tipo) => (
-                <MenuItem key={tipo.id} value={String(tipo.id)}>
-                  {tipo.identificador}
-                </MenuItem>
-              ))}
-            </Select>
-            <Typography variant="caption" color="text.secondary">
-              Tipo de póliza usado al contabilizar la emisión de una factura de venta, individual o en lote.
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+          gap: 1.5,
+          alignItems: 'start',
+        }}
+      >
+        {SECCIONES_TIPOS_AUTOMATICOS.map((seccion) => (
+          <Paper key={seccion.titulo} variant="outlined" sx={{ p: 1.5 }}>
+            <Typography variant="subtitle2" fontWeight={700} color={BRAND} sx={{ fontSize: 13, mb: seccion.descripcion ? 0.25 : 0.75 }}>
+              {seccion.titulo}
             </Typography>
-          </Stack>
+            {seccion.descripcion && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                {seccion.descripcion}
+              </Typography>
+            )}
 
-          <Stack spacing={0.5}>
-            <Typography variant="body2">Cancelación de factura de venta</Typography>
-            <Select
-              size="small"
-              displayEmpty
-              value={form.tipo_poliza_venta_cancelacion_id}
-              disabled={loading}
-              onChange={(e) => setForm((prev) => ({ ...prev, tipo_poliza_venta_cancelacion_id: e.target.value }))}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 168px',
+                columnGap: 1,
+                rowGap: 0.5,
+                alignItems: 'center',
+              }}
             >
-              <MenuItem value="">
-                <em>Sin configurar</em>
-              </MenuItem>
-              {tiposPoliza.map((tipo) => (
-                <MenuItem key={tipo.id} value={String(tipo.id)}>
-                  {tipo.identificador}
-                </MenuItem>
+              {seccion.campos.map((campo) => (
+                <React.Fragment key={campo.clave}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontSize: campo.esCancelacion ? 12 : 13,
+                      color: campo.esCancelacion ? 'text.secondary' : 'text.primary',
+                      pl: campo.esCancelacion ? 1.25 : 0,
+                    }}
+                  >
+                    {campo.etiqueta}
+                  </Typography>
+                  <Select
+                    size="small"
+                    displayEmpty
+                    value={form[campo.clave] ?? ''}
+                    disabled={loading}
+                    onChange={(e) => handleChangeClave(campo.clave, e.target.value)}
+                    sx={{ fontSize: 12.5, '& .MuiSelect-select': { py: 0.5 } }}
+                  >
+                    <MenuItem value="">
+                      <em>Sin configurar</em>
+                    </MenuItem>
+                    {tiposPoliza.map((tipo) => (
+                      <MenuItem key={tipo.id} value={String(tipo.id)}>
+                        {tipo.identificador}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </React.Fragment>
               ))}
-            </Select>
-            <Typography variant="caption" color="text.secondary">
-              Tipo de póliza usado al generar la reversa por cancelación de una factura de venta ya contabilizada.
-            </Typography>
-          </Stack>
+            </Box>
+          </Paper>
+        ))}
+      </Box>
 
-          {tiposPoliza.length === 0 && !loading && (
-            <Alert severity="info">No hay tipos de póliza activos. Créalos primero en la pestaña "Tipos de póliza".</Alert>
-          )}
-
-          <Box>
-            <Button
-              onClick={handleSave}
-              disabled={saving || loading}
-              variant="contained"
-              sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
-            >
-              {saving ? 'Guardando...' : 'Guardar'}
-            </Button>
-          </Box>
-        </Stack>
-      </Paper>
+      <Box
+        sx={{
+          position: 'sticky',
+          bottom: 0,
+          display: 'flex',
+          justifyContent: 'flex-end',
+          py: 1.5,
+          mt: 2,
+          bgcolor: 'background.paper',
+          borderTop: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Button
+          onClick={handleSave}
+          disabled={saving || loading}
+          variant="contained"
+          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+        >
+          {saving ? 'Guardando...' : 'Guardar'}
+        </Button>
+      </Box>
 
       <Snackbar
         open={snackbar.open}

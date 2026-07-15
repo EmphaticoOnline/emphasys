@@ -4,6 +4,7 @@ import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   Divider,
   Dialog,
   DialogActions,
@@ -33,6 +34,7 @@ import { TransferenciaDialog } from './TransferenciaDialog';
 import { ConciliacionDialog } from './ConciliacionDialog';
 import { NuevaCuentaDialog } from './NuevaCuentaDialog';
 import { OperacionDetalleDrawer } from './OperacionDetalleDrawer';
+import { useSession } from '../../session/useSession';
 import type { FinanzasCuenta, FinanzasOperacion, TransferenciaUpdatePayload } from '../../types/finanzas';
 import {
   actualizarCuenta,
@@ -41,10 +43,13 @@ import {
   eliminarTransferencia,
   fetchCuentas,
   fetchOperaciones,
+  recalcularSaldos,
 } from '../../services/finanzasService';
 
 export function FinanzasPage() {
   const navigate = useNavigate();
+  const { session } = useSession();
+  const esAdmin = Boolean(session.user?.es_superadmin);
   const [cuentas, setCuentas] = useState<FinanzasCuenta[]>([]);
   const [selectedCuentaId, setSelectedCuentaId] = useState<number | null>(null);
   const [operaciones, setOperaciones] = useState<FinanzasOperacion[]>([]);
@@ -66,6 +71,8 @@ export function FinanzasPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; operacion: FinanzasOperacion | null }>({ open: false, operacion: null });
   const [detalleOperacionId, setDetalleOperacionId] = useState<number | null>(null);
   const [detalleOpen, setDetalleOpen] = useState(false);
+  const [recalcularDialogOpen, setRecalcularDialogOpen] = useState(false);
+  const [recalculando, setRecalculando] = useState(false);
 
   const selectedCuenta = useMemo(() => cuentas.find((c) => c.id === selectedCuentaId) || null, [cuentas, selectedCuentaId]);
 
@@ -176,6 +183,28 @@ export function FinanzasPage() {
     setSnackbar({ open: true, message: 'Conciliación guardada', severity: 'success' });
   };
 
+  const handleRecalcularSaldos = async () => {
+    if (recalculando) return;
+    setRecalculando(true);
+    try {
+      const resultado = await recalcularSaldos();
+      setRecalcularDialogOpen(false);
+      // loadCuentas conserva selectedCuentaId si la cuenta sigue existiendo (ver arriba).
+      await loadCuentas();
+      await loadOperaciones(selectedCuentaId);
+      setSnackbar({
+        open: true,
+        message: `Saldos recalculados correctamente. Se procesaron ${resultado.cuentas_procesadas} cuentas y ${resultado.operaciones_procesadas} operaciones.`,
+        severity: 'success',
+      });
+    } catch (err: any) {
+      // Dejamos el diálogo abierto: el proceso no terminó, no debe aparentar éxito.
+      setSnackbar({ open: true, message: err?.message || 'No se pudieron recalcular los saldos', severity: 'error' });
+    } finally {
+      setRecalculando(false);
+    }
+  };
+
   return (
     <Box sx={{ width: '100%', px: { xs: 2, md: 2 }, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
@@ -265,6 +294,7 @@ export function FinanzasPage() {
           onEdit={handleEditarCuenta}
           onDelete={handleDeleteCuenta}
           loading={loadingCuentas}
+          onRecalcularSaldos={esAdmin ? () => setRecalcularDialogOpen(true) : undefined}
         />
 
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -327,7 +357,6 @@ export function FinanzasPage() {
             <MovimientosTable
               operaciones={operaciones}
               loading={loadingOps}
-              initialBalance={selectedCuenta?.saldo_inicial || 0}
               moneda={selectedCuenta?.moneda || 'MXN'}
               onEdit={(op) => setOperacionDialog({ open: true, operacion: op })}
               onDelete={requestDeleteOperacion}
@@ -422,6 +451,38 @@ export function FinanzasPage() {
             sx={{ textTransform: 'none', borderRadius: 999 }}
           >
             Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={recalcularDialogOpen}
+        onClose={() => {
+          if (!recalculando) setRecalcularDialogOpen(false);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 1 }}>Recalcular saldos de Finanzas</DialogTitle>
+        <DialogContent sx={{ pb: 0 }}>
+          <Typography variant="body2" color="text.secondary">
+            Esta operación volverá a calcular el saldo histórico de todas las operaciones financieras y el saldo
+            actual de cada cuenta, tomando como base el saldo inicial y los movimientos registrados. No se
+            eliminarán operaciones. ¿Deseas continuar?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
+          <Button onClick={() => setRecalcularDialogOpen(false)} disabled={recalculando} sx={{ textTransform: 'none' }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleRecalcularSaldos}
+            disabled={recalculando}
+            startIcon={recalculando ? <CircularProgress size={16} color="inherit" /> : undefined}
+            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+          >
+            Recalcular
           </Button>
         </DialogActions>
       </Dialog>

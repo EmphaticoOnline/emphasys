@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
+import { generarPdfPreviewSiFalta } from "../../services/pdfPreviewImage.service";
 
 if (ffmpegPath) {
   ffmpeg.setFfmpegPath(ffmpegPath);
@@ -65,5 +66,13 @@ export async function subirImagen(req: Request, res: Response) {
   }
 
   const url = `${resolvedBaseUrl.replace(/\/$/, "")}/uploads/${filename}`;
+
+  if (req.file.mimetype?.startsWith("image/")) {
+    // Síncrono y best-effort: si Sharp falla aquí, la subida del original
+    // igual se considera exitosa; la primera impresión que use esta imagen
+    // generará la versión optimizada de forma perezosa.
+    await generarPdfPreviewSiFalta(url);
+  }
+
   return res.status(201).json({ url });
 }

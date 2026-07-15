@@ -1,5 +1,5 @@
 import pool from '../../config/database';
-import { agregarPartidaRepository, reemplazarPartidasRepository, type PartidaInput } from './documentos.repository';
+import { agregarPartidaRepository, obtenerTrazabilidadPartidas, reemplazarPartidasRepository, type PartidaInput } from './documentos.repository';
 import { calcularImpuestosPartida } from '../impuestos/impuestos.service';
 import { actualizarTotales } from './documentos.service';
 
@@ -39,6 +39,16 @@ export async function reemplazarPartidasService(
     await client.query('BEGIN');
   const inserted = await reemplazarPartidasRepository(documentoId, partidas, empresaId, client);
   console.log('[BACK IVA DEBUG] reemplazarPartidasService inserted', inserted?.map((p) => ({ id: p?.id, producto_id: p?.producto_id, subtotal: p?.subtotal_partida, total: p?.total_partida })));
+
+    // Con trazabilidad activa, reemplazarPartidasRepository solo actualizó la imagen de
+    // cada partida in-place (cantidad, precio, descuento e importes quedaron intactos).
+    // Recalcular impuestos/totales aquí sería un cambio indirecto sobre datos protegidos,
+    // así que se omite por completo.
+    const trazabilidadPartidas = await obtenerTrazabilidadPartidas(documentoId, client);
+    if (trazabilidadPartidas.activa) {
+      await client.query('COMMIT');
+      return inserted;
+    }
 
     // Recuperar tratamiento del documento para decidir el flujo de impuestos
     const { rows: docRows } = await client.query(

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireEmpresaActiva } from '../auth/auth.middleware';
+import { requireAuth, requireEmpresaActiva, requireSuperadmin } from '../auth/auth.middleware';
 import {
   deleteAplicacion,
   deleteCuenta,
@@ -29,6 +29,7 @@ import {
   getMetodosPago,
   postMetodoPago,
   putMetodoPago,
+  postRecalcularSaldos,
   getFacturasCompraPendientes,
   getProgramacionesPago,
   postProgramacionPago,
@@ -79,6 +80,9 @@ router.delete('/aplicaciones/:id', deleteAplicacion);
 // Endpoints de diagnóstico (solo lectura, no modifican datos)
 router.get('/diagnostico/saldos', getVerificacionSaldos);
 router.get('/diagnostico/duplicados-aplicaciones', getDiagnosticoDuplicados);
+
+// Herramienta de mantenimiento: reconstruye saldo histórico y actual. Sólo superadmin.
+router.post('/recalcular-saldos', requireSuperadmin, postRecalcularSaldos);
 
 // Catálogo de métodos de pago operativos
 router.get('/metodos-pago',     getMetodosPago);

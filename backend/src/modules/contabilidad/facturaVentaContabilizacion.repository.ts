@@ -1,6 +1,7 @@
 import pool from '../../config/database';
 import { resolverCuentaContable, type CuentaResuelta } from './configuracionCuentasContables.repository';
 import { obtenerOCrearConfiguracion } from './configuracion.repository';
+import { obtenerTipoPolizaAutomatico } from './configuracionTiposAutomaticos.repository';
 import {
   crearPolizaConMovimientos,
   obtenerPolizaPorId,
@@ -133,12 +134,18 @@ const MENSAJES_TIPO_POLIZA_FALTANTE: Record<FinalidadTipoPolizaVenta, string> = 
   cancelacion: 'No está configurado el tipo de póliza para cancelaciones de factura de venta.',
 };
 
+const CLAVE_MOVIMIENTO_POR_FINALIDAD: Record<FinalidadTipoPolizaVenta, 'venta_factura' | 'venta_factura_cancelacion'> = {
+  factura: 'venta_factura',
+  cancelacion: 'venta_factura_cancelacion',
+};
+
 // El tipo de póliza ya no se pregunta en cada operación: se resuelve desde
-// contabilidad.configuracion (tipo_poliza_venta_factura_id /
-// tipo_poliza_venta_cancelacion_id). Un tipo_poliza_id explícito (endpoint
-// llamado directamente, o UI antigua) sigue funcionando como override, para
-// no romper integraciones existentes, pero el flujo principal de la UI ya no
-// lo envía.
+// contabilidad.configuracion_tipos_automaticos (clave venta_factura /
+// venta_factura_cancelacion), vía el helper centralizado
+// obtenerTipoPolizaAutomatico. Un tipo_poliza_id explícito (endpoint llamado
+// directamente, o UI antigua) sigue funcionando como override, para no
+// romper integraciones existentes, pero el flujo principal de la UI ya no lo
+// envía.
 async function resolverTipoPolizaVenta(
   empresaId: number,
   finalidad: FinalidadTipoPolizaVenta,
@@ -146,11 +153,7 @@ async function resolverTipoPolizaVenta(
 ): Promise<number> {
   if (tipoPolizaIdExplicito != null) return Number(tipoPolizaIdExplicito);
 
-  const configuracion = await obtenerOCrearConfiguracion(empresaId);
-  const configurado =
-    finalidad === 'factura'
-      ? configuracion.tipo_poliza_venta_factura_id
-      : configuracion.tipo_poliza_venta_cancelacion_id;
+  const configurado = await obtenerTipoPolizaAutomatico(empresaId, CLAVE_MOVIMIENTO_POR_FINALIDAD[finalidad]);
 
   if (configurado == null) {
     throw new Error(`VALIDATION_ERROR: ${MENSAJES_TIPO_POLIZA_FALTANTE[finalidad]}`);
@@ -506,7 +509,7 @@ export async function previsualizarFacturaVenta(empresaId: number, documentoId: 
 
 export type ContabilizarFacturaVentaInput = {
   // Override manual opcional; el flujo normal de UI ya no lo envía y deja
-  // que se resuelva desde contabilidad.configuracion.tipo_poliza_venta_factura_id.
+  // que se resuelva desde contabilidad.configuracion_tipos_automaticos (clave venta_factura).
   tipo_poliza_id?: number | null;
   usuario_id?: number | null;
   modo_contabilizacion?: ModoContabilizacion;

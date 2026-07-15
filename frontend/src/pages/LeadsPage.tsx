@@ -604,10 +604,16 @@ export default function LeadsPage() {
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [quickReply, setQuickReply] = React.useState('');
   const [replyingTo, setReplyingTo] = React.useState<ReplyPreview | null>(null);
-  const [uploadPreviewUrl, setUploadPreviewUrl] = React.useState<string | null>(null);
+  // Archivo local pendiente (seleccionado, pegado o grabado) que todavía no
+  // se ha subido al servidor: solo viaja a /api/uploads cuando el usuario
+  // presiona enviar. pendingAttachmentPreviewUrl es la URL blob: local usada
+  // únicamente para previsualizar imágenes (nunca una URL remota).
+  const [pendingAttachmentFile, setPendingAttachmentFile] = React.useState<File | null>(null);
+  const [pendingAttachmentPreviewUrl, setPendingAttachmentPreviewUrl] = React.useState<string | null>(null);
   const [uploadFileType, setUploadFileType] = React.useState<'image' | 'document' | 'audio' | null>(null);
   const [uploadFileName, setUploadFileName] = React.useState<string | null>(null);
   const [isRecording, setIsRecording] = React.useState(false);
+  // URL blob: local del audio grabado, para reproducir la vista previa antes de subirlo.
   const [recordedAudioUrl, setRecordedAudioUrl] = React.useState<string | null>(null);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
   const audioChunksRef = React.useRef<Blob[]>([]);
@@ -719,6 +725,26 @@ export default function LeadsPage() {
     conversations: conversations.length,
     selectedLeadId,
   });
+
+  // Libera la URL blob: de la vista previa de imagen al reemplazarla y al
+  // desmontar el componente (p. ej. si el usuario navega fuera con un
+  // adjunto pendiente sin enviar).
+  React.useEffect(() => {
+    return () => {
+      if (pendingAttachmentPreviewUrl) {
+        URL.revokeObjectURL(pendingAttachmentPreviewUrl);
+      }
+    };
+  }, [pendingAttachmentPreviewUrl]);
+
+  // Mismo criterio para la vista previa del audio grabado.
+  React.useEffect(() => {
+    return () => {
+      if (recordedAudioUrl) {
+        URL.revokeObjectURL(recordedAudioUrl);
+      }
+    };
+  }, [recordedAudioUrl]);
 
   React.useEffect(() => {
     if (!session.token || !session.empresaActivaId) return undefined;
@@ -1975,11 +2001,9 @@ export default function LeadsPage() {
       updateMessageStatus(leadId, tempId, 'sent');
       setQuickReply('');
       setReplyingTo(null);
-      setUploadPreviewUrl(null);
-      setUploadFileType(null);
-      setUploadFileName(null);
-      setRecordedAudioUrl(null);
+      clearPendingAttachment();
       setUploadError(null);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
       setSendSuccess(true);
       setTimeout(() => setSendSuccess(false), 2000);
 
@@ -2009,12 +2033,33 @@ export default function LeadsPage() {
     }
 
     const trimmedMessage = quickReply.trim();
-    const fileUrl = uploadPreviewUrl?.trim() || null;
+    const attachmentFile = pendingAttachmentFile;
     const fileType = uploadFileType;
 
-    if (!trimmedMessage && !fileUrl && !recordedAudioUrl) {
+    if (!trimmedMessage && !attachmentFile) {
       focusReplyInput();
       return;
+    }
+
+    // El archivo (imagen, documento o audio grabado) solo se sube en este
+    // punto, justo antes de enviar el mensaje. Si la subida falla, no se
+    // arma ni se envía el mensaje: el texto y el adjunto local permanecen
+    // intactos para que el usuario pueda reintentar.
+    let fileUrl: string | null = null;
+    if (attachmentFile) {
+      setIsSending(true);
+      setIsUploadingImage(true);
+      setUploadError(null);
+      try {
+        fileUrl = await uploadAttachmentFile(attachmentFile);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error inesperado al subir el archivo.';
+        setUploadError(message);
+        setIsUploadingImage(false);
+        setIsSending(false);
+        return;
+      }
+      setIsUploadingImage(false);
     }
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -2022,17 +2067,6 @@ export default function LeadsPage() {
     const isDocumentMessage = fileType === 'document';
     const isAudioMessage = fileType === 'audio';
     const nowIso = new Date().toISOString();
-
-    console.log('[WhatsApp Send] Payload debug', {
-      telefono: selectedLead.phone,
-      message: trimmedMessage,
-      fileUrl,
-      fileType,
-      recordedAudioUrl,
-      isImageMessage,
-      isDocumentMessage,
-      isAudioMessage,
-    });
 
     const requestBody: Record<string, unknown> = {
       ...(fileUrl && isImageMessage
@@ -2141,75 +2175,28 @@ export default function LeadsPage() {
       };
 
       recorder.onstop = () => {
+        // El audio grabado se queda en memoria como File pendiente; la
+        // subida a /api/uploads solo ocurre al presionar enviar, igual que
+        // con imágenes y documentos.
+        clearPendingAttachment();
+
         const blob = new Blob(audioChunksRef.current, { type: preferredMimeType });
         const previewUrl = URL.createObjectURL(blob);
+        const extension = preferredMimeType.includes('ogg')
+          ? 'ogg'
+          : preferredMimeType.includes('mpeg')
+            ? 'mp3'
+            : 'webm';
+        const filename = `audio-${Date.now()}.${extension}`;
+        const audioFile = new File([blob], filename, { type: preferredMimeType });
+
+        setUploadError(null);
+        setPendingAttachmentFile(audioFile);
+        setUploadFileType('audio');
+        setUploadFileName(filename);
         setRecordedAudioUrl(previewUrl);
         setIsRecording(false);
         stream.getTracks().forEach((track) => track.stop());
-
-        void (async () => {
-          setUploadError(null);
-          setUploadFileType('audio');
-          setIsUploadingImage(true);
-
-          try {
-            const formData = new FormData();
-            const extension = preferredMimeType.includes('ogg')
-              ? 'ogg'
-              : preferredMimeType.includes('mpeg')
-                ? 'mp3'
-                : 'webm';
-            const filename = `audio-${Date.now()}.${extension}`;
-            const audioFile = new File([blob], filename, { type: preferredMimeType });
-            formData.append('file', audioFile);
-
-            const headers = buildAuthHeaders();
-            const uploadUrl = buildApiUrl('/api/uploads');
-            console.log('[Audio Upload] Iniciando', {
-              uploadUrl,
-              filename,
-              type: audioFile.type,
-              size: audioFile.size,
-            });
-            const response = await fetch(buildApiUrl('/api/uploads'), {
-              method: 'POST',
-              headers,
-              body: formData,
-            });
-
-            console.log('[Audio Upload] Respuesta', {
-              status: response.status,
-              ok: response.ok,
-            });
-
-            if (!response.ok) {
-              let message = 'No se pudo subir el audio.';
-              try {
-                const data = await response.json();
-                if (data?.message) message = String(data.message);
-              } catch {
-                // ignore parse errors
-              }
-              throw new Error(message);
-            }
-
-            const data = await response.json();
-            if (!data?.url) {
-              throw new Error('La respuesta del servidor no incluye la URL.');
-            }
-
-            setUploadPreviewUrl(String(data.url));
-            setUploadFileType('audio');
-          } catch (error) {
-            console.error('[Audio Upload] Error', error);
-            const message = error instanceof Error ? error.message : 'Error inesperado al subir audio.';
-            setUploadError(message);
-            setUploadPreviewUrl(null);
-            setUploadFileType(null);
-          } finally {
-            setIsUploadingImage(false);
-          }
-        })();
       };
 
       recorder.start();
@@ -2221,71 +2208,131 @@ export default function LeadsPage() {
     }
   };
 
-  const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const ALLOWED_ATTACHMENT_MIME_TYPES = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+    'application/pdf',
+  ];
 
-    const allowedTypes = [
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/webp',
-      'application/pdf',
-    ];
-    if (!allowedTypes.includes(file.type)) {
+  // Limpia únicamente el estado local del adjunto pendiente (archivo, sus
+  // previews blob: y el nombre/tipo asociados). No toca quickReply ni hace
+  // ninguna llamada al backend: la usan tanto "quitar adjunto" como el
+  // reemplazo por un nuevo archivo/grabación y la limpieza tras enviar.
+  const clearPendingAttachment = () => {
+    if (pendingAttachmentPreviewUrl) {
+      URL.revokeObjectURL(pendingAttachmentPreviewUrl);
+    }
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+    }
+    setPendingAttachmentFile(null);
+    setPendingAttachmentPreviewUrl(null);
+    setUploadFileType(null);
+    setUploadFileName(null);
+    setRecordedAudioUrl(null);
+  };
+
+  // Validación + preparación 100% local (selector manual y pegado de
+  // portapapeles la comparten): guarda el File en memoria y arma su vista
+  // previa. No sube nada al servidor.
+  const preparePendingAttachment = (file: File) => {
+    if (!ALLOWED_ATTACHMENT_MIME_TYPES.includes(file.type)) {
       setUploadError('Solo se permiten imágenes o PDF.');
-      setUploadPreviewUrl(null);
-      setUploadFileType(null);
-      setUploadFileName(null);
-      if (uploadInputRef.current) uploadInputRef.current.value = '';
       return;
     }
 
+    clearPendingAttachment();
     setUploadError(null);
-    setIsUploadingImage(true);
     const nextType = file.type.startsWith('image/') ? 'image' : 'document';
+    setPendingAttachmentFile(file);
     setUploadFileType(nextType);
     setUploadFileName(file.name || null);
+    setPendingAttachmentPreviewUrl(nextType === 'image' ? URL.createObjectURL(file) : null);
+  };
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+  // Única función que efectivamente sube al backend: se invoca exclusivamente
+  // desde el flujo de envío (handleSendWhatsapp), nunca desde la selección,
+  // el pegado o la grabación. Devuelve la URL remota o lanza si falla.
+  const uploadAttachmentFile = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
 
-  const headers = buildAuthHeaders();
+    const headers = buildAuthHeaders();
 
-      const response = await fetch(buildApiUrl('/api/uploads'), {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
+    const response = await fetch(buildApiUrl('/api/uploads'), {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
 
-      if (!response.ok) {
-        let message = 'No se pudo subir la imagen.';
-        try {
-          const data = await response.json();
-          if (data?.message) message = String(data.message);
-        } catch {
-          // ignore parse errors
-        }
-        throw new Error(message);
+    if (!response.ok) {
+      let message = 'No se pudo subir el archivo.';
+      try {
+        const data = await response.json();
+        if (data?.message) message = String(data.message);
+      } catch {
+        // ignore parse errors
       }
-
-      const data = await response.json();
-      if (!data?.url) {
-        throw new Error('La respuesta del servidor no incluye la URL.' );
-      }
-
-      setUploadPreviewUrl(String(data.url));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error inesperado al subir imagen.';
-      setUploadError(message);
-      setUploadPreviewUrl(null);
-      setUploadFileType(null);
-      setUploadFileName(null);
-    } finally {
-      setIsUploadingImage(false);
-      if (uploadInputRef.current) uploadInputRef.current.value = '';
+      throw new Error(message);
     }
+
+    const data = await response.json();
+    if (!data?.url) {
+      throw new Error('La respuesta del servidor no incluye la URL.');
+    }
+
+    return String(data.url);
+  };
+
+  const handleUploadFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Se limpia de inmediato (y no en un finally tras subir) para poder
+    // volver a seleccionar el mismo archivo justo después.
+    if (uploadInputRef.current) uploadInputRef.current.value = '';
+    if (!file) return;
+    preparePendingAttachment(file);
+  };
+
+  const buildPastedImageFileName = (mimeType: string) => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const extension = mimeType === 'image/png'
+      ? 'png'
+      : mimeType === 'image/jpeg' || mimeType === 'image/jpg'
+        ? 'jpg'
+        : mimeType === 'image/webp'
+          ? 'webp'
+          : 'png';
+    return `captura-${stamp}.${extension}`;
+  };
+
+  const handleQuickReplyPaste = (event: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    const imageItem = Array.from(items).find(
+      (item) => item.kind === 'file' && item.type.startsWith('image/')
+    );
+    if (!imageItem) return; // sin imagen: deja que el pegado de texto siga su curso normal
+
+    const blob = imageItem.getAsFile();
+    if (!blob) return;
+
+    // Evita que el navegador intente insertar la imagen dentro del textarea.
+    event.preventDefault();
+
+    const mimeType = imageItem.type || blob.type || 'image/png';
+    const file = new File([blob], buildPastedImageFileName(mimeType), { type: mimeType });
+    preparePendingAttachment(file);
+  };
+
+  const handleRemoveAttachment = () => {
+    clearPendingAttachment();
+    setUploadError(null);
+    if (uploadInputRef.current) uploadInputRef.current.value = '';
   };
 
   const handleSendTemplate = () => {
@@ -3733,7 +3780,7 @@ export default function LeadsPage() {
                       color="primary"
                       aria-label="Adjuntar imagen"
                       onClick={handleSelectUpload}
-                      disabled={isUploadingImage}
+                      disabled={isSending}
                     >
                       <AttachFileIcon />
                     </IconButton>
@@ -3741,6 +3788,7 @@ export default function LeadsPage() {
                       color={isRecording ? "error" : "primary"}
                       aria-label="Grabar audio"
                       onClick={handleToggleRecording}
+                      disabled={isSending}
                     >
                       🎤
                     </IconButton>
@@ -3761,6 +3809,7 @@ export default function LeadsPage() {
                         }
                       }}
                       inputRef={quickReplyRef}
+                      inputProps={{ onPaste: handleQuickReplyPaste }}
                     />
                     <Tooltip
                       arrow
@@ -3790,38 +3839,46 @@ export default function LeadsPage() {
                         {uploadError}
                       </Typography>
                     )}
-                    {uploadPreviewUrl && (
-                      uploadFileType === 'document' ? (
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <DescriptionIcon fontSize="small" />
-                          <Typography
-                            variant="caption"
-                            component="a"
-                            href={uploadPreviewUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            sx={{ color: 'text.secondary', textDecoration: 'none' }}
+                    {pendingAttachmentFile && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          {uploadFileType === 'document' && (
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <DescriptionIcon fontSize="small" />
+                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                {uploadFileName || 'Documento adjunto'}
+                              </Typography>
+                            </Stack>
+                          )}
+                          {uploadFileType === 'image' && pendingAttachmentPreviewUrl && (
+                            <Box
+                              component="img"
+                              src={pendingAttachmentPreviewUrl}
+                              alt="Vista previa"
+                              sx={{
+                                maxWidth: 200,
+                                maxHeight: 200,
+                                borderRadius: 1,
+                                border: '1px solid',
+                                borderColor: 'divider',
+                              }}
+                            />
+                          )}
+                          {uploadFileType === 'audio' && recordedAudioUrl && (
+                            <Box component="audio" controls src={recordedAudioUrl} />
+                          )}
+                        </Box>
+                        <Tooltip title="Quitar archivo adjunto">
+                          <IconButton
+                            size="small"
+                            aria-label="Quitar archivo adjunto"
+                            onClick={handleRemoveAttachment}
+                            disabled={isSending}
                           >
-                            {uploadFileName || 'Documento adjunto'}
-                          </Typography>
-                        </Stack>
-                      ) : (
-                        <Box
-                          component="img"
-                          src={uploadPreviewUrl}
-                          alt="Vista previa"
-                          sx={{
-                            maxWidth: 200,
-                            maxHeight: 200,
-                            borderRadius: 1,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                          }}
-                        />
-                      )
-                    )}
-                    {recordedAudioUrl && (
-                      <Box component="audio" controls src={recordedAudioUrl} />
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
                     )}
                   </Stack>
                 </Box>

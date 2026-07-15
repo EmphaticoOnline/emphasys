@@ -8,9 +8,11 @@ import type {
   ValidarNuevaCuentaResponse,
 } from '../types/contabilidad';
 import type { CuentaAfectable } from '../types/polizas';
+import type { ActualizarTipoAutomaticoInput, ConfiguracionTipoAutomatico } from '../types/tiposAutomaticos';
 
 const BASE = '/api/contabilidad/cuentas';
 const CONFIGURACION_BASE = '/api/contabilidad/configuracion';
+const TIPOS_AUTOMATICOS_BASE = '/api/contabilidad/configuracion/tipos-automaticos';
 
 export async function fetchCuentas(incluirInactivas = false): Promise<Cuenta[]> {
   const query = incluirInactivas ? '?incluir_inactivas=1' : '';
@@ -52,6 +54,19 @@ export async function actualizarConfiguracionContable(payload: ConfiguracionCont
   return apiFetch(CONFIGURACION_BASE, {
     method: 'PUT',
     body: payload as any,
+  });
+}
+
+export async function fetchConfiguracionTiposAutomaticos(): Promise<ConfiguracionTipoAutomatico[]> {
+  return apiFetch(TIPOS_AUTOMATICOS_BASE);
+}
+
+export async function actualizarConfiguracionTiposAutomaticos(
+  items: ActualizarTipoAutomaticoInput[]
+): Promise<ConfiguracionTipoAutomatico[]> {
+  return apiFetch(TIPOS_AUTOMATICOS_BASE, {
+    method: 'PUT',
+    body: { items } as any,
   });
 }
 

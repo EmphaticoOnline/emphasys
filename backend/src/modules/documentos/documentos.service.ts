@@ -5,6 +5,35 @@ import { calcularImpuestosPartida } from '../impuestos/impuestos.service';
 import { crearAplicacionEnTransaccion, upsertOperacionDocumentoEnTransaccion } from '../finanzas/finanzas.repository';
 import { OPORTUNIDAD_ESTADOS_CERRADOS, OPORTUNIDAD_ESTADOS_SEGUIMIENTO, normalizarEstadoSeguimientoCotizacion } from './cotizacion-status';
 import { actualizarDocumentoRepository, crearDocumentoRepository, obtenerDocumentoRepository, reemplazarPartidasRepository, type PartidaInput } from './documentos.repository';
+import { aplicarInventarioDesdeDocumentoEnTransaccion } from '../inventario/inventario.service';
+
+const INVENTARIO_SILENCEABLE = new Set([
+  'TIPO_NO_AFECTA_INVENTARIO',
+  'SIN_PARTIDAS_INVENTARIABLES',
+  'MOVIMIENTO_DUPLICADO',
+  'SIN_ALMACEN_RESOLVABLE', // defensivo: fallo de infraestructura al crear/recuperar almacén general
+]);
+
+/**
+ * Aplica los movimientos de inventario de un documento cuando su estatus resultante es
+ * 'emitido'/'enviado'. Se usa tanto tras una edición manual del encabezado (menú rápido de
+ * estatus, formulario) como tras generar y emitir automáticamente un documento desde otro.
+ */
+export async function aplicarInventarioPostEmision(
+  client: PoolClient,
+  documentoId: number,
+  empresaId: number,
+  estatusResultante: string,
+  usuarioId: number | undefined
+): Promise<void> {
+  if (estatusResultante !== 'emitido' && estatusResultante !== 'enviado') return;
+  if (!usuarioId) return;
+  try {
+    await aplicarInventarioDesdeDocumentoEnTransaccion(client, documentoId, empresaId, Number(usuarioId));
+  } catch (invErr: any) {
+    if (!INVENTARIO_SILENCEABLE.has((invErr as any)?.code)) throw invErr;
+  }
+}
 
 type DocumentoCrearPayload = Record<string, any> & {
   agente_id?: number | null;

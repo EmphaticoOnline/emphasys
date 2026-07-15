@@ -2,6 +2,7 @@ import path from 'path';
 import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import { removeFileIfExists } from '../../services/fileStorage.service';
+import { eliminarPdfPreviewSiExiste } from '../../services/pdfPreviewImage.service';
 import { resolveUploadsDir } from '../uploads/uploads.multer';
 
 export type ProductoArchivoRecord = {
@@ -645,6 +646,8 @@ export async function eliminarProductoArchivoRepository(archivoId: number, empre
     await client.query('COMMIT');
 
     await removeFileIfExists(resolveProductoArchivoAbsolutePath(archivo.archivo));
+    // Evita dejar huérfana la versión optimizada para PDF de esta imagen.
+    await eliminarPdfPreviewSiExiste(archivo.archivo);
     return archivo;
   } catch (error) {
     await client.query('ROLLBACK');

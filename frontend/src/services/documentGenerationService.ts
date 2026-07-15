@@ -92,6 +92,8 @@ export interface GenerarDocumentoPayload {
   tipo_documento_destino: TipoDocumento;
   datos_encabezado?: DatosEncabezadoGeneracion;
   partidas: GenerarDocumentoPartidaInput[];
+  /** Solo aplica cuando el destino es una nota de venta (factura + tratamiento sin_iva). */
+  emitir_al_generar?: boolean;
 }
 
 export interface GenerarDocumentoResultado {
@@ -106,6 +108,12 @@ export interface GenerarDocumentoResultado {
     partida_origen_id: number;
     cantidad: number;
   }>;
+  /** Presente solo si se solicitó emitir_al_generar para una nota de venta. */
+  emision?: {
+    intentada: boolean;
+    exitosa: boolean;
+    mensaje: string | null;
+  };
 }
 
 function buildHeaders(token: string, empresaId: number | string): HeadersInit {

@@ -192,15 +192,26 @@ async function _obtenerEstadoCuenta(
     ? ''
     : `AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
 
-  // saldo_actual histórico: total del documento menos aplicaciones registradas hasta la fecha de corte
+  // saldo_actual histórico: total del documento menos aplicaciones registradas hasta la
+  // fecha de corte. El lado de aplicaciones_saldo que se resta depende del rol del
+  // documento: los de cargo (facturas) son siempre destino de la aplicación, mientras que
+  // los que actúan como abono (pagos, notas de crédito) son siempre origen — su saldo
+  // disponible se consume por lo que se aplicó DESDE ellos, no hacia ellos.
   const saldoActualSelect = `, CASE WHEN LOWER(COALESCE(d.estatus_documento,'')) IN ('cancelado','cancelada')
     THEN 0
+    WHEN d.tipo_documento IN (${cargoExpr})
+      THEN d.total::numeric - COALESCE((
+        SELECT SUM(a.monto) FROM aplicaciones_saldo a
+        WHERE a.documento_destino_id = d.id
+          AND a.empresa_id = d.empresa_id
+          AND COALESCE(a.fecha_aplicacion::date, NOW()::date) <= $4::date
+      ), 0)
     ELSE d.total::numeric - COALESCE((
-      SELECT SUM(a.monto) FROM aplicaciones_saldo a
-      WHERE a.documento_destino_id = d.id
-        AND a.empresa_id = d.empresa_id
-        AND COALESCE(a.fecha_aplicacion::date, NOW()::date) <= $4::date
-    ), 0)
+        SELECT SUM(a.monto) FROM aplicaciones_saldo a
+        WHERE a.documento_origen_id = d.id
+          AND a.empresa_id = d.empresa_id
+          AND COALESCE(a.fecha_aplicacion::date, NOW()::date) <= $4::date
+      ), 0)
   END AS saldo_actual`;
 
   const { rows } = await pool.query(

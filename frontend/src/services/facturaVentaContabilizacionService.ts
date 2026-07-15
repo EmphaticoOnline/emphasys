@@ -57,8 +57,8 @@ export async function previsualizarFacturaVenta(documentoId: number): Promise<As
 }
 
 // tipoPolizaId ya no se pide en el flujo normal de UI: el backend lo resuelve
-// desde contabilidad.configuracion.tipo_poliza_venta_factura_id. Se conserva
-// como override opcional para no romper otros llamadores.
+// desde contabilidad.configuracion_tipos_automaticos (clave venta_factura). Se
+// conserva como override opcional para no romper otros llamadores.
 export async function contabilizarFacturaVenta(
   documentoId: number,
   tipoPolizaId?: number

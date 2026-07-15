@@ -25,6 +25,7 @@ import {
   listarAnticiposDisponiblesDocumentoOrigen,
   obtenerResumenAnticiposDocumento,
   verificarSaldosCuentas,
+  recalcularSaldosEmpresa,
   listarMetodosPago,
   crearMetodoPago,
   actualizarMetodoPago,
@@ -333,6 +334,18 @@ export async function getVerificacionSaldos(req: Request, res: Response) {
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Error al verificar saldos' });
+  }
+}
+
+export async function postRecalcularSaldos(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+    const resultado = await recalcularSaldosEmpresa(empresaId);
+    res.json(resultado);
+  } catch (err: any) {
+    console.error('Error al recalcular saldos:', err);
+    res.status(500).json({ message: err.message || 'No se pudieron recalcular los saldos' });
   }
 }
 

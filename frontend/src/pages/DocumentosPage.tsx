@@ -404,6 +404,33 @@ const normalizarTratamiento = (value: unknown): TratamientoImpuestos => {
     : 'normal';
 };
 
+const EMITIR_NOTA_VENTA_PREFERENCE_PREFIX = 'emphasys:generar-documento:emitir-nota-venta';
+
+const obtenerLlaveEmitirNotaVentaPreferencia = (empresaId: number | null, usuarioId: number | null): string | null => {
+  if (!empresaId || !usuarioId) return null;
+  return `${EMITIR_NOTA_VENTA_PREFERENCE_PREFIX}:${empresaId}:${usuarioId}`;
+};
+
+const leerEmitirNotaVentaPreferencia = (empresaId: number | null, usuarioId: number | null): boolean => {
+  const llave = obtenerLlaveEmitirNotaVentaPreferencia(empresaId, usuarioId);
+  if (!llave) return false;
+  try {
+    return window.localStorage.getItem(llave) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const guardarEmitirNotaVentaPreferencia = (empresaId: number | null, usuarioId: number | null, valor: boolean): void => {
+  const llave = obtenerLlaveEmitirNotaVentaPreferencia(empresaId, usuarioId);
+  if (!llave) return;
+  try {
+    window.localStorage.setItem(llave, valor ? '1' : '0');
+  } catch {
+    // localStorage puede no estar disponible (modo privado, cuotas); no es crítico.
+  }
+};
+
 const puedeTimbrarCfdiDocumento = (tipoDocumento: TipoDocumento, row?: Partial<CotizacionListado> | null): boolean => {
   const tipoNormalizado = normalizeTipoDocumento(tipoDocumento);
 
@@ -421,6 +448,23 @@ const puedeTimbrarCfdiDocumento = (tipoDocumento: TipoDocumento, row?: Partial<C
 
   return tipoNormalizado === 'factura';
 };
+
+// Espeja la regla del backend (assertFacturaPuedeEnviarsePorWhatsapp): las notas de venta
+// (factura con tratamiento_impuestos = 'sin_iva') no requieren timbrado para enviarse por
+// WhatsApp, pero sí deben estar emitidas. Las facturas fiscales conservan la exigencia de timbrado.
+const puedeEnviarWhatsappDocumento = (tipoDocumento: TipoDocumento, row?: Partial<CotizacionListado> | null): boolean => {
+  const tipoNormalizado = normalizeTipoDocumento(tipoDocumento);
+  if (tipoNormalizado !== 'factura') return true;
+
+  if (esDocumentoFiscalPorTratamiento(tipoNormalizado, row?.tratamiento_impuestos)) {
+    return isFacturaTimbrada(row?.estatus_documento);
+  }
+
+  return normalizeDocumentoEstatus(row?.estatus_documento) === 'emitido';
+};
+
+const MENSAJE_FACTURA_NO_TIMBRADA_WHATSAPP = 'La factura debe estar timbrada antes de enviarse.';
+const MENSAJE_NOTA_VENTA_NO_EMITIDA_WHATSAPP = 'La nota de venta debe estar emitida antes de enviarse.';
 
 export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPageProps) {
   const theme = useTheme();
@@ -583,7 +627,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     serieExterna: string;
     numeroExterno: string;
     enviando: boolean;
-  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false });
+    emitirAlGenerar: boolean;
+  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false });
   const [aplicarAnticiposDialog, setAplicarAnticiposDialog] = useState<{
     open: boolean;
     documentoOrigenId: number | null;
@@ -911,6 +956,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       serieExterna: '',
       numeroExterno: '',
       enviando: false,
+      emitirAlGenerar: false,
     });
 
     try {
@@ -920,6 +966,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         return acc;
       }, {});
       const tratamientoInicial = normalizarTratamiento(data.documento_origen?.tratamiento_impuestos);
+      const esNotaVentaInicial = tipoDestino === 'factura' && tratamientoInicial === 'sin_iva';
       setGeneracionDialog({
         open: true,
         loading: false,
@@ -932,6 +979,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         serieExterna: '',
         numeroExterno: '',
         enviando: false,
+        emitirAlGenerar: esNotaVentaInicial ? leerEmitirNotaVentaPreferencia(empresaId, session.user?.id ?? null) : false,
       });
     } catch (err: any) {
       setGeneracionDialog({
@@ -946,6 +994,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         serieExterna: '',
         numeroExterno: '',
         enviando: false,
+        emitirAlGenerar: false,
       });
       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la generación', severity: 'error' });
     }
@@ -1126,6 +1175,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       serieExterna: '',
       numeroExterno: '',
       enviando: false,
+      emitirAlGenerar: false,
     });
 
     try {
@@ -1148,9 +1198,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         serieExterna: '',
         numeroExterno: '',
         enviando: false,
+        // Esta consolidación siempre genera nota de crédito, nunca nota de venta.
+        emitirAlGenerar: false,
       });
     } catch (err: any) {
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false });
       setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la consolidación', severity: 'error' });
     }
   };
@@ -1236,6 +1288,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
     const serieExternaVal = generacionDialog.serieExterna.trim() || null;
     const numeroExternoVal = generacionDialog.numeroExterno !== '' ? Number(generacionDialog.numeroExterno) : null;
+    const esNotaVentaDestino = generacionDialog.tipoDestino === 'factura' && generacionDialog.tratamientoImpuestos === 'sin_iva';
     const payload: GenerarDocumentoPayload = {
       tipo_documento_destino: generacionDialog.tipoDestino as any,
       datos_encabezado: {
@@ -1245,6 +1298,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         ...(numeroExternoVal !== null && { numero_externo: numeroExternoVal }),
       },
       partidas,
+      ...(esNotaVentaDestino && { emitir_al_generar: generacionDialog.emitirAlGenerar }),
     };
     if (generacionDialog.documentoIds.length > 1) {
       payload.documento_origen_ids = generacionDialog.documentoIds;
@@ -1255,15 +1309,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     try {
       setGeneracionDialog((prev) => ({ ...prev, enviando: true }));
       const result = await generarDocumentoDesdeOrigen(payload, token!, empresaId!);
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false });
-      setSnackbar({ open: true, message: 'Documento generado correctamente', severity: 'success' });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false });
+      if (result.emision?.intentada && !result.emision.exitosa) {
+        setSnackbar({
+          open: true,
+          message: `La nota de venta se generó correctamente, pero no pudo emitirse automáticamente: ${result.emision.mensaje ?? 'error desconocido'}. Puedes emitirla manualmente desde la lista.`,
+          severity: 'warning',
+        });
+      } else if (result.emision?.intentada && result.emision.exitosa) {
+        setSnackbar({ open: true, message: 'Documento generado y emitido correctamente', severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: 'Documento generado correctamente', severity: 'success' });
+      }
       await handlePostGeneration({
         documentoOrigenId: generacionDialog.documentoId ?? generacionDialog.documentoIds[0] ?? 0,
         result,
         pathname: location.pathname,
       });
     } catch (err: any) {
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false });
+      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false });
       if (err instanceof AutorizacionRequeridaError) {
         setSnackbar({ open: true, message: err.message, severity: 'info' });
         void load();
@@ -1925,6 +1989,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         const estatusDocumentoNormalizado = String(params.row?.estatus_documento ?? '').trim().toLowerCase();
         const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
         const esFacturaSinTimbrar = esFacturaNoTimbrada(tipoDocumento, params.row?.estatus_documento);
+        const whatsappHabilitado = puedeEnviarWhatsappDocumento(tipoDocumento, params.row as CotizacionListado);
+        const mensajeWhatsappBloqueado = documentoPuedeTimbrarCfdi
+          ? MENSAJE_FACTURA_NO_TIMBRADA_WHATSAPP
+          : MENSAJE_NOTA_VENTA_NO_EMITIDA_WHATSAPP;
 
         return (
         <Stack direction="row" spacing={0.5} alignItems="center">
@@ -2172,12 +2240,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             </Tooltip>
           )}
           {hasAction('enviar_whatsapp') && tipoDocumentoPermiteWhatsapp && (
-            <Tooltip title={documentoPuedeTimbrarCfdi && !facturaTimbrada ? mensajeFacturaNoTimbrada : 'Enviar por WhatsApp'}>
+            <Tooltip title={!whatsappHabilitado ? mensajeWhatsappBloqueado : 'Enviar por WhatsApp'}>
               <span>
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada)}
+                  disabled={loading || !whatsappHabilitado}
                   onClick={(e) => {
                     e.stopPropagation();
                     console.info('[CFDI WhatsApp] Abrir modal de envio', {
@@ -2305,6 +2373,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const rowId = Number(contextMenuRow.id);
     const documentoPuedeTimbrarCfdi = puedeTimbrarCfdiDocumento(tipoDocumento, contextMenuRow);
     const facturaTimbrada = !documentoPuedeTimbrarCfdi || isFacturaTimbrada(contextMenuRow?.estatus_documento);
+    const whatsappHabilitado = puedeEnviarWhatsappDocumento(tipoDocumento, contextMenuRow);
     const canApplySaldoNc =
       (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') &&
       Number(contextMenuRow?.saldo ?? 0) > 0 &&
@@ -2466,7 +2535,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         label: 'Enviar por WhatsApp',
         icon: <WhatsAppIcon fontSize="small" />,
         hidden: !(hasAction('enviar_whatsapp') && tipoDocumentoPermiteWhatsapp),
-        disabled: loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada),
+        disabled: loading || !whatsappHabilitado,
         onClick: () => {
           console.info('[CFDI WhatsApp] Abrir modal de envio', {
             documentoId: rowId,
@@ -3248,6 +3317,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       selectionContent={selectionContent}
       extraActionsContent={extraActionsContent}
       rows={filteredRows}
+      showSaldo={showSaldo}
       canBulkDuplicate={canBulkDuplicate}
       selectedDocumentIds={selectedDocumentIds}
       onSelectedDocumentIdsChange={setSelectedDocumentIds}
@@ -3459,7 +3529,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
       <Dialog
         open={generacionDialog.open}
-        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false })}
+        onClose={() => !generacionDialog.enviando && setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false })}
         fullWidth
         maxWidth="md"
       >
@@ -3495,6 +3565,21 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   </MenuItem>
                 ))}
               </TextField>
+              {generacionDialog.tipoDestino === 'factura' && generacionDialog.tratamientoImpuestos === 'sin_iva' && (
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={generacionDialog.emitirAlGenerar}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+                        setGeneracionDialog((prev) => ({ ...prev, emitirAlGenerar: checked }));
+                        guardarEmitirNotaVentaPreferencia(empresaId, session.user?.id ?? null, checked);
+                      }}
+                    />
+                  }
+                  label="Emitir la nota de venta al generarla"
+                />
+              )}
               {generacionDialog.tipoDestino === 'factura_compra' && (
                 <Stack direction="row" spacing={1.5}>
                   <TextField
@@ -3551,7 +3636,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
           <Button
-            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false })}
+            onClick={() => setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false })}
             disabled={generacionDialog.enviando}
           >
             Cancelar

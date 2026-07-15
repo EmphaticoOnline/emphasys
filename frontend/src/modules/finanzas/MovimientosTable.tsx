@@ -9,6 +9,7 @@ import { DataGrid, GridToolbarContainer } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams, GridSortModel } from '@mui/x-data-grid';
 import type { FinanzasOperacion } from '../../types/finanzas';
+import { resolverFolioVisual } from '../../utils/documentos.utils';
 import { GridContextMenu } from '../../components/grids/GridContextMenu';
 import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
@@ -55,7 +56,6 @@ export function FinanzasSearchToolbar({ value, onChange, onClear }: FinanzasSear
 interface MovimientosTableProps {
   operaciones: FinanzasOperacion[];
   loading?: boolean;
-  initialBalance?: number;
   moneda?: string;
   onEdit?: (op: FinanzasOperacion) => void;
   onDelete?: (op: FinanzasOperacion) => void;
@@ -84,7 +84,6 @@ function formatDate(value?: string | null) {
 export function MovimientosTable({
   operaciones,
   loading,
-  initialBalance = 0,
   moneda = 'MXN',
   onEdit,
   onDelete,
@@ -144,32 +143,34 @@ export function MovimientosTable({
     persistExternalFilters({ searchTerm: effectiveSearch });
   }, [persistExternalFilters, effectiveSearch]);
 
-  // Precompute ledger saldo per operación id using chronological order
-  const ledgerById = React.useMemo(() => {
-    const sorted = [...operaciones].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime() || a.id - b.id);
-    let saldo = Number(initialBalance || 0);
-    const map: Record<number, number> = {};
-    for (const op of sorted) {
-      const monto = Number(op.monto || 0);
-      saldo = op.tipo_movimiento === 'Deposito' ? saldo + monto : saldo - monto;
-      map[op.id] = op.saldo ?? saldo;
-    }
-    return map;
-  }, [operaciones, initialBalance]);
-
   const rows = React.useMemo(() => {
     const term = effectiveSearch.trim().toLowerCase();
-    const base: Row[] = operaciones.map((op) => ({
-      ...op,
-      runningSaldo: ledgerById[op.id] ?? op.saldo ?? 0,
-      fecha_fmt: formatDate(op.fecha),
-      concepto_display: op.es_transferencia ? 'Transferencia' : op.concepto_nombre || '—',
-      contacto_display: op.contacto_nombre || '—',
-      referencia_display:
-        op.es_transferencia && (op.transferencia_origen_nombre || op.transferencia_destino_nombre)
-          ? `${op.transferencia_origen_nombre || 'Origen'} → ${op.transferencia_destino_nombre || 'Destino'}`
-          : op.referencia || '—',
-    }));
+    const base: Row[] = operaciones.map((op) => {
+      const folioDocumentoOrigen = op.documento_origen_id && op.documento_origen_tipo_documento
+        ? resolverFolioVisual(
+            {
+              serie: op.documento_origen_serie ?? null,
+              numero: op.documento_origen_numero ?? null,
+              serie_externa: op.documento_origen_serie_externa ?? null,
+              numero_externo: op.documento_origen_numero_externo ?? null,
+            },
+            op.documento_origen_tipo_documento
+          )
+        : null;
+      return {
+        ...op,
+        // saldo acumulado real de la cuenta, calculado en el backend en orden
+        // cronológico (fecha, id) — no depende del orden de despliegue de la grilla.
+        runningSaldo: op.saldo_acumulado ?? op.saldo ?? 0,
+        fecha_fmt: formatDate(op.fecha),
+        concepto_display: op.es_transferencia ? 'Transferencia' : op.concepto_nombre || '—',
+        contacto_display: op.contacto_nombre || '—',
+        referencia_display:
+          op.es_transferencia && (op.transferencia_origen_nombre || op.transferencia_destino_nombre)
+            ? `${op.transferencia_origen_nombre || 'Origen'} → ${op.transferencia_destino_nombre || 'Destino'}`
+            : folioDocumentoOrigen || op.referencia || '—',
+      };
+    });
     if (!term) return base;
     return base.filter((op) =>
       [
@@ -179,7 +180,7 @@ export function MovimientosTable({
         typeof op.monto === 'number' ? String(op.monto) : op.monto,
       ].some((field) => (field || '').toLowerCase().includes(term))
     );
-  }, [operaciones, ledgerById, effectiveSearch]);
+  }, [operaciones, effectiveSearch]);
 
   const handleEditRow = React.useCallback(
     (row: Row) => {

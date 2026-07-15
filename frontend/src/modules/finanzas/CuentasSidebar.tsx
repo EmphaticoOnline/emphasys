@@ -6,7 +6,10 @@ import {
   List,
   ListItem,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Paper,
   Stack,
   Typography,
@@ -17,6 +20,8 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import SyncIcon from '@mui/icons-material/Sync';
 import { alpha } from '@mui/material/styles';
 import type { FinanzasCuenta } from '../../types/finanzas';
 
@@ -28,9 +33,12 @@ interface CuentasSidebarProps {
   onEdit: (cuenta: FinanzasCuenta) => void;
   onDelete: (cuenta: FinanzasCuenta) => void;
   loading?: boolean;
+  /** Sólo se muestra el menú de mantenimiento si se provee este handler (control de permisos lo decide el padre). */
+  onRecalcularSaldos?: (() => void) | undefined;
 }
 
-export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, onDelete, loading }: CuentasSidebarProps) {
+export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, onDelete, loading, onRecalcularSaldos }: CuentasSidebarProps) {
+  const [menuAnchor, setMenuAnchor] = React.useState<HTMLElement | null>(null);
   const currency = React.useMemo(
     () =>
       new Intl.NumberFormat('es-MX', {
@@ -53,9 +61,33 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
       }}
     >
       <Box sx={{ px: 1.5, py: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-          Cuentas
-        </Typography>
+        <Stack direction="row" alignItems="center" spacing={0.25}>
+          <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+            Cuentas
+          </Typography>
+          {onRecalcularSaldos && (
+            <Tooltip title="Mantenimiento">
+              <IconButton size="small" onClick={(e) => setMenuAnchor(e.currentTarget)} aria-label="Más opciones">
+                <MoreVertIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          {onRecalcularSaldos && (
+            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  onRecalcularSaldos();
+                }}
+              >
+                <ListItemIcon>
+                  <SyncIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Recalcular saldos</ListItemText>
+              </MenuItem>
+            </Menu>
+          )}
+        </Stack>
         <Button
           size="small"
           startIcon={<AddIcon />}

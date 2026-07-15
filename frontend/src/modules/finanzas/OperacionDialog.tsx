@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Autocomplete,
   Button,
@@ -18,9 +18,12 @@ import {
 import { createFilterOptions } from '@mui/material/Autocomplete';
 import type { Concepto, FinanzasCuenta, FinanzasMetodoPago, FinanzasOperacion, NaturalezaOperacion, TipoMovimiento } from '../../types/finanzas';
 import type { Contacto } from '../../types/contactos.types';
+import type { ContactoTipoPermitido } from '../documentos/documentoTypes';
 import { actualizarOperacion, crearOperacion, fetchMetodosPago, type OperacionPayload } from '../../services/finanzasService';
 import { fetchConceptos, crearConcepto } from '../../services/conceptosService';
 import { fetchContactos } from '../../services/contactosService';
+import { crearContacto } from '../../services/contactos.api';
+import ContactCaptureDialog from '../../components/contactos/ContactCaptureDialog';
 
 const toCivilDate = (date = new Date()) => {
   const y = date.getFullYear();
@@ -47,6 +50,13 @@ interface OperacionDialogProps {
 }
 
 type ConceptoOption = Concepto & { inputValue?: string; isNew?: boolean };
+
+type ContactoAutocompleteOption = Contacto | {
+  kind: 'create';
+  id: -1;
+  nombre: string;
+  inputValue: string;
+};
 
 export function OperacionDialog({
   open,
@@ -77,6 +87,20 @@ export function OperacionDialog({
   const [error, setError] = useState<string | null>(null);
   const [loadingConceptos, setLoadingConceptos] = useState(false);
   const [loadingContactos, setLoadingContactos] = useState(false);
+  const [crearContactoOpen, setCrearContactoOpen] = useState(false);
+  const [crearContactoNombre, setCrearContactoNombre] = useState('');
+  const [crearContactoTipo, setCrearContactoTipo] = useState<ContactoTipoPermitido>('Cliente');
+  const [crearContactoLoading, setCrearContactoLoading] = useState(false);
+
+  // El selector de contacto de Finanzas no restringe por tipo (a diferencia de
+  // Documentos, que sí fija cliente/proveedor por reglas de venta/compra), así
+  // que se ofrecen todos los tipos válidos del catálogo de contactos.
+  const contactoTiposPermitidos: ContactoTipoPermitido[] = ['Lead', 'Cliente', 'Proveedor', 'Varios', 'Vendedor'];
+  // La naturaleza de la operación solo sugiere el tipo por defecto al abrir el alta.
+  const contactoDefaultTipo = useMemo<ContactoTipoPermitido>(
+    () => (naturaleza === 'pago_proveedor' ? 'Proveedor' : 'Cliente'),
+    [naturaleza]
+  );
 
   const sanitizeNumber = (value: string) => value.replace(/[^0-9.]/g, '');
   const formatCurrency = (value: string | number) => {
@@ -86,6 +110,9 @@ export function OperacionDialog({
   };
 
   const conceptoFilter = createFilterOptions<ConceptoOption>();
+  const contactoFilter = createFilterOptions<ContactoAutocompleteOption>({
+    stringify: (option) => ('kind' in option && option.kind === 'create' ? option.inputValue : option.nombre || ''),
+  });
 
   // Método seleccionado — usado para saber si referencia es obligatoria
   const metodoSeleccionado = metodosPago.find((m) => m.id === metodoPagoId) ?? null;
@@ -183,8 +210,39 @@ export function OperacionDialog({
 
   const conceptosOptions: ConceptoOption[] = conceptos;
 
+  const handleCerrarCrearContacto = () => {
+    if (crearContactoLoading) return;
+    setCrearContactoOpen(false);
+    setCrearContactoNombre('');
+    setCrearContactoTipo(contactoDefaultTipo);
+  };
+
+  const handleCrearContactoSubmit = async () => {
+    const nombre = crearContactoNombre.trim();
+    if (!nombre) {
+      setError('Ingresa el nombre del contacto');
+      return;
+    }
+
+    try {
+      setCrearContactoLoading(true);
+      const nuevo = await crearContacto({ nombre, tipo_contacto: crearContactoTipo });
+      setContactos((prev) => [nuevo, ...prev.filter((c) => c.id !== nuevo.id)]);
+      setContactoId(String(nuevo.id));
+      setCrearContactoOpen(false);
+      setCrearContactoNombre('');
+      setCrearContactoTipo(contactoDefaultTipo);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo crear el contacto');
+    } finally {
+      setCrearContactoLoading(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <>
+      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{title || (operacion ? 'Editar operación' : 'Nueva operación')}</DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
         <Stack spacing={2} mt={1}>
@@ -244,16 +302,52 @@ export function OperacionDialog({
             </Select>
           </FormControl>
 
-          <Autocomplete<Contacto>
+          <Autocomplete<ContactoAutocompleteOption>
             options={contactos}
             getOptionLabel={(option) => option.nombre || ''}
+            filterOptions={(options, state) => {
+              const filtered = contactoFilter(options, state);
+              const inputValue = state.inputValue.trim();
+
+              if (!inputValue || lockedFields?.contacto_id) {
+                return filtered;
+              }
+
+              const normalizedInput = inputValue.toLocaleLowerCase();
+              const hasExactMatch = options.some((option) => {
+                if ('kind' in option && option.kind === 'create') return false;
+                return (option.nombre || '').trim().toLocaleLowerCase() === normalizedInput;
+              });
+
+              if (hasExactMatch) {
+                return filtered;
+              }
+
+              return [
+                { kind: 'create', id: -1, nombre: `➕ Crear contacto "${inputValue}"`, inputValue },
+                ...filtered,
+              ];
+            }}
             loading={loadingContactos}
             value={contactos.find((c) => c.id === Number(contactoId)) || null}
             onChange={(_e, value) => {
               if (lockedFields?.contacto_id) return;
+              if (value && 'kind' in value && value.kind === 'create') {
+                setCrearContactoNombre(value.inputValue);
+                setCrearContactoTipo(contactoDefaultTipo);
+                setCrearContactoOpen(true);
+                return;
+              }
               setContactoId(value ? String(value.id) : '');
             }}
-            isOptionEqualToValue={(option, value) => option.id === value.id}
+            isOptionEqualToValue={(option, value) => {
+              const optionIsCreate = 'kind' in option && option.kind === 'create';
+              const valueIsCreate = !!value && 'kind' in value && value.kind === 'create';
+              if (optionIsCreate || valueIsCreate) {
+                return optionIsCreate && valueIsCreate && option.id === value.id;
+              }
+              return option.id === value.id;
+            }}
             disabled={Boolean(lockedFields?.contacto_id)}
             renderInput={(params) => {
               const { InputLabelProps: _ignoredLabelProps, ...rest } = params;
@@ -422,7 +516,24 @@ export function OperacionDialog({
           {saving ? 'Guardando...' : saveLabel || 'Guardar'}
         </Button>
       </DialogActions>
-    </Dialog>
+      </Dialog>
+
+      <ContactCaptureDialog
+        open={crearContactoOpen}
+        loading={crearContactoLoading}
+        nombre={crearContactoNombre}
+        tipoContacto={crearContactoTipo}
+        tiposPermitidos={contactoTiposPermitidos}
+        captureMode="simple"
+        title="Crear contacto"
+        infoMessage="Se asignará a la operación con el tipo seleccionado."
+        submitLabel="Crear y asignar"
+        onNombreChange={setCrearContactoNombre}
+        onTipoContactoChange={setCrearContactoTipo}
+        onClose={handleCerrarCrearContacto}
+        onSubmit={() => void handleCrearContactoSubmit()}
+      />
+    </>
   );
 }
 

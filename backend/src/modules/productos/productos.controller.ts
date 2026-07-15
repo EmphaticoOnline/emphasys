@@ -16,6 +16,7 @@ import {
   eliminarProductoArchivoRepository,
   marcarProductoArchivoPrincipalRepository,
 } from './productos.repository';
+import { generarPdfPreviewSiFalta } from '../../services/pdfPreviewImage.service';
 
 function sanitizarPayloadProducto(body: any) {
   if (typeof body?.especificaciones === 'string') {
@@ -209,11 +210,17 @@ export async function crearProductoArchivo(req: Request, res: Response) {
       return res.status(400).json({ message: 'Archivo no enviado' });
     }
 
+    const rutaArchivo = `/uploads/productos/${req.file.filename}`;
     const archivo = await crearProductoArchivoRepository(productoId, Number(empresaId), {
-      archivo: `/uploads/productos/${req.file.filename}`,
+      archivo: rutaArchivo,
       descripcion,
       tipo_archivo: 'imagen',
     });
+
+    // Síncrono y best-effort: si Sharp falla aquí, la subida del original
+    // igual se considera exitosa; la primera impresión que use esta imagen
+    // generará la versión optimizada de forma perezosa.
+    await generarPdfPreviewSiFalta(rutaArchivo);
 
     return res.status(201).json(archivo);
   } catch (error) {

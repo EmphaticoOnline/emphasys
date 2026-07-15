@@ -33,7 +33,7 @@ import {
 } from '../../services/facturaVentaContabilizacionService';
 import { fetchPoliza } from '../../services/polizasService';
 import { fetchTiposPoliza } from '../../services/tiposPolizaService';
-import { fetchConfiguracionContable } from '../../services/contabilidadService';
+import { fetchConfiguracionTiposAutomaticos } from '../../services/contabilidadService';
 
 interface ContabilizarFacturaVentaDrawerProps {
   open: boolean;
@@ -149,18 +149,19 @@ export default function ContabilizarFacturaVentaDrawer({
     const cargar = async () => {
       setLoading(true);
       try {
-        const [configuracion, tiposPoliza, asientoData] = await Promise.all([
-          fetchConfiguracionContable(),
+        const [configuraciones, tiposPoliza, asientoData] = await Promise.all([
+          fetchConfiguracionTiposAutomaticos(),
           fetchTiposPoliza(true),
           previsualizarFacturaVenta(documentoId),
         ]);
+        const tipoPolizaVentaFacturaId = configuraciones.find(
+          (c) => c.clave_movimiento === 'venta_factura'
+        )?.tipo_poliza_id;
         // contabilidad.tipos_poliza.id es bigserial: node-pg lo regresa como
         // string aunque TipoPoliza.id esté tipado como number. Se normaliza
         // con Number(...) en ambos lados para que la comparación no falle
         // silenciosamente contra el number real que ya castea el backend.
-        const tipoConfigurado = tiposPoliza.find(
-          (t) => Number(t.id) === Number(configuracion.tipo_poliza_venta_factura_id)
-        );
+        const tipoConfigurado = tiposPoliza.find((t) => Number(t.id) === Number(tipoPolizaVentaFacturaId));
         setTipoPolizaIdentificador(tipoConfigurado?.identificador ?? null);
         setTipoPolizaResuelto(true);
         setAsiento(asientoData);

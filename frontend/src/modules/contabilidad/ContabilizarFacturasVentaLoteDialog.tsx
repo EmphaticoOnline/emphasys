@@ -21,7 +21,7 @@ import {
   type ResultadoLoteVenta,
 } from '../../services/facturaVentaContabilizacionService';
 import { fetchTiposPoliza } from '../../services/tiposPolizaService';
-import { fetchConfiguracionContable } from '../../services/contabilidadService';
+import { fetchConfiguracionTiposAutomaticos } from '../../services/contabilidadService';
 
 interface ContabilizarFacturasVentaLoteDialogProps {
   open: boolean;
@@ -56,15 +56,16 @@ export default function ContabilizarFacturasVentaLoteDialog({
     setTipoPolizaIdentificador(null);
     setTipoPolizaResuelto(false);
 
-    Promise.all([fetchConfiguracionContable(), fetchTiposPoliza(true)])
-      .then(([configuracion, tiposPoliza]) => {
+    Promise.all([fetchConfiguracionTiposAutomaticos(), fetchTiposPoliza(true)])
+      .then(([configuraciones, tiposPoliza]) => {
+        const tipoPolizaVentaFacturaId = configuraciones.find(
+          (c) => c.clave_movimiento === 'venta_factura'
+        )?.tipo_poliza_id;
         // contabilidad.tipos_poliza.id es bigserial: node-pg lo regresa como
         // string aunque TipoPoliza.id esté tipado como number. Se normaliza
         // con Number(...) en ambos lados para que la comparación no falle
         // silenciosamente contra el number real que ya castea el backend.
-        const tipoConfigurado = tiposPoliza.find(
-          (t) => Number(t.id) === Number(configuracion.tipo_poliza_venta_factura_id)
-        );
+        const tipoConfigurado = tiposPoliza.find((t) => Number(t.id) === Number(tipoPolizaVentaFacturaId));
         setTipoPolizaIdentificador(tipoConfigurado?.identificador ?? null);
         setTipoPolizaResuelto(true);
       })

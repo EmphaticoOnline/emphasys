@@ -37,7 +37,8 @@ import type {
   GenerarDocumentoPartidaInput,
 } from "./document-generation.types.js";
 import { calcularImpuestosPartida } from "../impuestos/impuestos.service";
-import { actualizarTotales, asegurarOportunidadParaCotizacion } from "./documentos.service";
+import { actualizarTotales, aplicarInventarioPostEmision, asegurarOportunidadParaCotizacion } from "./documentos.service";
+import { actualizarDocumentoRepository } from "./documentos.repository";
 import { sanitizarCamposCotizacion } from "./cotizacion-status";
 import { reservarNumeroParaSerieExistente, resolverYReservarSerieDocumento } from "./series-documento.service";
 import { buscarTransicionId, buscarPoliticaAplicable, obtenerInfoPoliticaParaOpcion } from "../autorizaciones/autorizaciones.repository";
@@ -1263,6 +1264,47 @@ export class DocumentGenerationService {
 
       await client.query("COMMIT");
 
+      // La emisión automática solo aplica a notas de venta (factura + tratamiento sin_iva)
+      // y se ejecuta DESPUÉS del COMMIT anterior, en su propia transacción, reutilizando
+      // exactamente la misma ruta que usa el menú rápido de estatus para documentos no
+      // monetarios (actualizarDocumentoRepository + aplicarInventarioPostEmision). Así, si
+      // la emisión falla, el documento generado no se pierde ni se revierte: queda en
+      // borrador y puede emitirse manualmente después.
+      // Se deriva del documento ya persistido (no de lo que el cliente diga en el payload):
+      // documentoDestino.tratamiento_impuestos es el valor real con el que quedó creado.
+      const tratamientoPersistido = String(documentoDestino?.tratamiento_impuestos ?? tratamientoDestino).trim().toLowerCase();
+      const esNotaVentaGenerada = String(tipo_documento_destino).toLowerCase() === "factura" && tratamientoPersistido === "sin_iva";
+      let emision: GenerarDocumentoResultado["emision"];
+      if (esNotaVentaGenerada && payload.emitir_al_generar === true) {
+        const emisionClient = await pool.connect();
+        try {
+          await emisionClient.query("BEGIN");
+          const documentoEmitido = await actualizarDocumentoRepository(
+            Number(documentoDestino.id),
+            { estatus_documento: "Emitido" },
+            empresaId,
+            tipo_documento_destino,
+            emisionClient
+          );
+          const estatusResultante = String(documentoEmitido?.estatus_documento ?? "").toLowerCase();
+          await aplicarInventarioPostEmision(emisionClient, Number(documentoDestino.id), empresaId, estatusResultante, usuarioId ?? undefined);
+          await emisionClient.query("COMMIT");
+          emision = { intentada: true, exitosa: true, mensaje: null };
+        } catch (emisionError) {
+          await emisionClient.query("ROLLBACK");
+          const mensajeError = String((emisionError as Error)?.message ?? "")
+            .replace("VALIDATION_ERROR:", "")
+            .trim() || "No se pudo emitir la nota de venta";
+          console.error("[GenDoc] Nota de venta generada pero no se pudo emitir automáticamente", {
+            documento_destino_id: documentoDestino.id,
+            error: mensajeError,
+          });
+          emision = { intentada: true, exitosa: false, mensaje: mensajeError };
+        } finally {
+          emisionClient.release();
+        }
+      }
+
       return {
         documento_destino_id: Number(documentoDestino.id),
         tipo_documento_destino,
@@ -1271,6 +1313,7 @@ export class DocumentGenerationService {
         iva: Number(totales.iva ?? 0),
         total: Number(totales.total ?? 0),
         partidas: partidasGeneradas,
+        ...(emision ? { emision } : {}),
       };
     } catch (error) {
       await client.query("ROLLBACK");

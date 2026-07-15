@@ -1,7 +1,6 @@
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import axios from 'axios';
 import pool from '../../config/database';
 import { generarImagenQR, DatosQrCfdi } from '../../utils/generarCadenaQR';
 import { formatearFolioDocumento } from '../../utils/documentos';
@@ -11,6 +10,14 @@ import { renderPlantillaHTML, type PlantillaData } from '../plantillas/plantilla
 import puppeteer from 'puppeteer';
 import { heightOfRichTextBasicoPdf, renderRichTextBasicoPdf, richTextBasicoEstaVacio } from './richTextPdf';
 import { obtenerCondicionesImpresionSerie } from '../configuracion/series-documento/series-documento.repository';
+import { obtenerCamposConfigurablesPartidasParaImpresion } from './documentos-campos.repository';
+import { obtenerRutaPdfPreview } from '../../services/pdfPreviewImage.service';
+import {
+  ordenarCamposConfigurablesPartida,
+  calcularAlturaCamposConfigurablesPartida,
+  renderCamposConfigurablesPartida,
+  type CampoConfigurablePartidaValor,
+} from './camposConfigurablesPdf';
 
 type TimbreCfdi = {
   uuid?: string | null;
@@ -58,6 +65,7 @@ type DocumentoCotizacion = {
 };
 
 type PartidaCotizacion = {
+  id?: number | null;
   producto_clave?: string | null;
   producto_descripcion?: string | null;
   descripcion?: string | null;
@@ -662,6 +670,33 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
     totalPartidas: (partidas ?? []).length,
   });
 
+  const mostrarCamposConfigurablesPartida = layout.mostrarCamposConfigurablesPartida === true;
+  const empresaIdParaCamposConfigurables = (documento as any)?.empresa_id ?? empresaId;
+  const partidaIdsParaCamposConfigurables = mostrarCamposConfigurablesPartida
+    ? (partidas ?? [])
+        .map((p) => Number((p as PartidaCotizacion)?.id))
+        .filter((id): id is number => Number.isFinite(id))
+    : [];
+  const camposConfigurablesPartidasImpresion = mostrarCamposConfigurablesPartida
+    && partidaIdsParaCamposConfigurables.length > 0
+    && empresaIdParaCamposConfigurables
+    ? await obtenerCamposConfigurablesPartidasParaImpresion(
+        empresaIdParaCamposConfigurables,
+        partidaIdsParaCamposConfigurables,
+        documento?.tipo_documento ?? null
+      )
+    : [];
+
+  const camposConfigurablesPorPartidaId = new Map<number, CampoConfigurablePartidaValor[]>();
+  camposConfigurablesPartidasImpresion.forEach((campo) => {
+    const lista = camposConfigurablesPorPartidaId.get(campo.partidaId) ?? [];
+    lista.push(campo);
+    camposConfigurablesPorPartidaId.set(campo.partidaId, lista);
+  });
+  camposConfigurablesPorPartidaId.forEach((campos, partidaId) => {
+    camposConfigurablesPorPartidaId.set(partidaId, ordenarCamposConfigurablesPartida(campos));
+  });
+
   return await new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40, size: 'LETTER' });
     let tracedPageNumber = 1;
@@ -1198,6 +1233,29 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         bold: hasTrebuchetBold ? 'Trebuchet-Bold' : 'Helvetica-Bold',
         italic: hasTrebuchetItalic ? 'Trebuchet-Italic' : 'Helvetica-Oblique',
       };
+      // Campos configurables de partida: misma familia tipográfica que
+      // observaciones (tamaño secundario), con la etiqueta en negrita para
+      // diferenciarla visualmente del valor.
+      const camposConfigurablesFontSize = 8;
+      const camposConfigurablesLineHeight = 11;
+      const camposConfigurablesGap = 14;
+      const camposConfigurablesPaddingTop = 3;
+      const camposConfigurablesOpciones = {
+        fontSize: camposConfigurablesFontSize,
+        gap: camposConfigurablesGap,
+        lineHeight: camposConfigurablesLineHeight,
+        fontRegular: observacionesRichTextFonts.regular,
+        fontBold: observacionesRichTextFonts.bold,
+        color: mutedText,
+      };
+      // La impresión ya no optimiza imágenes: solo localiza la versión
+      // optimizada persistente (generada al subir la imagen o, para
+      // imágenes ya existentes, en su primera impresión) y la lee del disco.
+      // Sharp/compresión viven exclusivamente en pdfPreviewImage.service.ts.
+      //
+      // Cachea el buffer ya leído por URL normalizada, para no releer el
+      // mismo archivo del disco si varias partidas usan la misma imagen
+      // dentro de este mismo documento.
       const imageCache = new Map<string, Buffer | null>();
 
       const getPartidaImageBuffer = async (imageUrl?: string | null) => {
@@ -1206,12 +1264,18 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         if (imageCache.has(normalizedUrl)) return imageCache.get(normalizedUrl) ?? null;
 
         try {
-          const response = await axios.get(normalizedUrl, { responseType: 'arraybuffer' });
-          const imageBuffer = Buffer.from(response.data);
-          imageCache.set(normalizedUrl, imageBuffer);
-          return imageBuffer;
+          const rutaOptimizada = await obtenerRutaPdfPreview(normalizedUrl);
+          if (!rutaOptimizada) {
+            imageCache.set(normalizedUrl, null);
+            return null;
+          }
+
+          const buffer = await fs.promises.readFile(rutaOptimizada);
+          imageCache.set(normalizedUrl, buffer);
+          return buffer;
         } catch (error) {
-          console.warn('[pdf] No se pudo descargar imagen de partida', {
+          // Continúa sin imagen en vez de romper el PDF completo.
+          console.warn('[pdf] No se pudo obtener la imagen optimizada de partida, se omite', {
             documentoId: documento?.id ?? null,
             imageUrl: normalizedUrl,
             error: (error as Error)?.message ?? error,
@@ -1230,7 +1294,12 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         return getPartidaImageBuffer(productoArchivoUrl);
       };
 
-      const computeRowMetrics = (values: string[], observaciones?: string | null, hasImage = false) => {
+      const computeRowMetrics = (
+        values: string[],
+        observaciones?: string | null,
+        hasImage = false,
+        camposConfigurablesPartida: CampoConfigurablePartidaValor[] = [],
+      ) => {
         const baseRowHeight = 17;
         const bodyPaddingY = 4;
         setFont(false, 9, mutedText);
@@ -1241,6 +1310,14 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         const descriptionHeight = doc.heightOfString(values[descripcionIndex] || '', {
           width: columnWidths[descripcionIndex] - 12,
         });
+
+        const { altura: camposConfigAltura, lineas: camposConfigLineas } = camposConfigurablesPartida.length
+          ? calcularAlturaCamposConfigurablesPartida(doc, camposConfigurablesPartida, {
+              width: columnWidths[descripcionIndex] - 12,
+              ...camposConfigurablesOpciones,
+            })
+          : { altura: 0, lineas: [] as CampoConfigurablePartidaValor[][] };
+        const camposConfigBlockHeight = camposConfigAltura ? camposConfigAltura + camposConfigurablesPaddingTop : 0;
 
         const obsHtml = observaciones ?? '';
         const obsText = showObservaciones && !richTextBasicoEstaVacio(obsHtml) ? obsHtml : '';
@@ -1253,16 +1330,16 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           });
         }
 
-        const textBlockHeight = Math.max(baseRowHeight, maxTextHeight + bodyPaddingY * 2) + (obsHeight ? obsHeight + observacionesPadding : 0);
+        const textBlockHeight = Math.max(baseRowHeight, maxTextHeight + bodyPaddingY * 2) + camposConfigBlockHeight + (obsHeight ? obsHeight + observacionesPadding : 0);
         const imageBlockHeight = hasImage && !imagenPartidaEnColumna ? imagenPartidaHeight + imagenPartidaGap : 0;
         const imageColumnMinHeight = hasImage && imagenPartidaEnColumna ? imagenPartidaHeight + bodyPaddingY * 2 : 0;
         const rowHeight = Math.max(
           textBlockHeight,
-          descriptionHeight + bodyPaddingY * 2 + (obsHeight ? obsHeight + observacionesPadding : 0) + imageBlockHeight,
+          descriptionHeight + bodyPaddingY * 2 + camposConfigBlockHeight + (obsHeight ? obsHeight + observacionesPadding : 0) + imageBlockHeight,
           imageColumnMinHeight,
         );
 
-        return { rowHeight, bodyPaddingY, descriptionHeight, obsHeight, obsText, imageBlockHeight };
+        return { rowHeight, bodyPaddingY, descriptionHeight, obsHeight, obsText, imageBlockHeight, camposConfigBlockHeight, camposConfigLineas };
       };
 
       const drawRow = (
@@ -1271,6 +1348,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         isHeader = false,
         observaciones?: string | null,
         imageBuffer?: Buffer | null,
+        camposConfigurablesPartida: CampoConfigurablePartidaValor[] = [],
       ) => {
         const baseRowHeight = isHeader ? 20 : 17;
         const bodyPaddingY = 4;
@@ -1280,12 +1358,16 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         let descriptionHeight = 0;
         let obsHeight = 0;
         let obsText = '';
+        let camposConfigBlockHeight = 0;
+        let camposConfigLineas: CampoConfigurablePartidaValor[][] = [];
         if (!isHeader) {
-          const metrics = computeRowMetrics(values, observaciones, Boolean(imageBuffer));
+          const metrics = computeRowMetrics(values, observaciones, Boolean(imageBuffer), camposConfigurablesPartida);
           rowHeight = metrics.rowHeight;
           descriptionHeight = metrics.descriptionHeight;
           obsHeight = metrics.obsHeight;
           obsText = metrics.obsText;
+          camposConfigBlockHeight = metrics.camposConfigBlockHeight;
+          camposConfigLineas = metrics.camposConfigLineas;
         }
 
         if (isHeader) {
@@ -1324,9 +1406,18 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           doc.text(text, x, textY, { width: colWidth, align });
         });
 
+        if (!isHeader && camposConfigLineas.length > 0) {
+          const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
+          const camposConfigY = y + bodyPaddingY + descriptionHeight;
+          renderCamposConfigurablesPartida(doc, camposConfigLineas, descX, camposConfigY, {
+            width: columnWidths[descripcionIndex] - 12,
+            ...camposConfigurablesOpciones,
+          });
+        }
+
         if (!isHeader && obsHeight > 0 && obsText) {
           const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
-          const obsY = y + bodyPaddingY + descriptionHeight + observacionesPadding;
+          const obsY = y + bodyPaddingY + descriptionHeight + camposConfigBlockHeight + observacionesPadding;
           renderRichTextBasicoPdf(doc, obsText, descX, obsY, {
             width: columnWidths[descripcionIndex] - 12,
             fontSize: observacionesFontSize,
@@ -1355,7 +1446,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           }
         } else if (!isHeader && imageBuffer && !imagenPartidaEnColumna) {
           const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
-          const imageY = y + bodyPaddingY + descriptionHeight + (obsHeight > 0 && obsText ? obsHeight + observacionesPadding : 0) + imagenPartidaGap;
+          const imageY = y + bodyPaddingY + descriptionHeight + camposConfigBlockHeight + (obsHeight > 0 && obsText ? obsHeight + observacionesPadding : 0) + imagenPartidaGap;
           const imageWidth = columnWidths[descripcionIndex] - 12;
           const imageFit: [number, number] = maxAnchoImagenPartida !== null
             ? [maxAnchoImagenPartida, imagenPartidaHeight]
@@ -1415,7 +1506,16 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
               formatCurrency(subtotalNeto),
             ];
         const imageBuffer = await getPartidaImageBufferFromPartida(p as PartidaCotizacion);
-        const metrics = computeRowMetrics(values, (p as PartidaCotizacion).observaciones ?? null, Boolean(imageBuffer));
+        const partidaId = Number((p as PartidaCotizacion)?.id);
+        const camposConfigurablesPartida = mostrarCamposConfigurablesPartida && Number.isFinite(partidaId)
+          ? camposConfigurablesPorPartidaId.get(partidaId) ?? []
+          : [];
+        const metrics = computeRowMetrics(
+          values,
+          (p as PartidaCotizacion).observaciones ?? null,
+          Boolean(imageBuffer),
+          camposConfigurablesPartida,
+        );
         const rowHeight = metrics.rowHeight;
 
         if (currentY + rowHeight > pageBottom) {
@@ -1429,6 +1529,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           false,
           (p as PartidaCotizacion).observaciones ?? null,
           imageBuffer,
+          camposConfigurablesPartida,
         );
       }
 

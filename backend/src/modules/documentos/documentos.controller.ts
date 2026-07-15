@@ -17,13 +17,11 @@ import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import { timbrarComplementoPago } from '../cfdi/cfdi-pago.service';
 import pool from '../../config/database';
-import type { PoolClient } from 'pg';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
-import { actualizarCotizacionService, actualizarDocumentoService, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
+import { actualizarCotizacionService, actualizarDocumentoService, aplicarInventarioPostEmision, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
 import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeEliminarCotizacion } from './documentos-delete.service';
 import { cancelarDocumentoService, DocumentoCancelValidationError } from './documentos-cancel.service';
-import { aplicarInventarioDesdeDocumentoEnTransaccion } from '../inventario/inventario.service';
 import { formatearFolioDocumento } from '../../utils/documentos';
 import { obtenerJwtSecret } from '../auth/auth.service';
 import { evaluarScopeVentas, resolverContextoScopeComercial } from '../auth/scope-comercial';
@@ -39,29 +37,6 @@ const resolverTipoDocumentoRequest = (req: Request, fallback: TipoDocumento): Ti
   normalizarTipo(req.query.tipo_documento ?? req.body?.tipo_documento, fallback);
 
 const TIPOS_DOCUMENTO_MONETARIOS = new Set<TipoDocumento>(['pago_cliente', 'pago_proveedor']);
-
-const INVENTARIO_SILENCEABLE = new Set([
-  'TIPO_NO_AFECTA_INVENTARIO',
-  'SIN_PARTIDAS_INVENTARIABLES',
-  'MOVIMIENTO_DUPLICADO',
-  'SIN_ALMACEN_RESOLVABLE', // defensivo: fallo de infraestructura al crear/recuperar almacén general
-]);
-
-async function aplicarInventarioPostEmision(
-  client: PoolClient,
-  documentoId: number,
-  empresaId: number,
-  estatusResultante: string,
-  usuarioId: number | undefined
-): Promise<void> {
-  if (estatusResultante !== 'emitido' && estatusResultante !== 'enviado') return;
-  if (!usuarioId) return;
-  try {
-    await aplicarInventarioDesdeDocumentoEnTransaccion(client, documentoId, empresaId, Number(usuarioId));
-  } catch (invErr: any) {
-    if (!INVENTARIO_SILENCEABLE.has((invErr as any)?.code)) throw invErr;
-  }
-}
 
 function sanitizarNombreDescarga(nombre: string): string {
   const limpio = (nombre || 'documento').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -177,6 +152,32 @@ async function assertFacturaTimbrada(documentoId: number, empresaId: number): Pr
 
   const estatus = rows[0]?.estatus_documento?.trim().toLowerCase() ?? null;
   if (estatus !== 'timbrado') {
+    throw buildHttpError(400, 'La factura no está timbrada');
+  }
+}
+
+const esNotaVentaPorTratamiento = (tratamientoImpuestos: unknown): boolean =>
+  String(tratamientoImpuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
+
+const normalizarEstatusDocumentoEnvio = (value: unknown): string => {
+  const normalizado = String(value ?? 'borrador').trim().toLowerCase();
+  if (!normalizado) return 'borrador';
+  if (normalizado === 'enviado') return 'emitido';
+  return normalizado;
+};
+
+// Las notas de venta son documentos tipo 'factura' con tratamiento_impuestos = 'sin_iva':
+// no requieren timbrado CFDI, pero sí deben estar emitidas. Las facturas fiscales
+// conservan la exigencia de timbrado.
+function assertFacturaPuedeEnviarsePorWhatsapp(documento: any): void {
+  if (esNotaVentaPorTratamiento(documento?.tratamiento_impuestos)) {
+    if (normalizarEstatusDocumentoEnvio(documento?.estatus_documento) !== 'emitido') {
+      throw buildHttpError(400, 'La nota de venta no está emitida');
+    }
+    return;
+  }
+
+  if (normalizarEstatusDocumentoEnvio(documento?.estatus_documento) !== 'timbrado') {
     throw buildHttpError(400, 'La factura no está timbrada');
   }
 }
@@ -1083,19 +1084,21 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) 
       return res.status(400).json({ message: 'telefono es requerido' });
     }
 
-    await assertFacturaTimbrada(documentoId, Number(empresaId));
-
     const factura = await obtenerDocumentoRepository(documentoId, Number(empresaId), 'factura');
     if (!factura) {
       return res.status(404).json({ message: 'Factura no encontrada' });
     }
 
     const facturaDocumento = factura.documento as any;
+    assertFacturaPuedeEnviarsePorWhatsapp(facturaDocumento);
+
     const tratamiento = String(facturaDocumento?.tratamiento_impuestos ?? '').trim().toLowerCase();
     const tipoPlantilla: WhatsappTemplateType = tratamiento === 'sin_iva' ? 'envio_nota_venta' : 'envio_cfdi';
     const nombreCliente = String(facturaDocumento?.nombre_receptor ?? facturaDocumento?.cliente_nombre ?? 'Cliente').trim() || 'Cliente';
     const folioFactura = formatearFolioDocumento(facturaDocumento?.serie ?? '', Number(facturaDocumento?.numero ?? 0)) || String(documentoId);
-    const links = await generarFacturaPublicLinks(req, documentoId, Number(empresaId), true);
+    // Una nota de venta puede no estar timbrada; en ese caso no existe XML CFDI que adjuntar.
+    const facturaEstaTimbrada = normalizarEstatusDocumentoEnvio(facturaDocumento?.estatus_documento) === 'timbrado';
+    const links = await generarFacturaPublicLinks(req, documentoId, Number(empresaId), facturaEstaTimbrada);
     const templateParams = [nombreCliente, folioFactura, links.xmlUrl ?? ''];
 
     console.info('[CFDI WhatsApp] Inicio de envio automatico', {

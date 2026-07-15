@@ -486,12 +486,15 @@ export type Operacion = {
   documento_origen_tipo_documento?: string | null;
   documento_origen_serie?: string | null;
   documento_origen_numero?: number | null;
+  documento_origen_serie_externa?: string | null;
+  documento_origen_numero_externo?: number | null;
   documento_origen_total?: number | null;
   factura_id?: number | null;
   es_transferencia?: boolean;
   transferencia_id?: number | null;
   estado_conciliacion?: string;
   saldo?: number | null;
+  saldo_acumulado?: number | null;
   concepto_id?: number | null;
   concepto_nombre?: string | null;
   transferencia_cuenta_origen?: number | null;
@@ -656,33 +659,63 @@ export async function obtenerCuentaConLock(
 
 export async function listarOperaciones(empresaId: number, cuentaId?: number): Promise<Operacion[]> {
   const params: any[] = [empresaId];
-  const filters: string[] = ['fo.empresa_id = $1'];
+  // IMPORTANTE: este WHERE sólo debe llevar condiciones de PERTENENCIA real al universo
+  // contable de la cuenta (empresa_id, cuenta_id). Se evalúa DENTRO del CTE, es decir
+  // ANTES de la función de ventana que calcula saldo_acumulado. Cualquier filtro visual
+  // que se agregue a futuro (fecha, contacto, concepto, estado, texto de búsqueda,
+  // referencia, etc.) NO debe añadirse aquí: debe aplicarse en el WHERE del SELECT
+  // externo (después de `operaciones_con_saldo`), o el histórico previo al filtro se
+  // perdería y el acumulado quedaría mal calculado. `cuenta_id` sí es seguro aquí porque
+  // el saldo se calcula PARTITION BY cuenta_id: filtrar antes es equivalente a calcular
+  // sobre todas las cuentas y quedarse sólo con esa partición.
+  const filtrosPertenencia: string[] = ['fo.empresa_id = $1'];
   if (cuentaId) {
     params.push(cuentaId);
-    filters.push(`fo.cuenta_id = $${params.length}`);
+    filtrosPertenencia.push(`fo.cuenta_id = $${params.length}`);
   }
-  const where = filters.join(' AND ');
+  const wherePertenencia = filtrosPertenencia.join(' AND ');
   const { rows } = await pool.query<Operacion>(
-    `SELECT fo.*,
-            c.nombre AS contacto_nombre,
-            co.nombre_concepto AS concepto_nombre,
-           d.tipo_documento AS documento_origen_tipo_documento,
-           d.serie AS documento_origen_serie,
-           d.numero AS documento_origen_numero,
-           d.total AS documento_origen_total,
-            ft.cuenta_origen_id AS transferencia_cuenta_origen,
-            ft.cuenta_destino_id AS transferencia_cuenta_destino,
-            coo.identificador AS transferencia_origen_nombre,
-            cod.identificador AS transferencia_destino_nombre
-     FROM finanzas_operaciones fo
-     LEFT JOIN contactos c ON c.id = fo.contacto_id
-     LEFT JOIN conceptos co ON co.id = fo.concepto_id
-         LEFT JOIN documentos d ON d.id = fo.documento_origen_id AND d.empresa_id = fo.empresa_id
-     LEFT JOIN finanzas_transferencias ft ON ft.id = fo.transferencia_id
-     LEFT JOIN finanzas_cuentas coo ON coo.id = ft.cuenta_origen_id
-     LEFT JOIN finanzas_cuentas cod ON cod.id = ft.cuenta_destino_id
-     WHERE ${where}
-     ORDER BY fo.fecha DESC, fo.id DESC`,
+    `WITH operaciones_con_saldo AS (
+       SELECT fo.*,
+              c.nombre AS contacto_nombre,
+              co.nombre_concepto AS concepto_nombre,
+              d.tipo_documento AS documento_origen_tipo_documento,
+              d.serie AS documento_origen_serie,
+              d.numero AS documento_origen_numero,
+              d.serie_externa AS documento_origen_serie_externa,
+              d.numero_externo AS documento_origen_numero_externo,
+              d.total AS documento_origen_total,
+              ft.cuenta_origen_id AS transferencia_cuenta_origen,
+              ft.cuenta_destino_id AS transferencia_cuenta_destino,
+              coo.identificador AS transferencia_origen_nombre,
+              cod.identificador AS transferencia_destino_nombre,
+              -- saldo_acumulado: saldo real de la cuenta después de cada operación,
+              -- calculado cronológicamente (fecha, luego id como desempate estable) y
+              -- sembrado con el saldo inicial de la cuenta — independiente del orden de
+              -- inserción y de la columna fo.saldo (que sólo refleja el saldo de la
+              -- cuenta en el momento en que la operación fue capturada, no el orden
+              -- histórico por fecha). Particionado por cuenta_id para que nunca se
+              -- mezcle el acumulado de distintas cuentas.
+              fc.saldo_inicial + SUM(
+                CASE WHEN fo.tipo_movimiento = 'Deposito' THEN fo.monto ELSE -fo.monto END
+              ) OVER (
+                PARTITION BY fo.cuenta_id
+                ORDER BY fo.fecha ASC, fo.id ASC
+                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+              ) AS saldo_acumulado
+       FROM finanzas_operaciones fo
+       JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id
+       LEFT JOIN contactos c ON c.id = fo.contacto_id
+       LEFT JOIN conceptos co ON co.id = fo.concepto_id
+       LEFT JOIN documentos d ON d.id = fo.documento_origen_id AND d.empresa_id = fo.empresa_id
+       LEFT JOIN finanzas_transferencias ft ON ft.id = fo.transferencia_id
+       LEFT JOIN finanzas_cuentas coo ON coo.id = ft.cuenta_origen_id
+       LEFT JOIN finanzas_cuentas cod ON cod.id = ft.cuenta_destino_id
+       WHERE ${wherePertenencia}
+     )
+     SELECT *
+     FROM operaciones_con_saldo
+     ORDER BY fecha DESC, id DESC`,
     params
   );
   return rows;
@@ -1675,6 +1708,117 @@ export async function verificarSaldosCuentas(empresaId: number) {
     tiene_diferencias: conDiferencia.length > 0,
     total_cuentas_con_diferencia: conDiferencia.length,
   };
+}
+
+export type ResultadoRecalculoSaldos = {
+  cuentas_procesadas: number;
+  operaciones_procesadas: number;
+  cuentas_actualizadas: number;
+  operaciones_actualizadas: number;
+  ejecutado_en: string;
+};
+
+/**
+ * Herramienta de mantenimiento: reconstruye finanzas_operaciones.saldo (histórico por
+ * operación) y finanzas_cuentas.saldo (saldo actual) a partir de saldo_inicial + los
+ * movimientos ya registrados, con el MISMO criterio que saldo_acumulado en
+ * listarOperaciones (partición por cuenta_id, orden fecha ASC/id ASC como desempate
+ * estable, depósitos suman, retiros restan). No crea, elimina ni reordena operaciones;
+ * sólo corrige las columnas de saldo. Las dos piernas de una transferencia son filas
+ * normales de finanzas_operaciones (cada una con su propio cuenta_id), así que participan
+ * del recálculo de su respectiva cuenta sin sumarse/restarse de nuevo vía transferencia_id.
+ */
+export async function recalcularSaldosEmpresa(empresaId: number): Promise<ResultadoRecalculoSaldos> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Bloquea todas las cuentas de la empresa. Cualquier captura concurrente de una
+    // operación/transferencia sobre estas cuentas (que también toma FOR UPDATE vía
+    // obtenerCuentaConLock) esperará a que termine este recálculo, evitando carreras.
+    const { rows: cuentasLock } = await client.query<{ id: number }>(
+      `SELECT id FROM finanzas_cuentas WHERE empresa_id = $1 FOR UPDATE`,
+      [empresaId]
+    );
+    const cuentasProcesadas = cuentasLock.length;
+
+    const { rows: opsLock } = await client.query<{ id: number }>(
+      `SELECT id FROM finanzas_operaciones WHERE empresa_id = $1 FOR UPDATE`,
+      [empresaId]
+    );
+    const operacionesProcesadas = opsLock.length;
+
+    // 1) Saldo histórico por operación (fo.saldo). Todo el cálculo es aritmética NUMERIC
+    //    en SQL — no pasa por `number` de JavaScript, así que no hay pérdida de precisión.
+    const saldosOperacionesResult = await client.query(
+      `WITH saldos_calculados AS (
+         SELECT
+           fo.id,
+           fc.saldo_inicial + SUM(
+             CASE WHEN fo.tipo_movimiento = 'Deposito' THEN fo.monto ELSE -fo.monto END
+           ) OVER (
+             PARTITION BY fo.cuenta_id
+             ORDER BY fo.fecha ASC, fo.id ASC
+             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+           ) AS saldo_calculado
+         FROM finanzas_operaciones fo
+         JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id
+         WHERE fo.empresa_id = $1
+           AND fc.empresa_id = $1
+       )
+       UPDATE finanzas_operaciones fo
+          SET saldo = sc.saldo_calculado
+         FROM saldos_calculados sc
+        WHERE fo.id = sc.id
+          AND fo.empresa_id = $1
+          AND fo.saldo IS DISTINCT FROM sc.saldo_calculado`,
+      [empresaId]
+    );
+    const operacionesActualizadas = saldosOperacionesResult.rowCount ?? 0;
+
+    // 2) Saldo actual por cuenta (fc.saldo): el saldo de la última operación cronológica
+    //    (ya recalculado arriba, mismo orden fecha ASC/id ASC vía DESC para tomar la
+    //    última) o saldo_inicial si la cuenta no tiene operaciones.
+    const saldosCuentasResult = await client.query(
+      `UPDATE finanzas_cuentas fc
+          SET saldo = COALESCE(
+            (SELECT fo.saldo
+               FROM finanzas_operaciones fo
+              WHERE fo.cuenta_id = fc.id
+                AND fo.empresa_id = $1
+              ORDER BY fo.fecha DESC, fo.id DESC
+              LIMIT 1),
+            fc.saldo_inicial
+          )
+        WHERE fc.empresa_id = $1
+          AND fc.saldo IS DISTINCT FROM COALESCE(
+            (SELECT fo.saldo
+               FROM finanzas_operaciones fo
+              WHERE fo.cuenta_id = fc.id
+                AND fo.empresa_id = $1
+              ORDER BY fo.fecha DESC, fo.id DESC
+              LIMIT 1),
+            fc.saldo_inicial
+          )`,
+      [empresaId]
+    );
+    const cuentasActualizadas = saldosCuentasResult.rowCount ?? 0;
+
+    await client.query('COMMIT');
+
+    return {
+      cuentas_procesadas: cuentasProcesadas,
+      operaciones_procesadas: operacionesProcesadas,
+      cuentas_actualizadas: cuentasActualizadas,
+      operaciones_actualizadas: operacionesActualizadas,
+      ejecutado_en: new Date().toISOString(),
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function diagnosticarDuplicadosAplicaciones(empresaId: number) {

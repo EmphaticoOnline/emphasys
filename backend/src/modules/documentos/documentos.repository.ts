@@ -210,6 +210,242 @@ async function assertOrdenCompraModificable(
 }
 
 /**
+ * Un documento tiene "trazabilidad activa" cuando alguna de sus partidas está vinculada
+ * (como origen o destino) a partidas de otro documento vía documentos_partidas_vinculos.
+ * Es el caso de una factura generada desde una orden de servicio: sus datos heredados,
+ * comerciales, fiscales y de importes quedan protegidos de edición.
+ */
+export async function obtenerTrazabilidadPartidas(
+  documentoId: number,
+  executor: Pick<import('pg').PoolClient, 'query'>
+): Promise<{ activa: boolean; folioRelacionado: string | null }> {
+  const { rows } = await executor.query<{ folio_relacionado: string | null }>(
+    `SELECT
+       CASE
+         WHEN d_rel.serie IS NOT NULL AND d_rel.numero IS NOT NULL
+           THEN d_rel.serie || '-' || LPAD(d_rel.numero::text, 3, '0')
+         WHEN d_rel.serie IS NOT NULL THEN d_rel.serie
+         WHEN d_rel.numero IS NOT NULL THEN d_rel.numero::text
+         ELSE NULL
+       END AS folio_relacionado
+     FROM documentos_partidas dp
+     JOIN documentos_partidas_vinculos dpv
+       ON dpv.partida_origen_id = dp.id
+       OR dpv.partida_destino_id = dp.id
+     LEFT JOIN documentos d_rel ON d_rel.id = CASE
+       WHEN dpv.documento_origen_id = $1 THEN dpv.documento_destino_id
+       ELSE dpv.documento_origen_id
+     END
+     WHERE dp.documento_id = $1
+     LIMIT 1`,
+    [documentoId]
+  );
+
+  return { activa: rows.length > 0, folioRelacionado: rows[0]?.folio_relacionado ?? null };
+}
+
+type TipoComparacionCampoDocumento = 'texto' | 'numero' | 'entero' | 'fecha';
+
+const CAMPOS_DOCUMENTO_TIPO_COMPARACION: Partial<Record<(typeof CAMPOS_DOCUMENTO)[number], TipoComparacionCampoDocumento>> = {
+  numero: 'entero',
+  fecha_documento: 'fecha',
+  fecha_vencimiento: 'fecha',
+  documento_origen_id: 'entero',
+  oportunidad_id: 'entero',
+  contacto_principal_id: 'entero',
+  concepto_id: 'entero',
+  tipo_cambio: 'numero',
+  finanzas_operacion_id: 'entero',
+  subtotal: 'numero',
+  descuento_global: 'numero',
+  descuento: 'numero',
+  iva: 'numero',
+  total: 'numero',
+  agente_id: 'entero',
+  usuario_creacion_id: 'entero',
+};
+
+function valorDeCampoDocumentoDifiere(actual: unknown, incoming: unknown, tipo: TipoComparacionCampoDocumento): boolean {
+  if (tipo === 'numero') {
+    const a = actual === null || actual === undefined || actual === '' ? null : Number(actual);
+    const b = incoming === null || incoming === undefined || (incoming as any) === '' ? null : Number(incoming);
+    if (a === null && b === null) return false;
+    if (a === null || b === null) return true;
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
+    return Math.abs(a - b) > 0.005;
+  }
+  if (tipo === 'entero') {
+    const a = actual === null || actual === undefined || actual === '' ? null : Number(actual);
+    const b = incoming === null || incoming === undefined || (incoming as any) === '' ? null : Number(incoming);
+    return a !== b;
+  }
+  if (tipo === 'fecha') {
+    const a = actual ? new Date(actual as any).getTime() : null;
+    const b = incoming ? new Date(incoming as any).getTime() : null;
+    if (a === null && b === null) return false;
+    if (a === null || b === null) return true;
+    return a !== b;
+  }
+  const a = actual === null || actual === undefined ? '' : String(actual).trim();
+  const b = incoming === null || incoming === undefined ? '' : String(incoming).trim();
+  return a !== b;
+}
+
+// `estatus_documento` no protege datos heredados/comerciales en sí mismo — es la transición
+// borrador→emitido/enviado que usan tanto el menú rápido de estatus como la generación
+// automática de notas de venta. Cancelación y timbrado nunca pasan por aquí (tienen su
+// propio flujo dedicado con sus propias validaciones). Por eso está exento del rechazo
+// genérico por campo, pero NO es de edición libre: assertTransicionEstatusDocumentoConTrazabilidad
+// (abajo) solo permite la transición borrador→emitido; cualquier otro valor (revertir a
+// borrador, cancelar, o cualquier otro estatus) se rechaza explícitamente.
+const CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD: readonly string[] = ['observaciones', 'estatus_documento'];
+
+const normalizarEstatusDocumentoParaTransicion = (value: unknown): string => {
+  const normalizado = String(value ?? 'borrador').trim().toLowerCase();
+  if (!normalizado) return 'borrador';
+  if (normalizado === 'enviado') return 'emitido';
+  return normalizado;
+};
+
+/**
+ * Con trazabilidad activa, la única transición de `estatus_documento` permitida es
+ * borrador → emitido (la que usan el menú rápido de estatus y la generación automática de
+ * notas de venta). Se rechaza explícitamente: revertir a borrador, cancelar directamente
+ * (debe usarse el servicio de cancelación), transicionar desde timbrado/pagado/cerrado, o
+ * asignar cualquier otro estatus arbitrario. Si el valor enviado no representa un cambio
+ * real (ya sea por reenvío idéntico o por una variante de mayúsculas/sinónimo ya conocida),
+ * se trata como no-op y se permite sin validar la transición.
+ */
+function assertTransicionEstatusDocumentoConTrazabilidad(
+  estatusActual: unknown,
+  estatusNuevo: unknown,
+  folioRelacionado: string | null
+): void {
+  const actual = normalizarEstatusDocumentoParaTransicion(estatusActual);
+  const nuevo = normalizarEstatusDocumentoParaTransicion(estatusNuevo);
+
+  if (actual === nuevo) return;
+
+  if (actual !== 'borrador' || nuevo !== 'emitido') {
+    const folio = folioRelacionado ? ` (vinculado a ${folioRelacionado})` : '';
+    throw new Error(
+      `VALIDATION_ERROR: No se puede cambiar el estatus de "${estatusActual ?? 'Borrador'}" a "${estatusNuevo}" porque el documento tiene trazabilidad activa${folio}. Con trazabilidad activa solo se permite la transición de borrador a emitido; use los servicios de cancelación o timbrado para las demás transiciones.`
+    );
+  }
+}
+
+/**
+ * Con trazabilidad activa, un documento (encabezado) solo admite editar `observaciones` y
+ * transicionar `estatus_documento` de borrador a emitido. En vez de ignorar en silencio
+ * cualquier otro campo enviado, se rechaza toda la petición apenas se detecta un intento
+ * real de cambio (el valor enviado difiere del guardado en BD) sobre cualquier otro campo,
+ * protegiendo cliente, fecha, serie/folio, documento origen, datos fiscales, importes y
+ * demás datos heredados o comerciales.
+ */
+function assertSoloObservacionesModificadas(
+  current: Record<string, any>,
+  dataToUpdate: DocumentoInput,
+  folioRelacionado: string | null
+): void {
+  for (const campo of CAMPOS_DOCUMENTO) {
+    if (campo === 'observaciones') continue;
+
+    if (campo === 'estatus_documento') {
+      const incomingEstatus = (dataToUpdate as any).estatus_documento;
+      if (incomingEstatus === undefined) continue;
+      assertTransicionEstatusDocumentoConTrazabilidad(current.estatus_documento, incomingEstatus, folioRelacionado);
+      continue;
+    }
+
+    const incoming = (dataToUpdate as any)[campo];
+    if (incoming === undefined) continue;
+
+    const tipo = CAMPOS_DOCUMENTO_TIPO_COMPARACION[campo] ?? 'texto';
+    if (valorDeCampoDocumentoDifiere(current[campo], incoming, tipo)) {
+      const folio = folioRelacionado ? ` (vinculado a ${folioRelacionado})` : '';
+      throw new Error(
+        `VALIDATION_ERROR: No se puede modificar "${campo}" porque el documento tiene trazabilidad activa${folio}. Solo pueden editarse las observaciones o el estatus (únicamente de borrador a emitido).`
+      );
+    }
+  }
+}
+
+type TipoComparacionCampoPartida = 'texto' | 'numero' | 'entero' | 'booleano';
+
+const CAMPOS_PARTIDA_PROTEGIDOS_TIPO: Record<string, TipoComparacionCampoPartida> = {
+  producto_id: 'entero',
+  descripcion_alterna: 'texto',
+  cantidad: 'numero',
+  precio_unitario: 'numero',
+  precio_lista_id: 'entero',
+  precio_editado_manual: 'booleano',
+  precio_origen: 'texto',
+  descuento: 'numero',
+  descuento_tipo: 'texto',
+  descuento_monto: 'numero',
+  subtotal_partida: 'numero',
+  total_partida: 'numero',
+  es_parte_oportunidad: 'booleano',
+  observaciones: 'texto',
+};
+
+function valorDeCampoPartidaDifiere(actual: unknown, incoming: unknown, tipo: TipoComparacionCampoPartida): boolean {
+  if (tipo === 'numero') {
+    const a = actual === null || actual === undefined || actual === '' ? null : Number(actual);
+    const b = incoming === null || incoming === undefined || (incoming as any) === '' ? null : Number(incoming);
+    if (a === null && b === null) return false;
+    if (a === null || b === null) return true;
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
+    return Math.abs(a - b) > 0.005;
+  }
+  if (tipo === 'entero') {
+    const a = actual === null || actual === undefined || actual === '' ? null : Number(actual);
+    const b = incoming === null || incoming === undefined || (incoming as any) === '' ? null : Number(incoming);
+    return a !== b;
+  }
+  if (tipo === 'booleano') {
+    return Boolean(actual) !== Boolean(incoming);
+  }
+  const a = actual === null || actual === undefined ? '' : String(actual).trim();
+  const b = incoming === null || incoming === undefined ? '' : String(incoming).trim();
+  return a !== b;
+}
+
+/**
+ * Con trazabilidad activa, cada partida solo admite editar su imagen (archivo_imagen_1 /
+ * producto_archivo_id). En vez de forzar en silencio los valores guardados en BD, se
+ * rechaza toda la petición apenas se detecta un intento real de cambio (el valor enviado
+ * difiere del guardado) sobre cualquier otro campo: cantidad, precio, descuento, producto,
+ * observaciones, importes, etc.
+ */
+function assertSoloImagenPartidasModificadas(
+  partidasActuales: any[],
+  partidasIncoming: PartidaInput[],
+  folioRelacionado: string | null
+): void {
+  const camposProtegidos = Object.keys(CAMPOS_PARTIDA_PROTEGIDOS_TIPO);
+
+  for (let idx = 0; idx < partidasActuales.length; idx++) {
+    const actual = partidasActuales[idx];
+    const incoming = partidasIncoming[idx] ?? {};
+    const descuentoNormalizadoIncoming = normalizarDescuentoPartida(incoming);
+
+    for (const campo of camposProtegidos) {
+      const valorIncoming = campo === 'descuento' || campo === 'descuento_tipo' || campo === 'descuento_monto'
+        ? (descuentoNormalizadoIncoming as any)[campo]
+        : (incoming as any)[campo];
+      const tipo = CAMPOS_PARTIDA_PROTEGIDOS_TIPO[campo];
+      if (valorDeCampoPartidaDifiere(actual[campo], valorIncoming, tipo)) {
+        const folio = folioRelacionado ? ` (vinculado a ${folioRelacionado})` : '';
+        throw new Error(
+          `VALIDATION_ERROR: No se puede modificar "${campo}" de la partida ${idx + 1} porque el documento tiene trazabilidad activa${folio}. Solo puede editarse la imagen.`
+        );
+      }
+    }
+  }
+}
+
+/**
  * Una factura solo puede eliminarse (DELETE físico) si nunca tuvo efecto fiscal ni
  * financiero: sin timbrar y sin pagos aplicados. Si ya está timbrada, debe seguir el
  * flujo formal de cancelación de CFDI en lugar de eliminarse.
@@ -1238,17 +1474,10 @@ export async function actualizarDocumentoRepository(
   }
   const hasSeguimiento = await ensureSeguimientoColumns();
 
-  // Traer valores actuales para comparar serie/número
+  // Traer valores actuales completos: además de serie/número, se usan para comparar
+  // contra dataToUpdate cuando hay trazabilidad activa (ver assertSoloObservacionesModificadas).
   const { rows: currentRows } = await executor.query(
-    `SELECT d.id,
-            d.serie,
-            d.numero,
-            d.tipo_documento,
-            d.estado_seguimiento,
-            d.estatus_documento,
-            d.documento_origen_id,
-            d.usuario_creacion_id,
-            d.tratamiento_impuestos,
+    `SELECT d.*,
             EXISTS (
               SELECT 1
                 FROM documentos_cfdi dc
@@ -1273,9 +1502,15 @@ export async function actualizarDocumentoRepository(
 
   assertFacturaCompraNoEmitida(current.tipo_documento, current.estatus_documento);
   await assertOrdenCompraModificable(id, empresaId, current.tipo_documento, executor);
+  const trazabilidadHeader = await obtenerTrazabilidadPartidas(id, executor);
 
   let dataToUpdate: DocumentoInput = { ...data };
   normalizarCamposFiscalesSat(dataToUpdate);
+
+  if (trazabilidadHeader.activa) {
+    assertSoloObservacionesModificadas(current, dataToUpdate, trazabilidadHeader.folioRelacionado);
+  }
+
   const serieActual = current.serie ?? null;
   const serieNueva = dataToUpdate.serie ?? serieActual;
   const tipoDestino = (dataToUpdate.tipo_documento ?? current.tipo_documento) as TipoDocumento;
@@ -1349,7 +1584,14 @@ export async function actualizarDocumentoRepository(
     });
   }
 
+  // Con trazabilidad activa (documento originado o consumido por otro vía vínculos de
+  // partida), solo se permite editar observaciones y transicionar estatus_documento; el
+  // resto de los campos enviados se ignora aunque el cliente los incluya (defensa en
+  // profundidad: assertSoloObservacionesModificadas ya rechazó la petición si alguno
+  // realmente cambió), para no aceptar modificaciones indirectas sobre datos heredados,
+  // comerciales, fiscales o de importes.
   const entries = CAMPOS_DOCUMENTO.filter((campo) => {
+    if (trazabilidadHeader.activa && !CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD.includes(campo)) return false;
     if (!hasSeguimiento && (SEGUIMIENTO_CAMPOS as readonly string[]).includes(campo)) return false;
     return dataToUpdate[campo] !== undefined;
   });
@@ -1548,30 +1790,57 @@ export async function reemplazarPartidasRepository(
     assertFacturaCompraNoEmitida(docRow.tipo_documento, docRow.estatus_documento);
     await assertOrdenCompraModificable(documentoId, empresaId, docRow.tipo_documento, executor);
 
-    const { rows: vinculosCheck } = await executor.query<{ folio_relacionado: string | null }>(
-      `SELECT
-         CASE
-           WHEN d_rel.serie IS NOT NULL AND d_rel.numero IS NOT NULL
-             THEN d_rel.serie || '-' || LPAD(d_rel.numero::text, 3, '0')
-           WHEN d_rel.serie IS NOT NULL THEN d_rel.serie
-           WHEN d_rel.numero IS NOT NULL THEN d_rel.numero::text
-           ELSE NULL
-         END AS folio_relacionado
-       FROM documentos_partidas dp
-       JOIN documentos_partidas_vinculos dpv
-         ON dpv.partida_origen_id = dp.id
-         OR dpv.partida_destino_id = dp.id
-       LEFT JOIN documentos d_rel ON d_rel.id = CASE
-         WHEN dpv.documento_origen_id = $1 THEN dpv.documento_destino_id
-         ELSE dpv.documento_origen_id
-       END
-       WHERE dp.documento_id = $1
-       LIMIT 1`,
-      [documentoId]
-    );
-    if (vinculosCheck.length > 0) {
-      const folio = vinculosCheck[0].folio_relacionado ?? '';
-      throw new Error(`VALIDATION_ERROR: TRAZABILIDAD_ACTIVA: ${folio}`);
+    const trazabilidadPartidas = await obtenerTrazabilidadPartidas(documentoId, executor);
+    if (trazabilidadPartidas.activa) {
+      // Reemplazar partidas implica DELETE + re-INSERT, y documentos_partidas_vinculos
+      // tiene ON DELETE CASCADE hacia documentos_partidas: borrar las partidas destruiría
+      // el vínculo de trazabilidad con el documento origen/destino. Por eso, con
+      // trazabilidad activa, solo se actualiza la imagen de cada partida in-place (misma
+      // fila, mismo id); cantidad, precio, descuento, producto, observaciones y demás
+      // datos heredados no se tocan, y no se admite agregar/quitar partidas.
+      const { rows: partidasActuales } = await executor.query(
+        'SELECT * FROM documentos_partidas WHERE documento_id = $1 ORDER BY numero_partida ASC',
+        [documentoId]
+      );
+
+      if (partidasActuales.length !== partidas.length) {
+        const folio = trazabilidadPartidas.folioRelacionado ?? '';
+        throw new Error(`VALIDATION_ERROR: TRAZABILIDAD_ACTIVA: ${folio}`);
+      }
+
+      assertSoloImagenPartidasModificadas(partidasActuales, partidas, trazabilidadPartidas.folioRelacionado);
+
+      if (ownedClient) {
+        await executor.query('BEGIN');
+      }
+      const partidasActualizadas: any[] = [];
+      for (let idx = 0; idx < partidasActuales.length; idx++) {
+        const actual = partidasActuales[idx];
+        const incoming = partidas[idx] ?? {};
+        // Si la petición no incluye ninguna de las dos claves de imagen, no se toca la
+        // imagen ya guardada (evita borrarla por omisión). Si incluye cualquiera de las
+        // dos (para agregar, reemplazar o quitar explícitamente con null), se normaliza
+        // el par mutuamente excluyente a partir de lo enviado.
+        const incomingIncluyeImagen =
+          Object.prototype.hasOwnProperty.call(incoming, 'archivo_imagen_1')
+          || Object.prototype.hasOwnProperty.call(incoming, 'producto_archivo_id');
+        const imagen = incomingIncluyeImagen
+          ? normalizarImagenPartida(incoming, true)
+          : { archivo_imagen_1: actual.archivo_imagen_1, producto_archivo_id: actual.producto_archivo_id };
+        const { rows } = await executor.query(
+          `UPDATE documentos_partidas
+              SET archivo_imagen_1 = $1,
+                  producto_archivo_id = $2
+            WHERE id = $3
+            RETURNING *`,
+          [imagen.archivo_imagen_1, imagen.producto_archivo_id, actual.id]
+        );
+        partidasActualizadas.push(rows[0]);
+      }
+      if (ownedClient) {
+        await executor.query('COMMIT');
+      }
+      return partidasActualizadas;
     }
 
     const permiteImagen = true;

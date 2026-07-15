@@ -1,5 +1,8 @@
 import pool from '../../config/database';
 import type { TipoDatoCampo } from '../campos-configuracion/campos-configuracion.repository';
+import type { CampoConfigurablePartidaValor } from './camposConfigurablesPdf';
+
+const ENTIDAD_TIPO_CODIGO_PARTIDA = 'DOCUMENTO_PARTIDA';
 
 export type ValorCampoPayload = {
   campo_id: number;
@@ -329,4 +332,112 @@ export async function obtenerCamposPartidaRepository(
   );
 
   return rows;
+}
+
+export type CampoConfigurablePartidaImpresion = CampoConfigurablePartidaValor & {
+  partidaId: number;
+};
+
+type FilaCampoConfigurableImpresion = {
+  partida_id: number;
+  campo_id: number;
+  nombre: string;
+  tipo_dato: TipoDatoCampo;
+  campo_padre_id: number | null;
+  orden: number | null;
+  valor_texto: string | null;
+  valor_numero: number | null;
+  valor_fecha: string | Date | null;
+  valor_boolean: boolean | null;
+  catalogo_descripcion: string | null;
+};
+
+function formatearFechaCampoConfigurableImpresion(valor: string | Date): string {
+  if (valor instanceof Date) {
+    return valor.toLocaleDateString('es-MX', { timeZone: 'UTC' });
+  }
+  const match = String(valor).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, anio, mes, dia] = match;
+    return `${dia}/${mes}/${anio}`;
+  }
+  return String(valor);
+}
+
+function formatearValorCampoConfigurableImpresion(fila: FilaCampoConfigurableImpresion): string {
+  switch (fila.tipo_dato) {
+    case 'lista':
+      return (fila.catalogo_descripcion ?? '').trim();
+    case 'numero':
+      return fila.valor_numero === null || fila.valor_numero === undefined
+        ? ''
+        : Number(fila.valor_numero).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+    case 'fecha':
+      return fila.valor_fecha ? formatearFechaCampoConfigurableImpresion(fila.valor_fecha) : '';
+    case 'booleano':
+      return fila.valor_boolean === null || fila.valor_boolean === undefined ? '' : fila.valor_boolean ? 'Sí' : 'No';
+    default:
+      return (fila.valor_texto ?? '').trim();
+  }
+}
+
+/**
+ * Recupera, en una sola consulta, los valores capturados de campos
+ * configurables de TODAS las partidas indicadas (evita un query por
+ * partida). Solo incluye campos de entidad DOCUMENTO_PARTIDA, activos,
+ * aplicables al tipo de documento (o sin tipo_documento asignado, es decir
+ * aplicables a todos) y que tengan un valor capturado. Los valores ya vienen
+ * formateados para impresión (nunca se exponen catalogo_id ni otros IDs
+ * internos, salvo campo_id/campo_padre_id que se usan solo para ordenar).
+ */
+export async function obtenerCamposConfigurablesPartidasParaImpresion(
+  empresaId: number,
+  partidaIds: number[],
+  tipoDocumento?: string | null
+): Promise<CampoConfigurablePartidaImpresion[]> {
+  if (!partidaIds.length) return [];
+
+  const { rows } = await pool.query<FilaCampoConfigurableImpresion>(
+    `SELECT
+       dpc.partida_id,
+       cc.id AS campo_id,
+       cc.nombre,
+       cc.tipo_dato,
+       cc.campo_padre_id,
+       cc.orden,
+       dpc.valor_texto,
+       dpc.valor_numero,
+       dpc.valor_fecha,
+       dpc.valor_boolean,
+       cat.descripcion AS catalogo_descripcion
+     FROM public.documentos_partidas_campos dpc
+     JOIN core.campos_configuracion cc ON cc.id = dpc.campo_id
+     JOIN core.entidades_tipos et ON et.id = cc.entidad_tipo_id
+     LEFT JOIN core.catalogos cat ON cat.id = dpc.catalogo_id
+     WHERE dpc.empresa_id = $1
+       AND dpc.partida_id = ANY($2::int[])
+       AND cc.activo = true
+       AND LOWER(et.codigo) = LOWER($3)
+       AND (cc.tipo_documento IS NULL OR LOWER(cc.tipo_documento) = LOWER($4))
+       AND (
+         (cc.tipo_dato = 'lista' AND cat.descripcion IS NOT NULL AND TRIM(cat.descripcion) <> '')
+         OR (cc.tipo_dato = 'numero' AND dpc.valor_numero IS NOT NULL)
+         OR (cc.tipo_dato = 'fecha' AND dpc.valor_fecha IS NOT NULL)
+         OR (cc.tipo_dato = 'booleano' AND dpc.valor_boolean IS NOT NULL)
+         OR (cc.tipo_dato = 'texto' AND dpc.valor_texto IS NOT NULL AND TRIM(dpc.valor_texto) <> '')
+       )
+     ORDER BY dpc.partida_id, cc.orden ASC NULLS LAST, cc.id`,
+    [empresaId, partidaIds, ENTIDAD_TIPO_CODIGO_PARTIDA, tipoDocumento ?? null]
+  );
+
+  return rows
+    .map((fila) => ({
+      partidaId: fila.partida_id,
+      campoId: fila.campo_id,
+      campoPadreId: fila.campo_padre_id,
+      orden: fila.orden,
+      nombre: fila.nombre,
+      valorTexto: formatearValorCampoConfigurableImpresion(fila),
+    }))
+    .filter((campo) => campo.valorTexto.length > 0);
 }

@@ -14,6 +14,10 @@ import {
 } from './cuentas.controller';
 import { getConfiguracion, putConfiguracion } from './configuracion.controller';
 import {
+  getConfiguracionTiposAutomaticos,
+  putConfiguracionTiposAutomaticos,
+} from './configuracionTiposAutomaticos.controller';
+import {
   getRangosCuentas,
   postRangoCuenta,
   putRangoCuenta,
@@ -101,6 +105,8 @@ router.delete('/cuentas/:id', deleteCuenta);
 
 router.get('/configuracion', getConfiguracion);
 router.put('/configuracion', putConfiguracion);
+router.get('/configuracion/tipos-automaticos', getConfiguracionTiposAutomaticos);
+router.put('/configuracion/tipos-automaticos', putConfiguracionTiposAutomaticos);
 
 router.get('/rangos-cuentas', getRangosCuentas);
 router.post('/rangos-cuentas', postRangoCuenta);

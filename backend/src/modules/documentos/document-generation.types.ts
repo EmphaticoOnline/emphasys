@@ -77,6 +77,11 @@ export interface GenerarDocumentoPayload {
   tipo_documento_destino: TipoDocumento;
   datos_encabezado?: DatosEncabezadoGeneracion;
   partidas: GenerarDocumentoPartidaInput[];
+  /**
+   * Solo aplica cuando el documento generado es una nota de venta (tipo_documento_destino
+   * = 'factura' con tratamiento_impuestos = 'sin_iva'). Para cualquier otro caso se ignora.
+   */
+  emitir_al_generar?: boolean;
 }
 
 export interface GenerarDocumentoResultado {
@@ -91,4 +96,13 @@ export interface GenerarDocumentoResultado {
     partida_origen_id: number;
     cantidad: number;
   }>;
+  /**
+   * Presente solo si se solicitó `emitir_al_generar` para una nota de venta. El documento
+   * ya quedó creado (COMMIT) independientemente de si la emisión tuvo éxito o no.
+   */
+  emision?: {
+    intentada: boolean;
+    exitosa: boolean;
+    mensaje: string | null;
+  };
 }

@@ -149,12 +149,15 @@ export interface FinanzasOperacion {
   documento_origen_tipo_documento?: string | null;
   documento_origen_serie?: string | null;
   documento_origen_numero?: number | null;
+  documento_origen_serie_externa?: string | null;
+  documento_origen_numero_externo?: number | null;
   documento_origen_total?: number | null;
   factura_id?: number | null;
   es_transferencia?: boolean;
   transferencia_id?: number | null;
   estado_conciliacion?: EstadoConciliacion;
   saldo?: number | null;
+  saldo_acumulado?: number | null;
   fecha_creacion?: string;
   concepto_id?: number | null;
   concepto_nombre?: string | null;
@@ -164,6 +167,14 @@ export interface FinanzasOperacion {
   transferencia_cuenta_destino?: number | null;
   transferencia_origen_nombre?: string | null;
   transferencia_destino_nombre?: string | null;
+}
+
+export interface ResultadoRecalculoSaldos {
+  cuentas_procesadas: number;
+  operaciones_procesadas: number;
+  cuentas_actualizadas: number;
+  operaciones_actualizadas: number;
+  ejecutado_en: string;
 }
 
 export interface AplicacionOperacion {

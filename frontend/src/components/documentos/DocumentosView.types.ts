@@ -56,6 +56,7 @@ export interface DocumentosDesktopViewProps extends DocumentosViewCommonProps {
 
 export interface DocumentosMobileViewProps extends DocumentosViewCommonProps {
   rows: CotizacionListado[];
+  showSaldo: boolean;
   canBulkDuplicate: boolean;
   selectedDocumentIds: number[];
   onSelectedDocumentIdsChange: (ids: number[]) => void;

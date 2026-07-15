@@ -23,6 +23,7 @@ import type {
   HistorialConciliacion,
   DeshacerConciliacionPayload,
   DeshacerConciliacionResult,
+  ResultadoRecalculoSaldos,
 } from '../types/finanzas';
 
 const BASE = '/api/finanzas';
@@ -47,6 +48,10 @@ export async function actualizarCuenta(id: number, payload: Partial<FinanzasCuen
 
 export async function eliminarCuenta(id: number): Promise<void> {
   await apiFetch(`${BASE}/cuentas/${id}`, { method: 'DELETE' });
+}
+
+export async function recalcularSaldos(): Promise<ResultadoRecalculoSaldos> {
+  return apiFetch(`${BASE}/recalcular-saldos`, { method: 'POST' });
 }
 
 export async function fetchOperaciones(cuentaId: number): Promise<FinanzasOperacion[]> {

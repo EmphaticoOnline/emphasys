@@ -53,6 +53,7 @@ export default function DocumentosMobileView({
   selectionContent,
   extraActionsContent,
   rows,
+  showSaldo,
   canBulkDuplicate,
   selectedDocumentIds,
   onSelectedDocumentIdsChange,
@@ -135,10 +136,20 @@ export default function DocumentosMobileView({
               const rowId = Number(row.id);
               const subtitle = getSubtitle(row);
               const isSelected = selectedDocumentIds.includes(rowId);
-              const detailItems = [
+              const saldo = Number(row.saldo ?? 0);
+              const detailItems: Array<{ label: string; value: string | number | null | undefined; color?: string }> = [
                 { label: 'Fecha', value: formatDate(row.fecha_documento) },
                 { label: 'Total', value: currency.format(Number(row.total ?? 0)) },
-                { label: 'Saldo', value: Number(row.saldo ?? 0) > 0 ? currency.format(Number(row.saldo ?? 0)) : null },
+                // Misma regla que la columna "Saldo" de la grilla desktop: rojo si hay
+                // saldo pendiente, verde si está en cero. Solo se muestra para los tipos
+                // de documento que también muestran saldo en desktop (showSaldo).
+                ...(showSaldo
+                  ? [{
+                      label: 'Saldo',
+                      value: currency.format(saldo),
+                      color: saldo === 0 ? 'success.main' : 'error.main',
+                    }]
+                  : []),
                 { label: 'Producto', value: row.producto_resumen },
               ].filter((item) => hasValue(item.value));
 
@@ -199,7 +210,12 @@ export default function DocumentosMobileView({
                             <Typography variant="caption" color="#6b7280" sx={{ display: 'block', lineHeight: 1.1 }}>
                               {item.label}
                             </Typography>
-                            <Typography variant="body2" color="#111827" sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>
+                            <Typography
+                              variant="body2"
+                              color={item.color ?? '#111827'}
+                              fontWeight={item.color ? 600 : 400}
+                              sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}
+                            >
                               {String(item.value)}
                             </Typography>
                           </Box>
