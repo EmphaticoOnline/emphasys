@@ -14,7 +14,9 @@ export type SeguimientoProduccionRow = {
   empresa_id: number;
   documento_id: number;
   activo: boolean;
-  documento: string;
+  tipo_documento: string;
+  serie: string | null;
+  numero: number | null;
   cliente: string;
   etapa_id: number | null;
   etapa_nombre: string | null;
@@ -80,6 +82,53 @@ export type DeleteEtapaProduccionResponse = {
   id: number;
 };
 
+export type ProduccionCampoConfigurable = {
+  campoId: number;
+  campoPadreId: number | null;
+  nombre: string;
+  valor: string;
+};
+
+export type ProduccionPartidaOperativa = {
+  id: number;
+  numeroPartida: number;
+  productoId: number | null;
+  productoClave: string | null;
+  productoDescripcion: string | null;
+  descripcionAlterna: string | null;
+  cantidad: number;
+  unidad: string | null;
+  tituloAgrupador: string | null;
+  observaciones: string | null;
+  imagenUrl: string | null;
+  camposConfigurables: ProduccionCampoConfigurable[];
+};
+
+export type ProduccionDetalleOperativo = {
+  documento: {
+    id: number;
+    tipoDocumento: string;
+    serie: string | null;
+    numero: number | null;
+    fechaDocumento: string;
+    observaciones: string | null;
+  };
+  contacto: {
+    id: number;
+    nombre: string;
+    nombreContacto: string | null;
+    telefono: string | null;
+    email: string | null;
+  } | null;
+  etapaActual: {
+    id: number | null;
+    nombre: string | null;
+    color: string | null;
+  } | null;
+  fechaPromesa: string | null;
+  partidas: ProduccionPartidaOperativa[];
+};
+
 export function listEtapasProduccion(includeInactive = false) {
   const query = includeInactive ? '?incluir_inactivas=1' : '';
   return apiFetch<EtapaProduccion[]>(`/api/produccion/etapas${query}`);
@@ -111,6 +160,10 @@ export function listSeguimientosProduccion() {
 
 export function getSeguimientoProduccionPorDocumento(documentoId: number) {
   return apiFetch<SeguimientoProduccionHistorialRow[]>(`/api/produccion/seguimientos/documento/${documentoId}`);
+}
+
+export function getDetalleOperativoProduccion(documentoId: number) {
+  return apiFetch<ProduccionDetalleOperativo>(`/api/produccion/documentos/${documentoId}/detalle`);
 }
 
 export function createSeguimientoProduccion(payload: CreateSeguimientoProduccionPayload) {

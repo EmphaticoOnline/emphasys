@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import { obtenerCamposConfigurablesPartidasParaImpresion } from '../documentos/documentos-campos.repository';
 
 export type EtapaProduccion = {
   id: number;
@@ -13,7 +14,9 @@ export type SeguimientoProduccionRow = {
   id: number;
   empresa_id: number;
   documento_id: number;
-  documento: string;
+  tipo_documento: string;
+  serie: string | null;
+  numero: number | null;
   cliente: string;
   etapa_id: number | null;
   activo: boolean;
@@ -209,7 +212,9 @@ async function obtenerSeguimientoEnriquecidoPorIdDesdeDb(
        s.empresa_id,
        s.documento_id,
        s.activo,
-       COALESCE(NULLIF(TRIM(CONCAT_WS(' ', d.serie, d.numero::text)), ''), d.id::text) AS documento,
+       d.tipo_documento,
+       d.serie,
+       d.numero,
        COALESCE(NULLIF(TRIM(c.nombre), ''), 'Sin cliente') AS cliente,
        s.etapa_id,
        e.nombre AS etapa_nombre,
@@ -367,7 +372,9 @@ export async function listarSeguimientosProduccion(empresaId: number) {
        s.empresa_id,
        s.documento_id,
        s.activo,
-       COALESCE(NULLIF(TRIM(CONCAT_WS(' ', d.serie, d.numero::text)), ''), d.id::text) AS documento,
+       d.tipo_documento,
+       d.serie,
+       d.numero,
        COALESCE(NULLIF(TRIM(c.nombre), ''), 'Sin cliente') AS cliente,
        s.etapa_id,
        e.nombre AS etapa_nombre,
@@ -636,4 +643,271 @@ export async function actualizarSeguimientoProduccion(
   } finally {
     cliente.release();
   }
+}
+
+export type ProduccionCampoConfigurable = {
+  campoId: number;
+  campoPadreId: number | null;
+  nombre: string;
+  valor: string;
+};
+
+export type ProduccionPartidaOperativa = {
+  id: number;
+  numeroPartida: number;
+  productoId: number | null;
+  productoClave: string | null;
+  productoDescripcion: string | null;
+  descripcionAlterna: string | null;
+  cantidad: number;
+  unidad: string | null;
+  tituloAgrupador: string | null;
+  observaciones: string | null;
+  imagenUrl: string | null;
+  camposConfigurables: ProduccionCampoConfigurable[];
+};
+
+export type ProduccionDetalleOperativo = {
+  documento: {
+    id: number;
+    tipoDocumento: string;
+    serie: string | null;
+    numero: number | null;
+    fechaDocumento: string;
+    observaciones: string | null;
+  };
+  contacto: {
+    id: number;
+    nombre: string;
+    nombreContacto: string | null;
+    telefono: string | null;
+    email: string | null;
+  } | null;
+  etapaActual: {
+    id: number | null;
+    nombre: string | null;
+    color: string | null;
+  } | null;
+  fechaPromesa: string | null;
+  partidas: ProduccionPartidaOperativa[];
+};
+
+// Mismo criterio de resolución de URL pública que documentos.pdf.ts (no hay
+// util compartida en el proyecto para esto; cada módulo la reimplementa).
+function getAppBaseUrlForImages() {
+  const rawBaseUrl = process.env.APP_BASE_URL?.trim();
+  if (rawBaseUrl) return rawBaseUrl.replace(/\/$/, '');
+  if (process.env.NODE_ENV !== 'production') return 'http://localhost:3001';
+  return null;
+}
+
+function resolvePublicImageUrl(value?: string | null) {
+  const rawValue = (value ?? '').trim();
+  if (!rawValue) return null;
+  if (/^https?:\/\//i.test(rawValue)) return rawValue;
+  const baseUrl = getAppBaseUrlForImages();
+  if (!baseUrl) return null;
+  return `${baseUrl}${rawValue.startsWith('/') ? '' : '/'}${rawValue}`;
+}
+
+/**
+ * DTO operativo de producción: identifica el trabajo (documento + contacto),
+ * la etapa/compromiso vigentes y el detalle de partidas (producto, cantidad,
+ * unidad, observaciones, campos configurables e imagen). Deliberadamente NUNCA
+ * selecciona columnas económicas (precio, descuento, impuestos, totales) de
+ * `documentos` ni de `documentos_partidas` — el filtrado ocurre en el SELECT,
+ * no en el frontend, para que ninguna inspección de red exponga esa información
+ * al área de producción.
+ */
+export async function obtenerDetalleOperativoProduccion(
+  empresaId: number,
+  documentoId: number
+): Promise<ProduccionDetalleOperativo | null> {
+  if (!Number.isInteger(documentoId) || documentoId <= 0) {
+    throw new Error('VALIDATION_ERROR: documentoId inválido');
+  }
+
+  const { rows: documentoRows } = await pool.query<{
+    id: number;
+    tipo_documento: string;
+    serie: string | null;
+    numero: number | null;
+    fecha_documento: string;
+    observaciones: string | null;
+    contacto_id: number | null;
+    contacto_nombre: string | null;
+    contacto_nombre_contacto: string | null;
+    contacto_telefono: string | null;
+    contacto_email: string | null;
+  }>(
+    `SELECT
+       d.id,
+       d.tipo_documento,
+       d.serie,
+       d.numero,
+       d.fecha_documento,
+       d.observaciones,
+       c.id AS contacto_id,
+       c.nombre AS contacto_nombre,
+       c.nombre_contacto AS contacto_nombre_contacto,
+       c.telefono AS contacto_telefono,
+       c.email AS contacto_email
+     FROM documentos d
+     LEFT JOIN contactos c
+       ON c.id = d.contacto_principal_id
+      AND c.empresa_id = d.empresa_id
+    WHERE d.id = $1
+      AND d.empresa_id = $2
+    LIMIT 1`,
+    [documentoId, empresaId]
+  );
+
+  const documentoRow = documentoRows[0];
+  if (!documentoRow) {
+    return null;
+  }
+
+  const { rows: seguimientoRows } = await pool.query<{
+    etapa_id: number | null;
+    etapa_nombre: string | null;
+    etapa_color: string | null;
+    fecha_promesa: string | null;
+  }>(
+    `SELECT s.etapa_id, e.nombre AS etapa_nombre, e.color AS etapa_color, s.fecha_promesa
+       FROM produccion.seguimientos s
+       LEFT JOIN produccion.etapas e
+         ON e.id = s.etapa_id
+        AND e.empresa_id = s.empresa_id
+      WHERE s.empresa_id = $1
+        AND s.documento_id = $2
+        AND s.activo = TRUE
+      LIMIT 1`,
+    [empresaId, documentoId]
+  );
+  const seguimientoRow = seguimientoRows[0] ?? null;
+
+  const { rows: partidaRows } = await pool.query<{
+    id: number;
+    numero_partida: number;
+    producto_id: number | null;
+    descripcion_alterna: string | null;
+    cantidad: string;
+    unidad: string | null;
+    titulo_agrupador: string | null;
+    observaciones: string | null;
+    archivo_imagen_1: string | null;
+    producto_archivo_id: number | null;
+    producto_clave: string | null;
+    producto_descripcion: string | null;
+  }>(
+    `SELECT
+       dp.id,
+       dp.numero_partida,
+       dp.producto_id,
+       dp.descripcion_alterna,
+       dp.cantidad,
+       dp.unidad,
+       dp.titulo_agrupador,
+       dp.observaciones,
+       dp.archivo_imagen_1,
+       dp.producto_archivo_id,
+       p.clave AS producto_clave,
+       p.descripcion AS producto_descripcion
+     FROM documentos_partidas dp
+     LEFT JOIN productos p ON p.id = dp.producto_id
+    WHERE dp.documento_id = $1
+    ORDER BY dp.numero_partida ASC, dp.id ASC`,
+    [documentoId]
+  );
+
+  // Batch de imágenes de producto (fallback cuando la partida no tiene imagen
+  // propia): una sola consulta con ANY(...) para todas las partidas, evitando
+  // N+1 sobre productos_archivos.
+  const productoArchivoIds = Array.from(
+    new Set(
+      partidaRows
+        .filter((partida) => !partida.archivo_imagen_1?.trim() && partida.producto_archivo_id)
+        .map((partida) => partida.producto_archivo_id as number)
+    )
+  );
+
+  const productoArchivoUrlPorId = new Map<number, string>();
+  if (productoArchivoIds.length > 0) {
+    const { rows: archivoRows } = await pool.query<{ id: number; archivo: string }>(
+      `SELECT pa.id, pa.archivo
+         FROM productos_archivos pa
+         INNER JOIN productos p ON p.id = pa.producto_id
+        WHERE pa.id = ANY($1::int[])
+          AND p.empresa_id = $2`,
+      [productoArchivoIds, empresaId]
+    );
+    for (const row of archivoRows) {
+      productoArchivoUrlPorId.set(row.id, row.archivo);
+    }
+  }
+
+  // Campos configurables de todas las partidas en una sola consulta batch
+  // (reutiliza el mismo repositorio que usa la impresión de PDF, que ya
+  // resuelve jerarquía padre-hijo y nunca expone catalogo_id).
+  const partidaIds = partidaRows.map((partida) => partida.id);
+  const camposConfigurables = partidaIds.length
+    ? await obtenerCamposConfigurablesPartidasParaImpresion(empresaId, partidaIds, documentoRow.tipo_documento)
+    : [];
+
+  const camposPorPartida = new Map<number, ProduccionCampoConfigurable[]>();
+  for (const campo of camposConfigurables) {
+    const lista = camposPorPartida.get(campo.partidaId) ?? [];
+    lista.push({
+      campoId: campo.campoId,
+      campoPadreId: campo.campoPadreId,
+      nombre: campo.nombre,
+      valor: campo.valorTexto,
+    });
+    camposPorPartida.set(campo.partidaId, lista);
+  }
+
+  const partidas: ProduccionPartidaOperativa[] = partidaRows.map((partida) => {
+    const imagenOriginal = partida.archivo_imagen_1?.trim()
+      || (partida.producto_archivo_id ? productoArchivoUrlPorId.get(partida.producto_archivo_id) ?? null : null);
+
+    return {
+      id: partida.id,
+      numeroPartida: partida.numero_partida,
+      productoId: partida.producto_id,
+      productoClave: partida.producto_clave,
+      productoDescripcion: partida.producto_descripcion,
+      descripcionAlterna: partida.descripcion_alterna,
+      cantidad: Number(partida.cantidad),
+      unidad: partida.unidad,
+      tituloAgrupador: partida.titulo_agrupador,
+      observaciones: partida.observaciones,
+      imagenUrl: resolvePublicImageUrl(imagenOriginal),
+      camposConfigurables: camposPorPartida.get(partida.id) ?? [],
+    };
+  });
+
+  return {
+    documento: {
+      id: documentoRow.id,
+      tipoDocumento: documentoRow.tipo_documento,
+      serie: documentoRow.serie,
+      numero: documentoRow.numero,
+      fechaDocumento: documentoRow.fecha_documento,
+      observaciones: documentoRow.observaciones,
+    },
+    contacto: documentoRow.contacto_id
+      ? {
+          id: documentoRow.contacto_id,
+          nombre: documentoRow.contacto_nombre || 'Sin cliente',
+          nombreContacto: documentoRow.contacto_nombre_contacto,
+          telefono: documentoRow.contacto_telefono,
+          email: documentoRow.contacto_email,
+        }
+      : null,
+    etapaActual: seguimientoRow
+      ? { id: seguimientoRow.etapa_id, nombre: seguimientoRow.etapa_nombre, color: seguimientoRow.etapa_color }
+      : null,
+    fechaPromesa: seguimientoRow?.fecha_promesa ?? null,
+    partidas,
+  };
 }

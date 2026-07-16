@@ -609,6 +609,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     historial: SeguimientoProduccionHistorialRow[];
     error: string | null;
   }>({ open: false, loading: false, documentoId: null, titulo: '', historial: [], error: null });
+  const [avancesProduccionExpandidos, setAvancesProduccionExpandidos] = useState<Record<number, boolean>>({});
   const [opcionesGeneracion, setOpcionesGeneracion] = useState<Record<number, OpcionGeneracionResponse[]>>({});
   const [tieneOpcionesGeneracion, setTieneOpcionesGeneracion] = useState<boolean | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
@@ -1559,6 +1560,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       historial: [],
       error: null,
     });
+    setAvancesProduccionExpandidos({});
 
     try {
       const historial = await getSeguimientoProduccionPorDocumento(documentoId);
@@ -1580,6 +1582,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
   const cerrarDrawerProduccion = useCallback(() => {
     setProduccionDrawer({ open: false, loading: false, documentoId: null, titulo: '', historial: [], error: null });
+    setAvancesProduccionExpandidos({});
   }, []);
 
   const produccionActual = useMemo(
@@ -3924,12 +3927,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   Estado actual
                 </Typography>
                 {produccionActual ? (
-                  <Stack spacing={1} sx={{ mt: 1 }}>
+                  <Stack direction="row" alignItems="center" spacing={1.5} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
                     <Chip
                       size="small"
                       label={produccionActual.etapa_nombre || 'Sin etapa'}
                       sx={{
-                        alignSelf: 'flex-start',
                         fontWeight: 700,
                         backgroundColor: normalizeHexColor(produccionActual.etapa_color) || '#e5e7eb',
                         color: getContrastingTextColor(produccionActual.etapa_color),
@@ -3952,66 +3954,115 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               <Divider />
 
               <Box>
-                <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ mb: 1 }}>
-                  Historial de avances
-                </Typography>
+                <Stack direction="row" alignItems="baseline" justifyContent="space-between" sx={{ mb: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                    Historial de avances
+                  </Typography>
+                  {produccionDrawer.historial.length > 0 ? (
+                    <Typography variant="caption" color="text.secondary">
+                      {produccionDrawer.historial.length === 1
+                        ? '1 registro'
+                        : `${produccionDrawer.historial.length} registros`}
+                    </Typography>
+                  ) : null}
+                </Stack>
 
                 {produccionDrawer.historial.length === 0 ? (
                   <Alert severity="info" variant="outlined">
                     Todavía no hay avances registrados.
                   </Alert>
                 ) : (
-                  <Stack spacing={1.25}>
-                    {produccionDrawer.historial.map((avance) => {
+                  <Stack spacing={0}>
+                    {produccionDrawer.historial.map((avance, index) => {
                       const backgroundColor = normalizeHexColor(avance.etapa_color) || '#e5e7eb';
                       const textColor = getContrastingTextColor(avance.etapa_color);
+                      const esUltimo = index === produccionDrawer.historial.length - 1;
+                      const comentario = (avance.comentarios || '').trim() || 'Sin comentario';
+                      const comentarioLargo = comentario.length > 160 || comentario.includes('\n');
+                      const comentarioExpandido = Boolean(avancesProduccionExpandidos[avance.id]);
 
                       return (
-                        <Box
-                          key={avance.id}
-                          sx={{
-                            border: '1px solid #e5e7eb',
-                            borderLeft: `4px solid ${backgroundColor}`,
-                            borderRadius: 2,
-                            bgcolor: avance.activo ? '#f8fafc' : '#ffffff',
-                            p: 1.5,
-                          }}
-                        >
-                          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                            <Chip
-                              size="small"
-                              label={avance.etapa_nombre || 'Sin etapa'}
+                        <Stack key={avance.id} direction="row" spacing={1.5}>
+                          <Stack alignItems="center" sx={{ width: 14, flexShrink: 0, pt: 0.6 }}>
+                            <Box
                               sx={{
-                                fontWeight: 700,
+                                width: avance.activo ? 12 : 9,
+                                height: avance.activo ? 12 : 9,
+                                borderRadius: '50%',
                                 backgroundColor,
-                                color: textColor,
-                                '& .MuiChip-label': {
-                                  color: textColor,
-                                },
+                                boxShadow: avance.activo ? '0 0 0 2px #16a34a' : '0 0 0 1px #cbd5e1',
+                                flexShrink: 0,
                               }}
                             />
-                            {avance.activo ? <Chip size="small" label="Actual" color="success" variant="outlined" /> : null}
+                            {!esUltimo ? (
+                              <Box sx={{ width: 2, flexGrow: 1, minHeight: 28, backgroundColor: '#e2e8f0', mt: 0.5 }} />
+                            ) : null}
                           </Stack>
 
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                            {formatProductionDateTime(avance.created_at)}
-                          </Typography>
-
-                          <Typography variant="body2" sx={{ mt: 0.75, whiteSpace: 'pre-wrap', color: '#111827' }}>
-                            {avance.comentarios || 'Sin comentario'}
-                          </Typography>
-
-                          <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} alignItems="center" flexWrap="wrap">
-                            {avance.usuario_nombre ? (
-                              <Typography variant="caption" color="text.secondary">
-                                Por {avance.usuario_nombre}
+                          <Box sx={{ flex: 1, minWidth: 0, pb: esUltimo ? 0.5 : 2 }}>
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} useFlexGap flexWrap="wrap">
+                              <Stack direction="row" alignItems="center" spacing={0.75} useFlexGap flexWrap="wrap">
+                                <Chip
+                                  size="small"
+                                  label={avance.etapa_nombre || 'Sin etapa'}
+                                  sx={{
+                                    fontWeight: 700,
+                                    backgroundColor,
+                                    color: textColor,
+                                    '& .MuiChip-label': {
+                                      color: textColor,
+                                    },
+                                  }}
+                                />
+                                {avance.activo ? (
+                                  <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 700 }}>
+                                    Actual
+                                  </Typography>
+                                ) : null}
+                              </Stack>
+                              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                                {formatProductionDateTime(avance.created_at)}
                               </Typography>
+                            </Stack>
+
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                mt: 0.5,
+                                color: '#111827',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                ...(comentarioLargo && !comentarioExpandido
+                                  ? {
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                    }
+                                  : {}),
+                              }}
+                            >
+                              {comentario}
+                            </Typography>
+
+                            {comentarioLargo ? (
+                              <Button
+                                size="small"
+                                onClick={() =>
+                                  setAvancesProduccionExpandidos((prev) => ({ ...prev, [avance.id]: !prev[avance.id] }))
+                                }
+                                sx={{ minWidth: 0, px: 0, py: 0.5, mt: 0.25, textTransform: 'none', fontSize: 12, fontWeight: 600 }}
+                              >
+                                {comentarioExpandido ? 'Ver menos' : 'Ver más'}
+                              </Button>
                             ) : null}
-                            <Typography variant="caption" color="text.secondary">
+
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                              {avance.usuario_nombre ? `${avance.usuario_nombre} · ` : ''}
                               Compromiso: {formatCivilDate(avance.fecha_promesa)}
                             </Typography>
-                          </Stack>
-                        </Box>
+                          </Box>
+                        </Stack>
                       );
                     })}
                   </Stack>

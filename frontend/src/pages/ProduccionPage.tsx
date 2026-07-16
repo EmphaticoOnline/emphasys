@@ -25,9 +25,12 @@ import { esES } from '@mui/x-data-grid/locales';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import ProduccionDetalleDrawer from '../components/produccion/ProduccionDetalleDrawer';
+import { resolverFolioVisual } from '../utils/documentos.utils';
 import { GridContextMenu } from '../components/grids/GridContextMenu';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../components/grids/GridContextMenu';
@@ -108,6 +111,10 @@ export default function ProduccionPage() {
   const [search, setSearch] = React.useState('');
   const [savingAdvance, setSavingAdvance] = React.useState(false);
   const [advanceDialog, setAdvanceDialog] = React.useState<AdvanceDialogState>(EMPTY_ADVANCE_DIALOG);
+  const [detalleDrawer, setDetalleDrawer] = React.useState<{ open: boolean; documentoId: number | null }>({
+    open: false,
+    documentoId: null,
+  });
   const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({
     open: false,
     message: '',
@@ -137,7 +144,7 @@ export default function ProduccionPage() {
     if (!term) return rows;
 
     return rows.filter((row) =>
-      [row.documento, row.cliente, row.etapa_nombre, row.comentarios]
+      [resolverFolioVisual(row, row.tipo_documento), row.cliente, row.etapa_nombre, row.comentarios]
         .map((value) => String(value ?? '').toLowerCase())
         .some((value) => value.includes(term))
     );
@@ -157,6 +164,14 @@ export default function ProduccionPage() {
     if (savingAdvance) return;
     setAdvanceDialog(EMPTY_ADVANCE_DIALOG);
   }, [savingAdvance]);
+
+  const abrirDetalleOperativo = React.useCallback((row: SeguimientoProduccionRow) => {
+    setDetalleDrawer({ open: true, documentoId: row.documento_id });
+  }, []);
+
+  const cerrarDetalleOperativo = React.useCallback(() => {
+    setDetalleDrawer({ open: false, documentoId: null });
+  }, []);
 
   const handleSaveAdvance = React.useCallback(async () => {
     if (!advanceDialog.row) return;
@@ -223,13 +238,19 @@ export default function ProduccionPage() {
 
     return [
       {
+        id: 'ver-detalle-operativo',
+        label: 'Ver detalle operativo',
+        icon: <VisibilityOutlinedIcon fontSize="small" />,
+        onClick: () => abrirDetalleOperativo(contextMenuRow),
+      },
+      {
         id: 'actualizar-avance',
         label: 'Actualizar avance',
         icon: <PlaylistAddCheckIcon fontSize="small" />,
         onClick: () => openAdvanceDialog(contextMenuRow),
       },
     ];
-  }, [contextMenuRow, openAdvanceDialog]);
+  }, [contextMenuRow, openAdvanceDialog, abrirDetalleOperativo]);
 
   const contextMenuTriggerColumn = React.useMemo<GridColDef<SeguimientoProduccionRow>>(
     () => ({
@@ -259,6 +280,7 @@ export default function ProduccionPage() {
       headerClassName: 'finanzas-header',
       minWidth: 150,
       flex: 0.7,
+      valueGetter: (_value, row) => resolverFolioVisual(row, row.tipo_documento) || String(row.documento_id),
       renderCell: (params: GridRenderCellParams<SeguimientoProduccionRow, string>) => (
         <Typography variant="body2" noWrap title={params.value || ''}>
           {params.value || '—'}
@@ -335,14 +357,21 @@ export default function ProduccionPage() {
       sortable: false,
       filterable: false,
       renderCell: (params: GridRenderCellParams<SeguimientoProduccionRow>) => (
-        <Tooltip title="Actualizar avance">
-          <IconButton size="small" color="primary" onClick={() => openAdvanceDialog(params.row)}>
-            <PlaylistAddCheckIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <Stack direction="row" spacing={0.5}>
+          <Tooltip title="Ver detalle operativo">
+            <IconButton size="small" color="primary" onClick={() => abrirDetalleOperativo(params.row)}>
+              <VisibilityOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Actualizar avance">
+            <IconButton size="small" color="primary" onClick={() => openAdvanceDialog(params.row)}>
+              <PlaylistAddCheckIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       ),
     },
-  ], [openAdvanceDialog]);
+  ], [openAdvanceDialog, abrirDetalleOperativo]);
 
   const columns = React.useMemo<GridColDef<SeguimientoProduccionRow>[]>(
     () => [contextMenuTriggerColumn, ...baseColumns],
@@ -490,6 +519,12 @@ export default function ProduccionPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ProduccionDetalleDrawer
+        open={detalleDrawer.open}
+        documentoId={detalleDrawer.documentoId}
+        onClose={cerrarDetalleOperativo}
+      />
 
       <Snackbar
         open={snackbar.open}

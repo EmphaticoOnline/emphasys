@@ -52,6 +52,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
 import PrintIcon from '@mui/icons-material/Print';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
+import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import { resolveDocumentoFormPath, resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
 import DynamicFieldControl from '../components/DynamicFieldControl';
 import MobileBackIconButton from '../components/MobileBackIconButton';
@@ -614,7 +615,7 @@ export default function DocumentosFormPage({
   const [editingCantidad, setEditingCantidad] = useState<boolean[]>([false]);
   const [cantidadInputs, setCantidadInputs] = useState<string[]>(['']);
   const [uploadingImagen, setUploadingImagen] = useState<boolean[]>([false]);
-  const [partidaImagenDialog, setPartidaImagenDialog] = useState<{ open: boolean; index: number | null; view: 'menu' | 'producto' }>({
+  const [partidaImagenDialog, setPartidaImagenDialog] = useState<{ open: boolean; index: number | null; view: 'menu' | 'producto' | 'pegar' }>({
     open: false,
     index: null,
     view: 'menu',
@@ -622,6 +623,7 @@ export default function DocumentosFormPage({
   const [partidaImagenesProductoById, setPartidaImagenesProductoById] = useState<Record<number, ProductoArchivo[]>>({});
   const [partidaImagenesProductoLoadingId, setPartidaImagenesProductoLoadingId] = useState<number | null>(null);
   const [partidaImagenesProductoError, setPartidaImagenesProductoError] = useState<string | null>(null);
+  const [clipboardPasteStatus, setClipboardPasteStatus] = useState<{ tipo: 'info' | 'error' | 'warning'; mensaje: string } | null>(null);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [contactoFallback, setContactoFallback] = useState<Contacto | null>(null);
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
@@ -810,6 +812,7 @@ export default function DocumentosFormPage({
   const precioRefs = useRef<(HTMLInputElement | null)[]>([]);
   const cantidadRefs = useRef<(HTMLInputElement | null)[]>([]);
   const partidaImagenInputRef = useRef<HTMLInputElement | null>(null);
+  const partidaImagenPasteAreaRef = useRef<HTMLDivElement | null>(null);
   const prevContactoRef = useRef<number | null | undefined>(undefined);
   const prevPrecioResolverContactoRef = useRef<number | null | undefined>(undefined);
   const skipFiscalFetchRef = useRef<boolean>(false);
@@ -1113,6 +1116,17 @@ export default function DocumentosFormPage({
       cancelled = true;
     };
   }, [partidaImagenDialog.open, partidaImagenDialog.view, partidaImagenProductoId, partidaImagenesProductoById]);
+
+  // Enfoca el recuadro de pegado al entrar a esa vista para que Ctrl+V/Cmd+V
+  // funcione sin que el usuario tenga que hacer clic primero. El listener de
+  // "paste" vive únicamente en este <div> (vía prop onPaste de React) y solo
+  // existe en el DOM mientras esta vista está montada, así que se retira solo
+  // al cambiar de vista o cerrar el modal: no hay listeners globales que limpiar.
+  useEffect(() => {
+    if (partidaImagenDialog.open && partidaImagenDialog.view === 'pegar') {
+      partidaImagenPasteAreaRef.current?.focus();
+    }
+  }, [partidaImagenDialog.open, partidaImagenDialog.view]);
 
   const clearDependientes = useCallback(
     (bucket: Record<number, CampoValorPayload>, dependenciasMap: Record<number, number[]>, parentId: number) => {
@@ -2967,6 +2981,7 @@ export default function DocumentosFormPage({
   const cerrarImagenDialog = () => {
     setPartidaImagenDialog({ open: false, index: null, view: 'menu' });
     setPartidaImagenesProductoError(null);
+    setClipboardPasteStatus(null);
   };
 
   const handleImagenCustomClick = () => {
@@ -2994,10 +3009,10 @@ export default function DocumentosFormPage({
     cerrarImagenDialog();
   };
 
-  const handleImagenChange = async (index: number, files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-
+  // Sube el archivo al mismo endpoint que ya usa "Subir imagen personalizada"
+  // y aplica el mismo cambio de estado. La comparten el input de archivo y el
+  // flujo de pegado desde el portapapeles: una sola ruta de subida/validación.
+  const subirImagenPartida = async (index: number, file: File) => {
     setUploadingImagen((prev) => {
       const next = [...prev];
       next[index] = true;
@@ -3020,9 +3035,109 @@ export default function DocumentosFormPage({
         next[index] = false;
         return next;
       });
-      const input = partidaImagenInputRef.current;
-      if (input) input.value = '';
     }
+  };
+
+  const handleImagenChange = async (index: number, files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    await subirImagenPartida(index, file);
+    const input = partidaImagenInputRef.current;
+    if (input) input.value = '';
+  };
+
+  const construirNombreImagenPegada = (mimeType: string) => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const extension = mimeType === 'image/png'
+      ? 'png'
+      : mimeType === 'image/jpeg' || mimeType === 'image/jpg'
+        ? 'jpg'
+        : mimeType === 'image/webp'
+          ? 'webp'
+          : 'png';
+    return `captura-${stamp}.${extension}`;
+  };
+
+  const handleImagenPegarClick = () => {
+    setClipboardPasteStatus(null);
+    setPartidaImagenDialog((prev) => ({ ...prev, view: 'pegar' }));
+  };
+
+  // Recibe el File ya extraído del portapapeles (por clipboard.read() o por el
+  // evento paste) y lo trata exactamente igual que un archivo elegido a mano.
+  const confirmarImagenPegadaDesdePortapapeles = async (index: number, file: File, huboVariasImagenes: boolean) => {
+    if (huboVariasImagenes) {
+      setSnackbar({ open: true, message: 'Se detectaron varias imágenes en el portapapeles; se usó la primera.', severity: 'info' });
+    }
+    setClipboardPasteStatus(null);
+    await subirImagenPartida(index, file);
+  };
+
+  const handleLeerPortapapeles = async () => {
+    if (partidaImagenDialog.index === null) return;
+    const index = partidaImagenDialog.index;
+
+    if (!navigator.clipboard || typeof navigator.clipboard.read !== 'function') {
+      setClipboardPasteStatus({
+        tipo: 'info',
+        mensaje: 'Tu navegador no permite leer el portapapeles automáticamente. Haz clic en el recuadro de abajo y presiona Ctrl+V (Cmd+V en Mac).',
+      });
+      return;
+    }
+
+    try {
+      const items = await navigator.clipboard.read();
+      const itemsConImagen = items.filter((item) => item.types.some((type) => type.startsWith('image/')));
+
+      if (itemsConImagen.length === 0) {
+        setClipboardPasteStatus({
+          tipo: 'info',
+          mensaje: 'El portapapeles no contiene una imagen. Copia una captura de pantalla o imagen e inténtalo de nuevo.',
+        });
+        return;
+      }
+
+      const [primero] = itemsConImagen;
+      if (!primero) return;
+      const mimeType = primero.types.find((type) => type.startsWith('image/'))!;
+      const blob = await primero.getType(mimeType);
+      const file = new File([blob], construirNombreImagenPegada(mimeType), { type: mimeType });
+      await confirmarImagenPegadaDesdePortapapeles(index, file, itemsConImagen.length > 1);
+    } catch {
+      setClipboardPasteStatus({
+        tipo: 'error',
+        mensaje: 'El navegador bloqueó el acceso al portapapeles. Haz clic en el recuadro de abajo y presiona Ctrl+V (Cmd+V en Mac).',
+      });
+    }
+  };
+
+  const handlePasteAreaPaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (partidaImagenDialog.index === null) return;
+    const index = partidaImagenDialog.index;
+
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    const itemsConImagen = Array.from(items).filter((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    if (itemsConImagen.length === 0) {
+      setClipboardPasteStatus({
+        tipo: 'info',
+        mensaje: 'Eso pegado no es una imagen. Copia una captura de pantalla o imagen e inténtalo de nuevo.',
+      });
+      return;
+    }
+
+    event.preventDefault();
+    const [primero] = itemsConImagen;
+    if (!primero) return;
+    const blob = primero.getAsFile();
+    if (!blob) return;
+
+    const mimeType = primero.type || blob.type || 'image/png';
+    const file = new File([blob], construirNombreImagenPegada(mimeType), { type: mimeType });
+    void confirmarImagenPegadaDesdePortapapeles(index, file, itemsConImagen.length > 1);
   };
 
   const handleImagenRemove = (index: number) => {
@@ -6297,6 +6412,9 @@ export default function DocumentosFormPage({
             <Button variant="outlined" onClick={handleImagenCustomClick} fullWidth>
               Subir imagen personalizada
             </Button>
+            <Button variant="outlined" startIcon={<ContentPasteIcon />} onClick={handleImagenPegarClick} fullWidth>
+              Pegar del portapapeles
+            </Button>
             <Button
               variant="contained"
               onClick={() => setPartidaImagenDialog((prev) => ({ ...prev, view: 'producto' }))}
@@ -6306,6 +6424,65 @@ export default function DocumentosFormPage({
               Elegir imagen del producto
             </Button>
           </Stack>
+
+          {partidaImagenDialog.view === 'pegar' && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                  Pegar imagen desde el portapapeles
+                </Typography>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setClipboardPasteStatus(null);
+                    setPartidaImagenDialog((prev) => ({ ...prev, view: 'menu' }));
+                  }}
+                >
+                  Volver
+                </Button>
+              </Stack>
+
+              {clipboardPasteStatus && (
+                <Alert severity={clipboardPasteStatus.tipo}>{clipboardPasteStatus.mensaje}</Alert>
+              )}
+
+              <Box
+                ref={partidaImagenPasteAreaRef}
+                onPaste={handlePasteAreaPaste}
+                tabIndex={0}
+                role="textbox"
+                aria-label="Área para pegar imagen del portapapeles"
+                sx={{
+                  border: '2px dashed #9ca3af',
+                  borderRadius: 1.5,
+                  p: 3,
+                  textAlign: 'center',
+                  color: '#6b7280',
+                  outline: 'none',
+                  '&:focus': { borderColor: '#1565c0', color: '#1565c0' },
+                }}
+              >
+                {uploadingImagen[partidaImagenDialog.index ?? -1] ? (
+                  <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+                    <CircularProgress size={18} />
+                    <Typography variant="body2">Subiendo imagen…</Typography>
+                  </Stack>
+                ) : (
+                  <Typography variant="body2">
+                    Haz clic aquí y presiona Ctrl+V (Cmd+V en Mac) para pegar una captura de pantalla o imagen copiada.
+                  </Typography>
+                )}
+              </Box>
+
+              <Button variant="outlined" size="small" onClick={() => void handleLeerPortapapeles()}>
+                Leer del portapapeles automáticamente
+              </Button>
+
+              <Typography variant="caption" color="text.secondary">
+                En algunos navegadores o dispositivos móviles el acceso automático al portapapeles no está disponible; en ese caso usa Ctrl+V/Cmd+V en el recuadro de arriba, o la opción "Subir imagen personalizada".
+              </Typography>
+            </Box>
+          )}
 
           {partidaImagenDialog.view === 'producto' && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>

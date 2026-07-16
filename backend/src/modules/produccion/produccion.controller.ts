@@ -9,6 +9,7 @@ import {
   listarHistorialSeguimientoPorDocumento,
   listarEtapasProduccion,
   listarSeguimientosProduccion,
+  obtenerDetalleOperativoProduccion,
 } from './produccion.repository';
 
 function getEmpresaId(req: Request) {
@@ -154,6 +155,31 @@ export async function getSeguimientoProduccionPorDocumento(req: Request, res: Re
 
     console.error('Error al obtener historial de producción por documento', error);
     return res.status(500).json({ message: 'No se pudo obtener el historial de producción' });
+  }
+}
+
+export async function getDetalleOperativoProduccion(req: Request, res: Response) {
+  try {
+    const empresaId = getEmpresaId(req);
+    const documentoId = Number(req.params.documentoId);
+    if (!empresaId) {
+      return res.status(400).json({ message: 'Empresa requerida' });
+    }
+
+    const detalle = await obtenerDetalleOperativoProduccion(empresaId, documentoId);
+    if (!detalle) {
+      return res.status(404).json({ message: 'Documento no encontrado' });
+    }
+
+    return res.json(detalle);
+  } catch (error) {
+    const message = (error as Error)?.message ?? 'No se pudo obtener el detalle operativo';
+    if (message.startsWith('VALIDATION_ERROR:')) {
+      return res.status(400).json({ message: message.replace('VALIDATION_ERROR:', '').trim() });
+    }
+
+    console.error('Error al obtener detalle operativo de producción', error);
+    return res.status(500).json({ message: 'No se pudo obtener el detalle operativo' });
   }
 }
 
