@@ -1,12 +1,16 @@
 import { Request, Response } from "express";
 import { normalizeWhatsappPayload } from "../whatsapp/whatsapp.mapper";
 import {
+  MAX_REENVIO_DESTINATARIOS,
+  REENVIO_CONCURRENCY,
   sendAudioMessage,
   sendDocumentMessage,
   sendImageMessage,
   sendTemplateMessage,
   sendTemplateMensajeDirecta,
   sendTextMessage,
+  verifyMediaUrlReachable,
+  WhatsappWindowExpiredError,
 } from "../whatsapp/whatsapp.service";
 import {
   buildWhatsappErrorInfo,
@@ -35,15 +39,20 @@ import {
 } from "../whatsapp/whatsapp-tags.repository";
 import {
   actualizarConversacionEntranteWhatsapp,
+  actualizarMediaUrlMensajeEntrante,
   finalizarConversacion,
   getReglasSeguimiento,
   getOrCreateConversacionWhatsapp,
   getOrCreateWhatsappContacto,
   MOTIVOS_FINALIZACION,
   MotivoFinalizacion,
+  obtenerConversacionesDestinoValidas,
+  obtenerMensajeParaReenvio,
   reabrirConversacion,
   registrarMensajeEntranteWhatsapp,
+  type MensajeSalienteMetadata,
 } from "./conversaciones.service";
+import { descargarYPersistirAdjuntoEntrante, redactUrlForLog } from "../whatsapp/whatsapp-media-download.service";
 
 type EtapaOportunidad =
   | "nuevo"
@@ -299,6 +308,58 @@ async function validarAccesoConversacion(
   );
 
   return convCheck.rows.length > 0;
+}
+
+// Orquesta la descarga+persistencia local de un adjunto entrante (best-effort,
+// ver whatsapp-media-download.service.ts) y, solo si tiene éxito, actualiza
+// crm.mensajes.media_url a la copia local. Nunca lanza: cualquier fallo (tipo
+// no soportado, timeout, red, tamaño excedido, etc.) se registra en log y se
+// descarta en silencio, dejando la URL original de Gupshup intacta en la fila
+// ya insertada. Se invoca sin `await` desde whatsappWebhook.
+async function persistirAdjuntoEntranteEnSegundoPlano(params: {
+  empresaId: number;
+  mensajeId: number;
+  mediaUrlOriginal: string;
+  mimeTypeHint: string | null;
+}): Promise<void> {
+  try {
+    const resultado = await descargarYPersistirAdjuntoEntrante({
+      empresaId: params.empresaId,
+      mediaUrl: params.mediaUrlOriginal,
+      mimeTypeHint: params.mimeTypeHint,
+    });
+
+    if (!resultado.ok) {
+      console.warn("[WhatsApp Webhook][Media] No se persistió copia local del adjunto entrante", {
+        empresaId: params.empresaId,
+        mensajeId: params.mensajeId,
+        mediaUrl: redactUrlForLog(params.mediaUrlOriginal),
+        motivo: resultado.motivo,
+      });
+      return;
+    }
+
+    const actualizado = await actualizarMediaUrlMensajeEntrante(
+      params.empresaId,
+      params.mensajeId,
+      params.mediaUrlOriginal,
+      resultado.url
+    );
+
+    console.log("[WhatsApp Webhook][Media] Copia local de adjunto entrante persistida", {
+      empresaId: params.empresaId,
+      mensajeId: params.mensajeId,
+      actualizado,
+      urlLocal: resultado.url,
+    });
+  } catch (error) {
+    console.error("[WhatsApp Webhook][Media] Error persistiendo adjunto entrante en segundo plano", {
+      empresaId: params.empresaId,
+      mensajeId: params.mensajeId,
+      mediaUrl: redactUrlForLog(params.mediaUrlOriginal),
+      error: (error as Error)?.message,
+    });
+  }
 }
 
 export const whatsappWebhook = async (req: Request, res: Response) => {
@@ -561,7 +622,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       tipoContenido: normalized.tipoContenido,
       tieneMediaUrl: Boolean(normalized.mediaUrl),
     });
-    await registrarMensajeEntranteWhatsapp(
+    const mensajeInsertadoId = await registrarMensajeEntranteWhatsapp(
       empresaId,
       conversacionId,
       telefono,
@@ -575,7 +636,47 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
         mimeType: normalized.mimeType,
       }
     );
-    console.log("[WhatsApp Webhook] Mensaje insertado", { conversacionId });
+
+    if (mensajeInsertadoId === null) {
+      // Webhook duplicado (mismo empresa_id + id_externo ya procesado, ver
+      // ux_mensaje_externo y el ON CONFLICT DO NOTHING en
+      // registrarMensajeEntranteWhatsapp): no es un error, es exactamente el
+      // reintento que Gupshup hace cuando no recibe una respuesta 2xx a
+      // tiempo. Se trata como ya procesado: no se descarga el adjunto de
+      // nuevo, no se reactiva la conversación de nuevo, y se responde 200
+      // igual que un mensaje nuevo, para que el proveedor deje de reintentar.
+      console.info("[WhatsApp Webhook] Webhook duplicado ignorado (id_externo ya procesado)", {
+        empresaId,
+        conversacionId,
+        messageId: normalized.messageId,
+      });
+      return res.status(200).json({ received: true, duplicate: true });
+    }
+
+    console.log("[WhatsApp Webhook] Mensaje insertado", { conversacionId, mensajeInsertadoId });
+
+    // Persistencia local del adjunto: deliberadamente NO se espera (no hay
+    // `await`) para que nunca retrase ni arriesgue la respuesta al webhook.
+    // Corre en segundo plano después de que el mensaje ya quedó registrado
+    // con la URL original de Gupshup; si la descarga tiene éxito, actualiza
+    // media_url a la copia local. El .catch() es una red de seguridad
+    // adicional: persistirAdjuntoEntranteEnSegundoPlano ya nunca debería
+    // rechazar la promesa, pero un unhandled rejection aquí tumbaría el
+    // proceso completo en Node moderno, así que se cubre igual.
+    if (normalized.tipoContenido !== "text" && normalized.mediaUrl) {
+      void persistirAdjuntoEntranteEnSegundoPlano({
+        empresaId,
+        mensajeId: mensajeInsertadoId,
+        mediaUrlOriginal: normalized.mediaUrl,
+        mimeTypeHint: normalized.mimeType,
+      }).catch((error) => {
+        console.error("[WhatsApp Webhook] Fallo inesperado en persistencia de adjunto en segundo plano", {
+          empresaId,
+          mensajeInsertadoId,
+          error: (error as Error)?.message,
+        });
+      });
+    }
 
     console.log("[WhatsApp Webhook] Actualizando conversación", { conversacionId });
     await actualizarConversacionEntranteWhatsapp(conversacionId);
@@ -718,6 +819,217 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
     });
 
     return responderErrorWhatsapp(res, info);
+  }
+};
+
+type ReenvioStatus =
+  | "enviado"
+  | "ventana_cerrada"
+  | "archivo_no_disponible"
+  | "no_autorizado"
+  | "conversacion_invalida"
+  | "error";
+
+type ReenvioResultado = {
+  conversacion_id: number;
+  nombre: string | null;
+  status: ReenvioStatus;
+  mensaje_usuario: string | null;
+};
+
+// Ejecuta `fn` sobre `items` respetando un máximo de tareas en paralelo, para
+// no lanzar N requests simultáneos a Gupshup en un reenvío múltiple. No hay
+// ninguna librería de concurrencia en el backend (ver whatsapp.service.ts),
+// así que se resuelve con un lote simple propio.
+async function mapWithConcurrencyLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await fn(items[currentIndex]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+// Reenvía un mensaje existente (texto, imagen, documento o audio) a una o
+// varias conversaciones destino. Es técnicamente un mensaje nuevo por cada
+// destinatario: reutiliza exactamente el mismo flujo de envío/persistencia
+// que un mensaje normal (sendTextMessage/sendImageMessage/etc., incluida la
+// validación de la ventana de 24h dentro de cada uno), por lo que no
+// duplica esa lógica ni permite evadirla. No usa mensaje_respuesta_id del
+// original: reenviar no es responder, y el contexto de reply no tiene
+// sentido cruzado entre conversaciones distintas.
+export const reenviarMensajeWhatsapp = async (req: Request, res: Response) => {
+  const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+  const authUserId = req.auth?.userId;
+  const esSuperadmin = req.auth?.esSuperadmin;
+
+  try {
+    if (!empresaId) {
+      return res.status(400).json({ message: "empresaId requerido" });
+    }
+
+    const { mensaje_id, conversaciones_destino } = req.body || {};
+    const mensajeId = Number(mensaje_id);
+
+    if (!Number.isFinite(mensajeId) || mensajeId <= 0) {
+      return res.status(400).json({ message: "mensaje_id es requerido y debe ser numérico" });
+    }
+
+    if (!Array.isArray(conversaciones_destino) || conversaciones_destino.length === 0) {
+      return res.status(400).json({ message: "conversaciones_destino es requerido y debe ser un arreglo no vacío" });
+    }
+
+    const destinoIds = Array.from(
+      new Set(
+        conversaciones_destino
+          .map((value: unknown) => Number(value))
+          .filter((value: number) => Number.isFinite(value) && value > 0)
+      )
+    );
+
+    if (destinoIds.length === 0) {
+      return res.status(400).json({ message: "conversaciones_destino no contiene ids válidos" });
+    }
+
+    if (destinoIds.length > MAX_REENVIO_DESTINATARIOS) {
+      return res.status(400).json({
+        message: `No puedes reenviar a más de ${MAX_REENVIO_DESTINATARIOS} conversaciones a la vez`,
+      });
+    }
+
+    const mensajeOriginal = await obtenerMensajeParaReenvio(Number(empresaId), mensajeId);
+    if (!mensajeOriginal) {
+      return res.status(404).json({ message: "El mensaje original no existe o no pertenece a esta empresa" });
+    }
+
+    const tieneAccesoOrigen = await validarAccesoConversacion(
+      Number(empresaId),
+      mensajeOriginal.conversacion_id,
+      authUserId,
+      esSuperadmin
+    );
+    if (!tieneAccesoOrigen) {
+      return res.status(403).json({ message: "No tienes acceso a la conversación de este mensaje" });
+    }
+
+    if (
+      (mensajeOriginal.tipo_contenido === "image" ||
+        mensajeOriginal.tipo_contenido === "audio" ||
+        mensajeOriginal.tipo_contenido === "document") &&
+      !mensajeOriginal.media_url
+    ) {
+      return res.status(422).json({ message: "El mensaje original no tiene un archivo adjunto disponible para reenviar" });
+    }
+
+    if (mensajeOriginal.tipo_contenido === "text" && !mensajeOriginal.contenido?.trim()) {
+      return res.status(422).json({ message: "El mensaje original no tiene contenido de texto para reenviar" });
+    }
+
+    const scope = await resolverContextoScopeComercial(Number(empresaId), authUserId, esSuperadmin);
+    if (!scope.esAdmin && !scope.vendedorContactoId) {
+      return res.status(403).json({ message: "No tienes conversaciones asignadas para reenviar mensajes" });
+    }
+
+    const destinosValidos = await obtenerConversacionesDestinoValidas(Number(empresaId), destinoIds, scope);
+    const destinosValidosPorId = new Map(destinosValidos.map((d) => [d.id, d]));
+
+    // Si el adjunto es media, se valida UNA sola vez que la URL siga siendo
+    // accesible (puede venir de Gupshup y ser temporal, o de /uploads y ser
+    // persistente): si falla, ningún destinatario debe recibir un envío con
+    // una URL rota.
+    let mediaDisponible = true;
+    if (mensajeOriginal.media_url && mensajeOriginal.tipo_contenido !== "text") {
+      mediaDisponible = await verifyMediaUrlReachable(mensajeOriginal.media_url);
+    }
+
+    const usuarioId = authUserId ? Number(authUserId) : null;
+    const forwardMetadata: MensajeSalienteMetadata = {
+      reenviado_de_mensaje_id: mensajeOriginal.id,
+      reenviado_por_usuario_id: usuarioId,
+      conversacion_origen_id: mensajeOriginal.conversacion_id,
+    };
+
+    const resultados = await mapWithConcurrencyLimit(destinoIds, REENVIO_CONCURRENCY, async (destinoId): Promise<ReenvioResultado> => {
+      const destino = destinosValidosPorId.get(destinoId);
+
+      if (!destino) {
+        return { conversacion_id: destinoId, nombre: null, status: "no_autorizado", mensaje_usuario: "No autorizado para esta conversación" };
+      }
+      if (!destino.telefono) {
+        return { conversacion_id: destinoId, nombre: destino.nombre, status: "conversacion_invalida", mensaje_usuario: "La conversación no tiene un teléfono asociado" };
+      }
+      if (!mediaDisponible) {
+        return {
+          conversacion_id: destinoId,
+          nombre: destino.nombre,
+          status: "archivo_no_disponible",
+          mensaje_usuario: "El archivo adjunto original ya no está disponible",
+        };
+      }
+
+      try {
+        if (mensajeOriginal.tipo_contenido === "text") {
+          await sendTextMessage(Number(empresaId), destino.telefono, mensajeOriginal.contenido as string, null, forwardMetadata);
+        } else if (mensajeOriginal.tipo_contenido === "image") {
+          await sendImageMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, mensajeOriginal.caption ?? null, null, forwardMetadata);
+        } else if (mensajeOriginal.tipo_contenido === "document") {
+          await sendDocumentMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, mensajeOriginal.caption ?? null, {
+            mensajeRespuestaId: null,
+            forwardMetadata,
+          });
+        } else if (mensajeOriginal.tipo_contenido === "audio") {
+          await sendAudioMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, null, forwardMetadata);
+        }
+
+        return { conversacion_id: destinoId, nombre: destino.nombre, status: "enviado", mensaje_usuario: null };
+      } catch (error) {
+        const info = classifyWhatsappError(error);
+        logWhatsappFailureTechnical({
+          empresaId: Number(empresaId),
+          telefono: destino.telefono,
+          usuarioId,
+          tipoMensaje: `reenvio:${mensajeOriginal.tipo_contenido}`,
+          tieneAdjunto: mensajeOriginal.tipo_contenido !== "text",
+          info,
+        });
+
+        const status: ReenvioStatus = error instanceof WhatsappWindowExpiredError ? "ventana_cerrada" : "error";
+        return { conversacion_id: destinoId, nombre: destino.nombre, status, mensaje_usuario: info.mensajeUsuario };
+      }
+    });
+
+    const resumen = resultados.reduce(
+      (acc, r) => {
+        acc[r.status] += 1;
+        acc.total += 1;
+        return acc;
+      },
+      {
+        enviado: 0,
+        ventana_cerrada: 0,
+        archivo_no_disponible: 0,
+        no_autorizado: 0,
+        conversacion_invalida: 0,
+        error: 0,
+        total: 0,
+      }
+    );
+
+    return res.status(200).json({ mensaje_id: mensajeOriginal.id, resultados, resumen });
+  } catch (error) {
+    console.error("Error reenviando mensaje de WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo procesar el reenvío del mensaje" });
   }
 };
 

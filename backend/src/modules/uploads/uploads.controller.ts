@@ -3,6 +3,7 @@ import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
 import { generarPdfPreviewSiFalta } from "../../services/pdfPreviewImage.service";
+import { optimizarImagenParaChatSiAplica } from "../../services/chatImageOptimizer.service";
 
 if (ffmpegPath) {
   ffmpeg.setFfmpegPath(ffmpegPath);
@@ -68,9 +69,16 @@ export async function subirImagen(req: Request, res: Response) {
   const url = `${resolvedBaseUrl.replace(/\/$/, "")}/uploads/${filename}`;
 
   if (req.file.mimetype?.startsWith("image/")) {
-    // Síncrono y best-effort: si Sharp falla aquí, la subida del original
-    // igual se considera exitosa; la primera impresión que use esta imagen
-    // generará la versión optimizada de forma perezosa.
+    // Corrige la orientación EXIF y limita el tamaño del original ANTES de
+    // que quede disponible para enviarse a WhatsApp o para mostrarse en el
+    // chat: así ambos consumidores (que comparten la misma URL/archivo)
+    // reciben siempre una imagen ya orientada y optimizada para mensajería,
+    // sin depender de que cada uno interprete el tag EXIF por su cuenta ni
+    // de descargar una foto a resolución de cámara. Debe ejecutarse antes de
+    // generarPdfPreviewSiFalta, que lee el original tal como está en ese
+    // momento. Síncrono y best-effort: si Sharp falla aquí, la subida del
+    // original igual se considera exitosa.
+    await optimizarImagenParaChatSiAplica(req.file.path);
     await generarPdfPreviewSiFalta(url);
   }
 

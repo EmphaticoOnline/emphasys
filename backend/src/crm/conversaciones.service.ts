@@ -165,6 +165,89 @@ export const obtenerIdExternoMensaje = async (
   return rows[0]?.id_externo ?? null;
 };
 
+export type MensajeParaReenvio = {
+  id: number;
+  conversacion_id: number;
+  tipo_mensaje: 'entrante' | 'saliente';
+  tipo_contenido: 'text' | 'image' | 'audio' | 'document';
+  contenido: string | null;
+  caption: string | null;
+  media_url: string | null;
+};
+
+// Trae el mensaje original a reenviar, siempre acotado a empresa_id: si el
+// mensaje pertenece a otra empresa simplemente no aparece (null), nunca se
+// filtra información cruzada entre tenants.
+export const obtenerMensajeParaReenvio = async (
+  empresaId: number,
+  mensajeId: number
+): Promise<MensajeParaReenvio | null> => {
+  const { rows } = await pool.query<MensajeParaReenvio>(
+    `
+      SELECT
+        id,
+        conversacion_id,
+        tipo_mensaje,
+        COALESCE(tipo_contenido, 'text') AS tipo_contenido,
+        contenido,
+        caption,
+        media_url
+      FROM crm.mensajes
+      WHERE id = $1
+        AND empresa_id = $2
+      LIMIT 1
+      `,
+    [mensajeId, empresaId]
+  );
+
+  return rows[0] ?? null;
+};
+
+export type ConversacionDestinoReenvio = {
+  id: number;
+  contacto_id: number | null;
+  telefono: string | null;
+  nombre: string | null;
+};
+
+// Resuelve, en una sola consulta, cuáles de los ids de conversación pedidos
+// como destino de un reenvío son válidos: deben pertenecer a la misma
+// empresa y, si el usuario es vendedor (no admin), estar asignados a su
+// vendedor_contacto_id. Los ids que no aparecen en el resultado deben
+// tratarse como no autorizados o inexistentes por el llamador.
+export const obtenerConversacionesDestinoValidas = async (
+  empresaId: number,
+  conversacionIds: number[],
+  vendedorScope: { esAdmin: boolean; vendedorContactoId: number | null }
+): Promise<ConversacionDestinoReenvio[]> => {
+  if (conversacionIds.length === 0) return [];
+
+  const params: any[] = [empresaId, conversacionIds];
+  let vendedorClause = '';
+  if (!vendedorScope.esAdmin) {
+    params.push(vendedorScope.vendedorContactoId);
+    vendedorClause = ` AND ct.vendedor_id = $${params.length}`;
+  }
+
+  const { rows } = await pool.query<ConversacionDestinoReenvio>(
+    `
+      SELECT
+        c.id,
+        c.contacto_id,
+        ct.telefono,
+        ct.nombre
+      FROM crm.conversaciones c
+      LEFT JOIN public.contactos ct ON ct.id = c.contacto_id
+      WHERE c.empresa_id = $1
+        AND c.id = ANY($2::bigint[])
+        ${vendedorClause}
+      `,
+    params
+  );
+
+  return rows;
+};
+
 export const registrarMensajeEmailSaliente = async (params: {
   empresaId: number;
   contactoId: number | null;
@@ -232,13 +315,25 @@ export const actualizarConversacionSaliente = async (conversacionId: number, emp
   );
 };
 
+// Trazabilidad interna de reenvíos: no existe una columna dedicada para
+// relacionar un mensaje reenviado con su mensaje original, así que se
+// reutiliza la columna jsonb `respuesta_json` (hoy sin uso en mensajes
+// salientes de WhatsApp) en vez de agregar una migración. Nunca se muestra
+// al cliente: solo viaja internamente en crm.mensajes para auditoría.
+export type MensajeSalienteMetadata = {
+  reenviado_de_mensaje_id: number;
+  reenviado_por_usuario_id: number | null;
+  conversacion_origen_id: number;
+};
+
 export const registrarMensajeTextoSalienteWhatsapp = async (
   empresaId: number,
   conversacionId: number,
   telefono: string,
   text: string,
   externalId: string | null,
-  mensajeRespuestaId?: number | null
+  mensajeRespuestaId?: number | null,
+  metadata?: MensajeSalienteMetadata | null
 ) => {
   await pool.query(
     `
@@ -255,9 +350,10 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
         id_externo,
         status,
         mensaje_respuesta_id,
+        respuesta_json,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,NOW())
       `,
     [
       empresaId,
@@ -269,7 +365,8 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
       text,
       externalId,
       'sent',
-      mensajeRespuestaId ?? null
+      mensajeRespuestaId ?? null,
+      metadata ? JSON.stringify(metadata) : null
     ]
   );
 };
@@ -281,7 +378,8 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
   mediaUrl: string,
   caption: string | null,
   externalId: string | null,
-  mensajeRespuestaId?: number | null
+  mensajeRespuestaId?: number | null,
+  metadata?: MensajeSalienteMetadata | null
 ) => {
   await pool.query(
     `
@@ -299,9 +397,10 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
         id_externo,
         status,
         mensaje_respuesta_id,
+        respuesta_json,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,NOW())
       `,
     [
       empresaId,
@@ -314,7 +413,8 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
       mediaUrl,
       externalId,
       'sent',
-      mensajeRespuestaId ?? null
+      mensajeRespuestaId ?? null,
+      metadata ? JSON.stringify(metadata) : null
     ]
   );
 };
@@ -326,7 +426,8 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
   mediaUrl: string,
   filename: string | null,
   externalId: string | null,
-  mensajeRespuestaId?: number | null
+  mensajeRespuestaId?: number | null,
+  metadata?: MensajeSalienteMetadata | null
 ) => {
   await pool.query(
     `
@@ -344,9 +445,10 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
         id_externo,
         status,
         mensaje_respuesta_id,
+        respuesta_json,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,NOW())
       `,
     [
       empresaId,
@@ -359,7 +461,8 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
       mediaUrl,
       externalId,
       'sent',
-      mensajeRespuestaId ?? null
+      mensajeRespuestaId ?? null,
+      metadata ? JSON.stringify(metadata) : null
     ]
   );
 };
@@ -370,7 +473,8 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
   telefono: string,
   mediaUrl: string,
   externalId: string | null,
-  mensajeRespuestaId?: number | null
+  mensajeRespuestaId?: number | null,
+  metadata?: MensajeSalienteMetadata | null
 ) => {
   await pool.query(
     `
@@ -387,9 +491,10 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
         id_externo,
         status,
         mensaje_respuesta_id,
+        respuesta_json,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,NOW())
       `,
     [
       empresaId,
@@ -401,7 +506,8 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
       mediaUrl,
       externalId,
       'sent',
-      mensajeRespuestaId ?? null
+      mensajeRespuestaId ?? null,
+      metadata ? JSON.stringify(metadata) : null
     ]
   );
 };
@@ -443,6 +549,17 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
   );
 };
 
+// Devuelve el id del mensaje insertado, o null si el webhook es un duplicado
+// (mismo (empresa_id, id_externo) ya procesado antes). `ux_mensaje_externo`
+// (crm.mensajes, UNIQUE (empresa_id, id_externo) WHERE id_externo IS NOT
+// NULL — ver database/schema/crm/mensajes.sql) es el índice que respalda el
+// `ON CONFLICT`: el WHERE del ON CONFLICT debe coincidir exactamente con el
+// predicado del índice parcial para que Postgres lo use como árbitro. Con
+// `DO NOTHING`, un webhook reintentado por Gupshup no lanza una violación
+// de unicidad (que antes sí ocurría y terminaba clasificada como error
+// técnico en el catch general de whatsappWebhook): simplemente no inserta
+// nada y RETURNING no devuelve filas, así el llamador puede distinguir
+// "insertado" de "duplicado" sin depender de capturar una excepción.
 export const registrarMensajeEntranteWhatsapp = async (
   empresaId: number,
   conversacionId: number,
@@ -456,8 +573,8 @@ export const registrarMensajeEntranteWhatsapp = async (
     caption?: string | null;
     mimeType?: string | null;
   }
-) => {
-  await pool.query(
+): Promise<number | null> => {
+  const { rows } = await pool.query<{ id: number }>(
     `
       INSERT INTO crm.mensajes
       (
@@ -477,6 +594,8 @@ export const registrarMensajeEntranteWhatsapp = async (
         creado_en
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+      ON CONFLICT (empresa_id, id_externo) WHERE id_externo IS NOT NULL DO NOTHING
+      RETURNING id
       `,
     [
       empresaId,
@@ -494,6 +613,35 @@ export const registrarMensajeEntranteWhatsapp = async (
       media?.mimeType ?? null,
     ]
   );
+
+  return rows[0]?.id ?? null;
+};
+
+// Se llama solo desde el flujo best-effort de persistencia local de
+// adjuntos entrantes (whatsappWebhook -> whatsapp-media-download.service),
+// después de que la descarga terminó con éxito. El filtro
+// `AND media_url = $4` es una guarda defensiva: solo pisa el valor si
+// todavía es la URL original de Gupshup que se guardó al insertar el
+// mensaje, para no sobrescribir un cambio hecho por otra vía mientras la
+// descarga estaba en curso.
+export const actualizarMediaUrlMensajeEntrante = async (
+  empresaId: number,
+  mensajeId: number,
+  mediaUrlOriginal: string,
+  mediaUrlLocal: string
+): Promise<boolean> => {
+  const result = await pool.query(
+    `
+      UPDATE crm.mensajes
+      SET media_url = $1
+      WHERE id = $2
+        AND empresa_id = $3
+        AND media_url = $4
+      `,
+    [mediaUrlLocal, mensajeId, empresaId, mediaUrlOriginal]
+  );
+
+  return (result.rowCount ?? 0) > 0;
 };
 
 export const actualizarConversacionSalienteWhatsapp = async (

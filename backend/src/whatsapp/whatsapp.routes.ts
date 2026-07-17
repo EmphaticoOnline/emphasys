@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
 	enviarWhatsapp,
+	reenviarMensajeWhatsapp,
 	whatsappWebhook,
 	listarConversacionesWhatsapp,
 	obtenerReglasSeguimientoWhatsapp,
@@ -27,6 +28,7 @@ const router = Router();
 //router.post("/webhook/:token", whatsappWebhook);
 router.post("/webhook", whatsappWebhook);
 router.post("/enviar-mensaje", requireAuth, requireEmpresaActiva, enviarWhatsapp);
+router.post("/reenviar-mensaje", requireAuth, requireEmpresaActiva, reenviarMensajeWhatsapp);
 router.post("/enviar-plantilla", requireAuth, requireEmpresaActiva, enviarWhatsappPlantilla);
 router.get("/conversaciones", requireAuth, requireEmpresaActiva, listarConversacionesWhatsapp);
 router.get("/reglas-seguimiento", requireAuth, requireEmpresaActiva, obtenerReglasSeguimientoWhatsapp);

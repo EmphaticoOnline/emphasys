@@ -22,6 +22,8 @@ import {
   InputAdornment,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -46,16 +48,43 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { useNavigate } from 'react-router-dom';
+import ForwardIcon from '@mui/icons-material/Forward';
 import { apiFetch, buildAuthHeaders } from '../api/apiClient';
 import { useSession } from '../session/useSession';
 import { SendWhatsappTemplateDialog } from '../components/SendWhatsappTemplateDialog';
+import { ForwardMessageDialog, type ForwardableMessage } from '../components/ForwardMessageDialog';
+import LeadsDesktopView from '../components/leads/LeadsDesktopView';
+import LeadsMobileView from '../components/leads/LeadsMobileView';
 import { fetchContactos } from '../services/contactosService';
 import type { Contacto } from '../types/contactos.types';
 import { actualizarContacto } from '../services/contactos.api';
+import { computeListContinuation } from '../utils/messageListContinuation';
+import { linkifyMessageText } from '../components/LinkifiedText';
+import { fetchConversaciones, fetchMensajesConversacion } from '../services/conversacionesService';
+import {
+  DEFAULT_REGLAS_SEGUIMIENTO,
+  applyDerivedLeadState,
+  buildLeadOwnerLabel,
+  buildReplyPreviewText,
+  buildWhatsappSendErrorInfo,
+  deriveLeadState,
+  deriveNextAction,
+  esSeguimientoPendiente,
+  filterWhatsappMessages,
+  formatFechaHora,
+  formatMinutes,
+  formatMinutesAgo,
+  getIdleSeverity,
+  getLastWhatsappPreview,
+  mapMessages,
+  minutesSince,
+  normalizeEtapaOportunidad,
+  ordenarLeads,
+} from '../utils/leadsDerivation';
 
-type Priority = 'Alta' | 'Media' | 'Baja';
-type NextAction = 'Responder' | 'Llamar' | 'Enviar cotización' | 'Agendar demo' | 'Cerrar';
-type EtapaOportunidad =
+export type Priority = 'Alta' | 'Media' | 'Baja';
+export type NextAction = 'Responder' | 'Llamar' | 'Enviar cotización' | 'Agendar demo' | 'Cerrar';
+export type EtapaOportunidad =
   | 'nuevo'
   | 'contactado'
   | 'interesado'
@@ -64,7 +93,7 @@ type EtapaOportunidad =
   | 'convertida'
   | 'perdida';
 
-type MotivoFinalizacion =
+export type MotivoFinalizacion =
   | 'venta_cerrada'
   | 'informacion_entregada'
   | 'no_interesado'
@@ -94,7 +123,7 @@ type ConversationSummary = {
   tags?: WhatsappEtiqueta[];
 };
 
-type ConversationMessage = {
+export type ConversationMessage = {
   id: string;
   telefono: string | null;
   tipo_mensaje: 'entrante' | 'saliente';
@@ -113,13 +142,13 @@ type ConversationMessage = {
   respuesta_caption?: string | null;
 };
 
-type ReplyPreview = {
+export type ReplyPreview = {
   id: string;
   from: 'lead' | 'me';
   preview: string;
 };
 
-type OportunidadVenta = {
+export type OportunidadVenta = {
   id: number;
   folio?: string | null;
   cotizacion_principal_id: number | null;
@@ -129,28 +158,28 @@ type OportunidadVenta = {
   monto_oportunidad: number | null;
 };
 
-type ReglasSeguimiento = {
+export type ReglasSeguimiento = {
   tiempo_tolerancia_respuesta_a_cliente: number;
   tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: number;
   tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente: number;
 };
 
-type WhatsappEtiqueta = {
+export type WhatsappEtiqueta = {
   id: number;
   nombre: string;
   color: string;
 };
 
-type LeadStatusType = 'attention' | 'waiting' | 'neutral' | 'active';
+export type LeadStatusType = 'attention' | 'waiting' | 'neutral' | 'active';
 
-type WhatsappSendErrorInfo = {
+export type WhatsappSendErrorInfo = {
   codigo: string;
   mensajeUsuario: string;
   accionSugerida: string | null;
   recuperable: boolean;
 };
 
-type Lead = {
+export type Lead = {
   id: string;
   name: string;
   phone: string;
@@ -199,12 +228,11 @@ type Lead = {
   reactivada_en: string | null;
 };
 
-type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
-type QuickFilter = 'todos' | 'seguimiento' | 'alta' | 'activos';
-type OpportunityFilter = 'todos' | 'con' | 'sin';
-type LeadScope = 'mis' | 'todos';
+export type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
+export type QuickFilter = 'todos' | 'seguimiento' | 'alta' | 'activos';
+export type OpportunityFilter = 'todos' | 'con' | 'sin';
+export type LeadScope = 'mis' | 'todos';
 type UserRole = { id: number; nombre: string; descripcion?: string | null };
-const MANAGE_TAGS_OPTION_VALUE = '__manage_tags__';
 const AUDIO_MIME_PREFERENCES = [
   'audio/ogg;codecs=opus',
   'audio/ogg',
@@ -212,19 +240,7 @@ const AUDIO_MIME_PREFERENCES = [
   'audio/webm;codecs=opus',
   'audio/webm',
 ];
-const leadSelectMenuProps = {
-  PaperProps: {
-    sx: {
-      '& .MuiMenuItem-root': {
-        fontSize: '0.85rem',
-      },
-    },
-  },
-};
 
-const nextActionOptions: NextAction[] = ['Responder', 'Llamar', 'Enviar cotización', 'Agendar demo', 'Cerrar'];
-const priorityOptions: Priority[] = ['Alta', 'Media', 'Baja'];
-const etapaOptions: EtapaOportunidad[] = ['nuevo', 'contactado', 'interesado', 'cotizado', 'negociacion', 'convertida', 'perdida'];
 const motivoFinalizacionOptions: Array<{ value: MotivoFinalizacion; label: string }> = [
   { value: 'venta_cerrada', label: 'Venta cerrada' },
   { value: 'informacion_entregada', label: 'Información entregada' },
@@ -239,18 +255,7 @@ const motivoFinalizacionLabel: Record<MotivoFinalizacion, string> = motivoFinali
   (acc, opt) => ({ ...acc, [opt.value]: opt.label }),
   {} as Record<MotivoFinalizacion, string>
 );
-function formatFechaHora(value: string | null): string {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
-}
 const REFRESH_INTERVAL_MS = 5000;
-const DEFAULT_REGLAS_SEGUIMIENTO: ReglasSeguimiento = {
-  tiempo_tolerancia_respuesta_a_cliente: 30,
-  tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: 4,
-  tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente: 24,
-};
 const etapaChipColor: Record<EtapaOportunidad, 'default' | 'info' | 'primary' | 'warning' | 'secondary' | 'success' | 'error'> = {
   nuevo: 'default',
   contactado: 'info',
@@ -261,105 +266,6 @@ const etapaChipColor: Record<EtapaOportunidad, 'default' | 'info' | 'primary' | 
   perdida: 'error',
 };
 
-function normalizeEtapaOportunidad(value: unknown): EtapaOportunidad {
-  const normalized = String(value ?? '').trim().toLowerCase();
-
-  switch (normalized) {
-    case 'contactado':
-    case 'interesado':
-    case 'cotizado':
-    case 'negociacion':
-      return normalized;
-    case 'convertida':
-    case 'ganado':
-    case 'ganada':
-      return 'convertida';
-    case 'perdida':
-    case 'perdido':
-      return 'perdida';
-    case 'nuevo':
-    default:
-      return 'nuevo';
-  }
-}
-
-const getIdleSeverity = (min: number): { color: 'default' | 'warning' | 'error'; showIcon: boolean } => {
-  if (min > 180) return { color: 'error', showIcon: true };
-  if (min >= 60) return { color: 'warning', showIcon: false };
-  return { color: 'default', showIcon: false };
-};
-
-function formatMinutesAgo(min: number): string {
-  if (min < 60) return `${min}m`;
-  if (min < 1440) {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return m === 0 ? `${h}h` : `${h}h ${m}m`;
-  }
-  const d = Math.floor(min / 1440);
-  const h = Math.floor((min % 1440) / 60);
-  return `${d}d ${h}h`;
-}
-
-function formatMinutes(min: number): string {
-  if (min < 60) return `${min}m`;
-  if (min < 1440) {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return m === 0 ? `${h}h` : `${h}h ${m}m`;
-  }
-  const d = Math.floor(min / 1440);
-  const h = Math.floor((min % 1440) / 60);
-  return `${d}d ${h}h`;
-}
-
-function renderStatusIcon(status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed') {
-  switch (status) {
-    case 'sending':
-      return <ScheduleIcon fontSize="small" />;
-    case 'sent':
-      return <DoneIcon fontSize="small" />;
-    case 'delivered':
-      return <DoneAllIcon fontSize="small" sx={{ color: '#9e9e9e' }} />;
-    case 'read':
-      return <DoneAllIcon fontSize="small" sx={{ color: '#4fc3f7' }} />;
-    case 'failed':
-      return <ErrorOutlineIcon fontSize="small" color="error" />;
-    default:
-      return null;
-  }
-}
-
-// Traduce la respuesta de error del backend (o un fallo de red del propio
-// fetch) a un mensaje comprensible para el usuario. Nunca muestra códigos
-// HTTP, JSON crudo ni stack traces en la interfaz.
-function buildWhatsappSendErrorInfo(payload: any, isNetworkError: boolean): WhatsappSendErrorInfo {
-  if (isNetworkError) {
-    return {
-      codigo: 'CONEXION_FRONTEND_BACKEND',
-      mensajeUsuario: 'No se pudo conectar con el servidor de Emphasys.',
-      accionSugerida: 'Verifica tu conexión a internet e intenta nuevamente.',
-      recuperable: true,
-    };
-  }
-
-  if (payload?.codigo && payload?.mensaje_usuario) {
-    return {
-      codigo: String(payload.codigo),
-      mensajeUsuario: String(payload.mensaje_usuario),
-      accionSugerida: payload.accion_sugerida ? String(payload.accion_sugerida) : null,
-      recuperable: Boolean(payload.recuperable),
-    };
-  }
-
-  return {
-    codigo: 'ERROR_DESCONOCIDO',
-    mensajeUsuario: (typeof payload?.message === 'string' && payload.message) || 'No fue posible enviar el mensaje por una causa no identificada.',
-    accionSugerida: 'Intenta nuevamente. Si el problema continúa, repórtalo al administrador.',
-    recuperable: true,
-  };
-}
-
 function buildApiUrl(path: string) {
   const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '';
   const trimmedBase = baseUrl?.toString().replace(/\/$/, '') || '';
@@ -368,228 +274,22 @@ function buildApiUrl(path: string) {
   return `${trimmedBase}/${path}`;
 }
 
-function minutesSince(dateString: string | null): number {
-  if (!dateString) return 0;
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return 0;
-  const diffMs = Date.now() - date.getTime();
-  return Math.max(0, Math.floor(diffMs / 60000));
-}
-
-function deriveNextAction(hasUnrepliedIncoming: boolean): NextAction {
-  return hasUnrepliedIncoming ? 'Responder' : 'Responder';
-}
-
-// La ventana de 24h de WhatsApp solo se abre con un mensaje ENTRANTE real del
-// cliente (igual que el backend en validateWhatsapp24hWindow). Un mensaje
-// saliente, incluida una plantilla, nunca la reabre ni la simula.
-function findLastIncomingSentAt(conversation: Lead['conversation']): string | null {
-  for (let i = conversation.length - 1; i >= 0; i -= 1) {
-    const item = conversation[i];
-    if (item?.from === 'lead') {
-      return item.sentAt ?? null;
-    }
-  }
-  return null;
-}
-
-function deriveLeadState(lead: Lead, reglasSeguimiento: ReglasSeguimiento = DEFAULT_REGLAS_SEGUIMIENTO): {
-  awaitingResponse: boolean;
-  statusLabel: string;
-  statusType: LeadStatusType;
-  idleMinutes: number;
-  priority: Priority;
-  nextAction: NextAction;
-  within24hWindow: boolean;
-  windowExpiresInMinutes: number;
-  canSendFreeMessage: boolean;
-  requiresTemplate: boolean;
-} {
-  const lastMessage = lead.conversation[lead.conversation.length - 1];
-  const lastFrom = lastMessage?.from ?? null;
-  const idleMinutes = minutesSince(lastMessage?.sentAt ?? lead.ultimoMensajeEn);
-
-  let awaitingResponse = lead.awaitingResponse;
-  if (lastFrom === 'lead') {
-    awaitingResponse = true;
-  } else if (lastFrom === 'me') {
-    awaitingResponse = false;
-  }
-
-  const statusLabel = awaitingResponse ? 'Sin responder' : 'Esperando cliente';
-  const statusType: LeadStatusType = awaitingResponse ? 'attention' : 'waiting';
-  const toleranciaRespuestaMin = reglasSeguimiento.tiempo_tolerancia_respuesta_a_cliente;
-  const seguimientoDespuesRespuestaMin = reglasSeguimiento.tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente * 60;
-  const maxSinRespuestaMin = reglasSeguimiento.tiempo_maximo_sin_respuesta_despues_de_respuesta_a_cliente * 60;
-  const priority: Priority = awaitingResponse
-    ? idleMinutes > toleranciaRespuestaMin
-      ? 'Alta'
-      : 'Media'
-    : idleMinutes > maxSinRespuestaMin
-      ? 'Alta'
-      : idleMinutes > seguimientoDespuesRespuestaMin
-        ? 'Media'
-        : 'Baja';
-  const nextAction = deriveNextAction(awaitingResponse);
-  // Ojo: se basa en el último mensaje ENTRANTE, no en el último mensaje de la
-  // conversación. Enviar una plantilla (o cualquier mensaje "me") no reabre
-  // la ventana; solo una respuesta real del cliente lo hace.
-  const lastIncomingSentAt = findLastIncomingSentAt(lead.conversation);
-  const minutesSinceLastIncoming = lastIncomingSentAt ? minutesSince(lastIncomingSentAt) : null;
-  const windowExpiresInMinutes = minutesSinceLastIncoming === null ? 0 : Math.max(0, 1440 - minutesSinceLastIncoming);
-  const within24hWindow = windowExpiresInMinutes > 0;
-  const canSendFreeMessage = within24hWindow;
-  const requiresTemplate = !within24hWindow;
-
-  return {
-    awaitingResponse,
-    statusLabel,
-    statusType,
-    idleMinutes,
-    priority,
-    nextAction,
-    within24hWindow,
-    windowExpiresInMinutes,
-    canSendFreeMessage,
-    requiresTemplate,
-  };
-}
-
-function esSeguimientoPendiente(lead: Lead): boolean {
-  const etapa = lead.etapa_oportunidad ?? 'nuevo';
-  if (etapa === 'convertida' || etapa === 'perdida') return false;
-
-  const last = lead.conversation[lead.conversation.length - 1];
-  const lastFrom = last?.from;
-  if (lastFrom !== 'lead') return false;
-
-  const minutos = minutesSince(last?.sentAt ?? lead.ultimoMensajeEn);
-  const limites: Record<EtapaOportunidad, number> = {
-    nuevo: 15,
-    contactado: 60,
-    interesado: 120,
-    cotizado: 360,
-    negociacion: 360,
-    convertida: Infinity,
-    perdida: Infinity,
-  };
-
-  const limite = limites[etapa] ?? 120;
-  return minutos > limite;
-}
-
-const prioridadRank: Record<Priority, number> = { Alta: 2, Media: 1, Baja: 0 };
-
-const getLastTimestampMs = (lead: Lead): number => {
-  const last = lead.conversation[lead.conversation.length - 1];
-  const ts = last?.sentAt ?? lead.ultimoMensajeEn;
-  const d = ts ? new Date(ts).getTime() : 0;
-  return Number.isNaN(d) ? 0 : d;
+export type LeadsPageProps = {
+  // Lo llama LeadsMobileView (vía onChatOpenChange) cuando el chat móvil se
+  // abre/cierra, para que CRMPage pueda dejar de ocupar espacio con su
+  // encabezado/pestañas mientras el chat está a pantalla completa. Opcional:
+  // quien monte LeadsPage fuera de CRMPage puede simplemente omitirlo.
+  onMobileConversationOpenChange?: (open: boolean) => void;
 };
 
-const ordenarLeads = (a: LeadConPrioridad, b: LeadConPrioridad): number => {
-  // 1) seguimiento pendiente primero
-  if (a.seguimientoPendiente !== b.seguimientoPendiente) {
-    return a.seguimientoPendiente ? -1 : 1;
-  }
-
-  // 2) prioridad alta > media > baja
-  const prioDiff = prioridadRank[b.computedPriority] - prioridadRank[a.computedPriority];
-  if (prioDiff !== 0) return prioDiff;
-
-  // 3) más reciente primero
-  return getLastTimestampMs(b) - getLastTimestampMs(a);
-};
-
-const buildLeadOwnerLabel = (
-  lead: Lead,
-  vendedoresMap: Record<number, Contacto>,
-  currentVendedorId: number | null
-): string => {
-  const vendedorId = lead.vendedor_id ?? null;
-  if (vendedorId && currentVendedorId && vendedorId === currentVendedorId) return 'Tú';
-  if (vendedorId && vendedoresMap[vendedorId]) return vendedoresMap[vendedorId].nombre;
-  return 'Sin asignar';
-};
-
-function applyDerivedLeadState(lead: Lead, reglasSeguimiento: ReglasSeguimiento = DEFAULT_REGLAS_SEGUIMIENTO): Lead {
-  const derived = deriveLeadState(lead, reglasSeguimiento);
-  return {
-    ...lead,
-    ...derived,
-    lastMessageTimeMinutesAgo: derived.idleMinutes,
-    hot: derived.priority === 'Alta',
-  };
-}
-
-const getLatestTimestamp = (messages: ConversationMessage[]): string | null => {
-  const last = messages[messages.length - 1];
-  return last?.fecha_envio ?? last?.creado_en ?? null;
-};
-
-type ConversationView = Lead['conversation'][number];
-
-const filterWhatsappMessages = (messages: ConversationMessage[]): ConversationMessage[] => (
-  messages.filter((msg) => msg.canal === 'whatsapp')
-);
-
-const getLastWhatsappPreview = (conversation: ConversationView[]): { text: string; sentAt: string | null } | null => {
-  const last = conversation[conversation.length - 1];
-  if (!last) return null;
-
-  return {
-    text: last.text || '',
-    sentAt: last.sentAt ?? null,
-  };
-};
-
-const buildReplyPreviewText = (
-  tipoContenido: 'text' | 'image' | 'audio' | 'document',
-  contenido: string | null | undefined,
-  caption: string | null | undefined
-): string => {
-  if (tipoContenido === 'image') return caption || 'Foto';
-  if (tipoContenido === 'audio') return 'Audio';
-  if (tipoContenido === 'document') return caption || 'Documento';
-  return contenido || '';
-};
-
-const mapMessages = (messages: ConversationMessage[]): ConversationView[] => messages.map((msg) => {
-  const sentAt = msg.fecha_envio || msg.creado_en || null;
-  const tipoContenido = msg.tipo_contenido ?? 'text';
-  let mediaUrl = msg.media_url ?? null;
-
-  if ((tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document') && !mediaUrl) {
-    mediaUrl = msg.contenido ?? null;
-  }
-
-  const replyTo: ReplyPreview | null = msg.mensaje_respuesta_id
-    ? {
-      id: String(msg.mensaje_respuesta_id),
-      from: msg.respuesta_tipo_mensaje === 'entrante' ? 'lead' : 'me',
-      preview: buildReplyPreviewText(msg.respuesta_tipo_contenido ?? 'text', msg.respuesta_contenido, msg.respuesta_caption),
-    }
-    : null;
-
-  return {
-    id: msg.id,
-    from: msg.tipo_mensaje === 'entrante' ? 'lead' : 'me',
-    text: (tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document')
-      ? ''
-      : (msg.contenido || ''),
-    minutesAgo: minutesSince(sentAt),
-    sentAt,
-    tipoContenido,
-    mediaUrl,
-    caption: msg.caption ?? null,
-    status: ((msg.status || '').toLowerCase().trim() as 'sending' | 'sent' | 'delivered' | 'read' | 'failed') || 'sent',
-    replyTo,
-  } as ConversationView;
-});
-
-export default function LeadsPage() {
+export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageProps = {}) {
   const { session } = useSession();
   const navigate = useNavigate();
+  // Mismo patrón de detección responsiva usado en el resto del proyecto
+  // (DocumentosPage, ContactosPage, ProductosPage): breakpoint md de MUI,
+  // sin detección por user-agent.
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [conversations, setConversations] = React.useState<ConversationSummary[]>([]);
   const [leads, setLeads] = React.useState<Lead[]>([]);
   const [selectedLeadId, setSelectedLeadId] = React.useState<string>('');
@@ -597,6 +297,7 @@ export default function LeadsPage() {
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [quickReply, setQuickReply] = React.useState('');
   const [replyingTo, setReplyingTo] = React.useState<ReplyPreview | null>(null);
+  const [forwardMessage, setForwardMessage] = React.useState<ForwardableMessage | null>(null);
   // Archivo local pendiente (seleccionado, pegado o grabado) que todavía no
   // se ha subido al servidor: solo viaja a /api/uploads cuando el usuario
   // presiona enviar. pendingAttachmentPreviewUrl es la URL blob: local usada
@@ -690,27 +391,6 @@ export default function LeadsPage() {
   const lastSelectedLeadIdRef = React.useRef<string | null>(null);
   const [isAtBottom, setIsAtBottom] = React.useState(true);
   const renderCountRef = React.useRef(0);
-  const leadFilterSelectSx = {
-    flex: 1,
-    minWidth: 220,
-    '& .MuiInputLabel-root': {
-      fontSize: 16,
-    },
-    '& .MuiOutlinedInput-root': {
-      minHeight: 40,
-      fontSize: 16,
-    },
-    '& .MuiSelect-select': {
-      display: 'flex',
-      alignItems: 'center',
-      fontSize: 16,
-      paddingTop: '8.5px',
-      paddingBottom: '8.5px',
-      paddingLeft: '14px',
-      paddingRight: '32px',
-      boxSizing: 'border-box',
-    },
-  } as const;
 
   renderCountRef.current += 1;
   console.log('[LeadsPage] render', {
@@ -1002,25 +682,13 @@ export default function LeadsPage() {
           ? vendedorContactoId
           : vendedorFilterId;
 
-      const params = new URLSearchParams();
-      if (incremental && lastConversationsFetchRef.current) {
-        params.set('since', lastConversationsFetchRef.current);
-      }
-      if (vendedorFiltro) {
-        params.set('vendedor_id', String(vendedorFiltro));
-      }
-      if (selectedTagIds.length > 0) {
-        params.set('tag_ids', selectedTagIds.join(','));
-      }
-      if (vistaFinalizadas) {
-        params.set('estado', 'finalizada');
-      }
-      if (debouncedSearchTerm) {
-        params.set('search', debouncedSearchTerm);
-      }
-
-      const queryString = params.toString();
-      const response = await apiFetch(`/api/whatsapp/conversaciones${queryString ? `?${queryString}` : ''}`);
+      const response = await fetchConversaciones({
+        since: incremental ? lastConversationsFetchRef.current : null,
+        vendedorId: vendedorFiltro,
+        tagIds: selectedTagIds,
+        estadoFinalizada: vistaFinalizadas,
+        search: debouncedSearchTerm,
+      });
       if (!response.ok) {
         throw new Error('Error al obtener conversaciones');
       }
@@ -1028,7 +696,7 @@ export default function LeadsPage() {
       console.log('[LeadsPage] loadConversations response', {
         incremental,
         count: data.length,
-        queryString,
+        url: response.url,
         ids: data.map((c) => c.id),
       });
 
@@ -1175,8 +843,7 @@ export default function LeadsPage() {
     }
 
     try {
-      const sinceParam = since ? `?since=${encodeURIComponent(since)}` : '';
-      const response = await apiFetch(`/api/whatsapp/conversacion/${conversationId}${sinceParam}`);
+      const response = await fetchMensajesConversacion(conversationId, { since });
       if (!response.ok) {
         throw new Error('Error al obtener mensajes');
       }
@@ -1188,7 +855,7 @@ export default function LeadsPage() {
         silent,
         count: data.length,
         whatsappCount: whatsappMessages.length,
-        sinceParam,
+        url: response.url,
         lastTipo: data[data.length - 1]?.tipo_mensaje,
       });
 
@@ -2555,1539 +2222,213 @@ export default function LeadsPage() {
 
   const etapaMenuLead = etapaMenu ? leads.find((l) => l.id === etapaMenu.leadId) : null;
 
+  // Mismo comportamiento que ya ejecuta renderLeadCard al tocar un lead en
+  // escritorio (seleccionar + limpiar una respuesta en curso); no es lógica
+  // nueva, solo se reutiliza para la tarjeta de la bandeja móvil.
+  const handleSelectLeadMobile = (id: string) => {
+    setSelectedLeadId(id);
+    setReplyingTo(null);
+  };
+
+  if (isMobile) {
+    return (
+      <LeadsMobileView
+        leadsFiltradosOrdenados={leadsFiltradosOrdenados}
+        selectedLeadId={selectedLeadId}
+        selectedLead={selectedLead}
+        onSelectLead={handleSelectLeadMobile}
+        isLoadingConversations={isLoadingConversations}
+        isLoadingMessages={isLoadingMessages}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        leadScope={leadScope}
+        setLeadScope={setLeadScope}
+        setScopeTouched={setScopeTouched}
+        canToggleScope={canToggleScope}
+        showMisChip={showMisChip}
+        showTodosChip={showTodosChip}
+        shouldShowScopeChipGroup={shouldShowScopeChipGroup}
+        vendedoresById={vendedoresById}
+        vendedorContactoId={vendedorContactoId}
+        contactosById={contactosById}
+        conversationScrollRef={conversationScrollRef}
+        conversationEndRef={conversationEndRef}
+        quickReply={quickReply}
+        setQuickReply={setQuickReply}
+        quickReplyRef={quickReplyRef}
+        handleSendWhatsapp={handleSendWhatsapp}
+        isSending={isSending}
+        sendErrorDialog={sendErrorDialog}
+        setSendErrorDialog={setSendErrorDialog}
+        handleRetryWhatsappSend={handleRetryWhatsappSend}
+        ventanaCerradaDialogOpen={ventanaCerradaDialogOpen}
+        setVentanaCerradaDialogOpen={setVentanaCerradaDialogOpen}
+        pendingAttachmentFile={pendingAttachmentFile}
+        pendingAttachmentPreviewUrl={pendingAttachmentPreviewUrl}
+        uploadFileType={uploadFileType}
+        uploadFileName={uploadFileName}
+        uploadError={uploadError}
+        isUploadingImage={isUploadingImage}
+        uploadInputRef={uploadInputRef}
+        handleSelectUpload={handleSelectUpload}
+        handleUploadFile={handleUploadFile}
+        handleRemoveAttachment={handleRemoveAttachment}
+        onChatOpenChange={onMobileConversationOpenChange}
+      />
+    );
+  }
+
   return (
-    <>
-    <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Menu
-        anchorEl={etapaMenu?.anchorEl ?? null}
-        open={Boolean(etapaMenu)}
-        onClose={handleCloseEtapaMenu}
-        MenuListProps={{ dense: true }}
-      >
-        {etapaOptions.map((etapa) => (
-          <MenuItem
-            key={etapa}
-            selected={etapaMenuLead?.etapa_oportunidad === etapa}
-            onClick={() => handleSelectEtapa(etapa)}
-            sx={{ textTransform: 'capitalize' }}
-          >
-            {etapa}
-          </MenuItem>
-        ))}
-      </Menu>
-
-      <Menu
-        anchorEl={tagsMenuAnchor}
-        open={Boolean(tagsMenuAnchor)}
-        onClose={handleCloseTagsMenu}
-        MenuListProps={{ dense: true }}
-      >
-        {availableTags.length === 0 ? (
-          <MenuItem disabled>Sin etiquetas disponibles</MenuItem>
-        ) : availableTags.map((tag) => {
-          const isAssigned = conversationTags.some((t) => t.id === tag.id);
-          return (
-            <MenuItem
-              key={tag.id}
-              selected={isAssigned}
-              onClick={() => toggleConversationTag(tag)}
-              sx={{ gap: 1 }}
-            >
-              <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: tag.color }} />
-              <Typography variant="body2" fontWeight={600}>
-                {tag.nombre}
-              </Typography>
-            </MenuItem>
-          );
-        })}
-        {isCreatingTag ? (
-          <Box
-            sx={{ px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 220 }}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-          >
-            <TextField
-              size="small"
-              label="Nombre"
-              value={newTagName}
-              onChange={(event) => setNewTagName(event.target.value)}
-            />
-            <TextField
-              size="small"
-              label="Color"
-              type="color"
-              value={newTagColor}
-              onChange={(event) => setNewTagColor(event.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ maxWidth: 140 }}
-            />
-            <Stack direction="row" spacing={1} justifyContent="flex-end">
-              <Button size="small" variant="text" onClick={handleCancelCreateTag}>
-                Cancelar
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                onClick={handleSaveNewTag}
-                disabled={!newTagName.trim() || !/^#([0-9A-Fa-f]{6})$/.test(newTagColor.trim())}
-              >
-                Guardar
-              </Button>
-            </Stack>
-          </Box>
-        ) : (
-          <MenuItem onClick={handleStartCreateTag}>
-            <Typography variant="body2" fontWeight={600}>
-              ➕ Crear nueva etiqueta
-            </Typography>
-          </MenuItem>
-        )}
-      </Menu>
-
-      <Dialog open={manageTagsOpen} onClose={handleCloseManageTags} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5 }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <LocalOfferIcon fontSize="small" color="primary" />
-            <Typography variant="subtitle1" fontWeight={700}>
-              Administrar etiquetas
-            </Typography>
-          </Stack>
-          <IconButton size="small" onClick={handleCloseManageTags} aria-label="Cerrar">
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers sx={{ p: 2 }}>
-          {tagActionError && (
-            <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setTagActionError(null)}>
-              {tagActionError}
-            </Alert>
-          )}
-
-          <Stack spacing={1} sx={{ maxHeight: 260, overflowY: 'auto', mb: 1.5, pr: 0.5 }}>
-            {availableTags.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-                Aún no hay etiquetas. Crea la primera abajo.
-              </Typography>
-            ) : availableTags.map((tag) => (
-              <Stack
-                key={tag.id}
-                direction="row"
-                alignItems="center"
-                spacing={1}
-                sx={{
-                  px: 1.25,
-                  py: 0.75,
-                  borderRadius: 2,
-                  bgcolor: 'grey.50',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                }}
-              >
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color, flexShrink: 0 }} />
-                <Chip
-                  size="small"
-                  label={tag.nombre}
-                  sx={{
-                    bgcolor: `${tag.color}22`,
-                    color: 'text.primary',
-                    fontWeight: 600,
-                    maxWidth: 160,
-                  }}
-                />
-                <Box sx={{ flex: 1 }} />
-                <Tooltip title="Editar">
-                  <IconButton size="small" onClick={() => handleOpenEditTagForm(tag)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Desactivar">
-                  <span>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeactivateTag(tag)}
-                      disabled={tagDeactivatingId === tag.id}
-                    >
-                      <VisibilityOffIcon fontSize="small" />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              </Stack>
-            ))}
-          </Stack>
-
-          <Divider sx={{ mb: 1.5 }} />
-
-          {tagFormOpen ? (
-            <Stack spacing={1.25}>
-              <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                {tagFormId == null ? 'Nueva etiqueta' : 'Editar etiqueta'}
-              </Typography>
-              <Stack direction="row" spacing={1} alignItems="flex-start">
-                <TextField
-                  size="small"
-                  label="Nombre"
-                  value={tagFormName}
-                  onChange={(event) => setTagFormName(event.target.value)}
-                  fullWidth
-                  autoFocus
-                />
-                <TextField
-                  size="small"
-                  label="Color"
-                  type="color"
-                  value={tagFormColor}
-                  onChange={(event) => setTagFormColor(event.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ width: 88 }}
-                />
-              </Stack>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="caption" color="text.secondary">
-                  Vista previa:
-                </Typography>
-                <Chip
-                  size="small"
-                  label={tagFormName.trim() || 'Nombre de etiqueta'}
-                  sx={{ bgcolor: `${tagFormColor}22`, color: 'text.primary', fontWeight: 600 }}
-                />
-              </Stack>
-              {tagFormError && (
-                <Typography variant="caption" color="error">
-                  {tagFormError}
-                </Typography>
-              )}
-              <Stack direction="row" spacing={1} justifyContent="flex-end">
-                <Button size="small" onClick={handleCancelTagForm} disabled={tagFormSaving}>
-                  Cancelar
-                </Button>
-                <Button size="small" variant="contained" onClick={handleSubmitTagForm} disabled={tagFormSaving}>
-                  {tagFormId == null ? 'Guardar etiqueta' : 'Guardar cambios'}
-                </Button>
-              </Stack>
-            </Stack>
-          ) : (
-            <Button size="small" startIcon={<AddIcon />} onClick={handleOpenCreateTagForm}>
-              Nueva etiqueta
-            </Button>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Stack direction="row" alignItems="center" spacing={2}>
-        <Typography variant="h5" fontWeight={700}>
-          Leads
-        </Typography>
-        <Chip label="MVP operativo" color="primary" variant="outlined" />
-        <Tooltip title="Guía de ayuda">
-          <IconButton
-            aria-label="Abrir guía de ayuda"
-            size="small"
-            onClick={() => window.open('/docs/guia-leads.html', '_blank')}
-            sx={{ color: '#64748b' }}
-          >
-            <HelpOutlineIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Stack>
-
-      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-        <Chip label={`Urgentes: ${urgentLeads.length}`} color={urgentLeads.length ? 'error' : 'default'} variant={urgentLeads.length ? 'filled' : 'outlined'} />
-        <Chip label={`En seguimiento: ${followUpLeads.length}`} color={followUpLeads.length ? 'warning' : 'default'} variant={followUpLeads.length ? 'filled' : 'outlined'} />
-        <Chip label={`Nuevos: ${newLeads.length}`} color={newLeads.length ? 'primary' : 'default'} variant={newLeads.length ? 'filled' : 'outlined'} />
-      </Stack>
-
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1.1fr 1.1fr' },
-          gap: 2,
-          minHeight: '70vh',
-        }}
-      >
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 0 }}>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              minHeight: 72,
-            }}
-          >
-            <Stack spacing={0.25} sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="subtitle1" fontWeight={700}>
-                Lista de leads
-              </Typography>
-              <Typography variant="body2" color="text.secondary" noWrap>
-                Agrupados por urgencia. Ajusta prioridad y siguiente acción en línea.
-              </Typography>
-            </Stack>
-            <Chip label={`${leadsFiltradosOrdenados.length} visibles`} size="small" sx={{ ml: 1.5, flexShrink: 0 }} />
-          </Box>
-
-          <TextField
-            size="small"
-            placeholder="Buscar por nombre, teléfono o mensajes"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            fullWidth
-            InputProps={{
-              endAdornment: searchTerm ? (
-                <InputAdornment position="end">
-                  <IconButton
-                    size="small"
-                    edge="end"
-                    aria-label="Limpiar búsqueda"
-                    onClick={() => setSearchTerm('')}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ) : undefined,
-            }}
-          />
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            {isAdmin && (
-              <TextField
-                select
-                size="small"
-                label="Vendedor"
-                value={vendedorFilterId ? String(vendedorFilterId) : ''}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setVendedorFilterId(value ? Number(value) : null);
-                }}
-                SelectProps={{ MenuProps: leadSelectMenuProps }}
-                sx={leadFilterSelectSx}
-                disabled={leadScope === 'mis'}
-              >
-                <MenuItem value="">Todos los vendedores</MenuItem>
-                {vendorOptions.map((v) => (
-                  <MenuItem key={v.id} value={String(v.id)}>
-                    {v.nombre}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-            <TextField
-              select
-              size="small"
-              value={selectedTagIds}
-              onChange={(event) => {
-                const value = event.target.value;
-                const rawValues = Array.isArray(value)
-                  ? value
-                  : typeof value === 'string'
-                    ? value.split(',')
-                    : [];
-
-                if (rawValues.includes(MANAGE_TAGS_OPTION_VALUE)) {
-                  setTagsSelectOpen(false);
-                  handleOpenManageTags();
-                  return;
-                }
-
-                const nextValues = rawValues.map((item) => Number(item)).filter((item) => Number.isFinite(item));
-                setSelectedTagIds(nextValues);
-              }}
-              SelectProps={{
-                multiple: true,
-                displayEmpty: true,
-                open: tagsSelectOpen,
-                onOpen: () => setTagsSelectOpen(true),
-                onClose: () => setTagsSelectOpen(false),
-                renderValue: () => (
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                    {selectedTags.length ? selectedTags.map((tag) => (
-                      <Chip
-                        key={tag.id}
-                        size="small"
-                        label={tag.nombre}
-                        sx={{ bgcolor: `${tag.color}22`, color: 'text.primary' }}
-                      />
-                    )) : (
-                      <Typography variant="caption" color="text.secondary">
-                        Etiquetas
-                      </Typography>
-                    )}
-                  </Stack>
-                ),
-                MenuProps: leadSelectMenuProps,
-              }}
-              inputProps={{ 'aria-label': 'Etiquetas' }}
-              sx={leadFilterSelectSx}
-            >
-              {availableTags.length === 0 ? (
-                <MenuItem value="" disabled>
-                  Sin etiquetas disponibles
-                </MenuItem>
-              ) : availableTags.map((tag) => (
-                <MenuItem key={tag.id} value={tag.id}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color }} />
-                    <Typography variant="body2" fontWeight={600}>
-                      {tag.nombre}
-                    </Typography>
-                  </Stack>
-                </MenuItem>
-              ))}
-              <Divider sx={{ my: 0.5 }} />
-              <MenuItem value={MANAGE_TAGS_OPTION_VALUE} sx={{ color: 'primary.main' }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <SettingsIcon fontSize="small" />
-                  <Typography variant="body2" fontWeight={600}>
-                    Administrar etiquetas
-                  </Typography>
-                </Stack>
-              </MenuItem>
-            </TextField>
-            {isAdmin && leadScope === 'mis' && (
-              <Typography variant="caption" color="text.secondary">
-                Cambia a “Todos” para filtrar por vendedor.
-              </Typography>
-            )}
-          </Box>
-
-          {shouldShowScopeChipGroup && (
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {showMisChip && (
-                <Chip
-                  label="Mis leads"
-                  color={leadScope === 'mis' ? 'primary' : 'default'}
-                  variant={leadScope === 'mis' ? 'filled' : 'outlined'}
-                  onClick={canToggleScope ? () => {
-                    setLeadScope('mis');
-                    setScopeTouched(true);
-                  } : undefined}
-                  sx={{ fontWeight: 700 }}
-                />
-              )}
-              {showTodosChip && (
-                <Chip
-                  label="Todos"
-                  color={leadScope === 'todos' ? 'primary' : 'default'}
-                  variant={leadScope === 'todos' ? 'filled' : 'outlined'}
-                  onClick={canToggleScope ? () => {
-                    setLeadScope('todos');
-                    setScopeTouched(true);
-                  } : undefined}
-                  sx={{ fontWeight: 700 }}
-                />
-              )}
-            </Stack>
-          )}
-
-          {showQuickFilterChips && (
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {(
-                [
-                  { key: 'todos', label: 'Todos' },
-                  { key: 'seguimiento', label: 'Seguimiento pendiente' },
-                  { key: 'alta', label: 'Alta prioridad' },
-                  { key: 'activos', label: 'Activos' },
-                ] as const
-              ).map((opt) => (
-                <Chip
-                  key={opt.key}
-                  label={opt.label}
-                  color={leadFilter === opt.key ? 'primary' : 'default'}
-                  variant={leadFilter === opt.key ? 'filled' : 'outlined'}
-                  onClick={() => setLeadFilter(opt.key)}
-                  sx={{ fontWeight: 700 }}
-                />
-              ))}
-            </Stack>
-          )}
-
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {(
-              [
-                { key: 'todos', label: 'Todos' },
-                { key: 'con', label: 'Con oportunidad' },
-                { key: 'sin', label: 'Sin oportunidad' },
-              ] as const
-            ).map((opt) => (
-              <Chip
-                key={opt.key}
-                label={opt.label}
-                color="default"
-                variant={opportunityFilter === opt.key ? 'filled' : 'outlined'}
-                onClick={() => setOpportunityFilter(opt.key)}
-                sx={{
-                  fontWeight: 700,
-                  color: opportunityFilter === opt.key ? '#ffffff' : '#0f766e',
-                  backgroundColor: opportunityFilter === opt.key ? '#0f766e' : '#f0fdfa',
-                  borderColor: '#99f6e4',
-                  '&.MuiChip-filled': {
-                    backgroundColor: '#0f766e',
-                    color: '#ffffff',
-                  },
-                  '&.MuiChip-outlined': {
-                    backgroundColor: '#f0fdfa',
-                    color: '#0f766e',
-                    borderColor: '#99f6e4',
-                  },
-                  '&:hover': {
-                    backgroundColor: opportunityFilter === opt.key ? '#115e59' : '#ccfbf1',
-                  },
-                }}
-              />
-            ))}
-            <Chip
-              label="Finalizadas"
-              onClick={() => setVistaFinalizadas((prev) => !prev)}
-              sx={{
-                fontWeight: 700,
-                color: vistaFinalizadas ? '#ffffff' : 'text.secondary',
-                backgroundColor: vistaFinalizadas ? 'text.secondary' : 'transparent',
-                border: '1px solid',
-                borderColor: 'divider',
-              }}
-            />
-          </Stack>
-
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Typography variant="h6" fontWeight={700}>
-              {vistaFinalizadas ? 'Conversaciones finalizadas' : 'Leads abiertos'}
-            </Typography>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }}>
-              <AccessTimeIcon fontSize="small" />
-              {vistaFinalizadas ? (
-                <Typography variant="body2">Finalizadas: {leadsFiltradosOrdenados.length}</Typography>
-              ) : (
-                <>
-                  <Typography variant="body2">Riesgo: {leadsRiesgo.length}</Typography>
-                  <Typography variant="body2" color="text.disabled">· Seguimiento: {leadsSeguimiento.length}</Typography>
-                  <Typography variant="body2" color="text.disabled">· Actividad reciente: {leadsActividad.length}</Typography>
-                  <Typography variant="body2" color="text.disabled">· Visibles: {leadsFiltradosOrdenados.length}</Typography>
-                </>
-              )}
-            </Stack>
-          </Box>
-
-          {/* Columna central: lista de leads */}
-          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, flex: 1 }}>
-            <Stack spacing={1.5} sx={{ overflow: 'auto', pr: 0.5 }}>
-              {leadsFiltradosOrdenados.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" sx={{ px: 1 }}>
-                  {vistaFinalizadas ? 'No hay conversaciones finalizadas.' : 'No hay más leads en cola.'}
-                </Typography>
-              ) : vistaFinalizadas ? (
-                <List disablePadding>
-                  {leadsFiltradosOrdenados.map(renderLeadCard)}
-                </List>
-              ) : (
-                <>
-                  {leadsRiesgo.length > 0 && (
-                    <Stack spacing={0.5}>
-                      <Tooltip title={riesgoTooltip} arrow>
-                        <Typography variant="subtitle2" fontWeight={700} color="error.main" sx={{ px: 1 }}>
-                          🔴 Riesgo de perder
-                        </Typography>
-                      </Tooltip>
-                      <List disablePadding>
-                        {leadsRiesgo.map(renderLeadCard)}
-                      </List>
-                    </Stack>
-                  )}
-
-                  {leadsRiesgo.length > 0 && (leadsSeguimiento.length > 0 || leadsActividad.length > 0) && <Divider />}
-
-                  {leadsSeguimiento.length > 0 && (
-                    <Stack spacing={0.5}>
-                      <Tooltip title={seguimientoTooltip} arrow>
-                        <Typography variant="subtitle2" fontWeight={700} color="warning.main" sx={{ px: 1 }}>
-                          🟡 Requiere seguimiento
-                        </Typography>
-                      </Tooltip>
-                      <List disablePadding>
-                        {leadsSeguimiento.map(renderLeadCard)}
-                      </List>
-                    </Stack>
-                  )}
-
-                  {leadsSeguimiento.length > 0 && leadsActividad.length > 0 && <Divider />}
-
-                  {leadsActividad.length > 0 && (
-                    <Stack spacing={0.5}>
-                      <Tooltip title={actividadTooltip} arrow>
-                        <Typography variant="subtitle2" fontWeight={700} color="success.main" sx={{ px: 1 }}>
-                          🟢 Actividad reciente
-                        </Typography>
-                      </Tooltip>
-                      <List disablePadding>
-                        {leadsActividad.map(renderLeadCard)}
-                      </List>
-                    </Stack>
-                  )}
-                </>
-              )}
-            </Stack>
-          </Paper>
-        </Box>
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 0 }}>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              minHeight: 72,
-            }}
-          >
-            <Stack spacing={0.25} sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="subtitle1" fontWeight={700}>
-                Detalle del lead
-              </Typography>
-              <Typography variant="body2" color="text.secondary" noWrap>
-                Seguimiento, contexto y acciones del lead seleccionado.
-              </Typography>
-            </Stack>
-            <Chip label="Seleccionado" size="small" variant="outlined" sx={{ ml: 1.5, flexShrink: 0 }} />
-          </Box>
-
-          {/* Columna derecha: detalle del lead */}
-          {selectedLead ? (
-            <>
-            <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
-              <Box>
-                <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" sx={{ mb: 1.5 }}>
-                  <Typography variant="h6" fontWeight={700}>
-                    {selectedLead.name}
-                  </Typography>
-                  <Button
-                    size="small"
-                    variant="text"
-                    startIcon={<EditIcon fontSize="small" />}
-                    onClick={openCompleteContactDialog}
-                    disabled={!selectedContactoId}
-                    sx={{ textTransform: 'none', color: 'text.secondary', px: 0.5, minWidth: 'auto' }}
-                  >
-                    Editar datos
-                  </Button>
-                </Stack>
-                <Stack spacing={0.35} sx={{ color: 'text.secondary' }}>
-                  {isAdmin ? (
-                    <TextField
-                      select
-                      size="small"
-                      label="Asignado a"
-                      value={selectedVendedorId ? String(selectedVendedorId) : ''}
-                      onChange={(e) => handleOwnerChange(e.target.value)}
-                      disabled={isUpdatingOwner || !selectedContactoId}
-                      SelectProps={{ MenuProps: leadSelectMenuProps }}
-                      sx={{ maxWidth: 240 }}
-                      helperText={isUpdatingOwner ? 'Actualizando…' : undefined}
-                    >
-                      <MenuItem value="">
-                        Sin asignar
-                      </MenuItem>
-                      {vendorOptions.map((v) => (
-                        <MenuItem key={v.id} value={String(v.id)}>
-                          {v.nombre}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Asignado a: {buildLeadOwnerLabel(selectedLead, vendedoresById, vendedorContactoId)}
-                    </Typography>
-                  )}
-                  <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
-                    {conversationTags.map((tag) => (
-                      <Chip
-                        key={tag.id}
-                        size="small"
-                        label={tag.nombre}
-                        onDelete={() => toggleConversationTag(tag)}
-                        sx={{
-                          bgcolor: tag.color,
-                          color: '#fff',
-                          fontWeight: 500,
-                          height: 24,
-                          mr: 0.5,
-                          '& .MuiChip-deleteIcon': { color: '#fff' },
-                        }}
-                      />
-                    ))}
-                    <IconButton
-                      size="small"
-                      onClick={handleOpenTagsMenu}
-                      aria-label="Agregar etiqueta"
-                      sx={{ border: '1px dashed', borderColor: 'divider' }}
-                    >
-                      <AddIcon fontSize="small" />
-                    </IconButton>
-                  </Stack>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                    <PersonIcon fontSize="small" />
-                    <Typography variant="body2">{selectedLead.owner}</Typography>
-                    {selectedLead.seguimientoPendiente && (
-                      <Chip
-                        size="small"
-                        label="Seguimiento pendiente"
-                        color="warning"
-                        variant="filled"
-                        sx={{ fontWeight: 700 }}
-                      />
-                    )}
-                  </Stack>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 1 }}>
-                    <Typography
-                      variant="subtitle1"
-                      fontWeight={700}
-                      sx={{
-                        color: selectedLead.statusType === 'attention'
-                          ? 'error.main'
-                          : selectedLead.statusType === 'waiting'
-                            ? 'text.secondary'
-                            : 'text.primary',
-                      }}
-                    >
-                      {selectedLead.statusLabel}
-                    </Typography>
-                    <Typography variant="subtitle1" color="text.secondary" fontWeight={600}>
-                      · {formatMinutesAgo(selectedLead.idleMinutes)}
-                    </Typography>
-                    <Chip
-                      size="small"
-                      label={selectedLead.priority}
-                      sx={{
-                        fontWeight: 700,
-                        border: '1px solid',
-                        borderColor: selectedLead.priority === 'Alta'
-                          ? 'error.light'
-                          : selectedLead.priority === 'Media'
-                            ? 'warning.light'
-                            : 'grey.200',
-                        color: selectedLead.priority === 'Alta'
-                          ? 'error.dark'
-                          : selectedLead.priority === 'Media'
-                            ? '#7c5a00'
-                            : 'grey.700',
-                        bgcolor: selectedLead.priority === 'Alta'
-                          ? 'error.light + 14'
-                          : selectedLead.priority === 'Media'
-                            ? 'warning.light + 16'
-                            : 'grey.100',
-                      }}
-                    />
-                  </Stack>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                    <Typography variant="body2" fontWeight={600} color="text.primary">
-                      👉 {selectedLead.statusType === 'attention' ? 'Responder ahora' : 'Esperar respuesta del cliente'}
-                    </Typography>
-                  </Stack>
-                  {(() => {
-                    const expiresIn = selectedLead.windowExpiresInMinutes;
-                    const windowState = selectedLead.requiresTemplate || expiresIn <= 0
-                      ? 'closed'
-                      : selectedLead.within24hWindow
-                      ? expiresIn <= 120
-                        ? 'warning'
-                        : 'open'
-                      : 'closed';
-                    const windowLabel = windowState === 'closed'
-                      ? 'Ventana cerrada · requiere plantilla'
-                      : windowState === 'warning'
-                        ? `Expira pronto · ${formatMinutes(expiresIn)} restantes`
-                        : `Ventana abierta · expira en ${formatMinutes(expiresIn)}`;
-                    const windowColor = windowState === 'closed'
-                      ? 'error.main'
-                      : windowState === 'warning'
-                        ? 'warning.main'
-                        : 'success.main';
-                    const windowDot = windowState === 'closed' ? '🔴' : windowState === 'warning' ? '🟡' : '🟢';
-
-                    return (
-                      <Typography variant="caption" sx={{ color: windowColor, fontWeight: 600 }}>
-                        {windowDot} {windowLabel}
-                      </Typography>
-                    );
-                  })()}
-                </Stack>
-              </Box>
-              <Stack direction="row" spacing={1} alignItems="center">
-                {selectedLead.hot && <WhatshotIcon color="error" fontSize="small" titleAccess="Lead caliente" />}
-              </Stack>
-            </Stack>
-
-            <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, flex: 1 }}>
-              <Paper variant="outlined" sx={{ p: 1.5, backgroundColor: '#f8fafc' }}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'flex-start' }} flexWrap="wrap" useFlexGap>
-                  <TextField
-                    select
-                    size="small"
-                    label="Acción recomendada"
-                    value={selectedLead.nextAction}
-                    onChange={(e) => updateLead(selectedLead.id, { nextAction: e.target.value as NextAction })}
-                    color="primary"
-                    SelectProps={{ MenuProps: leadSelectMenuProps }}
-                    sx={{
-                      flex: '1 1 240px',
-                      minWidth: 0,
-                      '& .MuiInputBase-input': { fontWeight: 700, fontSize: '0.85rem' },
-                      '& .MuiInputLabel-root': { fontWeight: 700, fontSize: '0.85rem' },
-                    }}
-                  >
-                    {nextActionOptions.map((a) => (
-                      <MenuItem key={a} value={a}>
-                        {a}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
-                    label="Prioridad"
-                    value={selectedLeadPriority}
-                    onChange={(e) => updateLead(selectedLead.id, { priority: e.target.value as Priority })}
-                    SelectProps={{ MenuProps: leadSelectMenuProps }}
-                    sx={{
-                      flex: '0 1 140px',
-                      minWidth: 0,
-                      '& .MuiInputBase-input': { color: 'text.secondary', fontSize: '0.85rem' },
-                      '& .MuiInputLabel-root': { color: 'text.secondary', fontSize: '0.85rem' },
-                    }}
-                  >
-                    {priorityOptions.map((p) => (
-                      <MenuItem key={p} value={p}>
-                        {p}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Tooltip
-                      arrow
-                      disableHoverListener={!selectedLead.requiresTemplate}
-                      title={(
-                        <Box sx={{ maxWidth: 280 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>
-                            No puedes enviar un mensaje libre porque han pasado más de 24 horas desde el último mensaje del cliente.
-                          </Typography>
-                          <Typography variant="body2" sx={{ mb: 0.75 }}>
-                            Puedes enviar una plantilla autorizada, pero debes esperar a que el cliente responda antes de continuar con mensajes normales.
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            👉 Usa el botón “Enviar plantilla”.
-                          </Typography>
-                        </Box>
-                      )}
-                    >
-                      <span>
-                        <Button
-                          variant="contained"
-                          size="small"
-                          startIcon={<ReplyIcon />}
-                          onClick={() => handleSendWhatsapp()}
-                          disabled={isSending || selectedLead.requiresTemplate}
-                          sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
-                        >
-                          {isSending ? 'Enviando…' : sendSuccess ? 'Enviado ✓' : 'Escribir en el chat'}
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<AutoAwesomeIcon />}
-                      onClick={handleSuggestMessage}
-                      disabled={isSuggesting}
-                      sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
-                    >
-                      {isSuggesting ? 'Generando…' : '✨ Sugerir mensaje'}
-                    </Button>
-                    <Button
-                      variant={selectedLead.requiresTemplate ? 'contained' : 'outlined'}
-                      color={selectedLead.requiresTemplate ? 'warning' : 'inherit'}
-                      size="small"
-                      startIcon={<DescriptionIcon />}
-                      onClick={handleSendTemplate}
-                      sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
-                    >
-                      Enviar plantilla
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<DescriptionIcon />}
-                      onClick={handleGenerarCotizacion}
-                      disabled={!selectedContactoId}
-                      sx={{ textTransform: 'none', px: 1.5, whiteSpace: 'nowrap' }}
-                    >
-                      Generar cotización
-                    </Button>
-                  </Stack>
-                  {selectedLead.estado === 'finalizada' && (
-                    <Alert severity="info" sx={{ mt: 1 }}>
-                      Finalizada el {formatFechaHora(selectedLead.finalizada_en)}
-                      {selectedLead.motivo_finalizacion ? ` · Motivo: ${motivoFinalizacionLabel[selectedLead.motivo_finalizacion]}` : ''}
-                      {selectedLead.observaciones_finalizacion ? ` · ${selectedLead.observaciones_finalizacion}` : ''}
-                      {' · Usa "Reabrir" desde la conversación en la lista para reactivarla.'}
-                    </Alert>
-                  )}
-                </Stack>
-              </Paper>
-
-              <Paper variant="outlined" sx={{ p: 1.5 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                  <Typography variant="subtitle2" fontWeight={700}>
-                    Oportunidades
-                  </Typography>
-                  <Button size="small" variant="text" onClick={() => setOportunidadesOpen((prev) => !prev)}>
-                    {oportunidadesOpen ? 'Ocultar' : 'Mostrar'}
-                  </Button>
-                </Stack>
-
-                {oportunidadesOpen && (
-                  <Stack spacing={1} sx={{ mt: 1.25 }}>
-                    {isLoadingOportunidades && (
-                      <Typography variant="body2" color="text.secondary">
-                        Cargando oportunidades...
-                      </Typography>
-                    )}
-
-                    {!isLoadingOportunidades && oportunidadesError && (
-                      <Alert severity="error">{oportunidadesError}</Alert>
-                    )}
-
-                    {!isLoadingOportunidades && !oportunidadesError && oportunidades.length === 0 && (
-                      <Typography variant="body2" color="text.secondary">
-                        Sin oportunidades asociadas.
-                      </Typography>
-                    )}
-
-                    {!isLoadingOportunidades && !oportunidadesError && oportunidades.map((oportunidad) => {
-                      const cotizacionPrincipalId = oportunidad.cotizacion_principal_id;
-                      const folio = oportunidad.folio
-                        ?? (oportunidad.serie && oportunidad.numero != null
-                          ? `${oportunidad.serie}-${oportunidad.numero}`
-                          : oportunidad.serie
-                            ? oportunidad.serie
-                            : oportunidad.numero != null
-                              ? String(oportunidad.numero)
-                              : 'Sin folio');
-
-                      return (
-                        <Box
-                          key={oportunidad.id}
-                          onClick={() => {
-                            if (!cotizacionPrincipalId) return;
-                            navigate(`/ventas/cotizacion/${cotizacionPrincipalId}`);
-                          }}
-                          sx={{
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            borderRadius: 1,
-                            px: 1.25,
-                            py: 1,
-                            cursor: cotizacionPrincipalId ? 'pointer' : 'default',
-                            transition: 'background-color 0.15s ease, border-color 0.15s ease',
-                            '&:hover': cotizacionPrincipalId
-                              ? {
-                                  backgroundColor: 'action.hover',
-                                  borderColor: 'primary.main',
-                                }
-                              : undefined,
-                          }}
-                        >
-                          <Typography variant="body2" fontWeight={700}>
-                            Folio: {folio}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Estatus: {oportunidad.estatus}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Monto oportunidad: {Number(oportunidad.monto_oportunidad ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                          </Typography>
-                        </Box>
-                      );
-                    })}
-                  </Stack>
-                )}
-              </Paper>
-
-              <SendWhatsappTemplateDialog
-                open={isTemplateDialogOpen}
-                onClose={() => setIsTemplateDialogOpen(false)}
-                telefono={selectedLead.phone ?? ''}
-                contacto={{
-                  nombre: selectedContacto?.nombre || selectedLead.name || null,
-                  telefono: selectedLead.phone || null,
-                  empresa: selectedContacto?.zona || null,
-                }}
-                onSuccess={handleTemplateSuccess}
-              />
-
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Último mensaje
-                </Typography>
-                <Paper variant="outlined" sx={{ p: 1.25 }}>
-                  <Typography variant="body1">{selectedLead.lastMessage}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Hace {formatMinutesAgo(selectedLead.lastMessageTimeMinutesAgo)}
-                  </Typography>
-                </Paper>
-              </Stack>
-
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Notas
-                </Typography>
-                <Paper variant="outlined" sx={{ p: 1.25, minHeight: 80 }}>
-                  <Typography variant="body2" color="text.disabled">
-                    Añade notas rápidas sobre el lead.
-                  </Typography>
-                </Paper>
-              </Stack>
-
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Conversación
-                </Typography>
-                <Paper
-                  variant="outlined"
-                  ref={conversationScrollRef}
-                  sx={{ p: 1.25, maxHeight: '50vh', minHeight: 260, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}
-                >
-                  {selectedLead.conversation.map((msg) => {
-                    const replyButton = (
-                      <IconButton
-                        className="reply-hover-btn"
-                        size="small"
-                        aria-label="Responder mensaje"
-                        onClick={() => {
-                          setReplyingTo({
-                            id: msg.id,
-                            from: msg.from,
-                            preview: msg.text || buildReplyPreviewText(msg.tipoContenido ?? 'text', msg.text, msg.caption),
-                          });
-                          focusReplyInput();
-                        }}
-                        sx={{ opacity: 0, transition: 'opacity 0.15s', p: 0.5 }}
-                      >
-                        <ReplyIcon fontSize="small" />
-                      </IconButton>
-                    );
-
-                    const bubble = (
-                      <Box
-                        sx={{
-                          maxWidth: '75%',
-                          px: 1.25,
-                          py: 0.75,
-                          borderRadius: 1.5,
-                          bgcolor: msg.from === 'me' ? 'primary.main' : 'grey.100',
-                          color: msg.from === 'me' ? 'primary.contrastText' : 'text.primary',
-                        }}
-                      >
-                        {msg.replyTo && (
-                          <Box
-                            sx={{
-                              borderLeft: '3px solid',
-                              borderColor: msg.from === 'me' ? 'rgba(255,255,255,0.6)' : 'primary.main',
-                              bgcolor: msg.from === 'me' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)',
-                              borderRadius: 1,
-                              px: 1,
-                              py: 0.5,
-                              mb: 0.5,
-                            }}
-                          >
-                            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', opacity: 0.9 }}>
-                              {msg.replyTo.from === 'me' ? 'Tú' : (selectedLead.name || 'Contacto')}
-                            </Typography>
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                opacity: 0.8,
-                                display: '-webkit-box',
-                                WebkitLineClamp: 1,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden',
-                              }}
-                            >
-                              {msg.replyTo.preview}
-                            </Typography>
-                          </Box>
-                        )}
-                        {msg.tipoContenido === 'image' && msg.mediaUrl && (
-                          <Box
-                            component="a"
-                            href={msg.mediaUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            sx={{ display: 'block' }}
-                          >
-                            <Box
-                              component="img"
-                              src={msg.mediaUrl}
-                              alt="Imagen enviada"
-                              sx={{
-                                display: 'block',
-                                maxWidth: 250,
-                                maxHeight: 250,
-                                borderRadius: 1,
-                                mb: msg.text ? 0.5 : 0,
-                              }}
-                            />
-                          </Box>
-                        )}
-                        {(msg.tipoContenido === 'image' || msg.tipoContenido === 'audio' || msg.tipoContenido === 'document') && !msg.mediaUrl && (
-                          <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.85 }}>
-                            {msg.caption || 'Archivo recibido'}
-                          </Typography>
-                        )}
-                        {msg.tipoContenido === 'document' && msg.mediaUrl && (
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <DescriptionIcon fontSize="small" />
-                            <Typography
-                              variant="body2"
-                              component="a"
-                              href={msg.mediaUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              sx={{ color: 'inherit', textDecoration: 'none' }}
-                            >
-                              {msg.caption || 'Documento adjunto'}
-                            </Typography>
-                          </Stack>
-                        )}
-                        {msg.tipoContenido === 'audio' && msg.mediaUrl && (
-                          <Box
-                            component="audio"
-                            controls
-                            src={msg.mediaUrl}
-                            sx={{ maxWidth: 250 }}
-                          />
-                        )}
-                        {msg.tipoContenido === 'image' && msg.caption && (
-                          <Typography variant="body2">{msg.caption}</Typography>
-                        )}
-                        {msg.text && <Typography variant="body2">{msg.text}</Typography>}
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, alignItems: 'center' }}>
-                          <Typography variant="caption" sx={{ opacity: 0.75 }}>
-                            {formatMinutesAgo(msg.minutesAgo)}
-                          </Typography>
-                          {msg.from === 'me' && msg.status && msg.status !== 'failed' && (
-                            <Typography variant="caption" sx={{ opacity: 0.75 }}>
-                              {renderStatusIcon(msg.status)}
-                            </Typography>
-                          )}
-                          {msg.from === 'me' && msg.status === 'failed' && (
-                            <Stack direction="row" spacing={0.25} alignItems="center">
-                              <Tooltip
-                                arrow
-                                title={(
-                                  <Box sx={{ maxWidth: 260 }}>
-                                    <Typography variant="body2">
-                                      {msg.errorInfo?.mensajeUsuario || 'No se pudo enviar el mensaje.'}
-                                    </Typography>
-                                    {msg.errorInfo?.accionSugerida && (
-                                      <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
-                                        {msg.errorInfo.accionSugerida}
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                )}
-                              >
-                                <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center' }}>
-                                  {renderStatusIcon(msg.status)}
-                                </Typography>
-                              </Tooltip>
-                              {msg.errorInfo?.recuperable && msg.tempId && (
-                                <Tooltip arrow title="Reintentar envío">
-                                  <span>
-                                    <IconButton
-                                      size="small"
-                                      disabled={isSending}
-                                      onClick={() => handleRetryWhatsappSend(selectedLead.id, msg.tempId as string)}
-                                      sx={{ p: 0.25 }}
-                                    >
-                                      <ReplayIcon fontSize="inherit" />
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
-                              )}
-                            </Stack>
-                          )}
-                        </Box>
-                      </Box>
-                    );
-
-                    return (
-                      <Box
-                        key={msg.id}
-                        sx={{
-                          display: 'flex',
-                          justifyContent: msg.from === 'me' ? 'flex-end' : 'flex-start',
-                          alignItems: 'center',
-                          gap: 0.25,
-                          '&:hover .reply-hover-btn': { opacity: 1 },
-                        }}
-                      >
-                        {msg.from === 'me' ? (
-                          <>
-                            {replyButton}
-                            {bubble}
-                          </>
-                        ) : (
-                          <>
-                            {bubble}
-                            {replyButton}
-                          </>
-                        )}
-                      </Box>
-                    );
-                  })}
-                  <Box ref={conversationEndRef} />
-                </Paper>
-              </Stack>
-
-              <Paper variant="outlined" sx={{ p: 1.25 }}>
-                {replyingTo && (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 1,
-                      mb: 1,
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: 1,
-                      bgcolor: 'grey.100',
-                      borderLeft: '3px solid',
-                      borderColor: 'primary.main',
-                    }}
-                  >
-                    <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
-                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', display: 'block' }}>
-                        {replyingTo.from === 'me' ? 'Tú' : (selectedLead.name || 'Contacto')}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                        {replyingTo.preview}
-                      </Typography>
-                    </Box>
-                    <IconButton size="small" aria-label="Cancelar respuesta" onClick={() => setReplyingTo(null)}>
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                )}
-                <Box component="form" onSubmit={handleSendWhatsapp}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <input
-                      ref={uploadInputRef}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      hidden
-                      onChange={handleUploadFile}
-                    />
-                    <IconButton
-                      color="primary"
-                      aria-label="Adjuntar imagen"
-                      onClick={handleSelectUpload}
-                      disabled={isSending}
-                    >
-                      <AttachFileIcon />
-                    </IconButton>
-                    <IconButton
-                      color={isRecording ? "error" : "primary"}
-                      aria-label="Grabar audio"
-                      onClick={handleToggleRecording}
-                      disabled={isSending}
-                    >
-                      🎤
-                    </IconButton>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      multiline
-                      minRows={1}
-                      maxRows={3}
-                      placeholder="Escribe una respuesta rápida"
-                      value={quickReply}
-                      onChange={(e) => setQuickReply(e.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault();
-                          if (isSending) return;
-                          handleSendWhatsapp();
-                        }
-                      }}
-                      inputRef={quickReplyRef}
-                      inputProps={{ onPaste: handleQuickReplyPaste }}
-                    />
-                    <Tooltip
-                      arrow
-                      disableHoverListener={!selectedLead.requiresTemplate}
-                      title="La ventana de atención está cerrada. Envía una plantilla y espera la respuesta del cliente."
-                    >
-                      <span>
-                        <IconButton
-                          color="primary"
-                          aria-label="Enviar"
-                          type="submit"
-                          disabled={isSending || isUploadingImage}
-                        >
-                          <SendIcon />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  </Stack>
-                  <Stack spacing={0.5} sx={{ mt: 1 }}>
-                    {isUploadingImage && (
-                      <Typography variant="caption" color="text.secondary">
-                        {uploadFileType === 'audio' ? 'Subiendo audio...' : 'Subiendo imagen...'}
-                      </Typography>
-                    )}
-                    {uploadError && (
-                      <Typography variant="caption" color="error">
-                        {uploadError}
-                      </Typography>
-                    )}
-                    {pendingAttachmentFile && (
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                          {uploadFileType === 'document' && (
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <DescriptionIcon fontSize="small" />
-                              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                {uploadFileName || 'Documento adjunto'}
-                              </Typography>
-                            </Stack>
-                          )}
-                          {uploadFileType === 'image' && pendingAttachmentPreviewUrl && (
-                            <Box
-                              component="img"
-                              src={pendingAttachmentPreviewUrl}
-                              alt="Vista previa"
-                              sx={{
-                                maxWidth: 200,
-                                maxHeight: 200,
-                                borderRadius: 1,
-                                border: '1px solid',
-                                borderColor: 'divider',
-                              }}
-                            />
-                          )}
-                          {uploadFileType === 'audio' && recordedAudioUrl && (
-                            <Box component="audio" controls src={recordedAudioUrl} />
-                          )}
-                        </Box>
-                        <Tooltip title="Quitar archivo adjunto">
-                          <IconButton
-                            size="small"
-                            aria-label="Quitar archivo adjunto"
-                            onClick={handleRemoveAttachment}
-                            disabled={isSending}
-                          >
-                            <CloseIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    )}
-                  </Stack>
-                </Box>
-              </Paper>
-              </Paper>
-              <Dialog
-                open={isCompleteContactOpen}
-                onClose={closeCompleteContactDialog}
-                fullWidth
-                maxWidth="sm"
-              >
-                <DialogTitle>Completar contacto</DialogTitle>
-                <DialogContent dividers>
-                  <Stack spacing={2} sx={{ pt: 0.5 }}>
-                    <TextField
-                      label="Nombre"
-                      value={completeContactForm.nombre}
-                      onChange={(e) => setCompleteContactForm((prev) => ({ ...prev, nombre: e.target.value }))}
-                      fullWidth
-                      required
-                    />
-                    <TextField
-                      label="Email"
-                      value={completeContactForm.email}
-                      onChange={(e) => setCompleteContactForm((prev) => ({ ...prev, email: e.target.value }))}
-                      fullWidth
-                    />
-                    <TextField
-                      label="Empresa"
-                      value={completeContactForm.empresa}
-                      onChange={(e) => setCompleteContactForm((prev) => ({ ...prev, empresa: e.target.value }))}
-                      fullWidth
-                    />
-                    <TextField
-                      label="Observaciones"
-                      value={completeContactForm.observaciones}
-                      onChange={(e) => setCompleteContactForm((prev) => ({ ...prev, observaciones: e.target.value }))}
-                      fullWidth
-                      multiline
-                      minRows={3}
-                    />
-                  </Stack>
-                </DialogContent>
-                <DialogActions>
-                  <Button onClick={closeCompleteContactDialog} variant="text">
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={handleSaveCompleteContact}
-                    variant="contained"
-                    disabled={!completeContactForm.nombre.trim() || !selectedContactoId}
-                  >
-                    Guardar
-                  </Button>
-                </DialogActions>
-              </Dialog>
-              <Dialog
-                open={finalizarDialogOpen}
-                onClose={handleCloseFinalizarDialog}
-                fullWidth
-                maxWidth="sm"
-              >
-                <DialogTitle>Marcar conversación como finalizada</DialogTitle>
-                <DialogContent dividers>
-                  <Stack spacing={2} sx={{ pt: 0.5 }}>
-                    {finalizarTargetLead && (
-                      <Typography variant="body2">
-                        Conversación: <strong>{finalizarTargetLead.name?.trim() || `WhatsApp ${finalizarTargetLead.phone}`}</strong>
-                      </Typography>
-                    )}
-                    <Typography variant="body2" color="text.secondary">
-                      Las conversaciones finalizadas ya no aparecerán en Riesgo de perder, Requiere atención ni Actividad reciente.
-                    </Typography>
-                    <TextField
-                      select
-                      label="Motivo"
-                      value={finalizarMotivo}
-                      onChange={(e) => setFinalizarMotivo(e.target.value as MotivoFinalizacion)}
-                      required
-                      fullWidth
-                    >
-                      {motivoFinalizacionOptions.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    {finalizarMotivo === 'otro' && (
-                      <TextField
-                        label="Observaciones"
-                        value={finalizarObservaciones}
-                        onChange={(e) => setFinalizarObservaciones(e.target.value)}
-                        fullWidth
-                        multiline
-                        minRows={3}
-                        required
-                      />
-                    )}
-                    {finalizarError && <Alert severity="error">{finalizarError}</Alert>}
-                  </Stack>
-                </DialogContent>
-                <DialogActions>
-                  <Button onClick={handleCloseFinalizarDialog} variant="text" disabled={finalizarSaving}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={handleConfirmFinalizar}
-                    variant="contained"
-                    disabled={finalizarSaving || !finalizarMotivo}
-                  >
-                    {finalizarSaving ? 'Guardando…' : 'Marcar como finalizada'}
-                  </Button>
-                </DialogActions>
-              </Dialog>
-              </>
-            ) : (
-              <Typography variant="body1">Selecciona un lead para ver el detalle.</Typography>
-            )}
-        </Box>
-      </Box>
-    </Box>
-    <Snackbar
-      open={snackbar.open}
-      autoHideDuration={2500}
-      onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-    >
-      <Alert
-        severity={snackbar.severity}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-        sx={{ width: '100%' }}
-      >
-        {snackbar.message}
-      </Alert>
-    </Snackbar>
-    <Dialog
-      open={Boolean(sendErrorDialog)}
-      onClose={() => setSendErrorDialog(null)}
-      maxWidth="xs"
-      fullWidth
-    >
-      <DialogTitle>No se pudo enviar el mensaje</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={1.5}>
-          <Typography variant="body2">{sendErrorDialog?.mensajeUsuario}</Typography>
-          {sendErrorDialog?.accionSugerida && (
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {sendErrorDialog.accionSugerida}
-            </Typography>
-          )}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        {sendErrorDialog?.recuperable && (
-          <Button
-            onClick={() => {
-              if (sendErrorDialog) {
-                void handleRetryWhatsappSend(sendErrorDialog.leadId, sendErrorDialog.tempId);
-              }
-            }}
-            variant="outlined"
-          >
-            Reintentar
-          </Button>
-        )}
-        <Button onClick={() => setSendErrorDialog(null)} variant="contained">
-          Entendido
-        </Button>
-      </DialogActions>
-    </Dialog>
-    <Dialog
-      open={ventanaCerradaDialogOpen}
-      onClose={() => setVentanaCerradaDialogOpen(false)}
-      maxWidth="xs"
-      fullWidth
-    >
-      <DialogTitle>No puedes enviar este mensaje todavía</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={1.5}>
-          <Typography variant="body2">
-            Han pasado más de 24 horas desde el último mensaje del cliente.
-          </Typography>
-          <Typography variant="body2">
-            Puedes enviar una plantilla autorizada para contactarlo. Cuando el cliente responda, podrás continuar enviando mensajes normales.
-          </Typography>
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={() => setVentanaCerradaDialogOpen(false)} variant="text">
-          Entendido
-        </Button>
-        <Button
-          onClick={() => {
-            setVentanaCerradaDialogOpen(false);
-            handleSendTemplate();
-          }}
-          variant="contained"
-        >
-          Enviar plantilla
-        </Button>
-      </DialogActions>
-    </Dialog>
-    </>
+    <LeadsDesktopView
+      etapaMenu={etapaMenu}
+      etapaMenuLead={etapaMenuLead}
+      handleCloseEtapaMenu={handleCloseEtapaMenu}
+      handleSelectEtapa={handleSelectEtapa}
+      tagsMenuAnchor={tagsMenuAnchor}
+      handleCloseTagsMenu={handleCloseTagsMenu}
+      availableTags={availableTags}
+      conversationTags={conversationTags}
+      toggleConversationTag={toggleConversationTag}
+      isCreatingTag={isCreatingTag}
+      newTagName={newTagName}
+      setNewTagName={setNewTagName}
+      newTagColor={newTagColor}
+      setNewTagColor={setNewTagColor}
+      handleCancelCreateTag={handleCancelCreateTag}
+      handleSaveNewTag={handleSaveNewTag}
+      handleStartCreateTag={handleStartCreateTag}
+      manageTagsOpen={manageTagsOpen}
+      handleCloseManageTags={handleCloseManageTags}
+      tagActionError={tagActionError}
+      setTagActionError={setTagActionError}
+      handleOpenEditTagForm={handleOpenEditTagForm}
+      handleDeactivateTag={handleDeactivateTag}
+      tagDeactivatingId={tagDeactivatingId}
+      tagFormOpen={tagFormOpen}
+      tagFormId={tagFormId}
+      tagFormName={tagFormName}
+      setTagFormName={setTagFormName}
+      tagFormColor={tagFormColor}
+      setTagFormColor={setTagFormColor}
+      tagFormError={tagFormError}
+      handleCancelTagForm={handleCancelTagForm}
+      handleSubmitTagForm={handleSubmitTagForm}
+      tagFormSaving={tagFormSaving}
+      handleOpenCreateTagForm={handleOpenCreateTagForm}
+      handleOpenManageTags={handleOpenManageTags}
+      handleOpenTagsMenu={handleOpenTagsMenu}
+      motivoFinalizacionLabel={motivoFinalizacionLabel}
+      motivoFinalizacionOptions={motivoFinalizacionOptions}
+      urgentLeads={urgentLeads}
+      followUpLeads={followUpLeads}
+      newLeads={newLeads}
+      leadsFiltradosOrdenados={leadsFiltradosOrdenados}
+      leadsRiesgo={leadsRiesgo}
+      leadsSeguimiento={leadsSeguimiento}
+      leadsActividad={leadsActividad}
+      riesgoTooltip={riesgoTooltip}
+      seguimientoTooltip={seguimientoTooltip}
+      actividadTooltip={actividadTooltip}
+      searchTerm={searchTerm}
+      setSearchTerm={setSearchTerm}
+      isAdmin={isAdmin}
+      vendedorFilterId={vendedorFilterId}
+      setVendedorFilterId={setVendedorFilterId}
+      leadScope={leadScope}
+      setLeadScope={setLeadScope}
+      setScopeTouched={setScopeTouched}
+      selectedTagIds={selectedTagIds}
+      setSelectedTagIds={setSelectedTagIds}
+      tagsSelectOpen={tagsSelectOpen}
+      setTagsSelectOpen={setTagsSelectOpen}
+      selectedTags={selectedTags}
+      canToggleScope={canToggleScope}
+      showMisChip={showMisChip}
+      showTodosChip={showTodosChip}
+      shouldShowScopeChipGroup={shouldShowScopeChipGroup}
+      showQuickFilterChips={showQuickFilterChips}
+      leadFilter={leadFilter}
+      setLeadFilter={setLeadFilter}
+      opportunityFilter={opportunityFilter}
+      setOpportunityFilter={setOpportunityFilter}
+      vistaFinalizadas={vistaFinalizadas}
+      setVistaFinalizadas={setVistaFinalizadas}
+      vendorOptions={vendorOptions}
+      renderLeadCard={renderLeadCard}
+      selectedLead={selectedLead}
+      selectedLeadPriority={selectedLeadPriority}
+      selectedContactoId={selectedContactoId}
+      selectedContacto={selectedContacto}
+      selectedVendedorId={selectedVendedorId}
+      vendedoresById={vendedoresById}
+      vendedorContactoId={vendedorContactoId}
+      isUpdatingOwner={isUpdatingOwner}
+      openCompleteContactDialog={openCompleteContactDialog}
+      handleOwnerChange={handleOwnerChange}
+      updateLead={updateLead}
+      isSending={isSending}
+      sendSuccess={sendSuccess}
+      handleSendWhatsapp={handleSendWhatsapp}
+      isSuggesting={isSuggesting}
+      handleSuggestMessage={handleSuggestMessage}
+      handleSendTemplate={handleSendTemplate}
+      handleGenerarCotizacion={handleGenerarCotizacion}
+      navigate={navigate}
+      oportunidadesOpen={oportunidadesOpen}
+      setOportunidadesOpen={setOportunidadesOpen}
+      isLoadingOportunidades={isLoadingOportunidades}
+      oportunidadesError={oportunidadesError}
+      oportunidades={oportunidades}
+      isTemplateDialogOpen={isTemplateDialogOpen}
+      setIsTemplateDialogOpen={setIsTemplateDialogOpen}
+      handleTemplateSuccess={handleTemplateSuccess}
+      forwardMessage={forwardMessage}
+      setForwardMessage={setForwardMessage}
+      loadConversations={loadConversations}
+      conversationScrollRef={conversationScrollRef}
+      conversationEndRef={conversationEndRef}
+      replyingTo={replyingTo}
+      setReplyingTo={setReplyingTo}
+      focusReplyInput={focusReplyInput}
+      handleRetryWhatsappSend={handleRetryWhatsappSend}
+      uploadInputRef={uploadInputRef}
+      handleUploadFile={handleUploadFile}
+      handleSelectUpload={handleSelectUpload}
+      isRecording={isRecording}
+      handleToggleRecording={handleToggleRecording}
+      quickReply={quickReply}
+      setQuickReply={setQuickReply}
+      quickReplyRef={quickReplyRef}
+      handleQuickReplyPaste={handleQuickReplyPaste}
+      isUploadingImage={isUploadingImage}
+      uploadFileType={uploadFileType}
+      uploadError={uploadError}
+      pendingAttachmentFile={pendingAttachmentFile}
+      uploadFileName={uploadFileName}
+      pendingAttachmentPreviewUrl={pendingAttachmentPreviewUrl}
+      recordedAudioUrl={recordedAudioUrl}
+      handleRemoveAttachment={handleRemoveAttachment}
+      isCompleteContactOpen={isCompleteContactOpen}
+      closeCompleteContactDialog={closeCompleteContactDialog}
+      completeContactForm={completeContactForm}
+      setCompleteContactForm={setCompleteContactForm}
+      handleSaveCompleteContact={handleSaveCompleteContact}
+      finalizarDialogOpen={finalizarDialogOpen}
+      handleCloseFinalizarDialog={handleCloseFinalizarDialog}
+      finalizarTargetLead={finalizarTargetLead}
+      finalizarMotivo={finalizarMotivo}
+      setFinalizarMotivo={setFinalizarMotivo}
+      finalizarObservaciones={finalizarObservaciones}
+      setFinalizarObservaciones={setFinalizarObservaciones}
+      finalizarError={finalizarError}
+      handleConfirmFinalizar={handleConfirmFinalizar}
+      finalizarSaving={finalizarSaving}
+      snackbar={snackbar}
+      setSnackbar={setSnackbar}
+      sendErrorDialog={sendErrorDialog}
+      setSendErrorDialog={setSendErrorDialog}
+      ventanaCerradaDialogOpen={ventanaCerradaDialogOpen}
+      setVentanaCerradaDialogOpen={setVentanaCerradaDialogOpen}
+    />
   );
 }

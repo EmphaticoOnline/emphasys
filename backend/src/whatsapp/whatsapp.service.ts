@@ -12,6 +12,7 @@ import {
   registrarMensajeImagenSalienteWhatsapp,
   registrarMensajePlantillaSalienteWhatsapp,
   registrarMensajeTextoSalienteWhatsapp,
+  type MensajeSalienteMetadata,
 } from "../crm/conversaciones.service";
 import { getWhatsappConfig } from "./whatsapp-config.service";
 import { resolverPlantillaWhatsapp, type WhatsappPlantilla } from "./whatsapp-plantillas.service";
@@ -19,6 +20,20 @@ import { resolverPlantillaWhatsapp, type WhatsappPlantilla } from "./whatsapp-pl
 const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 const GUPSHUP_TEMPLATE_API_URL = "https://api.gupshup.io/wa/api/v1/template/msg";
 const WHATSAPP_WINDOW_MINUTES = 1440;
+
+// Límite de destinatarios por operación de reenvío múltiple: evita que un
+// clic accidental (o un uso indebido tipo campaña masiva) dispare cientos de
+// envíos simultáneos hacia Gupshup. No hay una configuración general de
+// límites de envío en el sistema todavía, así que se deja como constante
+// simple y fácil de ajustar hasta que exista una necesidad real de hacerla
+// configurable por empresa.
+export const MAX_REENVIO_DESTINATARIOS = 20;
+
+// Cuántos reenvíos se procesan en paralelo dentro de una misma operación
+// múltiple. No existe en el backend ninguna librería de control de
+// concurrencia (p-limit, Bottleneck, etc.), así que se usa un lote simple
+// propio en vez de agregar una dependencia nueva para este único caso de uso.
+export const REENVIO_CONCURRENCY = 3;
 
 export class WhatsappWindowExpiredError extends Error {
   status: number;
@@ -116,6 +131,35 @@ async function validateWhatsapp24hWindow(empresaId: number, conversacionId: numb
   }
 }
 
+// Antes de reenviar un adjunto se verifica que su URL siga siendo accesible:
+// los adjuntos entrantes guardan la URL cruda que mandó Gupshup en el
+// webhook (ver whatsapp.mapper.ts) y esas URLs pueden ser temporales, así
+// que no hay garantía de que sigan vigentes al momento de reenviar. Los
+// adjuntos salientes (subidos por el usuario a /api/uploads) sí son
+// persistentes, pero se valida igual por uniformidad y como red de
+// seguridad barata. Si la verificación falla, el llamador debe tratar el
+// destino como "archivo no disponible" y no intentar el envío.
+export async function verifyMediaUrlReachable(mediaUrl: string): Promise<boolean> {
+  try {
+    const response = await axios.head(mediaUrl, { timeout: 4000, validateStatus: () => true });
+    if (response.status >= 200 && response.status < 400) return true;
+  } catch {
+    // Algunos servidores no soportan HEAD; se reintenta con GET abajo.
+  }
+
+  try {
+    const response = await axios.get(mediaUrl, {
+      timeout: 4000,
+      validateStatus: () => true,
+      headers: { Range: "bytes=0-0" },
+      responseType: "arraybuffer",
+    });
+    return response.status >= 200 && response.status < 400;
+  } catch {
+    return false;
+  }
+}
+
 function logWhatsappSendError(context: string, error: unknown) {
   if (error instanceof WhatsappWindowExpiredError) {
     console.warn(`[WhatsApp Send] ${context}: ventana expirada`, {
@@ -165,7 +209,8 @@ export const sendTextMessage = async (
   empresaId: number,
   to: string,
   text: string,
-  mensajeRespuestaId?: number | null
+  mensajeRespuestaId?: number | null,
+  forwardMetadata?: MensajeSalienteMetadata | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -218,7 +263,8 @@ export const sendTextMessage = async (
       destinoNormalizado,
       text,
       response.data?.messageId || null,
-      mensajeRespuestaId ?? null
+      mensajeRespuestaId ?? null,
+      forwardMetadata ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -236,7 +282,8 @@ export const sendImageMessage = async (
   to: string,
   mediaUrl: string,
   caption?: string | null,
-  mensajeRespuestaId?: number | null
+  mensajeRespuestaId?: number | null,
+  forwardMetadata?: MensajeSalienteMetadata | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -292,7 +339,8 @@ export const sendImageMessage = async (
       mediaUrl,
       caption ?? null,
       response.data?.messageId || null,
-      mensajeRespuestaId ?? null
+      mensajeRespuestaId ?? null,
+      forwardMetadata ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -309,7 +357,11 @@ export const sendDocumentMessage = async (
   to: string,
   mediaUrl: string,
   filename?: string | null,
-  options?: { skipWindowValidation?: boolean; mensajeRespuestaId?: number | null }
+  options?: {
+    skipWindowValidation?: boolean;
+    mensajeRespuestaId?: number | null;
+    forwardMetadata?: MensajeSalienteMetadata | null;
+  }
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -402,7 +454,8 @@ export const sendDocumentMessage = async (
       mediaUrl,
       filename ?? null,
       response.data?.messageId || null,
-      options?.mensajeRespuestaId ?? null
+      options?.mensajeRespuestaId ?? null,
+      options?.forwardMetadata ?? null
     );
 
     console.info('[WhatsApp Media] Registro interno documento completado', {
@@ -428,7 +481,8 @@ export const sendAudioMessage = async (
   empresaId: number,
   to: string,
   mediaUrl: string,
-  mensajeRespuestaId?: number | null
+  mensajeRespuestaId?: number | null,
+  forwardMetadata?: MensajeSalienteMetadata | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -481,7 +535,8 @@ export const sendAudioMessage = async (
       destinoNormalizado,
       mediaUrl,
       response.data?.messageId || null,
-      mensajeRespuestaId ?? null
+      mensajeRespuestaId ?? null,
+      forwardMetadata ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
