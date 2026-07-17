@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import { FacturamaClient } from '../cfdi/facturama.client';
 import { obtenerRolesDeUsuarioEnEmpresa } from '../auth/auth.service';
 import { revertirInventarioDocumentoEnTransaccion } from '../inventario/inventario.service';
+import { generarReversaCancelacionFacturaVenta } from '../contabilidad/facturaVentaContabilizacion.repository';
 
 export class DocumentoCancelValidationError extends Error {
   constructor(message: string) {
@@ -176,6 +177,36 @@ async function tieneMovimientoInventarioAsociado(client: PoolClient, documentoId
   return Boolean(rows[0]?.existe);
 }
 
+/**
+ * true si el documento tiene una contabilización de emisión de factura de
+ * venta activa (evento_contable='emision', es_reversa=false). Se consulta
+ * contra contabilidad.contabilizaciones (la marca real que deja el motor de
+ * ventas), no contra documentos.tipo_documento: así se evita disparar
+ * generarReversaCancelacionFacturaVenta (que exige tipo de póliza de
+ * cancelación configurado) para documentos que nunca se contabilizaron o que
+ * no son facturas de venta (p. ej. facturas de compra, cuyo tipo_documento es
+ * 'factura_compra', un valor distinto).
+ */
+async function tieneContabilizacionVentaFacturaActiva(
+  client: PoolClient,
+  documentoId: number,
+  empresaId: number
+): Promise<boolean> {
+  const { rows } = await client.query<{ existe: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM contabilidad.contabilizaciones ct
+        WHERE ct.empresa_id = $1
+          AND ct.documento_id = $2
+          AND ct.tipo_documento = 'factura_venta'
+          AND ct.evento_contable = 'emision'
+          AND ct.es_reversa = false
+     ) AS existe`,
+    [empresaId, documentoId]
+  );
+  return Boolean(rows[0]?.existe);
+}
+
 // ─── Saga: tabla documentos_cancelacion_intentos ─────────────────────────────
 
 async function insertarIntento(params: {
@@ -285,6 +316,7 @@ async function ejecutarCancelacionInterna(params: {
           motivo_cancelacion: motivoCancelacion, motivo_sat: motivoSat,
           uuid_sustitucion: uuidSustitucion } = intento;
 
+  console.log(`[CANCELACION] Inicio doc=${documentoId} empresa=${empresaId} usuario=${usuarioId} intento=${intentoId}`);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -341,6 +373,54 @@ async function ejecutarCancelacionInterna(params: {
       );
     }
 
+    // Reversa contable automática de venta. generarReversaCancelacionFacturaVenta
+    // recibe este mismo `client`, así que TODO lo que hace (leer la
+    // contabilización/póliza original, insertar la póliza reversa, registrar
+    // la reversa en contabilidad.contabilizaciones) corre dentro de esta
+    // misma transacción — nunca abre una segunda conexión con pool.connect().
+    // Eso es lo que antes causaba el 504: una segunda conexión pedida al
+    // mismo pool mientras esta primera seguía retenida podía quedarse
+    // esperando indefinidamente (no hay connectionTimeoutMillis configurado)
+    // a que el propio pool liberara una conexión que, en la práctica, era
+    // justo la que esta transacción ya tenía tomada. Con un solo client, si
+    // la reversa falla, el ROLLBACK de abajo deshace también lo que la
+    // reversa alcanzó a insertar: nunca queda una factura cancelada sin
+    // reversa, y nunca queda una reversa "huérfana" de una cancelación que
+    // no se completó.
+    const requiereReversaVenta = await tieneContabilizacionVentaFacturaActiva(client, documentoId, empresaId);
+    console.log(`[CANCELACION] Antes de generar reversa doc=${documentoId} requiereReversaVenta=${requiereReversaVenta}`);
+    if (requiereReversaVenta) {
+      try {
+        const resultadoReversa = await generarReversaCancelacionFacturaVenta(
+          empresaId,
+          documentoId,
+          {
+            usuario_id: usuarioId,
+            comentario: `Reversa automática por cancelación de documento ${documentoId}`,
+          },
+          client
+        );
+        console.log(
+          `[CANCELACION] Después de generar reversa doc=${documentoId} generada=${resultadoReversa.generada}` +
+            (resultadoReversa.generada ? ` poliza_id=${resultadoReversa.poliza.id}` : ` motivo=${resultadoReversa.motivo}`)
+        );
+      } catch (reversaError) {
+        // Cualquier falla al generar la reversa (tipo de póliza de
+        // cancelación no configurado, cuentas faltantes, doble reversa, etc.)
+        // debe abortar toda la cancelación: no puede quedar una factura de
+        // venta contabilizada marcada como cancelada sin su póliza reversa.
+        console.log(
+          `[CANCELACION] Error al generar reversa doc=${documentoId}: ${(reversaError as Error)?.message ?? reversaError}`
+        );
+        const mensaje = String((reversaError as Error)?.message ?? '')
+          .replace('VALIDATION_ERROR:', '')
+          .trim();
+        throw new DocumentoCancelValidationError(
+          mensaje || 'No se pudo generar la reversa contable de la factura de venta; la cancelación fue revertida.'
+        );
+      }
+    }
+
     // Marcar intento como completado dentro de la misma transacción para atomicidad
     await client.query(
       `UPDATE documentos_cancelacion_intentos
@@ -363,6 +443,9 @@ async function ejecutarCancelacionInterna(params: {
       intento_id: intentoId,
     };
   } catch (error) {
+    console.log(
+      `[CANCELACION] Error, haciendo ROLLBACK doc=${documentoId}: ${(error as Error)?.message ?? error}`
+    );
     await client.query('ROLLBACK');
 
     // Si había CFDI ya cancelado en Facturama → bloquear edición del documento
@@ -420,9 +503,17 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     cfdiUuid = limpiarTexto(cfdi?.uuid);
     requiereCancelacionFacturama = Boolean(cfdiUuid) && !cfdi?.fecha_cancelacion;
 
-    if (String(documento.tipo_documento ?? '').trim().toLowerCase() === 'factura' && !cfdiUuid) {
+    // Una factura en Borrador no es un documento fiscal formal: no se
+    // cancela, se elimina. Una factura Emitida sí se puede cancelar aunque
+    // no esté timbrada (cancelación operativa interna, sin CFDI/PAC) — ver
+    // el bloque 5 más abajo, que ya omite la llamada a Facturama cuando no
+    // hay cfdiUuid.
+    if (
+      String(documento.tipo_documento ?? '').trim().toLowerCase() === 'factura' &&
+      String(documento.estatus_documento ?? '').trim().toLowerCase() === 'borrador'
+    ) {
       throw new DocumentoCancelValidationError(
-        'Esta factura no está timbrada; no aplica cancelación fiscal. Use la opción Eliminar en su lugar.'
+        'La factura está en borrador; no se puede cancelar. Elimínela si ya no la necesita.'
       );
     }
   } finally {

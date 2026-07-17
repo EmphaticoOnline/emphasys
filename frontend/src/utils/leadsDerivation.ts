@@ -287,9 +287,9 @@ export const buildReplyPreviewText = (
   contenido: string | null | undefined,
   caption: string | null | undefined
 ): string => {
-  if (tipoContenido === 'image') return caption || 'Foto';
-  if (tipoContenido === 'audio') return 'Audio';
-  if (tipoContenido === 'document') return caption || 'Documento';
+  if (tipoContenido === 'image') return '📷 Imagen';
+  if (tipoContenido === 'audio') return '🎤 Nota de voz';
+  if (tipoContenido === 'document') return caption ? `📄 ${caption}` : '📄 Documento';
   return contenido || '';
 };
 

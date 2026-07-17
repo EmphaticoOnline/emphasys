@@ -432,8 +432,12 @@ export async function listarPolizas(
   return rows.map(mapearEncabezado);
 }
 
-export async function obtenerPolizaPorId(id: number, empresaId: number): Promise<PolizaEncabezado | null> {
-  const { rows } = await pool.query(`${SELECT_ENCABEZADO} WHERE p.id = $1 AND p.empresa_id = $2`, [id, empresaId]);
+// client opcional: para poder leer una póliza recién insertada por la misma
+// transacción (todavía sin COMMIT) cuando crearPolizaConMovimientos corre
+// sobre un client externo en vez de abrir su propia conexión.
+export async function obtenerPolizaPorId(id: number, empresaId: number, client?: PoolClient): Promise<PolizaEncabezado | null> {
+  const db = client ?? pool;
+  const { rows } = await db.query(`${SELECT_ENCABEZADO} WHERE p.id = $1 AND p.empresa_id = $2`, [id, empresaId]);
   return rows[0] ? mapearEncabezado(rows[0]) : null;
 }
 
@@ -816,10 +820,24 @@ export async function calcularSiguienteNumero(
   return { numero, ejercicio, periodo };
 }
 
+// clienteExterno opcional: cuando el llamador ya está dentro de su propia
+// transacción SQL (p. ej. la cancelación de un documento que debe generar su
+// póliza reversa de forma atómica), se reutiliza esa misma conexión/cliente
+// en vez de abrir una segunda con pool.connect(). Abrir una segunda conexión
+// mientras la primera sigue retenida es justo el patrón que puede colgar el
+// proceso bajo carga: si el pool no tiene una conexión libre, ese segundo
+// pool.connect() espera indefinidamente (no hay connectionTimeoutMillis
+// configurado) a que la propia transacción exterior —que nunca va a soltar
+// su conexión hasta que esto termine— libere una. Con clienteExterno no se
+// pide ninguna conexión adicional, así que ese escenario ya no puede darse.
+// El llamador es responsable del BEGIN/COMMIT/ROLLBACK y de liberar
+// clienteExterno; esta función solo maneja su propia transacción cuando abre
+// su propia conexión (llamada "suelta", como hasta ahora).
 export async function crearPolizaConMovimientos(
   empresaId: number,
   input: PolizaEncabezadoInput,
-  usuarioId: number | null
+  usuarioId: number | null,
+  clienteExterno?: PoolClient
 ): Promise<PolizaEncabezado> {
   if (!input.tipo_poliza_id) {
     throw new Error('VALIDATION_ERROR: El tipo de póliza es requerido');
@@ -831,10 +849,11 @@ export async function crearPolizaConMovimientos(
   validarEncabezadoYMovimientos(input, totalCargos, totalAbonos);
   await validarCuentasYConceptos(empresaId, input.movimientos);
 
-  const client = await pool.connect();
+  const esClientePropio = !clienteExterno;
+  const client = clienteExterno ?? (await pool.connect());
   let polizaId: number | null = null;
   try {
-    await client.query('BEGIN');
+    if (esClientePropio) await client.query('BEGIN');
 
     let poliza: { id: number } | null = null;
     const maxIntentos = 2;
@@ -918,15 +937,18 @@ export async function crearPolizaConMovimientos(
     }
 
     polizaId = polizaCreada.id;
-    await client.query('COMMIT');
+    if (esClientePropio) await client.query('COMMIT');
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (esClientePropio) await client.query('ROLLBACK');
     throw err;
   } finally {
-    client.release();
+    if (esClientePropio) client.release();
   }
 
-  return (await obtenerPolizaPorId(polizaId as number, empresaId)) as PolizaEncabezado;
+  // Con clienteExterno, la póliza recién insertada todavía no tiene COMMIT:
+  // hay que releerla con ese mismo client para poder verla (otra conexión,
+  // vía pool, todavía la vería como si no existiera).
+  return (await obtenerPolizaPorId(polizaId as number, empresaId, clienteExterno)) as PolizaEncabezado;
 }
 
 export async function actualizarPolizaConMovimientos(

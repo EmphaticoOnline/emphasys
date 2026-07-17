@@ -311,13 +311,19 @@ const getDocumentoEstatusColor = (value: unknown): 'default' | 'info' | 'success
 
 const isFacturaTimbrada = (value: unknown): boolean => normalizeDocumentoEstatus(value) === 'timbrado';
 
-// Espeja la regla del backend (cancelarDocumentoService): una factura sin CFDI no admite
-// cancelación fiscal formal, sin importar su tratamiento de impuestos. Debe eliminarse en su lugar.
-const esFacturaNoTimbrada = (tipoDocumento: TipoDocumento, estatusDocumento: unknown): boolean =>
-  tipoDocumento === 'factura' && !isFacturaTimbrada(estatusDocumento);
+// Espeja la regla del backend (cancelarDocumentoService): una factura en
+// Borrador no es un documento fiscal formal y no se puede cancelar, se
+// elimina en su lugar. Una factura Emitida sí se puede cancelar aunque no
+// esté timbrada (cancelación operativa interna, sin CFDI/PAC) — ver
+// esFacturaEmitidaSinTimbrar más abajo para ese caso informativo.
+const esFacturaEnBorrador = (tipoDocumento: TipoDocumento, estatusDocumento: unknown): boolean =>
+  tipoDocumento === 'factura' && normalizeDocumentoEstatus(estatusDocumento) === 'borrador';
 
-const MENSAJE_FACTURA_NO_TIMBRADA_CANCELAR =
-  'Esta factura no está timbrada; no aplica cancelación fiscal. Use la opción Eliminar en su lugar.';
+const MENSAJE_FACTURA_BORRADOR_CANCELAR =
+  'La factura está en borrador; no se puede cancelar. Elimínela si ya no la necesita.';
+
+const MENSAJE_FACTURA_EMITIDA_SIN_TIMBRAR_CANCELAR =
+  'Cancela el documento en Emphasys. No se cancelará CFDI porque no está timbrado.';
 
 const normalizeCotizacionEstatusDocumento = (value: unknown): CotizacionEstatusDocumento => {
   const normalized = String(value ?? 'borrador')
@@ -542,7 +548,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
-  const [facturaNoTimbradaDialogOpen, setFacturaNoTimbradaDialogOpen] = useState(false);
+  const [facturaBorradorDialogOpen, setFacturaBorradorDialogOpen] = useState(false);
   const [timbrandoId, setTimbrandoId] = useState<number | null>(null);
   const [cancelandoId, setCancelandoId] = useState<number | null>(null);
   type SnackbarSeverity = 'success' | 'error' | 'info' | 'warning';
@@ -564,6 +570,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     uuidSustitucion: string;
     enviando: boolean;
     error: string | null;
+    // Snapshot del documento al abrir el diálogo (no del tipo de documento en
+    // general): determina si se muestra el modo fiscal (CFDI/SAT) o el modo
+    // de cancelación interna. timbrada = esta factura específica ya tiene
+    // CFDI vigente; contabilizada = tiene una contabilización de emisión
+    // activa (para avisar que se generará la reversa automática).
+    timbrada: boolean;
+    contabilizada: boolean;
   }>({
     open: false,
     id: null,
@@ -572,6 +585,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     uuidSustitucion: '',
     enviando: false,
     error: null,
+    timbrada: false,
+    contabilizada: false,
   });
   const [enviarDialog, setEnviarDialog] = useState<{
     open: boolean;
@@ -1475,10 +1490,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   };
 
   const abrirDialogoCancelar = (row: CotizacionListado) => {
-    if (esFacturaNoTimbrada(tipoDocumento, row.estatus_documento)) {
-      setFacturaNoTimbradaDialogOpen(true);
+    if (esFacturaEnBorrador(tipoDocumento, row.estatus_documento)) {
+      setFacturaBorradorDialogOpen(true);
       return;
     }
+    // Timbrada se evalúa por documento (no por tipo de documento en
+    // general): una factura puede soportar CFDI y aun así no estar timbrada
+    // todavía, en cuyo caso el modal debe ser el de cancelación interna.
+    const timbrada = puedeTimbrarCfdiDocumento(tipoDocumento, row) && isFacturaTimbrada(row.estatus_documento);
+    const contabilizada = estadoContableVentas[Number(row.id)]?.estado === 'contabilizada';
     setCancelarDialog({
       open: true,
       id: Number(row.id),
@@ -1487,6 +1507,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       uuidSustitucion: '',
       enviando: false,
       error: null,
+      timbrada,
+      contabilizada,
     });
   };
 
@@ -1500,6 +1522,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       uuidSustitucion: '',
       enviando: false,
       error: null,
+      timbrada: false,
+      contabilizada: false,
     });
   };
 
@@ -1507,7 +1531,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const documentoId = Number(cancelarDialog.id ?? 0);
     if (!Number.isFinite(documentoId) || documentoId <= 0) return;
 
-    const esCfdi = hasAction('timbrar');
+    const esCfdi = cancelarDialog.timbrada;
     const motivoSat = String(cancelarDialog.motivoSat ?? '').trim();
     const uuidSustitucion = String(cancelarDialog.uuidSustitucion ?? '').trim();
     if (esCfdi && motivoSat === '01' && !uuidSustitucion) {
@@ -1991,7 +2015,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         const mensajeFacturaNoTimbrada = 'La factura debe estar timbrada antes de enviarse.';
         const estatusDocumentoNormalizado = String(params.row?.estatus_documento ?? '').trim().toLowerCase();
         const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
-        const esFacturaSinTimbrar = esFacturaNoTimbrada(tipoDocumento, params.row?.estatus_documento);
+        const facturaEnBorrador = esFacturaEnBorrador(tipoDocumento, params.row?.estatus_documento);
+        const facturaEmitidaSinTimbrar = tipoDocumento === 'factura' && !facturaEnBorrador && !facturaTimbrada;
         const whatsappHabilitado = puedeEnviarWhatsappDocumento(tipoDocumento, params.row as CotizacionListado);
         const mensajeWhatsappBloqueado = documentoPuedeTimbrarCfdi
           ? MENSAJE_FACTURA_NO_TIMBRADA_WHATSAPP
@@ -2205,16 +2230,18 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             title={
               documentoCancelado
                 ? 'Documento ya cancelado'
-                : esFacturaSinTimbrar
-                  ? 'La factura no está timbrada: use Eliminar en lugar de Cancelar'
-                  : 'Cancelar documento'
+                : facturaEnBorrador
+                  ? MENSAJE_FACTURA_BORRADOR_CANCELAR
+                  : facturaEmitidaSinTimbrar
+                    ? MENSAJE_FACTURA_EMITIDA_SIN_TIMBRAR_CANCELAR
+                    : 'Cancelar documento'
             }
           >
             <span>
               <IconButton
                 size="small"
                 color="error"
-                disabled={loading || documentoCancelado || esFacturaSinTimbrar || cancelandoId === Number(params.row?.id)}
+                disabled={loading || documentoCancelado || facturaEnBorrador || cancelandoId === Number(params.row?.id)}
                 onClick={(e) => {
                   e.stopPropagation();
                   abrirDialogoCancelar(params.row as CotizacionListado);
@@ -2383,7 +2410,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       String(contextMenuRow?.estatus_documento ?? '').toLowerCase() !== 'cancelado';
     const estatusDocumentoNormalizado = String(contextMenuRow?.estatus_documento ?? '').trim().toLowerCase();
     const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
-    const esFacturaSinTimbrar = esFacturaNoTimbrada(tipoDocumento, contextMenuRow?.estatus_documento);
+    const facturaEnBorrador = esFacturaEnBorrador(tipoDocumento, contextMenuRow?.estatus_documento);
     const estadoContableFacturaVentaMenu = estadoContableVentas[rowId];
 
     return [
@@ -2572,10 +2599,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       },
       {
         id: 'cancelar-documento',
-        label: esFacturaSinTimbrar ? 'Cancelar documento (factura no timbrada, use Eliminar)' : 'Cancelar documento',
+        label: facturaEnBorrador ? 'Cancelar documento (borrador, use Eliminar)' : 'Cancelar documento',
         icon: <CancelIcon fontSize="small" />,
         destructive: true,
-        disabled: loading || documentoCancelado || esFacturaSinTimbrar || cancelandoId === rowId,
+        disabled: loading || documentoCancelado || facturaEnBorrador || cancelandoId === rowId,
         onClick: () => abrirDialogoCancelar(contextMenuRow),
       },
       {
@@ -3372,7 +3399,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         {estatusDocumentoOptions.map((status) => {
           const estatusMenuRow = estatusMenu.rowId ? rows.find((r) => Number(r.id) === estatusMenu.rowId) : null;
           const opcionCancelarNoAplica =
-            status.value === 'cancelado' && esFacturaNoTimbrada(tipoDocumento, estatusMenuRow?.estatus_documento);
+            status.value === 'cancelado' && esFacturaEnBorrador(tipoDocumento, estatusMenuRow?.estatus_documento);
 
           return (
             <MenuItem
@@ -3518,6 +3545,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           open={openLoteContabilizacionVentas}
           onClose={() => setOpenLoteContabilizacionVentas(false)}
           onContabilizado={() => void load()}
+          documentoIdsSeleccionados={selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined}
         />
       )}
 
@@ -3714,18 +3742,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
-              Captura los datos de cancelación para enviar la solicitud.
+              {cancelarDialog.timbrada
+                ? 'Captura los datos de cancelación para enviar la solicitud.'
+                : 'Este documento no está timbrado. Se cancelará solo dentro de Emphasys.'}
             </DialogContentText>
+            {!cancelarDialog.timbrada && cancelarDialog.contabilizada && (
+              <Alert severity="info">
+                Como esta factura ya está contabilizada, se generará automáticamente una póliza de reversa.
+              </Alert>
+            )}
             <TextField
               autoFocus
               fullWidth
-              label="Motivo de cancelación"
+              label={cancelarDialog.timbrada ? 'Motivo de cancelación' : 'Motivo de cancelación (opcional)'}
               multiline
               minRows={3}
               value={cancelarDialog.motivoCancelacion}
               onChange={(event) => setCancelarDialog((prev) => ({ ...prev, motivoCancelacion: event.target.value, error: null }))}
             />
-            {hasAction('timbrar') && (
+            {cancelarDialog.timbrada && (
               <>
                 <TextField
                   select
@@ -3754,7 +3789,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                 ) : null}
               </>
             )}
-            {!hasAction('timbrar') && cancelarDialog.error ? (
+            {!cancelarDialog.timbrada && cancelarDialog.error ? (
               <Alert severity="error" variant="outlined">{cancelarDialog.error}</Alert>
             ) : null}
           </Stack>
@@ -4220,19 +4255,19 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       </Dialog>
 
       <Dialog
-        open={facturaNoTimbradaDialogOpen}
-        onClose={() => setFacturaNoTimbradaDialogOpen(false)}
+        open={facturaBorradorDialogOpen}
+        onClose={() => setFacturaBorradorDialogOpen(false)}
         fullWidth
         maxWidth="sm"
       >
         <DialogTitle>No se puede cancelar esta factura</DialogTitle>
         <DialogContent>
           <Typography sx={{ pt: 1, color: '#475569' }}>
-            {MENSAJE_FACTURA_NO_TIMBRADA_CANCELAR}
+            {MENSAJE_FACTURA_BORRADOR_CANCELAR}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button variant="contained" onClick={() => setFacturaNoTimbradaDialogOpen(false)}>
+          <Button variant="contained" onClick={() => setFacturaBorradorDialogOpen(false)}>
             Entendido
           </Button>
         </DialogActions>

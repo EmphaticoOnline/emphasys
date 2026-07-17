@@ -165,6 +165,40 @@ export const obtenerIdExternoMensaje = async (
   return rows[0]?.id_externo ?? null;
 };
 
+// Resuelve el id interno (crm.mensajes.id) del mensaje citado por un mensaje
+// entrante, cuando el cliente respondió citando desde su propio WhatsApp.
+// Coincidencia exacta únicamente (nunca LIKE, nunca por contenido/fecha/
+// remitente): empresa_id + conversacion_id + id_externo, en ese orden de
+// filtrado, aislando siempre por tenant Y por conversación — jamás resuelve
+// hacia un mensaje de otra empresa o de otra conversación aunque el
+// id_externo coincidiera (no debería, id_externo es único por empresa, pero
+// el filtro de conversacion_id es una segunda barrera explícita, no solo una
+// optimización). Devuelve null (sin lanzar) si la referencia viene vacía o
+// malformada, o si el mensaje original todavía no existe en la base (p. ej.
+// por orden de llegada del webhook) — el mensaje entrante se guarda igual,
+// simplemente sin cita. No hay reconciliación diferida en este bloque.
+export const resolverMensajeCitadoEntrante = async (
+  empresaId: number,
+  conversacionId: number,
+  idExternoCitado: string | null | undefined
+): Promise<number | null> => {
+  if (!idExternoCitado || !idExternoCitado.trim()) return null;
+
+  const { rows } = await pool.query<{ id: number }>(
+    `
+      SELECT id
+      FROM crm.mensajes
+      WHERE empresa_id = $1
+        AND conversacion_id = $2
+        AND id_externo = $3
+      LIMIT 1
+      `,
+    [empresaId, conversacionId, idExternoCitado.trim()]
+  );
+
+  return rows[0]?.id ?? null;
+};
+
 export type MensajeParaReenvio = {
   id: number;
   conversacion_id: number;
@@ -572,7 +606,8 @@ export const registrarMensajeEntranteWhatsapp = async (
     mediaUrl?: string | null;
     caption?: string | null;
     mimeType?: string | null;
-  }
+  },
+  mensajeRespuestaId?: number | null
 ): Promise<number | null> => {
   const { rows } = await pool.query<{ id: number }>(
     `
@@ -591,9 +626,10 @@ export const registrarMensajeEntranteWhatsapp = async (
         media_url,
         caption,
         mime_type,
+        mensaje_respuesta_id,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
       ON CONFLICT (empresa_id, id_externo) WHERE id_externo IS NOT NULL DO NOTHING
       RETURNING id
       `,
@@ -611,6 +647,7 @@ export const registrarMensajeEntranteWhatsapp = async (
       media?.mediaUrl ?? null,
       media?.caption ?? null,
       media?.mimeType ?? null,
+      mensajeRespuestaId ?? null,
     ]
   );
 

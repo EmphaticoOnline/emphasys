@@ -21,6 +21,10 @@ export const DEFAULT_UPLOAD_MIME_TYPES = [
   "audio/mpeg",
   "audio/ogg",
   "audio/wav",
+  // Safari/iOS genera notas de voz con MediaRecorder en este formato: no
+  // soporta confiablemente webm/ogg. WhatsApp/Gupshup sí acepta audio/mp4
+  // (AAC). Ver bloque de notas de voz móvil.
+  "audio/mp4",
 ];
 
 export function resolveUploadsDir(): string {

@@ -239,7 +239,20 @@ const AUDIO_MIME_PREFERENCES = [
   'audio/mpeg',
   'audio/webm;codecs=opus',
   'audio/webm',
+  // Último recurso: Safari/iOS no soporta confiablemente ninguno de los
+  // anteriores en MediaRecorder, pero sí genera (y WhatsApp/Gupshup acepta)
+  // audio/mp4 (AAC). No se fuerza; solo se usa si ningún otro es compatible.
+  'audio/mp4',
 ];
+// Notas de voz: sin límite previo en el proyecto. 180s (3 min) es el límite
+// acordado para el compositor móvil — evita archivos muy pesados o
+// grabaciones olvidadas encendidas, sin ser tan corto como para estorbar una
+// nota de voz normal. Al alcanzarlo, se detiene automáticamente, igual que
+// si el usuario presionara "Detener".
+const MAX_RECORDING_SECONDS = 180;
+// Grabaciones más cortas que esto (p. ej. un toque accidental) se descartan
+// con un error en vez de ofrecerse como adjunto para enviar.
+const MIN_RECORDING_SECONDS = 1;
 
 const motivoFinalizacionOptions: Array<{ value: MotivoFinalizacion; label: string }> = [
   { value: 'venta_cerrada', label: 'Venta cerrada' },
@@ -311,6 +324,19 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const [recordedAudioUrl, setRecordedAudioUrl] = React.useState<string | null>(null);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
   const audioChunksRef = React.useRef<Blob[]>([]);
+  // Segundos transcurridos de la grabación en curso (para mm:ss en vivo) y
+  // duración final ya congelada de la última grabación detenida (para
+  // mostrarla junto a la vista previa reproducible). Se calcula aparte de
+  // HTMLMediaElement.duration porque ese valor no es confiable para blobs de
+  // MediaRecorder recién creados en varios navegadores (puede ser Infinity).
+  const [recordingElapsedSeconds, setRecordingElapsedSeconds] = React.useState(0);
+  const [recordedAudioDurationSeconds, setRecordedAudioDurationSeconds] = React.useState<number | null>(null);
+  const recordingIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingStartedAtRef = React.useRef<number | null>(null);
+  // true mientras handleCancelRecording está descartando una grabación en
+  // curso: le indica al onstop del MediaRecorder que descarte todo en vez de
+  // armar un adjunto pendiente, sin duplicar la lógica de detención.
+  const cancelRecordingRef = React.useRef(false);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
@@ -419,6 +445,35 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       }
     };
   }, [recordedAudioUrl]);
+
+  // Si cambia la conversación seleccionada mientras hay una grabación en
+  // curso (p. ej. el polling reselecciona otro lead), se cancela en vez de
+  // dejar el micrófono activo apuntando a un chat que ya no está abierto.
+  // Se consulta mediaRecorderRef.current.state directamente (no el estado
+  // isRecording) para no depender de un closure que podría quedar obsoleto.
+  React.useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        handleCancelRecording();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLeadId]);
+
+  // Desmontaje completo de la página (el usuario navega fuera del módulo de
+  // Leads): mismo criterio, para no dejar el micrófono activo ni el
+  // cronómetro corriendo en segundo plano.
+  React.useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream?.getTracks().forEach((track) => track.stop());
+      }
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!session.token || !session.empresaActivaId) return undefined;
@@ -1810,66 +1865,183 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     uploadInputRef.current?.click();
   };
 
+  // Limpia el intervalo del cronómetro de grabación y su ancla de inicio.
+  // La usan tanto onstop (grabación normal) como handleCancelRecording y el
+  // efecto de desmontaje/cambio de conversación, para no duplicar la lógica
+  // de limpieza en cada salida posible.
+  const stopRecordingTimer = () => {
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
+    }
+    recordingStartedAtRef.current = null;
+  };
+
   const handleToggleRecording = async () => {
     if (isRecording) {
-      mediaRecorderRef.current?.stop();
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
       return;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
-      const preferredMimeType = AUDIO_MIME_PREFERENCES.find((type) =>
-        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)
-      );
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setUploadError('Este navegador no permite grabar audio.');
+      return;
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      setUploadError('Este navegador no permite grabar audio.');
+      return;
+    }
 
-      if (!preferredMimeType) {
-        setUploadError('Tu navegador no soporta grabación de audio en formatos compatibles.');
-        stream.getTracks().forEach((track) => track.stop());
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (error) {
+      console.error('Error al solicitar permiso de micrófono:', error);
+      const name = error instanceof DOMException ? error.name : '';
+      const message = name === 'NotAllowedError' || name === 'PermissionDeniedError'
+        ? 'Permiso de micrófono denegado. Actívalo en los ajustes del navegador para grabar audio.'
+        : name === 'NotFoundError' || name === 'DevicesNotFoundError'
+          ? 'No se encontró un micrófono disponible en este dispositivo.'
+          : 'No se pudo acceder al micrófono. Intenta de nuevo.';
+      setUploadError(message);
+      return;
+    }
+
+    audioChunksRef.current = [];
+    const preferredMimeType = AUDIO_MIME_PREFERENCES.find((type) => MediaRecorder.isTypeSupported(type));
+
+    if (!preferredMimeType) {
+      setUploadError('Tu navegador no soporta grabación de audio en formatos compatibles.');
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: preferredMimeType });
+    } catch (error) {
+      console.error('Error al iniciar el grabador de audio:', error);
+      setUploadError('No se pudo iniciar la grabación de audio.');
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    cancelRecordingRef.current = false;
+    mediaRecorderRef.current = recorder;
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunksRef.current.push(event.data);
+      }
+    };
+
+    recorder.onerror = (event) => {
+      console.error('Error durante la grabación de audio:', event);
+      setUploadError('Ocurrió un error durante la grabación. Intenta de nuevo.');
+      stopRecordingTimer();
+      audioChunksRef.current = [];
+      stream.getTracks().forEach((track) => track.stop());
+      setIsRecording(false);
+      setRecordingElapsedSeconds(0);
+    };
+
+    recorder.onstop = () => {
+      // El audio grabado se queda en memoria como File pendiente; la subida
+      // a /api/uploads solo ocurre al presionar enviar, igual que con
+      // imágenes y documentos.
+      stream.getTracks().forEach((track) => track.stop());
+      const finalElapsedSeconds = recordingStartedAtRef.current != null
+        ? Math.floor((Date.now() - recordingStartedAtRef.current) / 1000)
+        : 0;
+      stopRecordingTimer();
+
+      if (cancelRecordingRef.current) {
+        cancelRecordingRef.current = false;
+        audioChunksRef.current = [];
+        setIsRecording(false);
+        setRecordingElapsedSeconds(0);
         return;
       }
 
-      const recorder = new MediaRecorder(stream, { mimeType: preferredMimeType });
-      mediaRecorderRef.current = recorder;
+      clearPendingAttachment();
 
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
+      const blob = new Blob(audioChunksRef.current, { type: preferredMimeType });
+      audioChunksRef.current = [];
 
-      recorder.onstop = () => {
-        // El audio grabado se queda en memoria como File pendiente; la
-        // subida a /api/uploads solo ocurre al presionar enviar, igual que
-        // con imágenes y documentos.
-        clearPendingAttachment();
-
-        const blob = new Blob(audioChunksRef.current, { type: preferredMimeType });
-        const previewUrl = URL.createObjectURL(blob);
-        const extension = preferredMimeType.includes('ogg')
-          ? 'ogg'
-          : preferredMimeType.includes('mpeg')
-            ? 'mp3'
-            : 'webm';
-        const filename = `audio-${Date.now()}.${extension}`;
-        const audioFile = new File([blob], filename, { type: preferredMimeType });
-
-        setUploadError(null);
-        setPendingAttachmentFile(audioFile);
-        setUploadFileType('audio');
-        setUploadFileName(filename);
-        setRecordedAudioUrl(previewUrl);
+      if (blob.size === 0 || finalElapsedSeconds < MIN_RECORDING_SECONDS) {
+        setUploadError('La grabación es demasiado corta. Mantén presionado un poco más e intenta de nuevo.');
         setIsRecording(false);
-        stream.getTracks().forEach((track) => track.stop());
-      };
+        setRecordingElapsedSeconds(0);
+        return;
+      }
 
-      recorder.start();
-      setRecordedAudioUrl(null);
-      setIsRecording(true);
-    } catch (error) {
-      console.error('Error al iniciar grabación de audio:', error);
+      const previewUrl = URL.createObjectURL(blob);
+      const extension = preferredMimeType.includes('ogg')
+        ? 'ogg'
+        : preferredMimeType.includes('mpeg')
+          ? 'mp3'
+          : preferredMimeType.includes('mp4')
+            ? 'm4a'
+            : 'webm';
+      const filename = `audio-${Date.now()}.${extension}`;
+      const audioFile = new File([blob], filename, { type: preferredMimeType });
+
+      setUploadError(null);
+      setPendingAttachmentFile(audioFile);
+      setUploadFileType('audio');
+      setUploadFileName(filename);
+      setRecordedAudioUrl(previewUrl);
+      setRecordedAudioDurationSeconds(finalElapsedSeconds);
       setIsRecording(false);
+      setRecordingElapsedSeconds(0);
+    };
+
+    recorder.start();
+    setUploadError(null);
+    setRecordedAudioUrl(null);
+    setRecordedAudioDurationSeconds(null);
+    setRecordingElapsedSeconds(0);
+    recordingStartedAtRef.current = Date.now();
+    recordingIntervalRef.current = setInterval(() => {
+      if (recordingStartedAtRef.current == null) return;
+      const elapsed = Math.floor((Date.now() - recordingStartedAtRef.current) / 1000);
+      setRecordingElapsedSeconds(elapsed);
+      if (elapsed >= MAX_RECORDING_SECONDS && mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+    }, 200);
+    setIsRecording(true);
+  };
+
+  // Cancela una grabación en curso sin conservar nada: detiene el
+  // MediaRecorder y todas las pistas del micrófono, descarta los chunks
+  // acumulados y no arma ningún adjunto pendiente ni mensaje (a diferencia
+  // de handleToggleRecording, cuyo onstop sí arma el adjunto). Se usa tanto
+  // para el botón "Cancelar" durante la grabación como para salidas
+  // involuntarias (cambiar de conversación, volver a la bandeja en móvil,
+  // desmontar la página).
+  const handleCancelRecording = () => {
+    if (!mediaRecorderRef.current) {
+      stopRecordingTimer();
+      setIsRecording(false);
+      setRecordingElapsedSeconds(0);
+      return;
     }
+
+    if (mediaRecorderRef.current.state === 'recording') {
+      cancelRecordingRef.current = true;
+      mediaRecorderRef.current.stop();
+      return;
+    }
+
+    // Ya estaba inactivo (no debería ocurrir en el flujo normal): limpia
+    // manualmente para no dejar pistas del micrófono activas.
+    mediaRecorderRef.current.stream?.getTracks().forEach((track) => track.stop());
+    stopRecordingTimer();
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingElapsedSeconds(0);
   };
 
   const ALLOWED_ATTACHMENT_MIME_TYPES = [
@@ -1896,6 +2068,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     setUploadFileType(null);
     setUploadFileName(null);
     setRecordedAudioUrl(null);
+    setRecordedAudioDurationSeconds(null);
   };
 
   // Validación + preparación 100% local (selector manual y pegado de
@@ -2273,6 +2446,20 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         handleSelectUpload={handleSelectUpload}
         handleUploadFile={handleUploadFile}
         handleRemoveAttachment={handleRemoveAttachment}
+        isRecording={isRecording}
+        recordingElapsedSeconds={recordingElapsedSeconds}
+        recordedAudioUrl={recordedAudioUrl}
+        recordedAudioDurationSeconds={recordedAudioDurationSeconds}
+        handleToggleRecording={handleToggleRecording}
+        handleCancelRecording={handleCancelRecording}
+        forwardMessage={forwardMessage}
+        setForwardMessage={setForwardMessage}
+        snackbar={snackbar}
+        setSnackbar={setSnackbar}
+        loadConversations={loadConversations}
+        replyingTo={replyingTo}
+        setReplyingTo={setReplyingTo}
+        focusReplyInput={focusReplyInput}
         onChatOpenChange={onMobileConversationOpenChange}
       />
     );

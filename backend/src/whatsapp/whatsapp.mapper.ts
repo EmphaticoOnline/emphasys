@@ -7,6 +7,9 @@ export interface NormalizedMessage {
   mediaUrl: string | null;
   caption: string | null;
   mimeType: string | null;
+  // id_externo del mensaje citado, si el cliente respondió citando desde su
+  // propio WhatsApp (null si no es una respuesta). Ver extractQuotedMessageId.
+  quotedMessageId: string | null;
 }
 
 interface MediaField {
@@ -39,21 +42,40 @@ const extractMediaUrl = (media?: MediaField): string | null =>
 const extractMimeType = (media?: MediaField): string | null =>
   media?.mime_type || media?.mimeType || null;
 
+// Cuando el cliente responde citando un mensaje desde su propio WhatsApp, el
+// `context` que Gupshup entrega en el webhook entrante trae TRES
+// identificadores distintos del mensaje citado — confirmado contra tráfico
+// real de producción (2026-07-17, conversación de prueba):
+//   context.gs_id       -> el mismo UUID que Gupshup devuelve como
+//                          `messageId` en la respuesta síncrona de envío Y
+//                          como `gs_id` en los webhooks de status. Es
+//                          EXACTAMENTE el valor que este proyecto ya guarda
+//                          como crm.mensajes.id_externo para mensajes
+//                          salientes (ver registrarMensaje*SalienteWhatsapp).
+//   context.id          -> un id corto interno de Gupshup (aparece también
+//                          como "id" en los webhooks de status, junto a
+//                          gs_id) que NO coincide con nada que persistamos.
+//   context.meta_msg_id -> el wamid real de WhatsApp — no lo usamos porque
+//                          hoy no persistimos el wamid de los mensajes que
+//                          nosotros enviamos (solo el gs_id de Gupshup).
+// Por eso context.gs_id es el único que puede resolver contra id_externo tal
+// como está almacenado hoy. Se prioriza explícitamente, con el resto como
+// alias defensivos (algún otro canal/versión de Gupshup podría diferir).
+// Nunca se hace matching parcial: solo se toma el valor tal cual, para
+// comparar por igualdad exacta contra id_externo.
+export const extractQuotedMessageId = (message: any): string | null => {
+  const context = message?.context;
+  if (!context || typeof context !== 'object') return null;
+
+  const candidate = context.gs_id ?? context.gsId ?? context.id ?? context.msgId ?? context.messageId;
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+};
+
 export const normalizeWhatsappPayload = (body: any): NormalizedMessage | null => {
   const change = body?.entry?.[0]?.changes?.[0]?.value;
   const message = change?.messages?.[0];
 
   if (!message) return null;
-
-  // Log temporal: confirmar si Gupshup expone algún gsId/gs_id (u otro campo equivalente)
-  // en mensajes entrantes, para poder citarlos con context.msgId al responder. Quitar una
-  // vez confirmado.
-  console.log('[WhatsApp Webhook][Reply][DEBUG] Claves del mensaje entrante crudo', {
-    messageKeys: Object.keys(message),
-    gsId: message.gsId ?? message.gs_id ?? null,
-    context: message.context ?? null,
-    rawMessage: message,
-  });
 
   const base = {
     from: message.from,
@@ -61,6 +83,7 @@ export const normalizeWhatsappPayload = (body: any): NormalizedMessage | null =>
     timestamp: message.timestamp
       ? new Date(Number(message.timestamp) * 1000).toISOString()
       : undefined,
+    quotedMessageId: extractQuotedMessageId(message),
   };
 
   const rawType = typeof message.type === 'string' ? message.type : 'text';

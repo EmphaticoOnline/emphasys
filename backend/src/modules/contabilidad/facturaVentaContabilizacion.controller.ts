@@ -6,6 +6,7 @@ import {
   generarReversaCancelacionFacturaVenta,
   obtenerEstadoContableFacturasVentaLote,
   CuentaFaltanteError,
+  type ContabilizarLoteFacturaVentaInput,
 } from './facturaVentaContabilizacion.repository';
 
 function getEmpresaId(req: Request): number {
@@ -63,14 +64,29 @@ export async function postContabilizarFacturasVentaLote(req: Request, res: Respo
 
     const body = req.body ?? {};
     const agrupacion = body.agrupacion === 'concentrado' ? 'concentrado' : 'individual';
+    const tipoPolizaId = body.tipo_poliza_id != null ? Number(body.tipo_poliza_id) : undefined;
+    const usuarioId = body.usuario_id != null ? Number(body.usuario_id) : req.auth?.userId ?? null;
 
-    const resultado = await contabilizarFacturasVentaLote(empresaId, {
-      fecha_desde: String(body.fecha_desde ?? ''),
-      fecha_hasta: String(body.fecha_hasta ?? ''),
-      tipo_poliza_id: body.tipo_poliza_id != null ? Number(body.tipo_poliza_id) : undefined,
-      usuario_id: body.usuario_id != null ? Number(body.usuario_id) : req.auth?.userId ?? null,
-      agrupacion,
-    });
+    // Modalidad "seleccion" (documento_ids explícitos) tiene prioridad sobre
+    // "rango" (fecha_desde/fecha_hasta): si vienen documento_ids, se ignoran
+    // las fechas.
+    const documentoIds = Array.isArray(body.documento_ids)
+      ? body.documento_ids.map((id: unknown) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0)
+      : [];
+
+    const input: ContabilizarLoteFacturaVentaInput =
+      documentoIds.length > 0
+        ? { modo: 'seleccion', documento_ids: documentoIds, tipo_poliza_id: tipoPolizaId, usuario_id: usuarioId, agrupacion }
+        : {
+            modo: 'rango',
+            fecha_desde: String(body.fecha_desde ?? ''),
+            fecha_hasta: String(body.fecha_hasta ?? ''),
+            tipo_poliza_id: tipoPolizaId,
+            usuario_id: usuarioId,
+            agrupacion,
+          };
+
+    const resultado = await contabilizarFacturasVentaLote(empresaId, input);
     return res.status(201).json(resultado);
   } catch (error) {
     console.error('Error al contabilizar facturas de venta en lote', error);

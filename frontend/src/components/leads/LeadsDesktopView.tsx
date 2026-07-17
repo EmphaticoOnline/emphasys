@@ -48,6 +48,7 @@ import { SendWhatsappTemplateDialog } from '../SendWhatsappTemplateDialog';
 import { ForwardMessageDialog, type ForwardableMessage } from '../ForwardMessageDialog';
 import { linkifyMessageText } from '../LinkifiedText';
 import { computeListContinuation } from '../../utils/messageListContinuation';
+import { useMessageHighlight } from '../../hooks/useMessageHighlight';
 import {
   buildLeadOwnerLabel,
   buildReplyPreviewText,
@@ -329,10 +330,6 @@ type ChatImageProps = {
   // usa borde y objectFit distintos a la burbuja del mensaje enviado.
   border?: boolean;
   objectFit?: 'cover' | 'contain';
-  // Identificador solo para los logs temporales de diagnóstico de esta
-  // investigación (id de mensaje real, "optimistic:<tempId>" o
-  // "composer-preview"). No afecta el render ni la lógica.
-  debugLabel?: string;
 };
 
 // Causa confirmada del "barrido" en el mensaje recién enviado: cuando el
@@ -356,7 +353,7 @@ const decodedChatImageUrls = new Set<string>();
 // máximo. No cambia de dónde viene `src` (msg.mediaUrl, sin tocar) ni el
 // tamaño final de la imagen ya mostrada (mismos maxWidth/maxHeight de
 // siempre): solo controla CUÁNDO se revela.
-function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, objectFit, debugLabel }: ChatImageProps) {
+function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, objectFit }: ChatImageProps) {
   // Si esta URL ya se decodificó con éxito antes en esta sesión (p. ej. el
   // mismo mensaje visto un momento antes como optimista), arranca ya listo:
   // evita el remount-tras-cambio-de-key (ver decodedChatImageUrls arriba).
@@ -370,41 +367,16 @@ function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, object
 
     let cancelled = false;
     setReady(false);
-    const isBlob = src.startsWith('blob:');
-    const startedAt = Date.now();
-
-    // INSTRUMENTACIÓN TEMPORAL DE DIAGNÓSTICO (barrido de imágenes) — solo
-    // en desarrollo, retirar una vez confirmada la causa real en dispositivo.
-    if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.log('[ChatImage:desktop] src asignado, precargando', { debugLabel, src, isBlob, startedAt });
-    }
 
     const preloader = new Image();
     preloader.src = src;
 
     const markReady = (via: 'decode' | 'decode-error' | 'onload' | 'onerror') => {
       if (cancelled) {
-        if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
-          console.log('[ChatImage:desktop] resolvió después de desmontar/cambiar src — ignorado', { debugLabel, src, via });
-        }
         return;
       }
       if (via === 'decode' || via === 'onload') {
         decodedChatImageUrls.add(src);
-      }
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.log('[ChatImage:desktop] LISTO, revelando <img> real', {
-          debugLabel,
-          src,
-          isBlob,
-          via,
-          naturalWidth: preloader.naturalWidth,
-          naturalHeight: preloader.naturalHeight,
-          elapsedMs: Date.now() - startedAt,
-        });
       }
       setReady(true);
     };
@@ -418,12 +390,8 @@ function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, object
 
     return () => {
       cancelled = true;
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.log('[ChatImage:desktop] desmontado / src cambiando', { debugLabel, src });
-      }
     };
-  }, [src, debugLabel]);
+  }, [src]);
 
   if (!ready) {
     return <Skeleton variant="rounded" width={maxWidth} height={maxHeight} sx={{ mb: marginBottom }} />;
@@ -599,6 +567,12 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
     ventanaCerradaDialogOpen,
     setVentanaCerradaDialogOpen,
   } = props;
+
+  // Al tocar la cita de un mensaje respondido, hace scroll hasta el mensaje
+  // original (dentro del mismo Paper con overflow:auto que ya usa
+  // conversationScrollRef) y lo resalta ~2s. Mismo hook que usa
+  // LeadsMobileView, ninguna lógica de scroll/resaltado duplicada.
+  const { highlightedMessageId, scrollToMessage } = useMessageHighlight(conversationScrollRef);
 
   return (
     <>
@@ -1607,7 +1581,13 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                   sx={{ p: 1.25, maxHeight: '50vh', minHeight: 260, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}
                 >
                   {selectedLead.conversation.map((msg) => {
-                    const replyButton = (
+                    // Solo se puede responder/reenviar un mensaje que ya quedó
+                    // persistido en el backend (tiene un id real de
+                    // crm.mensajes): los mensajes optimistas "sending"/"failed"
+                    // todavía usan un tempId local y no existen en la base de
+                    // datos, así que no hay nada a lo que referenciar todavía.
+                    const canReply = !msg.tempId;
+                    const replyButton = canReply ? (
                       <IconButton
                         className="reply-hover-btn"
                         size="small"
@@ -1624,12 +1604,8 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                       >
                         <ReplyIcon fontSize="small" />
                       </IconButton>
-                    );
+                    ) : null;
 
-                    // Solo se puede reenviar un mensaje que ya quedó persistido en el
-                    // backend (tiene un id real de crm.mensajes): los mensajes optimistas
-                    // "sending"/"failed" todavía usan un tempId local y no existen en la
-                    // base de datos, así que no hay nada que reenviar todavía.
                     const canForward = !msg.tempId;
                     const forwardButton = canForward ? (
                       <IconButton
@@ -1653,6 +1629,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
 
                     const bubble = (
                       <Box
+                        data-message-id={msg.id}
                         sx={{
                           maxWidth: '75%',
                           px: 1.25,
@@ -1660,10 +1637,28 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                           borderRadius: 1.5,
                           bgcolor: msg.from === 'me' ? 'primary.main' : 'grey.100',
                           color: msg.from === 'me' ? 'primary.contrastText' : 'text.primary',
+                          transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
+                          ...(highlightedMessageId === msg.id
+                            ? {
+                              boxShadow: (theme) => `0 0 0 2px ${theme.palette.warning.main}`,
+                              bgcolor: 'warning.light',
+                              color: 'text.primary',
+                            }
+                            : {}),
                         }}
                       >
                         {msg.replyTo && (
                           <Box
+                            role="button"
+                            tabIndex={0}
+                            aria-label="Ir al mensaje original"
+                            onClick={() => scrollToMessage(msg.replyTo!.id)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                scrollToMessage(msg.replyTo!.id);
+                              }
+                            }}
                             sx={{
                               borderLeft: '3px solid',
                               borderColor: msg.from === 'me' ? 'rgba(255,255,255,0.6)' : 'primary.main',
@@ -1672,6 +1667,8 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                               px: 1,
                               py: 0.5,
                               mb: 0.5,
+                              cursor: 'pointer',
+                              '&:hover': { opacity: 0.85 },
                             }}
                           >
                             <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', opacity: 0.9 }}>
@@ -1705,7 +1702,6 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                               maxWidth={250}
                               maxHeight={250}
                               marginBottom={msg.text ? 0.5 : 0}
-                              debugLabel={msg.tempId ? `optimistic:${msg.tempId}` : `msg:${msg.id}`}
                             />
                           </Box>
                         )}
@@ -1963,7 +1959,6 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                               maxWidth={200}
                               maxHeight={200}
                               border
-                              debugLabel="composer-preview"
                             />
                           )}
                           {uploadFileType === 'audio' && recordedAudioUrl && (

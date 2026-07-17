@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import pool from '../../config/database';
 import { resolverCuentaContable, type CuentaResuelta } from './configuracionCuentasContables.repository';
 import { obtenerOCrearConfiguracion } from './configuracion.repository';
@@ -221,6 +222,9 @@ async function validarElegibilidadFacturaVenta(empresaId: number, doc: FacturaVe
   }
 
   const estatus = String(doc.estatus_documento ?? '').trim().toLowerCase();
+  if (estatus === 'borrador') {
+    throw new Error('VALIDATION_ERROR: La factura está en borrador y no puede contabilizarse.');
+  }
   if (estatus === 'cancelado' || estatus === 'cancelada') {
     throw new Error('VALIDATION_ERROR: La factura está cancelada y no puede contabilizarse.');
   }
@@ -594,7 +598,7 @@ async function listarFacturasVentaCandidatasRango(
       WHERE d.empresa_id = $1
         AND LOWER(d.tipo_documento) = 'factura'
         AND LOWER(d.tratamiento_impuestos) = 'normal'
-        AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+        AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada', 'borrador')
         AND d.fecha_documento BETWEEN $2 AND $3
       ORDER BY d.fecha_documento, d.id`,
     [empresaId, fechaDesde, fechaHasta]
@@ -602,17 +606,124 @@ async function listarFacturasVentaCandidatasRango(
   return rows.map((r) => ({ id: Number(r.id), ya_contabilizada: Boolean(r.ya_contabilizada) }));
 }
 
-export type ContabilizarLoteFacturaVentaInput = {
-  fecha_desde: string;
-  fecha_hasta: string;
-  // Override manual opcional; el flujo normal de UI ya no lo envía (ver
-  // ContabilizarFacturaVentaInput.tipo_poliza_id).
-  tipo_poliza_id?: number | null;
-  usuario_id?: number | null;
-  agrupacion: 'individual' | 'concentrado';
-};
+interface CandidatoLoteFacturaVentaSeleccion {
+  ya_contabilizada: boolean;
+  // null = elegible; string = motivo por el que se excluye antes de intentar
+  // contabilizar (no existe/no es de la empresa, cancelada, no es factura
+  // estándar, o no timbrada sin permiso).
+  no_elegible: string | null;
+}
 
-export type EstadoDocumentoLote = 'contabilizada' | 'omitida_ya_contabilizada' | 'error';
+// A diferencia del rango (un solo filtro SQL sobre todo el universo de
+// facturas), aquí se parte de los IDs que el usuario seleccionó en la grilla
+// y se clasifica cada uno explícitamente, para poder reportar "seleccionadas
+// / elegibles / omitidas" en vez de simplemente excluirlos en el WHERE.
+async function listarFacturasVentaCandidatasSeleccion(
+  empresaId: number,
+  documentoIds: number[]
+): Promise<Map<number, CandidatoLoteFacturaVentaSeleccion>> {
+  const resultado = new Map<number, CandidatoLoteFacturaVentaSeleccion>();
+  if (documentoIds.length === 0) return resultado;
+
+  const configuracion = await obtenerOCrearConfiguracion(empresaId);
+
+  const { rows } = await pool.query<{
+    id: number;
+    tipo_documento: string | null;
+    tratamiento_impuestos: string | null;
+    estatus_documento: string | null;
+    timbrada: boolean;
+    ya_contabilizada: boolean;
+  }>(
+    `SELECT d.id, d.tipo_documento, d.tratamiento_impuestos, d.estatus_documento,
+            EXISTS(SELECT 1 FROM public.documentos_cfdi c WHERE c.documento_id = d.id) AS timbrada,
+            EXISTS (
+              SELECT 1 FROM contabilidad.contabilizaciones ct
+              WHERE ct.empresa_id = d.empresa_id AND ct.documento_id = d.id
+                AND ct.evento_contable = 'emision' AND ct.es_reversa = false
+            ) AS ya_contabilizada
+       FROM public.documentos d
+      WHERE d.empresa_id = $1 AND d.id = ANY($2::bigint[])`,
+    [empresaId, documentoIds]
+  );
+  const encontrados = new Map(rows.map((r) => [Number(r.id), r]));
+
+  for (const id of documentoIds) {
+    const fila = encontrados.get(id);
+    if (!fila) {
+      resultado.set(id, { ya_contabilizada: false, no_elegible: 'El documento no existe o no pertenece a la empresa.' });
+      continue;
+    }
+    const tipo = String(fila.tipo_documento ?? '').trim().toLowerCase();
+    if (tipo !== 'factura') {
+      resultado.set(id, { ya_contabilizada: false, no_elegible: 'Solo se pueden contabilizar documentos de tipo factura.' });
+      continue;
+    }
+    const estatus = String(fila.estatus_documento ?? '').trim().toLowerCase();
+    if (estatus === 'borrador') {
+      resultado.set(id, { ya_contabilizada: false, no_elegible: 'La factura está en borrador y no puede contabilizarse.' });
+      continue;
+    }
+    if (estatus === 'cancelado' || estatus === 'cancelada') {
+      resultado.set(id, { ya_contabilizada: false, no_elegible: 'La factura está cancelada y no puede contabilizarse.' });
+      continue;
+    }
+    const tratamiento = String(fila.tratamiento_impuestos ?? '').trim().toLowerCase();
+    if (tratamiento === 'sin_iva') {
+      resultado.set(id, {
+        ya_contabilizada: false,
+        no_elegible: 'Las notas de venta (tratamiento sin_iva) no se contabilizan.',
+      });
+      continue;
+    }
+    if (tratamiento !== 'normal') {
+      resultado.set(id, {
+        ya_contabilizada: false,
+        no_elegible: `El tratamiento fiscal "${fila.tratamiento_impuestos}" no está soportado todavía por la contabilización automática.`,
+      });
+      continue;
+    }
+    if (!fila.timbrada && !configuracion.permitir_venta_no_timbrada) {
+      resultado.set(id, { ya_contabilizada: false, no_elegible: 'La factura no está timbrada.' });
+      continue;
+    }
+    resultado.set(id, { ya_contabilizada: Boolean(fila.ya_contabilizada), no_elegible: null });
+  }
+
+  return resultado;
+}
+
+// Modalidad "rango": todas las facturas de venta candidatas dentro de un
+// rango de fechas (comportamiento histórico). Modalidad "seleccion": solo
+// los documento_ids indicados explícitamente (selección en la grilla), sin
+// requerir fechas.
+export type ContabilizarLoteFacturaVentaInput =
+  | {
+      modo: 'rango';
+      fecha_desde: string;
+      fecha_hasta: string;
+      // Override manual opcional; el flujo normal de UI ya no lo envía (ver
+      // ContabilizarFacturaVentaInput.tipo_poliza_id).
+      tipo_poliza_id?: number | null;
+      usuario_id?: number | null;
+      agrupacion: 'individual' | 'concentrado';
+    }
+  | {
+      modo: 'seleccion';
+      documento_ids: number[];
+      tipo_poliza_id?: number | null;
+      usuario_id?: number | null;
+      agrupacion: 'individual' | 'concentrado';
+    };
+
+export type EstadoDocumentoLote =
+  | 'contabilizada'
+  | 'omitida_ya_contabilizada'
+  // Solo aplica a modalidad "seleccion": documento no encontrado en la
+  // empresa, cancelado, no es factura estándar o no timbrado sin permiso. Se
+  // detecta antes de intentar contabilizar, por eso nunca cae en 'error'.
+  | 'omitida_no_elegible'
+  | 'error';
 
 export type ResultadoDocumentoLote = {
   documento_id: number;
@@ -625,13 +736,34 @@ export type ResumenLoteFacturaVenta = {
   total_en_rango: number;
   contabilizadas: number;
   omitidas_ya_contabilizadas: number;
+  omitidas_no_elegibles: number;
   con_error: number;
+  // Solo poblados en modalidad "seleccion".
+  seleccionadas?: number;
+  elegibles?: number;
 };
+
+function construirResumenLote(
+  totalEvaluado: number,
+  resultados: ResultadoDocumentoLote[],
+  extra?: { seleccionadas?: number; elegibles?: number }
+): ResumenLoteFacturaVenta {
+  return {
+    total_en_rango: totalEvaluado,
+    contabilizadas: resultados.filter((r) => r.estado === 'contabilizada').length,
+    omitidas_ya_contabilizadas: resultados.filter((r) => r.estado === 'omitida_ya_contabilizada').length,
+    omitidas_no_elegibles: resultados.filter((r) => r.estado === 'omitida_no_elegible').length,
+    con_error: resultados.filter((r) => r.estado === 'error').length,
+    ...(extra?.seleccionadas != null ? { seleccionadas: extra.seleccionadas } : {}),
+    ...(extra?.elegibles != null ? { elegibles: extra.elegibles } : {}),
+  };
+}
 
 export type ResultadoLoteIndividual = {
   modo: 'lote_individual';
   resumen: ResumenLoteFacturaVenta;
   resultados: ResultadoDocumentoLote[];
+  mensaje?: string;
 };
 
 export type ResultadoLoteConcentrado = {
@@ -642,18 +774,6 @@ export type ResultadoLoteConcentrado = {
   contabilizaciones: Contabilizacion[];
   mensaje?: string;
 };
-
-function construirResumenLote(
-  totalEnRango: number,
-  resultados: ResultadoDocumentoLote[]
-): ResumenLoteFacturaVenta {
-  return {
-    total_en_rango: totalEnRango,
-    contabilizadas: resultados.filter((r) => r.estado === 'contabilizada').length,
-    omitidas_ya_contabilizadas: resultados.filter((r) => r.estado === 'omitida_ya_contabilizada').length,
-    con_error: resultados.filter((r) => r.estado === 'error').length,
-  };
-}
 
 const MENSAJE_YA_CONTABILIZADA = 'La factura ya fue contabilizada para el evento de emisión.';
 
@@ -679,22 +799,62 @@ export async function contabilizarFacturasVentaLote(
   empresaId: number,
   input: ContabilizarLoteFacturaVentaInput
 ): Promise<ResultadoLoteIndividual | ResultadoLoteConcentrado> {
-  validarRangoFechas(input.fecha_desde, input.fecha_hasta);
   // Se resuelve una sola vez para todo el lote: si no está configurado (y no
   // se pasó override), falla aquí mismo, antes de tocar ninguna factura.
   const tipoPolizaId = await resolverTipoPolizaVenta(empresaId, 'factura', input.tipo_poliza_id);
 
-  const candidatos = await listarFacturasVentaCandidatasRango(empresaId, input.fecha_desde, input.fecha_hasta);
   const resultados: ResultadoDocumentoLote[] = [];
+  let candidatos: CandidatoLoteFacturaVenta[];
+  let totalEvaluado: number;
+  let extraResumen: { seleccionadas?: number; elegibles?: number } | undefined;
+  const esSeleccion = input.modo === 'seleccion';
+  const prefijoReferencia = esSeleccion ? 'VENTAS SELECCIÓN' : 'VENTAS';
+  const mensajeSinPendientes = esSeleccion
+    ? 'No hay facturas pendientes de contabilizar en la selección.'
+    : 'No hay facturas pendientes de contabilizar en el rango seleccionado.';
 
-  // Las ya contabilizadas se registran como omitidas de inmediato: nunca
-  // pasan por contabilizarFacturaVenta/construirAsientoFacturaVenta, así que
-  // jamás pueden generar el error "ya fue contabilizada" para el lote.
-  for (const candidato of candidatos) {
-    if (candidato.ya_contabilizada) {
-      resultados.push({ documento_id: candidato.id, estado: 'omitida_ya_contabilizada', motivo: MENSAJE_YA_CONTABILIZADA });
+  if (input.modo === 'seleccion') {
+    const idsUnicos = Array.from(new Set(input.documento_ids ?? []));
+    if (idsUnicos.length === 0) {
+      throw new Error('VALIDATION_ERROR: Debe indicar al menos una factura seleccionada para contabilizar.');
     }
+
+    const clasificadas = await listarFacturasVentaCandidatasSeleccion(empresaId, idsUnicos);
+    // Ya contabilizadas y no elegibles se resuelven de inmediato, antes de
+    // intentar nada: nunca pasan por contabilizarFacturaVenta, así que jamás
+    // aparecen como 'error' (rojo) en el resultado.
+    for (const id of idsUnicos) {
+      const info = clasificadas.get(id)!;
+      if (info.no_elegible) {
+        resultados.push({ documento_id: id, estado: 'omitida_no_elegible', motivo: info.no_elegible });
+      } else if (info.ya_contabilizada) {
+        resultados.push({ documento_id: id, estado: 'omitida_ya_contabilizada', motivo: MENSAJE_YA_CONTABILIZADA });
+      }
+    }
+    candidatos = idsUnicos
+      .filter((id) => {
+        const info = clasificadas.get(id)!;
+        return !info.no_elegible && !info.ya_contabilizada;
+      })
+      .map((id) => ({ id, ya_contabilizada: false }));
+
+    totalEvaluado = idsUnicos.length;
+    extraResumen = { seleccionadas: idsUnicos.length, elegibles: candidatos.length };
+  } else {
+    validarRangoFechas(input.fecha_desde, input.fecha_hasta);
+    candidatos = await listarFacturasVentaCandidatasRango(empresaId, input.fecha_desde, input.fecha_hasta);
+
+    // Las ya contabilizadas se registran como omitidas de inmediato: nunca
+    // pasan por contabilizarFacturaVenta/construirAsientoFacturaVenta, así que
+    // jamás pueden generar el error "ya fue contabilizada" para el lote.
+    for (const candidato of candidatos) {
+      if (candidato.ya_contabilizada) {
+        resultados.push({ documento_id: candidato.id, estado: 'omitida_ya_contabilizada', motivo: MENSAJE_YA_CONTABILIZADA });
+      }
+    }
+    totalEvaluado = candidatos.length;
   }
+
   const pendientes = candidatos.filter((c) => !c.ya_contabilizada);
 
   if (input.agrupacion === 'individual') {
@@ -714,17 +874,22 @@ export async function contabilizarFacturasVentaLote(
         }
       }
     }
-    return { modo: 'lote_individual', resumen: construirResumenLote(candidatos.length, resultados), resultados };
+    return {
+      modo: 'lote_individual',
+      resumen: construirResumenLote(totalEvaluado, resultados, extraResumen),
+      resultados,
+      ...(pendientes.length === 0 ? { mensaje: mensajeSinPendientes } : {}),
+    };
   }
 
   if (pendientes.length === 0) {
     return {
       modo: 'lote_concentrado',
-      resumen: construirResumenLote(candidatos.length, resultados),
+      resumen: construirResumenLote(totalEvaluado, resultados, extraResumen),
       resultados,
       polizas: [],
       contabilizaciones: [],
-      mensaje: 'No hay facturas pendientes de contabilizar en el rango seleccionado.',
+      mensaje: mensajeSinPendientes,
     };
   }
 
@@ -793,7 +958,15 @@ export async function contabilizarFacturasVentaLote(
     if (movimientos.length === 0) continue;
 
     const cantidadFacturas = grupo.documentos.length;
-    const referencia = `VENTAS ${periodoLabel} - ${cantidadFacturas} factura${cantidadFacturas === 1 ? '' : 's'}`;
+    const sufijoFacturas = `${cantidadFacturas} factura${cantidadFacturas === 1 ? '' : 's'}`;
+    // En selección, si todo cae en un solo periodo (caso típico: se eligieron
+    // facturas puntuales) se omite el periodo en la referencia, tal como pide
+    // el flujo ("VENTAS SELECCIÓN - N facturas"). Si la selección abarca más
+    // de un periodo, cada póliza sigue necesitando distinguirse por mes.
+    const referencia =
+      esSeleccion && grupos.size === 1
+        ? `${prefijoReferencia} - ${sufijoFacturas}`
+        : `${prefijoReferencia} ${periodoLabel} - ${sufijoFacturas}`;
     const folios = grupo.documentos.map((d) => d.folio);
     const foliosMostrados = folios.slice(0, LIMITE_FOLIOS_OBSERVACIONES).join(', ');
     const foliosRestantes = folios.length - LIMITE_FOLIOS_OBSERVACIONES;
@@ -833,7 +1006,7 @@ export async function contabilizarFacturasVentaLote(
 
   return {
     modo: 'lote_concentrado',
-    resumen: construirResumenLote(candidatos.length, resultados),
+    resumen: construirResumenLote(totalEvaluado, resultados, extraResumen),
     resultados,
     polizas,
     contabilizaciones,
@@ -858,16 +1031,24 @@ export type ResultadoReversaCancelacion =
   | { generada: false; motivo: string }
   | { generada: true; poliza: PolizaEncabezado; contabilizacion: Contabilizacion };
 
+// client opcional: cuando se pasa (p. ej. desde la transacción de
+// cancelación de documentos-cancel.service.ts), toda la generación de la
+// reversa —lectura de la contabilización/póliza original, creación de la
+// póliza reversa y registro en contabilidad.contabilizaciones— corre sobre
+// esa misma conexión/transacción en vez de abrir una segunda con
+// pool.connect() (ver comentario detallado en crearPolizaConMovimientos).
 export async function generarReversaCancelacionFacturaVenta(
   empresaId: number,
   documentoId: number,
-  input: ReversaCancelacionFacturaVentaInput
+  input: ReversaCancelacionFacturaVentaInput,
+  client?: PoolClient
 ): Promise<ResultadoReversaCancelacion> {
   // Se resuelve primero: si no está configurado (y no se pasó override), no
   // se genera ninguna póliza de reversa.
   const tipoPolizaId = await resolverTipoPolizaVenta(empresaId, 'cancelacion', input.tipo_poliza_id);
 
-  const { rows } = await pool.query<{ id: number }>(
+  const db = client ?? pool;
+  const { rows } = await db.query<{ id: number }>(
     `SELECT id FROM contabilidad.contabilizaciones
       WHERE empresa_id = $1 AND documento_id = $2 AND evento_contable = 'emision' AND es_reversa = false
       ORDER BY id DESC
@@ -882,12 +1063,15 @@ export async function generarReversaCancelacionFacturaVenta(
     };
   }
 
-  const original = await obtenerContabilizacionPorId(contabilizacionOrigenId, empresaId);
+  const original = await obtenerContabilizacionPorId(contabilizacionOrigenId, empresaId, client);
   if (!original) {
     return { generada: false, motivo: 'No se encontró la contabilización original.' };
   }
 
-  const polizaOriginal = await obtenerPolizaPorId(original.poliza_id, empresaId);
+  const polizaOriginal = await obtenerPolizaPorId(original.poliza_id, empresaId, client);
+  // Movimientos de la póliza ORIGINAL: son datos ya confirmados de una
+  // transacción previa (la contabilización de emisión), visibles igual desde
+  // pool o desde el client de esta transacción — no hace falta el client aquí.
   const movimientosOriginales = await listarMovimientosPoliza(original.poliza_id, empresaId);
   if (!polizaOriginal || !movimientosOriginales) {
     throw new Error('VALIDATION_ERROR: No se pudo obtener la póliza original para generar la reversa.');
@@ -903,7 +1087,7 @@ export async function generarReversaCancelacionFacturaVenta(
     abono: m.cargo,
   }));
 
-  const { rows: docRows } = await pool.query<{ fecha_cancelacion: string | null }>(
+  const { rows: docRows } = await db.query<{ fecha_cancelacion: string | null }>(
     `SELECT to_char(fecha_cancelacion, 'YYYY-MM-DD') AS fecha_cancelacion
        FROM public.documentos
       WHERE id = $1 AND empresa_id = $2`,
@@ -921,16 +1105,22 @@ export async function generarReversaCancelacionFacturaVenta(
       estatus: 'aplicada',
       movimientos: movimientosReversa,
     },
-    input.usuario_id ?? null
+    input.usuario_id ?? null,
+    client
   );
 
-  const reversa = (await registrarReversa(empresaId, contabilizacionOrigenId, {
-    poliza_id: polizaReversa.id,
-    evento_contable: 'cancelacion',
-    fecha_documento: fechaReversa,
-    usuario_id: input.usuario_id ?? null,
-    comentario: input.comentario ?? null,
-  })) as Contabilizacion;
+  const reversa = (await registrarReversa(
+    empresaId,
+    contabilizacionOrigenId,
+    {
+      poliza_id: polizaReversa.id,
+      evento_contable: 'cancelacion',
+      fecha_documento: fechaReversa,
+      usuario_id: input.usuario_id ?? null,
+      comentario: input.comentario ?? null,
+    },
+    client
+  )) as Contabilizacion;
 
   return { generada: true, poliza: polizaReversa, contabilizacion: reversa };
 }
@@ -1029,6 +1219,10 @@ export async function obtenerEstadoContableFacturasVentaLote(
       continue;
     }
     const estatus = String(doc.estatus_documento ?? '').trim().toLowerCase();
+    if (estatus === 'borrador') {
+      resultado[id] = { estado: 'no_contabilizable', motivo: 'La factura está en borrador.' };
+      continue;
+    }
     if (estatus === 'cancelado' || estatus === 'cancelada') {
       resultado[id] = { estado: 'no_contabilizable', motivo: 'La factura está cancelada.' };
       continue;

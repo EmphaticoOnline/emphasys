@@ -89,3 +89,28 @@ export function linkifyMessageText(text: string): React.ReactNode[] {
 
   return nodes;
 }
+
+/**
+ * Devuelve la URL si el texto contiene exactamente una, o null si no hay
+ * ninguna o hay más de una (en ese caso no se puede identificar de manera
+ * inequívoca cuál copiar). Reutiliza el mismo regex y el mismo recorte de
+ * puntuación final que linkifyMessageText, para no duplicar la detección.
+ */
+export function findSingleUrl(text: string): string | null {
+  if (!text) return null;
+
+  const regex = new RegExp(URL_REGEX);
+  let match: RegExpExecArray | null;
+  let found: string | null = null;
+  let count = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    const url = stripTrailingPunctuation(match[0]);
+    if (!url) continue;
+    count += 1;
+    if (count > 1) return null;
+    found = /^www\./i.test(url) ? `https://${url}` : url;
+  }
+
+  return count === 1 ? found : null;
+}

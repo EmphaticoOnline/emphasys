@@ -207,31 +207,55 @@ function TiposAutomaticosSection() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // Separado del error general: solo se usa para no mostrar "no hay tipos de
+  // póliza activos" cuando en realidad fue el fetch el que falló (rule 2/6
+  // de la regresión: ese mensaje solo debe salir si de verdad no hay tipos
+  // activos, no cuando no se pudieron consultar).
+  const [tiposPolizaError, setTiposPolizaError] = React.useState<string | null>(null);
   const [tiposPoliza, setTiposPoliza] = React.useState<TipoPoliza[]>([]);
   const [form, setForm] = React.useState<TiposAutomaticosFormState>({});
   const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' }>(
     { open: false, message: '', severity: 'success' }
   );
 
+  // Se cargan por separado (Promise.allSettled, no Promise.all): un fallo del
+  // endpoint de configuración no debe vaciar la lista de tipos de póliza
+  // activos (y viceversa). Antes, un solo Promise.all hacía que cualquier
+  // falla dejara los selects sin opciones aunque sí hubiera tipos activos.
   const loadDatos = React.useCallback(async () => {
     setLoading(true);
-    try {
-      const [configuraciones, tipos] = await Promise.all([
-        fetchConfiguracionTiposAutomaticos(),
-        fetchTiposPoliza(true),
-      ]);
-      setTiposPoliza(tipos);
+    const [tiposResultado, configuracionResultado] = await Promise.allSettled([
+      fetchTiposPoliza(true),
+      fetchConfiguracionTiposAutomaticos(),
+    ]);
+
+    const errores: string[] = [];
+
+    if (tiposResultado.status === 'fulfilled') {
+      setTiposPoliza(tiposResultado.value);
+      setTiposPolizaError(null);
+    } else {
+      setTiposPoliza([]);
+      const mensaje = (tiposResultado.reason as any)?.message || 'No se pudieron cargar los tipos de póliza';
+      setTiposPolizaError(mensaje);
+      errores.push(mensaje);
+    }
+
+    if (configuracionResultado.status === 'fulfilled') {
       const siguiente: TiposAutomaticosFormState = {};
-      for (const item of configuraciones) {
+      for (const item of configuracionResultado.value) {
         siguiente[item.clave_movimiento] = item.tipo_poliza_id != null ? String(item.tipo_poliza_id) : '';
       }
       setForm(siguiente);
-      setError(null);
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo cargar la configuración de tipos automáticos');
-    } finally {
-      setLoading(false);
+    } else {
+      setForm({});
+      errores.push(
+        (configuracionResultado.reason as any)?.message || 'No se pudo cargar la configuración de tipos automáticos'
+      );
     }
+
+    setError(errores.length > 0 ? errores.join(' ') : null);
+    setLoading(false);
   }, []);
 
   React.useEffect(() => {
@@ -283,7 +307,7 @@ function TiposAutomaticosSection() {
         </Alert>
       )}
 
-      {tiposPoliza.length === 0 && !loading && (
+      {!tiposPolizaError && tiposPoliza.length === 0 && !loading && (
         <Alert severity="info" sx={{ mb: 2 }}>
           No hay tipos de póliza activos. Créalos primero en la pestaña "Tipos de póliza".
         </Alert>

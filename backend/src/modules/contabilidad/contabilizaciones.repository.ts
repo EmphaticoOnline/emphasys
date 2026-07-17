@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import pool from '../../config/database';
 
 export const TIPOS_MOVIMIENTO = ['venta', 'compra', 'inventario', 'tesoreria', 'cobranza', 'pago', 'ajuste'] as const;
@@ -145,8 +146,14 @@ function validarEnums(input: Pick<ContabilizacionInput, 'tipo_movimiento' | 'eve
   }
 }
 
-async function validarPolizaEnEmpresa(empresaId: number, polizaId: number): Promise<void> {
-  const { rows } = await pool.query<{ existe: boolean }>(
+// client opcional: cuando se pasa (p. ej. desde una transacción de
+// cancelación que debe generar su reversa contable de forma atómica), se usa
+// esa misma conexión en vez de `pool`, para poder ver filas todavía no
+// confirmadas (COMMIT pendiente) de esa misma transacción y para no abrir
+// una segunda conexión mientras la primera sigue abierta.
+async function validarPolizaEnEmpresa(empresaId: number, polizaId: number, client?: PoolClient): Promise<void> {
+  const db = client ?? pool;
+  const { rows } = await db.query<{ existe: boolean }>(
     `SELECT EXISTS(SELECT 1 FROM contabilidad.polizas WHERE id = $1 AND empresa_id = $2) AS existe`,
     [polizaId, empresaId]
   );
@@ -155,9 +162,14 @@ async function validarPolizaEnEmpresa(empresaId: number, polizaId: number): Prom
   }
 }
 
-async function validarReferenciaEnEmpresa(empresaId: number, referencia: Record<CampoReferencia, number | null>): Promise<void> {
+async function validarReferenciaEnEmpresa(
+  empresaId: number,
+  referencia: Record<CampoReferencia, number | null>,
+  client?: PoolClient
+): Promise<void> {
+  const db = client ?? pool;
   if (referencia.documento_id != null) {
-    const { rows } = await pool.query<{ existe: boolean }>(
+    const { rows } = await db.query<{ existe: boolean }>(
       `SELECT EXISTS(SELECT 1 FROM public.documentos WHERE id = $1 AND empresa_id = $2) AS existe`,
       [referencia.documento_id, empresaId]
     );
@@ -165,7 +177,7 @@ async function validarReferenciaEnEmpresa(empresaId: number, referencia: Record<
     return;
   }
   if (referencia.operacion_dinero_id != null) {
-    const { rows } = await pool.query<{ existe: boolean }>(
+    const { rows } = await db.query<{ existe: boolean }>(
       `SELECT EXISTS(SELECT 1 FROM public.finanzas_operaciones WHERE id = $1 AND empresa_id = $2) AS existe`,
       [referencia.operacion_dinero_id, empresaId]
     );
@@ -173,7 +185,7 @@ async function validarReferenciaEnEmpresa(empresaId: number, referencia: Record<
     return;
   }
   if (referencia.movimiento_inventario_id != null) {
-    const { rows } = await pool.query<{ existe: boolean }>(
+    const { rows } = await db.query<{ existe: boolean }>(
       `SELECT EXISTS(SELECT 1 FROM inventario.movimientos WHERE id = $1 AND empresa_id = $2) AS existe`,
       [referencia.movimiento_inventario_id, empresaId]
     );
@@ -181,8 +193,13 @@ async function validarReferenciaEnEmpresa(empresaId: number, referencia: Record<
   }
 }
 
-export async function obtenerContabilizacionPorId(id: number, empresaId: number): Promise<Contabilizacion | null> {
-  const { rows } = await pool.query(
+export async function obtenerContabilizacionPorId(
+  id: number,
+  empresaId: number,
+  client?: PoolClient
+): Promise<Contabilizacion | null> {
+  const db = client ?? pool;
+  const { rows } = await db.query(
     `SELECT * FROM contabilidad.contabilizaciones WHERE id = $1 AND empresa_id = $2`,
     [id, empresaId]
   );
@@ -225,7 +242,8 @@ export async function listarContabilizacionesPoliza(empresaId: number, polizaId:
 export async function estaContabilizado(
   empresaId: number,
   referenciaInput: ReferenciaOperativa,
-  eventoContable?: string
+  eventoContable?: string,
+  client?: PoolClient
 ): Promise<boolean> {
   const referencia = extraerReferencia(referenciaInput);
   validarUnaReferencia(referencia);
@@ -239,7 +257,8 @@ export async function estaContabilizado(
     condiciones.push(`evento_contable = $${params.length}`);
   }
 
-  const { rows } = await pool.query<{ existe: boolean }>(
+  const db = client ?? pool;
+  const { rows } = await db.query<{ existe: boolean }>(
     `SELECT EXISTS(SELECT 1 FROM contabilidad.contabilizaciones WHERE ${condiciones.join(' AND ')}) AS existe`,
     params
   );
@@ -266,7 +285,8 @@ export async function puedeEditarseReferencia(
 
 export async function registrarContabilizacion(
   empresaId: number,
-  input: ContabilizacionInput
+  input: ContabilizacionInput,
+  client?: PoolClient
 ): Promise<Contabilizacion> {
   validarEnums(input);
 
@@ -281,17 +301,18 @@ export async function registrarContabilizacion(
   validarUnaReferencia(referencia);
 
   const polizaId = Number(input.poliza_id);
-  await validarPolizaEnEmpresa(empresaId, polizaId);
-  await validarReferenciaEnEmpresa(empresaId, referencia);
+  await validarPolizaEnEmpresa(empresaId, polizaId, client);
+  await validarReferenciaEnEmpresa(empresaId, referencia, client);
 
-  const yaContabilizado = await estaContabilizado(empresaId, referencia, input.evento_contable);
+  const yaContabilizado = await estaContabilizado(empresaId, referencia, input.evento_contable, client);
   if (yaContabilizado) {
     throw new Error(
       'VALIDATION_ERROR: Ya existe una contabilización activa para esta referencia y evento contable.'
     );
   }
 
-  const { rows } = await pool.query<{ id: number }>(
+  const db = client ?? pool;
+  const { rows } = await db.query<{ id: number }>(
     `INSERT INTO contabilidad.contabilizaciones
        (empresa_id, poliza_id, tipo_movimiento, tipo_documento, documento_id, operacion_dinero_id,
         movimiento_inventario_id, evento_contable, modo_contabilizacion, fecha_documento, usuario_id, comentario)
@@ -313,22 +334,24 @@ export async function registrarContabilizacion(
     ]
   );
 
-  return (await obtenerContabilizacionPorId(rows[0].id, empresaId)) as Contabilizacion;
+  return (await obtenerContabilizacionPorId(rows[0].id, empresaId, client)) as Contabilizacion;
 }
 
 export async function registrarReversa(
   empresaId: number,
   contabilizacionOrigenId: number,
-  input: ReversaInput
+  input: ReversaInput,
+  client?: PoolClient
 ): Promise<Contabilizacion | null> {
-  const origen = await obtenerContabilizacionPorId(contabilizacionOrigenId, empresaId);
+  const origen = await obtenerContabilizacionPorId(contabilizacionOrigenId, empresaId, client);
   if (!origen) return null;
 
   if (origen.es_reversa) {
     throw new Error('VALIDATION_ERROR: No se puede reversar una contabilización que ya es una reversa.');
   }
 
-  const { rows: yaReversada } = await pool.query<{ existe: boolean }>(
+  const db = client ?? pool;
+  const { rows: yaReversada } = await db.query<{ existe: boolean }>(
     `SELECT EXISTS(
        SELECT 1 FROM contabilidad.contabilizaciones
        WHERE contabilizacion_origen_id = $1 AND es_reversa = true
@@ -345,9 +368,9 @@ export async function registrarReversa(
   }
 
   const polizaId = Number(input.poliza_id);
-  await validarPolizaEnEmpresa(empresaId, polizaId);
+  await validarPolizaEnEmpresa(empresaId, polizaId, client);
 
-  const { rows } = await pool.query<{ id: number }>(
+  const { rows } = await db.query<{ id: number }>(
     `INSERT INTO contabilidad.contabilizaciones
        (empresa_id, poliza_id, tipo_movimiento, tipo_documento, documento_id, operacion_dinero_id,
         movimiento_inventario_id, evento_contable, modo_contabilizacion, fecha_documento, usuario_id,
@@ -371,5 +394,5 @@ export async function registrarReversa(
     ]
   );
 
-  return (await obtenerContabilizacionPorId(rows[0].id, empresaId)) as Contabilizacion;
+  return (await obtenerContabilizacionPorId(rows[0].id, empresaId, client)) as Contabilizacion;
 }

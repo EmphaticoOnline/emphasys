@@ -50,6 +50,7 @@ import {
   obtenerMensajeParaReenvio,
   reabrirConversacion,
   registrarMensajeEntranteWhatsapp,
+  resolverMensajeCitadoEntrante,
   type MensajeSalienteMetadata,
 } from "./conversaciones.service";
 import { descargarYPersistirAdjuntoEntrante, redactUrlForLog } from "../whatsapp/whatsapp-media-download.service";
@@ -362,6 +363,14 @@ async function persistirAdjuntoEntranteEnSegundoPlano(params: {
   }
 }
 
+// Enmascara un id_externo para logging: conserva solo los primeros y
+// últimos caracteres, suficiente para correlacionar entradas de log sin
+// exponer el identificador completo.
+function maskExternalId(value: string): string {
+  if (value.length <= 8) return `${value.slice(0, 2)}***`;
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
 export const whatsappWebhook = async (req: Request, res: Response) => {
   const value = req.body?.entry?.[0]?.changes?.[0]?.value;
   const messages = Array.isArray(value?.messages) ? value.messages : [];
@@ -614,6 +623,26 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
     console.log("[WhatsApp Webhook] Conversación resuelta", { conversacionId });
 
+    // Si el cliente respondió citando un mensaje desde su propio WhatsApp,
+    // se resuelve ANTES del INSERT (una sola consulta, sin actualización
+    // posterior) y acotado siempre a esta empresa+conversación. Si no hay
+    // cita, el id_externo citado viene vacío/malformado, o el mensaje
+    // original todavía no existe en la base, resuelve a null sin lanzar: el
+    // mensaje entrante se guarda igual, simplemente sin cita.
+    const mensajeRespuestaId = await resolverMensajeCitadoEntrante(
+      empresaId,
+      conversacionId,
+      normalized.quotedMessageId
+    );
+    if (normalized.quotedMessageId) {
+      console.info("[WhatsApp Webhook][Reply] Contexto de respuesta entrante", {
+        empresaId,
+        conversacionId,
+        idExternoCitado: maskExternalId(normalized.quotedMessageId),
+        resuelto: mensajeRespuestaId !== null,
+      });
+    }
+
     console.log("[WhatsApp Webhook] Insertando mensaje", {
       empresaId,
       conversacionId,
@@ -621,6 +650,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
       messageId: normalized.messageId,
       tipoContenido: normalized.tipoContenido,
       tieneMediaUrl: Boolean(normalized.mediaUrl),
+      esRespuesta: mensajeRespuestaId !== null,
     });
     const mensajeInsertadoId = await registrarMensajeEntranteWhatsapp(
       empresaId,
@@ -634,7 +664,8 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
         mediaUrl: normalized.mediaUrl,
         caption: normalized.caption,
         mimeType: normalized.mimeType,
-      }
+      },
+      mensajeRespuestaId
     );
 
     if (mensajeInsertadoId === null) {

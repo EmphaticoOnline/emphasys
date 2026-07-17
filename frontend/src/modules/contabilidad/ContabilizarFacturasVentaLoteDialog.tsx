@@ -27,14 +27,24 @@ interface ContabilizarFacturasVentaLoteDialogProps {
   open: boolean;
   onClose: () => void;
   onContabilizado?: () => void;
+  // Si viene con facturas, el diálogo abre en modo "selección" (contabiliza
+  // solo esos documentos) en vez del modo "rango" por fechas.
+  documentoIdsSeleccionados?: number[] | undefined;
 }
 
 export default function ContabilizarFacturasVentaLoteDialog({
   open,
   onClose,
   onContabilizado,
+  documentoIdsSeleccionados,
 }: ContabilizarFacturasVentaLoteDialogProps) {
   const navigate = useNavigate();
+  const cantidadSeleccionadas = documentoIdsSeleccionados?.length ?? 0;
+  // El modo por defecto se decide según si hay facturas seleccionadas al
+  // abrir el diálogo, pero el usuario puede cambiarlo mientras está abierto
+  // (por ejemplo, para volver a "Por rango" aunque haya una selección
+  // arrastrada de otra acción en la grilla).
+  const [modo, setModo] = useState<'rango' | 'seleccion'>(cantidadSeleccionadas > 0 ? 'seleccion' : 'rango');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [agrupacion, setAgrupacion] = useState<AgrupacionLoteVenta>('individual');
@@ -48,6 +58,7 @@ export default function ContabilizarFacturasVentaLoteDialog({
 
   useEffect(() => {
     if (!open) return;
+    setModo(cantidadSeleccionadas > 0 ? 'seleccion' : 'rango');
     setFechaDesde('');
     setFechaHasta('');
     setAgrupacion('individual');
@@ -70,21 +81,24 @@ export default function ContabilizarFacturasVentaLoteDialog({
         setTipoPolizaResuelto(true);
       })
       .catch(() => setTipoPolizaResuelto(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const puedeEjecutar =
-    Boolean(fechaDesde) && Boolean(fechaHasta) && Boolean(tipoPolizaIdentificador) && !procesando;
+    modo === 'seleccion'
+      ? Boolean(tipoPolizaIdentificador) && !procesando
+      : Boolean(fechaDesde) && Boolean(fechaHasta) && Boolean(tipoPolizaIdentificador) && !procesando;
 
   const handleEjecutar = async () => {
     if (!puedeEjecutar) return;
     setProcesando(true);
     setError(null);
     try {
-      const resultadoLote = await contabilizarFacturasVentaLote({
-        fecha_desde: fechaDesde,
-        fecha_hasta: fechaHasta,
-        agrupacion,
-      });
+      const resultadoLote = await contabilizarFacturasVentaLote(
+        modo === 'seleccion'
+          ? { documento_ids: documentoIdsSeleccionados ?? [], agrupacion }
+          : { fecha_desde: fechaDesde, fecha_hasta: fechaHasta, agrupacion }
+      );
       setResultado(resultadoLote);
       onContabilizado?.();
     } catch (err) {
@@ -96,6 +110,11 @@ export default function ContabilizarFacturasVentaLoteDialog({
   };
 
   const resumen = resultado?.resumen;
+  // Ya contabilizadas / no elegibles se excluyen antes de intentar
+  // contabilizar: nunca son un error real, así que no se pintan en rojo.
+  const omitidos = resultado?.resultados.filter(
+    (r) => r.estado === 'omitida_ya_contabilizada' || r.estado === 'omitida_no_elegible'
+  ) ?? [];
   const errores = resultado?.resultados.filter((r) => r.estado === 'error') ?? [];
 
   return (
@@ -103,33 +122,62 @@ export default function ContabilizarFacturasVentaLoteDialog({
       <DialogTitle>Contabilizar ventas</DialogTitle>
       <DialogContent>
         <Stack spacing={2} mt={1}>
-          <Typography variant="body2" color="text.secondary">
-            Contabiliza la emisión de todas las facturas de venta estándar, timbradas y no contabilizadas dentro del
-            rango de fechas. Las notas de venta y facturas canceladas quedan excluidas automáticamente.
-          </Typography>
-
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="Fecha desde"
-              type="date"
+          <Stack spacing={1}>
+            <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+              Modo
+            </Typography>
+            <ToggleButtonGroup
+              exclusive
               size="small"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
+              value={modo}
+              onChange={(_, value) => value && setModo(value)}
               disabled={procesando}
-            />
-            <TextField
-              label="Fecha hasta"
-              type="date"
-              size="small"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              disabled={procesando}
-            />
+            >
+              <ToggleButton value="rango">Por rango de fechas</ToggleButton>
+              <ToggleButton value="seleccion" disabled={cantidadSeleccionadas === 0}>
+                Facturas seleccionadas ({cantidadSeleccionadas})
+              </ToggleButton>
+            </ToggleButtonGroup>
           </Stack>
+
+          {modo === 'seleccion' ? (
+            <Alert severity="info">
+              Se contabilizará{cantidadSeleccionadas === 1 ? '' : 'n'} {cantidadSeleccionadas} factura
+              {cantidadSeleccionadas === 1 ? '' : 's'} seleccionada{cantidadSeleccionadas === 1 ? '' : 's'}. Las que ya
+              estén contabilizadas, canceladas, no sean facturas estándar o no sean elegibles se omitirán
+              automáticamente.
+            </Alert>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Contabiliza la emisión de todas las facturas de venta estándar, timbradas y no contabilizadas dentro del
+              rango de fechas. Las notas de venta y facturas canceladas quedan excluidas automáticamente.
+            </Typography>
+          )}
+
+          {modo === 'rango' && (
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Fecha desde"
+                type="date"
+                size="small"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                disabled={procesando}
+              />
+              <TextField
+                label="Fecha hasta"
+                type="date"
+                size="small"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                disabled={procesando}
+              />
+            </Stack>
+          )}
 
           {tipoPolizaResuelto && tipoPolizaIdentificador && (
             <Typography variant="body2" color="text.secondary">
@@ -171,8 +219,20 @@ export default function ContabilizarFacturasVentaLoteDialog({
           {resultado && resumen && (
             <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2 }}>
               <Typography variant="body2" fontWeight={700} gutterBottom>
-                Resultado: {resumen.total_en_rango} factura(s) en rango, {resumen.contabilizadas} contabilizada(s),{' '}
-                {resumen.omitidas_ya_contabilizadas} omitida(s) por ya contabilizadas, {resumen.con_error} con error.
+                {modo === 'seleccion' ? (
+                  <>
+                    Resultado: {resumen.seleccionadas ?? 0} factura(s) seleccionada(s), {resumen.elegibles ?? 0}{' '}
+                    elegible(s), {resumen.contabilizadas} contabilizada(s),{' '}
+                    {(resumen.omitidas_ya_contabilizadas ?? 0) + (resumen.omitidas_no_elegibles ?? 0)} omitida(s),{' '}
+                    {resumen.con_error} con error.
+                  </>
+                ) : (
+                  <>
+                    Resultado: {resumen.total_en_rango} factura(s) en rango, {resumen.contabilizadas} contabilizada(s),{' '}
+                    {resumen.omitidas_ya_contabilizadas} omitida(s) por ya contabilizadas, {resumen.con_error} con
+                    error.
+                  </>
+                )}
               </Typography>
               {resultado.mensaje && (
                 <Alert severity="info" sx={{ mt: 1 }}>{resultado.mensaje}</Alert>
@@ -181,6 +241,15 @@ export default function ContabilizarFacturasVentaLoteDialog({
                 <Typography variant="body2" color="text.secondary">
                   Pólizas generadas: {resultado.polizas.map((p) => `${p.tipo_poliza_identificador} ${p.numero}`).join(', ')}
                 </Typography>
+              )}
+              {omitidos.length > 0 && (
+                <Stack spacing={0.5} mt={1}>
+                  {omitidos.map((r) => (
+                    <Typography key={r.documento_id} variant="caption" color="text.secondary">
+                      Documento #{r.documento_id}: {r.motivo}
+                    </Typography>
+                  ))}
+                </Stack>
               )}
               {errores.length > 0 && (
                 <Stack spacing={0.5} mt={1}>
