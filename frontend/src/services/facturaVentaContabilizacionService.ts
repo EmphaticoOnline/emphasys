@@ -122,6 +122,23 @@ export async function contabilizarFacturasVentaLote(payload: ContabilizarLoteVen
 
 export type EstadoContableFacturaVenta = 'contabilizada' | 'no_contabilizable' | 'pendiente';
 
+export type RelacionPolizaDocumento = 'emision' | 'cancelacion' | 'reversa' | 'ajuste' | 'otra';
+
+export interface DocumentoPolizaRelacionadaDto {
+  contabilizacionId: number;
+  polizaId: number;
+  relacion: RelacionPolizaDocumento;
+  eventoContable: string;
+  esReversa: boolean;
+  contabilizacionOrigenId: number | null;
+  tipoPolizaId: number | null;
+  tipoPolizaIdentificador: string | null;
+  tipoPolizaNombre: string | null;
+  numero: number | string | null;
+  fecha: string | null;
+  estatus: string | null;
+}
+
 export interface EstadoContableFacturaVentaInfo {
   estado: EstadoContableFacturaVenta;
   motivo: string | null;
@@ -129,6 +146,7 @@ export interface EstadoContableFacturaVentaInfo {
   poliza_numero?: number;
   poliza_fecha?: string;
   tipo_poliza_identificador?: string;
+  polizas_relacionadas?: DocumentoPolizaRelacionadaDto[];
 }
 
 export async function fetchEstadoContableFacturasVentaLote(

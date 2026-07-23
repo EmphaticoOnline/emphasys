@@ -894,12 +894,75 @@ export async function listarDocumentosRepositoryPaginado(
   agenteIdForzado?: number | null
 ): Promise<{ data: any[]; total: number }> {
   const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
+  const esFacturaVenta = (tipoDocumento || '').toLowerCase() === 'factura';
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
   const esOrdenCompra = (tipoDocumento || '').toLowerCase() === 'orden_compra';
   const selectSaldo = esFactura
     ? `CASE WHEN LOWER(TRIM(COALESCE(d.estatus_documento, ''))) IN ('cancelado', 'cancelada') THEN 0 ELSE COALESCE(ds.saldo, 0) END AS saldo`
     : 'NULL::numeric AS saldo';
   const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
+  const selectCfdi = esFacturaVenta
+    ? `dc.uuid AS cfdi_uuid,
+       dc.fecha_timbrado AS cfdi_fecha_timbrado,
+       dc.estado_sat AS cfdi_estado_sat,
+       dc.fecha_cancelacion AS cfdi_fecha_cancelacion,`
+    : `NULL::text AS cfdi_uuid,
+       NULL::timestamptz AS cfdi_fecha_timbrado,
+       NULL::text AS cfdi_estado_sat,
+       NULL::timestamptz AS cfdi_fecha_cancelacion,`;
+  const joinCfdi = esFacturaVenta ? 'LEFT JOIN documentos_cfdi dc ON dc.documento_id = d.id' : '';
+  const selectInventario = esFacturaVenta
+    ? `jsonb_build_object(
+         'aplica', COALESCE(etd_inv.afecta_inventario, td_inv.afecta_inventario, 'none') <> 'none',
+         'tipoAfectacion', COALESCE(etd_inv.afecta_inventario, td_inv.afecta_inventario, 'none'),
+         'tienePartidasInventariables', COALESCE(inv_doc.tiene_partidas_inventariables, false),
+         'movimientoOriginalId', inv_mov.movimiento_original_id,
+         'movimientoOriginalFecha', inv_mov.movimiento_original_fecha,
+         'movimientoReversionId', inv_mov.movimiento_reversion_id,
+         'movimientoReversionFecha', inv_mov.movimiento_reversion_fecha,
+         'partidasMovimiento', COALESCE(inv_part.partidas_movimiento, 0),
+         'movimientosOriginales', COALESCE(inv_mov.movimientos_originales, 0),
+         'movimientosReversion', COALESCE(inv_mov.movimientos_reversion, 0)
+       ) AS inventario_resumen,`
+    : 'NULL::jsonb AS inventario_resumen,';
+  const joinInventario = esFacturaVenta
+    ? `LEFT JOIN core.tipos_documento td_inv
+             ON LOWER(td_inv.codigo) = LOWER(d.tipo_documento)
+       LEFT JOIN core.empresas_tipos_documento etd_inv
+              ON etd_inv.tipo_documento_id = td_inv.id
+             AND etd_inv.empresa_id = d.empresa_id
+       LEFT JOIN LATERAL (
+         SELECT EXISTS (
+           SELECT 1
+             FROM documentos_partidas dp_inv
+             JOIN productos p_inv ON p_inv.id = dp_inv.producto_id
+            WHERE dp_inv.documento_id = d.id
+              AND LOWER(TRIM(COALESCE(p_inv.tipo_producto, ''))) = 'inventariable'
+         ) AS tiene_partidas_inventariables
+       ) inv_doc ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT
+           (COUNT(*) FILTER (WHERE m_inv.es_reversion = false))::int AS movimientos_originales,
+           (COUNT(*) FILTER (WHERE m_inv.es_reversion = true))::int AS movimientos_reversion,
+           (ARRAY_AGG(m_inv.id ORDER BY m_inv.fecha, m_inv.id)
+             FILTER (WHERE m_inv.es_reversion = false))[1] AS movimiento_original_id,
+           (ARRAY_AGG(m_inv.fecha ORDER BY m_inv.fecha, m_inv.id)
+             FILTER (WHERE m_inv.es_reversion = false))[1] AS movimiento_original_fecha,
+           (ARRAY_AGG(m_inv.id ORDER BY m_inv.fecha, m_inv.id)
+             FILTER (WHERE m_inv.es_reversion = true))[1] AS movimiento_reversion_id,
+           (ARRAY_AGG(m_inv.fecha ORDER BY m_inv.fecha, m_inv.id)
+             FILTER (WHERE m_inv.es_reversion = true))[1] AS movimiento_reversion_fecha
+         FROM inventario.movimientos m_inv
+         WHERE m_inv.documento_id = d.id
+           AND m_inv.empresa_id = d.empresa_id
+       ) inv_mov ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS partidas_movimiento
+           FROM inventario.movimientos_partidas mp_inv
+          WHERE mp_inv.movimiento_id = inv_mov.movimiento_original_id
+            AND mp_inv.empresa_id = d.empresa_id
+       ) inv_part ON TRUE`
+    : '';
   const selectEstadoRecepcion = esOrdenCompra
     ? `(
          SELECT CASE
@@ -1044,6 +1107,7 @@ export async function listarDocumentosRepositoryPaginado(
       d.serie_externa,
       d.numero_externo,
       d.fecha_documento,
+      d.fecha_vencimiento,
       d.contacto_principal_id,
       d.agente_id,
       d.oportunidad_id,
@@ -1057,12 +1121,16 @@ export async function listarDocumentosRepositoryPaginado(
       d.tratamiento_impuestos,
       false AS eliminara_oportunidad,
       d.estatus_documento,
+      ${selectCfdi}
+      ${selectInventario}
       COALESCE(d.estado_autorizacion, 'no_requerida') AS estado_autorizacion,
       ${selectSaldo},
       ${selectEstadoRecepcion},
       COUNT(*) OVER() AS total_count
     FROM documentos d
     ${joinSaldo}
+    ${joinCfdi}
+    ${joinInventario}
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
     LEFT JOIN conceptos con ON con.id = d.concepto_id AND con.empresa_id = d.empresa_id

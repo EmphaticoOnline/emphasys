@@ -67,6 +67,7 @@ import cfdiSatRouter from "./modules/configuracion/cfdi-sat/cfdi-sat.routes";
 import facturaGlobalRouter from "./modules/documentos/factura-global.routes";
 import autorizacionesRouter from "./modules/autorizaciones/autorizaciones.routes";
 import reportesRouter from "./modules/reportes/reportes.routes";
+import notificacionesRouter from "./modules/notificaciones/notificaciones.routes";
 import { FRONTEND_BUILD_VERSION } from "./config/version";
 
 const app = express();
@@ -175,6 +176,7 @@ app.use("/api/configuracion/cfdi-sat", cfdiSatRouter);
 app.use("/api/autorizaciones", autorizacionesRouter);
 app.use("/api/factura-global", facturaGlobalRouter);
 app.use("/api/reportes", reportesRouter);
+app.use("/api/notificaciones", notificacionesRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

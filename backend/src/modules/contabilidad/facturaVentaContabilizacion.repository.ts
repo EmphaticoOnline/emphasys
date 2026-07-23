@@ -1135,6 +1135,23 @@ export async function generarReversaCancelacionFacturaVenta(
 
 export type EstadoContableFacturaVenta = 'contabilizada' | 'no_contabilizable' | 'pendiente';
 
+export type RelacionPolizaDocumento = 'emision' | 'cancelacion' | 'reversa' | 'ajuste' | 'otra';
+
+export interface DocumentoPolizaRelacionadaDto {
+  contabilizacionId: number;
+  polizaId: number;
+  relacion: RelacionPolizaDocumento;
+  eventoContable: string;
+  esReversa: boolean;
+  contabilizacionOrigenId: number | null;
+  tipoPolizaId: number | null;
+  tipoPolizaIdentificador: string | null;
+  tipoPolizaNombre: string | null;
+  numero: number | string | null;
+  fecha: string | null;
+  estatus: string | null;
+}
+
 export interface EstadoContableFacturaVentaInfo {
   estado: EstadoContableFacturaVenta;
   motivo: string | null;
@@ -1142,13 +1159,47 @@ export interface EstadoContableFacturaVentaInfo {
   poliza_numero?: number;
   poliza_fecha?: string;
   tipo_poliza_identificador?: string;
+  polizas_relacionadas: DocumentoPolizaRelacionadaDto[];
 }
 
-interface PolizaDeContabilizacion {
+interface PolizaRelacionadaRow {
+  documento_id: number;
+  contabilizacion_id: number;
   poliza_id: number;
-  poliza_numero: number;
-  poliza_fecha: string;
-  tipo_poliza_identificador: string;
+  evento_contable: string;
+  es_reversa: boolean;
+  contabilizacion_origen_id: number | null;
+  tipo_poliza_id: number | null;
+  tipo_poliza_identificador: string | null;
+  poliza_numero: number | string | null;
+  poliza_fecha: string | null;
+  poliza_estatus: string | null;
+}
+
+function clasificarRelacionPoliza(row: PolizaRelacionadaRow): RelacionPolizaDocumento {
+  const evento = String(row.evento_contable ?? '').trim().toLowerCase();
+  if (row.es_reversa && row.contabilizacion_origen_id != null) return 'reversa';
+  if (evento === 'emision' && !row.es_reversa) return 'emision';
+  if (evento === 'cancelacion') return 'cancelacion';
+  if (evento === 'ajuste') return 'ajuste';
+  return 'otra';
+}
+
+function mapearPolizaRelacionada(row: PolizaRelacionadaRow): DocumentoPolizaRelacionadaDto {
+  return {
+    contabilizacionId: Number(row.contabilizacion_id),
+    polizaId: Number(row.poliza_id),
+    relacion: clasificarRelacionPoliza(row),
+    eventoContable: String(row.evento_contable),
+    esReversa: Boolean(row.es_reversa),
+    contabilizacionOrigenId: row.contabilizacion_origen_id != null ? Number(row.contabilizacion_origen_id) : null,
+    tipoPolizaId: row.tipo_poliza_id != null ? Number(row.tipo_poliza_id) : null,
+    tipoPolizaIdentificador: row.tipo_poliza_identificador ?? null,
+    tipoPolizaNombre: row.tipo_poliza_identificador ?? null,
+    numero: row.poliza_numero ?? null,
+    fecha: row.poliza_fecha ?? null,
+    estatus: row.poliza_estatus ?? null,
+  };
 }
 
 export async function obtenerEstadoContableFacturasVentaLote(
@@ -1165,36 +1216,37 @@ export async function obtenerEstadoContableFacturasVentaLote(
     [empresaId, documentoIds]
   );
 
-  // Solo se une contra contabilizaciones + polizas (+ tipos_poliza) para
-  // traer el número de póliza; no se resuelven cuentas ni se hace preview
-  // aquí, así la columna de la grilla se mantiene barata.
-  const { rows: contabilizadasRows } = await pool.query<{
-    documento_id: number;
-    poliza_id: number;
-    poliza_numero: number;
-    poliza_fecha: string;
-    tipo_poliza_identificador: string;
-  }>(
-    `SELECT ct.documento_id, p.id AS poliza_id, p.numero AS poliza_numero,
-            to_char(p.fecha, 'YYYY-MM-DD') AS poliza_fecha, tp.identificador AS tipo_poliza_identificador
+  // Una sola consulta set-based trae todas las pólizas relacionadas con los
+  // documentos visibles. No se resuelven cuentas ni se hace preview aquí.
+  const { rows: contabilizadasRows } = await pool.query<PolizaRelacionadaRow>(
+    `SELECT ct.documento_id, ct.id AS contabilizacion_id, p.id AS poliza_id,
+            ct.evento_contable, ct.es_reversa, ct.contabilizacion_origen_id,
+            p.tipo_poliza_id, tp.identificador AS tipo_poliza_identificador,
+            p.numero AS poliza_numero, to_char(p.fecha, 'YYYY-MM-DD') AS poliza_fecha,
+            p.estatus AS poliza_estatus
        FROM contabilidad.contabilizaciones ct
        JOIN contabilidad.polizas p ON p.id = ct.poliza_id
        JOIN contabilidad.tipos_poliza tp ON tp.id = p.tipo_poliza_id
       WHERE ct.empresa_id = $1 AND ct.documento_id = ANY($2::int[])
-        AND ct.evento_contable = 'emision' AND ct.es_reversa = false`,
+      ORDER BY ct.documento_id,
+               CASE
+                 WHEN ct.evento_contable = 'emision' AND ct.es_reversa = false THEN 0
+                 WHEN ct.es_reversa = true AND ct.contabilizacion_origen_id IS NOT NULL THEN 1
+                 WHEN ct.evento_contable = 'cancelacion' THEN 2
+                 WHEN ct.evento_contable = 'ajuste' THEN 3
+                 ELSE 4
+               END,
+               ct.fecha_contabilizacion,
+               ct.id`,
     [empresaId, documentoIds]
   );
-  const contabilizadas = new Map<number, PolizaDeContabilizacion>(
-    contabilizadasRows.map((r) => [
-      Number(r.documento_id),
-      {
-        poliza_id: Number(r.poliza_id),
-        poliza_numero: Number(r.poliza_numero),
-        poliza_fecha: r.poliza_fecha,
-        tipo_poliza_identificador: r.tipo_poliza_identificador,
-      },
-    ])
-  );
+  const polizasPorDocumento = new Map<number, DocumentoPolizaRelacionadaDto[]>();
+  for (const row of contabilizadasRows) {
+    const documentoId = Number(row.documento_id);
+    const existentes = polizasPorDocumento.get(documentoId) ?? [];
+    existentes.push(mapearPolizaRelacionada(row));
+    polizasPorDocumento.set(documentoId, existentes);
+  }
 
   const configuracion = await obtenerOCrearConfiguracion(empresaId);
 
@@ -1202,48 +1254,53 @@ export async function obtenerEstadoContableFacturasVentaLote(
   for (const doc of docs) {
     const id = Number(doc.id);
 
-    const poliza = contabilizadas.get(id);
-    if (poliza) {
+    const polizasRelacionadas = polizasPorDocumento.get(id) ?? [];
+    const polizaPrincipal = polizasRelacionadas.find((poliza) => poliza.relacion === 'emision') ?? polizasRelacionadas[0];
+    if (polizaPrincipal) {
       resultado[id] = {
         estado: 'contabilizada',
         motivo: null,
-        poliza_id: poliza.poliza_id,
-        poliza_numero: poliza.poliza_numero,
-        poliza_fecha: poliza.poliza_fecha,
-        tipo_poliza_identificador: poliza.tipo_poliza_identificador,
+        poliza_id: polizaPrincipal.polizaId,
+        ...(polizaPrincipal.numero != null ? { poliza_numero: Number(polizaPrincipal.numero) } : {}),
+        ...(polizaPrincipal.fecha ? { poliza_fecha: polizaPrincipal.fecha } : {}),
+        ...(polizaPrincipal.tipoPolizaIdentificador
+          ? { tipo_poliza_identificador: polizaPrincipal.tipoPolizaIdentificador }
+          : {}),
+        polizas_relacionadas: polizasRelacionadas,
       };
       continue;
     }
     if (String(doc.tipo_documento ?? '').trim().toLowerCase() !== 'factura') {
-      resultado[id] = { estado: 'no_contabilizable', motivo: 'Solo se contabilizan documentos de tipo factura.' };
+      resultado[id] = { estado: 'no_contabilizable', motivo: 'Solo se contabilizan documentos de tipo factura.', polizas_relacionadas: [] };
       continue;
     }
     const estatus = String(doc.estatus_documento ?? '').trim().toLowerCase();
     if (estatus === 'borrador') {
-      resultado[id] = { estado: 'no_contabilizable', motivo: 'La factura está en borrador.' };
+      resultado[id] = { estado: 'no_contabilizable', motivo: 'La factura está en borrador.', polizas_relacionadas: [] };
       continue;
     }
     if (estatus === 'cancelado' || estatus === 'cancelada') {
-      resultado[id] = { estado: 'no_contabilizable', motivo: 'La factura está cancelada.' };
+      resultado[id] = { estado: 'no_contabilizable', motivo: 'La factura está cancelada.', polizas_relacionadas: [] };
       continue;
     }
     const tratamiento = String(doc.tratamiento_impuestos ?? '').trim().toLowerCase();
     if (tratamiento === 'sin_iva') {
-      resultado[id] = { estado: 'no_contabilizable', motivo: 'Nota de venta: no se contabiliza.' };
+      resultado[id] = { estado: 'no_contabilizable', motivo: 'Nota de venta: no se contabiliza.', polizas_relacionadas: [] };
       continue;
     }
     if (tratamiento !== 'normal') {
       resultado[id] = {
         estado: 'no_contabilizable',
         motivo: `Tratamiento fiscal "${doc.tratamiento_impuestos}" no soportado todavía por la contabilización automática.`,
+        polizas_relacionadas: [],
       };
       continue;
     }
     if (!doc.timbrada && !configuracion.permitir_venta_no_timbrada) {
-      resultado[id] = { estado: 'no_contabilizable', motivo: 'La factura no está timbrada.' };
+      resultado[id] = { estado: 'no_contabilizable', motivo: 'La factura no está timbrada.', polizas_relacionadas: [] };
       continue;
     }
-    resultado[id] = { estado: 'pendiente', motivo: null };
+    resultado[id] = { estado: 'pendiente', motivo: null, polizas_relacionadas: [] };
   }
 
   return resultado;

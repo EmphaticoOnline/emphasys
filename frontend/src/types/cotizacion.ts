@@ -10,6 +10,7 @@ export interface CotizacionListado {
   serie: string | null;
   numero: number | null;
   fecha_documento: string;
+  fecha_vencimiento?: string | null;
   contacto_principal_id: number | null;
   agente_id?: number | null;
   oportunidad_id?: number | null;
@@ -23,6 +24,10 @@ export interface CotizacionListado {
   moneda?: string | null;
   tratamiento_impuestos?: TratamientoImpuestos | null;
   estatus_documento: string;
+  cfdi_uuid?: string | null;
+  cfdi_fecha_timbrado?: string | null;
+  cfdi_estado_sat?: string | null;
+  cfdi_fecha_cancelacion?: string | null;
   producto_resumen?: string | null;
   estado_seguimiento?: EstadoSeguimiento | null;
   comentario_seguimiento?: string | null;

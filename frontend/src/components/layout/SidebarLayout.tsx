@@ -28,6 +28,7 @@ import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import PeopleIcon from '@mui/icons-material/People';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
@@ -43,6 +44,7 @@ import EmpresaSelector from '../EmpresaSelector';
 import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '../layoutConstants';
 import { useSession } from '../../session/useSession';
 import ChangePasswordDialog from '../ChangePasswordDialog';
+import NotificationsSettingsDialog from '../NotificationsSettingsDialog';
 import { compareDocumentoVisualOrder } from '../../modules/documentos/documentoVisualOrder';
 import { fetchTiposDocumentoHabilitados } from '../../services/tiposDocumentoService';
 import { fetchParametrosSistema } from '../../services/parametrosService';
@@ -150,6 +152,7 @@ interface SidebarNavProps {
   onNavigate: (path: string) => void;
   onLogout: () => void;
   onChangePassword: () => void;
+  onOpenNotifications: () => void;
 }
 
 function SidebarNav({
@@ -162,6 +165,7 @@ function SidebarNav({
   onNavigate,
   onLogout,
   onChangePassword,
+  onOpenNotifications,
 }: SidebarNavProps) {
   const initials = getInitials(userName);
 
@@ -298,6 +302,15 @@ function SidebarNav({
               {userName}
             </Typography>
           )}
+          <Tooltip title="Notificaciones de Emphasys">
+            <IconButton
+              size="small"
+              onClick={onOpenNotifications}
+              sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff', background: 'rgba(255,255,255,0.1)' } }}
+            >
+              <NotificationsIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Cambiar contraseña">
             <IconButton
               size="small"
@@ -337,6 +350,7 @@ export default function SidebarLayout() {
   });
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
+  const [notificationsOpen, setNotificationsOpen] = React.useState(false);
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
   const userName = session.user?.nombre || 'Usuario';
@@ -543,6 +557,7 @@ export default function SidebarLayout() {
     onNavigate: handleNavigate,
     onLogout: handleLogout,
     onChangePassword: () => setChangePasswordOpen(true),
+    onOpenNotifications: () => setNotificationsOpen(true),
   };
 
   // ── MOBILE (sin cambios) ──
@@ -580,6 +595,7 @@ export default function SidebarLayout() {
           <Outlet />
         </Box>
         <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
+        <NotificationsSettingsDialog open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
       </>
     );
   }
@@ -673,6 +689,7 @@ export default function SidebarLayout() {
       </Box>
     </Box>
     <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
+    <NotificationsSettingsDialog open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </>
   );
 }

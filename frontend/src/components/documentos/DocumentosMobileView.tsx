@@ -9,6 +9,7 @@ import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import { GridContextMenu } from '../grids/GridContextMenu';
 import type { CotizacionListado } from '../../types/cotizacion';
 import type { DocumentosMobileViewProps } from './DocumentosView.types';
+import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -53,6 +54,8 @@ export default function DocumentosMobileView({
   selectionContent,
   extraActionsContent,
   rows,
+  tipoDocumento,
+  indicatorsByDocumentId,
   showSaldo,
   canBulkDuplicate,
   selectedDocumentIds,
@@ -202,6 +205,10 @@ export default function DocumentosMobileView({
                         <Chip label={String(row.estado_seguimiento)} size="small" variant="outlined" />
                       ) : null}
                     </Box>
+
+                    {tipoDocumento === 'factura' && indicatorsByDocumentId?.[rowId] ? (
+                      <DocumentoStatusIndicators {...indicatorsByDocumentId[rowId]} maxVisible={3} />
+                    ) : null}
 
                     {detailItems.length > 0 ? (
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}>

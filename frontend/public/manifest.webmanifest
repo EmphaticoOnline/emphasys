@@ -1,0 +1,22 @@
+{
+  "name": "Emphasys ERP",
+  "short_name": "Emphasys",
+  "description": "Plataforma integral de negocios Emphasys",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d2f68",
+  "icons": [
+    {
+      "src": "/emphazul_192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/emphazul_512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

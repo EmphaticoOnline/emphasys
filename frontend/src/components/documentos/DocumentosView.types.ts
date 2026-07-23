@@ -9,6 +9,8 @@ import type {
   GridSortModel,
 } from '@mui/x-data-grid';
 import type { CotizacionListado } from '../../types/cotizacion';
+import type { TipoDocumento } from '../../types/documentos.types';
+import type { DocumentoIndicatorModel } from './indicadores';
 import type { GridContextMenuAction } from '../grids/GridContextMenu';
 
 export interface DocumentosViewCommonProps {
@@ -56,6 +58,8 @@ export interface DocumentosDesktopViewProps extends DocumentosViewCommonProps {
 
 export interface DocumentosMobileViewProps extends DocumentosViewCommonProps {
   rows: CotizacionListado[];
+  tipoDocumento: TipoDocumento;
+  indicatorsByDocumentId?: Readonly<Record<number, DocumentoIndicatorModel>>;
   showSaldo: boolean;
   canBulkDuplicate: boolean;
   selectedDocumentIds: number[];

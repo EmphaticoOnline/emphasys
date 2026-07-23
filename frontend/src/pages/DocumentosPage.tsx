@@ -79,6 +79,12 @@ import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import ModeEditOutlineOutlinedIcon from '@mui/icons-material/ModeEditOutlineOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
+import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined';
 import { Tooltip } from '@mui/material';
 import Snackbar from '@mui/material/Snackbar';
 import AlertSnackbar from '@mui/material/Alert';
@@ -132,6 +138,15 @@ import {
 import DocumentosDesktopView from '../components/documentos/DocumentosDesktopView';
 import DocumentosMobileView from '../components/documentos/DocumentosMobileView';
 import FacturaGlobalDialog from '../modules/documentos/FacturaGlobalDialog';
+import { StatusAction, StatusIndicator, type StatusIconComponent, type StatusTone } from '../components/status';
+import {
+  DocumentoAccountingIndicator,
+  DocumentoCfdiIndicator,
+  DocumentoFinancialIndicator,
+  DocumentoInventoryIndicator,
+  buildFacturaIndicatorModel,
+  type DocumentoIndicatorModel,
+} from '../components/documentos/indicadores';
 
 const formatCivilDate = (value: unknown) => {
   const raw = String(value ?? '').trim();
@@ -308,6 +323,41 @@ const getDocumentoEstatusColor = (value: unknown): 'default' | 'info' | 'success
   if (normalized === 'timbrado' || normalized === 'cerrado' || normalized === 'pagado') return 'success';
   return 'default';
 };
+
+type DocumentoEstatusActionPresentation = {
+  normalized: string;
+  label: string;
+  icon: StatusIconComponent;
+  tone: StatusTone;
+};
+
+const DOCUMENTO_ESTATUS_ACTION_PRESENTATIONS: Record<string, Pick<DocumentoEstatusActionPresentation, 'icon' | 'tone'>> = {
+  borrador: { icon: ModeEditOutlineOutlinedIcon, tone: 'warning' },
+  emitido: { icon: PrintOutlinedIcon, tone: 'info' },
+  cancelado: { icon: CancelOutlinedIcon, tone: 'error' },
+  cerrado: { icon: LockOutlinedIcon, tone: 'success' },
+  pagado: { icon: PaidOutlinedIcon, tone: 'success' },
+};
+
+const getDocumentoEstatusActionPresentation = (value: unknown): DocumentoEstatusActionPresentation => {
+  const normalizedBase = normalizeDocumentoEstatus(value);
+  const normalizedAlias = normalizedBase === 'cancelada' ? 'cancelado' : normalizedBase;
+  const normalized = normalizedAlias === 'timbrado' ? 'emitido' : normalizedAlias;
+  const configured = DOCUMENTO_ESTATUS_ACTION_PRESENTATIONS[normalized];
+  return {
+    normalized,
+    label: configured ? (DOCUMENTO_ESTATUS_LABELS[normalized] ?? formatDocumentoEstatusLabel(value)) : formatDocumentoEstatusLabel(value),
+    icon: configured?.icon ?? HelpOutlineOutlinedIcon,
+    tone: configured?.tone ?? 'neutral',
+  };
+};
+
+const FACTURA_ESTATUS_OPERATIVOS: StatusOption[] = [
+  { value: 'emitido', label: 'Emitido' },
+];
+
+const getFacturaEstatusEditableOptions = (value: unknown): StatusOption[] =>
+  normalizeDocumentoEstatus(value) === 'borrador' ? FACTURA_ESTATUS_OPERATIVOS : [];
 
 const isFacturaTimbrada = (value: unknown): boolean => normalizeDocumentoEstatus(value) === 'timbrado';
 
@@ -830,8 +880,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       ? 'nota_credito_compra'
       : null;
   const estatusDocumentoOptions = useMemo<StatusOption[]>(
-    () => (esCotizacion ? COTIZACION_ESTATUS_EDITABLE_OPTIONS : statusOptions),
-    [esCotizacion, statusOptions]
+    () => (esCotizacion
+      ? COTIZACION_ESTATUS_EDITABLE_OPTIONS
+      : esFacturaVentas
+        ? FACTURA_ESTATUS_OPERATIVOS
+        : statusOptions),
+    [esCotizacion, esFacturaVentas, statusOptions]
   );
   const effectiveColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
     () => ({
@@ -1064,6 +1118,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     if (esCotizacion && getCotizacionEstatusEditableOptions(row.estatus_documento).length === 0) {
       return;
     }
+    if (esFacturaVentas && getFacturaEstatusEditableOptions(row.estatus_documento).length === 0) {
+      return;
+    }
     setEstatusMenu({
       anchorEl: event.currentTarget,
       rowId: Number(row.id),
@@ -1086,6 +1143,21 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const handleSeleccionarEstatus = async (nextValue: string) => {
     const rowId = estatusMenu.rowId;
     if (!rowId) return;
+
+    if (esFacturaVentas) {
+      const normalizedNext = normalizeDocumentoEstatus(nextValue);
+      const allowed = getFacturaEstatusEditableOptions(estatusMenu.currentValue)
+        .some((option) => option.value === normalizedNext);
+      if (normalizedNext === 'timbrado' || normalizedNext === 'cancelado' || normalizedNext === 'cancelada' || !allowed) {
+        closeEstatusMenu();
+        setSnackbar({
+          open: true,
+          message: 'Esta transición requiere el flujo formal correspondiente o no está permitida.',
+          severity: 'warning',
+        });
+        return;
+      }
+    }
 
     if (estatusMenu.currentValue === nextValue) {
       closeEstatusMenu();
@@ -1434,6 +1506,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       .then(setEstadoContableVentas)
       .catch(() => setEstadoContableVentas({}));
   }, [esFacturaVentas, rows]);
+
+  const indicadoresFacturaPorId = useMemo<Readonly<Record<number, DocumentoIndicatorModel>>>(() => {
+    if (!esFacturaVentas) return {};
+    return Object.fromEntries(rows.map((row) => [
+      Number(row.id),
+      buildFacturaIndicatorModel(row, estadoContableVentas[Number(row.id)]),
+    ]));
+  }, [esFacturaVentas, estadoContableVentas, rows]);
 
   const obtenerEmailDocumento = (row: any) =>
     row?.contacto_email ?? row?.email_contacto ?? row?.cliente_email ?? row?.email_cliente ?? row?.email ?? '';
@@ -1843,7 +1923,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                 </Box>
               ),
             },
-            {
+            ...(!esFacturaVentas ? [{
               field: 'estatus_financiero',
               headerName: '',
               width: 50,
@@ -1867,7 +1947,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                 if (saldo < total) return <DonutLargeIcon fontSize="small" color="warning" />;
                 return <RadioButtonUncheckedIcon fontSize="small" color="disabled" />;
               },
-            },
+            }] : []),
           ] as GridColDef[])
         : []),
       ...(tipoDocumento === 'orden_compra'
@@ -1919,7 +1999,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           );
         },
       },
-      {
+      ...(!esFacturaVentas ? ([{
         field: 'estatus_documento',
         headerName: esCotizacion ? 'Estado' : 'Estatus',
         width: 140,
@@ -1958,43 +2038,123 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             />
           );
         },
-      },
+      }] as GridColDef[]) : []),
       ...(esFacturaVentas
         ? ([{
-            field: 'estado_contable',
-            headerName: 'Estado contable',
-            width: 150,
+            field: 'estado_factura',
+            headerName: 'Estado',
+            width: 206,
             sortable: false,
             filterable: false,
             headerClassName: 'finanzas-header',
+            align: 'center',
+            headerAlign: 'center',
             renderCell: (params: any) => {
-              const info = estadoContableVentas[Number(params.row?.id)];
-              if (!info) return null;
-              let label = 'No contabilizada';
-              let color: 'success' | 'warning' | undefined;
-              let tooltip: string | null = info.motivo;
-              if (info.estado === 'contabilizada') {
-                label = info.poliza_numero != null
-                  ? (info.tipo_poliza_identificador ? `${info.tipo_poliza_identificador} ${info.poliza_numero}` : `Póliza ${info.poliza_numero}`)
-                  : 'Contabilizada';
-                color = 'success';
-                tooltip = info.poliza_numero != null
-                  ? `Contabilizada en póliza ${info.tipo_poliza_identificador ?? ''} ${info.poliza_numero} del ${info.poliza_fecha ?? ''}`.replace(/\s+/g, ' ').trim()
-                  : 'Contabilizada';
-              } else if (info.estado === 'no_contabilizable') {
-                label = 'No contabilizable';
-              } else {
-                color = 'warning';
-              }
-              const chip = (
-                <Chip
-                  label={label}
-                  size="small"
-                  {...(color ? { color } : {})}
-                  sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5 }}
-                />
+              const rowId = Number(params.row?.id);
+              const estatus = params.row?.estatus_documento || 'Borrador';
+              const presentation = getDocumentoEstatusActionPresentation(estatus);
+              const menuOpen = Boolean(estatusMenu.anchorEl) && estatusMenu.rowId === rowId;
+              const indicators = indicadoresFacturaPorId[rowId];
+              const canChangeStatus = getFacturaEstatusEditableOptions(estatus).length > 0;
+
+              return (
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: '113px minmax(68px, 1fr)',
+                    columnGap: '3px',
+                    alignItems: 'center',
+                    width: '100%',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 26px)',
+                      columnGap: '3px',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 26,
+                        height: 32,
+                        display: 'grid',
+                        placeItems: 'center',
+                        overflow: 'visible',
+                        '& .MuiIconButton-root': {
+                          width: 26,
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            inset: '0 -3px',
+                          },
+                        },
+                        '& > button, & > span[role="img"]': { minWidth: 26 },
+                      }}
+                    >
+                      {canChangeStatus ? (
+                        <StatusAction
+                          icon={presentation.icon}
+                          tone={presentation.tone}
+                          label={presentation.label}
+                          ariaLabel={`Estatus del documento: ${presentation.label}. Abrir menú para cambiar estatus.`}
+                          tooltip={`${presentation.label}. Haz clic para cambiar el estatus.`}
+                          showMenuAffordance
+                          menuId="documento-estatus-menu"
+                          menuOpen={menuOpen}
+                          disabled={actualizandoEstatusId === rowId}
+                          loading={actualizandoEstatusId === rowId}
+                          onClick={(event) => handleOpenEstatusMenu(event, params.row as CotizacionListado)}
+                        />
+                      ) : (
+                        <StatusIndicator
+                          icon={presentation.icon}
+                          tone={presentation.tone}
+                          label={presentation.label}
+                          ariaLabel={`Estatus del documento: ${presentation.label}.`}
+                          tooltip={presentation.label}
+                        />
+                      )}
+                    </Box>
+                    <Box sx={{ width: 26, height: 32, display: 'grid', placeItems: 'center', overflow: 'visible', '& > button': { minWidth: 26, position: 'relative', '&::before': { content: '""', position: 'absolute', inset: '0 -3px' } }, '& > span[role="img"]': { minWidth: 26 } }}>
+                      {indicators?.financial ? <DocumentoFinancialIndicator {...indicators.financial} /> : null}
+                    </Box>
+                    <Box sx={{ width: 26, height: 32, display: 'grid', placeItems: 'center', overflow: 'visible', '& > button': { minWidth: 26, position: 'relative', '&::before': { content: '""', position: 'absolute', inset: '0 -3px' } }, '& > span[role="img"]': { minWidth: 26 } }}>
+                      {indicators?.cfdi ? <DocumentoCfdiIndicator {...indicators.cfdi} /> : null}
+                    </Box>
+                    <Box sx={{ width: 26, height: 32, display: 'grid', placeItems: 'center', overflow: 'visible', '& > button': { minWidth: 26, position: 'relative', '&::before': { content: '""', position: 'absolute', inset: '0 -3px' } }, '& > span[role="img"]': { minWidth: 26 } }}>
+                      {indicators?.inventory ? <DocumentoInventoryIndicator {...indicators.inventory} /> : null}
+                    </Box>
+                  </Box>
+                  <Box
+                    sx={{
+                      minWidth: 0,
+                      maxWidth: '100%',
+                      height: 32,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      overflow: 'hidden',
+                      '& > button, & > span[role="img"]': {
+                        justifyContent: 'flex-start',
+                        minWidth: 32,
+                        maxWidth: '100%',
+                        overflow: 'hidden',
+                      },
+                      '& .MuiTypography-root': {
+                        minWidth: 0,
+                        maxWidth: 'none',
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      },
+                    }}
+                  >
+                    {indicators?.accounting ? <DocumentoAccountingIndicator {...indicators.accounting} /> : null}
+                  </Box>
+                </Box>
               );
-              return tooltip ? <Tooltip title={tooltip}>{chip}</Tooltip> : chip;
             },
           }] as GridColDef[])
         : []),
@@ -2349,6 +2509,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     showSaldo,
     currencyFormatter,
     calcularEstatusFinanciero,
+    indicadoresFacturaPorId,
     tieneOpcionesGeneracion,
     contactoLabel,
     contactoLabelLower,
@@ -3347,6 +3508,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       selectionContent={selectionContent}
       extraActionsContent={extraActionsContent}
       rows={filteredRows}
+      tipoDocumento={tipoDocumento}
+      indicatorsByDocumentId={indicadoresFacturaPorId}
       showSaldo={showSaldo}
       canBulkDuplicate={canBulkDuplicate}
       selectedDocumentIds={selectedDocumentIds}
@@ -3390,6 +3553,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       </Dialog>
 
       <Menu
+        id="documento-estatus-menu"
         anchorEl={estatusMenu.anchorEl}
         open={Boolean(estatusMenu.anchorEl)}
         onClose={closeEstatusMenu}

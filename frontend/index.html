@@ -21,6 +21,21 @@
     <!-- Apple -->
     <link rel="apple-touch-icon" href="/emphazul_180.png" />
 
+    <!-- PWA: manifest + color de tema del navegador/barra de estado -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#1d2f68" />
+
+    <!-- Instalación en Android/Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS/Safari: requerido para que "Agregar a pantalla de inicio" se
+         comporte como app instalada (modo standalone), condición
+         indispensable para que las notificaciones push funcionen en
+         iPhone. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Emphasys" />
+
   </head>
 
   <body>
