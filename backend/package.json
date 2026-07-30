@@ -11,7 +11,9 @@
     "schema:export:single": "ts-node src/scripts/exportSchemaSingle.ts",
     "normalize-phones": "ts-node src/scripts/normalizePhones.ts",
     "seed:contabilidad": "ts-node src/scripts/seedContabilidadDemoEmpresa8.ts",
-    "diagnosticar-sat": "ts-node src/scripts/diagnosticarSatDescarga.ts"
+    "diagnosticar-sat": "ts-node src/scripts/diagnosticarSatDescarga.ts",
+    "test:cfdi-cancelacion": "ts-node src/scripts/testCfdiCancelacion.ts",
+    "test:cfdi-email": "ts-node src/scripts/testCfdiEmail.ts"
   },
   "keywords": [],
   "author": "",

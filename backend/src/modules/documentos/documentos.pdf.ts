@@ -216,6 +216,7 @@ const tituloPorTipo = (tipo: string | null | undefined) => {
   if (t === 'orden_servicio') return 'ORDEN DE SERVICIO';
   if (t === 'pedido') return 'PEDIDO';
   if (t === 'remision') return 'REMISIÓN';
+  if (t === 'pago_cliente') return 'RECIBO DE PAGO';
   return 'COTIZACIÓN';
 };
 
@@ -262,7 +263,7 @@ const numeroALetras = (num: number): string => {
   return `${letras.toUpperCase()} PESOS ${centavosTxt}/100 MXN`;
 };
 
-async function obtenerLogoEmpresaPath(empresaId?: number): Promise<string | null> {
+export async function obtenerLogoEmpresaPath(empresaId?: number): Promise<string | null> {
   if (!empresaId) return null;
   try {
     const { rows } = await pool.query(

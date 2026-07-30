@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-07-15T21:20:28.759Z
+-- Generated at: 2026-07-28T16:51:20.664Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict 76eNPOXC5ZvHezKybEjgghCFo4XdKdPm3EfLfnYEjAzDDOMOHI9UDuegs9fl9sa
+\restrict fgZdcqCnyvro51pnWytHjnJccHLpe7CTwk4eufmcWhhvlPc4MbYH0AYeA2eemnM
 
 -- Dumped from database version 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -673,6 +673,19 @@ $$;
 
 
 --
+-- Name: bloquear_mutacion_finanzas_desaplicaciones_pago(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bloquear_mutacion_finanzas_desaplicaciones_pago() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'La bitácora de desaplicaciones de pago es inmutable';
+END;
+$$;
+
+
+--
 -- Name: set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -987,14 +1000,14 @@ COMMENT ON COLUMN contabilidad.configuracion.permitir_venta_no_timbrada IS 'Perm
 -- Name: COLUMN configuracion.tipo_poliza_venta_factura_id; Type: COMMENT; Schema: contabilidad; Owner: -
 --
 
-COMMENT ON COLUMN contabilidad.configuracion.tipo_poliza_venta_factura_id IS 'Tipo de póliza que debe usar el motor de contabilización automática al contabilizar la emisión de una factura de venta (individual o en lote). NULL = no configurado; en ese caso no se genera póliza y se informa al usuario.';
+COMMENT ON COLUMN contabilidad.configuracion.tipo_poliza_venta_factura_id IS 'DEPRECATED: reemplazada por contabilidad.configuracion_tipos_automaticos (clave_movimiento = ''venta_factura''). Se conserva para no romper compatibilidad; el motor de contabilización ya no la lee.';
 
 
 --
 -- Name: COLUMN configuracion.tipo_poliza_venta_cancelacion_id; Type: COMMENT; Schema: contabilidad; Owner: -
 --
 
-COMMENT ON COLUMN contabilidad.configuracion.tipo_poliza_venta_cancelacion_id IS 'Tipo de póliza que debe usar el motor de contabilización automática al generar la reversa por cancelación de una factura de venta ya contabilizada. NULL = no configurado; en ese caso no se genera la reversa y se informa al usuario.';
+COMMENT ON COLUMN contabilidad.configuracion.tipo_poliza_venta_cancelacion_id IS 'DEPRECATED: reemplazada por contabilidad.configuracion_tipos_automaticos (clave_movimiento = ''venta_factura_cancelacion''). Se conserva para no romper compatibilidad; el motor de contabilización ya no la lee.';
 
 
 --
@@ -1201,6 +1214,55 @@ CREATE SEQUENCE contabilidad.configuracion_id_seq
 --
 
 ALTER SEQUENCE contabilidad.configuracion_id_seq OWNED BY contabilidad.configuracion.id;
+
+
+--
+-- Name: configuracion_tipos_automaticos; Type: TABLE; Schema: contabilidad; Owner: -
+--
+
+CREATE TABLE contabilidad.configuracion_tipos_automaticos (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    clave_movimiento character varying(60) NOT NULL,
+    tipo_poliza_id bigint,
+    activo boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT configuracion_tipos_automaticos_clave_movimiento_check CHECK (((clave_movimiento)::text = ANY ((ARRAY['venta_factura'::character varying, 'venta_factura_cancelacion'::character varying, 'venta_nota_credito'::character varying, 'venta_nota_credito_cancelacion'::character varying, 'venta_nota_cargo'::character varying, 'venta_nota_cargo_cancelacion'::character varying, 'compra_factura'::character varying, 'compra_factura_cancelacion'::character varying, 'compra_nota_credito'::character varying, 'compra_nota_credito_cancelacion'::character varying, 'compra_nota_cargo'::character varying, 'compra_nota_cargo_cancelacion'::character varying, 'cxc_cobro'::character varying, 'cxc_cobro_cancelacion'::character varying, 'cxc_anticipo_aplicacion'::character varying, 'cxc_anticipo_aplicacion_cancelacion'::character varying, 'cxp_pago'::character varying, 'cxp_pago_cancelacion'::character varying, 'cxp_anticipo_aplicacion'::character varying, 'cxp_anticipo_aplicacion_cancelacion'::character varying, 'banco_ingreso'::character varying, 'banco_ingreso_cancelacion'::character varying, 'banco_egreso'::character varying, 'banco_egreso_cancelacion'::character varying, 'banco_transferencia'::character varying, 'banco_transferencia_cancelacion'::character varying, 'banco_ajuste_conciliacion'::character varying, 'banco_ajuste_conciliacion_cancelacion'::character varying, 'inventario_entrada'::character varying, 'inventario_entrada_cancelacion'::character varying, 'inventario_salida'::character varying, 'inventario_salida_cancelacion'::character varying, 'inventario_traspaso'::character varying, 'inventario_traspaso_cancelacion'::character varying, 'inventario_ajuste_positivo'::character varying, 'inventario_ajuste_positivo_cancelacion'::character varying, 'inventario_ajuste_negativo'::character varying, 'inventario_ajuste_negativo_cancelacion'::character varying, 'costo_venta_factura'::character varying, 'costo_venta_factura_cancelacion'::character varying, 'inventario_compra_entrada'::character varying, 'inventario_compra_entrada_cancelacion'::character varying, 'ajuste_contable_automatico'::character varying, 'ajuste_contable_automatico_cancelacion'::character varying, 'redondeo'::character varying, 'redondeo_cancelacion'::character varying, 'diferencia_cambiaria'::character varying, 'diferencia_cambiaria_cancelacion'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE configuracion_tipos_automaticos; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON TABLE contabilidad.configuracion_tipos_automaticos IS 'Tipo de póliza por defecto que debe usar el motor de contabilización automática para cada movimiento contable, por empresa. NULL/ausente = no configurado; el motor debe informar al usuario en vez de contabilizar sin tipo de póliza.';
+
+
+--
+-- Name: COLUMN configuracion_tipos_automaticos.clave_movimiento; Type: COMMENT; Schema: contabilidad; Owner: -
+--
+
+COMMENT ON COLUMN contabilidad.configuracion_tipos_automaticos.clave_movimiento IS 'Identificador estable del movimiento contable automático (ej. venta_factura, cxc_cobro, inventario_salida_cancelacion). Ver backend/src/modules/contabilidad/tiposAutomaticos.constants.ts para el catálogo completo.';
+
+
+--
+-- Name: configuracion_tipos_automaticos_id_seq; Type: SEQUENCE; Schema: contabilidad; Owner: -
+--
+
+CREATE SEQUENCE contabilidad.configuracion_tipos_automaticos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: configuracion_tipos_automaticos_id_seq; Type: SEQUENCE OWNED BY; Schema: contabilidad; Owner: -
+--
+
+ALTER SEQUENCE contabilidad.configuracion_tipos_automaticos_id_seq OWNED BY contabilidad.configuracion_tipos_automaticos.id;
 
 
 --
@@ -4623,6 +4685,128 @@ ALTER SEQUENCE core.parametros_parametro_id_seq OWNED BY core.parametros.paramet
 
 
 --
+-- Name: push_subscriptions; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.push_subscriptions (
+    id bigint NOT NULL,
+    usuario_id integer NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    user_agent text,
+    plataforma text,
+    nombre_dispositivo text,
+    creada_en timestamp with time zone DEFAULT now() NOT NULL,
+    ultima_actividad_en timestamp with time zone DEFAULT now() NOT NULL,
+    desactivada_en timestamp with time zone
+);
+
+
+--
+-- Name: TABLE push_subscriptions; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.push_subscriptions IS 'Suscripciones Web Push (VAPID) por usuario y dispositivo/navegador. Pertenecen exclusivamente al usuario (core.usuarios), nunca a una empresa activa: ver cabecera de esta migración para el razonamiento completo. Bloque de cimientos: todavía no existe lógica de envío que consuma esta tabla.';
+
+
+--
+-- Name: COLUMN push_subscriptions.id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.id IS 'Identificador interno de la suscripción.';
+
+
+--
+-- Name: COLUMN push_subscriptions.usuario_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.usuario_id IS 'Usuario del ERP dueño de esta suscripción (core.usuarios.id). Nunca se recibe del cliente en los endpoints: siempre se toma de req.auth.userId en el backend.';
+
+
+--
+-- Name: COLUMN push_subscriptions.endpoint; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.endpoint IS 'URL única que identifica esta suscripción ante el proveedor push del navegador (PushSubscription.endpoint). Es la identidad real del dispositivo/navegador suscrito, no nombre_dispositivo.';
+
+
+--
+-- Name: COLUMN push_subscriptions.p256dh; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.p256dh IS 'Clave pública de cifrado de la suscripción (PushSubscription.toJSON().keys.p256dh), necesaria para cifrar el payload al enviar en un bloque futuro. Nunca se expone en listados al frontend.';
+
+
+--
+-- Name: COLUMN push_subscriptions.auth; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.auth IS 'Secreto de autenticación de la suscripción (PushSubscription.toJSON().keys.auth). Nunca se expone en listados al frontend.';
+
+
+--
+-- Name: COLUMN push_subscriptions.user_agent; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.user_agent IS 'navigator.userAgent capturado al registrar, solo para diagnóstico/soporte.';
+
+
+--
+-- Name: COLUMN push_subscriptions.plataforma; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.plataforma IS 'Heurística orientativa del dispositivo (ej. iphone, android, desktop), calculada en el cliente. No es una fuente de verdad de seguridad.';
+
+
+--
+-- Name: COLUMN push_subscriptions.nombre_dispositivo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.nombre_dispositivo IS 'Nombre sugerido para que el usuario distinga sus dispositivos (ej. "Chrome en macOS"). Puramente informativo; la identidad real de la suscripción sigue siendo endpoint.';
+
+
+--
+-- Name: COLUMN push_subscriptions.creada_en; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.creada_en IS 'Fecha y hora del primer registro de esta suscripción.';
+
+
+--
+-- Name: COLUMN push_subscriptions.ultima_actividad_en; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.ultima_actividad_en IS 'Fecha y hora del último registro/reactivación de esta suscripción. Se actualizará también en cada envío exitoso cuando exista lógica de envío (bloque futuro).';
+
+
+--
+-- Name: COLUMN push_subscriptions.desactivada_en; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.desactivada_en IS 'Fecha y hora en que se desactivó (soft-delete). NULL = suscripción activa. Vuelve a NULL automáticamente si el mismo endpoint se registra de nuevo (reactivación vía UPSERT).';
+
+
+--
+-- Name: push_subscriptions_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+CREATE SEQUENCE core.push_subscriptions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: push_subscriptions_id_seq; Type: SEQUENCE OWNED BY; Schema: core; Owner: -
+--
+
+ALTER SEQUENCE core.push_subscriptions_id_seq OWNED BY core.push_subscriptions.id;
+
+
+--
 -- Name: roles; Type: TABLE; Schema: core; Owner: -
 --
 
@@ -7203,6 +7387,43 @@ CREATE TABLE public.backup_contactos_telefonos_ernesto (
 
 
 --
+-- Name: cfdi_intentos_timbrado; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cfdi_intentos_timbrado (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    documento_id integer NOT NULL,
+    proveedor character varying(50) NOT NULL,
+    proveedor_cfdi_id character varying(100) NOT NULL,
+    endpoint text NOT NULL,
+    estado character varying(40) NOT NULL,
+    uuid character varying(36),
+    error_codigo character varying(100),
+    error_mensaje_sanitizado text,
+    intentos_descarga integer DEFAULT 0 NOT NULL,
+    metadata_sanitizada jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cfdi_intentos_timbrado_estado_check CHECK (((estado)::text = ANY ((ARRAY['aceptado_pendiente_descarga'::character varying, 'xml_recuperado'::character varying, 'persistido'::character varying, 'error_descarga'::character varying, 'error_validacion'::character varying, 'reconciliado'::character varying])::text[])))
+);
+
+
+--
+-- Name: cfdi_intentos_timbrado_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cfdi_intentos_timbrado ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.cfdi_intentos_timbrado_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: conceptos; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7866,7 +8087,19 @@ CREATE TABLE public.documentos_cancelacion_intentos (
     error_interno_mensaje text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT documentos_cancelacion_intentos_estado_check CHECK (((estado)::text = ANY ((ARRAY['iniciado'::character varying, 'error_externo'::character varying, 'externo_ok'::character varying, 'completado'::character varying, 'externo_ok_interno_pendiente'::character varying, 'error_interno'::character varying])::text[])))
+    proveedor character varying(50),
+    pac_id character varying(100),
+    modalidad character varying(10),
+    rfc_emisor text,
+    endpoint text,
+    proveedor_status character varying(40),
+    fecha_solicitud timestamp with time zone,
+    intentos_consulta integer DEFAULT 0 NOT NULL,
+    error_codigo character varying(100),
+    mensaje_sanitizado text,
+    acuse_xml text,
+    CONSTRAINT documentos_cancelacion_intentos_estado_check CHECK (((estado)::text = ANY ((ARRAY['iniciado'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'cancelada'::character varying, 'rechazada'::character varying, 'error'::character varying, 'requiere_reconciliacion'::character varying, 'completado'::character varying, 'externo_ok'::character varying, 'externo_ok_interno_pendiente'::character varying, 'error_externo'::character varying, 'error_interno'::character varying])::text[]))),
+    CONSTRAINT documentos_cancelacion_intentos_modalidad_check CHECK (((modalidad IS NULL) OR ((modalidad)::text = ANY ((ARRAY['web'::character varying, 'lite'::character varying])::text[]))))
 );
 
 
@@ -7958,7 +8191,13 @@ CREATE TABLE public.documentos_cfdi (
     pac_id character varying(50),
     rfc_emisor text,
     rfc_receptor text,
-    total numeric(14,2)
+    total numeric(14,2),
+    pac_modalidad character varying(10),
+    cancelacion_estado character varying(30) DEFAULT 'no_solicitada'::character varying NOT NULL,
+    cancelacion_proveedor_status character varying(40),
+    cancelacion_ultima_consulta_at timestamp with time zone,
+    CONSTRAINT documentos_cfdi_cancelacion_estado_check CHECK (((cancelacion_estado)::text = ANY ((ARRAY['no_solicitada'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'cancelada'::character varying, 'rechazada'::character varying, 'error'::character varying, 'requiere_reconciliacion'::character varying])::text[]))),
+    CONSTRAINT documentos_cfdi_pac_modalidad_check CHECK (((pac_modalidad IS NULL) OR ((pac_modalidad)::text = ANY ((ARRAY['web'::character varying, 'lite'::character varying])::text[]))))
 );
 
 
@@ -8408,6 +8647,46 @@ ALTER SEQUENCE public.documentos_partidas_vinculos_id_seq OWNED BY public.docume
 
 
 --
+-- Name: documentos_relaciones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.documentos_relaciones (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    documento_origen_id integer NOT NULL,
+    documento_destino_id integer NOT NULL,
+    tipo_relacion character varying(30) NOT NULL,
+    bloquea_cancelacion boolean DEFAULT true NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    activa boolean DEFAULT true NOT NULL,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_modificacion timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT documentos_relaciones_documentos_distintos CHECK ((documento_origen_id <> documento_destino_id)),
+    CONSTRAINT documentos_relaciones_tipo_relacion_check CHECK (((tipo_relacion)::text = ANY ((ARRAY['derivacion_operativa'::character varying, 'regeneracion'::character varying, 'correccion'::character varying, 'sustitucion_fiscal'::character varying, 'duplicacion'::character varying, 'referencia_interna'::character varying])::text[])))
+);
+
+
+--
+-- Name: documentos_relaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.documentos_relaciones_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: documentos_relaciones_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.documentos_relaciones_id_seq OWNED BY public.documentos_relaciones.id;
+
+
+--
 -- Name: documentos_saldo; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -8712,6 +8991,72 @@ CREATE SEQUENCE public.finanzas_cuentas_id_seq
 --
 
 ALTER SEQUENCE public.finanzas_cuentas_id_seq OWNED BY public.finanzas_cuentas.id;
+
+
+--
+-- Name: finanzas_desaplicaciones_pago; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finanzas_desaplicaciones_pago (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    aplicacion_id integer NOT NULL,
+    documento_origen_id integer NOT NULL,
+    documento_destino_id integer NOT NULL,
+    monto numeric(15,2) NOT NULL,
+    monto_moneda_documento numeric(15,2) NOT NULL,
+    fecha_aplicacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    usuario_id integer NOT NULL,
+    motivo character varying(500),
+    fecha_desaplicacion timestamp with time zone DEFAULT now() NOT NULL,
+    pago_folio character varying(120),
+    factura_folio character varying(120),
+    CONSTRAINT chk_finanzas_desaplicaciones_montos CHECK (((monto > (0)::numeric) AND (monto_moneda_documento > (0)::numeric))),
+    CONSTRAINT chk_finanzas_desaplicaciones_motivo CHECK (((motivo IS NULL) OR ((char_length(btrim((motivo)::text)) >= 1) AND (char_length(btrim((motivo)::text)) <= 500))))
+);
+
+
+--
+-- Name: TABLE finanzas_desaplicaciones_pago; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finanzas_desaplicaciones_pago IS 'Bitácora inmutable de aplicaciones de pagos de cliente eliminadas físicamente.';
+
+
+--
+-- Name: COLUMN finanzas_desaplicaciones_pago.aplicacion_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_desaplicaciones_pago.aplicacion_id IS 'ID histórico de aplicaciones_saldo. No tiene FK porque la aplicación se elimina en la misma transacción.';
+
+
+--
+-- Name: COLUMN finanzas_desaplicaciones_pago.motivo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_desaplicaciones_pago.motivo IS 'Motivo funcional opcional capturado al desaplicar el pago.';
+
+
+--
+-- Name: finanzas_desaplicaciones_pago_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finanzas_desaplicaciones_pago_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finanzas_desaplicaciones_pago_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finanzas_desaplicaciones_pago_id_seq OWNED BY public.finanzas_desaplicaciones_pago.id;
 
 
 --
@@ -10848,6 +11193,13 @@ ALTER TABLE ONLY contabilidad.configuracion_cuentas_contables ALTER COLUMN id SE
 
 
 --
+-- Name: configuracion_tipos_automaticos id; Type: DEFAULT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_tipos_automaticos ALTER COLUMN id SET DEFAULT nextval('contabilidad.configuracion_tipos_automaticos_id_seq'::regclass);
+
+
+--
 -- Name: contabilizaciones id; Type: DEFAULT; Schema: contabilidad; Owner: -
 --
 
@@ -11062,6 +11414,13 @@ ALTER TABLE ONLY core.parametros ALTER COLUMN parametro_id SET DEFAULT nextval('
 --
 
 ALTER TABLE ONLY core.parametros_opciones ALTER COLUMN opcion_id SET DEFAULT nextval('core.parametros_opciones_opcion_id_seq'::regclass);
+
+
+--
+-- Name: push_subscriptions id; Type: DEFAULT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.push_subscriptions ALTER COLUMN id SET DEFAULT nextval('core.push_subscriptions_id_seq'::regclass);
 
 
 --
@@ -11324,6 +11683,13 @@ ALTER TABLE ONLY public.documentos_partidas_vinculos ALTER COLUMN id SET DEFAULT
 
 
 --
+-- Name: documentos_relaciones id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_relaciones ALTER COLUMN id SET DEFAULT nextval('public.documentos_relaciones_id_seq'::regclass);
+
+
+--
 -- Name: finanzas_aplicaciones id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -11349,6 +11715,13 @@ ALTER TABLE ONLY public.finanzas_conciliaciones_operaciones ALTER COLUMN id SET 
 --
 
 ALTER TABLE ONLY public.finanzas_cuentas ALTER COLUMN id SET DEFAULT nextval('public.finanzas_cuentas_id_seq'::regclass);
+
+
+--
+-- Name: finanzas_desaplicaciones_pago id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_desaplicaciones_pago ALTER COLUMN id SET DEFAULT nextval('public.finanzas_desaplicaciones_pago_id_seq'::regclass);
 
 
 --
@@ -11515,6 +11888,14 @@ ALTER TABLE ONLY contabilidad.configuracion
 
 
 --
+-- Name: configuracion_tipos_automaticos configuracion_tipos_automaticos_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_tipos_automaticos
+    ADD CONSTRAINT configuracion_tipos_automaticos_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: contabilizaciones contabilizaciones_pkey; Type: CONSTRAINT; Schema: contabilidad; Owner: -
 --
 
@@ -11599,6 +11980,14 @@ ALTER TABLE ONLY contabilidad.polizas
 
 ALTER TABLE ONLY contabilidad.tipos_poliza
     ADD CONSTRAINT tipos_poliza_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: configuracion_tipos_automaticos uq_contab_config_tipos_auto_empresa_clave; Type: CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_tipos_automaticos
+    ADD CONSTRAINT uq_contab_config_tipos_auto_empresa_clave UNIQUE (empresa_id, clave_movimiento);
 
 
 --
@@ -11977,6 +12366,14 @@ ALTER TABLE ONLY core.parametros
 
 
 --
+-- Name: push_subscriptions push_subscriptions_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.push_subscriptions
+    ADD CONSTRAINT push_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: roles roles_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -12030,6 +12427,21 @@ ALTER TABLE ONLY core.empresas_tipos_documento_transiciones
 
 ALTER TABLE ONLY core.parametros_opciones
     ADD CONSTRAINT uq_parametro_opcion UNIQUE (parametro_id, valor);
+
+
+--
+-- Name: push_subscriptions uq_push_subscriptions_endpoint; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.push_subscriptions
+    ADD CONSTRAINT uq_push_subscriptions_endpoint UNIQUE (endpoint);
+
+
+--
+-- Name: CONSTRAINT uq_push_subscriptions_endpoint ON push_subscriptions; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON CONSTRAINT uq_push_subscriptions_endpoint ON core.push_subscriptions IS 'Un mismo endpoint de PushSubscription nunca puede pertenecer a dos filas: el alta hace UPSERT por este valor (incluyendo reasignación de usuario_id si el mismo dispositivo/navegador ahora pertenece a otro usuario).';
 
 
 --
@@ -12321,6 +12733,22 @@ ALTER TABLE ONLY public.autorizaciones_solicitudes
 
 
 --
+-- Name: cfdi_intentos_timbrado cfdi_intentos_timbrado_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cfdi_intentos_timbrado
+    ADD CONSTRAINT cfdi_intentos_timbrado_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cfdi_intentos_timbrado cfdi_intentos_timbrado_proveedor_id_uk; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cfdi_intentos_timbrado
+    ADD CONSTRAINT cfdi_intentos_timbrado_proveedor_id_uk UNIQUE (proveedor, proveedor_cfdi_id);
+
+
+--
 -- Name: conceptos conceptos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12457,6 +12885,22 @@ ALTER TABLE ONLY public.documentos
 
 
 --
+-- Name: documentos_relaciones documentos_relaciones_par_unico; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_relaciones
+    ADD CONSTRAINT documentos_relaciones_par_unico UNIQUE (empresa_id, documento_origen_id, documento_destino_id);
+
+
+--
+-- Name: documentos_relaciones documentos_relaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_relaciones
+    ADD CONSTRAINT documentos_relaciones_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finanzas_aplicaciones finanzas_aplicaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12486,6 +12930,14 @@ ALTER TABLE ONLY public.finanzas_conciliaciones
 
 ALTER TABLE ONLY public.finanzas_cuentas
     ADD CONSTRAINT finanzas_cuentas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finanzas_desaplicaciones_pago finanzas_desaplicaciones_pago_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_desaplicaciones_pago
+    ADD CONSTRAINT finanzas_desaplicaciones_pago_pkey PRIMARY KEY (id);
 
 
 --
@@ -12646,6 +13098,14 @@ ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle
 
 ALTER TABLE ONLY public.documentos_partidas_vinculos
     ADD CONSTRAINT uq_doc_partidas_vinculos UNIQUE (partida_origen_id, partida_destino_id);
+
+
+--
+-- Name: finanzas_desaplicaciones_pago uq_finanzas_desaplicaciones_aplicacion; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_desaplicaciones_pago
+    ADD CONSTRAINT uq_finanzas_desaplicaciones_aplicacion UNIQUE (empresa_id, aplicacion_id);
 
 
 --
@@ -13078,6 +13538,13 @@ CREATE INDEX idx_config_cuentas_impuesto ON contabilidad.configuracion_cuentas_c
 --
 
 CREATE INDEX idx_config_cuentas_producto ON contabilidad.configuracion_cuentas_contables USING btree (empresa_id, producto_id, uso_contable) WHERE ((producto_id IS NOT NULL) AND (activa = true));
+
+
+--
+-- Name: idx_contab_config_tipos_auto_empresa; Type: INDEX; Schema: contabilidad; Owner: -
+--
+
+CREATE INDEX idx_contab_config_tipos_auto_empresa ON contabilidad.configuracion_tipos_automaticos USING btree (empresa_id);
 
 
 --
@@ -13676,6 +14143,20 @@ CREATE INDEX idx_parametros_padre ON core.parametros USING btree (parametro_padr
 
 
 --
+-- Name: idx_push_subscriptions_usuario_activas; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX idx_push_subscriptions_usuario_activas ON core.push_subscriptions USING btree (usuario_id) WHERE (desactivada_en IS NULL);
+
+
+--
+-- Name: INDEX idx_push_subscriptions_usuario_activas; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON INDEX core.idx_push_subscriptions_usuario_activas IS 'Índice parcial para resolver rápidamente los dispositivos activos de un usuario (listado en este bloque; envío de push en un bloque futuro), sin escanear suscripciones ya desactivadas.';
+
+
+--
 -- Name: idx_roles_empresa; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -13911,6 +14392,13 @@ COMMENT ON INDEX crm.idx_whatsapp_etiquetas_empresa_activo IS 'Optimiza consulta
 --
 
 CREATE INDEX ix_conv_empresa_estado ON crm.conversaciones USING btree (empresa_id, estado);
+
+
+--
+-- Name: ix_mensajes_conversacion_id; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_mensajes_conversacion_id ON crm.mensajes USING btree (conversacion_id);
 
 
 --
@@ -14313,6 +14801,13 @@ CREATE INDEX idx_cd_cp_sat ON public.contactos_domicilios USING btree (cp_sat);
 
 
 --
+-- Name: idx_cfdi_intentos_timbrado_documento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cfdi_intentos_timbrado_documento ON public.cfdi_intentos_timbrado USING btree (empresa_id, documento_id, created_at DESC);
+
+
+--
 -- Name: idx_conceptos_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14401,6 +14896,13 @@ COMMENT ON INDEX public.idx_dc_empresa IS 'Optimiza consultas de campos dinámic
 --
 
 CREATE INDEX idx_dci_documento_empresa_estado ON public.documentos_cancelacion_intentos USING btree (documento_id, empresa_id, estado);
+
+
+--
+-- Name: idx_dci_pac_recurso; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_dci_pac_recurso ON public.documentos_cancelacion_intentos USING btree (proveedor, modalidad, pac_id);
 
 
 --
@@ -14702,6 +15204,20 @@ CREATE INDEX idx_fa_operacion ON public.finanzas_aplicaciones USING btree (opera
 --
 
 COMMENT ON INDEX public.idx_fa_operacion IS 'Permite localizar rápidamente las aplicaciones de una operación financiera.';
+
+
+--
+-- Name: idx_finanzas_desaplicaciones_pago_destino; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_desaplicaciones_pago_destino ON public.finanzas_desaplicaciones_pago USING btree (empresa_id, documento_destino_id, fecha_desaplicacion DESC);
+
+
+--
+-- Name: idx_finanzas_desaplicaciones_pago_origen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finanzas_desaplicaciones_pago_origen ON public.finanzas_desaplicaciones_pago USING btree (empresa_id, documento_origen_id, fecha_desaplicacion DESC);
 
 
 --
@@ -15034,6 +15550,13 @@ CREATE INDEX ix_productos_proveedor_preferido ON public.productos USING btree (p
 
 
 --
+-- Name: ux_cfdi_intentos_timbrado_uuid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_cfdi_intentos_timbrado_uuid ON public.cfdi_intentos_timbrado USING btree (uuid) WHERE (uuid IS NOT NULL);
+
+
+--
 -- Name: ux_contactos_domicilios_principal; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15045,6 +15568,13 @@ CREATE UNIQUE INDEX ux_contactos_domicilios_principal ON public.contactos_domici
 --
 
 CREATE UNIQUE INDEX ux_contactos_empresa_codigo_legacy ON public.contactos USING btree (empresa_id, codigo_legacy) WHERE (codigo_legacy IS NOT NULL);
+
+
+--
+-- Name: ux_dci_solicitud_activa; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_dci_solicitud_activa ON public.documentos_cancelacion_intentos USING btree (documento_id) WHERE ((estado)::text = ANY ((ARRAY['iniciado'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[]));
 
 
 --
@@ -15307,6 +15837,13 @@ CREATE TRIGGER trg_contactos_updated_at BEFORE UPDATE ON public.contactos FOR EA
 
 
 --
+-- Name: finanzas_desaplicaciones_pago trg_finanzas_desaplicaciones_pago_inmutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_finanzas_desaplicaciones_pago_inmutable BEFORE DELETE OR UPDATE ON public.finanzas_desaplicaciones_pago FOR EACH ROW EXECUTE FUNCTION public.bloquear_mutacion_finanzas_desaplicaciones_pago();
+
+
+--
 -- Name: plantillas_documento trg_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15391,6 +15928,22 @@ ALTER TABLE ONLY contabilidad.configuracion
 
 ALTER TABLE ONLY contabilidad.configuracion
     ADD CONSTRAINT configuracion_tipo_poliza_venta_factura_id_fkey FOREIGN KEY (tipo_poliza_venta_factura_id) REFERENCES contabilidad.tipos_poliza(id);
+
+
+--
+-- Name: configuracion_tipos_automaticos configuracion_tipos_automaticos_empresa_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_tipos_automaticos
+    ADD CONSTRAINT configuracion_tipos_automaticos_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: configuracion_tipos_automaticos configuracion_tipos_automaticos_tipo_poliza_id_fkey; Type: FK CONSTRAINT; Schema: contabilidad; Owner: -
+--
+
+ALTER TABLE ONLY contabilidad.configuracion_tipos_automaticos
+    ADD CONSTRAINT configuracion_tipos_automaticos_tipo_poliza_id_fkey FOREIGN KEY (tipo_poliza_id) REFERENCES contabilidad.tipos_poliza(id);
 
 
 --
@@ -16117,6 +16670,21 @@ ALTER TABLE ONLY core.parametros
 
 
 --
+-- Name: push_subscriptions fk_push_subscriptions_usuario; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.push_subscriptions
+    ADD CONSTRAINT fk_push_subscriptions_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: CONSTRAINT fk_push_subscriptions_usuario ON push_subscriptions; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON CONSTRAINT fk_push_subscriptions_usuario ON core.push_subscriptions IS 'Si se elimina el usuario, sus suscripciones dejan de tener sentido y se eliminan con él.';
+
+
+--
 -- Name: usuarios fk_usuarios_vendedor_contacto; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -16461,6 +17029,22 @@ ALTER TABLE ONLY public.autorizaciones_solicitudes
 
 
 --
+-- Name: cfdi_intentos_timbrado cfdi_intentos_timbrado_documento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cfdi_intentos_timbrado
+    ADD CONSTRAINT cfdi_intentos_timbrado_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: cfdi_intentos_timbrado cfdi_intentos_timbrado_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cfdi_intentos_timbrado
+    ADD CONSTRAINT cfdi_intentos_timbrado_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
 -- Name: documentos_cancelacion_intentos documentos_cancelacion_intentos_documento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16490,6 +17074,38 @@ ALTER TABLE ONLY public.documentos_cancelacion_intentos
 
 ALTER TABLE ONLY public.documentos
     ADD CONSTRAINT documentos_finanzas_operacion_id_fkey FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id);
+
+
+--
+-- Name: documentos_relaciones documentos_relaciones_documento_destino_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_relaciones
+    ADD CONSTRAINT documentos_relaciones_documento_destino_id_fkey FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: documentos_relaciones documentos_relaciones_documento_origen_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_relaciones
+    ADD CONSTRAINT documentos_relaciones_documento_origen_id_fkey FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: documentos_relaciones documentos_relaciones_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_relaciones
+    ADD CONSTRAINT documentos_relaciones_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: documentos_relaciones documentos_relaciones_usuario_creacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_relaciones
+    ADD CONSTRAINT documentos_relaciones_usuario_creacion_id_fkey FOREIGN KEY (usuario_creacion_id) REFERENCES core.usuarios(id);
 
 
 --
@@ -16861,6 +17477,22 @@ ALTER TABLE ONLY public.finanzas_conciliaciones_operaciones
 
 
 --
+-- Name: finanzas_desaplicaciones_pago fk_finanzas_desaplicaciones_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_desaplicaciones_pago
+    ADD CONSTRAINT fk_finanzas_desaplicaciones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finanzas_desaplicaciones_pago fk_finanzas_desaplicaciones_usuario; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_desaplicaciones_pago
+    ADD CONSTRAINT fk_finanzas_desaplicaciones_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: finanzas_operaciones fk_finanzas_operaciones_documento_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17176,5 +17808,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 76eNPOXC5ZvHezKybEjgghCFo4XdKdPm3EfLfnYEjAzDDOMOHI9UDuegs9fl9sa
+\unrestrict fgZdcqCnyvro51pnWytHjnJccHLpe7CTwk4eufmcWhhvlPc4MbYH0AYeA2eemnM
 

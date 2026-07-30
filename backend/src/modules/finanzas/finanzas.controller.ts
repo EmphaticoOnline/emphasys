@@ -10,7 +10,7 @@ import {
   crearOperacion,
   crearTransferencia,
   diagnosticarDuplicadosAplicaciones,
-  eliminarAplicacion,
+  desaplicarPagoCliente,
   eliminarCuenta,
   eliminarOperacion,
   eliminarTransferencia,
@@ -42,6 +42,7 @@ import {
   listarHistorialConciliaciones,
   deshacerConciliacion,
 } from './finanzas.repository';
+import { obtenerRolesDeUsuarioEnEmpresa } from '../auth/auth.service';
 
 export async function getReporteAging(req: Request, res: Response) {
   const empresaId = req.context?.empresaId as number;
@@ -301,7 +302,10 @@ export async function postAplicacion(req: Request, res: Response) {
     res.status(201).json(result);
   } catch (err: any) {
     const status = err?.status ?? 400;
-    res.status(status).json({ message: err.message || 'No se pudo registrar la aplicación' });
+    res.status(status).json({
+      ...(err?.code ? { code: err.code } : {}),
+      message: err.message || 'No se pudo registrar la aplicación',
+    });
   }
 }
 
@@ -322,7 +326,10 @@ export async function postAplicarAnticiposDocumento(req: Request, res: Response)
     res.status(201).json(result);
   } catch (err: any) {
     const status = err?.status ?? 400;
-    res.status(status).json({ message: err.message || 'No se pudo aplicar anticipos al documento' });
+    res.status(status).json({
+      ...(err?.code ? { code: err.code } : {}),
+      message: err.message || 'No se pudo aplicar anticipos al documento',
+    });
   }
 }
 
@@ -365,10 +372,61 @@ export async function deleteAplicacion(req: Request, res: Response) {
     const empresaId = req.context?.empresaId as number;
     if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
     const id = Number(req.params.id);
-    await eliminarAplicacion(id, empresaId);
-    res.status(204).send();
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return res.status(400).json({ message: 'ID de aplicación inválido' });
+    }
+    const motivo = String(req.body?.motivo ?? '').trim();
+    if (motivo.length > 500) {
+      return res.status(400).json({ message: 'El motivo no puede exceder 500 caracteres' });
+    }
+    const usuarioId = Number(req.auth?.userId);
+    if (!Number.isSafeInteger(usuarioId) || usuarioId <= 0) {
+      return res.status(403).json({ message: 'Usuario no autorizado para desaplicar pagos' });
+    }
+    if (!req.auth?.esSuperadmin) {
+      const roles = await obtenerRolesDeUsuarioEnEmpresa(usuarioId, empresaId);
+      const autorizado = roles.some((rol) =>
+        ['administrador', 'admin'].includes(String(rol.nombre ?? '').trim().toLowerCase())
+      );
+      if (!autorizado) {
+        return res.status(403).json({ message: 'No tiene permiso para desaplicar pagos de clientes' });
+      }
+    }
+    const result = await desaplicarPagoCliente(id, empresaId, { motivo: motivo || null, usuarioId });
+    res.json(result);
   } catch (err: any) {
-    res.status(400).json({ message: err.message || 'No se pudo eliminar la aplicación' });
+    const status = Number(err?.status);
+    if ([400, 403, 404, 409].includes(status)) {
+      return res.status(status).json({ message: err.message });
+    }
+    const pgCode = String(err?.code ?? '');
+    const constraint = String(err?.constraint ?? '');
+    const relation = String(err?.table ?? err?.relation ?? '');
+    const esConfiguracionMotivoAnterior =
+      (pgCode === '23514' && constraint === 'chk_finanzas_desaplicaciones_motivo')
+      || (pgCode === '23502' && String(err?.column ?? '') === 'motivo');
+    const faltaBitacora =
+      pgCode === '42P01'
+      && (
+        relation.includes('finanzas_desaplicaciones_pago')
+        || String(err?.message ?? '').includes('finanzas_desaplicaciones_pago')
+      );
+    if (esConfiguracionMotivoAnterior || faltaBitacora) {
+      console.error('Configuración pendiente para desaplicar pago:', err);
+      return res.status(503).json({
+        code: 'DESAPLICACION_CONFIG_PENDIENTE',
+        message:
+          'La función “Desaplicar pago” todavía no está habilitada por completo en esta instalación. '
+          + 'Solicita a un administrador actualizar el módulo de Finanzas. No se realizaron cambios.',
+      });
+    }
+    console.error('Error al desaplicar pago de cliente:', err);
+    return res.status(500).json({
+      code: 'DESAPLICACION_ERROR_INTERNO',
+      message:
+        'Ocurrió un error al registrar la desaplicación. El pago y la factura conservaron sus saldos anteriores. '
+        + 'Intenta nuevamente; si el problema continúa, contacta al administrador.',
+    });
   }
 }
 

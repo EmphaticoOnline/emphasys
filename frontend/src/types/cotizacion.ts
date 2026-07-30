@@ -25,14 +25,27 @@ export interface CotizacionListado {
   tratamiento_impuestos?: TratamientoImpuestos | null;
   estatus_documento: string;
   cfdi_uuid?: string | null;
+  cfdi_tiene_xml?: boolean;
   cfdi_fecha_timbrado?: string | null;
   cfdi_estado_sat?: string | null;
   cfdi_fecha_cancelacion?: string | null;
+  cfdi_pac_id?: string | null;
+  cfdi_pac_modalidad?: 'web' | 'lite' | null;
+  cfdi_cancelacion_estado?: 'no_solicitada' | 'solicitada' | 'pendiente' | 'cancelada' | 'rechazada' | 'error' | 'requiere_reconciliacion' | null;
+  cfdi_cancelacion_intento_id?: number | null;
+  cfdi_cancelacion_proveedor?: string | null;
+  cfdi_cancelacion_proveedor_status?: string | null;
+  cfdi_cancelacion_fecha_solicitud?: string | null;
+  cfdi_cancelacion_fecha_ultima_consulta?: string | null;
+  tiene_aplicaciones_saldo_activas?: boolean;
   producto_resumen?: string | null;
   estado_seguimiento?: EstadoSeguimiento | null;
   comentario_seguimiento?: string | null;
   eliminara_oportunidad?: boolean;
   saldo?: number | null;
+  saldo_registrado?: number | null;
+  saldo_suspendido_cancelacion?: number | null;
+  cobro_bloqueado?: boolean;
   estado_autorizacion?: string | null;
   serie_externa?: string | null;
   numero_externo?: number | null;
@@ -75,8 +88,20 @@ export interface CotizacionDocumento {
   codigo_postal_receptor?: string | null;
   tratamiento_impuestos?: TratamientoImpuestos | null;
   saldo?: number | null;
+  saldo_registrado?: number | null;
+  saldo_suspendido_cancelacion?: number | null;
+  cobro_bloqueado?: boolean;
   serie_externa?: string | null;
   numero_externo?: number | null;
+  cfdi_uuid?: string | null;
+  cfdi_estado_sat?: string | null;
+  cfdi_fecha_cancelacion?: string | null;
+  cfdi_cancelacion_estado?: 'no_solicitada' | 'solicitada' | 'pendiente' | 'cancelada' | 'rechazada' | 'error' | 'requiere_reconciliacion' | null;
+  cfdi_cancelacion_intento_id?: number | null;
+  cfdi_cancelacion_proveedor?: string | null;
+  cfdi_cancelacion_proveedor_status?: string | null;
+  cfdi_cancelacion_fecha_solicitud?: string | null;
+  cfdi_cancelacion_fecha_ultima_consulta?: string | null;
 }
 
 export interface CotizacionPartida {

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Box,
   FormControl,
@@ -134,7 +134,12 @@ const normalizeContactoMexicoMobilePhone = (telefono: string): string => {
 
 export default function ContactoFormPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
+  const stateReturnTo = (location.state as { returnTo?: unknown } | null)?.returnTo;
+  const returnTo = typeof stateReturnTo === 'string' && stateReturnTo.startsWith('/')
+    ? stateReturnTo
+    : '/contactos';
   const [searchParams] = useSearchParams();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -628,7 +633,7 @@ function validarRFC(rfc: string) {
         const catalogoIds = obtenerCatalogosSeleccionados();
         await guardarCatalogosConfigurablesContacto(contactoIdCreado, catalogoIds);
       }
-      navigate('/contactos');
+      navigate(returnTo);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al guardar contacto';
       setError(message);
@@ -662,7 +667,7 @@ function validarRFC(rfc: string) {
         >
           {isMobile ? (
             <MobileBackIconButton
-              onClick={() => navigate('/contactos')}
+              onClick={() => navigate(returnTo)}
               disabled={saving}
             />
           ) : null}
@@ -1290,7 +1295,7 @@ function validarRFC(rfc: string) {
             />
           ) : (
             <FloatingFormActions
-              onBack={() => navigate('/contactos')}
+              onBack={() => navigate(returnTo)}
               backDisabled={saving}
               saveType="submit"
               saving={saving}

@@ -288,6 +288,38 @@ export function timbrarDocumentoCfdi(id: number, tipo: TipoDocumento) {
   });
 }
 
+export type PagoComplementPrevalidacion = {
+  documentoId: number;
+  aplicaciones: number;
+  estado: 'sin_aplicaciones' | 'receptor_disponible' | 'inconsistente';
+  origen: 'xml_facturas' | null;
+  receptor: {
+    nombre: string;
+    rfcEnmascarado: string;
+    regimenFiscal: string;
+    codigoPostal: string;
+  } | null;
+  error?: { code: string; message: string; details?: Record<string, unknown> };
+};
+
+export function prevalidarComplementoPago(id: number): Promise<PagoComplementPrevalidacion> {
+  return apiFetch(`/api/documentos/${id}/prevalidar-complemento-pago`);
+}
+
+export function enviarComplementoPago(id: number, email: string) {
+  return apiFetch(`/api/documentos/${id}/enviar-complemento-pago`, {
+    method: 'POST',
+    body: { email } as any,
+  });
+}
+
+export async function descargarComplementoPagoXml(id: number): Promise<void> {
+  const { blob, filename } = await apiFetchBlob(
+    `/api/documentos/${id}/xml?tipo_documento=pago_cliente`
+  );
+  triggerBlobDownload(blob, filename);
+}
+
 export function cancelarDocumento(
   id: number,
   tipo: TipoDocumento,
@@ -300,6 +332,45 @@ export function cancelarDocumento(
   return apiFetch(withTipoQuery(`/api/documentos/${id}/cancelar`, tipo), {
     method: 'POST',
     body: payload as any,
+  });
+}
+
+export type PrevalidacionCancelacionDocumento = {
+  documentoId: number;
+  folio: string;
+  aplicacionesActivas: number;
+  derivadosBloqueantes: Array<{ documentoId: number; folio: string; tipoRelacion: string }>;
+  correccionesNoBloqueantes: Array<{ documentoId: number; folio: string; tipoRelacion: string }>;
+  inventario: boolean;
+  contabilidad: boolean;
+  intentoActivo: { id: number; estado: string } | null;
+  cfdi: {
+    uuid: string | null;
+    estadoSat: string | null;
+    cancelacionEstado: string | null;
+    pacId: string | null;
+    pacModalidad: string | null;
+  } | null;
+  puedeSolicitarCancelacion: boolean;
+  advertencias: string[];
+};
+
+export function prevalidarCancelacionDocumento(id: number): Promise<PrevalidacionCancelacionDocumento> {
+  return apiFetch(`/api/documentos/${id}/prevalidar-cancelacion`);
+}
+
+export type ReconciliacionCancelacionDocumento = {
+  documento_id: number;
+  intento_id: number;
+  cancelacion_estado: 'no_solicitada' | 'solicitada' | 'pendiente' | 'cancelada' | 'rechazada' | 'error' | 'requiere_reconciliacion';
+  proveedor_status: string | null;
+  estatus_documento: string;
+  message: string;
+};
+
+export function reconciliarCancelacionDocumento(id: number): Promise<ReconciliacionCancelacionDocumento> {
+  return apiFetch(`/api/documentos/${id}/reconciliar-cancelacion`, {
+    method: 'POST',
   });
 }
 

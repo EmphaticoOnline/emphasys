@@ -198,6 +198,19 @@ async function _obtenerEstadoCuenta(
   // los que actúan como abono (pagos, notas de crédito) son siempre origen — su saldo
   // disponible se consume por lo que se aplicó DESDE ellos, no hacia ellos.
   const saldoActualSelect = `, CASE WHEN LOWER(COALESCE(d.estatus_documento,'')) IN ('cancelado','cancelada')
+    OR EXISTS (
+      SELECT 1
+        FROM documentos_cancelacion_intentos ci
+       WHERE ci.empresa_id = d.empresa_id
+         AND ci.documento_id = d.id
+         AND ci.estado IN ('iniciado', 'solicitada', 'pendiente', 'requiere_reconciliacion')
+    )
+    OR EXISTS (
+      SELECT 1
+        FROM documentos_cfdi dc
+       WHERE dc.documento_id = d.id
+         AND dc.cancelacion_estado IN ('solicitada', 'pendiente', 'requiere_reconciliacion', 'cancelada')
+    )
     THEN 0
     WHEN d.tipo_documento IN (${cargoExpr})
       THEN d.total::numeric - COALESCE((
@@ -230,6 +243,8 @@ async function _obtenerEstadoCuenta(
        ) AS saldo_acumulado
        ${saldoActualSelect}
      FROM documentos d
+     JOIN documentos_saldo_operativo dso
+       ON dso.id = d.id AND dso.empresa_id = d.empresa_id
      WHERE d.empresa_id = $1
        AND d.contacto_principal_id = $2
        AND d.tipo_documento = ANY($3::text[])
@@ -2031,6 +2046,8 @@ export async function obtenerCarteraVencida(params: {
            ), 0)                                                           AS saldo,
        ($2::date - COALESCE(d.fecha_vencimiento, d.fecha_documento)::date)::int AS dias
      FROM documentos d
+     JOIN documentos_saldo_operativo dso
+       ON dso.id = d.id AND dso.empresa_id = d.empresa_id
      LEFT JOIN contactos c
        ON c.id = d.contacto_principal_id AND c.empresa_id = d.empresa_id
      LEFT JOIN aplicaciones_saldo a
@@ -2038,6 +2055,7 @@ export async function obtenerCarteraVencida(params: {
      WHERE d.empresa_id = $1
        AND d.tipo_documento = ANY($3::text[])
        AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada', 'borrador')
+       AND NOT dso.cobro_bloqueado
        AND COALESCE(d.fecha_vencimiento, d.fecha_documento)::date <= $2::date
      GROUP BY
        d.id, d.contacto_principal_id, c.nombre,

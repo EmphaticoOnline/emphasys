@@ -5,6 +5,9 @@ import {
   crearCotizacion,
   timbrarDocumentoCfdi,
   timbrarComplementoPagoHandler,
+  prevalidarComplementoPagoHandler,
+  obtenerDocumentoXML,
+  enviarComplementoPagoPorCorreo,
   enviarCotizacionPorCorreo,
   enviarWhatsappCotizacion,
   listarCotizaciones,
@@ -16,6 +19,8 @@ import {
   reemplazarPartidas,
   eliminarCotizacion,
   cancelarDocumento,
+  prevalidarCancelacionDocumentoHandler,
+  reconciliarCancelacionDocumentoHandler,
   obtenerCotizacionPDF,
   calcularImpuestosPreviewHandler,
   exportarDocumentos,
@@ -79,9 +84,14 @@ router.put('/:id/partidas', requireAuth, requireEmpresaActiva, reemplazarPartida
 router.post('/:id/timbrar-cfdi', requireAuth, requireEmpresaActiva, timbrarDocumentoCfdi);
 
 // POST /api/documentos/:id/timbrar-complemento-pago
+router.get('/:id/prevalidar-complemento-pago', requireAuth, requireEmpresaActiva, prevalidarComplementoPagoHandler);
 router.post('/:id/timbrar-complemento-pago', requireAuth, requireEmpresaActiva, timbrarComplementoPagoHandler);
+router.get('/:id/xml', requireAuth, requireEmpresaActiva, obtenerDocumentoXML);
+router.post('/:id/enviar-complemento-pago', requireAuth, requireEmpresaActiva, enviarComplementoPagoPorCorreo);
 
 // POST /api/documentos/:id/cancelar
+router.get('/:id/prevalidar-cancelacion', requireAuth, requireEmpresaActiva, prevalidarCancelacionDocumentoHandler);
+router.post('/:id/reconciliar-cancelacion', requireAuth, requireEmpresaActiva, reconciliarCancelacionDocumentoHandler);
 router.post('/:id/cancelar', requireAuth, requireEmpresaActiva, cancelarDocumento);
 
 // POST /api/documentos/calcular-impuestos (preview sin persistir)

@@ -49,8 +49,14 @@ export class EmailService {
       throw new Error('No hay configuración SMTP activa para esta empresa o usuario');
     }
 
-    const transporter = EmailService.createTransporterFromConfig(config);
+    return EmailService.sendMailWithConfig(config, options);
+  }
 
+  public static async sendMailWithConfig(
+    config: ConfiguracionEmailPrivada,
+    options: EmailOptions
+  ): Promise<SentMessageInfo> {
+    const transporter = EmailService.createTransporterFromConfig(config);
     return transporter.sendMail({
       from: options.from || EmailService.formatFrom(config),
       ...options,

@@ -12,21 +12,30 @@ import {
   eliminarDocumentoRepository,
   obtenerRecepcionResumenRepository,
 } from './documentos.repository';
-import { generarDocumentoPDF } from './documentos.pdf';
+import { generarDocumentoPDF, obtenerLogoEmpresaPath } from './documentos.pdf';
+import { generarComplementoPagoPdfDesdeXml } from './complemento-pago.pdf';
 import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
-import { timbrarComplementoPago } from '../cfdi/cfdi-pago.service';
+import { obtenerPrevalidacionComplementoPago, timbrarComplementoPago } from '../cfdi/cfdi-pago.service';
+import { PagoComplementValidationError } from '../cfdi/pago-complement.errors';
+import { CfdiAcceptedPendingDownloadError } from '../cfdi/facturama.client';
 import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
 import { actualizarCotizacionService, actualizarDocumentoService, aplicarInventarioPostEmision, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
 import { calcularImpuestosPreview } from '../impuestos/impuestos-preview.service';
 import { DocumentoDeleteValidationError, eliminarCotizacionConValidacion, puedeEliminarCotizacion } from './documentos-delete.service';
-import { cancelarDocumentoService, DocumentoCancelValidationError } from './documentos-cancel.service';
+import {
+  cancelarDocumentoService,
+  DocumentoCancelValidationError,
+  prevalidarCancelacionDocumento,
+  reconciliarCancelacionDocumentoService,
+} from './documentos-cancel.service';
 import { formatearFolioDocumento } from '../../utils/documentos';
 import { obtenerJwtSecret } from '../auth/auth.service';
 import { evaluarScopeVentas, resolverContextoScopeComercial } from '../auth/scope-comercial';
 import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
 import { resolverTipoPlantillaWhatsapp, type WhatsappTemplateType } from '../../whatsapp/whatsapp-template-type.service';
+import { CfdiEmailError } from '../../services/cfdi-email.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -218,6 +227,30 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
   const result = await obtenerDocumentoRepository(documentoId, empresaId, tipo);
   if (!result) {
     throw buildHttpError(404, 'Documento no encontrado');
+  }
+
+  if (tipo === 'pago_cliente') {
+    const { rows } = await pool.query(
+      `SELECT dc.xml_timbrado, dc.estado_sat, dc.cadena_original
+         FROM documentos d
+         JOIN documentos_cfdi dc ON dc.documento_id = d.id
+        WHERE d.id = $1 AND d.empresa_id = $2
+        LIMIT 1`,
+      [documentoId, empresaId]
+    );
+    const cfdiPago = rows[0];
+    if (cfdiPago?.xml_timbrado) {
+      const pdfBuffer = await generarComplementoPagoPdfDesdeXml(String(cfdiPago.xml_timbrado), {
+        estadoSat: cfdiPago.estado_sat,
+        cadenaOriginal: cfdiPago.cadena_original,
+        logoPath: await obtenerLogoEmpresaPath(empresaId),
+      });
+      return {
+        buffer: pdfBuffer,
+        filename: construirNombrePdf(result.documento, documentoId),
+        documento: result.documento,
+      };
+    }
   }
 
   try {
@@ -893,14 +926,18 @@ export async function enviarFacturaPorCorreo(req: Request, res: Response) {
   // @ts-ignore
   const { FacturaEmailService } = await import('../../services/factura-email.service');
 
-  await FacturaEmailService.enviarFactura({
-    documentoId,
-    usuarioId: req.auth?.userId ?? null,
-    emailDestino,
+    await FacturaEmailService.enviarFactura({
+      documentoId,
+      empresaId: Number(empresaId),
+      usuarioId: req.auth?.userId ?? null,
+      emailDestino,
   });
 
     return res.json({ success: true, message: 'Factura enviada correctamente' });
   } catch (error) {
+    if (error instanceof CfdiEmailError) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     const status = (error as any)?.status;
     if (status) {
       return res.status(status).json({ error: (error as Error).message });
@@ -973,6 +1010,53 @@ export async function obtenerFacturaXML(req: Request, res: Response) {
     }
     console.error('Error al obtener XML timbrado', error);
     res.status(500).json({ message: 'Error al obtener XML timbrado' });
+  }
+}
+
+export async function obtenerDocumentoXML(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    const tipo = resolverTipoDocumentoRequest(req, 'pago_cliente');
+    if (!Number.isFinite(documentoId) || !empresaId || tipo !== 'pago_cliente') {
+      return res.status(400).json({ message: 'Documento o tipo inválido' });
+    }
+    const { xml, filename } = await obtenerFacturaXmlData(documentoId, Number(empresaId));
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(xml);
+  } catch (error) {
+    const status = (error as any)?.status || 500;
+    return res.status(status).json({ message: (error as Error).message || 'No se pudo obtener el XML' });
+  }
+}
+
+export async function enviarComplementoPagoPorCorreo(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    const emailDestino = String(req.body?.email || '').trim() || undefined;
+    if (!Number.isFinite(documentoId) || !empresaId) {
+      return res.status(400).json({ message: 'Documento y empresa son obligatorios' });
+    }
+    const { ComplementoPagoEmailService } = await import('../../services/complemento-pago-email.service');
+    await ComplementoPagoEmailService.enviar({
+      documentoId,
+      empresaId: Number(empresaId),
+      usuarioId: req.auth?.userId ?? null,
+      emailDestino,
+    });
+    return res.json({ message: 'Complemento de pago enviado correctamente' });
+  } catch (error) {
+    if (error instanceof CfdiEmailError) {
+      return res.status(error.status).json({ message: error.message, code: error.code });
+    }
+    console.error('[CFDI Email] error inesperado', {
+      documentoId: Number(req.params.id),
+      empresaId: req.context?.empresaId,
+      tipo: 'complemento_pago',
+    });
+    return res.status(500).json({ message: 'No fue posible enviar el complemento de pago.' });
   }
 }
 
@@ -1307,6 +1391,14 @@ export async function timbrarFacturaCfdi(req: Request, res: Response) {
     const resultado = await cfdiService.timbrarFactura(documentoId, Number(empresaId));
     res.json(resultado);
   } catch (error) {
+    if (error instanceof CfdiAcceptedPendingDownloadError) {
+      return res.status(409).json({
+        message: error.message,
+        documento_id: documentoId,
+        estado_reconciliacion: error.estadoReconciliacion,
+        intento_id: error.intentoId,
+      });
+    }
     if (error instanceof CfdiValidationError) {
       return res.status(400).json({ message: error.message });
     }
@@ -1326,6 +1418,14 @@ export async function timbrarDocumentoCfdi(req: Request, res: Response) {
     const resultado = await cfdiService.timbrarDocumento(documentoId, Number(empresaId));
     res.json(resultado);
   } catch (error) {
+    if (error instanceof CfdiAcceptedPendingDownloadError) {
+      return res.status(409).json({
+        message: error.message,
+        documento_id: documentoId,
+        estado_reconciliacion: error.estadoReconciliacion,
+        intento_id: error.intentoId,
+      });
+    }
     if (error instanceof CfdiValidationError) {
       return res.status(400).json({ message: error.message });
     }
@@ -1342,8 +1442,23 @@ export async function timbrarComplementoPagoHandler(req: Request, res: Response)
   }
   try {
     const resultado = await timbrarComplementoPago(documentoId, Number(empresaId));
-    res.json(resultado);
+    res.status(200).json({
+      message: 'Complemento de pago timbrado correctamente.',
+      documentoId,
+      uuid: resultado.timbre.uuid,
+      fechaTimbrado: resultado.timbre.fecha_timbrado,
+      pdfUrl: `/api/documentos/${documentoId}/pdf?tipo_documento=pago_cliente`,
+      xmlUrl: `/api/documentos/${documentoId}/xml?tipo_documento=pago_cliente`,
+      emailDisponible: true,
+    });
   } catch (error) {
+    if (error instanceof PagoComplementValidationError) {
+      return res.status(error.statusCode).json({
+        code: error.code,
+        message: error.message,
+        ...(error.details ? { details: error.details } : {}),
+      });
+    }
     if (error instanceof CfdiValidationError) {
       return res.status(400).json({ message: error.message });
     }
@@ -1351,6 +1466,16 @@ export async function timbrarComplementoPagoHandler(req: Request, res: Response)
     const message = error instanceof Error ? error.message : 'Error al timbrar el complemento de pago';
     res.status(500).json({ message });
   }
+}
+
+export async function prevalidarComplementoPagoHandler(req: Request, res: Response) {
+  const documentoId = Number(req.params.id);
+  const empresaId = req.context?.empresaId;
+  if (!Number.isFinite(documentoId) || !empresaId) {
+    return res.status(400).json({ message: 'ID o empresaId inválido' });
+  }
+  const result = await obtenerPrevalidacionComplementoPago(documentoId, Number(empresaId));
+  return res.status(200).json(result);
 }
 
 export async function cancelarDocumento(req: Request, res: Response) {
@@ -1376,11 +1501,58 @@ export async function cancelarDocumento(req: Request, res: Response) {
     return res.status(200).json(result);
   } catch (error) {
     if (error instanceof DocumentoCancelValidationError) {
-      return res.status(400).json({ message: error.message });
+      return res.status(error.statusCode).json({
+        code: error.code,
+        message: error.message,
+        ...(error.details ? { details: error.details } : {}),
+      });
     }
 
     console.error('Error al cancelar documento', error);
     return res.status(500).json({ message: 'Error al cancelar documento' });
+  }
+}
+
+export async function prevalidarCancelacionDocumentoHandler(req: Request, res: Response) {
+  const documentoId = Number(req.params.id);
+  const empresaId = Number(req.context?.empresaId);
+  if (!Number.isFinite(documentoId) || !Number.isFinite(empresaId)) {
+    return res.status(400).json({ message: 'ID o empresaId inválido' });
+  }
+  try {
+    return res.status(200).json(await prevalidarCancelacionDocumento(documentoId, empresaId));
+  } catch (error) {
+    if (error instanceof DocumentoCancelValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
+    console.error('Error al prevalidar cancelación', error);
+    return res.status(500).json({ message: 'Error al prevalidar cancelación' });
+  }
+}
+
+export async function reconciliarCancelacionDocumentoHandler(req: Request, res: Response) {
+  const documentoId = Number(req.params.id);
+  const empresaId = Number(req.context?.empresaId);
+  const usuarioId = Number(req.auth?.userId);
+  if (!Number.isFinite(documentoId) || !Number.isFinite(empresaId) || !Number.isFinite(usuarioId)) {
+    return res.status(400).json({ message: 'ID, empresa o usuario inválido' });
+  }
+  try {
+    return res.status(200).json(await reconciliarCancelacionDocumentoService({
+      documentoId,
+      empresaId,
+      usuarioId,
+    }));
+  } catch (error) {
+    if (error instanceof DocumentoCancelValidationError) {
+      return res.status(error.statusCode).json({
+        code: error.code,
+        message: error.message,
+        ...(error.details ? { details: error.details } : {}),
+      });
+    }
+    console.error('Error al reconciliar cancelación', error);
+    return res.status(500).json({ message: 'Error al reconciliar la cancelación' });
   }
 }
 

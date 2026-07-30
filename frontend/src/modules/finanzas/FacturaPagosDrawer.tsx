@@ -28,7 +28,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import {
   crearAplicacion,
-  eliminarAplicacion,
+  desaplicarPago,
   fetchAplicacionesDocumento,
   fetchEstadoCuenta,
   fetchSaldoDocumento,
@@ -42,6 +42,9 @@ import type {
 import type { TipoDocumento } from '../../types/documentos.types';
 import { formatearFolioDocumento } from '../../utils/documentos.utils';
 import DocumentosFormPage from '../../pages/DocumentosFormPage';
+import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
+import { loadSession } from '../../session/sessionStorage';
+import { esRolAdmin } from '../../session/rolScope';
 
 const formatDateShort = (value?: string | null) => {
   if (!value) return '';
@@ -108,6 +111,8 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
   const [montosDocumento, setMontosDocumento] = useState<Record<number, string>>({});
   const [applyingDocumentoId, setApplyingDocumentoId] = useState<number | null>(null);
   const [deletingAplicacionId, setDeletingAplicacionId] = useState<number | null>(null);
+  const [desaplicarItem, setDesaplicarItem] = useState<AplicacionOperacion | null>(null);
+  const [desaplicarError, setDesaplicarError] = useState<string | null>(null);
   const [autoApplying, setAutoApplying] = useState(false);
   const [openNuevoPago, setOpenNuevoPago] = useState(false);
   const [openNuevoAjuste, setOpenNuevoAjuste] = useState(false);
@@ -136,13 +141,17 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     ? 'Selecciona un documento de cargo y aplica un monto al saldo disponible.'
     : 'Selecciona un abono y aplícalo al saldo pendiente.';
   const ariaPendientes = esNotaCredito ? 'Documentos de cargo pendientes' : 'Facturas pendientes';
-  const emptyPendientes = esNotaCredito ? 'No hay documentos de cargo pendientes' : 'No hay documentos de abono disponibles';
-  const etiquetaDocumento = esNotaCredito ? (tipoDocumento === 'nota_credito_compra' ? 'Nota de credito de compra' : 'Nota de credito') : 'Documento';
   const esModuloCompras = tipoDocumentoNormalizado === 'factura_compra' || tipoDocumentoNormalizado === 'nota_credito_compra' || tipoDocumentoNormalizado === 'pago_proveedor' || tipoDocumentoNormalizado === 'ajuste_proveedor';
   const etiquetaContacto = esModuloCompras ? 'Proveedor' : 'Cliente';
+  const emptyPendientes = esNotaCredito
+    ? 'No hay documentos de cargo pendientes'
+    : `No hay pagos, notas de crédito ni ajustes con saldo disponible para este ${etiquetaContacto.toLowerCase()} y moneda.`;
+  const etiquetaDocumento = esNotaCredito ? (tipoDocumento === 'nota_credito_compra' ? 'Nota de credito de compra' : 'Nota de credito') : 'Documento';
   const documentosCompatibles = useMemo(() => TIPOS_DOCUMENTO_ORIGEN_COMPATIBLES[tipoDocumentoNormalizado] ?? [], [tipoDocumentoNormalizado]);
 
   const effectiveSaldo = Number(saldoDocumento?.saldo ?? saldo ?? 0);
+  const session = useMemo(() => loadSession(), []);
+  const puedeDesaplicar = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
 
   const refreshDocumentoFinanzas = async () => {
     const [saldoData, aplicacionesData] = await Promise.all([
@@ -322,15 +331,22 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     }
   };
 
-  const handleDeleteAplicacion = async (id: number) => {
+  const handleDesaplicarPago = async (motivo: string) => {
+    if (!desaplicarItem) return;
     try {
-      setDeletingAplicacionId(id);
-      await eliminarAplicacion(id);
-      setSnackbar({ open: true, message: 'Aplicación eliminada', severity: 'success' });
+      setDeletingAplicacionId(desaplicarItem.id);
+      setDesaplicarError(null);
+      await desaplicarPago(desaplicarItem.id, motivo);
+      setDesaplicarItem(null);
+      setSnackbar({
+        open: true,
+        message: 'El pago se desaplicó correctamente. Se actualizaron el saldo disponible del pago y el saldo pendiente de la factura.',
+        severity: 'success',
+      });
       const saldoData = await refreshDocumentoFinanzas();
       await loadDocumentosDisponibles(Number(saldoData?.saldo ?? 0), saldoData?.moneda ?? saldoDocumento?.moneda ?? 'MXN');
     } catch (err: any) {
-      setSnackbar({ open: true, message: err?.message || 'No se pudo eliminar la aplicación', severity: 'error' });
+      setDesaplicarError(err?.message || 'No se pudo desaplicar el pago. No se realizaron cambios.');
     } finally {
       setDeletingAplicacionId(null);
     }
@@ -497,19 +513,23 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                       <TableCell sx={bodyCellSx}>{formatDateShort(item.fecha_documento || item.fecha_aplicacion || item.fecha_creacion)}</TableCell>
                       <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(item.monto_moneda_documento || item.monto || 0))}</TableCell>
                       <TableCell align="center" sx={{ ...bodyCellSx, py: '2px', width: 40 }}>
-                        <Tooltip title="Eliminar aplicación">
-                          <span>
+                        {puedeDesaplicar && item.tipo_documento_origen === 'pago_cliente' ? (
+                          <Tooltip title="Desaplicar pago">
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => handleDeleteAplicacion(Number(item.id))}
+                              onClick={() => {
+                                setDesaplicarError(null);
+                                setDesaplicarItem(item);
+                              }}
                               disabled={deletingAplicacionId === Number(item.id)}
+                              aria-label="Desaplicar pago"
                               sx={{ p: 0.25 }}
                             >
                               <DeleteOutlineIcon fontSize="small" />
                             </IconButton>
-                          </span>
-                        </Tooltip>
+                          </Tooltip>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   );
@@ -750,7 +770,22 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
           </Dialog>
         ) : null}
       </Box>
-    </Drawer>
+        <DesaplicarPagoDialog
+          open={Boolean(desaplicarItem)}
+          pagoFolio={desaplicarItem ? formatearFolioDocumento(desaplicarItem.serie || '', desaplicarItem.numero || 0) : ''}
+          facturaFolio={documentoMeta?.folio ?? ''}
+          importe={formatter.format(Number(desaplicarItem?.monto_moneda_documento ?? 0))}
+          loading={deletingAplicacionId !== null}
+          error={desaplicarError}
+          onClose={() => {
+            if (deletingAplicacionId === null) {
+              setDesaplicarItem(null);
+              setDesaplicarError(null);
+            }
+          }}
+          onConfirm={handleDesaplicarPago}
+        />
+      </Drawer>
   );
 }
 

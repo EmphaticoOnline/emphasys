@@ -3,6 +3,7 @@ import DonutLargeOutlinedIcon from '@mui/icons-material/DonutLargeOutlined';
 import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined';
 import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import PauseCircleOutlineOutlinedIcon from '@mui/icons-material/PauseCircleOutlineOutlined';
 import { Stack, Typography } from '@mui/material';
 import { StatusIndicator } from '../../status';
 import type { DocumentoFinancialIndicatorModel } from './documentosIndicators.types';
@@ -17,6 +18,8 @@ export type DocumentoFinancialIndicatorProps = DocumentoFinancialIndicatorModel;
 export default function DocumentoFinancialIndicator(props: DocumentoFinancialIndicatorProps) {
   const config = props.status === 'paid'
     ? { icon: PaidOutlinedIcon, tone: 'success' as const, label: 'Factura liquidada' }
+    : props.status === 'suspended'
+      ? { icon: PauseCircleOutlineOutlinedIcon, tone: 'warning' as const, label: 'Saldo suspendido por cancelación' }
     : props.status === 'partial'
       ? { icon: DonutLargeOutlinedIcon, tone: 'warning' as const, label: 'Pago parcial' }
       : props.status === 'overdue'
@@ -42,6 +45,9 @@ export default function DocumentoFinancialIndicator(props: DocumentoFinancialInd
           <Typography variant="body2"><strong>Total:</strong> {currency(props.total, props.currency)}</Typography>
           <Typography variant="body2"><strong>Pagado:</strong> {currency(props.paidAmount, props.currency)}</Typography>
           <Typography variant="body2"><strong>Saldo:</strong> {currency(props.balance, props.currency)}</Typography>
+          {props.status === 'suspended' ? (
+            <Typography variant="body2"><strong>Saldo previo:</strong> {currency(props.registeredBalance, props.currency)}</Typography>
+          ) : null}
           {props.dueDate ? <Typography variant="body2"><strong>Vencimiento:</strong> {props.dueDate}</Typography> : null}
         </Stack>
       )}

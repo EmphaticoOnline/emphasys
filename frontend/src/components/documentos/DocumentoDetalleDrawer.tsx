@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Chip,
   CircularProgress,
   Drawer,
@@ -18,7 +19,8 @@ import {
   Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { getDocumentoDetalle } from '../../services/documentosService';
+import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined';
+import { getDocumentoDetalle, reconciliarCancelacionDocumento } from '../../services/documentosService';
 import type {
   DocumentoDetalleResponse,
   DocumentoRelacionado,
@@ -93,13 +95,17 @@ interface DocumentoDetalleDrawerProps {
   documentoId: number | null;
   tipoDocumento: TipoDocumento;
   onClose: () => void;
+  onReconciled?: () => void | Promise<void>;
 }
 
-export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocumento, onClose }: DocumentoDetalleDrawerProps) {
+export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocumento, onClose, onReconciled }: DocumentoDetalleDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DocumentoDetalleResponse | null>(null);
   const [tab, setTab] = useState(0);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconciliationMessage, setReconciliationMessage] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const formatter = useMemo(
     () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }),
@@ -111,6 +117,7 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
       setData(null);
       setError(null);
       setTab(0);
+      setReconciliationMessage(null);
       return;
     }
     let cancelado = false;
@@ -129,7 +136,7 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
     return () => {
       cancelado = true;
     };
-  }, [open, documentoId, tipoDocumento]);
+  }, [open, documentoId, tipoDocumento, refreshKey]);
 
   const documento = data?.documento as any;
   const folio = documento ? folioDe(documento.serie, documento.numero) : '—';
@@ -186,7 +193,29 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
             </Tabs>
 
             <TabPanel value={tab} index={0}>
-              <ResumenTab documento={documento} formatter={formatter} tipoDocumento={tipoDocumento} folio={folio} />
+              <ResumenTab
+                documento={documento}
+                formatter={formatter}
+                tipoDocumento={tipoDocumento}
+                folio={folio}
+                reconciling={reconciling}
+                reconciliationMessage={reconciliationMessage}
+                onReconcile={async () => {
+                  if (!documentoId || reconciling) return;
+                  setReconciling(true);
+                  setReconciliationMessage(null);
+                  try {
+                    const result = await reconciliarCancelacionDocumento(documentoId);
+                    setReconciliationMessage(result.message);
+                    setRefreshKey((value) => value + 1);
+                    await onReconciled?.();
+                  } catch (err: any) {
+                    setReconciliationMessage(err?.message || 'No se pudo reconciliar el estado de cancelación.');
+                  } finally {
+                    setReconciling(false);
+                  }
+                }}
+              />
             </TabPanel>
             <TabPanel value={tab} index={1}>
               <PartidasTab partidas={data.partidas} formatter={formatter} />
@@ -215,11 +244,17 @@ function ResumenTab({
   formatter,
   tipoDocumento,
   folio,
+  reconciling,
+  reconciliationMessage,
+  onReconcile,
 }: {
   documento: any;
   formatter: Intl.NumberFormat;
   tipoDocumento: TipoDocumento;
   folio: string;
+  reconciling: boolean;
+  reconciliationMessage: string | null;
+  onReconcile: () => Promise<void>;
 }) {
   if (!documento) return <EmptyState mensaje="Sin información del documento." />;
 
@@ -236,8 +271,21 @@ function ResumenTab({
   ];
 
   if (documento.saldo !== null && documento.saldo !== undefined) {
-    campos.push({ label: 'Saldo', value: formatter.format(Number(documento.saldo || 0)) });
+    campos.push({ label: 'Saldo operativo', value: formatter.format(Number(documento.saldo || 0)) });
   }
+  if (documento.saldo_registrado !== null && documento.saldo_registrado !== undefined) {
+    campos.push({ label: 'Saldo registrado', value: formatter.format(Number(documento.saldo_registrado || 0)) });
+  }
+  const cancelacionEstado = String(documento.cfdi_cancelacion_estado ?? '').trim().toLowerCase();
+  const cancelacionRelevante = Boolean(
+    documento.cfdi_cancelacion_intento_id
+    || ['solicitada', 'pendiente', 'requiere_reconciliacion', 'cancelada', 'rechazada', 'error'].includes(cancelacionEstado)
+  );
+  const puedeReconciliar = ['solicitada', 'pendiente', 'requiere_reconciliacion'].includes(cancelacionEstado);
+  const labelEstadoCancelacion = cancelacionEstado
+    ? cancelacionEstado.replaceAll('_', ' ').replace(/^./, (value: string) => value.toUpperCase())
+    : '—';
+  const proveedor = String(documento.cfdi_cancelacion_proveedor ?? '').trim();
 
   return (
     <Stack spacing={2}>
@@ -262,6 +310,45 @@ function ResumenTab({
           </Box>
         ))}
       </Box>
+      {cancelacionRelevante ? (
+        <Box sx={{ border: '1px solid #f59e0b', borderRadius: 2, p: 2, bgcolor: '#fffbeb' }}>
+          <Typography variant="subtitle2" fontWeight={700} color="#92400e" sx={{ mb: 1 }}>
+            CANCELACIÓN CFDI
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+            <Typography variant="body2"><strong>Estado:</strong> {labelEstadoCancelacion}</Typography>
+            <Typography variant="body2"><strong>Proveedor:</strong> {proveedor ? proveedor.replace(/^./, (value) => value.toUpperCase()) : '—'}</Typography>
+            <Typography variant="body2"><strong>Estado proveedor:</strong> {documento.cfdi_cancelacion_proveedor_status || '—'}</Typography>
+            <Typography variant="body2"><strong>Fecha de solicitud:</strong> {formatDateShort(documento.cfdi_cancelacion_fecha_solicitud)}</Typography>
+            <Typography variant="body2"><strong>Última consulta:</strong> {formatDateShort(documento.cfdi_cancelacion_fecha_ultima_consulta)}</Typography>
+            <Typography variant="body2"><strong>Intento:</strong> {documento.cfdi_cancelacion_intento_id || '—'}</Typography>
+          </Box>
+          {puedeReconciliar ? (
+            <>
+              <Alert severity="warning" sx={{ mt: 1.5 }}>
+                Saldo suspendido por cancelación pendiente. Saldo previo: {formatter.format(Number(documento.saldo_registrado || 0))}.
+                No admite nuevas aplicaciones.
+              </Alert>
+              <Typography variant="body2" sx={{ mt: 1.5 }}>
+                La factura permanece timbrada hasta que el PAC o el SAT confirmen la cancelación.
+              </Typography>
+            </>
+          ) : null}
+          {reconciliationMessage ? <Alert severity="info" sx={{ mt: 1.5 }}>{reconciliationMessage}</Alert> : null}
+          {puedeReconciliar ? (
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={reconciling ? <CircularProgress size={16} color="inherit" /> : <SyncOutlinedIcon />}
+              disabled={reconciling}
+              onClick={() => { void onReconcile(); }}
+              sx={{ mt: 1.5 }}
+            >
+              {reconciling ? 'Reconciliando…' : 'Reconciliar estado'}
+            </Button>
+          ) : null}
+        </Box>
+      ) : null}
       {documento.observaciones ? (
         <Box>
           <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">

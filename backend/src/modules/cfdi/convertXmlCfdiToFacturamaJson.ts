@@ -27,10 +27,10 @@ export type FacturamaLiteJson = {
   ExpeditionPlace: string;
   PaymentForm: string | undefined;
   PaymentMethod: string | undefined;
-  Issuer?: {
-    Rfc?: string;
-    Name?: string;
-    FiscalRegime?: string;
+  Issuer: {
+    Rfc: string;
+    Name: string;
+    FiscalRegime: string;
   };
   Receiver: {
     Rfc: string;
@@ -61,6 +61,14 @@ const toNumber = (value: any): number => {
 const ensureArray = <T>(value: T | T[] | undefined | null): T[] => {
   if (value === undefined || value === null) return [];
   return Array.isArray(value) ? value : [value];
+};
+
+const requireNonEmptyString = (value: unknown, field: string): string => {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) {
+    throw new Error(`El campo ${field} es obligatorio para timbrar en Facturama.`);
+  }
+  return normalized;
 };
 
 const mapImpuestoNombre = (impuesto?: string): string => {
@@ -147,13 +155,13 @@ export function convertXmlCfdiToFacturamaJson(xml: string): FacturamaLiteJson {
     NameId: '1',
     Folio: comprobante.Folio,
     CfdiType: comprobante.TipoDeComprobante || 'I',
-    ExpeditionPlace: comprobante.LugarExpedicion,
+    ExpeditionPlace: requireNonEmptyString(comprobante.LugarExpedicion, 'ExpeditionPlace'),
     PaymentForm: comprobante.FormaPago,
     PaymentMethod: comprobante.MetodoPago,
     Issuer: {
-      Rfc: emisor?.Rfc,
-      Name: emisor?.Nombre,
-      FiscalRegime: emisor?.RegimenFiscal,
+      Rfc: requireNonEmptyString(emisor?.Rfc, 'Issuer.Rfc'),
+      Name: requireNonEmptyString(emisor?.Nombre, 'Issuer.Name'),
+      FiscalRegime: requireNonEmptyString(emisor?.RegimenFiscal, 'Issuer.FiscalRegime'),
     },
     Receiver: {
       Rfc: receptor?.Rfc,

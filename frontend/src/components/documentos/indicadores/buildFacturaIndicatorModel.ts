@@ -43,6 +43,17 @@ export function buildFinancialIndicatorModel(source: FacturaIndicatorSource): Do
 
   const total = finiteNumber(source.total);
   const balance = finiteNumber(source.saldo);
+  const registeredBalance = finiteNumber(source.saldo_registrado);
+  if (source.cobro_bloqueado && Number(source.saldo_suspendido_cancelacion ?? 0) > MONETARY_TOLERANCE) {
+    return {
+      status: 'suspended',
+      total,
+      balance: 0,
+      registeredBalance,
+      dueDate: source.fecha_vencimiento ?? null,
+      currency: source.moneda ?? null,
+    };
+  }
   if (total == null || balance == null) {
     return { status: 'unknown', total, balance, dueDate: source.fecha_vencimiento ?? null, currency: source.moneda ?? null };
   }
@@ -105,17 +116,45 @@ export function buildCfdiIndicatorModel(source: FacturaIndicatorSource): Documen
   const satStatus = String(source.cfdi_estado_sat ?? '').trim() || null;
   const cancelledAt = source.cfdi_fecha_cancelacion ?? null;
   const normalizedSat = normalize(satStatus);
+  const cancellationStatus = source.cfdi_cancelacion_estado ?? null;
+  const common = {
+    uuid,
+    stampedAt,
+    satStatus,
+    cancelledAt,
+    cancellationStatus,
+    cancellationAttemptId: source.cfdi_cancelacion_intento_id ?? null,
+    cancellationProvider: source.cfdi_cancelacion_proveedor ?? null,
+    cancellationProviderStatus: source.cfdi_cancelacion_proveedor_status ?? null,
+    cancellationRequestedAt: source.cfdi_cancelacion_fecha_solicitud ?? null,
+    cancellationLastCheckedAt: source.cfdi_cancelacion_fecha_ultima_consulta ?? null,
+  };
 
-  if (cancelledAt || normalizedSat === 'cancelado' || normalizedSat === 'cancelada') {
-    return { status: 'cancelled', uuid, stampedAt, satStatus, cancelledAt };
+  if (cancellationStatus === 'requiere_reconciliacion') {
+    return { status: 'cancellation_reconciliation', ...common };
+  }
+  if (cancellationStatus === 'solicitada') {
+    return { status: 'cancellation_requested', ...common };
+  }
+  if (cancellationStatus === 'pendiente') {
+    return { status: 'cancellation_pending', ...common };
+  }
+  if (cancellationStatus === 'cancelada' || cancelledAt || normalizedSat === 'cancelado' || normalizedSat === 'cancelada') {
+    return { status: 'cancelled', ...common };
+  }
+  if (cancellationStatus === 'rechazada') {
+    return { status: 'cancellation_rejected', ...common };
+  }
+  if (cancellationStatus === 'error') {
+    return { status: 'cancellation_error', ...common };
   }
   if (!uuid && !stampedAt && !satStatus) {
-    return { status: 'not_stamped', uuid, stampedAt, satStatus, cancelledAt };
+    return { status: 'not_stamped', ...common };
   }
   if (uuid && stampedAt) {
-    return { status: 'stamped', uuid, stampedAt, satStatus, cancelledAt };
+    return { status: 'stamped', ...common };
   }
-  return { status: 'unknown', uuid, stampedAt, satStatus, cancelledAt };
+  return { status: 'unknown', ...common };
 }
 
 export function isCfdiApplicable(source: FacturaIndicatorSource): boolean {
@@ -188,12 +227,14 @@ export function buildFacturaIndicatorModel(
   source: FacturaIndicatorSource,
   accountingSource: EstadoContableSource
 ): DocumentoIndicatorModel {
+  const financial = buildFinancialIndicatorModel(source);
+  const inventory = buildInventoryIndicatorModel(source);
   return {
-    financial: buildFinancialIndicatorModel(source),
+    ...(financial ? { financial } : {}),
     accounting: buildAccountingIndicatorModel(accountingSource),
     cfdi: isCfdiApplicable(source)
       ? buildCfdiIndicatorModel(source)
       : { status: 'not_applicable' },
-    inventory: buildInventoryIndicatorModel(source),
+    ...(inventory ? { inventory } : {}),
   };
 }

@@ -6,6 +6,7 @@ import { crearAplicacionEnTransaccion, upsertOperacionDocumentoEnTransaccion } f
 import { OPORTUNIDAD_ESTADOS_CERRADOS, OPORTUNIDAD_ESTADOS_SEGUIMIENTO, normalizarEstadoSeguimientoCotizacion } from './cotizacion-status';
 import { actualizarDocumentoRepository, crearDocumentoRepository, obtenerDocumentoRepository, reemplazarPartidasRepository, type PartidaInput } from './documentos.repository';
 import { aplicarInventarioDesdeDocumentoEnTransaccion } from '../inventario/inventario.service';
+import { registrarRelacionDocumento } from './documentos-dependencias-cancelacion';
 
 const INVENTARIO_SILENCEABLE = new Set([
   'TIPO_NO_AFECTA_INVENTARIO',
@@ -650,6 +651,14 @@ export async function duplicarCotizacionService(documentoId: number, empresaId: 
       empresaId,
       client
     );
+    await registrarRelacionDocumento(client, {
+      empresaId,
+      documentoOrigenId: documentoId,
+      documentoDestinoId: nuevoDocumento.id,
+      tipoRelacion: 'duplicacion',
+      bloqueaCancelacion: false,
+      usuarioId: Number(documentoOrigen.usuario_creacion_id ?? 0) || null,
+    });
 
     await client.query('COMMIT');
     return { id: nuevoDocumento.id };
@@ -696,6 +705,14 @@ export async function duplicarDocumentoService(
       empresaId,
       client
     );
+    await registrarRelacionDocumento(client, {
+      empresaId,
+      documentoOrigenId: documentoId,
+      documentoDestinoId: nuevoDocumento.id,
+      tipoRelacion: 'duplicacion',
+      bloqueaCancelacion: false,
+      usuarioId: Number(documentoOrigen.usuario_creacion_id ?? 0) || null,
+    });
 
     await client.query('COMMIT');
     return { id: nuevoDocumento.id };

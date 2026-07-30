@@ -4,9 +4,25 @@ import { FacturamaClient } from '../cfdi/facturama.client';
 import { obtenerRolesDeUsuarioEnEmpresa } from '../auth/auth.service';
 import { revertirInventarioDocumentoEnTransaccion } from '../inventario/inventario.service';
 import { generarReversaCancelacionFacturaVenta } from '../contabilidad/facturaVentaContabilizacion.repository';
+import {
+  type CfdiCancelacionEstado,
+  type CfdiPacModalidad,
+  esUuidFiscal,
+  getCancelPath,
+  validarIdentidadCfdiOriginal,
+} from '../cfdi/cfdi-cancelacion';
+import {
+  obtenerDependenciasCancelacion,
+  type DependenciaCancelacion,
+} from './documentos-dependencias-cancelacion';
 
 export class DocumentoCancelValidationError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly details?: Record<string, unknown>,
+    readonly code = 'CANCELACION_VALIDATION_ERROR',
+    readonly statusCode = 400
+  ) {
     super(message);
     this.name = 'DocumentoCancelValidationError';
   }
@@ -34,16 +50,25 @@ type DocumentoCancelRow = {
 type DocumentoCfdiRow = {
   uuid: string | null;
   fecha_cancelacion: string | null;
+  xml_timbrado: string | null;
+  pac: string | null;
+  pac_id: string | null;
+  pac_modalidad: CfdiPacModalidad | null;
+  rfc_emisor: string | null;
+  rfc_receptor: string | null;
+  total: string | number | null;
+  folio_cfdi: string | null;
+  cancelacion_estado: CfdiCancelacionEstado | null;
 };
 
 /** Intento de cancelación recuperado de la tabla documentos_cancelacion_intentos */
 type IntentoParaEjecucion = {
   id: number;
   cfdi_uuid: string | null;
-  facturama_respuesta: any;
   motivo_cancelacion: string | null;
   motivo_sat: string | null;
   uuid_sustitucion: string | null;
+  acuse_xml?: string | null;
 };
 
 // ─── Helpers de validación ────────────────────────────────────────────────────
@@ -104,13 +129,79 @@ async function obtenerDocumentoParaCancelacion(
 
 async function obtenerCfdiDocumento(client: PoolClient, documentoId: number): Promise<DocumentoCfdiRow | null> {
   const { rows } = await client.query<DocumentoCfdiRow>(
-    `SELECT uuid, fecha_cancelacion
+    `SELECT uuid, fecha_cancelacion, xml_timbrado, pac, pac_id, pac_modalidad,
+            rfc_emisor, rfc_receptor, total, folio_cfdi, cancelacion_estado
        FROM documentos_cfdi
       WHERE documento_id = $1
       LIMIT 1`,
     [documentoId]
   );
   return rows[0] ?? null;
+}
+
+async function assertSinSolicitudCancelacionActiva(
+  client: PoolClient,
+  documentoId: number,
+  empresaId: number
+): Promise<void> {
+  const { rows } = await client.query<{ existe: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM public.documentos_cancelacion_intentos
+        WHERE documento_id = $1
+          AND empresa_id = $2
+          AND estado IN ('iniciado', 'solicitada', 'pendiente', 'requiere_reconciliacion')
+     ) AS existe`,
+    [documentoId, empresaId]
+  );
+  if (rows[0]?.existe) {
+    throw new DocumentoCancelValidationError(
+      'El CFDI ya tiene una solicitud de cancelación pendiente o requiere reconciliación.'
+    );
+  }
+}
+
+function validarCfdiParaCancelacion(cfdi: DocumentoCfdiRow, motivoSat: string | null, uuidSustitucion: string | null): {
+  pacId: string;
+  modalidad: CfdiPacModalidad;
+  rfcEmisor: string;
+} {
+  const pacId = limpiarTexto(cfdi.pac_id);
+  if (!pacId) {
+    throw new DocumentoCancelValidationError('No puede cancelarse porque falta el identificador del PAC.');
+  }
+  if (esUuidFiscal(pacId)) {
+    throw new DocumentoCancelValidationError('El identificador del PAC no puede ser el UUID fiscal.');
+  }
+  if (cfdi.pac_modalidad !== 'web' && cfdi.pac_modalidad !== 'lite') {
+    throw new DocumentoCancelValidationError('No puede cancelarse porque la modalidad del CFDI es desconocida.');
+  }
+  if (!cfdi.uuid || !cfdi.xml_timbrado || !cfdi.rfc_emisor) {
+    throw new DocumentoCancelValidationError('El CFDI no tiene identidad fiscal completa para cancelarse.');
+  }
+  if (cfdi.fecha_cancelacion || cfdi.cancelacion_estado === 'cancelada') {
+    throw new DocumentoCancelValidationError('El CFDI ya está cancelado.');
+  }
+  if (motivoSat === '01' && !uuidSustitucion) {
+    throw new DocumentoCancelValidationError('uuid_sustitucion es obligatorio cuando motivo_sat es 01');
+  }
+
+  try {
+    validarIdentidadCfdiOriginal({
+      xml: cfdi.xml_timbrado,
+      uuid: cfdi.uuid,
+      rfcEmisor: cfdi.rfc_emisor,
+      rfcReceptor: cfdi.rfc_receptor,
+      total: cfdi.total,
+      folio: cfdi.folio_cfdi,
+    });
+  } catch (error) {
+    throw new DocumentoCancelValidationError(
+      error instanceof Error ? error.message : 'La identidad fiscal del CFDI no pudo validarse.'
+    );
+  }
+
+  return { pacId, modalidad: cfdi.pac_modalidad, rfcEmisor: cfdi.rfc_emisor };
 }
 
 async function assertSinAplicacionesActivas(client: PoolClient, documentoId: number, empresaId: number) {
@@ -137,29 +228,125 @@ async function assertSinAplicacionesActivas(client: PoolClient, documentoId: num
  * para cubrir vínculos por partida (p. ej. remisiones/facturas con cantidades parciales).
  */
 async function assertSinDocumentosDerivadosActivos(client: PoolClient, documentoId: number, empresaId: number) {
-  const { rows } = await client.query<{ existe: boolean }>(
-    `SELECT EXISTS (
-       -- Derivados directos vía campo documento_origen_id
-       SELECT 1
-         FROM documentos d
-        WHERE d.empresa_id = $1
-          AND d.documento_origen_id = $2
-          AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
-       UNION ALL
-       -- Derivados vinculados vía documentos_partidas_vinculos
-       SELECT 1
-         FROM documentos_partidas_vinculos dpv
-         JOIN documentos d_dest ON d_dest.id = dpv.documento_destino_id
-        WHERE dpv.documento_origen_id = $2
-          AND d_dest.empresa_id = $1
-          AND d_dest.id <> $2
-          AND LOWER(TRIM(COALESCE(d_dest.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
-     ) AS existe`,
-    [empresaId, documentoId]
-  );
+  const dependencias = await obtenerDependenciasCancelacion(client, documentoId, empresaId);
+  if (dependencias.bloqueantes.length > 0) {
+    const first = dependencias.bloqueantes[0];
+    throw new DocumentoCancelValidationError(
+      `No se puede cancelar porque existe el documento activo ${first.folio || `#${first.documentoId}`} derivado de éste.`,
+      {
+        dependencias_bloqueantes: dependencias.bloqueantes,
+        correcciones_no_bloqueantes: dependencias.noBloqueantes,
+      }
+    );
+  }
+  return dependencias.noBloqueantes;
+}
 
-  if (Boolean(rows[0]?.existe)) {
-    throw new DocumentoCancelValidationError('No se puede cancelar: el documento tiene documentos derivados activos');
+export type PrevalidacionCancelacion = {
+  documentoId: number;
+  folio: string;
+  aplicacionesActivas: number;
+  derivadosBloqueantes: DependenciaCancelacion[];
+  correccionesNoBloqueantes: DependenciaCancelacion[];
+  inventario: boolean;
+  contabilidad: boolean;
+  intentoActivo: { id: number; estado: string } | null;
+  cfdi: {
+    uuid: string | null;
+    estadoSat: string | null;
+    cancelacionEstado: string | null;
+    pacId: string | null;
+    pacModalidad: string | null;
+  } | null;
+  puedeSolicitarCancelacion: boolean;
+  advertencias: string[];
+};
+
+export async function prevalidarCancelacionDocumento(
+  documentoId: number,
+  empresaId: number
+): Promise<PrevalidacionCancelacion> {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query<{
+      id: number;
+      folio: string;
+      aplicaciones_activas: number;
+      inventario: boolean;
+      contabilidad: boolean;
+      uuid: string | null;
+      estado_sat: string | null;
+      cancelacion_estado: string | null;
+      pac_id: string | null;
+      pac_modalidad: string | null;
+      intento_activo_id: number | null;
+      intento_activo_estado: string | null;
+    }>(
+      `SELECT d.id,
+              CONCAT_WS('-', NULLIF(d.serie, ''), LPAD(d.numero::text, CASE WHEN ABS(d.numero) < 1000 THEN 3 ELSE 6 END, '0')) AS folio,
+              (SELECT COUNT(*)::int FROM aplicaciones_saldo a
+                WHERE a.empresa_id = d.empresa_id
+                  AND (a.documento_origen_id = d.id OR a.documento_destino_id = d.id)) AS aplicaciones_activas,
+              EXISTS (SELECT 1 FROM inventario.movimientos m
+                WHERE m.empresa_id = d.empresa_id AND m.documento_id = d.id AND m.es_reversion = false) AS inventario,
+              EXISTS (SELECT 1 FROM contabilidad.contabilizaciones c
+                WHERE c.empresa_id = d.empresa_id AND c.documento_id = d.id
+                  AND c.evento_contable = 'emision' AND c.es_reversa = false) AS contabilidad,
+              dc.uuid, dc.estado_sat, dc.cancelacion_estado, dc.pac_id, dc.pac_modalidad,
+              intento.id AS intento_activo_id, intento.estado AS intento_activo_estado
+         FROM documentos d
+         LEFT JOIN documentos_cfdi dc ON dc.documento_id = d.id
+         LEFT JOIN LATERAL (
+           SELECT i.id, i.estado
+             FROM documentos_cancelacion_intentos i
+            WHERE i.documento_id = d.id
+              AND i.empresa_id = d.empresa_id
+              AND i.estado IN ('iniciado', 'solicitada', 'pendiente', 'requiere_reconciliacion')
+            ORDER BY i.created_at DESC
+            LIMIT 1
+         ) intento ON true
+        WHERE d.id = $1 AND d.empresa_id = $2
+        LIMIT 1`,
+      [documentoId, empresaId]
+    );
+    const document = rows[0];
+    if (!document) throw new DocumentoCancelValidationError('Documento no encontrado');
+    const dependencies = await obtenerDependenciasCancelacion(client, documentoId, empresaId);
+    const warnings = dependencies.noBloqueantes.map(
+      (item) => `Existe una factura corregida vinculada: ${item.folio}. La cancelación de ${document.folio} no afectará ${item.folio}.`
+    );
+    return {
+      documentoId,
+      folio: document.folio,
+      aplicacionesActivas: Number(document.aplicaciones_activas),
+      derivadosBloqueantes: dependencies.bloqueantes,
+      correccionesNoBloqueantes: dependencies.noBloqueantes,
+      inventario: Boolean(document.inventario),
+      contabilidad: Boolean(document.contabilidad),
+      intentoActivo: document.intento_activo_id ? {
+        id: Number(document.intento_activo_id),
+        estado: String(document.intento_activo_estado),
+      } : null,
+      cfdi: document.uuid ? {
+        uuid: document.uuid,
+        estadoSat: document.estado_sat,
+        cancelacionEstado: document.cancelacion_estado,
+        pacId: document.pac_id,
+        pacModalidad: document.pac_modalidad,
+      } : null,
+      puedeSolicitarCancelacion:
+        Number(document.aplicaciones_activas) === 0 &&
+        dependencies.bloqueantes.length === 0 &&
+        !document.intento_activo_id,
+      advertencias: document.intento_activo_id
+        ? [
+            ...warnings,
+            `Existe un intento de cancelación ${document.intento_activo_estado} (#${document.intento_activo_id}). Debe reconciliarse antes de reintentar.`,
+          ]
+        : warnings,
+    };
+  } finally {
+    client.release();
   }
 }
 
@@ -217,12 +404,19 @@ async function insertarIntento(params: {
   motivoSat: string | null;
   uuidSustitucion: string | null;
   cfdiUuid: string | null;
-}): Promise<number> {
-  const { rows } = await pool.query<{ id: number }>(
+  proveedor?: string | null;
+  pacId?: string | null;
+  modalidad?: CfdiPacModalidad | null;
+  rfcEmisor?: string | null;
+  endpoint?: string | null;
+}, client?: PoolClient): Promise<number> {
+  const executor = client ?? pool;
+  const { rows } = await executor.query<{ id: number }>(
     `INSERT INTO documentos_cancelacion_intentos
        (empresa_id, documento_id, usuario_id, estado,
-        motivo_cancelacion, motivo_sat, uuid_sustitucion, cfdi_uuid)
-     VALUES ($1, $2, $3, 'iniciado', $4, $5, $6, $7)
+        motivo_cancelacion, motivo_sat, uuid_sustitucion, cfdi_uuid,
+        proveedor, pac_id, modalidad, rfc_emisor, endpoint)
+     VALUES ($1, $2, $3, 'iniciado', $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING id`,
     [
       params.empresaId,
@@ -232,36 +426,124 @@ async function insertarIntento(params: {
       params.motivoSat,
       params.uuidSustitucion,
       params.cfdiUuid,
+      params.proveedor ?? null,
+      params.pacId ?? null,
+      params.modalidad ?? null,
+      params.rfcEmisor ?? null,
+      params.endpoint ?? null,
     ]
   );
   return rows[0].id;
+}
+
+async function insertarIntentoConBloqueo(params: Parameters<typeof insertarIntento>[0]): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const documento = await obtenerDocumentoParaCancelacion(
+      client,
+      params.documentoId,
+      params.empresaId,
+      true
+    );
+    if (!documento) throw new DocumentoCancelValidationError('Documento no encontrado');
+    if (esCancelado(documento.estatus_documento)) {
+      throw new DocumentoCancelValidationError('El documento ya está cancelado');
+    }
+    await assertSinSolicitudCancelacionActiva(client, params.documentoId, params.empresaId);
+    await assertSinAplicacionesActivas(client, params.documentoId, params.empresaId);
+    await assertSinDocumentosDerivadosActivos(client, params.documentoId, params.empresaId);
+    const intentoId = await insertarIntento(params, client);
+    await client.query('COMMIT');
+    return intentoId;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function actualizarEstadoIntento(
   intentoId: number,
   estado: string,
   extras: {
-    facturamaRespuesta?: any;
     errorExternoMensaje?: string;
     errorInternoMensaje?: string;
+    proveedorStatus?: string | null;
+    errorCodigo?: string | null;
+    mensajeSanitizado?: string | null;
+    acuseXml?: string | null;
+    facturamaRespuesta?: Record<string, unknown> | null;
+    incrementarConsulta?: boolean;
   } = {}
 ): Promise<void> {
   await pool.query(
     `UPDATE documentos_cancelacion_intentos
-        SET estado                 = $2,
-            facturama_respuesta    = COALESCE($3, facturama_respuesta),
-            error_externo_mensaje  = COALESCE($4, error_externo_mensaje),
-            error_interno_mensaje  = COALESCE($5, error_interno_mensaje),
+        SET estado                 = $2::varchar,
+            facturama_respuesta    = COALESCE($3::jsonb, facturama_respuesta),
+            error_externo_mensaje  = COALESCE($4::text, error_externo_mensaje),
+            error_interno_mensaje  = COALESCE($5::text, error_interno_mensaje),
+            proveedor_status       = COALESCE($6::varchar, proveedor_status),
+            error_codigo           = COALESCE($7::varchar, error_codigo),
+            mensaje_sanitizado     = COALESCE($8::text, mensaje_sanitizado),
+            acuse_xml              = COALESCE($9::text, acuse_xml),
+            intentos_consulta      = intentos_consulta + CASE WHEN $10::boolean THEN 1 ELSE 0 END,
+            fecha_solicitud        = CASE WHEN $2::text IN ('solicitada', 'pendiente', 'cancelada', 'requiere_reconciliacion') THEN COALESCE(fecha_solicitud, NOW()) ELSE fecha_solicitud END,
             updated_at             = NOW()
       WHERE id = $1`,
     [
       intentoId,
       estado,
-      extras.facturamaRespuesta != null ? JSON.stringify(extras.facturamaRespuesta) : null,
+      extras.facturamaRespuesta ? JSON.stringify(extras.facturamaRespuesta) : null,
       extras.errorExternoMensaje ?? null,
       extras.errorInternoMensaje ?? null,
+      extras.proveedorStatus ?? null,
+      extras.errorCodigo ?? null,
+      limpiarTexto(extras.mensajeSanitizado)?.slice(0, 500) ?? null,
+      extras.acuseXml ?? null,
+      Boolean(extras.incrementarConsulta),
     ]
   );
+}
+
+function sanitizarRespuestaPac(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const allowed = ['Status', 'status', 'Message', 'message', 'ModelState', 'Code', 'code'];
+  return Object.fromEntries(
+    allowed.filter((key) => key in source).map((key) => [key, source[key]])
+  );
+}
+
+export function clasificarFalloCancelacionPac(error: any): {
+  estado: 'error' | 'requiere_reconciliacion';
+  code: string;
+  message: string;
+  pacResponse: Record<string, unknown> | null;
+} {
+  const hasPacResponse = Boolean(error?.hasPacResponse || error?.statusCode);
+  if (!hasPacResponse && error?.requestDispatched) {
+    return {
+      estado: 'requiere_reconciliacion',
+      code: String(error?.transportCode || error?.code || 'PAC_RESPONSE_UNKNOWN'),
+      message: 'No fue posible confirmar el estado fiscal; la solicitud requiere conciliación antes de cualquier reintento.',
+      pacResponse: null,
+    };
+  }
+  return {
+    estado: 'error',
+    code: String(error?.statusCode || error?.transportCode || error?.code || 'PAC_ERROR'),
+    message: String(error?.message || 'Facturama rechazó la solicitud de cancelación.'),
+    pacResponse: sanitizarRespuestaPac(error?.facturamaResponse),
+  };
+}
+
+export async function consultarEstadoCancelacionPac(
+  client: Pick<FacturamaClient, 'getCfdiStatus'>,
+  payload: { pacId: string; modalidad: CfdiPacModalidad }
+) {
+  return client.getCfdiStatus(payload);
 }
 
 /**
@@ -274,8 +556,8 @@ async function obtenerIntentoPendienteDeReintento(
   empresaId: number
 ): Promise<IntentoParaEjecucion | null> {
   const { rows } = await pool.query<IntentoParaEjecucion>(
-    `SELECT id, cfdi_uuid, facturama_respuesta,
-            motivo_cancelacion, motivo_sat, uuid_sustitucion
+    `SELECT id, cfdi_uuid, motivo_cancelacion, motivo_sat,
+            uuid_sustitucion, acuse_xml
        FROM documentos_cancelacion_intentos
       WHERE documento_id = $1
         AND empresa_id   = $2
@@ -312,7 +594,7 @@ async function ejecutarCancelacionInterna(params: {
   intento_id: number;
 }> {
   const { intento, documentoId, empresaId, usuarioId } = params;
-  const { id: intentoId, cfdi_uuid: cfdiUuid, facturama_respuesta: facturamaRespuesta,
+  const { id: intentoId, cfdi_uuid: cfdiUuid, acuse_xml: acuseXml,
           motivo_cancelacion: motivoCancelacion, motivo_sat: motivoSat,
           uuid_sustitucion: uuidSustitucion } = intento;
 
@@ -367,9 +649,12 @@ async function ejecutarCancelacionInterna(params: {
         `UPDATE documentos_cfdi
             SET fecha_cancelacion = NOW(),
                 estado_sat        = 'cancelado',
+                cancelacion_estado = 'cancelada',
+                cancelacion_proveedor_status = 'canceled',
+                cancelacion_ultima_consulta_at = NOW(),
                 xml_cancelacion   = COALESCE($2::text, xml_cancelacion)
           WHERE documento_id = $1`,
-        [documentoId, facturamaRespuesta != null ? JSON.stringify(facturamaRespuesta) : null]
+        [documentoId, acuseXml ?? null]
       );
     }
 
@@ -491,17 +776,23 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
   const precheckClient = await pool.connect();
   let cfdiUuid: string | null = null;
   let requiereCancelacionFacturama = false;
+  let cfdi: DocumentoCfdiRow | null = null;
+  let identidadPac: ReturnType<typeof validarCfdiParaCancelacion> | null = null;
   try {
     const documento = await obtenerDocumentoParaCancelacion(precheckClient, input.documentoId, input.empresaId, false);
     if (!documento) throw new DocumentoCancelValidationError('Documento no encontrado');
     if (esCancelado(documento.estatus_documento)) throw new DocumentoCancelValidationError('El documento ya está cancelado');
 
+    await assertSinSolicitudCancelacionActiva(precheckClient, input.documentoId, input.empresaId);
     await assertSinAplicacionesActivas(precheckClient, input.documentoId, input.empresaId);
     await assertSinDocumentosDerivadosActivos(precheckClient, input.documentoId, input.empresaId);
 
-    const cfdi = await obtenerCfdiDocumento(precheckClient, input.documentoId);
+    cfdi = await obtenerCfdiDocumento(precheckClient, input.documentoId);
     cfdiUuid = limpiarTexto(cfdi?.uuid);
     requiereCancelacionFacturama = Boolean(cfdiUuid) && !cfdi?.fecha_cancelacion;
+    if (requiereCancelacionFacturama && cfdi) {
+      identidadPac = validarCfdiParaCancelacion(cfdi, motivoSat ?? '02', uuidSustitucion);
+    }
 
     // Una factura en Borrador no es un documento fiscal formal: no se
     // cancela, se elimina. Una factura Emitida sí se puede cancelar aunque
@@ -520,8 +811,12 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     precheckClient.release();
   }
 
+  const endpoint = identidadPac
+    ? getCancelPath(identidadPac.modalidad, identidadPac.pacId, motivoSat ?? '02', uuidSustitucion)
+    : null;
+
   // 4. Registrar intento antes de cualquier llamada externa
-  const intentoId = await insertarIntento({
+  const intentoId = await insertarIntentoConBloqueo({
     documentoId: input.documentoId,
     empresaId: input.empresaId,
     usuarioId: input.usuarioId,
@@ -529,23 +824,117 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     motivoSat,
     uuidSustitucion,
     cfdiUuid,
+    proveedor: identidadPac ? (cfdi?.pac || 'facturama') : null,
+    pacId: identidadPac?.pacId ?? null,
+    modalidad: identidadPac?.modalidad ?? null,
+    rfcEmisor: identidadPac?.rfcEmisor ?? null,
+    endpoint,
   });
 
   // 5. Cancelación en Facturama (fuera de la transacción SQL)
-  let facturamaRespuesta: any = null;
+  let acuseXml: string | null = null;
+  let respuestaPacRecibida = false;
   if (requiereCancelacionFacturama && cfdiUuid) {
     try {
+      if (!identidadPac) {
+        throw new DocumentoCancelValidationError('El CFDI no tiene identidad PAC completa.');
+      }
       const facturama = await FacturamaClient.fromDatabaseOrEnv();
-      facturamaRespuesta = await facturama.cancelCfdi({
-        uuid: cfdiUuid,
+      const cancelacion = await facturama.cancelCfdi({
+        pacId: identidadPac.pacId,
+        modalidad: identidadPac.modalidad,
         motivoSat: motivoSat ?? '02',
         uuidSustitucion,
       });
-      await actualizarEstadoIntento(intentoId, 'externo_ok', { facturamaRespuesta });
+      respuestaPacRecibida = true;
+      const acuseBase64 = String(
+        cancelacion.data?.AcuseXmlBase64 ?? cancelacion.data?.acuseXmlBase64 ?? ''
+      ).trim();
+      if (acuseBase64) {
+        const decoded = Buffer.from(acuseBase64, 'base64').toString('utf8').trim();
+        acuseXml = decoded.startsWith('<') ? decoded : null;
+      }
+
+      await actualizarEstadoIntento(intentoId, cancelacion.estado, {
+        proveedorStatus: cancelacion.proveedorStatus,
+        acuseXml,
+        facturamaRespuesta: sanitizarRespuestaPac(cancelacion.data),
+      });
+      await pool.query(
+        `UPDATE public.documentos_cfdi
+            SET cancelacion_estado = $2,
+                cancelacion_proveedor_status = $3,
+                cancelacion_ultima_consulta_at = NOW()
+          WHERE documento_id = $1`,
+        [input.documentoId, cancelacion.estado, cancelacion.proveedorStatus]
+      );
+
+      if (cancelacion.estado !== 'cancelada') {
+        const mensajes: Record<string, string> = {
+          pendiente: 'Cancelación pendiente de aceptación. El documento permanece Timbrado.',
+          rechazada: 'La cancelación fue rechazada. El documento permanece Timbrado.',
+          error: 'El CFDI permanece activo. El documento permanece Timbrado.',
+          requiere_reconciliacion: 'La respuesta del PAC es ambigua. El documento permanece Timbrado y requiere reconciliación.',
+        };
+        return {
+          ok: false,
+          documento_id: input.documentoId,
+          estatus_documento: 'Timbrado',
+          cancelacion_estado: cancelacion.estado,
+          proveedor_status: cancelacion.proveedorStatus,
+          intento_id: intentoId,
+          message: mensajes[cancelacion.estado] || 'La cancelación no fue confirmada.',
+        };
+      }
     } catch (error: any) {
-      const mensaje = String(error?.message || 'No se pudo cancelar CFDI en Facturama');
-      await actualizarEstadoIntento(intentoId, 'error_externo', { errorExternoMensaje: mensaje });
-      throw new DocumentoCancelValidationError(mensaje);
+      const failure = respuestaPacRecibida && !error?.requestDispatched
+        ? {
+            estado: 'requiere_reconciliacion' as const,
+            code: 'CANCELACION_AUDIT_PERSISTENCE_ERROR',
+            message: 'Facturama respondió, pero no fue posible persistir con certeza el resultado. La cancelación requiere conciliación.',
+            pacResponse: null,
+          }
+        : clasificarFalloCancelacionPac(error);
+      try {
+        await actualizarEstadoIntento(intentoId, failure.estado, {
+          errorExternoMensaje: failure.message.slice(0, 500),
+          errorCodigo: failure.code,
+          mensajeSanitizado: failure.message,
+          facturamaRespuesta: failure.pacResponse,
+        });
+        await pool.query(
+          `UPDATE public.documentos_cfdi
+              SET cancelacion_estado = $2::varchar,
+                  cancelacion_proveedor_status = NULL,
+                  cancelacion_ultima_consulta_at = NOW()
+            WHERE documento_id = $1`,
+          [input.documentoId, failure.estado]
+        );
+      } catch (persistenceError) {
+        // Si falla la bitácora después de haber enviado el DELETE, el estado
+        // necesariamente es incierto. Esta consulta deliberadamente simple
+        // evita volver a usar la sentencia que haya fallado.
+        await pool.query(
+          `UPDATE documentos_cancelacion_intentos
+              SET estado = 'requiere_reconciliacion',
+                  error_codigo = 'CANCELACION_AUDIT_PERSISTENCE_ERROR',
+                  mensaje_sanitizado = 'La solicitud pudo llegar al PAC, pero no se pudo persistir su resultado. Requiere conciliación.',
+                  updated_at = NOW()
+            WHERE id = $1`,
+          [intentoId]
+        );
+        console.error('[CANCELACION] No se pudo persistir el resultado PAC', {
+          intentoId,
+          documentoId: input.documentoId,
+          code: (persistenceError as any)?.code || null,
+        });
+      }
+      throw new DocumentoCancelValidationError(
+        failure.message,
+        { intento_id: intentoId, estado_reconciliacion: failure.estado },
+        failure.code,
+        failure.estado === 'requiere_reconciliacion' ? 409 : 422
+      );
     }
   } else {
     // Sin CFDI: avanzar estado para que ejecutarCancelacionInterna pueda marcar 'completado'
@@ -557,7 +946,7 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     intento: {
       id: intentoId,
       cfdi_uuid: cfdiUuid,
-      facturama_respuesta: facturamaRespuesta,
+      acuse_xml: acuseXml,
       motivo_cancelacion: motivoCancelacion,
       motivo_sat: motivoSat,
       uuid_sustitucion: uuidSustitucion,
@@ -566,4 +955,159 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     empresaId: input.empresaId,
     usuarioId: input.usuarioId,
   });
+}
+
+export async function reconciliarCancelacionDocumentoService(input: {
+  documentoId: number;
+  empresaId: number;
+  usuarioId: number;
+}): Promise<{
+  documento_id: number;
+  intento_id: number;
+  cancelacion_estado: CfdiCancelacionEstado;
+  proveedor_status: string | null;
+  estatus_documento: string;
+  message: string;
+}> {
+  const { rows } = await pool.query<{
+    intento_id: number;
+    estado: string;
+    pac_id: string | null;
+    modalidad: CfdiPacModalidad | null;
+    cfdi_uuid: string | null;
+    motivo_cancelacion: string | null;
+    motivo_sat: string | null;
+    uuid_sustitucion: string | null;
+    acuse_xml: string | null;
+    estatus_documento: string;
+  }>(
+    `SELECT i.id AS intento_id, i.estado, i.pac_id, i.modalidad, i.cfdi_uuid,
+            i.motivo_cancelacion, i.motivo_sat, i.uuid_sustitucion, i.acuse_xml,
+            d.estatus_documento
+       FROM documentos_cancelacion_intentos i
+       JOIN documentos d
+         ON d.id = i.documento_id
+        AND d.empresa_id = i.empresa_id
+      WHERE i.documento_id = $1
+        AND i.empresa_id = $2
+        AND i.estado IN ('iniciado', 'solicitada', 'pendiente', 'requiere_reconciliacion')
+      ORDER BY i.created_at DESC, i.id DESC
+      LIMIT 1`,
+    [input.documentoId, input.empresaId]
+  );
+  const intento = rows[0];
+  if (!intento) {
+    throw new DocumentoCancelValidationError(
+      'No existe una solicitud de cancelación activa para reconciliar.',
+      undefined,
+      'CANCELACION_SIN_INTENTO_ACTIVO',
+      409
+    );
+  }
+  if (!intento.pac_id || !intento.modalidad) {
+    throw new DocumentoCancelValidationError(
+      'El intento no tiene identidad PAC suficiente para consultar su estado.',
+      { intento_id: Number(intento.intento_id) },
+      'CANCELACION_IDENTIDAD_PAC_INCOMPLETA',
+      409
+    );
+  }
+
+  const facturama = await FacturamaClient.fromDatabaseOrEnv();
+  let consulta;
+  try {
+    consulta = await consultarEstadoCancelacionPac(facturama, {
+      pacId: intento.pac_id,
+      modalidad: intento.modalidad,
+    });
+  } catch (error: any) {
+    const code = String(error?.response?.status || error?.code || 'PAC_STATUS_QUERY_ERROR');
+    const message = 'No fue posible confirmar el estado fiscal; requiere conciliación.';
+    await actualizarEstadoIntento(Number(intento.intento_id), 'requiere_reconciliacion', {
+      errorCodigo: code,
+      errorExternoMensaje: message,
+      mensajeSanitizado: message,
+      incrementarConsulta: true,
+    });
+    await pool.query(
+      `UPDATE documentos_cfdi
+          SET cancelacion_estado = 'requiere_reconciliacion',
+              cancelacion_ultima_consulta_at = NOW()
+        WHERE documento_id = $1`,
+      [input.documentoId]
+    );
+    return {
+      documento_id: input.documentoId,
+      intento_id: Number(intento.intento_id),
+      cancelacion_estado: 'requiere_reconciliacion',
+      proveedor_status: null,
+      estatus_documento: intento.estatus_documento,
+      message,
+    };
+  }
+
+  const estado = consulta.estado;
+  const respuestaSanitizada = {
+    Status: consulta.proveedorStatus,
+    HttpStatus: consulta.httpStatus,
+    Endpoint: consulta.endpoint,
+    Method: 'GET',
+  };
+  await actualizarEstadoIntento(Number(intento.intento_id), estado, {
+    proveedorStatus: consulta.proveedorStatus,
+    facturamaRespuesta: respuestaSanitizada,
+    errorCodigo: null,
+    mensajeSanitizado: `Consulta GET de reconciliación: ${consulta.proveedorStatus || estado}.`,
+    incrementarConsulta: true,
+  });
+  await pool.query(
+    `UPDATE documentos_cfdi
+        SET cancelacion_estado = $2::varchar,
+            cancelacion_proveedor_status = $3::varchar,
+            cancelacion_ultima_consulta_at = NOW()
+      WHERE documento_id = $1`,
+    [input.documentoId, estado, consulta.proveedorStatus]
+  );
+
+  if (estado === 'cancelada') {
+    const result = await ejecutarCancelacionInterna({
+      intento: {
+        id: Number(intento.intento_id),
+        cfdi_uuid: intento.cfdi_uuid,
+        motivo_cancelacion: intento.motivo_cancelacion,
+        motivo_sat: intento.motivo_sat,
+        uuid_sustitucion: intento.uuid_sustitucion,
+        acuse_xml: intento.acuse_xml,
+      },
+      documentoId: input.documentoId,
+      empresaId: input.empresaId,
+      usuarioId: input.usuarioId,
+    });
+    return {
+      documento_id: input.documentoId,
+      intento_id: Number(intento.intento_id),
+      cancelacion_estado: 'cancelada',
+      proveedor_status: consulta.proveedorStatus,
+      estatus_documento: result.estatus_documento,
+      message: 'Facturama confirmó la cancelación del CFDI.',
+    };
+  }
+
+  const messages: Record<CfdiCancelacionEstado, string> = {
+    no_solicitada: 'Facturama no reporta una solicitud de cancelación.',
+    solicitada: 'La cancelación continúa solicitada.',
+    pendiente: 'La cancelación sigue pendiente.',
+    cancelada: 'Facturama confirmó la cancelación del CFDI.',
+    rechazada: 'Facturama reporta que la cancelación fue rechazada.',
+    error: 'Facturama reporta el CFDI vigente y sin cancelación confirmada.',
+    requiere_reconciliacion: 'La consulta no permitió determinar el estado; requiere conciliación.',
+  };
+  return {
+    documento_id: input.documentoId,
+    intento_id: Number(intento.intento_id),
+    cancelacion_estado: estado,
+    proveedor_status: consulta.proveedorStatus,
+    estatus_documento: intento.estatus_documento,
+    message: messages[estado],
+  };
 }

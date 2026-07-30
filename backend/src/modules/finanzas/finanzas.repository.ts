@@ -2,6 +2,7 @@ import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import { obtenerReglaDocumentoOrigenFinanciero } from './documento-origen-financiero';
 import { crearDocumentoRepository } from '../documentos/documentos.repository';
+import { assertDocumentoCobrableEnTransaccion } from '../documentos/documentos-cobro';
 
 // pg puede devolver columnas `date` como objetos Date en lugar de strings.
 // Esta función normaliza ambos casos a "YYYY-MM-DD" usando UTC para evitar desfase de zona horaria.
@@ -77,11 +78,14 @@ type AplicacionAnticipoBatchInput = {
 
 export async function obtenerSaldoDocumento(id: number, empresaId: number) {
   const sql = `
-    SELECT ds.id, ds.empresa_id, ds.tipo_documento, ds.moneda, ds.tipo_cambio, ds.total,
-      CASE WHEN LOWER(TRIM(COALESCE(d.estatus_documento, ''))) IN ('cancelado', 'cancelada') THEN 0 ELSE ds.saldo END AS saldo
-    FROM documentos_saldo ds
-    JOIN documentos d ON d.id = ds.id AND d.empresa_id = ds.empresa_id
-    WHERE ds.id = $1 AND ds.empresa_id = $2
+    SELECT id, empresa_id, tipo_documento, moneda, tipo_cambio, total,
+           saldo_operativo AS saldo,
+           saldo_registrado,
+           saldo_suspendido_cancelacion,
+           cobro_bloqueado,
+           cancelacion_estado_operativo
+    FROM documentos_saldo_operativo
+    WHERE id = $1 AND empresa_id = $2
   `;
   const { rows } = await pool.query(sql, [id, empresaId]);
   return rows[0] || null;
@@ -361,14 +365,16 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
            d.moneda,
            d.tipo_cambio,
            d.total AS monto,
-           ds.saldo,
+           dso.saldo_operativo AS saldo,
+           dso.saldo_registrado,
+           dso.saldo_suspendido_cancelacion,
            d.fecha_documento AS fecha
     FROM documentos d
-    JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id
+    JOIN documentos_saldo_operativo dso ON dso.id = d.id AND dso.empresa_id = d.empresa_id
     WHERE d.empresa_id = $1
       AND d.contacto_principal_id = $2
       AND d.tipo_documento = ANY($3::text[])
-      AND COALESCE(LOWER(TRIM(d.estatus_documento)), '') NOT IN ('cancelado', 'cancelada', 'borrador', '')
+      AND COALESCE(LOWER(TRIM(d.estatus_documento)), '') NOT IN ('cancelado', 'cancelada', '')
 
     UNION ALL
 
@@ -383,6 +389,8 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
      1::numeric(9,4) AS tipo_cambio,
      fo.monto,
      NULL::numeric AS saldo,
+     NULL::numeric AS saldo_registrado,
+     NULL::numeric AS saldo_suspendido_cancelacion,
      fo.fecha
     FROM finanzas_operaciones fo
     JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
@@ -409,7 +417,7 @@ export async function obtenerReporteAging(empresaId: number, fechaBase?: string)
   d.tipo_documento,
   d.moneda,
   d.total,
-  ds.saldo,
+  dso.saldo_operativo AS saldo,
   (${fechaExpr} - d.fecha_documento)::integer AS dias,
       CASE
         WHEN (${fechaExpr} - d.fecha_documento) <= 30 THEN '0-30'
@@ -418,9 +426,9 @@ export async function obtenerReporteAging(empresaId: number, fechaBase?: string)
         ELSE '90+'
       END AS bucket
     FROM documentos d
-    JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id
+    JOIN documentos_saldo_operativo dso ON dso.id = d.id AND dso.empresa_id = d.empresa_id
     WHERE d.empresa_id = $1
-      AND ds.saldo > 0
+      AND dso.saldo_operativo > 0
     ORDER BY d.fecha_documento, d.id
   `;
   const { rows } = await pool.query(sql, args);
@@ -435,15 +443,15 @@ export async function obtenerReporteAgingResumen(empresaId: number, fechaBase?: 
   const sql = `
     SELECT
   d.contacto_principal_id AS contacto_id,
-  SUM(CASE WHEN (${fechaExpr} - d.fecha_documento) <= 30 THEN ds.saldo ELSE 0 END) AS bucket_0_30,
-  SUM(CASE WHEN (${fechaExpr} - d.fecha_documento) > 30 AND (${fechaExpr} - d.fecha_documento) <= 60 THEN ds.saldo ELSE 0 END) AS bucket_31_60,
-  SUM(CASE WHEN (${fechaExpr} - d.fecha_documento) > 60 AND (${fechaExpr} - d.fecha_documento) <= 90 THEN ds.saldo ELSE 0 END) AS bucket_61_90,
-  SUM(CASE WHEN (${fechaExpr} - d.fecha_documento) > 90 THEN ds.saldo ELSE 0 END) AS bucket_90_plus,
-      SUM(ds.saldo) AS total
+  SUM(CASE WHEN (${fechaExpr} - d.fecha_documento) <= 30 THEN dso.saldo_operativo ELSE 0 END) AS bucket_0_30,
+  SUM(CASE WHEN (${fechaExpr} - d.fecha_documento) > 30 AND (${fechaExpr} - d.fecha_documento) <= 60 THEN dso.saldo_operativo ELSE 0 END) AS bucket_31_60,
+  SUM(CASE WHEN (${fechaExpr} - d.fecha_documento) > 60 AND (${fechaExpr} - d.fecha_documento) <= 90 THEN dso.saldo_operativo ELSE 0 END) AS bucket_61_90,
+  SUM(CASE WHEN (${fechaExpr} - d.fecha_documento) > 90 THEN dso.saldo_operativo ELSE 0 END) AS bucket_90_plus,
+      SUM(dso.saldo_operativo) AS total
     FROM documentos d
-    JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id
+    JOIN documentos_saldo_operativo dso ON dso.id = d.id AND dso.empresa_id = d.empresa_id
     WHERE d.empresa_id = $1
-      AND ds.saldo > 0
+      AND dso.saldo_operativo > 0
       AND d.tipo_documento IN ('factura', 'factura_compra')
   GROUP BY d.contacto_principal_id
   ORDER BY d.contacto_principal_id
@@ -972,23 +980,8 @@ async function crearAplicacionTx(
     throw err;
   }
 
-  // 1) Bloquear destino primero
-  // Verificar que ninguno de los dos documentos tenga cancelación CFDI pendiente
-  const { rows: pendientesRows } = await client.query<{ documento_id: number }>(
-    `SELECT documento_id
-       FROM public.documentos_cancelacion_intentos
-      WHERE documento_id = ANY($1::int[])
-        AND empresa_id   = $2
-        AND estado       = 'externo_ok_interno_pendiente'
-      LIMIT 1`,
-    [[documentoOrigenId, documentoDestinoId], empresaId]
-  );
-  if (pendientesRows.length > 0) {
-    const errPend = new Error('No se puede aplicar saldo: uno de los documentos tiene una cancelación CFDI pendiente de sincronización interna');
-    (errPend as any).status = 409;
-    throw errPend;
-  }
-
+  // 1) Bloquear destino primero. La validación de cancelación se ejecuta
+  // después del lock para cerrar la carrera entre aplicar y cancelar.
   const destinoQuery = `
     SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
     FROM documentos d
@@ -1002,6 +995,7 @@ async function crearAplicacionTx(
     (err as any).status = 404;
     throw err;
   }
+  await assertDocumentoCobrableEnTransaccion(client, documentoDestinoId, empresaId);
 
   // 2) Bloquear origen documental
   const origenDocQuery = `
@@ -1849,19 +1843,42 @@ export async function diagnosticarDuplicadosAplicaciones(empresaId: number) {
   };
 }
 
-export async function eliminarAplicacion(id: number, empresaId: number) {
+export type DesaplicarPagoInput = {
+  motivo: string | null;
+  usuarioId: number;
+};
+
+export type DesaplicarPagoResult = {
+  aplicacion: {
+    id: number;
+    documento_origen_id: number;
+    documento_destino_id: number;
+    monto: number;
+    monto_moneda_documento: number;
+  };
+  pago: { id: number; folio: string; saldo_disponible: number };
+  factura: { id: number; folio: string; saldo_pendiente: number };
+};
+
+const estadoCancelado = (value: unknown) =>
+  ['cancelado', 'cancelada'].includes(String(value ?? '').trim().toLowerCase());
+
+export async function desaplicarPagoCliente(
+  id: number,
+  empresaId: number,
+  input: DesaplicarPagoInput
+): Promise<DesaplicarPagoResult> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 1) Leer aplicación con FOR UPDATE en tabla aplicaciones_saldo
-    const appSql = `
-      SELECT *
+    const { rows } = await client.query(
+      `SELECT *
       FROM aplicaciones_saldo
       WHERE id = $1 AND empresa_id = $2
-      FOR UPDATE
-    `;
-    const { rows } = await client.query(appSql, [id, empresaId]);
+      FOR UPDATE`,
+      [id, empresaId]
+    );
     const app = rows[0];
     if (!app) {
       const err = new Error('Aplicación no encontrada');
@@ -1869,53 +1886,185 @@ export async function eliminarAplicacion(id: number, empresaId: number) {
       throw err;
     }
 
-    // Verificar que sea la última aplicación del documento destino.
-    // Las aplicaciones anteriores tienen campos CFDI (num_parcialidad, imp_saldo_ant,
-    // imp_saldo_insoluto) que dependen del orden; eliminar una intermedia los dejaría inconsistentes.
-    const { rows: posterioresRows } = await client.query<{ cnt: string }>(
-      `SELECT COUNT(*) AS cnt
-       FROM aplicaciones_saldo
-       WHERE documento_destino_id = $1 AND empresa_id = $2 AND id > $3`,
-      [app.documento_destino_id, empresaId, id]
+    const documentoIds = [Number(app.documento_origen_id), Number(app.documento_destino_id)].sort((a, b) => a - b);
+    const { rows: documentos } = await client.query<{
+      id: number;
+      empresa_id: number;
+      tipo_documento: string;
+      estatus_documento: string | null;
+      total: string;
+      serie: string | null;
+      numero: number | null;
+    }>(
+      `SELECT id, empresa_id, tipo_documento, estatus_documento, total, serie, numero
+         FROM documentos
+        WHERE empresa_id = $1 AND id = ANY($2::int[])
+        ORDER BY id
+        FOR UPDATE`,
+      [empresaId, documentoIds]
     );
-    if (Number(posterioresRows[0]?.cnt ?? 0) > 0) {
-      const err = new Error(
-        'Solo se puede eliminar la última aplicación de este documento. ' +
-        'Existen aplicaciones posteriores cuyos campos CFDI (num_parcialidad, imp_saldo_ant, imp_saldo_insoluto) ' +
-        'dependen de esta. Elimine primero la aplicación más reciente.'
-      );
+    const pago = documentos.find((row) => row.id === Number(app.documento_origen_id));
+    const factura = documentos.find((row) => row.id === Number(app.documento_destino_id));
+    if (!pago || !factura) {
+      const err = new Error('Los documentos relacionados con la aplicación no están disponibles');
+      (err as any).status = 409;
+      throw err;
+    }
+    if (pago.tipo_documento !== 'pago_cliente' || factura.tipo_documento !== 'factura') {
+      const err = new Error('La aplicación seleccionada no corresponde a un pago de cliente aplicado a una factura');
+      (err as any).status = 409;
+      throw err;
+    }
+    if (estadoCancelado(pago.estatus_documento)) {
+      const err = new Error('No se puede desaplicar porque el pago está cancelado');
+      (err as any).status = 409;
+      throw err;
+    }
+    if (estadoCancelado(factura.estatus_documento)) {
+      const err = new Error('No se puede desaplicar porque la factura está cancelada');
       (err as any).status = 409;
       throw err;
     }
 
-    // 2) Bloquear documento destino primero
-    const destSql = `
-      SELECT id
-      FROM documentos
-      WHERE id = $1 AND empresa_id = $2
-      FOR UPDATE
-    `;
-    await client.query(destSql, [app.documento_destino_id, empresaId]);
-
-    // 3) Bloquear origen documental
-    if (app.documento_origen_id) {
-      const origenDocSql = `
-        SELECT id
-        FROM documentos
-        WHERE id = $1 AND empresa_id = $2
-        FOR UPDATE
-      `;
-      await client.query(origenDocSql, [app.documento_origen_id, empresaId]);
+    const { rows: ultimaRows } = await client.query<{ id: number }>(
+      `SELECT id
+         FROM aplicaciones_saldo
+        WHERE documento_destino_id = $1 AND empresa_id = $2
+        ORDER BY fecha_aplicacion DESC, fecha_creacion DESC, id DESC
+        LIMIT 1`,
+      [factura.id, empresaId]
+    );
+    if (Number(ultimaRows[0]?.id) !== id) {
+      const err = new Error('Solo puede desaplicarse la aplicación más reciente de esta factura.');
+      (err as any).status = 409;
+      throw err;
     }
 
-    // 4) Eliminar aplicación (DELETE real)
-    const deleteSql = `
-      DELETE FROM aplicaciones_saldo
-      WHERE id = $1 AND empresa_id = $2
-    `;
-    await client.query(deleteSql, [id, empresaId]);
+    const { rows: cancelacionRows } = await client.query<{ existe: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM documentos_cancelacion_intentos
+          WHERE empresa_id = $1
+            AND documento_id = ANY($2::int[])
+            AND estado = 'externo_ok_interno_pendiente'
+       ) AS existe`,
+      [empresaId, documentoIds]
+    );
+    if (Boolean(cancelacionRows[0]?.existe)) {
+      const err = new Error('No se puede desaplicar porque uno de los documentos tiene una cancelación CFDI pendiente');
+      (err as any).status = 409;
+      throw err;
+    }
+
+    const { rows: cfdiRows } = await client.query<{ uuid: string | null }>(
+      `SELECT uuid FROM documentos_cfdi WHERE documento_id = $1 LIMIT 1 FOR UPDATE`,
+      [pago.id]
+    );
+    if (String(cfdiRows[0]?.uuid ?? '').trim()) {
+      const err = new Error('No se puede desaplicar porque el pago tiene un complemento de pago timbrado. Cancela primero el CFDI mediante el flujo fiscal correspondiente.');
+      (err as any).status = 409;
+      throw err;
+    }
+
+    const { rows: polizaRows } = await client.query<{ existe: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM contabilidad.documentos_polizas dp
+           JOIN contabilidad.polizas p ON p.id = dp.poliza_id AND p.empresa_id = dp.empresa_id
+          WHERE dp.empresa_id = $1
+            AND dp.documento_id = $2
+            AND p.estatus = 'aplicada'
+       ) AS existe`,
+      [empresaId, pago.id]
+    );
+    if (Boolean(polizaRows[0]?.existe)) {
+      const err = new Error('No se puede desaplicar porque el pago está vinculado con una póliza contable aplicada.');
+      (err as any).status = 409;
+      throw err;
+    }
+
+    const { rows: saldoAntesRows } = await client.query<{ id: number; saldo: string }>(
+      `SELECT id, saldo FROM documentos_saldo WHERE empresa_id = $1 AND id = ANY($2::int[])`,
+      [empresaId, documentoIds]
+    );
+    if (saldoAntesRows.length !== 2) {
+      const err = new Error('No fue posible validar los saldos actuales de los documentos');
+      (err as any).status = 409;
+      throw err;
+    }
+    const { rows: otrasRows } = await client.query<{ cantidad: string }>(
+      `SELECT COUNT(*) AS cantidad FROM aplicaciones_saldo WHERE empresa_id = $1 AND id <> $2
+        AND (documento_origen_id = $3 OR documento_destino_id = $4)`,
+      [empresaId, id, pago.id, factura.id]
+    );
+    const otrasAplicaciones = Number(otrasRows[0]?.cantidad ?? 0);
+    const folio = (doc: typeof pago) => `${doc.serie ?? ''}${doc.numero ?? doc.id}`;
+    const motivo = input.motivo?.trim() || null;
+
+    await client.query(
+      `INSERT INTO finanzas_desaplicaciones_pago (
+         empresa_id, aplicacion_id, documento_origen_id, documento_destino_id,
+         monto, monto_moneda_documento, fecha_aplicacion, num_parcialidad,
+         imp_saldo_ant, imp_saldo_insoluto, usuario_id, motivo,
+         pago_folio, factura_folio
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [
+        empresaId, id, pago.id, factura.id, app.monto, app.monto_moneda_documento,
+        app.fecha_aplicacion, app.num_parcialidad, app.imp_saldo_ant,
+        app.imp_saldo_insoluto, input.usuarioId, motivo, folio(pago), folio(factura),
+      ]
+    );
+
+    const deleteResult = await client.query(
+      `DELETE FROM aplicaciones_saldo WHERE id = $1 AND empresa_id = $2`,
+      [id, empresaId]
+    );
+    if (deleteResult.rowCount !== 1) {
+      const err = new Error('La aplicación cambió mientras realizabas la operación. Actualiza la información e inténtalo nuevamente.');
+      (err as any).status = 409;
+      throw err;
+    }
+
+    const { rows: saldoDespuesRows } = await client.query<{ id: number; saldo: string }>(
+      `SELECT id, saldo FROM documentos_saldo WHERE empresa_id = $1 AND id = ANY($2::int[])`,
+      [empresaId, documentoIds]
+    );
+    const saldoPago = Number(saldoDespuesRows.find((row) => row.id === pago.id)?.saldo);
+    const saldoFactura = Number(saldoDespuesRows.find((row) => row.id === factura.id)?.saldo);
+    const totalPago = Math.abs(Number(pago.total));
+    const totalFactura = Number(factura.total);
+    const tolerancia = 0.000001;
+    if (
+      !Number.isFinite(saldoPago) || !Number.isFinite(saldoFactura)
+      || saldoPago < -tolerancia || saldoPago - totalPago > tolerancia
+      || saldoFactura < -tolerancia || saldoFactura - totalFactura > tolerancia
+    ) {
+      const err = new Error('La desaplicación produciría saldos inconsistentes');
+      (err as any).status = 409;
+      throw err;
+    }
+    const { rows: otrasDespuesRows } = await client.query<{ cantidad: string }>(
+      `SELECT COUNT(*) AS cantidad FROM aplicaciones_saldo WHERE empresa_id = $1
+        AND (documento_origen_id = $2 OR documento_destino_id = $3)`,
+      [empresaId, pago.id, factura.id]
+    );
+    if (Number(otrasDespuesRows[0]?.cantidad ?? 0) !== otrasAplicaciones) {
+      const err = new Error('La aplicación cambió mientras realizabas la operación. Actualiza la información e inténtalo nuevamente.');
+      (err as any).status = 409;
+      throw err;
+    }
 
     await client.query('COMMIT');
+    return {
+      aplicacion: {
+        id,
+        documento_origen_id: pago.id,
+        documento_destino_id: factura.id,
+        monto: Number(app.monto),
+        monto_moneda_documento: Number(app.monto_moneda_documento),
+      },
+      pago: { id: pago.id, folio: folio(pago), saldo_disponible: saldoPago },
+      factura: { id: factura.id, folio: folio(factura), saldo_pendiente: saldoFactura },
+    };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -2159,10 +2308,7 @@ export async function listarFacturasCompraPendientes(
        COALESCE(c.nombre, '') AS proveedor_nombre,
        d.moneda,
        COALESCE(d.total, 0)::numeric AS total,
-       GREATEST(0, COALESCE(d.total, 0)::numeric - COALESCE(
-         (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
-          WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
-       )) AS saldo,
+       dso.saldo_operativo AS saldo,
        COALESCE(
          (SELECT SUM(det.monto_programado)
           FROM finanzas_programacion_pagos_detalle det
@@ -2173,9 +2319,12 @@ export async function listarFacturasCompraPendientes(
             AND ($2::integer IS NULL OR pp.id != $2::integer)), 0
        ) AS total_programado
      FROM documentos d
+     JOIN documentos_saldo_operativo dso
+       ON dso.id = d.id AND dso.empresa_id = d.empresa_id
      LEFT JOIN contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = d.empresa_id
      WHERE d.empresa_id = $1
        AND d.tipo_documento = 'factura_compra'
+       AND dso.saldo_operativo > 0
        AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada', 'borrador')
        ${filtros.join(' ')}
      ORDER BY d.fecha_documento DESC, d.id DESC
@@ -2463,11 +2612,13 @@ async function validarYComputarDetalles(
       moneda: string; contacto_principal_id: number | null;
     }>(
       `SELECT tipo_documento, estatus_documento, moneda, contacto_principal_id
-       FROM documentos WHERE id = $1 AND empresa_id = $2`,
+       FROM documentos WHERE id = $1 AND empresa_id = $2
+       FOR UPDATE`,
       [det.documento_id, empresaId]
     );
     const doc = docRows[0];
     if (!doc) throw Object.assign(new Error(`Documento ${det.documento_id} no encontrado`), { status: 404 });
+    await assertDocumentoCobrableEnTransaccion(client, det.documento_id, empresaId);
     if (doc.tipo_documento !== 'factura_compra') {
       throw Object.assign(new Error(`El documento ${det.documento_id} no es una factura de compra`), { status: 422 });
     }
@@ -2488,11 +2639,10 @@ async function validarYComputarDetalles(
     }
 
     const { rows: saldoRows } = await client.query<{ saldo: string }>(
-      `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
-         (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
-          WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
-       )) AS saldo FROM documentos d WHERE d.id = $1`,
-      [det.documento_id]
+      `SELECT saldo_operativo AS saldo
+         FROM documentos_saldo_operativo
+        WHERE id = $1 AND empresa_id = $2`,
+      [det.documento_id, empresaId]
     );
     const saldoDoc = Number(saldoRows[0]?.saldo ?? 0);
 
@@ -2657,13 +2807,15 @@ export async function crearProgramacionesMasiva(
         contacto_principal_id: number | null;
       }>(
         `SELECT tipo_documento, estatus_documento, moneda, contacto_principal_id
-         FROM documentos WHERE id = $1 AND empresa_id = $2`,
+         FROM documentos WHERE id = $1 AND empresa_id = $2
+         FOR UPDATE`,
         [factura.documento_id, empresaId]
       );
       const doc = docRows[0];
       if (!doc) {
         throw Object.assign(new Error(`Documento ${factura.documento_id} no encontrado`), { status: 404 });
       }
+      await assertDocumentoCobrableEnTransaccion(client, factura.documento_id, empresaId);
       if (doc.tipo_documento !== 'factura_compra') {
         throw Object.assign(
           new Error(`El documento ${factura.documento_id} no es una factura de compra`),
@@ -2696,11 +2848,10 @@ export async function crearProgramacionesMasiva(
       let total = 0;
       for (const det of grupo.facturas) {
         const { rows: saldoRows } = await client.query<{ saldo: string }>(
-          `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
-             (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
-              WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
-           )) AS saldo FROM documentos d WHERE d.id = $1`,
-          [det.documento_id]
+          `SELECT saldo_operativo AS saldo
+             FROM documentos_saldo_operativo
+            WHERE id = $1 AND empresa_id = $2`,
+          [det.documento_id, empresaId]
         );
         const saldoDoc = Number(saldoRows[0]?.saldo ?? 0);
 
@@ -3012,6 +3163,7 @@ export async function pagarProgramacionPago(
     for (const det of detallesRows) {
       const doc = facturaMap.get(det.documento_id);
       if (!doc) throw Object.assign(new Error(`Factura ${det.documento_id} no encontrada`), { status: 404 });
+      await assertDocumentoCobrableEnTransaccion(client, det.documento_id, empresaId);
       if (doc.tipo_documento !== 'factura_compra') {
         throw Object.assign(new Error(`El documento ${det.documento_id} no es factura_compra`), { status: 422 });
       }
@@ -3034,11 +3186,10 @@ export async function pagarProgramacionPago(
       const montoDet = Number(det.monto_programado);
 
       const { rows: saldoRows } = await client.query<{ saldo: string }>(
-        `SELECT GREATEST(0, COALESCE(d.total, 0) - COALESCE(
-           (SELECT SUM(a.monto_moneda_documento) FROM aplicaciones_saldo a
-            WHERE a.documento_destino_id = d.id AND a.empresa_id = d.empresa_id), 0
-         )) AS saldo FROM documentos d WHERE d.id = $1`,
-        [det.documento_id]
+        `SELECT saldo_operativo AS saldo
+           FROM documentos_saldo_operativo
+          WHERE id = $1 AND empresa_id = $2`,
+        [det.documento_id, empresaId]
       );
       const saldoActual = Number(saldoRows[0]?.saldo ?? 0);
       if (montoDet > saldoActual + 0.000001) {

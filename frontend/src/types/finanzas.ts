@@ -18,6 +18,10 @@ export interface FacturaCompraPendiente {
   moneda: string;
   total: number;
   saldo: number;
+  saldo_registrado?: number;
+  saldo_suspendido_cancelacion?: number;
+  cobro_bloqueado?: boolean;
+  cancelacion_estado_operativo?: string;
   saldo_disponible_programar: number;
 }
 
@@ -196,6 +200,18 @@ export interface AplicacionOperacion {
   tipo_documento_destino?: string | null;
 }
 
+export interface DesaplicarPagoResultado {
+  aplicacion: {
+    id: number;
+    documento_origen_id: number;
+    documento_destino_id: number;
+    monto: number;
+    monto_moneda_documento: number;
+  };
+  pago: { id: number; folio: string; saldo_disponible: number };
+  factura: { id: number; folio: string; saldo_pendiente: number };
+}
+
 export interface DocumentoSaldo {
   id: number;
   empresa_id: number;
@@ -204,6 +220,10 @@ export interface DocumentoSaldo {
   tipo_cambio?: number | null;
   total: number;
   saldo: number;
+  saldo_registrado?: number;
+  saldo_suspendido_cancelacion?: number;
+  cobro_bloqueado?: boolean;
+  cancelacion_estado_operativo?: string;
 }
 
 export interface DocumentoAnticipoResumen {
@@ -255,6 +275,8 @@ export interface EstadoCuentaItem {
   tipo_cambio?: number | null;
   monto: number;
   saldo: number | null;
+  saldo_registrado?: number | null;
+  saldo_suspendido_cancelacion?: number | null;
   fecha: string;
   serie?: string | null;
   numero?: number | null;

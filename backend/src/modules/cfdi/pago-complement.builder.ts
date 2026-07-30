@@ -36,8 +36,77 @@ const isRfcGenerico = (rfc: string): boolean => {
   return u === 'XAXX010101000' || u === 'XEXX010101000';
 };
 
-export function buildPagoComplementPayload(data: PagoComplementData): object {
+export type PagoComplementPayload = {
+  NameId: string;
+  Serie?: string;
+  Folio: string;
+  CfdiType: 'P';
+  ExpeditionPlace: string;
+  PaymentForm: null;
+  PaymentMethod: null;
+  Issuer: {
+    FiscalRegime: string;
+    Rfc: string;
+    Name: string;
+  };
+  Receiver: {
+    Rfc: string;
+    Name: string;
+    CfdiUse: 'CP01';
+    FiscalRegime: string;
+    TaxZipCode: string;
+  };
+  Complemento: {
+    Payments: Array<{
+      Date: string;
+      PaymentForm: string;
+      Currency: string;
+      Amount: string;
+      RelatedDocuments: Array<Record<string, unknown>>;
+    }>;
+  };
+};
+
+const PAYMENT_FOLIO_ERROR =
+  'El complemento de pago no tiene un folio válido y no puede enviarse a Facturama.';
+
+export function assertPagoComplementPayload(
+  value: unknown
+): asserts value is PagoComplementPayload {
+  const payload = value as Partial<PagoComplementPayload> | null;
+  const folio = typeof payload?.Folio === 'string' ? payload.Folio.trim() : '';
+  if (!folio || folio.length > 40) {
+    throw new Error(PAYMENT_FOLIO_ERROR);
+  }
+
+  const payments = payload?.Complemento?.Payments;
+  const hasRelatedDocument =
+    Array.isArray(payments) &&
+    payments.some(
+      (payment) =>
+        Array.isArray(payment?.RelatedDocuments) && payment.RelatedDocuments.length > 0
+    );
+
+  if (
+    payload?.CfdiType !== 'P' ||
+    !String(payload?.Issuer?.Rfc || '').trim() ||
+    !String(payload?.Receiver?.Rfc || '').trim() ||
+    !String(payload?.ExpeditionPlace || '').trim() ||
+    !payload?.Complemento ||
+    !Array.isArray(payments) ||
+    payments.length === 0 ||
+    !hasRelatedDocument
+  ) {
+    throw new Error(
+      'El complemento de pago contiene datos fiscales incompletos y no puede enviarse a Facturama.'
+    );
+  }
+}
+
+export function buildPagoComplementPayload(data: PagoComplementData): PagoComplementPayload {
   const { empresa, receptor, pago, aplicaciones } = data;
+  const folio = String(pago.folio ?? '').trim();
+  const serie = String(pago.serie ?? '').trim();
 
   const doctoRelacionados = aplicaciones.map((ap) => {
     const impPagado = Number(ap.monto_moneda_documento);
@@ -81,7 +150,7 @@ export function buildPagoComplementPayload(data: PagoComplementData): object {
       ...(ap.serie ? { Serie: ap.serie } : {}),
       ...(ap.folio ? { Folio: ap.folio } : {}),
       Currency: ap.moneda_factura,
-      PaymentMethod: 'PPD',
+      PaymentMethod: ap.payment_method,
       PartialityNumber: String(ap.num_parcialidad),
       PreviousBalanceAmount: fmt2(Number(ap.imp_saldo_ant)),
       AmountPaid: fmt2(impPagado),
@@ -102,8 +171,10 @@ export function buildPagoComplementPayload(data: PagoComplementData): object {
     return docto;
   });
 
-  return {
+  const payload: PagoComplementPayload = {
     NameId: '14',
+    ...(serie ? { Serie: serie } : {}),
+    Folio: folio,
     CfdiType: 'P',
     ExpeditionPlace: empresa.codigo_postal_id,
     PaymentForm: null,
@@ -133,4 +204,7 @@ export function buildPagoComplementPayload(data: PagoComplementData): object {
       ],
     },
   };
+
+  assertPagoComplementPayload(payload);
+  return payload;
 }

@@ -3,6 +3,12 @@ import { XMLParser } from 'fast-xml-parser';
 import pool from '../../config/database';
 import { CfdiBuilder } from './cfdi.builder';
 import { FacturamaClient } from './facturama.client';
+import {
+  enmascararRfc,
+  extraerEmisorCfdi,
+  validarRfcEmisorRecibido,
+} from './cfdi-emisor.validation';
+import { actualizarIntentoTimbrado } from './cfdi-timbrado-intentos.repository';
 import type {
   CfdiBuildOptions,
   CfdiInvoiceData,
@@ -18,6 +24,11 @@ export class CfdiConfigurationError extends Error {}
 
 const ensure = (condition: any, message: string): void => {
   if (!condition) throw new CfdiValidationError(message);
+};
+
+const limpiarPacId = (value: unknown): string | null => {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
 };
 
 /**
@@ -44,6 +55,29 @@ async function assertDocumentoSinCancelacionPendiente(documentoId: number, empre
   }
 }
 
+async function assertDocumentoSinTimbradoPendiente(documentoId: number, empresaId: number): Promise<void> {
+  const { rows } = await pool.query<{ intento_id: number }>(
+    `SELECT id AS intento_id
+       FROM public.cfdi_intentos_timbrado
+      WHERE documento_id = $1
+        AND empresa_id = $2
+        AND estado IN (
+          'aceptado_pendiente_descarga',
+          'xml_recuperado',
+          'error_descarga',
+          'error_validacion'
+        )
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [documentoId, empresaId]
+  );
+  if (rows[0]) {
+    throw new CfdiValidationError(
+      'Facturama ya aceptó un intento para este documento. No vuelva a timbrar; el documento requiere reconciliación.'
+    );
+  }
+}
+
 export class CfdiService {
   constructor(private readonly builder = new CfdiBuilder()) {}
 
@@ -53,6 +87,7 @@ export class CfdiService {
 
   async timbrarDocumento(documentoId: number, empresaId: number): Promise<TimbrarFacturaResult> {
     await assertDocumentoSinCancelacionPendiente(documentoId, empresaId);
+    await assertDocumentoSinTimbradoPendiente(documentoId, empresaId);
 
     const data = await this.obtenerDocumentoTimbrable(documentoId, empresaId);
     this.validarDatos(data);
@@ -67,10 +102,18 @@ export class CfdiService {
 
     let xmlTimbrado: string;
     let response: FacturamaStampResponse;
+    let intentoId: number | undefined;
     try {
-      const stamped = await facturama.stampXml(xml);
+      const stamped = await facturama.stampXml(xml, {
+        expectedIssuerRfc: data.empresa.rfc,
+        empresaId,
+        documentoId,
+        serie: data.documento.serie,
+        folio: data.documento.numero,
+      });
       xmlTimbrado = stamped.xmlTimbrado;
       response = stamped.response;
+      intentoId = stamped.intentoId;
     } catch (error: any) {
       if (error?.isFacturamaValidation && typeof error?.message === 'string' && error.message.trim()) {
         throw new CfdiValidationError(error.message.trim());
@@ -82,15 +125,73 @@ export class CfdiService {
       throw new CfdiValidationError('Facturama no regresó XML timbrado.');
     }
 
+    let emisorRecibido;
+    try {
+      emisorRecibido = validarRfcEmisorRecibido(xmlTimbrado, data.empresa.rfc);
+    } catch (error) {
+      let datosRecibidos: ReturnType<typeof validarRfcEmisorRecibido> | null = null;
+      try {
+        datosRecibidos = extraerEmisorCfdi(xmlTimbrado);
+      } catch (_) {
+        // El XML inválido también debe bloquearse sin registrar su contenido.
+      }
+      console.error('[CFDI][CRITICO] Emisor devuelto por Facturama no válido', {
+        empresaId,
+        documentoId,
+        rfcEsperado: enmascararRfc(data.empresa.rfc),
+        rfcRecibido: enmascararRfc(datosRecibidos?.rfc),
+        uuid: datosRecibidos?.uuid || null,
+        noCertificado: datosRecibidos?.noCertificado || null,
+        coincide: false,
+      });
+      throw new CfdiValidationError(
+        error instanceof Error
+          ? error.message
+          : 'Facturama devolvió un CFDI con un emisor no válido. El timbrado no fue guardado.'
+      );
+    }
+
+    console.info('[CFDI][Facturama] Emisor recibido validado', {
+      empresaId,
+      documentoId,
+      rfcRecibido: enmascararRfc(emisorRecibido.rfc),
+      uuid: emisorRecibido.uuid || null,
+      noCertificado: emisorRecibido.noCertificado || null,
+      coincide: true,
+    });
+
+    const advertenciasEmisor = [
+      {
+        campo: 'Nombre',
+        esperado: String(data.empresa.razon_social ?? '').trim().toUpperCase(),
+        recibido: emisorRecibido.nombre.toUpperCase(),
+      },
+      {
+        campo: 'RegimenFiscal',
+        esperado: String(data.empresa.regimen_fiscal ?? '').trim(),
+        recibido: emisorRecibido.regimenFiscal,
+      },
+      {
+        campo: 'LugarExpedicion',
+        esperado: String(data.empresa.codigo_postal_id ?? '').trim(),
+        recibido: emisorRecibido.lugarExpedicion,
+      },
+    ].filter(({ esperado, recibido }) => esperado && recibido && esperado !== recibido);
+
+    if (advertenciasEmisor.length > 0) {
+      console.warn('[CFDI][Facturama] Diferencias no bloqueantes en datos del emisor', {
+        empresaId,
+        documentoId,
+        campos: advertenciasEmisor.map(({ campo }) => campo),
+      });
+    }
+
     const timbre = this.extraerTimbre(xmlTimbrado, response);
     if (!timbre.uuid) {
       throw new CfdiValidationError('No se encontró UUID del timbre.');
     }
 
-    const persistido = await this.guardarTimbrado(documentoId, xmlTimbrado, timbre, response);
-
-    // Marcar el documento como timbrado
-    await this.marcarDocumentoTimbrado(documentoId);
+    const persistido = await this.guardarTimbrado(documentoId, empresaId, xmlTimbrado, timbre, response, intentoId);
 
     return {
       xmlGenerado: xml,
@@ -382,9 +483,11 @@ export class CfdiService {
 
   private async guardarTimbrado(
     documentoId: number,
+    empresaId: number,
     xmlTimbrado: string,
     timbre: TimbreFiscalDigitalData,
-    response: FacturamaStampResponse
+    response: FacturamaStampResponse,
+    intentoId?: number
   ): Promise<TimbradoPersisted> {
     const fechaTimbrado = timbre.fechaTimbrado ? new Date(timbre.fechaTimbrado) : new Date();
 
@@ -434,32 +537,68 @@ export class CfdiService {
       rfcEmisor,
       rfcReceptor,
       totalComprobante,
+      'facturama',
+      limpiarPacId((response as any)?.Id),
+      limpiarPacId((response as any)?.Id) ? 'lite' : null,
     ];
 
+    const client = await pool.connect();
     try {
-      const pre = await pool.query('SELECT 1 FROM public.documentos_cfdi WHERE documento_id = $1 LIMIT 1', [documentoId]);
-      if (pre.rowCount && pre.rowCount > 0) {
+      await client.query('BEGIN');
+      const pre = await client.query(
+        `SELECT d.estatus_documento, dc.uuid
+           FROM public.documentos d
+           LEFT JOIN public.documentos_cfdi dc ON dc.documento_id = d.id
+          WHERE d.id = $1 AND d.empresa_id = $2
+          FOR UPDATE OF d`,
+        [documentoId, empresaId]
+      );
+      if (!pre.rowCount) {
+        throw new CfdiValidationError('Documento no encontrado para persistir el timbrado.');
+      }
+      if (pre.rows[0]?.uuid || String(pre.rows[0]?.estatus_documento || '').toLowerCase() === 'timbrado') {
         throw new CfdiValidationError('Este documento ya fue timbrado y no puede timbrarse nuevamente.');
       }
+      const uuidDuplicado = await client.query(
+        'SELECT documento_id FROM public.documentos_cfdi WHERE LOWER(uuid) = LOWER($1) LIMIT 1',
+        [timbre.uuid]
+      );
+      if (uuidDuplicado.rowCount) {
+        throw new CfdiValidationError('El UUID devuelto por Facturama ya está vinculado a otro documento.');
+      }
 
-      const { rows } = await pool.query<TimbradoPersisted>(
+      const { rows } = await client.query<TimbradoPersisted>(
         `INSERT INTO public.documentos_cfdi (
             documento_id, uuid, fecha_timbrado, version_cfdi, serie_cfdi, folio_cfdi,
             no_certificado, no_certificado_sat, sello_cfdi, sello_sat, cadena_original,
             xml_timbrado, qr_url, estado_sat, rfc_proveedor_certificacion,
-            rfc_emisor, rfc_receptor, total
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+            rfc_emisor, rfc_receptor, total, pac, pac_id, pac_modalidad
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
           RETURNING *`,
         values
       );
 
+      await client.query(
+        `UPDATE public.documentos
+            SET estatus_documento = 'Timbrado',
+                saldo = COALESCE(total, 0)
+          WHERE id = $1 AND empresa_id = $2`,
+        [documentoId, empresaId]
+      );
+      if (intentoId) {
+        await actualizarIntentoTimbrado(intentoId, 'persistido', { uuid: timbre.uuid }, client);
+      }
+      await client.query('COMMIT');
       return rows[0];
     } catch (err: any) {
+      await client.query('ROLLBACK');
       // Defensa contra condiciones de carrera: si ya existe un timbre, no sobrescribir.
       if (err?.code === '23505') {
         throw new CfdiValidationError('Este documento ya fue timbrado y no puede timbrarse nuevamente.');
       }
       throw err;
+    } finally {
+      client.release();
     }
   }
 
@@ -497,25 +636,6 @@ export class CfdiService {
     }
   }
 
-  private async marcarDocumentoTimbrado(documentoId: number): Promise<void> {
-    try {
-      const { rowCount } = await pool.query(
-        `UPDATE documentos
-            SET estatus_documento = 'Timbrado',
-                saldo = COALESCE(total, 0)
-          WHERE id = $1
-            AND (estatus_documento IS NULL OR LOWER(estatus_documento) <> 'timbrado')`,
-        [documentoId]
-      );
-
-      if (!rowCount) {
-        console.log('[cfdi] Documento ya estaba timbrado, no se actualizó estatus/saldo', { documentoId });
-      }
-    } catch (err) {
-      console.error('[cfdi] No se pudo actualizar estatus_documento a Timbrado', err);
-      throw err;
-    }
-  }
 }
 
 export const cfdiService = new CfdiService();

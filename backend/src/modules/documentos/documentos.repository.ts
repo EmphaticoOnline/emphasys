@@ -755,12 +755,27 @@ export async function listarDocumentosRepository(
   search?: string | null,
   agenteIdForzado?: number | null
 ) {
-  const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
+  const tieneSaldoDocumental = [
+    'factura',
+    'factura_compra',
+    'nota_credito',
+    'nota_credito_compra',
+    'pago_cliente',
+    'pago_proveedor',
+    'ajuste_cliente',
+    'ajuste_proveedor',
+  ].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
-  const selectSaldo = esFactura
-    ? `CASE WHEN LOWER(TRIM(COALESCE(d.estatus_documento, ''))) IN ('cancelado', 'cancelada') THEN 0 ELSE COALESCE(ds.saldo, 0) END AS saldo`
-    : 'NULL::numeric AS saldo';
-  const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
+  const selectSaldo = tieneSaldoDocumental
+    ? `COALESCE(dso.saldo_operativo, 0) AS saldo,
+       COALESCE(dso.saldo_registrado, 0) AS saldo_registrado,
+       COALESCE(dso.saldo_suspendido_cancelacion, 0) AS saldo_suspendido_cancelacion,
+       COALESCE(dso.cobro_bloqueado, false) AS cobro_bloqueado`
+    : `NULL::numeric AS saldo,
+       NULL::numeric AS saldo_registrado,
+       NULL::numeric AS saldo_suspendido_cancelacion,
+       false AS cobro_bloqueado`;
+  const joinSaldo = tieneSaldoDocumental ? 'LEFT JOIN documentos_saldo_operativo dso ON dso.id = d.id AND dso.empresa_id = d.empresa_id' : '';
   const selectDeleteWarning = esCotizacion
     ? `CASE
          WHEN o.id IS NOT NULL
@@ -799,7 +814,7 @@ export async function listarDocumentosRepository(
   if (searchTerm) {
     values.push(`%${searchTerm}%`);
     const searchIdx = values.length;
-    const saldoSearchExpr = esFactura ? 'COALESCE(ds.saldo, 0)::text' : "''";
+    const saldoSearchExpr = tieneSaldoDocumental ? 'COALESCE(dso.saldo_operativo, 0)::text' : "''";
 
     whereClauses.push(`(
       CONCAT(COALESCE(d.serie, ''), COALESCE(d.numero::text, '')) ILIKE $${searchIdx}
@@ -893,24 +908,77 @@ export async function listarDocumentosRepositoryPaginado(
   additionalFilters?: DocumentosAdditionalFilters,
   agenteIdForzado?: number | null
 ): Promise<{ data: any[]; total: number }> {
-  const esFactura = ['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
+  const tieneSaldoDocumental = [
+    'factura',
+    'factura_compra',
+    'nota_credito',
+    'nota_credito_compra',
+    'pago_cliente',
+    'pago_proveedor',
+    'ajuste_cliente',
+    'ajuste_proveedor',
+  ].includes((tipoDocumento || '').toLowerCase());
   const esFacturaVenta = (tipoDocumento || '').toLowerCase() === 'factura';
+  const muestraCfdi = ['factura', 'pago_cliente'].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
   const esOrdenCompra = (tipoDocumento || '').toLowerCase() === 'orden_compra';
-  const selectSaldo = esFactura
-    ? `CASE WHEN LOWER(TRIM(COALESCE(d.estatus_documento, ''))) IN ('cancelado', 'cancelada') THEN 0 ELSE COALESCE(ds.saldo, 0) END AS saldo`
-    : 'NULL::numeric AS saldo';
-  const joinSaldo = esFactura ? 'LEFT JOIN documentos_saldo ds ON ds.id = d.id AND ds.empresa_id = d.empresa_id' : '';
-  const selectCfdi = esFacturaVenta
+  const selectSaldo = tieneSaldoDocumental
+    ? `COALESCE(dso.saldo_operativo, 0) AS saldo,
+       COALESCE(dso.saldo_registrado, 0) AS saldo_registrado,
+       COALESCE(dso.saldo_suspendido_cancelacion, 0) AS saldo_suspendido_cancelacion,
+       COALESCE(dso.cobro_bloqueado, false) AS cobro_bloqueado`
+    : `NULL::numeric AS saldo,
+       NULL::numeric AS saldo_registrado,
+       NULL::numeric AS saldo_suspendido_cancelacion,
+       false AS cobro_bloqueado`;
+  const joinSaldo = tieneSaldoDocumental ? 'LEFT JOIN documentos_saldo_operativo dso ON dso.id = d.id AND dso.empresa_id = d.empresa_id' : '';
+  const selectCfdi = muestraCfdi
     ? `dc.uuid AS cfdi_uuid,
+       COALESCE(NULLIF(TRIM(dc.xml_timbrado), ''), NULL) IS NOT NULL AS cfdi_tiene_xml,
        dc.fecha_timbrado AS cfdi_fecha_timbrado,
        dc.estado_sat AS cfdi_estado_sat,
-       dc.fecha_cancelacion AS cfdi_fecha_cancelacion,`
+       dc.fecha_cancelacion AS cfdi_fecha_cancelacion,
+       dc.pac_id AS cfdi_pac_id,
+       dc.pac_modalidad AS cfdi_pac_modalidad,
+       dc.cancelacion_estado AS cfdi_cancelacion_estado,
+       cancelacion_intento.id::int AS cfdi_cancelacion_intento_id,
+       cancelacion_intento.proveedor AS cfdi_cancelacion_proveedor,
+       cancelacion_intento.proveedor_status AS cfdi_cancelacion_proveedor_status,
+       cancelacion_intento.fecha_solicitud AS cfdi_cancelacion_fecha_solicitud,
+       dc.cancelacion_ultima_consulta_at AS cfdi_cancelacion_fecha_ultima_consulta,
+       EXISTS (
+         SELECT 1 FROM aplicaciones_saldo ap
+          WHERE ap.empresa_id = d.empresa_id
+            AND (ap.documento_origen_id = d.id OR ap.documento_destino_id = d.id)
+       ) AS tiene_aplicaciones_saldo_activas,`
     : `NULL::text AS cfdi_uuid,
+       false AS cfdi_tiene_xml,
        NULL::timestamptz AS cfdi_fecha_timbrado,
        NULL::text AS cfdi_estado_sat,
-       NULL::timestamptz AS cfdi_fecha_cancelacion,`;
-  const joinCfdi = esFacturaVenta ? 'LEFT JOIN documentos_cfdi dc ON dc.documento_id = d.id' : '';
+       NULL::timestamptz AS cfdi_fecha_cancelacion,
+       NULL::text AS cfdi_pac_id,
+       NULL::text AS cfdi_pac_modalidad,
+       NULL::text AS cfdi_cancelacion_estado,
+       NULL::bigint AS cfdi_cancelacion_intento_id,
+       NULL::text AS cfdi_cancelacion_proveedor,
+       NULL::text AS cfdi_cancelacion_proveedor_status,
+       NULL::timestamptz AS cfdi_cancelacion_fecha_solicitud,
+       NULL::timestamptz AS cfdi_cancelacion_fecha_ultima_consulta,
+       false AS tiene_aplicaciones_saldo_activas,`;
+  const joinCfdi = muestraCfdi
+    ? `LEFT JOIN documentos_cfdi dc ON dc.documento_id = d.id
+       LEFT JOIN LATERAL (
+         SELECT i.id, i.proveedor, i.proveedor_status, i.fecha_solicitud
+           FROM documentos_cancelacion_intentos i
+          WHERE i.documento_id = d.id
+            AND i.empresa_id = d.empresa_id
+          ORDER BY
+            CASE WHEN i.estado IN ('iniciado', 'solicitada', 'pendiente', 'requiere_reconciliacion') THEN 0 ELSE 1 END,
+            i.created_at DESC,
+            i.id DESC
+          LIMIT 1
+       ) cancelacion_intento ON TRUE`
+    : '';
   const selectInventario = esFacturaVenta
     ? `jsonb_build_object(
          'aplica', COALESCE(etd_inv.afecta_inventario, td_inv.afecta_inventario, 'none') <> 'none',
@@ -1006,7 +1074,7 @@ export async function listarDocumentosRepositoryPaginado(
   if (searchTerm) {
     values.push(`%${searchTerm}%`);
     const searchIdx = values.length;
-    const saldoSearchExpr = esFactura ? 'COALESCE(ds.saldo, 0)::text' : "''";
+    const saldoSearchExpr = tieneSaldoDocumental ? 'COALESCE(dso.saldo_operativo, 0)::text' : "''";
     whereClauses.push(`(
       CONCAT(COALESCE(d.serie, ''), COALESCE(d.numero::text, '')) ILIKE $${searchIdx}
       OR COALESCE(d.serie, '') ILIKE $${searchIdx}
@@ -1043,8 +1111,8 @@ export async function listarDocumentosRepositoryPaginado(
   if (additionalFilters) {
     const { soloPendientes, quickFilter, clienteId, agenteId, fechaDesde, fechaHasta, montoMin, montoMax } = additionalFilters;
 
-    if (soloPendientes && esFactura) {
-      whereClauses.push('COALESCE(ds.saldo, 0) > 0');
+    if (soloPendientes && tieneSaldoDocumental) {
+      whereClauses.push('COALESCE(dso.saldo_operativo, 0) > 0');
     }
 
     if (quickFilter && quickFilter !== 'todos') {
@@ -1182,8 +1250,35 @@ export async function obtenerDocumentoRepository(
       d.forma_pago,
       d.metodo_pago,
       d.codigo_postal_receptor,
-      ag.nombre AS agente_nombre
+      ag.nombre AS agente_nombre,
+      dc.uuid AS cfdi_uuid,
+      dc.estado_sat AS cfdi_estado_sat,
+      dc.fecha_cancelacion AS cfdi_fecha_cancelacion,
+      dc.cancelacion_estado AS cfdi_cancelacion_estado,
+      dc.cancelacion_proveedor_status AS cfdi_cancelacion_proveedor_status,
+      dc.cancelacion_ultima_consulta_at AS cfdi_cancelacion_fecha_ultima_consulta,
+      cancelacion_intento.id::int AS cfdi_cancelacion_intento_id,
+      cancelacion_intento.proveedor AS cfdi_cancelacion_proveedor,
+      cancelacion_intento.fecha_solicitud AS cfdi_cancelacion_fecha_solicitud,
+      dso.saldo_registrado,
+      dso.saldo_operativo AS saldo,
+      dso.saldo_suspendido_cancelacion,
+      dso.cobro_bloqueado
     FROM documentos d
+    LEFT JOIN documentos_saldo_operativo dso
+      ON dso.id = d.id AND dso.empresa_id = d.empresa_id
+    LEFT JOIN documentos_cfdi dc ON dc.documento_id = d.id
+    LEFT JOIN LATERAL (
+      SELECT i.id, i.proveedor, i.fecha_solicitud
+        FROM documentos_cancelacion_intentos i
+       WHERE i.documento_id = d.id
+         AND i.empresa_id = d.empresa_id
+       ORDER BY
+         CASE WHEN i.estado IN ('iniciado', 'solicitada', 'pendiente', 'requiere_reconciliacion') THEN 0 ELSE 1 END,
+         i.created_at DESC,
+         i.id DESC
+       LIMIT 1
+    ) cancelacion_intento ON TRUE
     LEFT JOIN finanzas_operaciones fo ON fo.id = d.finanzas_operacion_id AND fo.empresa_id = d.empresa_id
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     LEFT JOIN contactos_domicilios cd ON cd.contacto_id = c.id AND cd.es_principal = true

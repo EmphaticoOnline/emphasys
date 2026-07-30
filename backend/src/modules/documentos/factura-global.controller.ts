@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
+import { crearAplicacionEnTransaccion } from '../finanzas/finanzas.repository';
 
 type VentaElegible = {
   id: number;
@@ -360,17 +361,17 @@ export async function generarFacturaGlobal(req: Request, res: Response) {
       const montoBase = Number((saldoVenta * tipoCambio).toFixed(6));
       const montoMonedaDoc = Number(saldoVenta.toFixed(6));
 
-      await client.query(
-        `INSERT INTO aplicaciones_saldo (
-            empresa_id,
-            documento_origen_id,
-            documento_destino_id,
-            monto,
-            monto_moneda_documento,
-            fecha_aplicacion,
-            fecha_creacion
-          ) VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, NOW())`,
-        [empresaId, ajusteId, venta.id, montoBase, montoMonedaDoc]
+      await crearAplicacionEnTransaccion(
+        client,
+        {
+          documento_origen_id: ajusteId,
+          documento_destino_id: venta.id,
+          monto: montoBase,
+          monto_moneda_documento: montoMonedaDoc,
+          fecha_aplicacion: new Date().toISOString().slice(0, 10),
+          created_by: usuarioId,
+        },
+        empresaId
       );
     }
 

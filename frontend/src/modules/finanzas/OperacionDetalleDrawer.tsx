@@ -21,11 +21,11 @@ import {
   Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import DeleteIcon from '@mui/icons-material/DeleteOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkIcon from '@mui/icons-material/Link';
 import {
   crearAplicacion,
-  eliminarAplicacion,
+  desaplicarPago,
   fetchAplicacionesDocumento,
   fetchEstadoCuenta,
   fetchOperacionDetalle,
@@ -33,6 +33,9 @@ import {
 } from '../../services/finanzasService';
 import type { AplicacionOperacion, DocumentoSaldo, EstadoCuentaItem, FinanzasOperacion } from '../../types/finanzas';
 import { formatearFolioDocumento } from '../../utils/documentos.utils';
+import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
+import { loadSession } from '../../session/sessionStorage';
+import { esRolAdmin } from '../../session/rolScope';
 
 const compatibilidadNaturaleza: Record<string, string[]> = {
   cobro_cliente: ['factura', 'nota_credito'],
@@ -76,6 +79,9 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   const [loading, setLoading] = useState(false);
   const [applyingId, setApplyingId] = useState<number | null>(null);
   const [autoApplying, setAutoApplying] = useState(false);
+  const [desaplicandoId, setDesaplicandoId] = useState<number | null>(null);
+  const [desaplicarItem, setDesaplicarItem] = useState<AplicacionOperacion | null>(null);
+  const [desaplicarError, setDesaplicarError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'success' }
   );
@@ -84,6 +90,8 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
     () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }),
     []
   );
+  const session = useMemo(() => loadSession(), []);
+  const puedeDesaplicar = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
 
   const headerCellSx = {
     backgroundColor: '#1d2f68',
@@ -147,14 +155,23 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
     void fetchAll(operacionId);
   }, [open, operacionId]);
 
-  const handleDeleteAplicacion = async (id: number) => {
-    if (!operacionId) return;
+  const handleDesaplicarPago = async (motivo: string) => {
+    if (!operacionId || !desaplicarItem) return;
     try {
-      await eliminarAplicacion(id);
-      setSnackbar({ open: true, message: 'Aplicación eliminada', severity: 'success' });
+      setDesaplicandoId(desaplicarItem.id);
+      setDesaplicarError(null);
+      await desaplicarPago(desaplicarItem.id, motivo);
+      setDesaplicarItem(null);
+      setSnackbar({
+        open: true,
+        message: 'El pago se desaplicó correctamente. Se actualizaron el saldo disponible del pago y el saldo pendiente de la factura.',
+        severity: 'success',
+      });
       await fetchAll(operacionId);
     } catch (err: any) {
-      setSnackbar({ open: true, message: err?.message || 'No se pudo eliminar', severity: 'error' });
+      setDesaplicarError(err?.message || 'No se pudo desaplicar el pago. No se realizaron cambios.');
+    } finally {
+      setDesaplicandoId(null);
     }
   };
 
@@ -391,14 +408,23 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                         {formatter.format(Number(row.monto_moneda_documento) || 0)}
                       </TableCell>
                       <TableCell align="center" sx={{ ...bodyCellSx, py: '2px', width: '20%' }}>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteAplicacion(row.id)}
-                          sx={{ p: 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                        {puedeDesaplicar && row.tipo_documento_origen === 'pago_cliente' ? (
+                          <Tooltip title="Desaplicar pago">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => {
+                                setDesaplicarError(null);
+                                setDesaplicarItem(row);
+                              }}
+                              disabled={desaplicandoId === row.id}
+                              aria-label="Desaplicar pago"
+                              sx={{ p: 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   );
@@ -558,6 +584,24 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
           {snackbar.message}
         </Alert>
       </Snackbar>
+      <DesaplicarPagoDialog
+        open={Boolean(desaplicarItem)}
+        pagoFolio={formatearFolioDocumento(
+          operacion?.documento_origen_serie || '',
+          operacion?.documento_origen_numero || 0
+        )}
+        facturaFolio={desaplicarItem ? formatearFolioDocumento(desaplicarItem.serie || '', desaplicarItem.numero || 0) : ''}
+        importe={formatter.format(Number(desaplicarItem?.monto_moneda_documento ?? 0))}
+        loading={desaplicandoId !== null}
+        error={desaplicarError}
+        onClose={() => {
+          if (desaplicandoId === null) {
+            setDesaplicarItem(null);
+            setDesaplicarError(null);
+          }
+        }}
+        onConfirm={handleDesaplicarPago}
+      />
     </Drawer>
   );
 }

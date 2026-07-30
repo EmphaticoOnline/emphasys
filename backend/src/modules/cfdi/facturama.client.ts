@@ -1,7 +1,23 @@
 import axios, { AxiosInstance } from 'axios';
 import pool from '../../config/database';
-import type { FacturamaConfig, FacturamaStampResponse } from './cfdi.types';
+import type {
+  FacturamaConfig,
+  FacturamaStampedDocument,
+  FacturamaStampResponse,
+} from './cfdi.types';
 import { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
+import { assertPagoComplementPayload } from './pago-complement.builder';
+import { enmascararRfc, normalizarRfcEstricto } from './cfdi-emisor.validation';
+import {
+  actualizarIntentoTimbrado,
+  registrarIdAceptado,
+} from './cfdi-timbrado-intentos.repository';
+import {
+  type CfdiPacModalidad,
+  getCancelPath,
+  getCfdiStatusPath,
+  interpretarEstadoCancelacionFacturama,
+} from './cfdi-cancelacion';
 export { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
 
 const MISSING_ACTIVE_CONFIG_MESSAGE = 'No existe una configuración PAC activa en core.cfdi_pac_config. Configure Facturama antes de intentar timbrar.';
@@ -39,6 +55,19 @@ function tryDecodeBase64(value: string | undefined | null): string | null {
     return Buffer.from(value, 'base64').toString('utf8');
   } catch (_) {
     return value;
+  }
+}
+
+export function getApiLiteIssuedFilePath(format: 'xml' | 'pdf' | 'html', id: string): string {
+  return `/Cfdi/${format}/issuedLite/${encodeURIComponent(id)}`;
+}
+
+export class CfdiAcceptedPendingDownloadError extends Error {
+  readonly statusCode = 409;
+  readonly estadoReconciliacion = 'error_descarga';
+
+  constructor(readonly intentoId: number) {
+    super('Facturama aceptó la factura, pero no fue posible recuperar el XML. No vuelva a timbrar. El documento requiere reconciliación.');
   }
 }
 
@@ -126,6 +155,10 @@ export class FacturamaClient {
     return '/api-lite/3/cfdis';
   }
 
+  private getApiLiteCfdisEndpoint(): string {
+    return new URL(this.getApiLiteCfdisPath(), this.resolveApiLiteBaseUrl()).toString();
+  }
+
   async registerMultiemisorCsd(payload: {
     Rfc: string;
     Certificate: string;
@@ -162,14 +195,50 @@ export class FacturamaClient {
     }
   }
 
-  async stampXml(xml: string): Promise<{ xmlTimbrado: string; response: FacturamaStampResponse; uuid?: string; pdfUrl?: string; xmlUrl?: string; }> {
-    const jsonPayload = convertXmlCfdiToFacturamaJson(xml);
-    console.log('===== FACTURAMA PAYLOAD START =====');
-    console.log(JSON.stringify(jsonPayload, null, 2));
-    console.log('===== FACTURAMA PAYLOAD END =====');
+  async stampXml(
+    xml: string,
+    context: {
+      expectedIssuerRfc: string;
+      empresaId: number;
+      documentoId: number;
+      serie?: string | null;
+      folio?: string | number | null;
+    }
+  ): Promise<FacturamaStampedDocument> {
+    let jsonPayload;
+    try {
+      jsonPayload = convertXmlCfdiToFacturamaJson(xml);
+    } catch (error) {
+      const validationError: any = new Error(
+        error instanceof Error ? error.message : 'El payload CFDI contiene datos fiscales incompletos.'
+      );
+      validationError.isFacturamaValidation = true;
+      throw validationError;
+    }
+    const expectedIssuerRfc = normalizarRfcEstricto(context.expectedIssuerRfc);
+    const payloadIssuerRfc = normalizarRfcEstricto(jsonPayload.Issuer.Rfc);
+
+    if (!expectedIssuerRfc || !payloadIssuerRfc || payloadIssuerRfc !== expectedIssuerRfc) {
+      const validationError: any = new Error(
+        'El RFC emisor del payload no coincide con el RFC de la empresa activa.'
+      );
+      validationError.isFacturamaValidation = true;
+      throw validationError;
+    }
+
+    const endpoint = this.getApiLiteCfdisEndpoint();
+    console.info('[CFDI][Facturama] Solicitud de timbrado preparada', {
+      endpoint,
+      ambiente: this.config.modo,
+      empresaId: context.empresaId,
+      documentoId: context.documentoId,
+      rfcEmisor: enmascararRfc(payloadIssuerRfc),
+      serie: context.serie || null,
+      folio: context.folio ?? null,
+    });
 
     try {
-      const create = await this.http.post(this.stampPath, jsonPayload, {
+      const create = await this.http.post(endpoint, jsonPayload, {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
@@ -177,48 +246,87 @@ export class FacturamaClient {
       });
 
       const data = create.data;
-
-      console.log('[facturama] RESPONSE:', JSON.stringify(data, null, 2));
+      const cfdiId = (data as any)?.Id as string | undefined;
+      const intentoId = cfdiId
+        ? await registrarIdAceptado({
+            empresaId: context.empresaId,
+            documentoId: context.documentoId,
+            proveedorCfdiId: cfdiId,
+            endpoint: new URL(
+              getApiLiteIssuedFilePath('xml', cfdiId),
+              this.resolveApiLiteBaseUrl()
+            ).toString(),
+          })
+        : undefined;
 
       // Si viene XmlContent directo (API Lite), usarlo; de lo contrario descargar XML emitido.
       const xmlContent = (data as any)?.XmlContent as string | undefined;
       if (xmlContent) {
         const xmlTimbradoLite = Buffer.from(xmlContent, 'base64').toString('utf8');
+        if (intentoId) {
+          await actualizarIntentoTimbrado(intentoId, 'xml_recuperado', {
+            uuid: (data as any)?.Uuid || (data as any)?.Complement?.TaxStamp?.Uuid || null,
+          });
+        }
         return {
           xmlTimbrado: xmlTimbradoLite,
           response: data,
           uuid: (data as any)?.Uuid || (data as any)?.Complement?.TaxStamp?.Uuid,
           pdfUrl: (data as any)?.PdfUrl,
           xmlUrl: (data as any)?.XmlUrl,
+          intentoId,
         };
       }
 
-      const cfdiId = (data as any)?.Id;
       if (!cfdiId) {
         throw new Error('Facturama no regresó Id del CFDI para descargar el XML timbrado.');
       }
 
-      // Flujo API /3/cfdis: descargar XML base64 desde /api/Cfdi/xml/issued/{id}
-      const file = await this.http.get(`/api/Cfdi/xml/issued/${cfdiId}`);
+      const issuedPath = getApiLiteIssuedFilePath('xml', cfdiId);
+      const issuedEndpoint = new URL(issuedPath, this.resolveApiLiteBaseUrl()).toString();
+
+      let file;
+      try {
+        file = await this.http.get(issuedEndpoint);
+      } catch (downloadError: any) {
+        await actualizarIntentoTimbrado(intentoId!, 'error_descarga', {
+          errorCodigo: String(downloadError?.response?.status || downloadError?.code || 'DOWNLOAD_ERROR'),
+          errorMensaje: downloadError,
+          incrementarDescarga: true,
+        });
+        throw new CfdiAcceptedPendingDownloadError(intentoId!);
+      }
+
       const xmlBase64 = (file.data as any)?.Content as string | undefined;
-      const xmlTimbrado = xmlBase64 ? Buffer.from(xmlBase64, 'base64').toString('utf8') : tryDecodeBase64((file.data as any)?.Content) || (file.data as any) || '';
+      const xmlTimbrado = xmlBase64
+        ? Buffer.from(xmlBase64, 'base64').toString('utf8')
+        : tryDecodeBase64((file.data as any)?.Content) || '';
+
+      if (!xmlTimbrado.trim()) {
+        await actualizarIntentoTimbrado(intentoId!, 'error_descarga', {
+          errorCodigo: 'EMPTY_XML',
+          errorMensaje: 'Facturama no devolvió contenido XML.',
+          incrementarDescarga: true,
+        });
+        throw new CfdiAcceptedPendingDownloadError(intentoId!);
+      }
+
+      await actualizarIntentoTimbrado(intentoId!, 'xml_recuperado', {
+        uuid: (data as any)?.Complement?.TaxStamp?.Uuid || null,
+        incrementarDescarga: true,
+      });
 
       return {
         xmlTimbrado,
         uuid: (data as any)?.Complement?.TaxStamp?.Uuid,
         response: data,
+        intentoId: intentoId!,
       };
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
         const respData = error.response?.data;
         console.error('[facturama] Error al timbrar:', error.message);
         if (respData !== undefined) {
-          console.error('[facturama] response.data:', JSON.stringify(respData, null, 2));
-          const modelState = (respData as any)?.ModelState;
-          if (modelState !== undefined) {
-            console.error('[facturama] response.data.ModelState:', JSON.stringify(modelState, null, 2));
-          }
-
           const userMessage = buildFacturamaUserMessage(respData);
           if (userMessage) {
             const facturamaError: any = new Error(userMessage);
@@ -231,28 +339,49 @@ export class FacturamaClient {
     }
   }
 
-  async stampPagoComplement(payload: object): Promise<{
+  async stampPagoComplement(
+    payload: object,
+    context: { empresaId: number; documentoId: number }
+  ): Promise<{
     xmlTimbrado: string;
     response: FacturamaStampResponse;
     uuid?: string;
+    pacId?: string | null;
+    pacModalidad?: 'lite' | 'web' | null;
+    intentoId?: number;
   }> {
-    console.log('===== FACTURAMA PAGO PAYLOAD START =====');
-    console.log(JSON.stringify(payload, null, 2));
-    console.log('===== FACTURAMA PAGO PAYLOAD END =====');
+    assertPagoComplementPayload(payload);
 
     try {
       const create = await this.http.post(this.stampPath, payload, {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       });
       const data = create.data;
-      console.log('[facturama] PAGO RESPONSE:', JSON.stringify(data, null, 2));
+      const pacId = String((data as any)?.Id || '').trim() || null;
+      const pacModalidad = this.stampPath.toLowerCase().includes('api-lite') ? 'lite' : 'web';
+      const intentoId = pacId
+        ? await registrarIdAceptado({
+            empresaId: context.empresaId,
+            documentoId: context.documentoId,
+            proveedorCfdiId: pacId,
+            endpoint: getApiLiteIssuedFilePath('xml', pacId),
+          })
+        : undefined;
 
       const xmlContent = (data as any)?.XmlContent as string | undefined;
       if (xmlContent) {
+        if (intentoId) {
+          await actualizarIntentoTimbrado(intentoId, 'xml_recuperado', {
+            uuid: (data as any)?.Uuid || (data as any)?.Complement?.TaxStamp?.Uuid || null,
+          });
+        }
         return {
           xmlTimbrado: Buffer.from(xmlContent, 'base64').toString('utf8'),
           response: data,
           uuid: (data as any)?.Uuid || (data as any)?.Complement?.TaxStamp?.Uuid,
+          pacId,
+          pacModalidad,
+          intentoId,
         };
       }
 
@@ -261,23 +390,43 @@ export class FacturamaClient {
         throw new Error('Facturama no regresó Id para descargar XML del complemento de pago.');
       }
 
-      const file = await this.http.get(`/api/Cfdi/xml/issued/${cfdiId}`);
+      let file;
+      try {
+        file = await this.http.get(getApiLiteIssuedFilePath('xml', cfdiId));
+      } catch (downloadError: any) {
+        if (intentoId) {
+          await actualizarIntentoTimbrado(intentoId, 'error_descarga', {
+            errorCodigo: String(downloadError?.response?.status || downloadError?.code || 'DOWNLOAD_ERROR'),
+            errorMensaje: downloadError,
+            incrementarDescarga: true,
+          });
+        }
+        throw new CfdiAcceptedPendingDownloadError(intentoId || 0);
+      }
       const xmlBase64 = (file.data as any)?.Content as string | undefined;
       const xmlTimbrado = xmlBase64
         ? Buffer.from(xmlBase64, 'base64').toString('utf8')
         : String((file.data as any) || '');
+      if (intentoId) {
+        await actualizarIntentoTimbrado(intentoId, 'xml_recuperado', {
+          uuid: (data as any)?.Uuid || (data as any)?.Complement?.TaxStamp?.Uuid || null,
+          incrementarDescarga: true,
+        });
+      }
 
       return {
         xmlTimbrado,
         uuid: (data as any)?.Complement?.TaxStamp?.Uuid,
         response: data,
+        pacId,
+        pacModalidad,
+        intentoId,
       };
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
         const respData = error.response?.data;
         console.error('[facturama] Error al timbrar complemento de pago:', error.message);
         if (respData !== undefined) {
-          console.error('[facturama] response.data:', JSON.stringify(respData, null, 2));
           const userMessage = buildFacturamaUserMessage(respData);
           if (userMessage) {
             const facturamaError: any = new Error(userMessage);
@@ -291,86 +440,80 @@ export class FacturamaClient {
   }
 
   async cancelCfdi(payload: {
-    uuid: string;
+    pacId: string;
+    modalidad: CfdiPacModalidad;
     motivoSat: string;
     uuidSustitucion?: string | null;
-  }): Promise<any> {
-    const uuid = String(payload.uuid || '').trim();
+  }): Promise<{
+    data: any;
+    endpoint: string;
+    proveedorStatus: string | null;
+    estado: ReturnType<typeof interpretarEstadoCancelacionFacturama>;
+  }> {
     const motive = String(payload.motivoSat || '').trim();
     const folioSustitucion = String(payload.uuidSustitucion || '').trim();
 
-    if (!uuid) {
-      throw new Error('UUID de CFDI requerido para cancelar en Facturama');
-    }
     if (!motive) {
       throw new Error('Motivo SAT requerido para cancelar en Facturama');
     }
-
-    const body = {
-      Motive: motive,
-      FolioSubstitution: folioSustitucion || undefined,
-    };
-
-    const requests = [
-      () => this.http.post(`${this.getApiLiteCfdisPath()}/${encodeURIComponent(uuid)}/cancel`, body, {
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      }),
-      () => this.http.delete(`${this.getApiLiteCfdisPath()}/${encodeURIComponent(uuid)}`, {
-        data: body,
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      }),
-      () => this.http.post(`${this.getApiLiteCfdisPath()}/cancel`, {
-        UUID: uuid,
-        ...body,
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      }),
-    ];
-
-    let lastError: any = null;
-    for (const request of requests) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        lastError = error;
-        if (!axios.isAxiosError(error)) {
-          continue;
-        }
-
-        const status = Number(error.response?.status || 0);
-        const respData = error.response?.data;
-        const userMessage = buildFacturamaUserMessage(respData);
-
-        if (status >= 400 && status < 500 && status !== 404 && status !== 405) {
-          const facturamaError: any = new Error(userMessage || error.message || 'Error al cancelar CFDI en Facturama');
-          facturamaError.statusCode = status;
-          facturamaError.facturamaResponse = respData;
-          facturamaError.isFacturamaValidation = Boolean(userMessage);
-          throw facturamaError;
-        }
-      }
+    if (motive === '01' && !folioSustitucion) {
+      throw new Error('UUID de sustitución requerido para el motivo SAT 01');
     }
 
-    if (axios.isAxiosError(lastError)) {
-      const respData = lastError.response?.data;
+    const endpoint = getCancelPath(
+      payload.modalidad,
+      payload.pacId,
+      motive,
+      folioSustitucion || null
+    );
+
+    try {
+      const response = await this.http.delete(endpoint, {
+        headers: { Accept: 'application/json' },
+      });
+      const proveedorStatus = String(response.data?.Status ?? response.data?.status ?? '').trim() || null;
+      return {
+        data: response.data,
+        endpoint,
+        proveedorStatus,
+        estado: interpretarEstadoCancelacionFacturama(proveedorStatus),
+      };
+    } catch (error: any) {
+      if (!axios.isAxiosError(error)) throw error;
+      const respData = error.response?.data;
       const userMessage = buildFacturamaUserMessage(respData);
-      const facturamaError: any = new Error(userMessage || lastError.message || 'Error al cancelar CFDI en Facturama');
-      facturamaError.statusCode = lastError.response?.status;
+      const facturamaError: any = new Error(userMessage || error.message || 'Error al cancelar CFDI en Facturama');
+      facturamaError.statusCode = error.response?.status;
       facturamaError.facturamaResponse = respData;
+      facturamaError.requestDispatched = true;
+      facturamaError.hasPacResponse = Boolean(error.response);
+      facturamaError.transportCode = error.code || null;
       facturamaError.isFacturamaValidation = Boolean(userMessage);
       throw facturamaError;
     }
+  }
 
-    throw lastError ?? new Error('Error al cancelar CFDI en Facturama');
+  async getCfdiStatus(payload: {
+    pacId: string;
+    modalidad: CfdiPacModalidad;
+  }): Promise<{
+    data: any;
+    endpoint: string;
+    httpStatus: number;
+    proveedorStatus: string | null;
+    estado: ReturnType<typeof interpretarEstadoCancelacionFacturama>;
+  }> {
+    const endpoint = getCfdiStatusPath(payload.modalidad, payload.pacId);
+    const response = await this.http.get(endpoint, {
+      headers: { Accept: 'application/json' },
+    });
+    const proveedorStatus = String(response.data?.Status ?? response.data?.status ?? '').trim() || null;
+    return {
+      data: response.data,
+      endpoint,
+      httpStatus: response.status,
+      proveedorStatus,
+      estado: interpretarEstadoCancelacionFacturama(proveedorStatus),
+    };
   }
 }

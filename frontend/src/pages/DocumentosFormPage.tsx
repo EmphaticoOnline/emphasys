@@ -74,7 +74,7 @@ import type {
   TratamientoImpuestos,
 } from '../types/cotizacion';
 import type { TipoDocumento } from '../types/documentos.types';
-import { getDocumento, getDocumentos, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana, getRecepcionResumen, type RecepcionResumenResponse } from '../services/documentosService';
+import { getDocumento, getDocumentos, createDocumento, updateDocumento, replacePartidas, abrirDocumentoPdfEnNuevaVentana, getRecepcionResumen, prevalidarComplementoPago, type PagoComplementPrevalidacion, type RecepcionResumenResponse } from '../services/documentosService';
 import { fetchConceptos } from '../services/conceptosService';
 import {
   generarDocumentoDesdeOrigen,
@@ -659,6 +659,8 @@ export default function DocumentosFormPage({
   const [loadingAnticiposResumen, setLoadingAnticiposResumen] = useState(false);
   const [documentosCargoMonetarios, setDocumentosCargoMonetarios] = useState<EstadoCuentaItem[]>([]);
   const [loadingDocumentosCargoMonetarios, setLoadingDocumentosCargoMonetarios] = useState(false);
+  const [complementoPrevalidacion, setComplementoPrevalidacion] = useState<PagoComplementPrevalidacion | null>(null);
+  const [loadingComplementoPrevalidacion, setLoadingComplementoPrevalidacion] = useState(false);
   const [montosAplicacionMonetaria, setMontosAplicacionMonetaria] = useState<Record<number, string>>({});
   const [autoApplyingDocumentoMonetario, setAutoApplyingDocumentoMonetario] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1966,6 +1968,18 @@ export default function DocumentosFormPage({
   }, [documentoActualId, tipoDocumento]);
 
   useEffect(() => {
+    if (tipoDocumento !== 'pago_cliente' || !documentoActualId) {
+      setComplementoPrevalidacion(null);
+      return;
+    }
+    setLoadingComplementoPrevalidacion(true);
+    prevalidarComplementoPago(Number(documentoActualId))
+      .then(setComplementoPrevalidacion)
+      .catch(() => setComplementoPrevalidacion(null))
+      .finally(() => setLoadingComplementoPrevalidacion(false));
+  }, [documentoActualId, tipoDocumento]);
+
+  useEffect(() => {
     if (!esDocumentoMonetario) {
       setDocumentosCargoMonetarios([]);
       setMontosAplicacionMonetaria({});
@@ -2693,6 +2707,11 @@ export default function DocumentosFormPage({
         }
         setMontosAplicacionMonetaria({});
         void loadDocumentosCargoMonetarios(docId);
+        if (tipoDocumento === 'pago_cliente') {
+          void prevalidarComplementoPago(docId)
+            .then(setComplementoPrevalidacion)
+            .catch(() => setComplementoPrevalidacion(null));
+        }
       }
 
       if (showSuccessMessage) {
@@ -3574,9 +3593,9 @@ export default function DocumentosFormPage({
                       handleCloseMobileActionsMenu();
                       setOpenPagos(true);
                     }}
-                    disabled={tipoDocumento !== 'factura' || !form.contacto_principal_id || saldoDocumento <= 0}
+                    disabled={tipoDocumento !== 'factura' || !form.contacto_principal_id}
                   >
-                    Aplicar pago
+                    {saldoDocumento > 0 ? 'Aplicar pago' : 'Administrar pagos'}
                   </MenuItem>
                 ) : null}
                 {isEdit && documentoActualId ? (
@@ -3617,9 +3636,9 @@ export default function DocumentosFormPage({
                 <Button
                   variant="outlined"
                   onClick={() => setOpenPagos(true)}
-                  disabled={tipoDocumento !== 'factura' || !form.contacto_principal_id || saldoDocumento <= 0}
+                  disabled={tipoDocumento !== 'factura' || !form.contacto_principal_id}
                 >
-                  Aplicar pago
+                  {saldoDocumento > 0 ? 'Aplicar pago' : 'Administrar pagos'}
                 </Button>
               )}
               {isEdit && documentoActualId && (
@@ -3996,6 +4015,65 @@ export default function DocumentosFormPage({
                       </Box>
                     </Grid>
                   </Grid>
+
+                  {tipoDocumento === 'pago_cliente' && (
+                    <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f8fafc' }}>
+                      <Stack spacing={1.25}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={1}>
+                          <Box>
+                            <Typography variant="subtitle2" fontWeight={700}>Receptor fiscal del complemento</Typography>
+                            {loadingComplementoPrevalidacion ? (
+                              <Typography variant="body2" color="text.secondary">Comprobando facturas aplicadas…</Typography>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                {complementoPrevalidacion?.aplicaciones === 1
+                                  ? '1 factura aplicada'
+                                  : `${complementoPrevalidacion?.aplicaciones ?? 0} facturas aplicadas`}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => document.getElementById('aplicaciones-pago')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                            >
+                              {complementoPrevalidacion?.aplicaciones ? 'Gestionar aplicaciones' : 'Aplicar pago'}
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              disabled={!form.contacto_principal_id}
+                              onClick={() => navigate(`/contactos/${form.contacto_principal_id}`, {
+                                state: { returnTo: location.pathname },
+                              })}
+                            >
+                              Editar cliente
+                            </Button>
+                          </Stack>
+                        </Stack>
+                        {complementoPrevalidacion?.receptor ? (
+                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.5, md: 2 }}>
+                            <Typography variant="body2"><strong>{complementoPrevalidacion.receptor.nombre}</strong></Typography>
+                            <Typography variant="body2">RFC: {complementoPrevalidacion.receptor.rfcEnmascarado}</Typography>
+                            <Typography variant="body2">Régimen: {complementoPrevalidacion.receptor.regimenFiscal}</Typography>
+                            <Typography variant="body2">CP: {complementoPrevalidacion.receptor.codigoPostal}</Typography>
+                          </Stack>
+                        ) : (
+                          <Alert severity={complementoPrevalidacion?.estado === 'inconsistente' ? 'error' : 'info'} sx={{ py: 0 }}>
+                            {complementoPrevalidacion?.error?.message || 'Aún no disponible: no hay facturas aplicadas.'}
+                          </Alert>
+                        )}
+                        <Typography variant="caption" color="text.secondary">
+                          {complementoPrevalidacion?.estado === 'receptor_disponible'
+                            ? complementoPrevalidacion.aplicaciones === 1
+                              ? 'Datos tomados de la factura timbrada.'
+                              : `Datos consistentes en ${complementoPrevalidacion.aplicaciones} facturas timbradas.`
+                            : 'Aún no disponible: no hay facturas aplicadas.'}
+                        </Typography>
+                      </Stack>
+                    </Paper>
+                  )}
 
                   {(form.moneda || 'MXN') !== 'MXN' && (
                     <Grid container spacing={2} alignItems="center">
@@ -4412,7 +4490,7 @@ export default function DocumentosFormPage({
               )}
 
               {esDocumentoMonetario && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Box id="aplicaciones-pago" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, scrollMarginTop: 16 }}>
                   <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }}>
                     <Box>
                       <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">

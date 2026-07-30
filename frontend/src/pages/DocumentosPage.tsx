@@ -98,7 +98,7 @@ import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, getDocumentosPaginados, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarComplementoPagoXml, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarComplementoPago, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, getDocumentosPaginados, prevalidarCancelacionDocumento, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento, type PrevalidacionCancelacionDocumento } from '../services/documentosService';
 import { fetchAnticiposDisponiblesDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
@@ -375,6 +375,26 @@ const MENSAJE_FACTURA_BORRADOR_CANCELAR =
 const MENSAJE_FACTURA_EMITIDA_SIN_TIMBRAR_CANCELAR =
   'Cancela el documento en Emphasys. No se cancelará CFDI porque no está timbrado.';
 
+const obtenerBloqueoCancelacionCfdi = (row: CotizacionListado): string | null => {
+  if (!isFacturaTimbrada(row.estatus_documento)) return null;
+  if (row.tiene_aplicaciones_saldo_activas) {
+    return 'No puede cancelarse porque tiene aplicaciones de saldo activas.';
+  }
+  if (!String(row.cfdi_pac_id ?? '').trim()) {
+    return 'No puede cancelarse porque falta el identificador del PAC.';
+  }
+  if (row.cfdi_pac_modalidad !== 'web' && row.cfdi_pac_modalidad !== 'lite') {
+    return 'No puede cancelarse porque la modalidad del CFDI es desconocida.';
+  }
+  if (row.cfdi_cancelacion_estado === 'solicitada' || row.cfdi_cancelacion_estado === 'pendiente') {
+    return 'La cancelación ya fue solicitada y está pendiente de confirmación.';
+  }
+  if (row.cfdi_cancelacion_estado === 'requiere_reconciliacion') {
+    return 'El CFDI requiere reconciliación antes de continuar.';
+  }
+  return null;
+};
+
 const normalizeCotizacionEstatusDocumento = (value: unknown): CotizacionEstatusDocumento => {
   const normalized = String(value ?? 'borrador')
     .trim()
@@ -521,6 +541,17 @@ const puedeEnviarWhatsappDocumento = (tipoDocumento: TipoDocumento, row?: Partia
 
 const MENSAJE_FACTURA_NO_TIMBRADA_WHATSAPP = 'La factura debe estar timbrada antes de enviarse.';
 const MENSAJE_NOTA_VENTA_NO_EMITIDA_WHATSAPP = 'La nota de venta debe estar emitida antes de enviarse.';
+const EMAIL_DESTINO_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const puedeEnviarCfdiPorCorreo = (tipo: TipoDocumento, row: CotizacionListado): boolean => {
+  const timbrado = isFacturaTimbrada(row.estatus_documento);
+  const noCancelado = !['cancelado', 'cancelada'].includes(String(row.estatus_documento ?? '').trim().toLowerCase());
+  if (tipo === 'factura') return timbrado && noCancelado;
+  if (tipo === 'pago_cliente') {
+    return timbrado && noCancelado && Boolean(row.cfdi_uuid) && Boolean(row.cfdi_tiene_xml);
+  }
+  return false;
+};
 
 export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPageProps) {
   const theme = useTheme();
@@ -600,7 +631,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [deleteBlockedDialog, setDeleteBlockedDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
   const [facturaBorradorDialogOpen, setFacturaBorradorDialogOpen] = useState(false);
   const [timbrandoId, setTimbrandoId] = useState<number | null>(null);
+  const [timbradoPendienteIds, setTimbradoPendienteIds] = useState<Set<number>>(() => new Set());
   const [cancelandoId, setCancelandoId] = useState<number | null>(null);
+  const [cancelacionPreflight, setCancelacionPreflight] = useState<PrevalidacionCancelacionDocumento | null>(null);
+  const [cancelacionPreflightLoading, setCancelacionPreflightLoading] = useState(false);
   type SnackbarSeverity = 'success' | 'error' | 'info' | 'warning';
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: SnackbarSeverity }>(
     { open: false, message: '', severity: 'success' }
@@ -645,6 +679,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     enviando: boolean;
     error?: string | null;
   }>({ open: false, id: null, email: '', enviando: false, error: null });
+  const enviarCfdiEnCursoRef = React.useRef(false);
   const [enviarCotizacionDialog, setEnviarCotizacionDialog] = useState<{
     open: boolean;
     id: number | null;
@@ -1590,10 +1625,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       timbrada,
       contabilizada,
     });
+    setCancelacionPreflight(null);
+    setCancelacionPreflightLoading(true);
+    prevalidarCancelacionDocumento(Number(row.id))
+      .then(setCancelacionPreflight)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'No se pudo prevalidar la cancelación.';
+        setCancelarDialog((prev) => ({ ...prev, error: message }));
+      })
+      .finally(() => setCancelacionPreflightLoading(false));
   };
 
   const cerrarDialogoCancelar = () => {
     if (cancelarDialog.enviando) return;
+    setCancelacionPreflight(null);
     setCancelarDialog({
       open: false,
       id: null,
@@ -1623,19 +1668,35 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       setCancelandoId(documentoId);
       setCancelarDialog((prev) => ({ ...prev, enviando: true, error: null }));
 
-      await cancelarDocumento(documentoId, tipoDocumento, {
+      const resultado: any = await cancelarDocumento(documentoId, tipoDocumento, {
         motivo_cancelacion: cancelarDialog.motivoCancelacion.trim() || null,
         motivo_sat: esCfdi ? (motivoSat || null) : null,
         uuid_sustitucion: esCfdi ? (uuidSustitucion || null) : null,
       });
 
       cerrarDialogoCancelar();
-      setSnackbar({ open: true, message: 'Documento cancelado correctamente', severity: 'success' });
+      const cancelacionConfirmada = resultado?.cancelacion_estado === 'cancelada'
+        || resultado?.estatus_documento === 'Cancelado';
+      setSnackbar({
+        open: true,
+        message: cancelacionConfirmada
+          ? 'Cancelación confirmada'
+          : resultado?.message || 'Cancelación solicitada',
+        severity: cancelacionConfirmada ? 'success' : 'info',
+      });
       await load();
     } catch (err: any) {
-      const message = err?.message || 'No se pudo cancelar el documento';
+      const estadoReconciliacion = err?.payload?.details?.estado_reconciliacion;
+      const message = estadoReconciliacion === 'requiere_reconciliacion'
+        ? 'No fue posible confirmar el estado fiscal; requiere conciliación antes de cualquier reintento.'
+        : err?.message || 'No se pudo cancelar el documento';
       setCancelarDialog((prev) => ({ ...prev, enviando: false, error: message }));
       setSnackbar({ open: true, message, severity: 'error' });
+      setCancelacionPreflightLoading(true);
+      prevalidarCancelacionDocumento(documentoId)
+        .then(setCancelacionPreflight)
+        .catch(() => setCancelacionPreflight(null))
+        .finally(() => setCancelacionPreflightLoading(false));
     } finally {
       setCancelandoId(null);
     }
@@ -1912,16 +1973,25 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               align: 'right',
               headerAlign: 'right',
               headerClassName: 'finanzas-header',
-              renderCell: ({ value }: any) => (
-                <Box
-                  sx={{
-                    color: Number(value ?? 0) === 0 ? 'success.main' : 'error.main',
-                    fontWeight: 600,
-                  }}
-                >
-                  {currencyFormatter(value)}
-                </Box>
-              ),
+              renderCell: (params: any) => {
+                const suspended = Boolean(params.row?.cobro_bloqueado);
+                const content = (
+                  <Box
+                    sx={{
+                      color: suspended ? 'warning.main' : Number(params.value ?? 0) === 0 ? 'success.main' : 'error.main',
+                      fontWeight: 600,
+                      textDecoration: suspended ? 'underline dotted' : undefined,
+                    }}
+                  >
+                    {currencyFormatter(params.value)}
+                  </Box>
+                );
+                return suspended ? (
+                  <Tooltip title={`Saldo suspendido por cancelación pendiente. Saldo previo: ${currencyFormatter(params.row?.saldo_registrado)}`}>
+                    {content}
+                  </Tooltip>
+                ) : content;
+              },
             },
             ...(!esFacturaVentas ? [{
               field: 'estatus_financiero',
@@ -2172,11 +2242,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       renderCell: (params: GridRenderCellParams) => {
         const documentoPuedeTimbrarCfdi = puedeTimbrarCfdiDocumento(tipoDocumento, params.row as CotizacionListado);
         const facturaTimbrada = !documentoPuedeTimbrarCfdi || isFacturaTimbrada(params.row?.estatus_documento);
-        const mensajeFacturaNoTimbrada = 'La factura debe estar timbrada antes de enviarse.';
+        const envioCfdiDisponible = puedeEnviarCfdiPorCorreo(tipoDocumento, params.row as CotizacionListado);
+        const mensajeFacturaNoTimbrada = tipoDocumento === 'pago_cliente'
+          ? 'El complemento debe estar timbrado y contar con XML antes de enviarse.'
+          : 'La factura debe estar timbrada antes de enviarse.';
         const estatusDocumentoNormalizado = String(params.row?.estatus_documento ?? '').trim().toLowerCase();
         const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
         const facturaEnBorrador = esFacturaEnBorrador(tipoDocumento, params.row?.estatus_documento);
         const facturaEmitidaSinTimbrar = tipoDocumento === 'factura' && !facturaEnBorrador && !facturaTimbrada;
+        const bloqueoCancelacionCfdi = obtenerBloqueoCancelacionCfdi(params.row as CotizacionListado);
         const whatsappHabilitado = puedeEnviarWhatsappDocumento(tipoDocumento, params.row as CotizacionListado);
         const mensajeWhatsappBloqueado = documentoPuedeTimbrarCfdi
           ? MENSAJE_FACTURA_NO_TIMBRADA_WHATSAPP
@@ -2312,12 +2386,29 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             </Tooltip>
           )}
           {hasAction('aplicar_pago') && (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra') && (
-            <Tooltip title={Number(params.row?.saldo ?? 0) > 0 ? 'Aplicar pago' : 'Documento sin saldo pendiente'}>
+            <Tooltip
+              title={
+                params.row?.cobro_bloqueado
+                  ? 'Saldo suspendido por cancelación pendiente. No admite nuevas aplicaciones.'
+                : Number(params.row?.saldo ?? 0) > 0
+                  ? 'Aplicar pago'
+                  : params.row?.tiene_aplicaciones_saldo_activas
+                    ? 'Administrar pagos'
+                    : 'Documento sin saldo pendiente ni pagos aplicados'
+              }
+            >
               <span>
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading || Number(params.row?.saldo ?? 0) <= 0}
+                  disabled={
+                    loading
+                    || Boolean(params.row?.cobro_bloqueado)
+                    || (
+                      Number(params.row?.saldo ?? 0) <= 0
+                      && !params.row?.tiene_aplicaciones_saldo_activas
+                    )
+                  }
                   onClick={(e) => {
                     e.stopPropagation();
                     setAplicarSaldoNcDrawer({
@@ -2363,18 +2454,38 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading || timbrandoId === params.row.id}
+                  disabled={
+                    loading ||
+                    timbrandoId === params.row.id ||
+                    timbradoPendienteIds.has(Number(params.row.id))
+                  }
                   onClick={async (e) => {
                     e.stopPropagation();
                     try {
                       setTimbrandoId(params.row.id as number);
                       await timbrarDocumentoCfdi(Number(params.row.id), tipoDocumento);
                       await load();
-                      if (tipoDocumento === 'factura') {
+                      setSnackbar({
+                        open: true,
+                        message: tipoDocumento === 'pago_cliente'
+                          ? 'Complemento de pago timbrado correctamente.'
+                          : 'CFDI timbrado correctamente.',
+                        severity: 'success',
+                      });
+                      if (tipoDocumento === 'factura' || tipoDocumento === 'pago_cliente') {
                         const emailInicial = obtenerEmailDocumento(params.row);
-                        setEnviarDialog({ open: true, id: Number(params.row.id), email: emailInicial, enviando: false, error: null });
+                        setEnviarDialog({
+                          open: true,
+                          id: Number(params.row.id),
+                          email: emailInicial,
+                          enviando: false,
+                          error: emailInicial ? null : 'El cliente no tiene correo registrado. Puede descargar el XML y PDF o enviar después.',
+                        });
                       }
                     } catch (err: any) {
+                      if (err?.status === 409 && err?.payload?.estado_reconciliacion) {
+                        setTimbradoPendienteIds((prev) => new Set(prev).add(Number(params.row.id)));
+                      }
                       setError(err?.message || 'No se pudo timbrar el documento');
                     } finally {
                       setTimbrandoId(null);
@@ -2394,14 +2505,20 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   ? MENSAJE_FACTURA_BORRADOR_CANCELAR
                   : facturaEmitidaSinTimbrar
                     ? MENSAJE_FACTURA_EMITIDA_SIN_TIMBRAR_CANCELAR
-                    : 'Cancelar documento'
+                    : bloqueoCancelacionCfdi || 'Cancelar documento'
             }
           >
             <span>
               <IconButton
                 size="small"
                 color="error"
-                disabled={loading || documentoCancelado || facturaEnBorrador || cancelandoId === Number(params.row?.id)}
+                disabled={
+                  loading ||
+                  documentoCancelado ||
+                  facturaEnBorrador ||
+                  Boolean(bloqueoCancelacionCfdi) ||
+                  cancelandoId === Number(params.row?.id)
+                }
                 onClick={(e) => {
                   e.stopPropagation();
                   abrirDialogoCancelar(params.row as CotizacionListado);
@@ -2411,13 +2528,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               </IconButton>
             </span>
           </Tooltip>
-          {hasAction('enviar_email') && tipoDocumento === 'factura' && (
-            <Tooltip title={facturaTimbrada ? 'Enviar por correo' : mensajeFacturaNoTimbrada}>
+          {hasAction('enviar_email')
+            && (tipoDocumento === 'factura' || (tipoDocumento === 'pago_cliente' && envioCfdiDisponible))
+            && (
+            <Tooltip title={envioCfdiDisponible ? 'Enviar por correo' : mensajeFacturaNoTimbrada}>
               <span>
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada)}
+                  disabled={loading || !envioCfdiDisponible}
                   onClick={(e) => {
                     e.stopPropagation();
                     const emailInicial = obtenerEmailDocumento(params.row);
@@ -2427,6 +2546,21 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                   <EmailIcon fontSize="small" />
                 </IconButton>
               </span>
+            </Tooltip>
+          )}
+          {tipoDocumento === 'pago_cliente' && facturaTimbrada && (
+            <Tooltip title="Descargar XML">
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  descargarComplementoPagoXml(Number(params.row.id))
+                    .catch((err) => setError(err?.message || 'No se pudo descargar el XML'));
+                }}
+              >
+                <DownloadIcon fontSize="small" />
+              </IconButton>
             </Tooltip>
           )}
           {hasAction('enviar_whatsapp') && tipoDocumentoPermiteWhatsapp && (
@@ -2493,6 +2627,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     tipoDocumento,
     loading,
     timbrandoId,
+    timbradoPendienteIds,
     navigate,
     basePath,
     obtenerEmailDocumento,
@@ -2564,6 +2699,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const rowId = Number(contextMenuRow.id);
     const documentoPuedeTimbrarCfdi = puedeTimbrarCfdiDocumento(tipoDocumento, contextMenuRow);
     const facturaTimbrada = !documentoPuedeTimbrarCfdi || isFacturaTimbrada(contextMenuRow?.estatus_documento);
+    const envioCfdiDisponible = puedeEnviarCfdiPorCorreo(tipoDocumento, contextMenuRow);
     const whatsappHabilitado = puedeEnviarWhatsappDocumento(tipoDocumento, contextMenuRow);
     const canApplySaldoNc =
       (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') &&
@@ -2572,6 +2708,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     const estatusDocumentoNormalizado = String(contextMenuRow?.estatus_documento ?? '').trim().toLowerCase();
     const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
     const facturaEnBorrador = esFacturaEnBorrador(tipoDocumento, contextMenuRow?.estatus_documento);
+    const bloqueoCancelacionCfdi = obtenerBloqueoCancelacionCfdi(contextMenuRow);
     const estadoContableFacturaVentaMenu = estadoContableVentas[rowId];
 
     return [
@@ -2632,10 +2769,18 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       },
       {
         id: 'aplicar-pago',
-        label: 'Aplicar pago',
+        label: contextMenuRow?.cobro_bloqueado
+          ? 'Saldo suspendido por cancelación'
+          : Number(contextMenuRow?.saldo ?? 0) > 0 ? 'Aplicar pago' : 'Administrar pagos',
         icon: <AccountBalanceWalletIcon fontSize="small" />,
         hidden: !(hasAction('aplicar_pago') && (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra')),
-        disabled: loading || Number(contextMenuRow?.saldo ?? 0) <= 0,
+        disabled:
+          loading
+          || Boolean(contextMenuRow?.cobro_bloqueado)
+          || (
+            Number(contextMenuRow?.saldo ?? 0) <= 0
+            && !contextMenuRow?.tiene_aplicaciones_saldo_activas
+          ),
         onClick: () => {
           setAplicarSaldoNcDrawer({
             open: true,
@@ -2714,8 +2859,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         id: 'enviar-correo-factura',
         label: 'Enviar por correo',
         icon: <EmailIcon fontSize="small" />,
-        hidden: !(hasAction('enviar_email') && tipoDocumento === 'factura'),
-        disabled: loading || (documentoPuedeTimbrarCfdi && !facturaTimbrada),
+        hidden: !(
+          hasAction('enviar_email')
+          && (tipoDocumento === 'factura' || (tipoDocumento === 'pago_cliente' && envioCfdiDisponible))
+        ),
+        disabled: loading || !envioCfdiDisponible,
         onClick: () => {
           const emailInicial = obtenerEmailDocumento(contextMenuRow);
           setEnviarDialog({ open: true, id: rowId, email: emailInicial, enviando: false, error: null });
@@ -2741,17 +2889,33 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         label: 'Timbrar CFDI',
         icon: <NotificationsActiveIcon fontSize="small" />,
         hidden: !(hasAction('timbrar') && documentoPuedeTimbrarCfdi),
-        disabled: loading || timbrandoId === contextMenuRow.id,
+        disabled: loading || timbrandoId === contextMenuRow.id || timbradoPendienteIds.has(rowId),
         onClick: async () => {
           try {
             setTimbrandoId(rowId);
             await timbrarDocumentoCfdi(rowId, tipoDocumento);
             await load();
-            if (tipoDocumento === 'factura') {
+            setSnackbar({
+              open: true,
+              message: tipoDocumento === 'pago_cliente'
+                ? 'Complemento de pago timbrado correctamente.'
+                : 'CFDI timbrado correctamente.',
+              severity: 'success',
+            });
+            if (tipoDocumento === 'factura' || tipoDocumento === 'pago_cliente') {
               const emailInicial = obtenerEmailDocumento(contextMenuRow);
-              setEnviarDialog({ open: true, id: rowId, email: emailInicial, enviando: false, error: null });
+              setEnviarDialog({
+                open: true,
+                id: rowId,
+                email: emailInicial,
+                enviando: false,
+                error: emailInicial ? null : 'El cliente no tiene correo registrado. Puede descargar el XML y PDF o enviar después.',
+              });
             }
           } catch (err: any) {
+            if (err?.status === 409 && err?.payload?.estado_reconciliacion) {
+              setTimbradoPendienteIds((prev) => new Set(prev).add(rowId));
+            }
             setError(err?.message || 'No se pudo timbrar el documento');
           } finally {
             setTimbrandoId(null);
@@ -2760,10 +2924,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       },
       {
         id: 'cancelar-documento',
-        label: facturaEnBorrador ? 'Cancelar documento (borrador, use Eliminar)' : 'Cancelar documento',
+        label: bloqueoCancelacionCfdi || (facturaEnBorrador ? 'Cancelar documento (borrador, use Eliminar)' : 'Cancelar documento'),
         icon: <CancelIcon fontSize="small" />,
         destructive: true,
-        disabled: loading || documentoCancelado || facturaEnBorrador || cancelandoId === rowId,
+        disabled: loading || documentoCancelado || facturaEnBorrador || Boolean(bloqueoCancelacionCfdi) || cancelandoId === rowId,
         onClick: () => abrirDialogoCancelar(contextMenuRow),
       },
       {
@@ -2803,6 +2967,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     setError,
     setDetalleDrawer,
     timbrandoId,
+    timbradoPendienteIds,
     tipoDocumento,
     cancelandoId,
     esFacturaVentas,
@@ -3691,6 +3856,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         documentoId={detalleDrawer.documentoId}
         tipoDocumento={tipoDocumento}
         onClose={() => setDetalleDrawer({ open: false, documentoId: null })}
+        onReconciled={load}
       />
 
       {esFacturaVentas && contabilizarVentaDrawer.documentoId ? (
@@ -3853,9 +4019,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Enviar factura por correo</DialogTitle>
+        <DialogTitle>{tipoDocumento === 'pago_cliente' ? 'Enviar complemento de pago por correo' : 'Enviar factura por correo'}</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
-          <DialogContentText sx={{ mb: 2 }}>Ingresa o ajusta el correo del cliente antes de enviar.</DialogContentText>
+          <DialogContentText sx={{ mb: 2 }}>
+            {tipoDocumento === 'pago_cliente'
+              ? 'Ingresa o ajusta el correo del cliente. Se adjuntarán el PDF y el XML del complemento de pago.'
+              : 'Ingresa o ajusta el correo del cliente. Se adjuntarán el PDF y el XML de la factura.'}
+          </DialogContentText>
           <TextField
             autoFocus
             fullWidth
@@ -3877,20 +4047,42 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           <Button
             variant="contained"
             onClick={async () => {
+              if (enviarCfdiEnCursoRef.current) return;
               const email = enviarDialog.email.trim();
               if (!email) {
                 setEnviarDialog((prev) => ({ ...prev, error: 'El correo es obligatorio' }));
                 return;
               }
+              if (!EMAIL_DESTINO_PATTERN.test(email)) {
+                setEnviarDialog((prev) => ({ ...prev, error: 'El correo destinatario no es válido' }));
+                return;
+              }
               try {
+                enviarCfdiEnCursoRef.current = true;
                 setEnviarDialog((prev) => ({ ...prev, enviando: true, error: null }));
-                await enviarFactura(Number(enviarDialog.id), email);
-                setSnackbar({ open: true, message: 'Factura enviada correctamente', severity: 'success' });
+                if (tipoDocumento === 'pago_cliente') {
+                  await enviarComplementoPago(Number(enviarDialog.id), email);
+                } else {
+                  await enviarFactura(Number(enviarDialog.id), email);
+                }
+                setSnackbar({
+                  open: true,
+                  message: tipoDocumento === 'pago_cliente'
+                    ? 'Complemento de pago enviado correctamente.'
+                    : 'Factura enviada correctamente.',
+                  severity: 'success',
+                });
                 setEnviarDialog({ open: false, id: null, email: '', enviando: false, error: null });
               } catch (err: any) {
-                const msg = err?.message || 'No se pudo enviar la factura';
+                const msg = err?.message || (
+                  tipoDocumento === 'pago_cliente'
+                    ? 'El complemento está timbrado, pero no pudo enviarse por correo'
+                    : 'No se pudo enviar la factura'
+                );
                 setEnviarDialog((prev) => ({ ...prev, enviando: false, error: msg }));
                 setSnackbar({ open: true, message: msg, severity: 'error' });
+              } finally {
+                enviarCfdiEnCursoRef.current = false;
               }
             }}
             disabled={enviarDialog.enviando}
@@ -3913,6 +4105,19 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             {!cancelarDialog.timbrada && cancelarDialog.contabilizada && (
               <Alert severity="info">
                 Como esta factura ya está contabilizada, se generará automáticamente una póliza de reversa.
+              </Alert>
+            )}
+            {cancelacionPreflightLoading && (
+              <Alert severity="info">Comprobando aplicaciones y documentos relacionados…</Alert>
+            )}
+            {cancelacionPreflight?.advertencias.map((warning) => (
+              <Alert severity="warning" key={warning}>{warning}</Alert>
+            ))}
+            {cancelacionPreflight && !cancelacionPreflight.puedeSolicitarCancelacion && (
+              <Alert severity="error">
+                {cancelacionPreflight.aplicacionesActivas > 0
+                  ? `Existen ${cancelacionPreflight.aplicacionesActivas} aplicaciones activas.`
+                  : `Bloquea: ${cancelacionPreflight.derivadosBloqueantes.map((item) => item.folio).join(', ')}.`}
               </Alert>
             )}
             <TextField
@@ -3968,7 +4173,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             onClick={() => {
               void confirmarCancelacion();
             }}
-            disabled={cancelarDialog.enviando}
+            disabled={
+              cancelarDialog.enviando ||
+              cancelacionPreflightLoading ||
+              cancelacionPreflight === null ||
+              (cancelacionPreflight !== null && !cancelacionPreflight.puedeSolicitarCancelacion)
+            }
             startIcon={cancelarDialog.enviando ? <CircularProgress size={16} color="inherit" /> : <CancelIcon fontSize="small" />}
           >
             {cancelarDialog.enviando ? 'Cancelando...' : 'Cancelar documento'}

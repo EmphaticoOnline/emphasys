@@ -75,7 +75,7 @@ router.delete('/transferencias/:id', deleteTransferencia);
 router.post('/conciliaciones', postConciliacion);
 
 router.post('/aplicaciones', postAplicacion);
-router.delete('/aplicaciones/:id', deleteAplicacion);
+router.post('/aplicaciones/:id/desaplicar', deleteAplicacion);
 
 // Endpoints de diagnóstico (solo lectura, no modifican datos)
 router.get('/diagnostico/saldos', getVerificacionSaldos);

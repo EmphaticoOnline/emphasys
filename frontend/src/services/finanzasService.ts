@@ -171,8 +171,11 @@ export async function aplicarAnticiposDocumento(
   });
 }
 
-export async function eliminarAplicacion(id: number): Promise<void> {
-  await apiFetch(`${BASE}/aplicaciones/${id}`, { method: 'DELETE' });
+export async function desaplicarPago(id: number, motivo?: string | null): Promise<import('../types/finanzas').DesaplicarPagoResultado> {
+  return apiFetch(`${BASE}/aplicaciones/${id}/desaplicar`, {
+    method: 'POST',
+    body: { motivo } as any,
+  });
 }
 
 // ── Métodos de pago operativos ─────────────────────────────────────────────────

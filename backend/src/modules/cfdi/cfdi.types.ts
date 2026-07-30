@@ -140,6 +140,17 @@ export interface FacturamaStampResult {
   timbre: TimbreFiscalDigitalData;
 }
 
+export interface FacturamaStampedDocument {
+  xmlTimbrado: string;
+  response: FacturamaStampResponse;
+  uuid?: string;
+  pdfUrl?: string;
+  xmlUrl?: string;
+  intentoId?: number;
+  pacId?: string | null;
+  pacModalidad?: 'lite' | 'web' | null;
+}
+
 export interface TimbradoPersisted {
   documento_id: number;
   uuid: string;
@@ -190,6 +201,7 @@ export interface AplicacionComplemento {
   num_parcialidad: number;
   imp_saldo_ant: number;
   imp_saldo_insoluto: number;
+  payment_method: 'PPD';
   impuestos: ImpuestoDR[];
 }
 
@@ -207,6 +219,8 @@ export interface PagoComplementData {
     codigo_postal: string;
   };
   pago: {
+    serie: string | null;
+    folio: string | number | null;
     monto: number;
     forma_pago: string;
     moneda: string;
