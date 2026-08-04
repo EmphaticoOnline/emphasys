@@ -49,6 +49,7 @@ import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
 import { PRODUCTOS_CAMPOS } from '../definitions/productos.fields';
 import { fetchUnidades, type Unidad } from '../services/unidadesService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
+import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
 
 const tipoProductoOptions = ['Inventariable', 'No inventariable', 'Kit'] as const;
 
@@ -829,10 +830,21 @@ export default function ProductoFormPage() {
             {activeTab === 3 && (
               <Stack spacing={1.5}>
                 <Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
-                  Especificaciones
+                  Biblioteca de especificaciones del producto
                 </Typography>
                 <Typography variant="body2" color="#4b5563">
-                  Captura especificaciones técnicas o comerciales del producto con formato básico.
+                  Administra elementos reutilizables, su tipo, preferencia y orden. Arrástralos para reordenar.
+                </Typography>
+                <EspecificacionesBibliotecaEditor
+                  alcance="producto"
+                  productoId={isEdit ? Number(id) : undefined}
+                  onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
+                />
+                <Typography variant="subtitle2" fontWeight={600} sx={{ pt: 2 }}>
+                  Especificaciones anteriores (compatibilidad)
+                </Typography>
+                <Typography variant="body2" color="#4b5563">
+                  Este bloque enriquecido se conserva sin cambios y no se mezcla automáticamente con la nueva biblioteca.
                 </Typography>
                 <RichTextEditor
                   content={form.especificaciones ?? ''}

@@ -34,6 +34,7 @@ import type {
   ContactoRow,
   ContactosAdvancedFiltersState,
 } from '../components/contactos/ContactosView.types';
+import { formatearTelefonoParaMostrar } from '../utils/telefono';
 
 const TIPOS_CONTACTO_OPCIONES = ['Cliente', 'Proveedor', 'Vendedor', 'Lead'];
 
@@ -170,14 +171,20 @@ export default function ContactosPage() {
       title: contactoNombre || empresaNombre,
       subtitle: contactoNombre && contactoNombre !== empresaNombre
         ? empresaNombre
-        : seguimientoContacto.email?.trim() || seguimientoContacto.telefono?.trim() || 'Sin oportunidad',
+        : seguimientoContacto.email?.trim() || formatearTelefonoParaMostrar(seguimientoContacto.telefono) || 'Sin oportunidad',
     };
   }, [seguimientoContacto]);
 
   const baseColumns: GridColDef[] = [
     { field: 'nombre', headerName: 'Empresa', flex: 1, minWidth: 180, headerClassName: 'finanzas-header' },
     { field: 'nombre_contacto', headerName: 'Contacto', flex: 1, minWidth: 180, headerClassName: 'finanzas-header' },
-    { field: 'telefono', headerName: 'Teléfono', width: 130, headerClassName: 'finanzas-header' },
+    {
+      field: 'telefono',
+      headerName: 'Teléfono',
+      width: 170,
+      headerClassName: 'finanzas-header',
+      renderCell: (params: GridRenderCellParams) => formatearTelefonoParaMostrar(params.value),
+    },
     { field: 'email', headerName: 'Email', flex: 1, minWidth: 200, headerClassName: 'finanzas-header' },
     { field: 'tipo_contacto', headerName: 'Tipo contacto', width: 150, headerClassName: 'finanzas-header' },
     {
@@ -212,7 +219,13 @@ export default function ContactosPage() {
       headerClassName: 'finanzas-header',
       renderCell: (params: GridRenderCellParams) => params.value || '',
     },
-    { field: 'telefono_secundario', headerName: 'Teléfono secundario', width: 130, headerClassName: 'finanzas-header' },
+    {
+      field: 'telefono_secundario',
+      headerName: 'Teléfono secundario',
+      width: 170,
+      headerClassName: 'finanzas-header',
+      renderCell: (params: GridRenderCellParams) => formatearTelefonoParaMostrar(params.value),
+    },
     {
       field: 'actions',
       headerName: 'Acciones',

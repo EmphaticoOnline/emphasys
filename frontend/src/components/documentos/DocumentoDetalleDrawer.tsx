@@ -391,6 +391,15 @@ function PartidasTab({ partidas, formatter }: { partidas: DocumentoDetalleRespon
                 <TableCell sx={bodyCellSx}>{partida.producto_clave || '—'}</TableCell>
                 <TableCell sx={bodyCellSx}>
                   {partida.producto_descripcion || partida.descripcion_alterna || '—'}
+                  {Array.isArray(partida.especificaciones) && partida.especificaciones.length ? (
+                    <Box component="ul" sx={{ my: .5, pl: 2.5 }}>
+                      {partida.especificaciones.map((spec: any, index: number) => (
+                        <Typography component="li" variant="caption" color="text.secondary" key={spec.id ?? index} sx={{ whiteSpace: 'pre-wrap' }}>
+                          {spec.contenido}
+                        </Typography>
+                      ))}
+                    </Box>
+                  ) : null}
                   {partida.observaciones ? (
                     <Typography variant="caption" display="block" color="text.secondary">
                       {partida.observaciones}

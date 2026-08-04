@@ -72,6 +72,7 @@ import { FRONTEND_BUILD_VERSION } from "./config/version";
 
 const app = express();
 
+app.disable("x-powered-by");
 app.use(express.json());
 console.log(`[version] Emphasys Web build: ${FRONTEND_BUILD_VERSION}`);
 
@@ -190,13 +191,27 @@ app.use("/api", (_req, res) => {
   res.status(404).json({ message: "Ruta de API no encontrada" });
 });
 
-// Servir frontend estático
-app.use(express.static(frontendDistPath));
+const setFrontendCacheHeaders = (res: express.Response, filePath: string) => {
+  const relativePath = path.relative(frontendDistPath, filePath).split(path.sep).join("/");
+
+  if (relativePath === "index.html" || relativePath === "sw.js") {
+    res.setHeader("Cache-Control", "no-cache, must-revalidate");
+    return;
+  }
+
+  if (relativePath.startsWith("assets/")) {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  }
+};
+
+// Servir frontend estático. Vite genera nombres con hash dentro de /assets.
+app.use(express.static(frontendDistPath, { setHeaders: setFrontendCacheHeaders }));
 
 // Fallback para SPA
 app.use((_req, res) => {
   const indexPath = path.join(frontendDistPath, "index.html");
   if (fs.existsSync(indexPath)) {
+    res.setHeader("Cache-Control", "no-cache, must-revalidate");
     return res.sendFile(indexPath);
   }
   console.error("[static-fallback] index.html no encontrado en", indexPath);

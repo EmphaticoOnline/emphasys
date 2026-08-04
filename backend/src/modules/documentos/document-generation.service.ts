@@ -1180,6 +1180,15 @@ export class DocumentGenerationService {
         );
 
         const partidaDestinoId = partidaInsertRows[0].id as number;
+        await client.query(
+          `INSERT INTO public.documentos_partidas_especificaciones
+             (partida_id, especificacion_biblioteca_id, orden, tipo, origen, contenido)
+           SELECT $1, especificacion_biblioteca_id, orden, tipo, 'heredada', contenido
+             FROM public.documentos_partidas_especificaciones
+            WHERE partida_id = $2
+            ORDER BY orden, id`,
+          [partidaDestinoId, Number(partidaOrigen.partida_id)],
+        );
         partidasGeneradas.push({
           partida_destino_id: partidaDestinoId,
           partida_origen_id: Number(partidaOrigen.partida_id),

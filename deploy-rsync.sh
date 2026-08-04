@@ -12,7 +12,10 @@ RSYNC_SSH=("ssh" "${SSH_OPTS[@]}")
 SKIP_FRONTEND="${SKIP_FRONTEND:-false}"
 SKIP_LOCAL_INSTALL="${SKIP_LOCAL_INSTALL:-false}"
 SKIP_REMOTE_INSTALL="${SKIP_REMOTE_INSTALL:-false}"
-BUILD_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+PREPARE_ONLY="${PREPARE_ONLY:-false}"
+BUILD_ID="${BUILD_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
+RELEASES_PATH="$REMOTE_PATH/releases"
+RELEASE_PATH="$RELEASES_PATH/$BUILD_ID"
 
 log() { echo "==> $*"; }
 
@@ -49,24 +52,24 @@ log "Building backend..."
 log "Escribiendo marca de build..."
 printf '%s\n' "$BUILD_ID" > "$BACKEND_DIR/dist/.build-id"
 
-log "Preparando servidor remoto..."
-ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p $REMOTE_PATH $REMOTE_PATH/dist $REMOTE_PATH/frontend-dist"
+log "Preparando release remoto aislado..."
+ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$RELEASE_PATH/dist' '$RELEASE_PATH/frontend-dist'"
 
-log "Sincronizando backend dist (rsync incremental)..."
-rsync -az --delete -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/dist/" "$SERVER:$REMOTE_PATH/dist/"
+log "Sincronizando backend dist al release inactivo..."
+rsync -az --delete -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/dist/" "$SERVER:$RELEASE_PATH/dist/"
 
 log "Verificando build desplegado en remoto..."
-remote_build_id=$(ssh "${SSH_OPTS[@]}" "$SERVER" "cat $REMOTE_PATH/dist/.build-id 2>/dev/null" || true)
+remote_build_id=$(ssh "${SSH_OPTS[@]}" "$SERVER" "cat '$RELEASE_PATH/dist/.build-id' 2>/dev/null" || true)
 if [[ "$remote_build_id" != "$BUILD_ID" ]]; then
   echo "Build remoto no coincide con el build local esperado. local=$BUILD_ID remote=$remote_build_id"
   exit 1
 fi
 
-log "Sincronizando frontend dist (rsync incremental)..."
-rsync -az --delete -e "${RSYNC_SSH[*]}" "$FRONTEND_DIR/dist/" "$SERVER:$REMOTE_PATH/frontend-dist/"
+log "Sincronizando frontend dist al mismo release inactivo..."
+rsync -az --delete -e "${RSYNC_SSH[*]}" "$FRONTEND_DIR/dist/" "$SERVER:$RELEASE_PATH/frontend-dist/"
 
 log "Sincronizando package.json y lock..."
-rsync -az -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/package.json" "$BACKEND_DIR/package-lock.json" "$SERVER:$REMOTE_PATH/"
+rsync -az -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/package.json" "$BACKEND_DIR/package-lock.json" "$SERVER:$RELEASE_PATH/"
 
 if [[ -f "$BACKEND_DIR/.env" ]]; then
   log "Sincronizando .env..."
@@ -80,13 +83,54 @@ ssh "${SSH_OPTS[@]}" "$SERVER" <<REMOTE
 set -e
 cd $REMOTE_PATH
 if [ "$SKIP_REMOTE_INSTALL" != "true" ]; then
-  echo "Ejecutando npm install --omit=dev (npm ya es idempotente si no hay cambios reales)"
-  npm install --omit=dev
+  echo "Instalando dependencias dentro del release inactivo"
+  cd "$RELEASE_PATH"
+  npm ci --omit=dev
+  cd "$REMOTE_PATH"
 else
-  echo "Skipping remote npm install (SKIP_REMOTE_INSTALL=true)..."
+  echo "Reutilizando node_modules del release activo (SKIP_REMOTE_INSTALL=true)..."
+  active_release=\$(readlink -f current 2>/dev/null || true)
+  if [ -z "\$active_release" ] || [ ! -d "\$active_release/node_modules" ]; then
+    echo "No existe un release activo con node_modules; no se puede omitir npm ci."
+    exit 1
+  fi
+  ln -s "\$active_release/node_modules" "$RELEASE_PATH/node_modules"
 fi
-pm2 delete emphasys-api >/dev/null 2>&1 || true
-pm2 startOrReload ecosystem.config.js --env production
+
+# Facilita la transición inicial sin caída mediante un proceso temporal en
+# otro puerto; dotenv sigue leyendo el único archivo de secretos persistente.
+if [ -f "$REMOTE_PATH/.env" ] && [ ! -e "$RELEASE_PATH/.env" ]; then
+  ln -s ../../.env "$RELEASE_PATH/.env"
+fi
+
+if [ "$PREPARE_ONLY" = "true" ]; then
+  echo "Release preparado sin activar: $RELEASE_PATH"
+  exit 0
+fi
+
+# Publicación atómica: las peticiones existentes conservan el release anterior
+# y los procesos nuevos resuelven current al release completo recién verificado.
+previous_release=\$(readlink -f current 2>/dev/null || true)
+next_link=".current-next-$BUILD_ID"
+ln -s "$RELEASE_PATH" "\$next_link"
+mv -Tf "\$next_link" current
+
+# En cluster_mode, incluso con una sola instancia estable, PM2 levanta y espera
+# al reemplazo antes de retirar el worker anterior.
+if ! pm2 startOrReload ecosystem.config.js --only emphasys-api --env production --update-env; then
+  echo "PM2 no activó el release; restaurando el enlace anterior."
+  if [ -n "\$previous_release" ]; then
+    rollback_link=".current-rollback-$BUILD_ID"
+    ln -s "\$previous_release" "\$rollback_link"
+    mv -Tf "\$rollback_link" current
+  else
+    unlink current
+  fi
+  exit 1
+fi
+
+curl --fail --silent --show-error --max-time 10 http://127.0.0.1:7001/health >/dev/null
+pm2 save
 REMOTE
 
 log "Deploy rsync finalizado correctamente."

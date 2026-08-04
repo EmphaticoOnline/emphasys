@@ -596,6 +596,15 @@ function construirPartidasDuplicadas(partidas: Array<Record<string, any>>): Part
     archivo_imagen_1: partida.archivo_imagen_1 ?? null,
     producto_archivo_id: partida.archivo_imagen_1 ? null : partida.producto_archivo_id ?? null,
     observaciones: partida.observaciones ?? null,
+    especificaciones: Array.isArray(partida.especificaciones)
+      ? partida.especificaciones.map((e: any, orden: number) => ({
+          especificacion_biblioteca_id: e.especificacion_biblioteca_id ?? null,
+          orden,
+          tipo: e.tipo ?? 'otro',
+          origen: 'heredada' as const,
+          contenido: e.contenido,
+        }))
+      : [],
   }));
 }
 

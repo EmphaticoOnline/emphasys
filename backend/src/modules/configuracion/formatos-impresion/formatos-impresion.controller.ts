@@ -20,6 +20,7 @@ const obtenerLayoutFallback = (tipoDocumento: string): DocumentLayout => {
       mostrarCliente: true,
       mostrarPartidas: true,
       mostrarTotales: true,
+      mostrarEspecificacionesPartida: true,
     }
   );
 };

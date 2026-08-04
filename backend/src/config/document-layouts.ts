@@ -4,6 +4,7 @@ export type DocumentLayout = {
   mostrarPartidas: boolean;
   mostrarTotales: boolean;
   mostrarObservacionesPartida?: boolean;
+  mostrarEspecificacionesPartida?: boolean;
   mostrarCamposConfigurablesPartida?: boolean;
   mostrarImagenPartida?: boolean;
   altoImagenPartida?: number;
@@ -24,6 +25,7 @@ export const DOCUMENT_LAYOUTS: Record<string, DocumentLayout> = {
     mostrarPartidas: true,
     mostrarTotales: true,
     mostrarObservacionesPartida: false,
+    mostrarEspecificacionesPartida: true,
     mostrarCamposConfigurablesPartida: false,
     titulo: null,
     colorPrimario: null,
@@ -36,6 +38,7 @@ export const DOCUMENT_LAYOUTS: Record<string, DocumentLayout> = {
     mostrarPartidas: true,
     mostrarTotales: true,
     mostrarObservacionesPartida: true,
+    mostrarEspecificacionesPartida: true,
     mostrarCamposConfigurablesPartida: false,
     titulo: 'NOTA DE CRÉDITO',
     colorPrimario: null,
@@ -48,6 +51,7 @@ export const DOCUMENT_LAYOUTS: Record<string, DocumentLayout> = {
     mostrarPartidas: true,
     mostrarTotales: true,
     mostrarObservacionesPartida: true,
+    mostrarEspecificacionesPartida: true,
     mostrarCamposConfigurablesPartida: false,
     titulo: 'NOTA DE CRÉDITO DE COMPRA',
     colorPrimario: null,
@@ -60,6 +64,7 @@ export const DOCUMENT_LAYOUTS: Record<string, DocumentLayout> = {
     mostrarPartidas: true,
     mostrarTotales: true,
     mostrarObservacionesPartida: true,
+    mostrarEspecificacionesPartida: true,
     mostrarCamposConfigurablesPartida: false,
     mostrarImagenPartida: true,
     altoImagenPartida: 60,
@@ -74,6 +79,7 @@ export const DOCUMENT_LAYOUTS: Record<string, DocumentLayout> = {
     mostrarPartidas: true,
     mostrarTotales: true,
     mostrarObservacionesPartida: true,
+    mostrarEspecificacionesPartida: true,
     mostrarCamposConfigurablesPartida: false,
     mostrarImagenPartida: false,
     titulo: null,

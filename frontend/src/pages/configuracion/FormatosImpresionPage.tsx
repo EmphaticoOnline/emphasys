@@ -100,6 +100,12 @@ const CAMPOS_LAYOUT: CampoLayout[] = [
     section: 'Partidas',
   },
   {
+    key: 'mostrarEspecificacionesPartida',
+    label: 'Mostrar especificaciones de partida',
+    type: 'boolean',
+    section: 'Partidas',
+  },
+  {
     key: 'mostrarCamposConfigurablesPartida',
     label: 'Imprimir campos configurables de las partidas',
     type: 'boolean',
@@ -139,7 +145,7 @@ const agruparCamposLayoutPorSeccion = (campos: CampoLayout[]) =>
   }, {});
 
 const esCampoLayoutDeshabilitado = (campo: CampoLayout, config: LayoutConfig) => {
-  if (campo.key === 'mostrarObservacionesPartida' || campo.key === 'mostrarCamposConfigurablesPartida') {
+  if (campo.key === 'mostrarObservacionesPartida' || campo.key === 'mostrarEspecificacionesPartida' || campo.key === 'mostrarCamposConfigurablesPartida') {
     return !config.mostrarPartidas;
   }
 
@@ -165,6 +171,7 @@ const emptyLayout = (): LayoutConfig => ({
   mostrarTotales: true,
   mostrarLogo: true,
   mostrarObservacionesPartida: false,
+  mostrarEspecificacionesPartida: true,
   mostrarCamposConfigurablesPartida: false,
   colorPrimario: '#1d2f68',
   colorTablaHeader: '#1d2f68',

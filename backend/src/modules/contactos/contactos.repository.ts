@@ -1,5 +1,22 @@
 import pool from '../../config/database';
 
+export type ContactoTelefonoMatch = {
+  contacto_id: number;
+  nombre: string;
+  tipo_contacto: string;
+  input_field: 'telefono' | 'telefono_secundario';
+  matched_field: 'telefono' | 'telefono_secundario';
+  normalized_phone: string;
+};
+
+export class ContactoTelefonoDuplicadoError extends Error {
+  code = 'CONTACTO_TELEFONO_DUPLICADO' as const;
+
+  constructor(public matches: ContactoTelefonoMatch[]) {
+    super('El teléfono ya está registrado en uno o más contactos.');
+  }
+}
+
 type CatalogoTipo = {
   id: number;
   nombre: string | null;
@@ -84,6 +101,74 @@ async function obtenerEntidadTipoIdContacto(): Promise<number> {
   }
 
   return entidadTipoId;
+}
+
+async function guardarCatalogosConCliente(
+  client: any,
+  empresaId: number,
+  contactoId: number,
+  catalogoIds: number[]
+) {
+  const { rows } = await client.query(
+    `SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1`
+  );
+  const entidadTipoId = rows[0]?.id;
+  if (!entidadTipoId) throw new Error('Tipo de entidad CONTACTO no encontrado');
+
+  await client.query(
+    `DELETE FROM core.entidades_catalogos
+      WHERE empresa_id = $1 AND entidad_tipo_id = $2 AND entidad_id = $3`,
+    [empresaId, entidadTipoId, contactoId]
+  );
+
+  if (catalogoIds.length) {
+    const values = catalogoIds.map((_, idx) => `($1, $2, $3, $${idx + 4})`).join(', ');
+    await client.query(
+      `INSERT INTO core.entidades_catalogos (empresa_id, entidad_tipo_id, entidad_id, catalogo_id)
+       VALUES ${values}`,
+      [empresaId, entidadTipoId, contactoId, ...catalogoIds]
+    );
+  }
+}
+
+async function buscarTelefonosDuplicados(
+  client: any,
+  empresaId: number,
+  data: { telefono?: string | null; telefono_secundario?: string | null },
+  excluirContactoId?: number
+): Promise<ContactoTelefonoMatch[]> {
+  const telefonos = [data.telefono, data.telefono_secundario].filter(
+    (value): value is string => Boolean(value)
+  );
+  if (!telefonos.length) return [];
+
+  const { rows } = await client.query(
+    `SELECT id, nombre, tipo_contacto::text, telefono, telefono_secundario
+       FROM contactos
+      WHERE empresa_id = $1
+        AND ($2::integer IS NULL OR id <> $2)
+        AND (telefono = ANY($3::text[]) OR telefono_secundario = ANY($3::text[]))
+      ORDER BY nombre, id`,
+    [empresaId, excluirContactoId ?? null, Array.from(new Set(telefonos))]
+  );
+
+  const inputs = [
+    ['telefono', data.telefono],
+    ['telefono_secundario', data.telefono_secundario],
+  ] as const;
+  const matches: ContactoTelefonoMatch[] = [];
+  for (const row of rows) {
+    for (const [inputField, phone] of inputs) {
+      if (!phone) continue;
+      if (row.telefono === phone) {
+        matches.push({ contacto_id: row.id, nombre: row.nombre, tipo_contacto: row.tipo_contacto, input_field: inputField, matched_field: 'telefono', normalized_phone: phone });
+      }
+      if (row.telefono_secundario === phone) {
+        matches.push({ contacto_id: row.id, nombre: row.nombre, tipo_contacto: row.tipo_contacto, input_field: inputField, matched_field: 'telefono_secundario', normalized_phone: phone });
+      }
+    }
+  }
+  return matches;
 }
 
 async function upsertDomicilioPrincipal(
@@ -441,12 +526,18 @@ export async function insertarContacto(
     email?: string;
     telefono?: string;
   },
-  empresaId: number
+  empresaId: number,
+  options: { catalogoIds?: number[]; permitirTelefonosDuplicados?: boolean } = {}
 ) {
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
+
+    const matches = await buscarTelefonosDuplicados(client, empresaId, data);
+    if (matches.length && !options.permitirTelefonosDuplicados) {
+      throw new ContactoTelefonoDuplicadoError(matches);
+    }
 
     // Evita duplicar la columna nombre (ya se agrega fijo en columns)
     const entries = Object.entries(data).filter(([key]) => columnasPermitidasContacto.has(key) && key !== 'nombre');
@@ -466,6 +557,9 @@ export async function insertarContacto(
 
     await upsertDomicilioPrincipal(client, contacto.id, data as any);
     await upsertDatosFiscales(client, contacto.id, data as any);
+    if (options.catalogoIds !== undefined) {
+      await guardarCatalogosConCliente(client, empresaId, contacto.id, options.catalogoIds);
+    }
 
     await client.query('COMMIT');
     return contacto;
@@ -636,11 +730,21 @@ export async function obtenerCatalogosConfigurablesDeContacto(
   };
 }
 
-export async function actualizarContacto(id: number, empresa_id: number, data: any) {
+export async function actualizarContacto(
+  id: number,
+  empresa_id: number,
+  data: any,
+  options: { catalogoIds?: number[]; permitirTelefonosDuplicados?: boolean } = {}
+) {
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
+
+    const matches = await buscarTelefonosDuplicados(client, empresa_id, data, id);
+    if (matches.length && !options.permitirTelefonosDuplicados) {
+      throw new ContactoTelefonoDuplicadoError(matches);
+    }
 
     const entries = Object.entries(data).filter(([key, _]) => columnasPermitidasContacto.has(key));
 
@@ -674,6 +778,9 @@ export async function actualizarContacto(id: number, empresa_id: number, data: a
 
     await upsertDomicilioPrincipal(client, id, data as any);
     await upsertDatosFiscales(client, id, data as any);
+    if (options.catalogoIds !== undefined) {
+      await guardarCatalogosConCliente(client, empresa_id, id, options.catalogoIds);
+    }
 
     await client.query('COMMIT');
     return contactoActualizado;
@@ -690,28 +797,12 @@ export async function guardarCatalogosConfigurablesDeContacto(
   contactoId: number,
   catalogoIds: number[]
 ) {
-  const entidadTipoId = await obtenerEntidadTipoIdContacto();
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    await client.query(
-      `DELETE FROM core.entidades_catalogos
-        WHERE empresa_id = $1
-          AND entidad_tipo_id = $2
-          AND entidad_id = $3`,
-      [empresaId, entidadTipoId, contactoId]
-    );
-
-    if (catalogoIds.length) {
-      const values = catalogoIds.map((_, idx) => `($1, $2, $3, $${idx + 4})`).join(', ');
-      await client.query(
-        `INSERT INTO core.entidades_catalogos (empresa_id, entidad_tipo_id, entidad_id, catalogo_id)
-         VALUES ${values}`,
-        [empresaId, entidadTipoId, contactoId, ...catalogoIds]
-      );
-    }
+    await guardarCatalogosConCliente(client, empresaId, contactoId, catalogoIds);
 
     await client.query('COMMIT');
   } catch (error) {

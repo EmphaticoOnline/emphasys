@@ -62,6 +62,7 @@ import ContactCaptureDialog, { type ContactCaptureDetailedFields } from '../comp
 import ProductoCaptureDialog from '../components/productos/ProductoCaptureDialog';
 import ObservacionesEncabezadoCampo from '../components/ObservacionesEncabezadoCampo';
 import PartidaObservacionesEditor from '../components/documentos/PartidaObservacionesEditor';
+import PartidaEspecificacionesEditor from '../components/documentos/PartidaEspecificacionesEditor';
 import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 
 import type {
@@ -85,7 +86,7 @@ import {
 } from '../services/documentGenerationService';
 import { uploadArchivo } from '../services/uploadsService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { createProducto, fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
+import { createProducto, fetchEspecificacionesBiblioteca, fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
 import type { Producto, ProductoBasico } from '../types/producto';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
@@ -326,6 +327,7 @@ const emptyPartida = (): PartidaForm => ({
   producto_archivo_id: null,
   producto: null,
   observaciones: '',
+  especificaciones: [],
   impuestos: [],
   impuestos_calculados: [],
 });
@@ -1848,6 +1850,7 @@ export default function DocumentosFormPage({
           archivo_imagen_1: p.archivo_imagen_1 ?? null,
           producto_archivo_id: p.archivo_imagen_1 ? null : p.producto_archivo_id ?? null,
           observaciones: p.observaciones ?? '',
+          especificaciones: (p.especificaciones ?? []).map((e, specIndex) => ({ ...e, clave_temporal: `persisted-${p.id}-${specIndex}` })),
           producto: prod,
           impuestos: impuestosEntrada,
           impuestos_calculados: impuestosCalc,
@@ -2662,6 +2665,7 @@ export default function DocumentosFormPage({
             }
           : {}),
         observaciones: p.observaciones ?? '',
+        especificaciones: p.especificaciones ?? [],
         impuestos: (p.impuestos_calculados ?? p.impuestos ?? []).map((imp: any) => ({
           impuesto_id: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? imp.id,
           nombre: imp.nombre ?? null,
@@ -2874,6 +2878,34 @@ export default function DocumentosFormPage({
   }, [partidas, tipoDocumento]);
 
   const handleProductoChange = async (index: number, producto: Producto | null) => {
+    const partidaAnterior = partidas[index];
+    let especificacionesSiguientes = partidaAnterior?.especificaciones ?? [];
+    const cambioReal = (partidaAnterior?.producto_id ?? null) !== (producto?.id ?? null);
+    let recargar = cambioReal && especificacionesSiguientes.length === 0;
+    if (cambioReal && especificacionesSiguientes.length > 0) {
+      const conservar = window.confirm(
+        'Esta partida ya tiene especificaciones. Aceptar conserva las actuales; Cancelar las reemplaza con las preferidas del nuevo producto.'
+      );
+      recargar = !conservar;
+    }
+    if (recargar) {
+      try {
+        const [globales, propias] = await Promise.all([
+          fetchEspecificacionesBiblioteca('global'),
+          producto ? fetchEspecificacionesBiblioteca(producto.id) : Promise.resolve([]),
+        ]);
+        especificacionesSiguientes = [...propias, ...globales.filter((e) => e.es_preferida)].map((e, specIndex) => ({
+          clave_temporal: `loaded-${e.id}-${Date.now()}`,
+          especificacion_biblioteca_id: e.id,
+          orden: specIndex,
+          tipo: e.tipo,
+          origen: e.alcance,
+          contenido: e.contenido,
+        }));
+      } catch (e) {
+        setSnackbar({ open: true, message: e instanceof Error ? e.message : 'No se pudieron cargar las especificaciones', severity: 'error' });
+      }
+    }
     setPartidaAt(index, (prev) => {
       const conservarManual = prev.precio_editado_manual === true;
       return {
@@ -2886,6 +2918,7 @@ export default function DocumentosFormPage({
         precio_origen: producto ? (prev.precio_origen ?? null) : (conservarManual ? 'MANUAL' : null),
         producto: producto ?? null,
         producto_archivo_id: null,
+        especificaciones: especificacionesSiguientes,
         impuestos: [],
         impuestos_calculados: [],
       };
@@ -5409,6 +5442,13 @@ export default function DocumentosFormPage({
                                   </Box>
                                 )}
 
+                                <PartidaEspecificacionesEditor
+                                  productoId={partida.producto_id}
+                                  value={partida.especificaciones ?? []}
+                                  onChange={(especificaciones) => setPartidaAt(index, (prev) => ({ ...prev, especificaciones }))}
+                                  disabled={trazabilidadActiva}
+                                />
+
                                 {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
                                   <PartidaObservacionesEditor
                                     value={partida.observaciones ?? ''}
@@ -5866,6 +5906,13 @@ export default function DocumentosFormPage({
                             </Grid>
                           </Box>
                         )}
+
+                        <PartidaEspecificacionesEditor
+                          productoId={partida.producto_id}
+                          value={partida.especificaciones ?? []}
+                          onChange={(especificaciones) => setPartidaAt(index, (prev) => ({ ...prev, especificaciones }))}
+                          disabled={trazabilidadActiva}
+                        />
 
                         {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
                           <Box sx={{ width: '100%', mt: { xs: 0.5, md: 0.25 } }}>

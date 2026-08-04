@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Chip, IconButton, Snackbar } from '@mui/material';
+import { Box, Button, Chip, Dialog, DialogContent, DialogTitle, IconButton, Snackbar } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import type { GridColDef, GridColumnVisibilityModel, GridRenderCellParams, GridRowParams } from '@mui/x-data-grid';
@@ -26,6 +26,7 @@ import { useDeviceProfile } from '../hooks/useDeviceProfile';
 import { useGridPreferences } from '../hooks/useGridPreferences';
 import ProductosDesktopView from '../components/productos/ProductosDesktopView';
 import ProductosMobileView from '../components/productos/ProductosMobileView';
+import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
 
 export default function ProductosPage() {
   const navigate = useNavigate();
@@ -44,6 +45,7 @@ export default function ProductosPage() {
     { open: false, message: '', severity: 'success' }
   );
   const [exportLoading, setExportLoading] = useState(false);
+  const [globalSpecsOpen, setGlobalSpecsOpen] = useState(false);
 
   const {
     loadingPreferences,
@@ -356,5 +358,15 @@ export default function ProductosPage() {
     />
   );
 
-  return <Box sx={{ width: '100%' }}>{isMobile ? mobileView : desktopView}</Box>;
+  return <Box sx={{ width: '100%' }}>
+    <Box sx={{ px: 3, pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+      <Button variant="outlined" onClick={() => setGlobalSpecsOpen(true)}>Biblioteca global de especificaciones</Button>
+    </Box>
+    {isMobile ? mobileView : desktopView}
+    <Dialog open={globalSpecsOpen} onClose={() => setGlobalSpecsOpen(false)} fullWidth maxWidth="md">
+      <DialogTitle>Biblioteca global de especificaciones</DialogTitle>
+      <DialogContent dividers><EspecificacionesBibliotecaEditor alcance="global" onError={(message) => setSnackbar({ open: true, message, severity: 'error' })} /></DialogContent>
+    </Dialog>
+    <Snackbar open={snackbar.open} autoHideDuration={3200} onClose={() => setSnackbar((p) => ({ ...p, open: false }))} message={snackbar.message} />
+  </Box>;
 }

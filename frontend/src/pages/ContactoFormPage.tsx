@@ -25,13 +25,14 @@ import { useTheme } from '@mui/material/styles';
 import MobileBackIconButton from '../components/MobileBackIconButton';
 import MobileSaveFab from '../components/MobileSaveFab';
 import FloatingFormActions from '../components/FloatingFormActions';
-import { getContacto, crearContacto, actualizarContacto, obtenerCatalogosConfigurablesContacto, guardarCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../services/contactos.api';
-import { apiFetch } from '../services/apiFetch';
+import TelefonoDuplicadoDialog from '../components/contactos/TelefonoDuplicadoDialog';
+import { getContacto, crearContacto, actualizarContacto, obtenerCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../services/contactos.api';
+import { apiFetch, type ApiFetchError } from '../services/apiFetch';
 import { fetchVendedores } from '../services/contactosService';
 import { fetchPreciosListas, type PrecioLista } from '../services/preciosListasService';
-import type { Contacto, ContactoDetalle } from '../types/contactos.types';
+import type { Contacto, ContactoDetalle, ContactoTelefonoMatch } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
-import { normalizarTelefonoMx } from '../utils/telefono';
+import { formatearTelefonoParaMostrar, normalizarTelefonoMx } from '../utils/telefono';
 import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
 import { CONTACTOS_CAMPOS } from '../definitions/contactos.fields';
 
@@ -115,20 +116,6 @@ type CatalogoComercialTipo = {
 };
 
 const normalizeContactoMexicoMobilePhone = (telefono: string): string => {
-  const digits = telefono.replace(/\D/g, '');
-
-  if (digits.startsWith('521') && digits.length === 13) {
-    return digits;
-  }
-
-  if (digits.startsWith('52') && digits.length === 12) {
-    return `521${digits.slice(-10)}`;
-  }
-
-  if (digits.length === 10) {
-    return `521${digits}`;
-  }
-
   return normalizarTelefonoMx(telefono);
 };
 
@@ -169,6 +156,9 @@ function validarRFC(rfc: string) {
   const [saving, setSaving] = useState<boolean>(false);
   const [rfcError, setRfcError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateMatches, setDuplicateMatches] = useState<ContactoTelefonoMatch[]>([]);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<Record<string, unknown> | null>(null);
   const [cpSatError, setCpSatError] = useState<string | null>(null);
 
   const [comercialTipos, setComercialTipos] = useState<CatalogoComercialTipo[]>([]);
@@ -318,8 +308,8 @@ function validarRFC(rfc: string) {
           precio_lista_id: contacto.precio_lista_id ? String(contacto.precio_lista_id) : '',
           vendedor_id: contacto.vendedor_id ? String(contacto.vendedor_id) : '',
           email: contacto.email || '',
-          telefono: contacto.telefono || '',
-          telefono_secundario: contacto.telefono_secundario || '',
+          telefono: formatearTelefonoParaMostrar(contacto.telefono),
+          telefono_secundario: formatearTelefonoParaMostrar(contacto.telefono_secundario),
           activo: contacto.activo ?? true,
           calle: domicilio?.calle || c.calle || '',
           numero_exterior: domicilio?.numero_exterior || c.numero_exterior || '',
@@ -564,6 +554,37 @@ function validarRFC(rfc: string) {
     setActiveTab(newValue);
   };
 
+  const guardarContacto = async (payload: Record<string, unknown>, permitirDuplicados = false) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const requestPayload = permitirDuplicados
+        ? { ...payload, permitir_telefonos_duplicados: true }
+        : payload;
+      if (id) {
+        await actualizarContacto(Number(id), requestPayload);
+      } else {
+        await crearContacto(requestPayload);
+      }
+      setDuplicateDialogOpen(false);
+      setPendingPayload(null);
+      navigate(returnTo);
+    } catch (err: unknown) {
+      const apiError = err as ApiFetchError;
+      const duplicatePayload = apiError.payload as { code?: string; matches?: ContactoTelefonoMatch[] } | null;
+      if (apiError.status === 409 && duplicatePayload?.code === 'CONTACTO_TELEFONO_DUPLICADO') {
+        setDuplicateMatches(duplicatePayload.matches || []);
+        setPendingPayload(payload);
+        setDuplicateDialogOpen(true);
+        return;
+      }
+      const message = err instanceof Error ? err.message : 'Error al guardar contacto';
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -585,55 +606,41 @@ function validarRFC(rfc: string) {
 
     setSaving(true);
     setError(null);
-
-    const payload = {
-      nombre: form.nombre.trim(),
-      nombre_contacto: form.nombre_contacto.trim() || null,
-      interes_inicial: form.interes_inicial.trim() || null,
-      observaciones: form.observaciones.trim() || null,
-      tipo_contacto: form.tipo_contacto,
-      clasificacion: form.clasificacion.trim() || null,
-      origen_contacto: form.origen_contacto.trim() || null,
-      precio_lista_id: form.precio_lista_id ? Number(form.precio_lista_id) : null,
-      vendedor_id: form.vendedor_id ? Number(form.vendedor_id) : null,
-      rfc: form.rfc_fiscal.trim() || null,
-      email: form.email || null,
-      telefono: form.telefono ? normalizeContactoMexicoMobilePhone(form.telefono) : null,
-      telefono_secundario: form.telefono_secundario ? normalizeContactoMexicoMobilePhone(form.telefono_secundario) : null,
-      activo: Boolean(form.activo),
-      calle: form.calle.trim() || null,
-      numero_exterior: form.numero_exterior.trim() || null,
-      numero_interior: form.numero_interior.trim() || null,
-      colonia: form.colonia.trim() || null,
-      ciudad: form.ciudad.trim() || null,
-      estado: form.estado.trim() || null,
-      cp: form.cp.trim() || null,
-      pais: form.pais.trim() || null,
-  cp_sat: form.cp_sat.trim() || null,
-  colonia_sat: form.colonia_sat.trim() || null,
-      regimen_fiscal: form.regimen_fiscal.trim() || null,
-      uso_cfdi: form.uso_cfdi.trim() || null,
-      forma_pago: form.forma_pago.trim() || null,
-      metodo_pago: form.metodo_pago.trim() || null,
-      dias_credito: form.dias_credito !== '' ? Number(form.dias_credito) : null,
-      empresa_id: getEmpresaActivaId(),
-    };
-
     try {
-      let contactoIdCreado = id ? Number(id) : null;
-
-      if (id) {
-        await actualizarContacto(Number(id), payload);
-      } else {
-        const nuevo = await crearContacto(payload);
-        contactoIdCreado = nuevo?.id ?? null;
-      }
-
-      if (contactoIdCreado && Number.isFinite(contactoIdCreado)) {
-        const catalogoIds = obtenerCatalogosSeleccionados();
-        await guardarCatalogosConfigurablesContacto(contactoIdCreado, catalogoIds);
-      }
-      navigate(returnTo);
+      const payload: Record<string, unknown> = {
+        nombre: form.nombre.trim(),
+        nombre_contacto: form.nombre_contacto.trim() || null,
+        interes_inicial: form.interes_inicial.trim() || null,
+        observaciones: form.observaciones.trim() || null,
+        tipo_contacto: form.tipo_contacto,
+        clasificacion: form.clasificacion.trim() || null,
+        origen_contacto: form.origen_contacto.trim() || null,
+        precio_lista_id: form.precio_lista_id ? Number(form.precio_lista_id) : null,
+        vendedor_id: form.vendedor_id ? Number(form.vendedor_id) : null,
+        rfc: form.rfc_fiscal.trim() || null,
+        email: form.email || null,
+        telefono: form.telefono ? normalizeContactoMexicoMobilePhone(form.telefono) : null,
+        telefono_secundario: form.telefono_secundario ? normalizeContactoMexicoMobilePhone(form.telefono_secundario) : null,
+        activo: Boolean(form.activo),
+        calle: form.calle.trim() || null,
+        numero_exterior: form.numero_exterior.trim() || null,
+        numero_interior: form.numero_interior.trim() || null,
+        colonia: form.colonia.trim() || null,
+        ciudad: form.ciudad.trim() || null,
+        estado: form.estado.trim() || null,
+        cp: form.cp.trim() || null,
+        pais: form.pais.trim() || null,
+        cp_sat: form.cp_sat.trim() || null,
+        colonia_sat: form.colonia_sat.trim() || null,
+        regimen_fiscal: form.regimen_fiscal.trim() || null,
+        uso_cfdi: form.uso_cfdi.trim() || null,
+        forma_pago: form.forma_pago.trim() || null,
+        metodo_pago: form.metodo_pago.trim() || null,
+        dias_credito: form.dias_credito !== '' ? Number(form.dias_credito) : null,
+        empresa_id: getEmpresaActivaId(),
+        catalogoIds: obtenerCatalogosSeleccionados(),
+      };
+      await guardarContacto(payload);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al guardar contacto';
       setError(message);
@@ -846,11 +853,20 @@ function validarRFC(rfc: string) {
                 />
 
                 <TextField label="Email" value={form.email} onChange={handleTextChange('email')} required={camposObligatorios.has('email')} error={validationErrors.has('email')} fullWidth />
-                <TextField label="Teléfono" value={form.telefono} onChange={handleTextChange('telefono')} required={camposObligatorios.has('telefono')} error={validationErrors.has('telefono')} fullWidth />
+                <TextField
+                  label="Teléfono"
+                  value={form.telefono}
+                  onChange={handleTextChange('telefono')}
+                  onBlur={() => setForm((prev) => ({ ...prev, telefono: formatearTelefonoParaMostrar(prev.telefono) }))}
+                  required={camposObligatorios.has('telefono')}
+                  error={validationErrors.has('telefono')}
+                  fullWidth
+                />
                 <TextField
                   label="Teléfono secundario"
                   value={form.telefono_secundario}
                   onChange={handleTextChange('telefono_secundario')}
+                  onBlur={() => setForm((prev) => ({ ...prev, telefono_secundario: formatearTelefonoParaMostrar(prev.telefono_secundario) }))}
                   required={camposObligatorios.has('telefono_secundario')}
                   error={validationErrors.has('telefono_secundario')}
                   fullWidth
@@ -1304,6 +1320,18 @@ function validarRFC(rfc: string) {
           )}
 
         </Paper>
+        <TelefonoDuplicadoDialog
+          open={duplicateDialogOpen}
+          matches={duplicateMatches}
+          saving={saving}
+          onCancel={() => setDuplicateDialogOpen(false)}
+          onContinue={() => {
+            if (pendingPayload) {
+              setDuplicateDialogOpen(false);
+              void guardarContacto(pendingPayload, true);
+            }
+          }}
+        />
       </Box>
     </Box>
   );

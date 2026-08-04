@@ -10,6 +10,7 @@ import {
   obtenerCatalogosConfigurablesDeContacto,
   guardarCatalogosConfigurablesDeContacto,
   precioListaPerteneceAEmpresa,
+  ContactoTelefonoDuplicadoError,
 } from "./contactos.repository";
 import { generarExcelBuffer } from "../../utils/exportar";
 import type { ExportColumna } from "../../utils/exportar";
@@ -19,23 +20,7 @@ import { normalizeEmail } from "../../shared/normalizers/email";
 
 const normalizeTelefonoContacto = (value: any) => {
   if (value === undefined || value === null || String(value).trim() === "") return null;
-
-  const rawValue = String(value);
-  const digits = rawValue.replace(/\D/g, '');
-
-  if (digits.startsWith('521') && digits.length === 13) {
-    return digits;
-  }
-
-  if (digits.startsWith('52') && digits.length === 12) {
-    return `521${digits.slice(-10)}`;
-  }
-
-  if (digits.length === 10) {
-    return `521${digits}`;
-  }
-
-  return normalizarTelefono(rawValue);
+  return normalizarTelefono(String(value));
 };
 
 const normalizeOptionalText = (value: any, maxLength?: number) => {
@@ -43,6 +28,12 @@ const normalizeOptionalText = (value: any, maxLength?: number) => {
   const trimmed = String(value ?? '').trim();
   if (!trimmed) return null;
   return maxLength ? trimmed.slice(0, maxLength) : trimmed;
+};
+
+const parseCatalogoIds = (value: unknown): number[] | undefined => {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return [];
+  return value.map(Number).filter(Number.isFinite);
 };
 
 export async function crearContacto(req: Request, res: Response) {
@@ -58,6 +49,10 @@ export async function crearContacto(req: Request, res: Response) {
     }
 
     const data = { ...req.body };
+    const catalogoIds = parseCatalogoIds(data.catalogoIds);
+    const permitirTelefonosDuplicados = data.permitir_telefonos_duplicados === true;
+    delete data.catalogoIds;
+    delete data.permitir_telefonos_duplicados;
 
     data.nombre = String(data.nombre).trim();
     if ('nombre_contacto' in data) {
@@ -108,11 +103,17 @@ export async function crearContacto(req: Request, res: Response) {
       data.precio_lista_id = null;
     }
 
-    const contacto = await insertarContacto(data, Number(empresaId));
+    const contacto = await insertarContacto(data, Number(empresaId), {
+      catalogoIds,
+      permitirTelefonosDuplicados,
+    });
 
     res.status(201).json(contacto);
   } catch (error) {
     console.error("Error al crear contacto:", error);
+    if (error instanceof ContactoTelefonoDuplicadoError) {
+      return res.status(409).json({ code: error.code, message: error.message, matches: error.matches });
+    }
     if (error instanceof Error && error.message.includes('teléfono')) {
       return res.status(400).json({ message: error.message });
     }
@@ -230,6 +231,10 @@ export async function actualizarContacto(req: Request, res: Response) {
     const id = Number(req.params.id);
     const empresaId = req.context?.empresaId;
     const data = { ...req.body };
+    const catalogoIds = parseCatalogoIds(data.catalogoIds);
+    const permitirTelefonosDuplicados = data.permitir_telefonos_duplicados === true;
+    delete data.catalogoIds;
+    delete data.permitir_telefonos_duplicados;
 
     const telefonoRecibido = "telefono" in data ? data.telefono : undefined;
 
@@ -287,10 +292,16 @@ export async function actualizarContacto(req: Request, res: Response) {
       data.precio_lista_id = null;
     }
 
-    const contacto = await actualizarContactoRepository(id, Number(empresaId), data);
+    const contacto = await actualizarContactoRepository(id, Number(empresaId), data, {
+      catalogoIds,
+      permitirTelefonosDuplicados,
+    });
     res.json(contacto);
   } catch (error) {
     console.error("Error al actualizar contacto:", error);
+    if (error instanceof ContactoTelefonoDuplicadoError) {
+      return res.status(409).json({ code: error.code, message: error.message, matches: error.matches });
+    }
     if (error instanceof Error && error.message.includes('teléfono')) {
       return res.status(400).json({ message: error.message });
     }

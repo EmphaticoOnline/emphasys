@@ -4,6 +4,7 @@ export type LayoutConfig = {
   mostrarPartidas: boolean;
   mostrarTotales: boolean;
   mostrarObservacionesPartida?: boolean;
+  mostrarEspecificacionesPartida?: boolean;
   mostrarCamposConfigurablesPartida?: boolean;
   mostrarImagenPartida?: boolean;
   altoImagenPartida?: number | null;

@@ -9,6 +9,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import type { ContactosMobileViewProps } from './ContactosView.types';
 import ContactosAdvancedFilters from './ContactosAdvancedFilters';
+import { formatearTelefonoParaMostrar } from '../../utils/telefono';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -20,8 +21,8 @@ function renderValue(value?: string | number | null) {
 
 function getPrimarySubtitle(email?: string | null, telefono?: string | null, telefonoSecundario?: string | null) {
   if (hasValue(email)) return renderValue(email);
-  if (hasValue(telefono)) return renderValue(telefono);
-  if (hasValue(telefonoSecundario)) return renderValue(telefonoSecundario);
+  if (hasValue(telefono)) return formatearTelefonoParaMostrar(telefono);
+  if (hasValue(telefonoSecundario)) return formatearTelefonoParaMostrar(telefonoSecundario);
   return '';
 }
 
@@ -154,7 +155,7 @@ export default function ContactosMobileView({
                 { label: 'Contacto', value: contacto.nombre_contacto },
                 { label: 'Tipo', value: contacto.tipo_contacto },
                 { label: 'Clasificación', value: contacto.clasificacion },
-                { label: 'Teléfono', value: contacto.telefono || contacto.telefono_secundario },
+                { label: 'Teléfono', value: formatearTelefonoParaMostrar(contacto.telefono || contacto.telefono_secundario) },
                 { label: 'Vendedor', value: contacto.vendedor_nombre },
               ].filter((item) => hasValue(item.value));
 

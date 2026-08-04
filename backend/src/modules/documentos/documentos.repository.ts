@@ -84,6 +84,7 @@ export type Partida = {
   producto_descripcion?: string | null;
   producto_clave?: string | null;
   observaciones?: string | null;
+  especificaciones?: EspecificacionPartidaInput[];
   impuestos?: Array<{
     impuesto_id: string;
     nombre?: string | null;
@@ -92,6 +93,14 @@ export type Partida = {
     base?: number | null;
     monto: number;
   }>;
+};
+
+export type EspecificacionPartidaInput = {
+  especificacion_biblioteca_id?: number | null;
+  orden?: number;
+  tipo?: 'medida' | 'material' | 'accesorio' | 'garantia' | 'entrega' | 'condicion' | 'otro';
+  origen?: 'global' | 'producto' | 'manual' | 'heredada';
+  contenido?: string;
 };
 
 const CAMPOS_DOCUMENTO = [
@@ -693,7 +702,65 @@ export type PartidaInput = {
   archivo_imagen_1?: string | null;
   producto_archivo_id?: number | null;
   observaciones?: string | null;
+  especificaciones?: EspecificacionPartidaInput[];
 };
+
+const TIPOS_ESPECIFICACION = new Set(['medida', 'material', 'accesorio', 'garantia', 'entrega', 'condicion', 'otro']);
+const ORIGENES_ESPECIFICACION = new Set(['global', 'producto', 'manual', 'heredada']);
+
+function normalizarTextoEspecificacion(value: unknown): string {
+  const contenido = typeof value === 'string'
+    ? value.replace(/<[^>]*>/g, '').replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+    : '';
+  if (!contenido) throw new Error('VALIDATION_ERROR: El contenido de la especificación es obligatorio');
+  if (contenido.length > 1000) throw new Error('VALIDATION_ERROR: Una especificación no puede exceder 1000 caracteres');
+  return contenido;
+}
+
+async function guardarEspecificacionesPartida(
+  partidaId: number,
+  especificaciones: EspecificacionPartidaInput[] | undefined,
+  empresaId: number,
+  executor: Pick<PoolClient, 'query'>,
+) {
+  if (especificaciones === undefined) return;
+  if (!Array.isArray(especificaciones) || especificaciones.length > 100) throw new Error('VALIDATION_ERROR: Colección de especificaciones inválida');
+  const idsBiblioteca = [...new Set(especificaciones
+    .filter((e) => e.especificacion_biblioteca_id !== null && e.especificacion_biblioteca_id !== undefined)
+    .map((e) => Number(e.especificacion_biblioteca_id))
+    .filter(Number.isInteger))];
+  let bibliotecaPorId = new Map<number, any>();
+  if (idsBiblioteca.length) {
+    const { rows } = await executor.query(
+      'SELECT id, alcance, producto_id FROM public.especificaciones_biblioteca WHERE empresa_id=$1 AND id=ANY($2::bigint[])',
+      [empresaId, idsBiblioteca],
+    );
+    if (rows.length !== idsBiblioteca.length) throw new Error('VALIDATION_ERROR: Hay especificaciones de biblioteca inválidas o de otra empresa');
+    bibliotecaPorId = new Map(rows.map((row: any) => [Number(row.id), row]));
+  }
+  const { rows: partidaRows } = await executor.query('SELECT producto_id FROM public.documentos_partidas WHERE id=$1', [partidaId]);
+  const productoPartidaId = partidaRows[0]?.producto_id == null ? null : Number(partidaRows[0].producto_id);
+  for (let index = 0; index < especificaciones.length; index++) {
+    const item = especificaciones[index];
+    const tipo = String(item.tipo ?? 'otro').toLowerCase();
+    const origen = String(item.origen ?? (item.especificacion_biblioteca_id ? 'producto' : 'manual')).toLowerCase();
+    if (!TIPOS_ESPECIFICACION.has(tipo)) throw new Error('VALIDATION_ERROR: Tipo de especificación inválido');
+    if (!ORIGENES_ESPECIFICACION.has(origen)) throw new Error('VALIDATION_ERROR: Origen de especificación inválido');
+    const bibliotecaId = item.especificacion_biblioteca_id == null ? null : Number(item.especificacion_biblioteca_id);
+    const fuente = bibliotecaId ? bibliotecaPorId.get(bibliotecaId) : null;
+    if (origen === 'manual' && bibliotecaId) throw new Error('VALIDATION_ERROR: Una especificación manual no puede referir a la biblioteca');
+    if ((origen === 'global' || origen === 'producto') && !fuente) throw new Error('VALIDATION_ERROR: El origen de biblioteca requiere un ID válido');
+    if (origen === 'global' && fuente?.alcance !== 'global') throw new Error('VALIDATION_ERROR: El origen global no coincide con la biblioteca');
+    if (origen === 'producto' && (fuente?.alcance !== 'producto' || Number(fuente.producto_id) !== productoPartidaId)) throw new Error('VALIDATION_ERROR: La especificación no pertenece al producto de la partida');
+    if (fuente?.alcance === 'producto' && Number(fuente.producto_id) !== productoPartidaId) throw new Error('VALIDATION_ERROR: La especificación de biblioteca pertenece a otro producto');
+    await executor.query(
+      `INSERT INTO public.documentos_partidas_especificaciones
+       (partida_id, especificacion_biblioteca_id, orden, tipo, origen, contenido)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [partidaId, bibliotecaId, index, tipo, origen, normalizarTextoEspecificacion(item.contenido)],
+    );
+  }
+}
 
 /**
  * Normaliza descuento_tipo/descuento/descuento_monto de una partida:
@@ -1360,6 +1427,18 @@ export async function obtenerDocumentoRepository(
       p.impuestos = impuestosPorPartida[p.id] ?? [];
     });
 
+    const { rows: especificacionesRows } = await executor.query(
+      `SELECT partida_id, especificacion_biblioteca_id, orden, tipo, origen, contenido
+         FROM public.documentos_partidas_especificaciones
+        WHERE partida_id = ANY($1::int[]) ORDER BY partida_id, orden, id`,
+      [partidaIds],
+    );
+    const porPartida = especificacionesRows.reduce<Record<number, any[]>>((acc, row) => {
+      (acc[row.partida_id] ??= []).push(row);
+      return acc;
+    }, {});
+    partidas.forEach((p: any) => { p.especificaciones = porPartida[p.id] ?? []; });
+
     console.log('[BACK IVA DEBUG] obtenerDocumentoRepository partidas con impuestos', partidas.map((p: any) => ({
       id: p.id,
       producto_id: p.producto_id,
@@ -1916,6 +1995,7 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       VALUES (${params.substring(0, params.lastIndexOf(','))}, ${nextNumeroSql})
       RETURNING *`;
     const { rows } = await executor.query(query, valores);
+    if (rows[0]?.id) await guardarEspecificacionesPartida(Number(rows[0].id), data.especificaciones, empresaId, executor);
     return rows[0];
   } finally {
     if (ownedClient) {
@@ -1966,12 +2046,30 @@ export async function reemplazarPartidasRepository(
         [documentoId]
       );
 
+      const idsActuales = partidasActuales.map((p: any) => p.id);
+      const { rows: specsActuales } = idsActuales.length ? await executor.query(
+        `SELECT partida_id, especificacion_biblioteca_id, orden, tipo, origen, contenido
+           FROM public.documentos_partidas_especificaciones WHERE partida_id=ANY($1::int[]) ORDER BY partida_id, orden, id`,
+        [idsActuales],
+      ) : { rows: [] as any[] };
+      partidasActuales.forEach((p: any) => { p.especificaciones = specsActuales.filter((e: any) => e.partida_id === p.id); });
+
       if (partidasActuales.length !== partidas.length) {
         const folio = trazabilidadPartidas.folioRelacionado ?? '';
         throw new Error(`VALIDATION_ERROR: TRAZABILIDAD_ACTIVA: ${folio}`);
       }
 
       assertSoloImagenPartidasModificadas(partidasActuales, partidas, trazabilidadPartidas.folioRelacionado);
+      for (let idx = 0; idx < partidasActuales.length; idx++) {
+        const incomingSpecs = (partidas[idx]?.especificaciones ?? []).map((e: any, orden: number) => ({
+          especificacion_biblioteca_id: e.especificacion_biblioteca_id ?? null, orden, tipo: e.tipo, origen: e.origen, contenido: String(e.contenido ?? '').trim(),
+        }));
+        if (JSON.stringify(incomingSpecs) !== JSON.stringify((partidasActuales[idx].especificaciones ?? []).map((e: any) => ({
+          especificacion_biblioteca_id: e.especificacion_biblioteca_id, orden: e.orden, tipo: e.tipo, origen: e.origen, contenido: e.contenido,
+        })))) {
+          throw new Error('VALIDATION_ERROR: No se pueden modificar las especificaciones porque el documento tiene trazabilidad activa');
+        }
+      }
 
       if (ownedClient) {
         await executor.query('BEGIN');
@@ -2089,6 +2187,7 @@ export async function reemplazarPartidasRepository(
       });
       const { rows } = await executor.query(insertQuery, values);
       console.log('[documentos] partida insertada id', rows[0]?.id);
+      await guardarEspecificacionesPartida(Number(rows[0].id), partida.especificaciones, empresaId, executor);
       insertedRows.push(rows[0]);
     }
 

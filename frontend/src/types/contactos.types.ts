@@ -56,3 +56,12 @@ export interface ContactoDetalle {
   domicilio_principal?: ContactoDomicilioPrincipal | null;
   datos_fiscales?: ContactoDatosFiscales | null;
 }
+
+export interface ContactoTelefonoMatch {
+  contacto_id: number;
+  nombre: string;
+  tipo_contacto: string;
+  input_field: 'telefono' | 'telefono_secundario';
+  matched_field: 'telefono' | 'telefono_secundario';
+  normalized_phone: string;
+}

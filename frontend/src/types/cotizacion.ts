@@ -3,6 +3,17 @@ import type { TipoDocumento } from './documentos.types';
 export type TratamientoImpuestos = 'normal' | 'sin_iva' | 'tasa_cero' | 'exento';
 export type DescuentoPartidaTipo = 'porcentaje' | 'monto';
 export type EstadoSeguimiento = 'abierta' | 'pausada' | 'convertida' | 'perdida' | 'no seleccionada' | 'cancelada';
+export type TipoEspecificacion = 'medida' | 'material' | 'accesorio' | 'garantia' | 'entrega' | 'condicion' | 'otro';
+export type OrigenEspecificacion = 'global' | 'producto' | 'manual' | 'heredada';
+export interface EspecificacionPartida {
+  id?: number;
+  clave_temporal?: string;
+  especificacion_biblioteca_id?: number | null;
+  orden: number;
+  tipo: TipoEspecificacion;
+  origen: OrigenEspecificacion;
+  contenido: string;
+}
 
 export interface CotizacionListado {
   id: number;
@@ -128,6 +139,7 @@ export interface CotizacionPartida {
   producto_descripcion?: string | null;
   producto_clave?: string | null;
   observaciones?: string | null;
+  especificaciones?: EspecificacionPartida[];
   impuestos?: ImpuestoPartida[];
   impuestos_calculados?: ImpuestoCalculadoUI[];
 }
@@ -217,5 +229,6 @@ export interface CotizacionPartidaPayload {
   archivo_imagen_1?: string | null;
   producto_archivo_id?: number | null;
   observaciones?: string | null;
+  especificaciones?: EspecificacionPartida[];
   impuestos?: ImpuestoPartida[];
 }

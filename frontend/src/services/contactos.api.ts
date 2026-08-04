@@ -28,14 +28,14 @@ export async function getContacto(id: number): Promise<ContactoDetalle | Contact
   return apiFetch(`${BASE_URL}/${id}`);
 }
 
-export async function crearContacto(data: Partial<Contacto>): Promise<Contacto> {
+export async function crearContacto(data: Partial<Contacto> | Record<string, unknown>): Promise<Contacto> {
   return apiFetch(BASE_URL, {
     method: 'POST',
     body: data as any,
   });
 }
 
-export async function actualizarContacto(id: number, data: Partial<Contacto>): Promise<Contacto> {
+export async function actualizarContacto(id: number, data: Partial<Contacto> | Record<string, unknown>): Promise<Contacto> {
   return apiFetch(`${BASE_URL}/${id}`, {
     method: 'PUT',
     body: data as any,

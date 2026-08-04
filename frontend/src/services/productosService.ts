@@ -3,6 +3,38 @@ import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 
 const BASE_URL = '/api/productos';
 
+export type TipoEspecificacionBiblioteca = 'medida' | 'material' | 'accesorio' | 'garantia' | 'entrega' | 'condicion' | 'otro';
+export type EspecificacionBiblioteca = {
+  id: number;
+  empresa_id: number;
+  producto_id: number | null;
+  alcance: 'global' | 'producto';
+  tipo: TipoEspecificacionBiblioteca;
+  contenido: string;
+  orden: number;
+  es_preferida: boolean;
+  fecha_baja: string | null;
+};
+
+export async function fetchEspecificacionesBiblioteca(productoId?: number | 'global', incluirBajas = false): Promise<EspecificacionBiblioteca[]> {
+  const params = new URLSearchParams();
+  if (productoId !== undefined) params.set('producto_id', String(productoId));
+  if (incluirBajas) params.set('incluir_bajas', 'true');
+  return apiFetch(`${BASE_URL}/especificaciones-biblioteca?${params.toString()}`);
+}
+export async function crearEspecificacionBiblioteca(payload: Partial<EspecificacionBiblioteca>): Promise<EspecificacionBiblioteca> {
+  return apiFetch(`${BASE_URL}/especificaciones-biblioteca`, { method: 'POST', body: payload as any });
+}
+export async function actualizarEspecificacionBiblioteca(id: number, payload: Partial<EspecificacionBiblioteca>): Promise<EspecificacionBiblioteca> {
+  return apiFetch(`${BASE_URL}/especificaciones-biblioteca/${id}`, { method: 'PUT', body: payload as any });
+}
+export async function reordenarEspecificacionesBiblioteca(ids: number[]): Promise<{ ok: boolean }> {
+  return apiFetch(`${BASE_URL}/especificaciones-biblioteca/reordenar`, { method: 'PUT', body: { ids } as any });
+}
+export async function cambiarBajaEspecificacionBiblioteca(id: number, baja: boolean): Promise<EspecificacionBiblioteca> {
+  return apiFetch(`${BASE_URL}/especificaciones-biblioteca/${id}/baja`, { method: 'PATCH', body: { baja } as any });
+}
+
 export type CatalogoConfigurablesProductoRespuesta = {
   entidad_tipo_id: number;
   tipos: {

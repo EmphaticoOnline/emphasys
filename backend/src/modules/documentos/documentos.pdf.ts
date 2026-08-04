@@ -73,6 +73,7 @@ type PartidaCotizacion = {
   archivo_imagen_1?: string | null;
   producto_archivo_id?: number | null;
   observaciones?: string | null;
+  especificaciones?: Array<{ contenido: string; orden: number }>;
   cantidad?: number | null;
   precio_unitario?: number | null;
   subtotal_partida?: number | null;
@@ -432,6 +433,7 @@ const obtenerLayoutFallback = (tipoDocumento?: string | null): DocumentLayout =>
       mostrarCliente: true,
       mostrarPartidas: true,
       mostrarTotales: true,
+      mostrarEspecificacionesPartida: true,
     }
   );
 };
@@ -1220,12 +1222,22 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       // factura hereda mostrarObservacionesPartida=false por defecto
       // (DOCUMENT_LAYOUTS) pero puede activarse por empresa o por serie.
       const showObservaciones = layout.mostrarObservacionesPartida === true;
+      // Compatibilidad: las configuraciones históricas no contienen esta
+      // propiedad y deben conservar la impresión vigente de especificaciones.
+      const showEspecificaciones = layout.mostrarEspecificacionesPartida !== false;
       console.info('[pdf] Decisión de impresión de observaciones de partida', {
         documentoId: documento?.id,
         tipoDocumento: documento?.tipo_documento,
         serie: documento?.serie ?? null,
         mostrarObservacionesPartida: layout.mostrarObservacionesPartida,
         showObservaciones,
+      });
+      console.info('[pdf] Decisión de impresión de especificaciones de partida', {
+        documentoId: documento?.id,
+        tipoDocumento: documento?.tipo_documento,
+        serie: documento?.serie ?? null,
+        mostrarEspecificacionesPartida: layout.mostrarEspecificacionesPartida,
+        showEspecificaciones,
       });
       const observacionesFontSize = 8;
       const observacionesPadding = 3;
@@ -1300,6 +1312,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         observaciones?: string | null,
         hasImage = false,
         camposConfigurablesPartida: CampoConfigurablePartidaValor[] = [],
+        especificaciones: Array<{ contenido: string; orden: number }> = [],
       ) => {
         const baseRowHeight = 17;
         const bodyPaddingY = 4;
@@ -1319,6 +1332,12 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
             })
           : { altura: 0, lineas: [] as CampoConfigurablePartidaValor[][] };
         const camposConfigBlockHeight = camposConfigAltura ? camposConfigAltura + camposConfigurablesPaddingTop : 0;
+        const especificacionesTexto = showEspecificaciones
+          ? [...especificaciones].sort((a, b) => a.orden - b.orden).map((e) => `• ${e.contenido}`).join('\n')
+          : '';
+        const especificacionesHeight = especificacionesTexto
+          ? doc.heightOfString(especificacionesTexto, { width: columnWidths[descripcionIndex] - 12, lineGap: 1 }) + 3
+          : 0;
 
         const obsHtml = observaciones ?? '';
         const obsText = showObservaciones && !richTextBasicoEstaVacio(obsHtml) ? obsHtml : '';
@@ -1331,16 +1350,16 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           });
         }
 
-        const textBlockHeight = Math.max(baseRowHeight, maxTextHeight + bodyPaddingY * 2) + camposConfigBlockHeight + (obsHeight ? obsHeight + observacionesPadding : 0);
+        const textBlockHeight = Math.max(baseRowHeight, maxTextHeight + bodyPaddingY * 2) + especificacionesHeight + camposConfigBlockHeight + (obsHeight ? obsHeight + observacionesPadding : 0);
         const imageBlockHeight = hasImage && !imagenPartidaEnColumna ? imagenPartidaHeight + imagenPartidaGap : 0;
         const imageColumnMinHeight = hasImage && imagenPartidaEnColumna ? imagenPartidaHeight + bodyPaddingY * 2 : 0;
         const rowHeight = Math.max(
           textBlockHeight,
-          descriptionHeight + bodyPaddingY * 2 + camposConfigBlockHeight + (obsHeight ? obsHeight + observacionesPadding : 0) + imageBlockHeight,
+          descriptionHeight + bodyPaddingY * 2 + especificacionesHeight + camposConfigBlockHeight + (obsHeight ? obsHeight + observacionesPadding : 0) + imageBlockHeight,
           imageColumnMinHeight,
         );
 
-        return { rowHeight, bodyPaddingY, descriptionHeight, obsHeight, obsText, imageBlockHeight, camposConfigBlockHeight, camposConfigLineas };
+        return { rowHeight, bodyPaddingY, descriptionHeight, obsHeight, obsText, imageBlockHeight, camposConfigBlockHeight, camposConfigLineas, especificacionesTexto, especificacionesHeight };
       };
 
       const drawRow = (
@@ -1350,6 +1369,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         observaciones?: string | null,
         imageBuffer?: Buffer | null,
         camposConfigurablesPartida: CampoConfigurablePartidaValor[] = [],
+        especificaciones: Array<{ contenido: string; orden: number }> = [],
       ) => {
         const baseRowHeight = isHeader ? 20 : 17;
         const bodyPaddingY = 4;
@@ -1361,14 +1381,18 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         let obsText = '';
         let camposConfigBlockHeight = 0;
         let camposConfigLineas: CampoConfigurablePartidaValor[][] = [];
+        let especificacionesTexto = '';
+        let especificacionesHeight = 0;
         if (!isHeader) {
-          const metrics = computeRowMetrics(values, observaciones, Boolean(imageBuffer), camposConfigurablesPartida);
+          const metrics = computeRowMetrics(values, observaciones, Boolean(imageBuffer), camposConfigurablesPartida, especificaciones);
           rowHeight = metrics.rowHeight;
           descriptionHeight = metrics.descriptionHeight;
           obsHeight = metrics.obsHeight;
           obsText = metrics.obsText;
           camposConfigBlockHeight = metrics.camposConfigBlockHeight;
           camposConfigLineas = metrics.camposConfigLineas;
+          especificacionesTexto = metrics.especificacionesTexto;
+          especificacionesHeight = metrics.especificacionesHeight;
         }
 
         if (isHeader) {
@@ -1407,9 +1431,15 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           doc.text(text, x, textY, { width: colWidth, align });
         });
 
+        if (!isHeader && especificacionesTexto) {
+          const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
+          setFont(false, observacionesFontSize, mutedText);
+          doc.text(especificacionesTexto, descX, y + bodyPaddingY + descriptionHeight + 3, { width: columnWidths[descripcionIndex] - 12, lineGap: 1 });
+        }
+
         if (!isHeader && camposConfigLineas.length > 0) {
           const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
-          const camposConfigY = y + bodyPaddingY + descriptionHeight;
+          const camposConfigY = y + bodyPaddingY + descriptionHeight + especificacionesHeight;
           renderCamposConfigurablesPartida(doc, camposConfigLineas, descX, camposConfigY, {
             width: columnWidths[descripcionIndex] - 12,
             ...camposConfigurablesOpciones,
@@ -1418,7 +1448,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
         if (!isHeader && obsHeight > 0 && obsText) {
           const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
-          const obsY = y + bodyPaddingY + descriptionHeight + camposConfigBlockHeight + observacionesPadding;
+          const obsY = y + bodyPaddingY + descriptionHeight + especificacionesHeight + camposConfigBlockHeight + observacionesPadding;
           renderRichTextBasicoPdf(doc, obsText, descX, obsY, {
             width: columnWidths[descripcionIndex] - 12,
             fontSize: observacionesFontSize,
@@ -1447,7 +1477,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           }
         } else if (!isHeader && imageBuffer && !imagenPartidaEnColumna) {
           const descX = startX + columnWidths.slice(0, descripcionIndex).reduce((acc, w) => acc + w, 0) + 6;
-          const imageY = y + bodyPaddingY + descriptionHeight + camposConfigBlockHeight + (obsHeight > 0 && obsText ? obsHeight + observacionesPadding : 0) + imagenPartidaGap;
+          const imageY = y + bodyPaddingY + descriptionHeight + especificacionesHeight + camposConfigBlockHeight + (obsHeight > 0 && obsText ? obsHeight + observacionesPadding : 0) + imagenPartidaGap;
           const imageWidth = columnWidths[descripcionIndex] - 12;
           const imageFit: [number, number] = maxAnchoImagenPartida !== null
             ? [maxAnchoImagenPartida, imagenPartidaHeight]
@@ -1516,6 +1546,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           (p as PartidaCotizacion).observaciones ?? null,
           Boolean(imageBuffer),
           camposConfigurablesPartida,
+          (p as PartidaCotizacion).especificaciones ?? [],
         );
         const rowHeight = metrics.rowHeight;
 
@@ -1531,6 +1562,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           (p as PartidaCotizacion).observaciones ?? null,
           imageBuffer,
           camposConfigurablesPartida,
+          (p as PartidaCotizacion).especificaciones ?? [],
         );
       }
 
