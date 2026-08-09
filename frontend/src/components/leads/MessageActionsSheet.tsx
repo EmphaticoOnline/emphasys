@@ -17,6 +17,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ForwardIcon from '@mui/icons-material/Forward';
 import ReplyIcon from '@mui/icons-material/Reply';
 import { findSingleUrl } from '../LinkifiedText';
+import { REACTION_EMOJIS } from '../../utils/leadsDerivation';
 
 // Mensaje mínimo que necesita este menú para decidir qué acciones mostrar.
 // Deliberadamente más chico que el tipo completo de mensaje de LeadsPage
@@ -27,7 +28,7 @@ export type ActionableMessage = {
   tempId?: string;
   from: 'lead' | 'me';
   text: string;
-  tipoContenido?: 'text' | 'image' | 'audio' | 'document';
+  tipoContenido?: 'text' | 'image' | 'audio' | 'document' | 'video';
   mediaUrl?: string | null;
   caption?: string | null;
 };
@@ -42,6 +43,7 @@ type Props = {
   onDownload: (message: ActionableMessage) => void;
   onReply: (message: ActionableMessage) => void;
   onForward: (message: ActionableMessage) => void;
+  onReact: (emoji: string) => void;
 };
 
 type SheetAction = {
@@ -66,6 +68,7 @@ export function MessageActionsSheet({
   onDownload,
   onReply,
   onForward,
+  onReact,
 }: Props) {
   const cancelButtonRef = React.useRef<HTMLButtonElement | null>(null);
 
@@ -99,6 +102,7 @@ export function MessageActionsSheet({
   // LeadsDesktopView.
   const canReply = !displayMessage.tempId;
   const canForward = !displayMessage.tempId;
+  const canReact = !displayMessage.tempId;
 
   const actions: SheetAction[] = [];
 
@@ -161,6 +165,19 @@ export function MessageActionsSheet({
       icon: <DownloadIcon fontSize="small" />,
       onClick: () => onDownload(displayMessage),
     });
+  } else if (tipo === 'video' && hasMedia) {
+    actions.push({
+      key: 'view',
+      label: 'Ver video',
+      icon: <VisibilityIcon fontSize="small" />,
+      onClick: () => onView(displayMessage.mediaUrl as string),
+    });
+    actions.push({
+      key: 'download',
+      label: 'Descargar',
+      icon: <DownloadIcon fontSize="small" />,
+      onClick: () => onDownload(displayMessage),
+    });
   }
 
   if (canForward) {
@@ -178,7 +195,9 @@ export function MessageActionsSheet({
       ? (displayMessage.caption || 'Imagen')
       : tipo === 'audio'
         ? 'Nota de voz'
-        : displayMessage.text;
+        : tipo === 'video'
+          ? (displayMessage.caption || 'Video')
+          : displayMessage.text;
 
   return (
     <Drawer
@@ -208,6 +227,38 @@ export function MessageActionsSheet({
             {previewText}
           </Typography>
         </Box>
+        {canReact && (
+          <Box
+            role="group"
+            aria-label="Reaccionar con un emoji"
+            sx={{ display: 'flex', justifyContent: 'space-between', px: 1.5, pb: 1 }}
+          >
+            {REACTION_EMOJIS.map((emoji) => (
+              <Box
+                key={emoji}
+                component="button"
+                type="button"
+                onClick={() => {
+                  onReact(emoji);
+                  onClose();
+                }}
+                aria-label={`Reaccionar con ${emoji}`}
+                sx={{
+                  fontSize: 24,
+                  lineHeight: 1,
+                  p: 0.75,
+                  border: 'none',
+                  background: 'none',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+              >
+                {emoji}
+              </Box>
+            ))}
+          </Box>
+        )}
         <List sx={{ py: 0 }}>
           {actions.map((action) => (
             <ListItemButton

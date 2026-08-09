@@ -17,7 +17,7 @@ import {
 } from './productos.controller';
 import { createDiskUploader, resolveUploadsDir } from '../uploads/uploads.multer';
 import path from 'path';
-import { actualizar as actualizarEspecificacion, baja as bajaEspecificacion, crear as crearEspecificacion, listar as listarEspecificaciones, reordenar as reordenarEspecificaciones } from './especificaciones-biblioteca.controller';
+import { actualizar as actualizarEspecificacion, baja as bajaEspecificacion, crear as crearEspecificacion, listar as listarEspecificaciones, obtenerConfiguracion as obtenerConfiguracionEspecificaciones, reordenar as reordenarEspecificaciones } from './especificaciones-biblioteca.controller';
 
 const router = Router();
 
@@ -56,6 +56,7 @@ const manejarUploadProductoArchivo = (req: any, res: any, next: any) => {
 router.get('/', requireAuth, requireEmpresaActiva, getProductos);
 
 router.get('/especificaciones-biblioteca', requireAuth, requireEmpresaActiva, listarEspecificaciones);
+router.get('/especificaciones-configuracion', requireAuth, requireEmpresaActiva, obtenerConfiguracionEspecificaciones);
 router.post('/especificaciones-biblioteca', requireAuth, requireEmpresaActiva, crearEspecificacion);
 router.put('/especificaciones-biblioteca/reordenar', requireAuth, requireEmpresaActiva, reordenarEspecificaciones);
 router.put('/especificaciones-biblioteca/:id', requireAuth, requireEmpresaActiva, actualizarEspecificacion);

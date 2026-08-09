@@ -277,6 +277,69 @@ export const sendTextMessage = async (
   }
 };
 
+// Reacción a un mensaje (propio o del cliente), estilo WhatsApp. Mismo
+// endpoint y patrón de payload que el resto de sendXMessage (confirmado en la
+// documentación pública de Gupshup para "Outbound Reactions"):
+// message: { type: 'reaction', msgId: <id_externo del mensaje objetivo>, emoji }.
+// emoji === '' quita una reacción previamente enviada (comportamiento
+// estándar de la WhatsApp Cloud API que Gupshup expone tal cual; no hay
+// confirmación explícita de esto en la documentación pública de Gupshup, así
+// que se trata como mejor esfuerzo — si Gupshup lo rechaza, el error se
+// propaga igual que cualquier otro fallo de envío).
+export const sendReactionMessage = async (
+  empresaId: number,
+  to: string,
+  targetIdExterno: string,
+  emoji: string
+) => {
+  try {
+    const config = await getWhatsappConfig(empresaId);
+
+    const destinoNormalizado = normalizarTelefono(to);
+    if (!destinoNormalizado) {
+      throw new Error("telefono inválido o vacío para WhatsApp");
+    }
+
+    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
+
+    await validateWhatsapp24hWindow(empresaId, conversacionId);
+
+    const reactionMessagePayload = {
+      type: "reaction",
+      msgId: targetIdExterno,
+      emoji,
+    };
+
+    console.log('[WhatsApp Send][Reaction] message final a Gupshup:', JSON.stringify(reactionMessagePayload, null, 2));
+
+    const payload = qs.stringify({
+      channel: "whatsapp",
+      source: config.phone_number,
+      destination: destinoNormalizado,
+      message: JSON.stringify(reactionMessagePayload)
+    });
+
+    const response = await axios.post(
+      GUPSHUP_API_URL,
+      payload,
+      {
+        headers: {
+          apikey: config.api_key,
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
+
+    console.log("📤 Reacción enviada:", response.data);
+
+    return response.data;
+  } catch (error: any) {
+    logWhatsappSendError("reaction", error);
+    throw error;
+  }
+};
+
 export const sendImageMessage = async (
   empresaId: number,
   to: string,

@@ -15,6 +15,7 @@ export async function updateDocumentoEmpresa(
     whatsapp_plantilla_default_id?: number | null;
     afecta_inventario?: AfectaInventario | null;
     afecta_reservado?: boolean;
+    usar_especificaciones?: boolean;
   }
 ) {
   return apiFetch(`${BASE_URL}/${tipoDocumentoId}`, {

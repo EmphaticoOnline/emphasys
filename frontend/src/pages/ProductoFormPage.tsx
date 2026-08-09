@@ -41,6 +41,7 @@ import {
   uploadProductoImagen,
   deleteProductoArchivo,
   marcarProductoArchivoPrincipal,
+  fetchConfiguracionEspecificaciones,
   type CatalogoConfigurablesProductoRespuesta,
   type ProductoArchivo,
 } from '../services/productosService';
@@ -50,6 +51,7 @@ import { PRODUCTOS_CAMPOS } from '../definitions/productos.fields';
 import { fetchUnidades, type Unidad } from '../services/unidadesService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
 import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
+import { useSession } from '../session/useSession';
 
 const tipoProductoOptions = ['Inventariable', 'No inventariable', 'Kit'] as const;
 
@@ -88,6 +90,7 @@ type CatalogoComercialTipo = {
 export default function ProductoFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { session } = useSession();
 
   const isEdit = Boolean(id && id !== 'nuevo');
   const [form, setForm] = useState<ProductoBasico>(initialForm);
@@ -113,9 +116,16 @@ export default function ProductoFormPage() {
   const [uploadingImagenes, setUploadingImagenes] = useState(false);
   const [camposObligatorios, setCamposObligatorios] = useState<Set<string>>(new Set());
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+  const [especificacionesHabilitadas, setEspecificacionesHabilitadas] = useState(false);
   const [archivoActionId, setArchivoActionId] = useState<number | null>(null);
   const imagenesInputRef = React.useRef<HTMLInputElement | null>(null);
   const productosSatDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    void fetchConfiguracionEspecificaciones()
+      .then((config) => setEspecificacionesHabilitadas(config.habilitado))
+      .catch(() => setEspecificacionesHabilitadas(false));
+  }, [session.empresaActivaId]);
 
   const loadProductosSat = React.useCallback(async (search: string) => {
     setProductosSatLoading(true);
@@ -829,7 +839,7 @@ export default function ProductoFormPage() {
 
             {activeTab === 3 && (
               <Stack spacing={1.5}>
-                <Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
+                {especificacionesHabilitadas && <><Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
                   Biblioteca de especificaciones del producto
                 </Typography>
                 <Typography variant="body2" color="#4b5563">
@@ -840,6 +850,7 @@ export default function ProductoFormPage() {
                   productoId={isEdit ? Number(id) : undefined}
                   onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
                 />
+                </>}
                 <Typography variant="subtitle2" fontWeight={600} sx={{ pt: 2 }}>
                   Especificaciones anteriores (compatibilidad)
                 </Typography>

@@ -10,6 +10,7 @@ import { obtenerOCrearProductoTecnicoNcComercialRepository } from '../productos/
 import { reservarNumeroParaSerieExistente, resolverSerieDocumento, resolverYReservarSerieDocumento } from './series-documento.service';
 import { DocumentoDeleteValidationError } from './documentos-delete.service';
 import { sanitizarRichTextBasico } from '../../utils/richTextSanitize';
+import { obtenerConfiguracionEspecificaciones } from '../productos/especificaciones-configuracion.service';
 
 function sanitizarObservacionesPartida(observaciones: unknown): string | null {
   return typeof observaciones === 'string' && observaciones
@@ -717,14 +718,40 @@ function normalizarTextoEspecificacion(value: unknown): string {
   return contenido;
 }
 
+function normalizarEspecificacionesParaComparar(especificaciones: any[]): Array<Record<string, unknown>> {
+  return especificaciones.map((item, orden) => ({
+    especificacion_biblioteca_id: item?.especificacion_biblioteca_id == null ? null : Number(item.especificacion_biblioteca_id),
+    orden,
+    tipo: String(item?.tipo ?? 'otro').toLowerCase(),
+    origen: String(item?.origen ?? (item?.especificacion_biblioteca_id ? 'producto' : 'manual')).toLowerCase(),
+    contenido: String(item?.contenido ?? '').trim(),
+  }));
+}
+
 async function guardarEspecificacionesPartida(
   partidaId: number,
   especificaciones: EspecificacionPartidaInput[] | undefined,
   empresaId: number,
   executor: Pick<PoolClient, 'query'>,
+  permitirConConfiguracionDeshabilitada = false,
 ) {
   if (especificaciones === undefined) return;
   if (!Array.isArray(especificaciones) || especificaciones.length > 100) throw new Error('VALIDATION_ERROR: Colección de especificaciones inválida');
+  const { rows: partidaRows } = await executor.query(
+    `SELECT dp.producto_id, d.tipo_documento
+       FROM public.documentos_partidas dp
+       JOIN public.documentos d ON d.id = dp.documento_id
+      WHERE dp.id = $1 AND d.empresa_id = $2
+      LIMIT 1`,
+    [partidaId, empresaId],
+  );
+  if (!partidaRows[0]) throw new Error('VALIDATION_ERROR: Partida inválida o perteneciente a otra empresa');
+  if (especificaciones.length > 0 && !permitirConConfiguracionDeshabilitada) {
+    const configuracion = await obtenerConfiguracionEspecificaciones(empresaId, partidaRows[0].tipo_documento, executor);
+    if (!configuracion.habilitado) {
+      throw new Error('VALIDATION_ERROR: Las especificaciones no están habilitadas para este tipo de documento');
+    }
+  }
   const idsBiblioteca = [...new Set(especificaciones
     .filter((e) => e.especificacion_biblioteca_id !== null && e.especificacion_biblioteca_id !== undefined)
     .map((e) => Number(e.especificacion_biblioteca_id))
@@ -738,7 +765,6 @@ async function guardarEspecificacionesPartida(
     if (rows.length !== idsBiblioteca.length) throw new Error('VALIDATION_ERROR: Hay especificaciones de biblioteca inválidas o de otra empresa');
     bibliotecaPorId = new Map(rows.map((row: any) => [Number(row.id), row]));
   }
-  const { rows: partidaRows } = await executor.query('SELECT producto_id FROM public.documentos_partidas WHERE id=$1', [partidaId]);
   const productoPartidaId = partidaRows[0]?.producto_id == null ? null : Number(partidaRows[0].producto_id);
   for (let index = 0; index < especificaciones.length; index++) {
     const item = especificaciones[index];
@@ -2008,7 +2034,8 @@ export async function reemplazarPartidasRepository(
   documentoId: number,
   partidas: PartidaInput[],
   empresaId: number,
-  client?: PoolClient
+  client?: PoolClient,
+  permitirCopiaSnapshots = false,
 ) {
   const ownedClient = !client;
   const executor = client ?? (await pool.connect());
@@ -2110,6 +2137,42 @@ export async function reemplazarPartidasRepository(
     if (ownedClient) {
       await executor.query('BEGIN');
     }
+    let permitirSnapshotsHistoricos = permitirCopiaSnapshots;
+    const configuracionEspecificaciones = await obtenerConfiguracionEspecificaciones(empresaId, docRow.tipo_documento, executor);
+    if (!configuracionEspecificaciones.habilitado && !permitirCopiaSnapshots) {
+      const { rows: partidasHistoricas } = await executor.query(
+        `SELECT dp.id
+           FROM public.documentos_partidas dp
+          WHERE dp.documento_id = $1
+          ORDER BY dp.numero_partida, dp.id`,
+        [documentoId],
+      );
+      const idsHistoricos = partidasHistoricas.map((partida: any) => Number(partida.id));
+      const { rows: especificacionesHistoricas } = idsHistoricos.length
+        ? await executor.query(
+            `SELECT partida_id, especificacion_biblioteca_id, tipo, origen, contenido
+               FROM public.documentos_partidas_especificaciones
+              WHERE partida_id = ANY($1::int[])
+              ORDER BY partida_id, orden, id`,
+            [idsHistoricos],
+          )
+        : { rows: [] as any[] };
+      const gruposHistoricos = idsHistoricos
+        .map((partidaId) => especificacionesHistoricas.filter((item: any) => Number(item.partida_id) === partidaId))
+        .filter((items) => items.length > 0)
+        .map((items) => JSON.stringify(normalizarEspecificacionesParaComparar(items)))
+        .sort();
+      const gruposEntrantes = partidas
+        .map((partida) => partida.especificaciones ?? [])
+        .filter((items) => items.length > 0)
+        .map((items) => JSON.stringify(normalizarEspecificacionesParaComparar(items)))
+        .sort();
+      const snapshotsSinCambios = JSON.stringify(gruposEntrantes) === JSON.stringify(gruposHistoricos);
+      if (!snapshotsSinCambios) {
+        throw new Error('VALIDATION_ERROR: Las especificaciones existentes son históricas y no pueden modificarse porque la funcionalidad está deshabilitada');
+      }
+      permitirSnapshotsHistoricos = true;
+    }
     const { rows: _vinculosReemplazar } = await executor.query(
       `SELECT dpv.id, dpv.documento_origen_id, dpv.documento_destino_id,
               dpv.partida_origen_id, dpv.partida_destino_id, dpv.cantidad
@@ -2187,7 +2250,7 @@ export async function reemplazarPartidasRepository(
       });
       const { rows } = await executor.query(insertQuery, values);
       console.log('[documentos] partida insertada id', rows[0]?.id);
-      await guardarEspecificacionesPartida(Number(rows[0].id), partida.especificaciones, empresaId, executor);
+      await guardarEspecificacionesPartida(Number(rows[0].id), partida.especificaciones, empresaId, executor, permitirSnapshotsHistoricos);
       insertedRows.push(rows[0]);
     }
 

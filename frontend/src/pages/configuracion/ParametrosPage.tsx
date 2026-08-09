@@ -34,13 +34,13 @@ function toBoolean(value: any): boolean {
 
 function normalizeToSend(param: ParametroSistema, value: any): string | null {
   if (value === undefined) return null;
-  if (param.tipo_control === "checkbox") return toBoolean(value) ? "true" : "false";
+  if (param.tipo_control === "checkbox" || param.tipo_control === "switch") return toBoolean(value) ? "true" : "false";
   if (value === null) return null;
   return String(value);
 }
 
 function initialValue(param: ParametroSistema) {
-  if (param.tipo_control === "checkbox") return toBoolean(param.valor_resuelto);
+  if (param.tipo_control === "checkbox" || param.tipo_control === "switch") return toBoolean(param.valor_resuelto);
   return param.valor_resuelto ?? "";
 }
 
@@ -164,7 +164,7 @@ export default function ParametrosPage() {
 
   const renderControl = (param: ParametroSistema) => {
     const value = formValues[param.parametro_id];
-    if (param.tipo_control === "checkbox") {
+    if (param.tipo_control === "checkbox" || param.tipo_control === "switch") {
       return (
         <Switch
           checked={toBoolean(value)}

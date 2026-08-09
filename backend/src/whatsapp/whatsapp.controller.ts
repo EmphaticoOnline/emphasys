@@ -16,6 +16,7 @@ import {
   obtenerConversacionWhatsapp as obtenerConversacionWhatsappHandler,
   quitarEtiquetaConversacionWhatsapp as quitarEtiquetaConversacionWhatsappHandler,
   reabrirConversacionWhatsapp as reabrirConversacionWhatsappHandler,
+  reaccionarMensajeWhatsapp as reaccionarMensajeWhatsappHandler,
   reenviarMensajeWhatsapp as reenviarMensajeWhatsappHandler,
   whatsappWebhook as whatsappWebhookHandler,
 } from "../crm/conversaciones.controller";
@@ -56,6 +57,8 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
 export const enviarWhatsapp = async (req: Request, res: Response) => enviarWhatsappHandler(req, res);
 
 export const reenviarMensajeWhatsapp = async (req: Request, res: Response) => reenviarMensajeWhatsappHandler(req, res);
+
+export const reaccionarMensajeWhatsapp = async (req: Request, res: Response) => reaccionarMensajeWhatsappHandler(req, res);
 
 export const listarConversacionesWhatsapp = async (req: Request, res: Response) => listarConversacionesWhatsappHandler(req, res);
 

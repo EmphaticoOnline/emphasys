@@ -16,6 +16,7 @@ import {
   deleteProducto,
   exportarProductos,
   fetchProductosPaginados,
+  fetchConfiguracionEspecificaciones,
   updateProducto,
 } from '../services/productosService';
 import { GridContextMenuTrigger } from '../components/grids/GridContextMenuTrigger';
@@ -27,9 +28,11 @@ import { useGridPreferences } from '../hooks/useGridPreferences';
 import ProductosDesktopView from '../components/productos/ProductosDesktopView';
 import ProductosMobileView from '../components/productos/ProductosMobileView';
 import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
+import { useSession } from '../session/useSession';
 
 export default function ProductosPage() {
   const navigate = useNavigate();
+  const { session } = useSession();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const perfilDispositivo = useDeviceProfile();
@@ -46,6 +49,7 @@ export default function ProductosPage() {
   );
   const [exportLoading, setExportLoading] = useState(false);
   const [globalSpecsOpen, setGlobalSpecsOpen] = useState(false);
+  const [especificacionesHabilitadas, setEspecificacionesHabilitadas] = useState(false);
 
   const {
     loadingPreferences,
@@ -120,6 +124,12 @@ export default function ProductosPage() {
   useEffect(() => {
     persistExternalFilters({ searchTerm: search });
   }, [persistExternalFilters, search]);
+
+  useEffect(() => {
+    void fetchConfiguracionEspecificaciones()
+      .then((config) => setEspecificacionesHabilitadas(config.habilitado))
+      .catch(() => setEspecificacionesHabilitadas(false));
+  }, [session.empresaActivaId]);
 
   const handleDelete = async (producto: Producto) => {
     const confirmed = window.confirm(`¿Eliminar el producto "${producto.descripcion}"?`);
@@ -359,9 +369,9 @@ export default function ProductosPage() {
   );
 
   return <Box sx={{ width: '100%' }}>
-    <Box sx={{ px: 3, pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+    {especificacionesHabilitadas && <Box sx={{ px: 3, pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
       <Button variant="outlined" onClick={() => setGlobalSpecsOpen(true)}>Biblioteca global de especificaciones</Button>
-    </Box>
+    </Box>}
     {isMobile ? mobileView : desktopView}
     <Dialog open={globalSpecsOpen} onClose={() => setGlobalSpecsOpen(false)} fullWidth maxWidth="md">
       <DialogTitle>Biblioteca global de especificaciones</DialogTitle>

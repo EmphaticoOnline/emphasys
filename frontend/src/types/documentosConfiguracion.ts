@@ -14,6 +14,8 @@ export type DocumentoEmpresa = {
   /** Default del catálogo global. Solo lectura, para mostrar en UI. */
   afecta_inventario_sistema: AfectaInventario | null;
   afecta_reservado: boolean;
+  usar_especificaciones: boolean;
+  usar_especificaciones_empresa: boolean;
 };
 
 export type TransicionDocumento = {

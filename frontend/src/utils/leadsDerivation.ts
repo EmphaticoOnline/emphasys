@@ -19,6 +19,10 @@ export function formatFechaHora(value: string | null): string {
   return date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+// Conjunto compacto de reacciones estilo WhatsApp, compartido entre
+// LeadsDesktopView y LeadsMobileView.
+export const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
+
 export const DEFAULT_REGLAS_SEGUIMIENTO: ReglasSeguimiento = {
   tiempo_tolerancia_respuesta_a_cliente: 30,
   tiempo_sin_seguimiento_requerido_despues_de_respuesta_a_cliente: 4,
@@ -283,12 +287,13 @@ export const getLastWhatsappPreview = (conversation: ConversationView[]): { text
 };
 
 export const buildReplyPreviewText = (
-  tipoContenido: 'text' | 'image' | 'audio' | 'document',
+  tipoContenido: 'text' | 'image' | 'audio' | 'document' | 'video',
   contenido: string | null | undefined,
   caption: string | null | undefined
 ): string => {
   if (tipoContenido === 'image') return '📷 Imagen';
   if (tipoContenido === 'audio') return '🎤 Nota de voz';
+  if (tipoContenido === 'video') return caption ? `🎥 ${caption}` : '🎥 Video';
   if (tipoContenido === 'document') return caption ? `📄 ${caption}` : '📄 Documento';
   return contenido || '';
 };
@@ -298,7 +303,7 @@ export const mapMessages = (messages: ConversationMessage[]): ConversationView[]
   const tipoContenido = msg.tipo_contenido ?? 'text';
   let mediaUrl = msg.media_url ?? null;
 
-  if ((tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document') && !mediaUrl) {
+  if ((tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document' || tipoContenido === 'video') && !mediaUrl) {
     mediaUrl = msg.contenido ?? null;
   }
 
@@ -313,15 +318,18 @@ export const mapMessages = (messages: ConversationMessage[]): ConversationView[]
   return {
     id: msg.id,
     from: msg.tipo_mensaje === 'entrante' ? 'lead' : 'me',
-    text: (tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document')
+    text: (tipoContenido === 'image' || tipoContenido === 'audio' || tipoContenido === 'document' || tipoContenido === 'video')
       ? ''
       : (msg.contenido || ''),
     minutesAgo: minutesSince(sentAt),
     sentAt,
     tipoContenido,
     mediaUrl,
+    mimeType: msg.mime_type ?? null,
+    isGif: Boolean(msg.es_gif),
     caption: msg.caption ?? null,
     status: ((msg.status || '').toLowerCase().trim() as 'sending' | 'sent' | 'delivered' | 'read' | 'failed') || 'sent',
     replyTo,
+    reactions: msg.reacciones ?? [],
   } as ConversationView;
 });

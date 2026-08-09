@@ -39,7 +39,7 @@ const MIN_SEARCH_CHARS = 2;
 
 export type ForwardableMessage = {
   id: string;
-  tipoContenido: 'text' | 'image' | 'audio' | 'document';
+  tipoContenido: 'text' | 'image' | 'audio' | 'document' | 'video';
   text: string;
   caption?: string | null;
   mediaUrl?: string | null;
@@ -211,6 +211,14 @@ export function ForwardMessageDialog({ open, message, excludeConversationId, onC
       return (
         <Stack spacing={0.5}>
           <Box component="img" src={message.mediaUrl} alt="Vista previa" sx={{ maxWidth: 200, maxHeight: 200, borderRadius: 1 }} />
+          {message.caption && <Typography variant="body2">{message.caption}</Typography>}
+        </Stack>
+      );
+    }
+    if (message.tipoContenido === 'video' && message.mediaUrl) {
+      return (
+        <Stack spacing={0.5}>
+          <Box component="video" src={message.mediaUrl} controls playsInline sx={{ maxWidth: 200, maxHeight: 200, borderRadius: 1 }} />
           {message.caption && <Typography variant="body2">{message.caption}</Typography>}
         </Stack>
       );

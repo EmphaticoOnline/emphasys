@@ -199,11 +199,80 @@ export const resolverMensajeCitadoEntrante = async (
   return rows[0]?.id ?? null;
 };
 
+export type MensajeParaReaccion = {
+  id: number;
+  conversacion_id: number;
+  telefono: string | null;
+  id_externo: string | null;
+};
+
+// Trae lo mínimo necesario para reaccionar a un mensaje desde Emphasys:
+// a qué conversación pertenece (para validar acceso del usuario), a qué
+// teléfono reenviar la reacción, y el id_externo (gsId saliente / wamid
+// entrante) que Gupshup necesita como `msgId` de la reacción — mismo campo
+// que ya usa resolveReplyContext para citas. Siempre acotado a empresa_id.
+export const obtenerMensajeParaReaccion = async (
+  empresaId: number,
+  mensajeId: number
+): Promise<MensajeParaReaccion | null> => {
+  const { rows } = await pool.query<MensajeParaReaccion>(
+    `
+      SELECT id, conversacion_id, telefono, id_externo
+      FROM crm.mensajes
+      WHERE id = $1
+        AND empresa_id = $2
+      LIMIT 1
+      `,
+    [mensajeId, empresaId]
+  );
+
+  return rows[0] ?? null;
+};
+
+export type AutorReaccion = 'contacto' | 'agente';
+
+// Cambiar de emoji es un UPSERT (mismo autor no acumula filas, ver
+// UNIQUE(mensaje_id, autor) en crm.mensaje_reacciones); quitar la reacción es
+// eliminarReaccionMensaje, nunca un emoji vacío persistido.
+export const upsertReaccionMensaje = async (
+  empresaId: number,
+  mensajeId: number,
+  autor: AutorReaccion,
+  usuarioId: number | null,
+  emoji: string
+): Promise<void> => {
+  await pool.query(
+    `
+      INSERT INTO crm.mensaje_reacciones (empresa_id, mensaje_id, autor, usuario_id, emoji, actualizado_en)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (mensaje_id, autor)
+      DO UPDATE SET emoji = EXCLUDED.emoji, usuario_id = EXCLUDED.usuario_id, actualizado_en = NOW()
+      `,
+    [empresaId, mensajeId, autor, usuarioId, emoji]
+  );
+};
+
+export const eliminarReaccionMensaje = async (
+  empresaId: number,
+  mensajeId: number,
+  autor: AutorReaccion
+): Promise<void> => {
+  await pool.query(
+    `
+      DELETE FROM crm.mensaje_reacciones
+      WHERE empresa_id = $1
+        AND mensaje_id = $2
+        AND autor = $3
+      `,
+    [empresaId, mensajeId, autor]
+  );
+};
+
 export type MensajeParaReenvio = {
   id: number;
   conversacion_id: number;
   tipo_mensaje: 'entrante' | 'saliente';
-  tipo_contenido: 'text' | 'image' | 'audio' | 'document';
+  tipo_contenido: 'text' | 'image' | 'audio' | 'document' | 'video';
   contenido: string | null;
   caption: string | null;
   media_url: string | null;
@@ -602,10 +671,18 @@ export const registrarMensajeEntranteWhatsapp = async (
   timestamp: string | number | Date | null | undefined,
   messageId: string,
   media?: {
-    tipoContenido?: 'text' | 'image' | 'audio' | 'document';
+    tipoContenido?: 'text' | 'image' | 'audio' | 'document' | 'video';
     mediaUrl?: string | null;
     caption?: string | null;
     mimeType?: string | null;
+    // true solo para un mensaje 'video' identificado como GIF animado (ver
+    // whatsapp.mapper.ts). Se guarda en el jsonb respuesta_json (columna
+    // reutilizada; en mensajes salientes guarda metadata de reenvío, nunca
+    // ambas cosas a la vez porque son direcciones distintas) en vez de
+    // agregar una columna nueva. NUNCA se muestra al cliente: solo decide
+    // cómo el frontend reproduce el video (loop/autoplay/mute sin controles
+    // vs. reproductor normal).
+    esGif?: boolean;
   },
   mensajeRespuestaId?: number | null
 ): Promise<number | null> => {
@@ -627,9 +704,10 @@ export const registrarMensajeEntranteWhatsapp = async (
         caption,
         mime_type,
         mensaje_respuesta_id,
+        respuesta_json,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,NOW())
       ON CONFLICT (empresa_id, id_externo) WHERE id_externo IS NOT NULL DO NOTHING
       RETURNING id
       `,
@@ -648,6 +726,7 @@ export const registrarMensajeEntranteWhatsapp = async (
       media?.caption ?? null,
       media?.mimeType ?? null,
       mensajeRespuestaId ?? null,
+      media?.esGif ? JSON.stringify({ es_gif: true }) : null,
     ]
   );
 

@@ -100,7 +100,7 @@ async function duplicarPartidasYTotales(
   client: PoolClient
 ) {
   const partidasDuplicadas = construirPartidasDuplicadas(partidasOrigen);
-  const partidasInsertadas = await reemplazarPartidasRepository(nuevoDocumentoId, partidasDuplicadas, empresaId, client);
+  const partidasInsertadas = await reemplazarPartidasRepository(nuevoDocumentoId, partidasDuplicadas, empresaId, client, true);
 
   if (Array.isArray(partidasInsertadas) && partidasInsertadas.length > 0) {
     const tratamiento = String(documentoOrigen.tratamiento_impuestos ?? '').toLowerCase();

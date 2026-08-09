@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
-import { normalizeWhatsappPayload } from "../whatsapp/whatsapp.mapper";
+import { normalizeWhatsappPayload, extractReactionInfo, type ReactionInfo } from "../whatsapp/whatsapp.mapper";
 import {
   MAX_REENVIO_DESTINATARIOS,
   REENVIO_CONCURRENCY,
   sendAudioMessage,
   sendDocumentMessage,
   sendImageMessage,
+  sendReactionMessage,
   sendTemplateMessage,
   sendTemplateMensajeDirecta,
   sendTextMessage,
@@ -40,6 +41,7 @@ import {
 import {
   actualizarConversacionEntranteWhatsapp,
   actualizarMediaUrlMensajeEntrante,
+  eliminarReaccionMensaje,
   finalizarConversacion,
   getReglasSeguimiento,
   getOrCreateConversacionWhatsapp,
@@ -47,10 +49,12 @@ import {
   MOTIVOS_FINALIZACION,
   MotivoFinalizacion,
   obtenerConversacionesDestinoValidas,
+  obtenerMensajeParaReaccion,
   obtenerMensajeParaReenvio,
   reabrirConversacion,
   registrarMensajeEntranteWhatsapp,
   resolverMensajeCitadoEntrante,
+  upsertReaccionMensaje,
   type MensajeSalienteMetadata,
 } from "./conversaciones.service";
 import { descargarYPersistirAdjuntoEntrante, redactUrlForLog } from "../whatsapp/whatsapp-media-download.service";
@@ -371,6 +375,70 @@ function maskExternalId(value: string): string {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
+// Reacción entrante (message.type === 'reaction'): NUNCA inserta una fila en
+// crm.mensajes (no es un mensaje, es metadata sobre uno ya existente). Se
+// resuelve el contacto/conversación igual que un mensaje normal, se ubica el
+// mensaje objetivo por id_externo (reutilizando resolverMensajeCitadoEntrante,
+// el mismo mecanismo que ya usa la cita/reply) y se hace upsert/delete en
+// crm.mensaje_reacciones con autor='contacto'. Best-effort: cualquier fallo
+// se registra y responde 200 igual que el resto del webhook, para que Gupshup
+// no reintente indefinidamente.
+async function procesarReaccionEntranteWhatsapp(
+  res: Response,
+  empresaId: number,
+  reaction: ReactionInfo
+) {
+  console.log("[WhatsApp Webhook][Reaction] Evento de reacción entrante recibido", {
+    empresaId,
+    from: reaction.from,
+    targetMessageId: maskExternalId(reaction.targetMessageId),
+    emoji: reaction.emoji,
+  });
+
+  try {
+    if (!reaction.from) {
+      console.warn("[WhatsApp Webhook][Reaction] Reacción sin remitente, se ignora", { empresaId });
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    const telefono = normalizarTelefono(reaction.from);
+    const contactoId = await getOrCreateWhatsappContacto(empresaId, telefono);
+    const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
+
+    const mensajeId = await resolverMensajeCitadoEntrante(empresaId, conversacionId, reaction.targetMessageId);
+    if (!mensajeId) {
+      console.warn("[WhatsApp Webhook][Reaction] No se encontró el mensaje reaccionado, se ignora", {
+        empresaId,
+        conversacionId,
+        targetMessageId: maskExternalId(reaction.targetMessageId),
+      });
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    if (reaction.emoji) {
+      await upsertReaccionMensaje(empresaId, mensajeId, 'contacto', null, reaction.emoji);
+    } else {
+      await eliminarReaccionMensaje(empresaId, mensajeId, 'contacto');
+    }
+
+    console.log("[WhatsApp Webhook][Reaction] Reacción entrante procesada", {
+      empresaId,
+      conversacionId,
+      mensajeId,
+      emoji: reaction.emoji || '(removida)',
+    });
+
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.error("[WhatsApp Webhook][Reaction] Error procesando reacción entrante", {
+      empresaId,
+      message: (error as Error)?.message,
+      stack: (error as Error)?.stack,
+    });
+    return res.status(200).json({ error: true });
+  }
+}
+
 export const whatsappWebhook = async (req: Request, res: Response) => {
   const value = req.body?.entry?.[0]?.changes?.[0]?.value;
   const messages = Array.isArray(value?.messages) ? value.messages : [];
@@ -593,6 +661,11 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
 
   console.log("[WhatsApp Webhook] Empresa resuelta", { empresaId });
 
+  const reactionInfo = extractReactionInfo(messages[0]);
+  if (reactionInfo) {
+    return procesarReaccionEntranteWhatsapp(res, empresaId, reactionInfo);
+  }
+
   try {
     const normalized = normalizeWhatsappPayload(req.body);
 
@@ -664,6 +737,7 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
         mediaUrl: normalized.mediaUrl,
         caption: normalized.caption,
         mimeType: normalized.mimeType,
+        esGif: normalized.esGif,
       },
       mensajeRespuestaId
     );
@@ -853,6 +927,77 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
   }
 };
 
+// Reaccionar (o quitar reacción, con emoji vacío/null) a un mensaje propio o
+// del cliente. Envía la reacción real a Gupshup (sendReactionMessage, usando
+// el mismo id_externo que ya se usa para citar mensajes) y solo si el envío
+// tiene éxito actualiza crm.mensaje_reacciones localmente con autor='agente'
+// — nunca al revés, para no mostrar una reacción como "enviada" si Gupshup la
+// rechazó.
+export const reaccionarMensajeWhatsapp = async (req: Request, res: Response) => {
+  const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+  const mensajeId = Number(req.params.id);
+  const authUserId = req.auth?.userId;
+  const emojiRaw = req.body?.emoji;
+  const emoji = typeof emojiRaw === "string" ? emojiRaw.trim() : "";
+
+  try {
+    if (!empresaId) {
+      return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ERROR_DESCONOCIDO", "empresaId requerido", {
+        mensajeUsuario: "No se pudo determinar la empresa activa para reaccionar al mensaje.",
+        accionSugerida: "Vuelve a iniciar sesión. Si el problema continúa, repórtalo al administrador.",
+      }));
+    }
+
+    if (!Number.isFinite(mensajeId)) {
+      return res.status(400).json({ message: "id de mensaje inválido" });
+    }
+
+    const mensaje = await obtenerMensajeParaReaccion(Number(empresaId), mensajeId);
+    if (!mensaje) {
+      return res.status(404).json({ message: "Mensaje no encontrado" });
+    }
+
+    const tieneAcceso = await validarAccesoConversacion(
+      Number(empresaId),
+      mensaje.conversacion_id,
+      authUserId,
+      req.auth?.esSuperadmin
+    );
+    if (!tieneAcceso) {
+      return res.status(404).json({ message: "Mensaje no encontrado" });
+    }
+
+    if (!mensaje.telefono || !mensaje.id_externo) {
+      return res.status(400).json({
+        message: "Este mensaje todavía no tiene un identificador de WhatsApp; espera a que se confirme el envío antes de reaccionar.",
+      });
+    }
+
+    await sendReactionMessage(Number(empresaId), mensaje.telefono, mensaje.id_externo, emoji);
+
+    if (emoji) {
+      await upsertReaccionMensaje(Number(empresaId), mensajeId, "agente", authUserId ?? null, emoji);
+    } else {
+      await eliminarReaccionMensaje(Number(empresaId), mensajeId, "agente");
+    }
+
+    return res.status(200).json({ ok: true, emoji: emoji || null });
+  } catch (error) {
+    const info = classifyWhatsappError(error);
+
+    logWhatsappFailureTechnical({
+      empresaId: empresaId ?? null,
+      telefono: null,
+      usuarioId: authUserId ?? null,
+      tipoMensaje: "reaction",
+      tieneAdjunto: false,
+      info,
+    });
+
+    return responderErrorWhatsapp(res, info);
+  }
+};
+
 type ReenvioStatus =
   | "enviado"
   | "ventana_cerrada"
@@ -957,7 +1102,8 @@ export const reenviarMensajeWhatsapp = async (req: Request, res: Response) => {
     if (
       (mensajeOriginal.tipo_contenido === "image" ||
         mensajeOriginal.tipo_contenido === "audio" ||
-        mensajeOriginal.tipo_contenido === "document") &&
+        mensajeOriginal.tipo_contenido === "document" ||
+        mensajeOriginal.tipo_contenido === "video") &&
       !mensajeOriginal.media_url
     ) {
       return res.status(422).json({ message: "El mensaje original no tiene un archivo adjunto disponible para reenviar" });
@@ -1021,6 +1167,18 @@ export const reenviarMensajeWhatsapp = async (req: Request, res: Response) => {
           });
         } else if (mensajeOriginal.tipo_contenido === "audio") {
           await sendAudioMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, null, forwardMetadata);
+        } else if (mensajeOriginal.tipo_contenido === "video") {
+          // No existe un sendVideoMessage dedicado (ningún payload de tipo
+          // "video" de Gupshup verificado contra tráfico real todavía, fuera
+          // de alcance agregarlo ahora): se reenvía como documento/archivo,
+          // exactamente el mismo comportamiento que ya tenía cualquier video
+          // antes de este cambio (cuando se guardaba como 'document'). El
+          // destinatario lo recibe igual, solo sin reproductor inline nativo
+          // de WhatsApp.
+          await sendDocumentMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, mensajeOriginal.caption ?? null, {
+            mensajeRespuestaId: null,
+            forwardMetadata,
+          });
         }
 
         return { conversacion_id: destinoId, nombre: destino.nombre, status: "enviado", mensaje_usuario: null };
@@ -1295,8 +1453,14 @@ export const obtenerConversacionWhatsapp = async (req: Request, res: Response) =
       params.push(sinceDate?.toISOString());
     }
 
+    // El filtro `since` normalmente solo deja pasar mensajes nuevos, pero una
+    // reacción casi siempre llega sobre un mensaje YA enviado hace rato (fuera
+    // de ese rango): por eso también se re-incluye cualquier mensaje cuya
+    // última reacción se haya actualizado después de `since`, para que el
+    // mismo polling incremental que ya usa el frontend (sin mecanismo nuevo)
+    // propague reacciones sobre mensajes antiguos.
     const sinceWhere = sinceFilter
-      ? " AND (m.fecha_envio > $3 OR (m.fecha_envio IS NULL AND m.creado_en > $3))"
+      ? " AND (m.fecha_envio > $3 OR (m.fecha_envio IS NULL AND m.creado_en > $3) OR reacciones.reacciones_actualizado_en > $3)"
       : "";
 
     const messages = await pool.query(
@@ -1308,18 +1472,28 @@ export const obtenerConversacionWhatsapp = async (req: Request, res: Response) =
         m.canal,
         m.tipo_contenido,
         m.media_url,
+        m.mime_type,
         m.caption,
         m.contenido,
         m.fecha_envio,
         m.status,
         m.creado_en,
         m.mensaje_respuesta_id,
+        COALESCE((m.respuesta_json->>'es_gif')::boolean, false) AS es_gif,
         r.tipo_mensaje AS respuesta_tipo_mensaje,
         r.tipo_contenido AS respuesta_tipo_contenido,
         r.contenido AS respuesta_contenido,
-        r.caption AS respuesta_caption
+        r.caption AS respuesta_caption,
+        reacciones.reacciones
       FROM crm.mensajes m
       LEFT JOIN crm.mensajes r ON r.id = m.mensaje_respuesta_id AND r.empresa_id = m.empresa_id
+      LEFT JOIN LATERAL (
+        SELECT
+          json_agg(json_build_object('autor', mr.autor, 'emoji', mr.emoji) ORDER BY mr.autor) AS reacciones,
+          MAX(mr.actualizado_en) AS reacciones_actualizado_en
+        FROM crm.mensaje_reacciones mr
+        WHERE mr.mensaje_id = m.id
+      ) reacciones ON true
       WHERE m.conversacion_id = $1 AND m.empresa_id = $2
       ${sinceWhere}
       ORDER BY m.fecha_envio ASC NULLS LAST, m.creado_en ASC NULLS LAST

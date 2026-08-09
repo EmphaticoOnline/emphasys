@@ -14,9 +14,13 @@ import {
   InputAdornment,
   List,
   ListItemButton,
+  MenuItem,
+  Popover,
+  Select,
   Skeleton,
   Snackbar,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -28,13 +32,17 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import DoneIcon from '@mui/icons-material/Done';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import MicIcon from '@mui/icons-material/Mic';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import SendIcon from '@mui/icons-material/Send';
 import StopIcon from '@mui/icons-material/Stop';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { linkifyMessageText } from '../LinkifiedText';
 import { ForwardMessageDialog, type ForwardableMessage } from '../ForwardMessageDialog';
 import { MessageActionsSheet, type ActionableMessage } from './MessageActionsSheet';
 import { buildLeadOwnerLabel, buildReplyPreviewText, formatMinutesAgo } from '../../utils/leadsDerivation';
+import { NOTIFICATION_TONE_OPTIONS, type NotificationTone } from '../../utils/notificationSound';
 import { computeListContinuation } from '../../utils/messageListContinuation';
 import { useMessageHighlight } from '../../hooks/useMessageHighlight';
 import { TOPBAR_HEIGHT } from '../layoutConstants';
@@ -110,6 +118,12 @@ export interface LeadsMobileViewProps {
     recuperable: boolean;
   } | null>>;
   handleRetryWhatsappSend: (leadId: string, tempId: string) => void;
+  handleReactToMessage: (leadId: string, messageId: string, emoji: string | null) => void;
+  soundEnabled: boolean;
+  onToggleSound: () => void;
+  selectedTone: NotificationTone;
+  onChangeTone: (tone: NotificationTone) => void;
+  onPreviewTone: () => void;
   ventanaCerradaDialogOpen: boolean;
   setVentanaCerradaDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
   // Adjuntos (imagen/documento): mismos estados, ref y funciones que ya usa
@@ -470,9 +484,17 @@ type MessageBubbleProps = {
   onLongPressMessage: (msg: MobileMessage) => void;
   highlightedMessageId: string | null;
   scrollToMessage: (messageId: string) => void;
+  onRemoveOwnReaction: (messageId: string) => void;
 };
 
-function MessageBubble({ msg, contactName, onLongPressMessage, highlightedMessageId, scrollToMessage }: MessageBubbleProps) {
+function MessageBubble({
+  msg,
+  contactName,
+  onLongPressMessage,
+  highlightedMessageId,
+  scrollToMessage,
+  onRemoveOwnReaction,
+}: MessageBubbleProps) {
   const isMine = msg.from === 'me';
   const longPress = useLongPress(React.useCallback(() => onLongPressMessage(msg), [msg, onLongPressMessage]));
   const isHighlighted = highlightedMessageId === msg.id;
@@ -563,7 +585,47 @@ function MessageBubble({ msg, contactName, onLongPressMessage, highlightedMessag
             />
           </Box>
         )}
-        {(msg.tipoContenido === 'image' || msg.tipoContenido === 'audio' || msg.tipoContenido === 'document') && !msg.mediaUrl && (
+        {msg.tipoContenido === 'video' && msg.mediaUrl && (
+          msg.isGif ? (
+            // GIF de WhatsApp: mismo criterio que LeadsDesktopView — loop/
+            // autoplay/mute sin controles, envuelto en el mismo wrapper <a
+            // target="_blank"> que ya usa la imagen para "ver ampliado".
+            <Box component="a" href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" sx={{ display: 'block' }}>
+              <Box
+                component="video"
+                src={msg.mediaUrl}
+                autoPlay
+                loop
+                muted
+                playsInline
+                sx={{
+                  display: 'block',
+                  maxWidth: '100%',
+                  maxHeight: 280,
+                  borderRadius: 1,
+                  mb: (msg.text || msg.caption) ? 0.5 : 0,
+                }}
+              />
+            </Box>
+          ) : (
+            // Video normal: sin wrapper <a> (mismo criterio que <audio
+            // controls> abajo) para no competir con los controles nativos.
+            <Box
+              component="video"
+              src={msg.mediaUrl}
+              controls
+              playsInline
+              sx={{
+                display: 'block',
+                maxWidth: '100%',
+                maxHeight: 280,
+                borderRadius: 1,
+                mb: (msg.text || msg.caption) ? 0.5 : 0,
+              }}
+            />
+          )
+        )}
+        {(msg.tipoContenido === 'image' || msg.tipoContenido === 'audio' || msg.tipoContenido === 'document' || msg.tipoContenido === 'video') && !msg.mediaUrl && (
           <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.85 }}>
             {msg.caption || 'Archivo recibido'}
           </Typography>
@@ -586,13 +648,42 @@ function MessageBubble({ msg, contactName, onLongPressMessage, highlightedMessag
         {msg.tipoContenido === 'audio' && msg.mediaUrl && (
           <Box component="audio" controls src={msg.mediaUrl} sx={{ maxWidth: '100%' }} />
         )}
-        {msg.tipoContenido === 'image' && msg.caption && (
+        {(msg.tipoContenido === 'image' || msg.tipoContenido === 'video') && msg.caption && (
           <Typography variant="body2">{msg.caption}</Typography>
         )}
         {msg.text && (
           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {linkifyMessageText(msg.text)}
           </Typography>
+        )}
+        {msg.reactions && msg.reactions.length > 0 && (
+          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+            {msg.reactions.map((reaction) => (
+              <Box
+                key={reaction.autor}
+                component={reaction.autor === 'agente' ? 'button' : 'span'}
+                type={reaction.autor === 'agente' ? 'button' : undefined}
+                onClick={reaction.autor === 'agente' ? () => onRemoveOwnReaction(msg.id) : undefined}
+                aria-label={reaction.autor === 'agente' ? 'Quitar tu reacción' : undefined}
+                sx={{
+                  fontSize: 13,
+                  lineHeight: 1.4,
+                  px: 0.75,
+                  py: 0.25,
+                  borderRadius: 10,
+                  bgcolor: 'background.paper',
+                  color: 'text.primary',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  cursor: reaction.autor === 'agente' ? 'pointer' : 'default',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                {reaction.emoji}
+              </Box>
+            ))}
+          </Stack>
         )}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, alignItems: 'center', mt: 0.25 }}>
           <Typography variant="caption" sx={{ opacity: 0.75 }}>
@@ -639,6 +730,12 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     sendErrorDialog,
     setSendErrorDialog,
     handleRetryWhatsappSend,
+    handleReactToMessage,
+    soundEnabled,
+    onToggleSound,
+    selectedTone,
+    onChangeTone,
+    onPreviewTone,
     ventanaCerradaDialogOpen,
     setVentanaCerradaDialogOpen,
     pendingAttachmentFile,
@@ -679,6 +776,9 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
   // acciones de negocio (reenviar, portapapeles del sistema) viven en
   // LeadsPage.tsx/ForwardMessageDialog, reutilizadas tal cual.
   const [selectedMessageForActions, setSelectedMessageForActions] = React.useState<MobileMessage | null>(null);
+  // Popover compacto de preferencias de sonido (activado/desactivado + tono
+  // + probar), anclado al ícono de volumen del header del chat.
+  const [soundSettingsAnchor, setSoundSettingsAnchor] = React.useState<HTMLElement | null>(null);
   const closeActionsSheet = React.useCallback(() => setSelectedMessageForActions(null), []);
 
   // Pantalla mostrada dentro del móvil (bandeja vs. chat). Es estado
@@ -797,6 +897,19 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     focusReplyInput();
   }, [setReplyingTo, focusReplyInput]);
 
+  // Reaccionar (desde el selector de emojis del menú de pulsación
+  // prolongada) o quitar la propia reacción (tocando la pill ya puesta en la
+  // burbuja): mismo handler de LeadsPage.tsx que ya usa LeadsDesktopView.
+  const handleReactMessage = React.useCallback((message: ActionableMessage, emoji: string | null) => {
+    if (!selectedLeadId) return;
+    handleReactToMessage(selectedLeadId, message.id, emoji);
+  }, [selectedLeadId, handleReactToMessage]);
+
+  const handleRemoveOwnReaction = React.useCallback((messageId: string) => {
+    if (!selectedLeadId) return;
+    handleReactToMessage(selectedLeadId, messageId, null);
+  }, [selectedLeadId, handleReactToMessage]);
+
   let screen: React.ReactNode;
 
   if (showChat && selectedLead) {
@@ -834,6 +947,51 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
           {selectedLead.requiresTemplate && (
             <Chip size="small" label="Ventana cerrada" color="warning" variant="outlined" sx={{ flexShrink: 0 }} />
           )}
+          <IconButton
+            size="small"
+            onClick={(event) => setSoundSettingsAnchor(event.currentTarget)}
+            aria-label="Preferencias de sonido de mensajes"
+            sx={{ flexShrink: 0 }}
+          >
+            {soundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+          </IconButton>
+          <Popover
+            open={Boolean(soundSettingsAnchor)}
+            anchorEl={soundSettingsAnchor}
+            onClose={() => setSoundSettingsAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <Stack spacing={1.25} sx={{ p: 1.5, minWidth: 220 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Typography variant="body2">Sonido de mensajes</Typography>
+                <Switch
+                  size="small"
+                  checked={soundEnabled}
+                  onChange={onToggleSound}
+                  inputProps={{ 'aria-label': 'Alternar sonido de mensajes' }}
+                />
+              </Stack>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Typography variant="body2" sx={{ flexShrink: 0 }}>Tono</Typography>
+                <Select
+                  size="small"
+                  value={selectedTone}
+                  onChange={(event) => onChangeTone(event.target.value as NotificationTone)}
+                  sx={{ flex: 1 }}
+                >
+                  {NOTIFICATION_TONE_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <IconButton size="small" onClick={onPreviewTone} aria-label="Probar sonido">
+                  <PlayArrowIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            </Stack>
+          </Popover>
         </Box>
 
         <Box
@@ -868,6 +1026,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                 onLongPressMessage={setSelectedMessageForActions}
                 highlightedMessageId={highlightedMessageId}
                 scrollToMessage={scrollToMessage}
+                onRemoveOwnReaction={handleRemoveOwnReaction}
               />
             ))
           )}
@@ -1340,6 +1499,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
         onDownload={handleDownloadMedia}
         onReply={handleReplyMessage}
         onForward={handleForwardMessage}
+        onReact={(emoji) => selectedMessageForActions && handleReactMessage(selectedMessageForActions, emoji)}
       />
 
       {/* Mismo componente y mismo estado (forwardMessage/setForwardMessage)

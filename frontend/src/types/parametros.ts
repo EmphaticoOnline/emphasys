@@ -10,7 +10,7 @@ export type ParametroSistema = {
   clave: string;
   nombre: string;
   tipo_dato: string | null;
-  tipo_control: "input" | "checkbox" | "dropdown" | string;
+  tipo_control: "input" | "checkbox" | "switch" | "dropdown" | string;
   valor_default: string | null;
   valor_empresa: string | null;
   valor_resuelto: string | null;

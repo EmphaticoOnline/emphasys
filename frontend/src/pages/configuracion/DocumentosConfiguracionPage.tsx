@@ -9,6 +9,7 @@ import {
   MenuItem,
   Select,
   Stack,
+  Switch,
   Tab,
   Table,
   TableBody,
@@ -229,6 +230,22 @@ export default function DocumentosConfiguracionPage() {
     }
   };
 
+  const handleUsarEspecificacionesChange = async (doc: DocumentoEmpresa, value: boolean) => {
+    const previous = doc.usar_especificaciones;
+    setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, usar_especificaciones: value } : d)));
+    try {
+      await updateDocumentoEmpresa(doc.id, {
+        activo: Boolean(doc.habilitado),
+        afecta_inventario: doc.afecta_inventario,
+        afecta_reservado: doc.afecta_reservado,
+        usar_especificaciones: value,
+      });
+    } catch (err: any) {
+      setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, usar_especificaciones: previous } : d)));
+      setErrorDocumentos(err?.message || 'No se pudo actualizar el uso de especificaciones');
+    }
+  };
+
   const plantillaDisponiblePorId = useMemo(() => {
     return new Set(plantillasWhatsapp.map((plantilla) => plantilla.id));
   }, [plantillasWhatsapp]);
@@ -278,6 +295,7 @@ export default function DocumentosConfiguracionPage() {
             <TableCell>Nombre del documento</TableCell>
             <TableCell sx={{ minWidth: 180 }}>Afecta inventario</TableCell>
             <TableCell align="center" sx={{ width: 100 }}>Reservado</TableCell>
+            <TableCell align="center" sx={{ minWidth: 150 }}>Usar especificaciones</TableCell>
             <TableCell sx={{ minWidth: 260 }}>Plantilla envío por WhatsApp</TableCell>
           </TableRow>
         </TableHead>
@@ -357,6 +375,15 @@ export default function DocumentosConfiguracionPage() {
                   disabled={loadingDocumentos}
                 />
               </TableCell>
+              <TableCell align="center">
+                <Switch
+                  checked={Boolean(doc.usar_especificaciones)}
+                  onChange={(e) => handleUsarEspecificacionesChange(doc, e.target.checked)}
+                  color="primary"
+                  disabled={loadingDocumentos || !doc.habilitado || !doc.usar_especificaciones_empresa}
+                  title={!doc.usar_especificaciones_empresa ? 'Activa primero el parámetro general de especificaciones de la empresa' : undefined}
+                />
+              </TableCell>
               <TableCell>
                 <FormControl fullWidth size="small">
                   <InputLabel id={`whatsapp-plantilla-${doc.id}`} shrink>
@@ -398,7 +425,7 @@ export default function DocumentosConfiguracionPage() {
 
           {documentosOrdenados.length === 0 && !loadingDocumentos && (
             <TableRow>
-              <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+              <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                 <Typography variant="body2" color="#6b7280">
                   No se encontraron tipos de documento activos en el catálogo.
                 </Typography>

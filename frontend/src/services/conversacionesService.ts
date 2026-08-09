@@ -41,3 +41,11 @@ export function fetchMensajesConversacion(
   const sinceParam = params.since ? `?since=${encodeURIComponent(params.since)}` : '';
   return apiFetch(`/api/whatsapp/conversacion/${conversationId}${sinceParam}`);
 }
+
+// emoji vacío/null quita una reacción previamente enviada desde Emphasys.
+export function enviarReaccionMensaje(mensajeId: string, emoji: string | null) {
+  return apiFetch(`/api/whatsapp/mensaje/${mensajeId}/reaccion`, {
+    method: 'POST',
+    body: JSON.stringify({ emoji }),
+  });
+}

@@ -52,6 +52,12 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   "audio/mpeg": ".mp3",
   "audio/ogg": ".ogg",
   "audio/wav": ".wav",
+  // GIF animado: WhatsApp lo entrega como video/mp4 (ver whatsapp.mapper.ts,
+  // detección de gif_playback) o, en algunos casos, como image/gif directo.
+  // Sin estos dos tipos, el "GIF" quedaría apuntando indefinidamente a la URL
+  // temporal de Gupshup en vez de una copia local persistente.
+  "video/mp4": ".mp4",
+  "image/gif": ".gif",
 };
 
 const ALLOWED_MIME_TYPES = new Set(Object.keys(MIME_TO_EXTENSION));

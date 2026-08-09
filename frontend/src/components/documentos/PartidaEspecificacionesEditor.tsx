@@ -10,9 +10,9 @@ import type { EspecificacionPartida, TipoEspecificacion } from '../../types/coti
 const TIPOS: TipoEspecificacion[] = ['medida', 'material', 'accesorio', 'garantia', 'entrega', 'condicion', 'otro'];
 const keyFor = () => `spec-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const normalize = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-type Props = { productoId?: number | null; value: EspecificacionPartida[]; onChange: (value: EspecificacionPartida[]) => void; disabled?: boolean };
+type Props = { productoId?: number | null; value: EspecificacionPartida[]; onChange: (value: EspecificacionPartida[]) => void; disabled?: boolean; allowCapture?: boolean };
 
-export default function PartidaEspecificacionesEditor({ productoId, value, onChange, disabled }: Props) {
+export default function PartidaEspecificacionesEditor({ productoId, value, onChange, disabled, allowCapture = true }: Props) {
   const [open, setOpen] = useState(false); const [library, setLibrary] = useState<EspecificacionBiblioteca[]>([]); const [draft, setDraft] = useState<EspecificacionPartida[]>([]);
   const [search, setSearch] = useState(''); const [manual, setManual] = useState(''); const [manualType, setManualType] = useState<TipoEspecificacion>('otro'); const [dragIndex, setDragIndex] = useState<number | null>(null);
   const openSelector = async () => {
@@ -39,8 +39,9 @@ export default function PartidaEspecificacionesEditor({ productoId, value, onCha
   };
   const ordered = (items: EspecificacionPartida[]) => items.map((e, i) => ({ ...e, orden: i }));
   const drop = (target: number) => { if (dragIndex === null || dragIndex === target) return; const next = [...value]; const [m] = next.splice(dragIndex, 1); next.splice(target, 0, m); onChange(ordered(next)); setDragIndex(null); };
+  if (!allowCapture && value.length === 0) return null;
   return <Stack spacing={1}>
-    <Stack direction="row" spacing={1} alignItems="center"><Button size="small" variant="outlined" startIcon={<TuneIcon />} disabled={disabled} onClick={() => void openSelector()}>Especificaciones</Button>{value.length > 0 && <Chip size="small" label={`${value.length} seleccionada(s)`} />}</Stack>
+    {allowCapture && <Stack direction="row" spacing={1} alignItems="center"><Button size="small" variant="outlined" startIcon={<TuneIcon />} disabled={disabled} onClick={() => void openSelector()}>Especificaciones</Button>{value.length > 0 && <Chip size="small" label={`${value.length} seleccionada(s)`} />}</Stack>}
     {value.length > 0 && <Paper variant="outlined" sx={{ overflow: 'hidden', borderColor: 'divider' }}>
       {value.map((item, index) => <Box key={item.id ?? item.clave_temporal ?? index} onDragOver={(e) => e.preventDefault()} onDrop={() => drop(index)} sx={{ display: 'flex', alignItems: 'center', gap: .375, minHeight: 34, px: .5, py: .125, borderBottom: index < value.length - 1 ? 1 : 0, borderColor: 'divider', transition: 'background-color 120ms ease', '&:hover': { bgcolor: 'action.hover' } }}>
         <Box draggable={!disabled} onDragStart={() => setDragIndex(index)} sx={{ display: 'flex', flexShrink: 0, p: .25, color: 'text.disabled', opacity: .6, cursor: disabled ? 'default' : 'grab', '&:hover': { opacity: .85 } }}><DragIndicatorIcon sx={{ fontSize: 18 }} /></Box>

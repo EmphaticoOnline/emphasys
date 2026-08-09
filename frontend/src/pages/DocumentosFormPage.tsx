@@ -86,7 +86,7 @@ import {
 } from '../services/documentGenerationService';
 import { uploadArchivo } from '../services/uploadsService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { createProducto, fetchEspecificacionesBiblioteca, fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
+import { createProducto, fetchConfiguracionEspecificaciones, fetchEspecificacionesBiblioteca, fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
 import type { Producto, ProductoBasico } from '../types/producto';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
@@ -496,6 +496,7 @@ export default function DocumentosFormPage({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const sessionUserId = session.user?.id ?? null;
   const tipoDocumento = (propTipo ?? (codigo as TipoDocumento)) || 'cotizacion';
+  const [especificacionesHabilitadas, setEspecificacionesHabilitadas] = useState(false);
   const routeDocumentoId = useMemo(() => {
     if (embedded) return null;
     const parsedId = Number(id);
@@ -537,6 +538,12 @@ export default function DocumentosFormPage({
   const basePath = resolveDocumentosListPath(tipoDocumento, moduloDocumento);
   const showFiscalTab = widgetFiscalTab;
   const isPaymentDocument = tipoDocumento === 'pago_cliente' || tipoDocumento === 'pago_proveedor';
+
+  useEffect(() => {
+    void fetchConfiguracionEspecificaciones(tipoDocumento)
+      .then((config) => setEspecificacionesHabilitadas(config.habilitado))
+      .catch(() => setEspecificacionesHabilitadas(false));
+  }, [session.empresaActivaId, tipoDocumento]);
   const useMobilePaymentApplicationCards = isMobile && isPaymentDocument;
   const textos = useMemo(
     () => ({
@@ -2875,14 +2882,14 @@ export default function DocumentosFormPage({
         severity: 'error',
       });
     }
-  }, [partidas, tipoDocumento]);
+  }, [especificacionesHabilitadas, partidas, tipoDocumento]);
 
   const handleProductoChange = async (index: number, producto: Producto | null) => {
     const partidaAnterior = partidas[index];
     let especificacionesSiguientes = partidaAnterior?.especificaciones ?? [];
     const cambioReal = (partidaAnterior?.producto_id ?? null) !== (producto?.id ?? null);
-    let recargar = cambioReal && especificacionesSiguientes.length === 0;
-    if (cambioReal && especificacionesSiguientes.length > 0) {
+    let recargar = especificacionesHabilitadas && cambioReal && especificacionesSiguientes.length === 0;
+    if (especificacionesHabilitadas && cambioReal && especificacionesSiguientes.length > 0) {
       const conservar = window.confirm(
         'Esta partida ya tiene especificaciones. Aceptar conserva las actuales; Cancelar las reemplaza con las preferidas del nuevo producto.'
       );
@@ -5446,7 +5453,8 @@ export default function DocumentosFormPage({
                                   productoId={partida.producto_id}
                                   value={partida.especificaciones ?? []}
                                   onChange={(especificaciones) => setPartidaAt(index, (prev) => ({ ...prev, especificaciones }))}
-                                  disabled={trazabilidadActiva}
+                                  disabled={trazabilidadActiva || !especificacionesHabilitadas}
+                                  allowCapture={especificacionesHabilitadas}
                                 />
 
                                 {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (
@@ -5911,7 +5919,8 @@ export default function DocumentosFormPage({
                           productoId={partida.producto_id}
                           value={partida.especificaciones ?? []}
                           onChange={(especificaciones) => setPartidaAt(index, (prev) => ({ ...prev, especificaciones }))}
-                          disabled={trazabilidadActiva}
+                          disabled={trazabilidadActiva || !especificacionesHabilitadas}
+                          allowCapture={especificacionesHabilitadas}
                         />
 
                         {(expandedObs[index] || Boolean(partida.observaciones?.trim())) && (

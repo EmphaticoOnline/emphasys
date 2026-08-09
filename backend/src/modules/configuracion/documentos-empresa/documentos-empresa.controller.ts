@@ -70,6 +70,8 @@ export async function actualizarDocumentoEmpresa(req: Request, res: Response) {
       return res.status(400).json({ message: 'afecta_inventario debe ser: null, none, entrada, salida o transferencia' });
     }
     const afectaReservado: boolean = Boolean(body.afecta_reservado ?? false);
+    const includeUsarEspecificaciones = Object.prototype.hasOwnProperty.call(body, 'usar_especificaciones');
+    const usarEspecificaciones = Boolean(body.usar_especificaciones);
 
     const tipoExiste = await existeTipoDocumento(tipoDocumentoId);
     if (!tipoExiste) return res.status(404).json({ message: 'Tipo de documento no encontrado o inactivo' });
@@ -88,7 +90,9 @@ export async function actualizarDocumentoEmpresa(req: Request, res: Response) {
       includeWhatsappPlantillaDefault,
       whatsappPlantillaDefaultId,
       afectaInventario,
-      afectaReservado
+      afectaReservado,
+      includeUsarEspecificaciones,
+      usarEspecificaciones,
     );
     if (!actualizado) return res.status(500).json({ message: 'No se pudo actualizar el documento' });
 

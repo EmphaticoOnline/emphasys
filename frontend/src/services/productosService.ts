@@ -16,6 +16,20 @@ export type EspecificacionBiblioteca = {
   fecha_baja: string | null;
 };
 
+export type ConfiguracionEspecificaciones = {
+  empresa_habilitada: boolean;
+  tipo_documento_activo: boolean | null;
+  tipo_documento_habilitado: boolean | null;
+  habilitado: boolean;
+};
+
+export async function fetchConfiguracionEspecificaciones(tipoDocumento?: string | null): Promise<ConfiguracionEspecificaciones> {
+  const params = new URLSearchParams();
+  if (tipoDocumento) params.set('tipo_documento', tipoDocumento);
+  const query = params.toString();
+  return apiFetch(`${BASE_URL}/especificaciones-configuracion${query ? `?${query}` : ''}`);
+}
+
 export async function fetchEspecificacionesBiblioteca(productoId?: number | 'global', incluirBajas = false): Promise<EspecificacionBiblioteca[]> {
   const params = new URLSearchParams();
   if (productoId !== undefined) params.set('producto_id', String(productoId));

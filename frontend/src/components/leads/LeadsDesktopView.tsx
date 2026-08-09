@@ -14,9 +14,12 @@ import {
   Menu,
   MenuItem,
   Paper,
+  Popover,
+  Select,
   Skeleton,
   Snackbar,
   Stack,
+  Switch,
   TextField,
   InputAdornment,
   Tooltip,
@@ -24,6 +27,7 @@ import {
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AddIcon from '@mui/icons-material/Add';
+import AddReactionOutlinedIcon from '@mui/icons-material/AddReactionOutlined';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CloseIcon from '@mui/icons-material/Close';
@@ -36,12 +40,15 @@ import ForwardIcon from '@mui/icons-material/Forward';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ReplayIcon from '@mui/icons-material/Replay';
 import ReplyIcon from '@mui/icons-material/Reply';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import SendIcon from '@mui/icons-material/Send';
 import SettingsIcon from '@mui/icons-material/Settings';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import type { NavigateFunction } from 'react-router-dom';
 import { SendWhatsappTemplateDialog } from '../SendWhatsappTemplateDialog';
@@ -50,12 +57,14 @@ import { linkifyMessageText } from '../LinkifiedText';
 import { computeListContinuation } from '../../utils/messageListContinuation';
 import { useMessageHighlight } from '../../hooks/useMessageHighlight';
 import {
+  REACTION_EMOJIS,
   buildLeadOwnerLabel,
   buildReplyPreviewText,
   formatFechaHora,
   formatMinutes,
   formatMinutesAgo,
 } from '../../utils/leadsDerivation';
+import { NOTIFICATION_TONE_OPTIONS, type NotificationTone } from '../../utils/notificationSound';
 import type { Contacto } from '../../types/contactos.types';
 import type {
   EtapaOportunidad,
@@ -205,6 +214,12 @@ export interface LeadsDesktopViewProps {
   setReplyingTo: React.Dispatch<React.SetStateAction<ReplyPreview | null>>;
   focusReplyInput: () => void;
   handleRetryWhatsappSend: (leadId: string, tempId: string) => void;
+  handleReactToMessage: (leadId: string, messageId: string, emoji: string | null) => void;
+  soundEnabled: boolean;
+  onToggleSound: () => void;
+  selectedTone: NotificationTone;
+  onChangeTone: (tone: NotificationTone) => void;
+  onPreviewTone: () => void;
 
   // Composer / adjuntos / audio
   uploadInputRef: React.RefObject<HTMLInputElement | null>;
@@ -528,6 +543,12 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
     setReplyingTo,
     focusReplyInput,
     handleRetryWhatsappSend,
+    handleReactToMessage,
+    soundEnabled,
+    onToggleSound,
+    selectedTone,
+    onChangeTone,
+    onPreviewTone,
     uploadInputRef,
     handleUploadFile,
     handleSelectUpload,
@@ -573,6 +594,17 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
   // conversationScrollRef) y lo resalta ~2s. Mismo hook que usa
   // LeadsMobileView, ninguna lógica de scroll/resaltado duplicada.
   const { highlightedMessageId, scrollToMessage } = useMessageHighlight(conversationScrollRef);
+
+  // Selector compacto de reacciones (Popover anclado al botón hover de la
+  // burbuja). Estado puramente de presentación: vive aquí, no en LeadsPage.
+  const [reactionPickerAnchor, setReactionPickerAnchor] = React.useState<{
+    el: HTMLElement;
+    messageId: string;
+  } | null>(null);
+
+  // Popover compacto de preferencias de sonido (activado/desactivado + tono
+  // + probar), anclado al ícono de volumen del header de la conversación.
+  const [soundSettingsAnchor, setSoundSettingsAnchor] = React.useState<HTMLElement | null>(null);
 
   return (
     <>
@@ -662,6 +694,33 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
           </MenuItem>
         )}
       </Menu>
+
+      <Popover
+        open={Boolean(reactionPickerAnchor)}
+        anchorEl={reactionPickerAnchor?.el ?? null}
+        onClose={() => setReactionPickerAnchor(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Stack direction="row" spacing={0.25} sx={{ p: 0.5 }}>
+          {REACTION_EMOJIS.map((emoji) => (
+            <IconButton
+              key={emoji}
+              size="small"
+              aria-label={`Reaccionar con ${emoji}`}
+              onClick={() => {
+                if (selectedLead && reactionPickerAnchor) {
+                  handleReactToMessage(selectedLead.id, reactionPickerAnchor.messageId, emoji);
+                }
+                setReactionPickerAnchor(null);
+              }}
+              sx={{ fontSize: 20 }}
+            >
+              {emoji}
+            </IconButton>
+          ))}
+        </Stack>
+      </Popover>
 
       <Dialog open={manageTagsOpen} onClose={handleCloseManageTags} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5 }}>
@@ -1572,9 +1631,59 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
               </Stack>
 
               <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Conversación
-                </Typography>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Conversación
+                  </Typography>
+                  <Tooltip title="Preferencias de sonido">
+                    <IconButton
+                      size="small"
+                      onClick={(event) => setSoundSettingsAnchor(event.currentTarget)}
+                      aria-label="Preferencias de sonido de mensajes"
+                    >
+                      {soundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                  <Popover
+                    open={Boolean(soundSettingsAnchor)}
+                    anchorEl={soundSettingsAnchor}
+                    onClose={() => setSoundSettingsAnchor(null)}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                  >
+                    <Stack spacing={1.25} sx={{ p: 1.5, minWidth: 240 }}>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between">
+                        <Typography variant="body2">Sonido de mensajes</Typography>
+                        <Switch
+                          size="small"
+                          checked={soundEnabled}
+                          onChange={onToggleSound}
+                          inputProps={{ 'aria-label': 'Alternar sonido de mensajes' }}
+                        />
+                      </Stack>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="body2" sx={{ flexShrink: 0 }}>Tono</Typography>
+                        <Select
+                          size="small"
+                          value={selectedTone}
+                          onChange={(event) => onChangeTone(event.target.value as NotificationTone)}
+                          sx={{ flex: 1 }}
+                        >
+                          {NOTIFICATION_TONE_OPTIONS.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                        <Tooltip title="Probar sonido">
+                          <IconButton size="small" onClick={onPreviewTone} aria-label="Probar sonido">
+                            <PlayArrowIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </Stack>
+                  </Popover>
+                </Stack>
                 <Paper
                   variant="outlined"
                   ref={conversationScrollRef}
@@ -1624,6 +1733,23 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         sx={{ opacity: 0, transition: 'opacity 0.15s', p: 0.5 }}
                       >
                         <ForwardIcon fontSize="small" />
+                      </IconButton>
+                    ) : null;
+
+                    // Reaccionar requiere el id_externo (gsId/wamid) que
+                    // Gupshup necesita para ubicar el mensaje objetivo — igual
+                    // que Responder, solo disponible una vez que el mensaje ya
+                    // quedó persistido (sin tempId).
+                    const canReact = !msg.tempId;
+                    const reactButton = canReact ? (
+                      <IconButton
+                        className="reply-hover-btn"
+                        size="small"
+                        aria-label="Reaccionar al mensaje"
+                        onClick={(event) => setReactionPickerAnchor({ el: event.currentTarget, messageId: msg.id })}
+                        sx={{ opacity: 0, transition: 'opacity 0.15s', p: 0.5 }}
+                      >
+                        <AddReactionOutlinedIcon fontSize="small" />
                       </IconButton>
                     ) : null;
 
@@ -1705,7 +1831,59 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                             />
                           </Box>
                         )}
-                        {(msg.tipoContenido === 'image' || msg.tipoContenido === 'audio' || msg.tipoContenido === 'document') && !msg.mediaUrl && (
+                        {msg.tipoContenido === 'video' && msg.mediaUrl && (
+                          msg.isGif ? (
+                            // GIF de WhatsApp (gif_playback/filename .gif, ver
+                            // whatsapp.mapper.ts): se comporta visualmente
+                            // como un GIF (loop/autoplay/mute, sin controles),
+                            // envuelto en el mismo wrapper <a target="_blank">
+                            // que ya usa la imagen para "ver ampliado".
+                            <Box
+                              component="a"
+                              href={msg.mediaUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{ display: 'block' }}
+                            >
+                              <Box
+                                component="video"
+                                src={msg.mediaUrl}
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                sx={{
+                                  display: 'block',
+                                  maxWidth: 250,
+                                  maxHeight: 250,
+                                  borderRadius: 1,
+                                  mb: (msg.text || msg.caption) ? 0.5 : 0,
+                                }}
+                              />
+                            </Box>
+                          ) : (
+                            // Video normal: NO se envuelve en <a> (mismo
+                            // criterio que <audio controls> más abajo) porque
+                            // los controles nativos (play/seek) están dentro
+                            // del elemento y un wrapper clicable competiría
+                            // con ellos, abriendo la pestaña en vez de
+                            // reproducir/pausar.
+                            <Box
+                              component="video"
+                              src={msg.mediaUrl}
+                              controls
+                              playsInline
+                              sx={{
+                                display: 'block',
+                                maxWidth: 250,
+                                maxHeight: 250,
+                                borderRadius: 1,
+                                mb: (msg.text || msg.caption) ? 0.5 : 0,
+                              }}
+                            />
+                          )
+                        )}
+                        {(msg.tipoContenido === 'image' || msg.tipoContenido === 'audio' || msg.tipoContenido === 'document' || msg.tipoContenido === 'video') && !msg.mediaUrl && (
                           <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.85 }}>
                             {msg.caption || 'Archivo recibido'}
                           </Typography>
@@ -1733,13 +1911,44 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                             sx={{ maxWidth: 250 }}
                           />
                         )}
-                        {msg.tipoContenido === 'image' && msg.caption && (
+                        {(msg.tipoContenido === 'image' || msg.tipoContenido === 'video') && msg.caption && (
                           <Typography variant="body2">{msg.caption}</Typography>
                         )}
                         {msg.text && (
                           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                             {linkifyMessageText(msg.text)}
                           </Typography>
+                        )}
+                        {msg.reactions && msg.reactions.length > 0 && (
+                          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                            {msg.reactions.map((reaction) => (
+                              <Box
+                                key={reaction.autor}
+                                component={reaction.autor === 'agente' ? 'button' : 'span'}
+                                type={reaction.autor === 'agente' ? 'button' : undefined}
+                                onClick={reaction.autor === 'agente'
+                                  ? () => handleReactToMessage(selectedLead.id, msg.id, null)
+                                  : undefined}
+                                aria-label={reaction.autor === 'agente' ? 'Quitar tu reacción' : undefined}
+                                sx={{
+                                  fontSize: 13,
+                                  lineHeight: 1.4,
+                                  px: 0.75,
+                                  py: 0.25,
+                                  borderRadius: 10,
+                                  bgcolor: 'background.paper',
+                                  color: 'text.primary',
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  cursor: reaction.autor === 'agente' ? 'pointer' : 'default',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                }}
+                              >
+                                {reaction.emoji}
+                              </Box>
+                            ))}
+                          </Stack>
                         )}
                         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, alignItems: 'center' }}>
                           <Typography variant="caption" sx={{ opacity: 0.75 }}>
@@ -1805,6 +2014,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         {msg.from === 'me' ? (
                           <>
                             {forwardButton}
+                            {reactButton}
                             {replyButton}
                             {bubble}
                           </>
@@ -1812,6 +2022,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                           <>
                             {bubble}
                             {replyButton}
+                            {reactButton}
                             {forwardButton}
                           </>
                         )}

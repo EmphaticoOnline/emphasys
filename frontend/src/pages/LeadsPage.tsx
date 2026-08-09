@@ -60,7 +60,9 @@ import type { Contacto } from '../types/contactos.types';
 import { actualizarContacto } from '../services/contactos.api';
 import { computeListContinuation } from '../utils/messageListContinuation';
 import { linkifyMessageText } from '../components/LinkifiedText';
-import { fetchConversaciones, fetchMensajesConversacion } from '../services/conversacionesService';
+import { enviarReaccionMensaje, fetchConversaciones, fetchMensajesConversacion } from '../services/conversacionesService';
+import { fetchChatSoundPreferences, guardarChatSoundPreferences } from '../services/chatPreferencesService';
+import { DEFAULT_NOTIFICATION_TONE, playNotificationSound, unlockAudioContext, type NotificationTone } from '../utils/notificationSound';
 import {
   DEFAULT_REGLAS_SEGUIMIENTO,
   applyDerivedLeadState,
@@ -123,23 +125,35 @@ type ConversationSummary = {
   tags?: WhatsappEtiqueta[];
 };
 
+export type MessageReaction = {
+  autor: 'contacto' | 'agente';
+  emoji: string;
+};
+
 export type ConversationMessage = {
   id: string;
   telefono: string | null;
   tipo_mensaje: 'entrante' | 'saliente';
   canal: string | null;
   contenido: string | null;
-  tipo_contenido?: 'text' | 'image' | 'audio' | 'document' | null;
+  tipo_contenido?: 'text' | 'image' | 'audio' | 'document' | 'video' | null;
   media_url?: string | null;
+  mime_type?: string | null;
+  // true solo si tipo_contenido es 'video' y WhatsApp lo identificó como GIF
+  // animado (gif_playback o filename .gif — ver whatsapp.mapper.ts). Decide
+  // si el <video> se reproduce en loop/autoplay/mute sin controles o como un
+  // video normal con controles.
+  es_gif?: boolean | null;
   caption?: string | null;
   fecha_envio: string | null;
   creado_en?: string | null;
   status: string | null;
   mensaje_respuesta_id?: string | number | null;
   respuesta_tipo_mensaje?: 'entrante' | 'saliente' | null;
-  respuesta_tipo_contenido?: 'text' | 'image' | 'audio' | 'document' | null;
+  respuesta_tipo_contenido?: 'text' | 'image' | 'audio' | 'document' | 'video' | null;
   respuesta_contenido?: string | null;
   respuesta_caption?: string | null;
+  reacciones?: MessageReaction[] | null;
 };
 
 export type ReplyPreview = {
@@ -199,12 +213,15 @@ export type Lead = {
     text: string;
     minutesAgo: number;
     sentAt: string | null;
-    tipoContenido?: 'text' | 'image' | 'audio' | 'document';
+    tipoContenido?: 'text' | 'image' | 'audio' | 'document' | 'video';
     mediaUrl?: string | null;
+    mimeType?: string | null;
+    isGif?: boolean;
     caption?: string | null;
     status?: 'sending' | 'sent' | 'failed';
     tempId?: string;
     replyTo?: ReplyPreview | null;
+    reactions?: MessageReaction[];
     errorInfo?: WhatsappSendErrorInfo | null;
     // Solo para mensajes propios pendientes/fallidos: permite reintentar
     // exactamente el mismo envío sin depender del estado actual del composer.
@@ -310,6 +327,27 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [quickReply, setQuickReply] = React.useState('');
   const [replyingTo, setReplyingTo] = React.useState<ReplyPreview | null>(null);
+  // Sonido de mensaje nuevo: activado por defecto hasta que se cargue la
+  // preferencia guardada (fetchChatSoundPreferences también devuelve `true`
+  // por defecto), para no arrancar en silencio mientras se resuelve la llamada.
+  const [soundEnabled, setSoundEnabled] = React.useState(true);
+  // Tono elegido para el sonido de mensaje nuevo. 'discreto' es el default
+  // tanto aquí como en el backend (fetchChatSoundPreferences) para usuarios
+  // sin preferencia guardada — es, además, el sonido original de esta
+  // feature, así que no cambia el comportamiento por defecto de nadie.
+  const [selectedTone, setSelectedTone] = React.useState<NotificationTone>(DEFAULT_NOTIFICATION_TONE);
+  // Refs espejo de soundEnabled/selectedTone: loadConversations (callback de
+  // larga vida, reutilizado por el intervalo de polling de 5s) necesita leer
+  // el valor más reciente de ambos sin tener que reconstruirse cada vez que
+  // cambia alguna preferencia (evita resetear el intervalo de polling).
+  const soundEnabledRef = React.useRef(soundEnabled);
+  React.useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+  const selectedToneRef = React.useRef(selectedTone);
+  React.useEffect(() => {
+    selectedToneRef.current = selectedTone;
+  }, [selectedTone]);
   const [forwardMessage, setForwardMessage] = React.useState<ForwardableMessage | null>(null);
   // Archivo local pendiente (seleccionado, pegado o grabado) que todavía no
   // se ha subido al servidor: solo viaja a /api/uploads cuando el usuario
@@ -425,6 +463,83 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     conversations: conversations.length,
     selectedLeadId,
   });
+
+  // Preferencia de sonido de mensajes: se carga una sola vez al montar,
+  // reutilizando el backend genérico de preferencias por usuario
+  // (core.grid_preferences vía /api/grid-preferences, ver
+  // chatPreferencesService.ts). perfilDispositivo distingue desktop/mobile
+  // igual que ya hace el resto del proyecto con useGridPreferences.
+  const chatDeviceProfile = isMobile ? 'mobile' : 'desktop';
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchChatSoundPreferences(chatDeviceProfile).then(({ sonidoActivado, tonoMensajes }) => {
+      if (cancelled) return;
+      setSoundEnabled(sonidoActivado);
+      setSelectedTone(tonoMensajes);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatDeviceProfile]);
+
+  // El PUT de preferencias reemplaza el JSON completo (no lo mezcla — ver
+  // chatPreferencesService.ts), así que tanto el toggle de sonido como el
+  // selector de tono siempre guardan el par completo, usando el ref del
+  // campo que NO están cambiando para no perderlo.
+  const handleToggleSound = React.useCallback(() => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      void guardarChatSoundPreferences(chatDeviceProfile, {
+        sonidoActivado: next,
+        tonoMensajes: selectedToneRef.current,
+      });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatDeviceProfile]);
+
+  const handleChangeTone = React.useCallback((tone: NotificationTone) => {
+    setSelectedTone(tone);
+    void guardarChatSoundPreferences(chatDeviceProfile, {
+      sonidoActivado: soundEnabledRef.current,
+      tonoMensajes: tone,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatDeviceProfile]);
+
+  // "Probar sonido": reproduce el tono actualmente seleccionado reutilizando
+  // el mismo AudioContext ya desbloqueado. No toca ninguna conversación ni
+  // genera ningún evento de mensaje — es una llamada directa a
+  // playNotificationSound, igual que la que dispara un mensaje entrante real.
+  const handlePreviewTone = React.useCallback(() => {
+    void playNotificationSound(selectedTone);
+  }, [selectedTone]);
+
+  // Desbloquea el AudioContext del sonido de notificaciones en la primera
+  // interacción real del usuario con la página (clic, touch o tecla): un
+  // AudioContext creado/reanudado fuera de un gesto real puede quedar
+  // atascado en 'suspended' (política de autoplay, especialmente en
+  // Safari) — ver notificationSound.ts. Se retira a sí mismo tras la
+  // primera interacción o al desmontar la página.
+  React.useEffect(() => {
+    const handleFirstInteraction = () => {
+      unlockAudioContext();
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+
+    window.addEventListener('click', handleFirstInteraction);
+    window.addEventListener('touchstart', handleFirstInteraction);
+    window.addEventListener('keydown', handleFirstInteraction);
+
+    return () => {
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+  }, []);
 
   // Libera la URL blob: de la vista previa de imagen al reemplazarla y al
   // desmontar el componente (p. ej. si el usuario navega fuera con un
@@ -782,6 +897,44 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
 
       setLeads((prev) => {
         console.log('[LeadsPage] setLeads start', { prevCount: prev.length, incoming: data.length, incremental });
+
+        // Sonido de mensaje nuevo: se evalúa aquí, ANTES de decidir la rama
+        // de reemplazo completo (!incremental) o de merge incremental, para
+        // que corra siempre — antes vivía solo dentro de la rama incremental
+        // (más abajo), y el polling pasa incremental:false en TODO tick
+        // mientras leadScope === 'todos' (el valor por defecto de la
+        // página), así que en ese caso el sonido nunca llegaba a evaluarse.
+        // Usa `prev` (estado justo antes de esta actualización, nunca un
+        // closure potencialmente obsoleto) y no toca la lógica de
+        // reemplazo/merge que sigue debajo. Solo suena si el último mensaje
+        // de una conversación es entrante Y es más nuevo que el último que
+        // ya conocíamos (o la conversación es nueva): así no vuelve a sonar
+        // si el mismo dato se repite en un poll posterior, no suena en la
+        // carga inicial ni al enviar nosotros un mensaje (tipo saliente).
+        //
+        // `prev.length > 0` es la guarda clave contra la carga inicial de la
+        // página (mount, loadConversations() sin argumentos → prev siempre
+        // es [] la primera vez): sin ella, CADA conversación cuyo último
+        // mensaje fuera entrante sonaría al abrir/refrescar la página,
+        // porque toda comparación contra un `prev` vacío parece "más nueva".
+        // Con `prev` ya poblado (cualquier poll posterior al primero), la
+        // comparación por conversación individual sigue funcionando igual
+        // para detectar leads genuinamente nuevos.
+        if (soundEnabledRef.current && prev.length > 0) {
+          const prevById = new Map(prev.map((lead) => [lead.id, lead] as const));
+          data.forEach((conv) => {
+            if (conv.ultimoMensajeTipo !== 'entrante') return;
+            const nuevoTs = conv.ultimoMensajeEn ? new Date(conv.ultimoMensajeEn).getTime() : NaN;
+            if (!Number.isFinite(nuevoTs)) return;
+            const previo = prevById.get(conv.id)?.ultimoMensajeEn ?? null;
+            const previoTs = previo ? new Date(previo).getTime() : NaN;
+            const esMasNuevo = !Number.isFinite(previoTs) || nuevoTs > previoTs;
+            if (esMasNuevo) {
+              void playNotificationSound(selectedToneRef.current);
+            }
+          });
+        }
+
         if (!incremental) {
           const isSame = prev.length === data.length && prev.every((lead) => {
             const match = data.find((conv) => conv.id === lead.id);
@@ -1170,14 +1323,26 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   React.useEffect(() => {
     const interval = setInterval(() => {
       console.log('[LeadsPage] polling refresh: conversations/messages');
-      if (!isFilterTransitionRef.current) {
-        loadConversations({ incremental: leadScope !== 'todos' });
-      }
 
-      if (selectedLeadId) {
-        const since = getLastSentAtForLead(selectedLeadId);
-        loadMessages(selectedLeadId, { since, append: true, silent: true });
-      }
+      // loadConversations se espera antes de disparar loadMessages (antes
+      // corrían en paralelo, sin orden garantizado) para eliminar una
+      // carrera con el sonido de mensaje nuevo: si loadMessages actualizaba
+      // primero el ultimoMensajeEn de la conversación abierta, la
+      // comparación "es más nuevo" dentro de loadConversations podía
+      // encontrarlo ya actualizado y saltarse el sonido para esa
+      // conversación específica. No cambia qué se pide, cuántas veces, ni
+      // cada cuánto (sigue siendo cada REFRESH_INTERVAL_MS): solo el orden
+      // relativo de estas dos llamadas dentro del mismo tick.
+      void (async () => {
+        if (!isFilterTransitionRef.current) {
+          await loadConversations({ incremental: leadScope !== 'todos' });
+        }
+
+        if (selectedLeadId) {
+          const since = getLastSentAtForLead(selectedLeadId);
+          loadMessages(selectedLeadId, { since, append: true, silent: true });
+        }
+      })();
 
       refreshIdleTimers();
     }, REFRESH_INTERVAL_MS);
@@ -1861,6 +2026,36 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     await performWhatsappSend(leadId, tempId, msg.telefonoEnvio, msg.requestBody);
   };
 
+  // Reacciona (o quita la reacción, con emoji null) a un mensaje propio o del
+  // lead. Envía la reacción real a Gupshup vía el backend y, si tiene éxito,
+  // refresca con el mismo mecanismo ya usado tras enviar un mensaje
+  // (loadMessages append+silent) — sin polling nuevo, la reacción llega en el
+  // mismo shape que ya trae el resto de la conversación.
+  const handleReactToMessage = async (leadId: string, messageId: string, emoji: string | null) => {
+    try {
+      const response = await enviarReaccionMensaje(messageId, emoji);
+      if (!response.ok) {
+        let payload: any = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+        throw new Error(payload?.mensaje_usuario || payload?.message || 'No se pudo enviar la reacción');
+      }
+
+      const since = getLastSentAtForLead(leadId);
+      await loadMessages(leadId, { since, append: true, silent: true });
+    } catch (error: any) {
+      console.error('[WhatsApp Reaction] Error al reaccionar', error);
+      setSnackbar({
+        open: true,
+        message: error?.message || 'No se pudo enviar la reacción',
+        severity: 'error',
+      });
+    }
+  };
+
   const handleSelectUpload = () => {
     uploadInputRef.current?.click();
   };
@@ -2434,6 +2629,12 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         sendErrorDialog={sendErrorDialog}
         setSendErrorDialog={setSendErrorDialog}
         handleRetryWhatsappSend={handleRetryWhatsappSend}
+        handleReactToMessage={handleReactToMessage}
+        soundEnabled={soundEnabled}
+        onToggleSound={handleToggleSound}
+        selectedTone={selectedTone}
+        onChangeTone={handleChangeTone}
+        onPreviewTone={handlePreviewTone}
         ventanaCerradaDialogOpen={ventanaCerradaDialogOpen}
         setVentanaCerradaDialogOpen={setVentanaCerradaDialogOpen}
         pendingAttachmentFile={pendingAttachmentFile}
@@ -2578,6 +2779,12 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       setReplyingTo={setReplyingTo}
       focusReplyInput={focusReplyInput}
       handleRetryWhatsappSend={handleRetryWhatsappSend}
+      handleReactToMessage={handleReactToMessage}
+      soundEnabled={soundEnabled}
+      onToggleSound={handleToggleSound}
+      selectedTone={selectedTone}
+      onChangeTone={handleChangeTone}
+      onPreviewTone={handlePreviewTone}
       uploadInputRef={uploadInputRef}
       handleUploadFile={handleUploadFile}
       handleSelectUpload={handleSelectUpload}
