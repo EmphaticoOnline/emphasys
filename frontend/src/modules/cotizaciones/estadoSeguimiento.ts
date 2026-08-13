@@ -1,4 +1,6 @@
+import { darken } from '@mui/material/styles';
 import type { EstadoSeguimiento } from '../../types/cotizacion';
+import type { DocumentoRowAppearance } from '../documentos/documentoRowAppearance';
 
 export type EstadoSeguimientoOption = {
   value: EstadoSeguimiento;
@@ -86,3 +88,17 @@ export const getEstadoSeguimientoPresentation = (value: unknown) => {
 
 export const getEstadoSeguimientoRowClassName = (value: unknown): string =>
   getEstadoSeguimientoPresentation(value).rowClassName;
+
+export const getEstadoSeguimientoChipBorderColor = (value: unknown): string => {
+  const option = getEstadoSeguimientoOption(value);
+  const baseColor = option?.color ?? getEstadoSeguimientoPresentation(value).color;
+  return darken(baseColor, 0.28);
+};
+
+export const getEstadoSeguimientoRowAppearance = (value: unknown): DocumentoRowAppearance | null => {
+  const option = getEstadoSeguimientoOption(value);
+  return option ? { className: option.rowClassName, color: option.color } : null;
+};
+
+export const ESTADO_SEGUIMIENTO_ROW_APPEARANCES: DocumentoRowAppearance[] =
+  ESTADOS_SEGUIMIENTO.map((option) => ({ className: option.rowClassName, color: option.color }));

@@ -4192,7 +4192,8 @@ CREATE TABLE core.empresas_tipos_documento (
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     whatsapp_plantilla_default_id bigint,
     afecta_inventario character varying(20) DEFAULT NULL::character varying,
-    afecta_reservado boolean DEFAULT false NOT NULL
+    afecta_reservado boolean DEFAULT false NOT NULL,
+    colorear_filas_por_estatus boolean DEFAULT false NOT NULL
 );
 
 
@@ -4264,6 +4265,13 @@ COMMENT ON COLUMN core.empresas_tipos_documento.afecta_inventario IS 'Define có
 --
 
 COMMENT ON COLUMN core.empresas_tipos_documento.afecta_reservado IS 'Indica si el documento afecta cantidades reservadas (apartados o compromisos).';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.colorear_filas_por_estatus; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.colorear_filas_por_estatus IS 'Habilita un tinte visual de las filas del listado segun la semantica de estatus definida por Emphasys para este tipo documental.';
 
 
 --
@@ -17809,4 +17817,3 @@ ALTER TABLE ONLY whatsapp.plantillas
 --
 
 \unrestrict fgZdcqCnyvro51pnWytHjnJccHLpe7CTwk4eufmcWhhvlPc4MbYH0AYeA2eemnM
-

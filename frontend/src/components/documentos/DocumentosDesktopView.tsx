@@ -36,6 +36,7 @@ export default function DocumentosDesktopView({
   onRowClick,
   slotProps,
   getRowClassName,
+  rowAppearanceSx,
   columnVisibilityModel,
   sortModel,
   onSortModelChange,
@@ -243,6 +244,12 @@ export default function DocumentosDesktopView({
                 '& .documento-focus-row': {
                   backgroundColor: 'rgba(29, 47, 104, 0.10) !important',
                 },
+                '& .documento-focus-row.Mui-selected': {
+                  backgroundColor: 'rgba(29, 47, 104, 0.16) !important',
+                },
+                '& .documento-focus-row.Mui-selected:hover': {
+                  backgroundColor: 'rgba(29, 47, 104, 0.20) !important',
+                },
                 '& .documento-focus-row .MuiDataGrid-cell': {
                   borderTop: '1px solid rgba(29, 47, 104, 0.24)',
                   borderBottom: '1px solid rgba(29, 47, 104, 0.24)',
@@ -258,6 +265,7 @@ export default function DocumentosDesktopView({
                   '100%': { backgroundColor: 'rgba(29, 47, 104, 0.10)' },
                 },
               },
+              ...(Array.isArray(rowAppearanceSx) ? rowAppearanceSx : rowAppearanceSx ? [rowAppearanceSx] : []),
             ]}
             slots={{
               noRowsOverlay: () => (

@@ -8,6 +8,7 @@ export type TipoDocumento = {
   icono: string | null;
   orden?: number;
   whatsapp_plantilla_default_id?: number | null;
+  colorear_filas_por_estatus?: boolean;
 };
 
 export async function listarTiposDocumento(): Promise<TipoDocumento[]> {
@@ -30,7 +31,8 @@ export async function listarTiposDocumentoEmpresa(
   const params: any[] = modulo ? [empresaId, modulo] : [empresaId];
 
   const query = `
-    SELECT td.id, td.codigo, td.nombre, td.nombre_plural, td.icono, td.orden, etd.whatsapp_plantilla_default_id
+    SELECT td.id, td.codigo, td.nombre, td.nombre_plural, td.icono, td.orden, etd.whatsapp_plantilla_default_id,
+           COALESCE(etd.colorear_filas_por_estatus, FALSE) AS colorear_filas_por_estatus
       FROM core.empresas_tipos_documento etd
       JOIN core.tipos_documento td ON td.id = etd.tipo_documento_id
      WHERE etd.empresa_id = $1

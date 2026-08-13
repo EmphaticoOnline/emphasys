@@ -18,6 +18,8 @@
       "Bash(open *)",
       "Bash(sleep *)",
       "Bash(lsof *)",
+      "Bash(npx tsc*)",
+      "Bash(npm view *)",
       "Read",
       "Write(/Users/antoniodiaz/OpenSource/emphasys/docs/*)",
       "Write(/private/tmp/claude-501/*)"

@@ -63,18 +63,26 @@ export default function CRMPage() {
     }
   };
 
+  // En Conversaciones/Leads, el título "CRM" + descripción no aporta valor
+  // operativo y le resta altura útil a una pantalla que ya tiene su propio
+  // contexto (bandeja/chat/detalle) — se omite solo para esa pestaña, sin
+  // tocar Actividades ni Oportunidades. Las pestañas se conservan siempre.
+  const hideIntroForConversaciones = activeTab === 'conversaciones';
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {!hideChromeForMobileChat && (
-        <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 2.5, pb: 0.5 }}>
-          <Box sx={{ mb: 1.5 }}>
-            <Typography variant="h5" fontWeight={700} color="#1d2f68">
-              CRM
-            </Typography>
-            <Typography variant="body2" color="#4b5563" sx={{ mt: 0.5 }}>
-              Gestiona actividades, oportunidades y conversaciones desde un solo módulo.
-            </Typography>
-          </Box>
+        <Box sx={{ px: { xs: 2, md: 2.5 }, pt: hideIntroForConversaciones ? 1.25 : 2.5, pb: 0.5 }}>
+          {!hideIntroForConversaciones && (
+            <Box sx={{ mb: 1.5 }}>
+              <Typography variant="h5" fontWeight={700} color="#1d2f68">
+                CRM
+              </Typography>
+              <Typography variant="body2" color="#4b5563" sx={{ mt: 0.5 }}>
+                Gestiona actividades, oportunidades y conversaciones desde un solo módulo.
+              </Typography>
+            </Box>
+          )}
 
           <Tabs
             value={activeTab}

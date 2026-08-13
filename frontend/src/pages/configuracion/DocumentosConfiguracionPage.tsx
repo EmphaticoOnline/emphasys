@@ -246,6 +246,22 @@ export default function DocumentosConfiguracionPage() {
     }
   };
 
+  const handleColorearFilasPorEstatusChange = async (doc: DocumentoEmpresa, value: boolean) => {
+    const previous = doc.colorear_filas_por_estatus;
+    setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, colorear_filas_por_estatus: value } : d)));
+    try {
+      await updateDocumentoEmpresa(doc.id, {
+        activo: Boolean(doc.habilitado),
+        afecta_inventario: doc.afecta_inventario,
+        afecta_reservado: doc.afecta_reservado,
+        colorear_filas_por_estatus: value,
+      });
+    } catch (err: any) {
+      setDocumentos((prev) => prev.map((d) => (d.id === doc.id ? { ...d, colorear_filas_por_estatus: previous } : d)));
+      setErrorDocumentos(err?.message || 'No se pudo actualizar el coloreado de filas');
+    }
+  };
+
   const plantillaDisponiblePorId = useMemo(() => {
     return new Set(plantillasWhatsapp.map((plantilla) => plantilla.id));
   }, [plantillasWhatsapp]);
@@ -296,6 +312,7 @@ export default function DocumentosConfiguracionPage() {
             <TableCell sx={{ minWidth: 180 }}>Afecta inventario</TableCell>
             <TableCell align="center" sx={{ width: 100 }}>Reservado</TableCell>
             <TableCell align="center" sx={{ minWidth: 150 }}>Usar especificaciones</TableCell>
+            <TableCell align="center" sx={{ minWidth: 190 }}>Colorear filas según estatus</TableCell>
             <TableCell sx={{ minWidth: 260 }}>Plantilla envío por WhatsApp</TableCell>
           </TableRow>
         </TableHead>
@@ -384,6 +401,19 @@ export default function DocumentosConfiguracionPage() {
                   title={!doc.usar_especificaciones_empresa ? 'Activa primero el parámetro general de especificaciones de la empresa' : undefined}
                 />
               </TableCell>
+              <TableCell align="center">
+                {doc.codigo === 'cotizacion' ? (
+                  <Switch
+                    checked={Boolean(doc.colorear_filas_por_estatus)}
+                    onChange={(e) => handleColorearFilasPorEstatusChange(doc, e.target.checked)}
+                    color="primary"
+                    disabled={loadingDocumentos || !doc.habilitado}
+                    inputProps={{ 'aria-label': `Colorear filas según estatus para ${doc.nombre}` }}
+                  />
+                ) : (
+                  <Typography variant="body2" color="text.disabled">—</Typography>
+                )}
+              </TableCell>
               <TableCell>
                 <FormControl fullWidth size="small">
                   <InputLabel id={`whatsapp-plantilla-${doc.id}`} shrink>
@@ -425,7 +455,7 @@ export default function DocumentosConfiguracionPage() {
 
           {documentosOrdenados.length === 0 && !loadingDocumentos && (
             <TableRow>
-              <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+              <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                 <Typography variant="body2" color="#6b7280">
                   No se encontraron tipos de documento activos en el catálogo.
                 </Typography>

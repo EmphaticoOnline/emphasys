@@ -12,6 +12,7 @@ import type { CotizacionListado } from '../../types/cotizacion';
 import type { TipoDocumento } from '../../types/documentos.types';
 import type { DocumentoIndicatorModel } from './indicadores';
 import type { GridContextMenuAction } from '../grids/GridContextMenu';
+import type { SxProps, Theme } from '@mui/material/styles';
 
 export interface DocumentosViewCommonProps {
   title: string;
@@ -41,6 +42,7 @@ export interface DocumentosDesktopViewProps extends DocumentosViewCommonProps {
   onRowClick: NonNullable<DataGridProps['onRowClick']>;
   slotProps?: DataGridProps['slotProps'];
   getRowClassName?: DataGridProps['getRowClassName'];
+  rowAppearanceSx?: SxProps<Theme>;
   columnVisibilityModel: GridColumnVisibilityModel;
   sortModel: GridSortModel;
   onSortModelChange: (model: GridSortModel) => void;

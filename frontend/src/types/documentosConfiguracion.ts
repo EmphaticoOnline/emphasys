@@ -16,6 +16,7 @@ export type DocumentoEmpresa = {
   afecta_reservado: boolean;
   usar_especificaciones: boolean;
   usar_especificaciones_empresa: boolean;
+  colorear_filas_por_estatus: boolean;
 };
 
 export type TransicionDocumento = {

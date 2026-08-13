@@ -1,6 +1,8 @@
 import React from 'react';
+import { alpha } from '@mui/material/styles';
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Chip,
@@ -28,7 +30,6 @@ import {
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
-import PersonIcon from '@mui/icons-material/Person';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import SendIcon from '@mui/icons-material/Send';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
@@ -78,6 +79,8 @@ import {
   formatMinutesAgo,
   getIdleSeverity,
   getLastWhatsappPreview,
+  getLeadAvatarColor,
+  getLeadInitials,
   mapMessages,
   minutesSince,
   normalizeEtapaOportunidad,
@@ -385,7 +388,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const [oportunidades, setOportunidades] = React.useState<OportunidadVenta[]>([]);
   const [isLoadingOportunidades, setIsLoadingOportunidades] = React.useState(false);
   const [oportunidadesError, setOportunidadesError] = React.useState<string | null>(null);
-  const [oportunidadesOpen, setOportunidadesOpen] = React.useState(true);
+  const [oportunidadesOpen, setOportunidadesOpen] = React.useState(false);
   const [etapaMenu, setEtapaMenu] = React.useState<{ leadId: string; anchorEl: HTMLElement | null } | null>(null);
   const [availableTags, setAvailableTags] = React.useState<WhatsappEtiqueta[]>([]);
   const [selectedTagIds, setSelectedTagIds] = React.useState<number[]>([]);
@@ -418,6 +421,33 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const [reabrirSavingId, setReabrirSavingId] = React.useState<string | null>(null);
   const [leadScope, setLeadScope] = React.useState<LeadScope>('todos');
   const [scopeTouched, setScopeTouched] = React.useState(false);
+  // true una vez que se resolvió la carga de 'leads-chat' (ver más abajo):
+  // hasta entonces, ni el auto-default de scope ni la primera carga de
+  // conversaciones corren, para no aplicar primero un scope y corregirlo un
+  // instante después (el usuario vería la lista "saltar" de un scope a otro).
+  const [leadScopePreferenceResolved, setLeadScopePreferenceResolved] = React.useState(false);
+  // Espejo de leadScope: handleToggleSound/handleChangeTone lo necesitan
+  // para guardar el trío completo de 'leads-chat' sin depender de leadScope
+  // en su propio arreglo de dependencias (mismo patrón que soundEnabledRef/
+  // selectedToneRef, arriba).
+  const leadScopeRef = React.useRef(leadScope);
+  React.useEffect(() => {
+    leadScopeRef.current = leadScope;
+  }, [leadScope]);
+  // Espejo de selectedLeadId: mismo motivo que leadScopeRef — handleToggleSound/
+  // handleChangeTone/handleLeadScopeChange necesitan su valor vigente sin
+  // depender de él en su propio arreglo de dependencias.
+  const selectedLeadIdRef = React.useRef(selectedLeadId);
+  React.useEffect(() => {
+    selectedLeadIdRef.current = selectedLeadId;
+  }, [selectedLeadId]);
+  // selectedLeadId persistido en 'leads-chat', guardado acá (no en estado)
+  // mientras se resuelve la colección: recién se aplica/consume dentro de la
+  // rama "replace" de loadConversations (más abajo), una sola vez, validando
+  // primero que siga existiendo en la colección recién cargada — así nunca
+  // se dispara loadMessages para un id todavía sin confirmar, y nunca hay un
+  // render intermedio con el primer lead antes de saltar al restaurado.
+  const persistedSelectedLeadIdRef = React.useRef<string | null>(null);
   const [isAdmin, setIsAdmin] = React.useState(Boolean(session.user?.es_superadmin));
   const [vendedorContactoId, setVendedorContactoId] = React.useState<number | null>(
     session.user?.vendedor_contacto_id ?? null
@@ -451,8 +481,16 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const conversationScrollRef = React.useRef<HTMLDivElement | null>(null);
   const lastConversationsFetchRef = React.useRef<string | null>(null);
   const isFilterTransitionRef = React.useRef(false);
+  // Contador incremental: cada llamada a loadConversations captura su valor
+  // al iniciar. Si al resolver la respuesta ya no coincide con el valor
+  // actual del ref, significa que se disparó una llamada más nueva mientras
+  // esta estaba en vuelo (p. ej. vendedorContactoId recién resuelto
+  // cambiando leadScope de 'todos' a 'mis' un render después) y esta
+  // respuesta, más vieja, se descarta en vez de sobrescribir el estado.
+  const loadConversationsRequestIdRef = React.useRef(0);
   const lastConversationLengthRef = React.useRef(0);
   const lastSelectedLeadIdRef = React.useRef<string | null>(null);
+  const lastWasLoadingMessagesRef = React.useRef(false);
   const [isAtBottom, setIsAtBottom] = React.useState(true);
   const renderCountRef = React.useRef(0);
 
@@ -464,18 +502,33 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     selectedLeadId,
   });
 
-  // Preferencia de sonido de mensajes: se carga una sola vez al montar,
-  // reutilizando el backend genérico de preferencias por usuario
-  // (core.grid_preferences vía /api/grid-preferences, ver
-  // chatPreferencesService.ts). perfilDispositivo distingue desktop/mobile
-  // igual que ya hace el resto del proyecto con useGridPreferences.
+  // Preferencias de 'leads-chat': sonido de mensajes + scope (Mis leads/
+  // Todos). Se cargan una sola vez al montar, reutilizando el backend
+  // genérico de preferencias por usuario (core.grid_preferences vía
+  // /api/grid-preferences, ver chatPreferencesService.ts). perfilDispositivo
+  // distingue desktop/mobile igual que ya hace el resto del proyecto con
+  // useGridPreferences.
   const chatDeviceProfile = isMobile ? 'mobile' : 'desktop';
   React.useEffect(() => {
     let cancelled = false;
-    fetchChatSoundPreferences(chatDeviceProfile).then(({ sonidoActivado, tonoMensajes }) => {
+    fetchChatSoundPreferences(chatDeviceProfile).then(({ sonidoActivado, tonoMensajes, leadScope: storedLeadScope, selectedLeadId: storedSelectedLeadId }) => {
       if (cancelled) return;
       setSoundEnabled(sonidoActivado);
       setSelectedTone(tonoMensajes);
+      // Si el usuario ya había elegido Mis leads/Todos antes, esa preferencia
+      // manda sobre el auto-default (isAdmin/vendedorContactoId): se marca
+      // scopeTouched para que ese efecto no la pise. Si no hay preferencia
+      // guardada (storedLeadScope === null), no se toca leadScope acá — sigue
+      // el comportamiento default existente.
+      if (storedLeadScope) {
+        setLeadScope(storedLeadScope);
+        setScopeTouched(true);
+      }
+      // No se aplica a selectedLeadId todavía (la colección aún no cargó):
+      // se guarda en un ref y lo consume/valida la rama "replace" de
+      // loadConversations una sola vez, más abajo.
+      persistedSelectedLeadIdRef.current = storedSelectedLeadId;
+      setLeadScopePreferenceResolved(true);
     });
     return () => {
       cancelled = true;
@@ -484,15 +537,18 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   }, [chatDeviceProfile]);
 
   // El PUT de preferencias reemplaza el JSON completo (no lo mezcla — ver
-  // chatPreferencesService.ts), así que tanto el toggle de sonido como el
-  // selector de tono siempre guardan el par completo, usando el ref del
-  // campo que NO están cambiando para no perderlo.
+  // chatPreferencesService.ts), así que el toggle de sonido, el selector de
+  // tono, el cambio de scope y el cambio de conversación seleccionada
+  // siempre guardan el conjunto completo, usando el ref del campo que NO
+  // están cambiando para no perderlo.
   const handleToggleSound = React.useCallback(() => {
     setSoundEnabled((prev) => {
       const next = !prev;
       void guardarChatSoundPreferences(chatDeviceProfile, {
         sonidoActivado: next,
         tonoMensajes: selectedToneRef.current,
+        leadScope: leadScopeRef.current,
+        selectedLeadId: selectedLeadIdRef.current || null,
       });
       return next;
     });
@@ -504,6 +560,38 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     void guardarChatSoundPreferences(chatDeviceProfile, {
       sonidoActivado: soundEnabledRef.current,
       tonoMensajes: tone,
+      leadScope: leadScopeRef.current,
+      selectedLeadId: selectedLeadIdRef.current || null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatDeviceProfile]);
+
+  // Única vía para cambiar el scope manualmente (chips Mis leads/Todos en
+  // desktop y mobile, ambos vía onLeadScopeChange): además de actualizar el
+  // estado, marca scopeTouched (para que el auto-default no lo pise) y
+  // persiste el conjunto completo de 'leads-chat' de inmediato.
+  const handleLeadScopeChange = React.useCallback((next: LeadScope) => {
+    setLeadScope(next);
+    setScopeTouched(true);
+    void guardarChatSoundPreferences(chatDeviceProfile, {
+      sonidoActivado: soundEnabledRef.current,
+      tonoMensajes: selectedToneRef.current,
+      leadScope: next,
+      selectedLeadId: selectedLeadIdRef.current || null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatDeviceProfile]);
+
+  // Única vía para persistir la conversación seleccionada manualmente: se
+  // llama junto a cada setSelectedLeadId(id) real (clic en una fila,
+  // responder rápido, selección en mobile) — nunca junto al reset a '' del
+  // cambio de filtros, ni junto al auto-select del primer lead.
+  const persistSelectedLeadId = React.useCallback((id: string) => {
+    void guardarChatSoundPreferences(chatDeviceProfile, {
+      sonidoActivado: soundEnabledRef.current,
+      tonoMensajes: selectedToneRef.current,
+      leadScope: leadScopeRef.current,
+      selectedLeadId: id,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatDeviceProfile]);
@@ -625,6 +713,12 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   }, [session.token, session.empresaActivaId, session.user?.vendedor_contacto_id]);
 
   React.useEffect(() => {
+    // Espera a que se resuelva 'leads-chat' (arriba): si había una
+    // preferencia guardada, ya vino con scopeTouched=true y este efecto no
+    // hace nada; si no había ninguna, recién ahora aplica el default de
+    // siempre. Evita que se vea primero un scope (este default) y luego otro
+    // (la preferencia restaurada) en el mismo montaje.
+    if (!leadScopePreferenceResolved) return;
     if (scopeTouched) return;
     if (!isAdmin) {
       setLeadScope('mis');
@@ -635,7 +729,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     } else {
       setLeadScope('todos');
     }
-  }, [isAdmin, vendedorContactoId, scopeTouched]);
+  }, [leadScopePreferenceResolved, isAdmin, vendedorContactoId, scopeTouched]);
 
   React.useEffect(() => {
     if (!isAdmin) {
@@ -844,6 +938,13 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       isFilterTransitionRef.current = true;
       setIsLoadingConversations(true);
     }
+    // Identificador de ESTA llamada. Si para cuando la respuesta llegue ya
+    // se disparó una llamada más nueva (p. ej. porque vendedorContactoId
+    // recién terminó de cargar y leadScope pasó de 'todos' a 'mis' un
+    // render después), esta respuesta quedó obsoleta y no debe aplicarse:
+    // sin esto, la que responda más tarde gana sin importar cuál sea la
+    // vigente, y el scope visual puede quedar desincronizado de la lista.
+    const requestId = ++loadConversationsRequestIdRef.current;
 
     try {
       const vendedorFiltro = !isAdmin
@@ -869,6 +970,15 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         url: response.url,
         ids: data.map((c) => c.id),
       });
+
+      if (requestId !== loadConversationsRequestIdRef.current) {
+        console.log('[LeadsPage] loadConversations response stale, discarded', {
+          incremental,
+          requestId,
+          latest: loadConversationsRequestIdRef.current,
+        });
+        return;
+      }
 
       const nowIso = new Date().toISOString();
       lastConversationsFetchRef.current = nowIso;
@@ -954,16 +1064,19 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
               return baseLead;
             }
 
+            // El texto de previsualización (lastMessage) sí toma el último
+            // mensaje de WhatsApp del historial cacheado, porque el resumen
+            // del backend (baseLead.lastMessage) siempre llega vacío. Pero
+            // el ORDEN (lastMessageTimeMinutesAgo/ultimoMensajeEn) queda con
+            // los valores frescos de baseLead — la misma fuente que usan
+            // TODOS los leads, se haya cargado su historial o no — para que
+            // abrir una conversación no la reordene sin actividad real.
             const whatsappPreview = getLastWhatsappPreview(existing.conversation);
 
             return applyDerivedLeadState({
               ...existing,
               ...baseLead,
               lastMessage: whatsappPreview?.text ?? '',
-              lastMessageTimeMinutesAgo: whatsappPreview?.sentAt
-                ? minutesSince(whatsappPreview.sentAt)
-                : baseLead.lastMessageTimeMinutesAgo,
-              ultimoMensajeEn: whatsappPreview?.sentAt ?? baseLead.ultimoMensajeEn,
               conversation: existing.conversation,
             }, reglasSeguimiento);
           });
@@ -972,9 +1085,23 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
             preservedConversations: initialLeads.filter((lead) => lead.conversation.length > 0).length,
           });
           const firstId = initialLeads[0]?.id;
-          if (firstId) {
-            setSelectedLeadId((current) => current || firstId);
-          }
+          // El selectedLeadId persistido (si existe) se consume una sola vez,
+          // acá, ni un instante antes: recién ahora hay una colección real
+          // contra la cual validarlo. Prioridad: selección real ya en curso
+          // (current) > selectedLeadId persistido, SI sigue existiendo en
+          // esta colección > primer lead disponible. Se limpia el ref tras
+          // consumirlo para que un cambio de filtro/scope posterior (que
+          // resetea selectedLeadId a '') no vuelva a saltar a esta misma
+          // conversación restaurada de sesiones pasadas.
+          const persisted = persistedSelectedLeadIdRef.current;
+          persistedSelectedLeadIdRef.current = null;
+          setSelectedLeadId((current) => {
+            if (current) return current;
+            if (persisted && initialLeads.some((lead) => lead.id === persisted)) {
+              return persisted;
+            }
+            return firstId ?? current;
+          });
           return initialLeads;
         }
 
@@ -984,16 +1111,26 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
           const existing = map.get(conv.id);
 
           if (existing) {
+            // Igual que en la rama "replace": lastMessage (texto) sí puede
+            // tomar el último mensaje de WhatsApp cacheado, porque el
+            // resumen no trae texto de preview. El orden
+            // (lastMessageTimeMinutesAgo/ultimoMensajeEn/idleMinutes/
+            // awaitingResponse) se recalcula desde el propio `conv` fresco
+            // (buildLeadFromConversation), la misma fuente que usan todos
+            // los leads — no desde el historial cacheado del lead
+            // seleccionado, que lo desincronizaba del resto apenas se abría.
+            const baseLead = buildLeadFromConversation(conv);
             const whatsappPreview = getLastWhatsappPreview(existing.conversation);
             const updatedLead = {
               ...existing,
               name: conv.nombre?.trim() || conv.telefono || existing.name,
               phone: conv.telefono || existing.phone,
               lastMessage: whatsappPreview?.text ?? '',
-              lastMessageTimeMinutesAgo: whatsappPreview?.sentAt
-                ? minutesSince(whatsappPreview.sentAt)
-                : existing.lastMessageTimeMinutesAgo,
-              ultimoMensajeEn: whatsappPreview?.sentAt ?? existing.ultimoMensajeEn,
+              lastMessageTimeMinutesAgo: baseLead.lastMessageTimeMinutesAgo,
+              idleMinutes: baseLead.idleMinutes,
+              awaitingResponse: baseLead.awaitingResponse,
+              nextAction: baseLead.nextAction,
+              ultimoMensajeEn: baseLead.ultimoMensajeEn,
               vendedor_id: conv.vendedor_id ?? existing.vendedor_id,
               etapa_oportunidad: conv.etapa_oportunidad ? normalizeEtapaOportunidad(conv.etapa_oportunidad) : existing.etapa_oportunidad,
               tiene_oportunidad: conv.tiene_oportunidad ?? existing.tiene_oportunidad,
@@ -1029,7 +1166,10 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         alert('No se pudieron cargar las conversaciones de WhatsApp');
       }
     } finally {
-      if (!incremental) {
+      // Igual que con la respuesta: si ya hay una llamada más nueva en
+      // vuelo, esta (obsoleta) no debe apagar isFilterTransitionRef ni
+      // isLoadingConversations por ella — se lo dejamos a la vigente.
+      if (!incremental && requestId === loadConversationsRequestIdRef.current) {
         setIsLoadingConversations(false);
         isFilterTransitionRef.current = false;
       }
@@ -1073,9 +1213,6 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
 
       const lastMsg = whatsappMessages[whatsappMessages.length - 1];
       const lastSentAt = lastMsg?.fecha_envio ?? lastMsg?.creado_en ?? null;
-      const idleMinutes = minutesSince(lastSentAt);
-      const awaitingResponse = lastMsg?.tipo_mensaje === 'entrante';
-      const nextAction = deriveNextAction(awaitingResponse);
       const lastMessageText = lastMsg?.contenido || '';
 
       setLeads((prev) => prev.map((l) => {
@@ -1094,18 +1231,26 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
           }, new Map(baseConversation.map((m) => [m.id, m]))).values())
           : mappedNew;
 
-        const updatedLead: Lead = {
+        // El orden/prioridad del inbox (lastMessage, idleMinutes,
+        // awaitingResponse, nextAction, ultimoMensajeEn) es responsabilidad
+        // EXCLUSIVA de loadConversations — la misma fuente para TODOS los
+        // leads, se haya abierto su historial o no. Si loadMessages también
+        // recalculaba esos campos a partir del historial (filtrado a
+        // WhatsApp), un lead cambiaba de lugar en el inbox por el solo
+        // hecho de seleccionarlo, sin ninguna actividad real nueva. Acá solo
+        // se actualiza `conversation` (para pintar el chat) y las señales
+        // que sí dependen genuinamente del historial completo — ventana de
+        // 24h / si requiere plantilla, que buscan el último mensaje
+        // ENTRANTE real — todo lo demás se conserva tal cual lo tenía `l`.
+        const derived = applyDerivedLeadState({ ...l, conversation: mergedConversation }, reglasSeguimiento);
+        const recalculated: Lead = {
           ...l,
-          lastMessage: lastMsg ? lastMessageText : l.lastMessage,
-          lastMessageTimeMinutesAgo: lastMsg ? idleMinutes : l.lastMessageTimeMinutesAgo,
-          idleMinutes: lastMsg ? idleMinutes : l.idleMinutes,
-          nextAction: lastMsg ? nextAction : l.nextAction,
-          awaitingResponse: lastMsg ? awaitingResponse : l.awaitingResponse,
-          ultimoMensajeEn: lastSentAt ?? l.ultimoMensajeEn,
           conversation: mergedConversation,
+          within24hWindow: derived.within24hWindow,
+          windowExpiresInMinutes: derived.windowExpiresInMinutes,
+          canSendFreeMessage: derived.canSendFreeMessage,
+          requiresTemplate: derived.requiresTemplate,
         };
-
-      const recalculated = applyDerivedLeadState(updatedLead, reglasSeguimiento);
         console.log('[LeadsPage] setLeads from messages', {
           id: recalculated.id,
           awaitingResponse: recalculated.awaitingResponse,
@@ -1137,6 +1282,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
 
   const handleReplyAction = (leadId: string) => {
     setSelectedLeadId(leadId);
+    persistSelectedLeadId(leadId);
     setReplyingTo(null);
     focusReplyInput();
   };
@@ -1249,12 +1395,19 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   }, [searchTerm]);
 
   React.useEffect(() => {
+    // Espera al mismo gate que el auto-default de scope: no dispara la
+    // primera carga hasta tener el leadScope FINAL (preferencia restaurada
+    // o default), para no traer una colección con un scope y mostrar
+    // después el chip con otro (la carrera que ya se corrigió con
+    // loadConversationsRequestIdRef sigue intacta para carreras posteriores,
+    // esto solo evita generar una de más en el montaje).
+    if (!leadScopePreferenceResolved) return;
     console.log('[LeadsPage] useEffect(loadConversations) init');
     lastConversationsFetchRef.current = null;
     isFilterTransitionRef.current = true;
     setSelectedLeadId('');
     loadConversations();
-  }, [leadScope, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas, debouncedSearchTerm]);
+  }, [leadScopePreferenceResolved, leadScope, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas, debouncedSearchTerm]);
 
   React.useEffect(() => {
     if (!session.token || !session.empresaActivaId) return;
@@ -1375,9 +1528,16 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     const currentLength = selectedLead?.conversation.length ?? 0;
     const leadChanged = lastSelectedLeadIdRef.current !== currentLeadId;
     const hasNewMessage = !leadChanged && currentLength > lastConversationLengthRef.current;
+    // Valor de isLoadingMessages en el render ANTERIOR a este efecto (no el
+    // actual): así, cuando la carga inicial (no incremental, no silenciosa)
+    // de la conversación termina, este efecto todavía ve "estaba cargando"
+    // en la misma pasada en la que el historial creció, y distingue ese
+    // asentamiento inicial de un mensaje nuevo llegando por polling.
+    const wasLoadingInitialHistory = lastWasLoadingMessagesRef.current;
 
     lastSelectedLeadIdRef.current = currentLeadId;
     lastConversationLengthRef.current = currentLength;
+    lastWasLoadingMessagesRef.current = isLoadingMessages;
 
     if (isFilterTransitionRef.current) return;
 
@@ -1392,8 +1552,13 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     if (!isAtBottom) return;
     if (!hasNewMessage) return;
 
-    scrollToBottom();
-  }, [isAtBottom, scrollToBottom, selectedLeadId, selectedLead?.conversation.length]);
+    // Si el historial creció mientras la carga inicial de esta conversación
+    // seguía en curso (restauración al montar / cambio de lead cuyo fetch
+    // completo de mensajes aún no resolvía), es esa misma carga asentándose:
+    // posicionamiento instantáneo, sin animación visible. Solo un mensaje
+    // nuevo llegando con la conversación ya asentada anima el scroll.
+    scrollToBottom(wasLoadingInitialHistory ? 'auto' : 'smooth');
+  }, [isAtBottom, isLoadingMessages, scrollToBottom, selectedLeadId, selectedLead?.conversation.length]);
 
   const updateLead = (id: string, updates: Partial<Lead>) => {
     console.log('[LeadsPage] updateLead', { id, updates });
@@ -2434,17 +2599,20 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
 
     const idleSeverity = getIdleSeverity(lead.idleMinutes);
     const requiresAttention = lead.statusType === 'attention';
+    const displayName = lead.name?.trim() || `WhatsApp ${lead.phone}`;
     return (
       <ListItem disablePadding key={lead.id}>
         <ListItemButton
           selected={lead.id === selectedLead?.id}
           onClick={() => {
             setSelectedLeadId(lead.id);
+            persistSelectedLeadId(lead.id);
             setReplyingTo(null);
           }}
           sx={{
-            alignItems: 'center',
-            px: 1.5,
+            alignItems: 'flex-start',
+            gap: 1,
+            px: 1.25,
             py: 0.75,
             borderRadius: 0,
             borderLeft: '3px solid',
@@ -2455,45 +2623,68 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
                 : 'transparent',
             borderBottom: '1px solid',
             borderBottomColor: 'divider',
+            // El fondo de la fila indica exclusivamente si ES la conversación
+            // seleccionada (identidad de lead.id contra selectedLead?.id).
+            // La atención/riesgo ya se comunica con el borde izquierdo
+            // (borderLeftColor arriba); no debe pintar también el fondo, o
+            // varias filas sin relación con la selección se ven "resaltadas"
+            // a la vez.
             backgroundColor: lead.id === selectedLead?.id
-              ? 'primary.main + 08'
-              : requiresAttention
-                ? 'error.light + 12'
-                : 'background.paper',
+              ? alpha(theme.palette.primary.main, 0.18)
+              : 'background.paper',
             '&:hover': {
               backgroundColor: lead.id === selectedLead?.id
-                ? 'primary.main + 12'
-                : requiresAttention
-                  ? 'error.light + 16'
-                  : 'action.hover',
+                ? alpha(theme.palette.primary.main, 0.24)
+                : 'action.hover',
             },
+            '&:hover .lead-row-hover-btn': { opacity: 1 },
           }}
         >
-          <Stack spacing={0.2} sx={{ width: '100%', minWidth: 0 }}>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+          {/* Avatar puramente visual: iniciales + color determinístico a
+              partir del id del lead, sin datos nuevos ni backend. */}
+          <Avatar
+            sx={{
+              width: 30,
+              height: 30,
+              fontSize: 12,
+              fontWeight: 700,
+              bgcolor: getLeadAvatarColor(lead.id),
+              flexShrink: 0,
+              mt: 0.25,
+            }}
+          >
+            {getLeadInitials(lead.name)}
+          </Avatar>
+
+          <Stack spacing={0.25} sx={{ flex: 1, minWidth: 0 }}>
+            {/* Línea 1: nombre + tiempo relativo (siempre visible) + Finalizar
+                (solo al pasar el mouse, mismo patrón ya usado en las
+                burbujas del chat para no ocupar espacio permanente). */}
+            <Stack direction="row" alignItems="center" spacing={0.5} sx={{ minWidth: 0 }}>
               <Typography variant="body2" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0 }}>
-                {lead.name?.trim() || `WhatsApp ${lead.phone}`}
+                {displayName}
               </Typography>
-              {lead.etapa_oportunidad && (
-                <Chip
-                  size="small"
-                  label={lead.etapa_oportunidad}
-                  color={etapaChipColor[lead.etapa_oportunidad]}
-                  sx={{ textTransform: 'capitalize', fontWeight: 600 }}
-                  onClick={(e) => handleOpenEtapaMenu(lead.id, e.currentTarget)}
-                  clickable
-                />
-              )}
+              <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
+                {formatMinutesAgo(lead.lastMessageTimeMinutesAgo)}
+              </Typography>
               {lead.estado !== 'finalizada' && (
                 <Tooltip title="Marcar como finalizada" arrow>
                   <IconButton
+                    className="lead-row-hover-btn"
                     size="small"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleOpenFinalizarDialog(lead.id);
                     }}
                     aria-label="Marcar como finalizada"
-                    sx={{ color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}
+                    sx={{
+                      color: 'text.disabled',
+                      '&:hover': { color: 'text.secondary' },
+                      opacity: 0,
+                      transition: 'opacity 0.15s',
+                      p: 0.25,
+                      ml: -0.5,
+                    }}
                   >
                     <TaskAltIcon fontSize="small" />
                   </IconButton>
@@ -2501,22 +2692,22 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
               )}
             </Stack>
 
-            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: 'text.secondary' }}>
-              <PersonIcon fontSize="inherit" sx={{ fontSize: 14 }} />
-              <Typography variant="caption">{ownerLabel}</Typography>
-            </Stack>
-
+            {/* Línea 2: último mensaje */}
             <Typography variant="body2" color="text.secondary" noWrap>
               {lead.lastMessage}
             </Typography>
 
-            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: 'text.secondary' }}>
+            {/* Línea 3 (secundaria, compacta): señales de atención primero
+                (punto + prioridad), etapa/vendedor al final como
+                información menos prioritaria. */}
+            <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ color: 'text.secondary', rowGap: 0.25 }}>
               <Box
                 sx={{
-                  width: 8,
-                  height: 8,
+                  width: 7,
+                  height: 7,
                   borderRadius: '50%',
                   bgcolor: requiresAttention ? 'error.main' : 'grey.400',
+                  flexShrink: 0,
                 }}
               />
               <Typography
@@ -2528,22 +2719,15 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
               >
                 {lead.statusLabel}
               </Typography>
-              <Typography variant="caption" color="text.disabled">·</Typography>
-              <Typography variant="caption">{lead.owner}</Typography>
-              <Typography variant="caption" color="text.disabled">·</Typography>
-              <Typography variant="caption">
-                {lead.awaitingResponse
-                  ? `${formatMinutesAgo(lead.lastMessageTimeMinutesAgo)} sin responder`
-                  : `${formatMinutesAgo(lead.lastMessageTimeMinutesAgo)} esperando respuesta`}
-              </Typography>
-              <Typography variant="caption" color="text.disabled">·</Typography>
               <Chip
                 size="small"
                 label={computedPriority}
                 sx={{
-                  height: 20,
+                  height: 16,
+                  fontSize: 10,
                   fontWeight: 700,
                   border: '1px solid',
+                  '& .MuiChip-label': { px: 0.6 },
                   borderColor: computedPriority === 'Alta'
                     ? 'error.light'
                     : computedPriority === 'Media'
@@ -2561,7 +2745,21 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
                       : 'grey.100',
                 }}
               />
+              {lead.etapa_oportunidad && (
+                <Chip
+                  size="small"
+                  label={lead.etapa_oportunidad}
+                  color={etapaChipColor[lead.etapa_oportunidad]}
+                  onClick={(e) => handleOpenEtapaMenu(lead.id, e.currentTarget)}
+                  clickable
+                  sx={{ height: 16, fontSize: 10, textTransform: 'capitalize', fontWeight: 600, '& .MuiChip-label': { px: 0.6 } }}
+                />
+              )}
+              <Typography variant="caption" color="text.disabled" noWrap>
+                {ownerLabel}
+              </Typography>
             </Stack>
+
             {lead.estado === 'finalizada' && (
               <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" sx={{ color: 'text.secondary' }}>
                 <Typography variant="caption">
@@ -2595,6 +2793,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // nueva, solo se reutiliza para la tarjeta de la bandeja móvil.
   const handleSelectLeadMobile = (id: string) => {
     setSelectedLeadId(id);
+    persistSelectedLeadId(id);
     setReplyingTo(null);
   };
 
@@ -2610,8 +2809,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         leadScope={leadScope}
-        setLeadScope={setLeadScope}
-        setScopeTouched={setScopeTouched}
+        onLeadScopeChange={handleLeadScopeChange}
         canToggleScope={canToggleScope}
         showMisChip={showMisChip}
         showTodosChip={showTodosChip}
@@ -2662,6 +2860,77 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         setReplyingTo={setReplyingTo}
         focusReplyInput={focusReplyInput}
         onChatOpenChange={onMobileConversationOpenChange}
+        isAdmin={isAdmin}
+        vendorOptions={vendorOptions}
+        vendedorFilterId={vendedorFilterId}
+        setVendedorFilterId={setVendedorFilterId}
+        availableTags={availableTags}
+        selectedTagIds={selectedTagIds}
+        setSelectedTagIds={setSelectedTagIds}
+        tagsSelectOpen={tagsSelectOpen}
+        setTagsSelectOpen={setTagsSelectOpen}
+        selectedTags={selectedTags}
+        opportunityFilter={opportunityFilter}
+        setOpportunityFilter={setOpportunityFilter}
+        vistaFinalizadas={vistaFinalizadas}
+        setVistaFinalizadas={setVistaFinalizadas}
+        selectedContactoId={selectedContactoId}
+        selectedContacto={selectedContacto}
+        selectedVendedorId={selectedVendedorId}
+        isUpdatingOwner={isUpdatingOwner}
+        openCompleteContactDialog={openCompleteContactDialog}
+        handleOwnerChange={handleOwnerChange}
+        updateLead={updateLead}
+        conversationTags={conversationTags}
+        toggleConversationTag={toggleConversationTag}
+        handleOpenTagsMenu={handleOpenTagsMenu}
+        selectedLeadPriority={selectedLeadPriority}
+        sendSuccess={sendSuccess}
+        isSuggesting={isSuggesting}
+        handleSuggestMessage={handleSuggestMessage}
+        handleSendTemplate={handleSendTemplate}
+        handleGenerarCotizacion={handleGenerarCotizacion}
+        oportunidadesOpen={oportunidadesOpen}
+        setOportunidadesOpen={setOportunidadesOpen}
+        isLoadingOportunidades={isLoadingOportunidades}
+        oportunidadesError={oportunidadesError}
+        oportunidades={oportunidades}
+        navigate={navigate}
+        motivoFinalizacionLabel={motivoFinalizacionLabel}
+        handleOpenFinalizarDialog={handleOpenFinalizarDialog}
+        handleReabrirConversacion={handleReabrirConversacion}
+        reabrirSavingId={reabrirSavingId}
+        tagsMenuAnchor={tagsMenuAnchor}
+        handleCloseTagsMenu={handleCloseTagsMenu}
+        isCreatingTag={isCreatingTag}
+        newTagName={newTagName}
+        setNewTagName={setNewTagName}
+        newTagColor={newTagColor}
+        setNewTagColor={setNewTagColor}
+        handleCancelCreateTag={handleCancelCreateTag}
+        handleSaveNewTag={handleSaveNewTag}
+        handleStartCreateTag={handleStartCreateTag}
+        manageTagsOpen={manageTagsOpen}
+        handleCloseManageTags={handleCloseManageTags}
+        tagActionError={tagActionError}
+        setTagActionError={setTagActionError}
+        handleOpenEditTagForm={handleOpenEditTagForm}
+        handleDeactivateTag={handleDeactivateTag}
+        tagDeactivatingId={tagDeactivatingId}
+        tagFormOpen={tagFormOpen}
+        tagFormId={tagFormId}
+        tagFormName={tagFormName}
+        setTagFormName={setTagFormName}
+        tagFormColor={tagFormColor}
+        setTagFormColor={setTagFormColor}
+        tagFormError={tagFormError}
+        handleCancelTagForm={handleCancelTagForm}
+        handleSubmitTagForm={handleSubmitTagForm}
+        tagFormSaving={tagFormSaving}
+        handleOpenCreateTagForm={handleOpenCreateTagForm}
+        isTemplateDialogOpen={isTemplateDialogOpen}
+        setIsTemplateDialogOpen={setIsTemplateDialogOpen}
+        handleTemplateSuccess={handleTemplateSuccess}
       />
     );
   }
@@ -2723,8 +2992,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       vendedorFilterId={vendedorFilterId}
       setVendedorFilterId={setVendedorFilterId}
       leadScope={leadScope}
-      setLeadScope={setLeadScope}
-      setScopeTouched={setScopeTouched}
+      onLeadScopeChange={handleLeadScopeChange}
       selectedTagIds={selectedTagIds}
       setSelectedTagIds={setSelectedTagIds}
       tagsSelectOpen={tagsSelectOpen}
@@ -2754,6 +3022,9 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       openCompleteContactDialog={openCompleteContactDialog}
       handleOwnerChange={handleOwnerChange}
       updateLead={updateLead}
+      handleOpenFinalizarDialog={handleOpenFinalizarDialog}
+      handleReabrirConversacion={handleReabrirConversacion}
+      reabrirSavingId={reabrirSavingId}
       isSending={isSending}
       sendSuccess={sendSuccess}
       handleSendWhatsapp={handleSendWhatsapp}

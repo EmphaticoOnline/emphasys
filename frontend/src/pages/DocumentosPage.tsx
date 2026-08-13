@@ -228,9 +228,14 @@ function getContrastingTextColor(color: string | null | undefined) {
 }
 import {
   ESTADOS_SEGUIMIENTO,
+  getEstadoSeguimientoChipBorderColor,
   getEstadoSeguimientoPresentation,
   normalizeEstadoSeguimiento,
 } from '../modules/cotizaciones/estadoSeguimiento';
+import {
+  createDocumentoRowAppearanceSx,
+  getDocumentoRowAppearanceConfig,
+} from '../modules/documentos/documentoRowAppearance';
 import {
   getOpcionesGeneracion,
   prepararGeneracion,
@@ -570,20 +575,43 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const esFacturaVentas = tipoDocumento === 'factura' && modulo === 'ventas';
   const [openFacturaGlobal, setOpenFacturaGlobal] = useState(false);
   const [tiposDocumento, setTiposDocumento] = useState<TipoDocumentoEmpresa[]>([]);
+  const [tiposDocumentoEmpresaId, setTiposDocumentoEmpresaId] = useState<number | null>(null);
 
   useEffect(() => {
+    let active = true;
+    setTiposDocumento([]);
+    setTiposDocumentoEmpresaId(null);
+
     const loadTipos = async () => {
+      if (!empresaId) return;
       try {
         const data = await fetchTiposDocumentoHabilitados(modulo);
-        setTiposDocumento(data);
+        if (active) {
+          setTiposDocumento(data);
+          setTiposDocumentoEmpresaId(empresaId);
+        }
       } catch (err) {
         console.error('No se pudieron cargar los tipos de documento', err);
       }
     };
     void loadTipos();
-  }, [modulo]);
+    return () => {
+      active = false;
+    };
+  }, [empresaId, modulo]);
 
   const documentoTypeConfig = useMemo(() => getDocumentoTypeConfig(tipoDocumento), [tipoDocumento]);
+  const tipoDocumentoMeta = useMemo(
+    () => tiposDocumento.find((item) => item.codigo === tipoDocumento),
+    [tipoDocumento, tiposDocumento]
+  );
+  const colorearFilasPorEstatus = tiposDocumentoEmpresaId === empresaId
+    && Boolean(tipoDocumentoMeta?.colorear_filas_por_estatus);
+  const rowAppearanceConfig = useMemo(() => getDocumentoRowAppearanceConfig(tipoDocumento), [tipoDocumento]);
+  const rowAppearanceSx = useMemo(
+    () => rowAppearanceConfig ? createDocumentoRowAppearanceSx(rowAppearanceConfig.appearances) : undefined,
+    [rowAppearanceConfig]
+  );
   const tipoDocumentoPermiteCorreo = tipoDocumento === 'cotizacion' || tipoDocumento === 'orden_servicio';
   const tipoDocumentoPermiteWhatsapp = tipoDocumento === 'cotizacion' || tipoDocumento === 'orden_servicio' || tipoDocumento === 'factura';
 
@@ -1957,6 +1985,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
                     ...ESTATUS_CHIP_BASE_SX,
                     bgcolor: config.color,
                     color: config.textColor,
+                    border: '1px solid',
+                    borderColor: getEstadoSeguimientoChipBorderColor(params.row?.estado_seguimiento),
                     cursor: 'pointer',
                   }}
                 />
@@ -3605,6 +3635,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         const rowId = Number(params.id);
         const classNames = [];
 
+        if (colorearFilasPorEstatus && rowAppearanceConfig) {
+          const appearance = rowAppearanceConfig.resolve(params.row as CotizacionListado);
+          if (appearance) {
+            classNames.push(appearance.className);
+          }
+        }
+
         if (rowId === focusedDocumentId) {
           classNames.push('documento-focus-row');
         }
@@ -3615,6 +3652,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
         return classNames.join(' ');
       }}
+      rowAppearanceSx={colorearFilasPorEstatus && rowAppearanceConfig ? rowAppearanceSx : undefined}
       columnVisibilityModel={effectiveColumnVisibilityModel}
       sortModel={sortModel as GridSortModel}
       onSortModelChange={setSortModel}

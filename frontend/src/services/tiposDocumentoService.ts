@@ -8,6 +8,7 @@ export type TipoDocumentoEmpresa = {
   icono: string | null;
   orden?: number | null;
   whatsapp_plantilla_default_id?: number | null;
+  colorear_filas_por_estatus?: boolean;
 };
 
 export type TipoDocumentoCatalogo = TipoDocumentoEmpresa;

@@ -37,7 +37,8 @@ CREATE TABLE core.empresas_tipos_documento (
     orden integer DEFAULT 0,
     usuario_creacion_id integer,
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
-    whatsapp_plantilla_default_id bigint
+    whatsapp_plantilla_default_id bigint,
+    colorear_filas_por_estatus boolean DEFAULT false NOT NULL
 );
 
 
@@ -95,6 +96,13 @@ COMMENT ON COLUMN core.empresas_tipos_documento.fecha_creacion IS 'Fecha de crea
 --
 
 COMMENT ON COLUMN core.empresas_tipos_documento.whatsapp_plantilla_default_id IS 'Plantilla de WhatsApp predeterminada para este tipo de documento y empresa.';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.colorear_filas_por_estatus; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.colorear_filas_por_estatus IS 'Habilita un tinte visual de las filas del listado segun la semantica de estatus definida por Emphasys para este tipo documental.';
 
 
 --
@@ -197,4 +205,3 @@ ALTER TABLE ONLY core.empresas_tipos_documento
 --
 
 \unrestrict tssi6cVzIGOmeSAK1135QfkqzfyrHjpgEkUv8cuAb53PsGmXT1mW1CwKPkp6f9e
-

@@ -72,6 +72,8 @@ export async function actualizarDocumentoEmpresa(req: Request, res: Response) {
     const afectaReservado: boolean = Boolean(body.afecta_reservado ?? false);
     const includeUsarEspecificaciones = Object.prototype.hasOwnProperty.call(body, 'usar_especificaciones');
     const usarEspecificaciones = Boolean(body.usar_especificaciones);
+    const includeColorearFilasPorEstatus = Object.prototype.hasOwnProperty.call(body, 'colorear_filas_por_estatus');
+    const colorearFilasPorEstatus = Boolean(body.colorear_filas_por_estatus);
 
     const tipoExiste = await existeTipoDocumento(tipoDocumentoId);
     if (!tipoExiste) return res.status(404).json({ message: 'Tipo de documento no encontrado o inactivo' });
@@ -93,6 +95,8 @@ export async function actualizarDocumentoEmpresa(req: Request, res: Response) {
       afectaReservado,
       includeUsarEspecificaciones,
       usarEspecificaciones,
+      includeColorearFilasPorEstatus,
+      colorearFilasPorEstatus,
     );
     if (!actualizado) return res.status(500).json({ message: 'No se pudo actualizar el documento' });
 

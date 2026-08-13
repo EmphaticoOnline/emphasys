@@ -19,6 +19,28 @@ export function formatFechaHora(value: string | null): string {
   return date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+// Etiqueta de separador de día (Hoy/Ayer/fecha) para el historial de chat,
+// derivada del `sentAt` que ya trae cada mensaje mapeado — sin estado nuevo
+// ni relación con el estado de "no leídos" (no existe todavía). Devuelve
+// null si no hay fecha válida (p. ej. un mensaje optimista sin sentAt aún),
+// en cuyo caso simplemente no se muestra separador para ese mensaje.
+export function getDayLabel(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86400000);
+
+  if (diffDays === 0) return 'Hoy';
+  if (diffDays === 1) return 'Ayer';
+  return date.toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+  });
+}
+
 // Conjunto compacto de reacciones estilo WhatsApp, compartido entre
 // LeadsDesktopView y LeadsMobileView.
 export const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
@@ -150,7 +172,17 @@ export function deriveLeadState(lead: Lead, reglasSeguimiento: ReglasSeguimiento
 } {
   const lastMessage = lead.conversation[lead.conversation.length - 1];
   const lastFrom = lastMessage?.from ?? null;
-  const idleMinutes = minutesSince(lastMessage?.sentAt ?? lead.ultimoMensajeEn);
+  // Exclusivamente lead.ultimoMensajeEn (misma fuente para TODOS los leads,
+  // se haya cargado su historial completo o no — ver loadConversations en
+  // LeadsPage.tsx). Antes caía a lastMessage?.sentAt cuando `conversation`
+  // tenía datos: como `conversation` solo se puebla para el lead
+  // seleccionado (loadMessages) o tras enviar un mensaje, ese fallback hacía
+  // que el idleMinutes/prioridad de UN lead se calculara con una fuente
+  // distinta a la de los demás apenas se seleccionaba, cambiando su lugar
+  // en el orden sin ninguna actividad real nueva. El envío optimista
+  // (handleSendWhatsapp) ya setea ultimoMensajeEn explícitamente, así que
+  // no necesita este fallback.
+  const idleMinutes = minutesSince(lead.ultimoMensajeEn);
 
   let awaitingResponse = lead.awaitingResponse;
   if (lastFrom === 'lead') {
@@ -224,8 +256,11 @@ export function esSeguimientoPendiente(lead: Lead): boolean {
 export const prioridadRank: Record<Priority, number> = { Alta: 2, Media: 1, Baja: 0 };
 
 export const getLastTimestampMs = (lead: Lead): number => {
-  const last = lead.conversation[lead.conversation.length - 1];
-  const ts = last?.sentAt ?? lead.ultimoMensajeEn;
+  // Exclusivamente lead.ultimoMensajeEn, mismo motivo que en deriveLeadState
+  // de arriba: usar conversation[last] acá desincronizaba el orden de un
+  // lead apenas se cargaba su historial (loadMessages), porque pasaba a
+  // ordenarse con una fuente distinta a la de los leads sin abrir.
+  const ts = lead.ultimoMensajeEn;
   const d = ts ? new Date(ts).getTime() : 0;
   return Number.isNaN(d) ? 0 : d;
 };
@@ -297,6 +332,64 @@ export const buildReplyPreviewText = (
   if (tipoContenido === 'document') return caption ? `📄 ${caption}` : '📄 Documento';
   return contenido || '';
 };
+
+// Iniciales + color determinístico para el avatar visual de un lead.
+// Puramente de presentación: no depende de datos nuevos ni de backend, solo
+// del nombre/id que el Lead ya trae. Mismo lead -> mismo color siempre
+// (hash simple sobre el id), reutilizado tanto en la fila de la lista como
+// en el header de la conversación para que se vean consistentes.
+const LEAD_AVATAR_COLORS = ['#1d2f68', '#0f766e', '#b45309', '#7c3aed', '#be123c', '#0369a1', '#4d7c0f', '#a21caf'];
+
+export function getLeadInitials(name: string | null | undefined): string {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return '?';
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? '';
+  const second = parts.length > 1 ? (parts[1]?.[0] ?? '') : '';
+  const initials = `${first}${second}`.toUpperCase();
+  return initials || '?';
+}
+
+export function getLeadAvatarColor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return LEAD_AVATAR_COLORS[hash % LEAD_AVATAR_COLORS.length] ?? '#1d2f68';
+}
+
+// Estado de la ventana de WhatsApp de 24h ya resuelto a texto/color/emoji de
+// presentación. Extraído del cálculo que antes vivía inline (duplicado) en
+// el panel de detalle, para poder reutilizarlo también en el header
+// compacto de la conversación sin repetir la lógica. No cambia ningún
+// umbral ni criterio: mismos dos campos (`requiresTemplate`,
+// `windowExpiresInMinutes`) que ya calculaba `deriveLeadState`.
+export type WindowDisplayState = 'closed' | 'warning' | 'open';
+
+export function getWindowDisplayState(lead: {
+  requiresTemplate: boolean;
+  within24hWindow: boolean;
+  windowExpiresInMinutes: number;
+}): { state: WindowDisplayState; label: string; shortLabel: string; color: string; dot: string } {
+  const expiresIn = lead.windowExpiresInMinutes;
+  const state: WindowDisplayState = lead.requiresTemplate || expiresIn <= 0
+    ? 'closed'
+    : lead.within24hWindow
+      ? (expiresIn <= 120 ? 'warning' : 'open')
+      : 'closed';
+
+  const label = state === 'closed'
+    ? 'Ventana cerrada · requiere plantilla'
+    : state === 'warning'
+      ? `Expira pronto · ${formatMinutes(expiresIn)} restantes`
+      : `Ventana abierta · expira en ${formatMinutes(expiresIn)}`;
+
+  const shortLabel = state === 'closed' ? 'Ventana cerrada' : state === 'warning' ? 'Expira pronto' : 'Ventana abierta';
+  const color = state === 'closed' ? 'error.main' : state === 'warning' ? 'warning.main' : 'success.main';
+  const dot = state === 'closed' ? '🔴' : state === 'warning' ? '🟡' : '🟢';
+
+  return { state, label, shortLabel, color, dot };
+}
 
 export const mapMessages = (messages: ConversationMessage[]): ConversationView[] => messages.map((msg) => {
   const sentAt = msg.fecha_envio || msg.creado_en || null;

@@ -16,6 +16,7 @@ export async function updateDocumentoEmpresa(
     afecta_inventario?: AfectaInventario | null;
     afecta_reservado?: boolean;
     usar_especificaciones?: boolean;
+    colorear_filas_por_estatus?: boolean;
   }
 ) {
   return apiFetch(`${BASE_URL}/${tipoDocumentoId}`, {

@@ -18,6 +18,7 @@ export type DocumentoEmpresa = {
   afecta_reservado: boolean;
   usar_especificaciones: boolean;
   usar_especificaciones_empresa: boolean;
+  colorear_filas_por_estatus: boolean;
 };
 
 export type TransicionDocumento = {
@@ -41,6 +42,7 @@ export async function obtenerDocumentosEmpresa(empresaId: number): Promise<Docum
       td.afecta_inventario AS afecta_inventario_sistema,
       COALESCE(etd.afecta_reservado, FALSE) AS afecta_reservado
       ,COALESCE(etd.usar_especificaciones, FALSE) AS usar_especificaciones
+      ,COALESCE(etd.colorear_filas_por_estatus, FALSE) AS colorear_filas_por_estatus
       ,COALESCE((
         SELECT CASE WHEN LOWER(COALESCE(pe.valor, p.valor_default, 'false')) IN ('1', 'true', 't', 'yes', 'si', 'sí', 'on') THEN TRUE ELSE FALSE END
           FROM core.parametros p
@@ -95,7 +97,9 @@ export async function upsertDocumentoEmpresa(
   afectaReservado: boolean = false,
   includeUsarEspecificaciones: boolean = false,
   usarEspecificaciones: boolean = false,
-): Promise<{ empresa_id: number; tipo_documento_id: number; activo: boolean; whatsapp_plantilla_default_id: number | null; afecta_inventario: AfectaInventario | null; afecta_reservado: boolean; usar_especificaciones: boolean } | null> {
+  includeColorearFilasPorEstatus: boolean = false,
+  colorearFilasPorEstatus: boolean = false,
+): Promise<{ empresa_id: number; tipo_documento_id: number; activo: boolean; whatsapp_plantilla_default_id: number | null; afecta_inventario: AfectaInventario | null; afecta_reservado: boolean; usar_especificaciones: boolean; colorear_filas_por_estatus: boolean } | null> {
   const { rows } = await pool.query<{
     empresa_id: number;
     tipo_documento_id: number;
@@ -104,6 +108,7 @@ export async function upsertDocumentoEmpresa(
     afecta_inventario: AfectaInventario | null;
     afecta_reservado: boolean;
     usar_especificaciones: boolean;
+    colorear_filas_por_estatus: boolean;
   }>(
     `INSERT INTO core.empresas_tipos_documento (
         empresa_id,
@@ -112,9 +117,10 @@ export async function upsertDocumentoEmpresa(
         whatsapp_plantilla_default_id,
         afecta_inventario,
         afecta_reservado,
-        usar_especificaciones
+        usar_especificaciones,
+        colorear_filas_por_estatus
      )
-       VALUES ($1, $2, $3, CASE WHEN $4 THEN $5::bigint ELSE NULL::bigint END, $6, $7, CASE WHEN $8 THEN $9 ELSE FALSE END)
+       VALUES ($1, $2, $3, CASE WHEN $4 THEN $5::bigint ELSE NULL::bigint END, $6, $7, CASE WHEN $8 THEN $9 ELSE FALSE END, CASE WHEN $10 THEN $11 ELSE FALSE END)
    ON CONFLICT (empresa_id, tipo_documento_id)
      DO UPDATE SET
        activo = EXCLUDED.activo,
@@ -127,9 +133,13 @@ export async function upsertDocumentoEmpresa(
        usar_especificaciones = CASE
          WHEN $8 THEN EXCLUDED.usar_especificaciones
          ELSE core.empresas_tipos_documento.usar_especificaciones
+       END,
+       colorear_filas_por_estatus = CASE
+         WHEN $10 THEN EXCLUDED.colorear_filas_por_estatus
+         ELSE core.empresas_tipos_documento.colorear_filas_por_estatus
        END
-   RETURNING empresa_id, tipo_documento_id, activo, whatsapp_plantilla_default_id, afecta_inventario, afecta_reservado, usar_especificaciones`,
-    [empresaId, tipoDocumentoId, activo, includeWhatsappPlantillaDefault, whatsappPlantillaDefaultId, afectaInventario ?? null, afectaReservado, includeUsarEspecificaciones, usarEspecificaciones]
+   RETURNING empresa_id, tipo_documento_id, activo, whatsapp_plantilla_default_id, afecta_inventario, afecta_reservado, usar_especificaciones, colorear_filas_por_estatus`,
+    [empresaId, tipoDocumentoId, activo, includeWhatsappPlantillaDefault, whatsappPlantillaDefaultId, afectaInventario ?? null, afectaReservado, includeUsarEspecificaciones, usarEspecificaciones, includeColorearFilasPorEstatus, colorearFilasPorEstatus]
   );
 
   return rows[0] ?? null;

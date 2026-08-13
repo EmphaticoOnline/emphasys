@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Chip,
@@ -10,6 +11,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  Drawer,
   IconButton,
   InputAdornment,
   List,
@@ -22,15 +24,19 @@ import {
   Stack,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import DoneIcon from '@mui/icons-material/Done';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import MicIcon from '@mui/icons-material/Mic';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ScheduleIcon from '@mui/icons-material/Schedule';
@@ -40,14 +46,37 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { linkifyMessageText } from '../LinkifiedText';
 import { ForwardMessageDialog, type ForwardableMessage } from '../ForwardMessageDialog';
+import { SendWhatsappTemplateDialog } from '../SendWhatsappTemplateDialog';
 import { MessageActionsSheet, type ActionableMessage } from './MessageActionsSheet';
-import { buildLeadOwnerLabel, buildReplyPreviewText, formatMinutesAgo } from '../../utils/leadsDerivation';
+import { LeadDetailPanel, leadSelectMenuProps } from './LeadDetailPanel';
+import { LeadTagsManager } from './LeadTagsManager';
+import {
+  buildLeadOwnerLabel,
+  buildReplyPreviewText,
+  formatMinutesAgo,
+  getDayLabel,
+  getLeadAvatarColor,
+  getLeadInitials,
+  getWindowDisplayState,
+} from '../../utils/leadsDerivation';
 import { NOTIFICATION_TONE_OPTIONS, type NotificationTone } from '../../utils/notificationSound';
 import { computeListContinuation } from '../../utils/messageListContinuation';
 import { useMessageHighlight } from '../../hooks/useMessageHighlight';
 import { TOPBAR_HEIGHT } from '../layoutConstants';
 import type { Contacto } from '../../types/contactos.types';
-import type { EtapaOportunidad, LeadConPrioridad, LeadScope, ReplyPreview } from '../../pages/LeadsPage';
+import type {
+  EtapaOportunidad,
+  Lead,
+  LeadConPrioridad,
+  LeadScope,
+  MotivoFinalizacion,
+  OportunidadVenta,
+  OpportunityFilter,
+  Priority,
+  ReplyPreview,
+  WhatsappEtiqueta,
+} from '../../pages/LeadsPage';
+import type { NavigateFunction } from 'react-router-dom';
 
 // SidebarLayout (mobile) envuelve el <Outlet/> en un Box con mt: '56px' pero
 // SIN height propio (solo compensa el AppBar fijo), así que un simple
@@ -87,8 +116,10 @@ export interface LeadsMobileViewProps {
   searchTerm: string;
   setSearchTerm: React.Dispatch<React.SetStateAction<string>>;
   leadScope: LeadScope;
-  setLeadScope: React.Dispatch<React.SetStateAction<LeadScope>>;
-  setScopeTouched: React.Dispatch<React.SetStateAction<boolean>>;
+  // Reemplaza a los setters sueltos (setLeadScope + setScopeTouched): además
+  // de actualizar el estado, persiste la preferencia en 'leads-chat' (ver
+  // handleLeadScopeChange en LeadsPage.tsx).
+  onLeadScopeChange: (scope: LeadScope) => void;
   canToggleScope: boolean;
   showMisChip: boolean;
   showTodosChip: boolean;
@@ -171,6 +202,95 @@ export interface LeadsMobileViewProps {
   // el chat móvil está abierto. No se usa para nada más: LeadsMobileView
   // sigue siendo la única fuente de verdad de qué pantalla mostrar.
   onChatOpenChange?: ((open: boolean) => void) | undefined;
+
+  // Filtros secundarios del inbox (vendedor/etiquetas/oportunidad/finalizadas):
+  // mismo estado y misma lógica de filtrado que ya usa LeadsDesktopView — acá
+  // solo se agrega el control "Filtros" que faltaba en mobile.
+  isAdmin: boolean;
+  vendorOptions: Contacto[];
+  vendedorFilterId: number | null;
+  setVendedorFilterId: React.Dispatch<React.SetStateAction<number | null>>;
+  availableTags: WhatsappEtiqueta[];
+  selectedTagIds: number[];
+  setSelectedTagIds: React.Dispatch<React.SetStateAction<number[]>>;
+  tagsSelectOpen: boolean;
+  setTagsSelectOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  selectedTags: WhatsappEtiqueta[];
+  opportunityFilter: OpportunityFilter;
+  setOpportunityFilter: React.Dispatch<React.SetStateAction<OpportunityFilter>>;
+  vistaFinalizadas: boolean;
+  setVistaFinalizadas: React.Dispatch<React.SetStateAction<boolean>>;
+
+  // Panel de detalle del lead (bottom sheet): mismo contenido/handlers ya
+  // aprobados en el inspector de LeadsDesktopView (LeadDetailPanel), sin
+  // duplicar lógica de negocio. Todo lo de abajo son los mismos props que
+  // ya recibe LeadsDesktopView para esa misma sección.
+  selectedContactoId: number | null;
+  selectedContacto: Contacto | undefined;
+  selectedVendedorId: number | null;
+  isUpdatingOwner: boolean;
+  openCompleteContactDialog: () => void;
+  handleOwnerChange: (nextValue: string) => void;
+  updateLead: (id: string, updates: Partial<Lead>) => void;
+  conversationTags: WhatsappEtiqueta[];
+  toggleConversationTag: (tag: WhatsappEtiqueta) => void;
+  handleOpenTagsMenu: (event: React.MouseEvent<HTMLElement>) => void;
+  selectedLeadPriority: Priority;
+  sendSuccess: boolean;
+  isSuggesting: boolean;
+  handleSuggestMessage: () => void;
+  handleSendTemplate: () => void;
+  handleGenerarCotizacion: () => void;
+  oportunidadesOpen: boolean;
+  setOportunidadesOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isLoadingOportunidades: boolean;
+  oportunidadesError: string | null;
+  oportunidades: OportunidadVenta[];
+  navigate: NavigateFunction;
+  motivoFinalizacionLabel: Record<MotivoFinalizacion, string>;
+  handleOpenFinalizarDialog: (leadId: string) => void;
+  handleReabrirConversacion: (leadId: string) => void;
+  reabrirSavingId: string | null;
+
+  // Administrar etiquetas (menú + diálogo CRUD): mismo componente y mismos
+  // handlers/estado de LeadsPage.tsx que ya usa LeadsDesktopView
+  // (LeadTagsManager), necesario para que "Agregar etiqueta" dentro del
+  // panel de detalle funcione también en mobile.
+  tagsMenuAnchor: HTMLElement | null;
+  handleCloseTagsMenu: () => void;
+  isCreatingTag: boolean;
+  newTagName: string;
+  setNewTagName: React.Dispatch<React.SetStateAction<string>>;
+  newTagColor: string;
+  setNewTagColor: React.Dispatch<React.SetStateAction<string>>;
+  handleCancelCreateTag: () => void;
+  handleSaveNewTag: () => void;
+  handleStartCreateTag: () => void;
+  manageTagsOpen: boolean;
+  handleCloseManageTags: () => void;
+  tagActionError: string | null;
+  setTagActionError: React.Dispatch<React.SetStateAction<string | null>>;
+  handleOpenEditTagForm: (tag: WhatsappEtiqueta) => void;
+  handleDeactivateTag: (tag: WhatsappEtiqueta) => void;
+  tagDeactivatingId: number | null;
+  tagFormOpen: boolean;
+  tagFormId: number | null;
+  tagFormName: string;
+  setTagFormName: React.Dispatch<React.SetStateAction<string>>;
+  tagFormColor: string;
+  setTagFormColor: React.Dispatch<React.SetStateAction<string>>;
+  tagFormError: string | null;
+  handleCancelTagForm: () => void;
+  handleSubmitTagForm: () => void;
+  tagFormSaving: boolean;
+  handleOpenCreateTagForm: () => void;
+
+  // Plantilla (ventana 24h cerrada): mismo diálogo SendWhatsappTemplateDialog
+  // y mismo estado ya usados por LeadsDesktopView — antes mobile solo
+  // mostraba una advertencia sin acción.
+  isTemplateDialogOpen: boolean;
+  setIsTemplateDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  handleTemplateSuccess: (plantillaNombre: string) => void;
 }
 
 // Duplicado deliberadamente pequeño de LeadsDesktopView (no se comparte
@@ -656,44 +776,54 @@ function MessageBubble({
             {linkifyMessageText(msg.text)}
           </Typography>
         )}
-        {msg.reactions && msg.reactions.length > 0 && (
-          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-            {msg.reactions.map((reaction) => (
-              <Box
-                key={reaction.autor}
-                component={reaction.autor === 'agente' ? 'button' : 'span'}
-                type={reaction.autor === 'agente' ? 'button' : undefined}
-                onClick={reaction.autor === 'agente' ? () => onRemoveOwnReaction(msg.id) : undefined}
-                aria-label={reaction.autor === 'agente' ? 'Quitar tu reacción' : undefined}
-                sx={{
-                  fontSize: 13,
-                  lineHeight: 1.4,
-                  px: 0.75,
-                  py: 0.25,
-                  borderRadius: 10,
-                  bgcolor: 'background.paper',
-                  color: 'text.primary',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  cursor: reaction.autor === 'agente' ? 'pointer' : 'default',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                }}
-              >
-                {reaction.emoji}
-              </Box>
-            ))}
-          </Stack>
-        )}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, alignItems: 'center', mt: 0.25 }}>
-          <Typography variant="caption" sx={{ opacity: 0.75 }}>
-            {formatMinutesAgo(msg.minutesAgo)}
-          </Typography>
-          {isMine && msg.status && (
-            <Typography variant="caption" sx={{ opacity: 0.75, display: 'flex', alignItems: 'center' }}>
-              {renderStatusIcon(msg.status)}
-            </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: msg.reactions && msg.reactions.length > 0 ? 'space-between' : 'flex-end',
+            alignItems: 'center',
+            gap: 0.75,
+            mt: 0.25,
+          }}
+        >
+          {msg.reactions && msg.reactions.length > 0 && (
+            <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>
+              {msg.reactions.map((reaction) => (
+                <Box
+                  key={reaction.autor}
+                  component={reaction.autor === 'agente' ? 'button' : 'span'}
+                  type={reaction.autor === 'agente' ? 'button' : undefined}
+                  onClick={reaction.autor === 'agente' ? () => onRemoveOwnReaction(msg.id) : undefined}
+                  aria-label={reaction.autor === 'agente' ? 'Quitar tu reacción' : undefined}
+                  sx={{
+                    fontSize: 12,
+                    lineHeight: 1.3,
+                    px: 0.6,
+                    py: 0.15,
+                    borderRadius: 10,
+                    bgcolor: 'background.paper',
+                    color: 'text.primary',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    cursor: reaction.autor === 'agente' ? 'pointer' : 'default',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  {reaction.emoji}
+                </Box>
+              ))}
+            </Stack>
           )}
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexShrink: 0 }}>
+            <Typography variant="caption" sx={{ opacity: 0.75, fontSize: 11 }}>
+              {formatMinutesAgo(msg.minutesAgo)}
+            </Typography>
+            {isMine && msg.status && (
+              <Typography variant="caption" sx={{ opacity: 0.75, display: 'flex', alignItems: 'center' }}>
+                {renderStatusIcon(msg.status)}
+              </Typography>
+            )}
+          </Stack>
         </Box>
       </Box>
     </Box>
@@ -711,8 +841,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     searchTerm,
     setSearchTerm,
     leadScope,
-    setLeadScope,
-    setScopeTouched,
+    onLeadScopeChange,
     canToggleScope,
     showMisChip,
     showTodosChip,
@@ -763,7 +892,88 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     setReplyingTo,
     focusReplyInput,
     onChatOpenChange,
+    isAdmin,
+    vendorOptions,
+    vendedorFilterId,
+    setVendedorFilterId,
+    availableTags,
+    selectedTagIds,
+    setSelectedTagIds,
+    tagsSelectOpen,
+    setTagsSelectOpen,
+    selectedTags,
+    opportunityFilter,
+    setOpportunityFilter,
+    vistaFinalizadas,
+    setVistaFinalizadas,
+    selectedContactoId,
+    selectedContacto,
+    selectedVendedorId,
+    isUpdatingOwner,
+    openCompleteContactDialog,
+    handleOwnerChange,
+    updateLead,
+    conversationTags,
+    toggleConversationTag,
+    handleOpenTagsMenu,
+    selectedLeadPriority,
+    sendSuccess,
+    isSuggesting,
+    handleSuggestMessage,
+    handleSendTemplate,
+    handleGenerarCotizacion,
+    oportunidadesOpen,
+    setOportunidadesOpen,
+    isLoadingOportunidades,
+    oportunidadesError,
+    oportunidades,
+    navigate,
+    motivoFinalizacionLabel,
+    handleOpenFinalizarDialog,
+    handleReabrirConversacion,
+    reabrirSavingId,
+    tagsMenuAnchor,
+    handleCloseTagsMenu,
+    isCreatingTag,
+    newTagName,
+    setNewTagName,
+    newTagColor,
+    setNewTagColor,
+    handleCancelCreateTag,
+    handleSaveNewTag,
+    handleStartCreateTag,
+    manageTagsOpen,
+    handleCloseManageTags,
+    tagActionError,
+    setTagActionError,
+    handleOpenEditTagForm,
+    handleDeactivateTag,
+    tagDeactivatingId,
+    tagFormOpen,
+    tagFormId,
+    tagFormName,
+    setTagFormName,
+    tagFormColor,
+    setTagFormColor,
+    tagFormError,
+    handleCancelTagForm,
+    handleSubmitTagForm,
+    tagFormSaving,
+    handleOpenCreateTagForm,
+    isTemplateDialogOpen,
+    setIsTemplateDialogOpen,
+    handleTemplateSuccess,
   } = props;
+
+  // Panel de detalle del lead (bottom sheet): estado puramente de
+  // presentación, local a esta vista — mismo patrón que `detailOpen` en
+  // LeadsDesktopView. Se cierra automáticamente si cambia la conversación
+  // seleccionada (ver efecto más abajo).
+  const [detailSheetOpen, setDetailSheetOpen] = React.useState(false);
+  // Popover de filtros secundarios del inbox (vendedor/etiquetas/oportunidad/
+  // finalizadas) — mismo patrón y misma lógica de cada filtro que ya usa
+  // LeadsDesktopView, solo se agrega dónde se muestra en mobile.
+  const [filtrosAnchor, setFiltrosAnchor] = React.useState<HTMLElement | null>(null);
 
   // Scroll + resaltado ~2s al tocar la cita de un mensaje respondido. Mismo
   // hook que usa LeadsDesktopView, buscando dentro del mismo contenedor con
@@ -812,6 +1022,12 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
   React.useEffect(() => {
     setReplyingTo(null);
   }, [selectedLeadId, setReplyingTo]);
+
+  // El bottom sheet de detalle tampoco tiene sentido abierto al cambiar de
+  // conversación — mismo criterio que el resto de los efectos de arriba.
+  React.useEffect(() => {
+    setDetailSheetOpen(false);
+  }, [selectedLeadId]);
 
   const handleBack = () => {
     // Salir del chat mientras se graba no debe dejar el micrófono activo en
@@ -913,17 +1129,22 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
   let screen: React.ReactNode;
 
   if (showChat && selectedLead) {
-    const contacto = selectedLead.contactoId ? contactosById[Number(selectedLead.contactoId)] : undefined;
     const ownerLabel = buildLeadOwnerLabel(selectedLead, vendedoresById, vendedorContactoId);
-    const subtitleParts = [selectedLead.phone, contacto?.zona, ownerLabel].filter(Boolean);
+    const subtitleParts = [selectedLead.phone, ownerLabel].filter(Boolean);
+    const windowInfo = getWindowDisplayState(selectedLead);
 
     screen = (
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', ...MOBILE_CHAT_HEIGHT_SX }}>
+        {/* Header compacto: mismo concepto aprobado en desktop (regresar +
+            avatar + nombre + teléfono + vendedor + ventana 24h + sonido +
+            acceso a detalle), sin meter prioridad/etiquetas/info comercial
+            aquí — esa información vive únicamente en el bottom sheet de
+            detalle. */}
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 0.5,
+            gap: 1,
             px: 1,
             py: 1,
             borderBottom: '1px solid',
@@ -931,9 +1152,21 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
             flexShrink: 0,
           }}
         >
-          <IconButton edge="start" aria-label="Regresar a la bandeja" onClick={handleBack}>
+          <IconButton edge="start" aria-label="Regresar a la bandeja" onClick={handleBack} sx={{ flexShrink: 0 }}>
             <ArrowBackIcon />
           </IconButton>
+          <Avatar
+            sx={{
+              width: 32,
+              height: 32,
+              fontSize: 13,
+              fontWeight: 700,
+              bgcolor: getLeadAvatarColor(selectedLead.id),
+              flexShrink: 0,
+            }}
+          >
+            {getLeadInitials(selectedLead.name)}
+          </Avatar>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="subtitle1" fontWeight={700} noWrap>
               {selectedLead.name?.trim() || `WhatsApp ${selectedLead.phone}`}
@@ -944,9 +1177,11 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
               </Typography>
             )}
           </Box>
-          {selectedLead.requiresTemplate && (
-            <Chip size="small" label="Ventana cerrada" color="warning" variant="outlined" sx={{ flexShrink: 0 }} />
-          )}
+          <Tooltip title={windowInfo.label} arrow>
+            <Typography variant="caption" noWrap sx={{ color: windowInfo.color, fontWeight: 600, flexShrink: 0 }}>
+              {windowInfo.dot} {windowInfo.shortLabel}
+            </Typography>
+          </Tooltip>
           <IconButton
             size="small"
             onClick={(event) => setSoundSettingsAnchor(event.currentTarget)}
@@ -954,6 +1189,14 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
             sx={{ flexShrink: 0 }}
           >
             {soundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={() => setDetailSheetOpen(true)}
+            aria-label="Ver detalle del lead"
+            sx={{ flexShrink: 0 }}
+          >
+            <InfoOutlinedIcon fontSize="small" />
           </IconButton>
           <Popover
             open={Boolean(soundSettingsAnchor)}
@@ -1018,17 +1261,36 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
               </Typography>
             </Box>
           ) : (
-            selectedLead.conversation.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                msg={msg}
-                contactName={selectedLead.name}
-                onLongPressMessage={setSelectedMessageForActions}
-                highlightedMessageId={highlightedMessageId}
-                scrollToMessage={scrollToMessage}
-                onRemoveOwnReaction={handleRemoveOwnReaction}
-              />
-            ))
+            selectedLead.conversation.map((msg, index) => {
+              // Separador de día (Hoy/Ayer/fecha), mismo criterio que
+              // LeadsDesktopView: derivado de sentAt (ya presente en cada
+              // mensaje), sin estado ni lógica nueva.
+              const prevMsg = index > 0 ? selectedLead.conversation[index - 1] : null;
+              const dayLabel = getDayLabel(msg.sentAt);
+              const showDateSeparator = Boolean(dayLabel) && dayLabel !== (prevMsg ? getDayLabel(prevMsg.sentAt) : null);
+
+              return (
+                <React.Fragment key={msg.id}>
+                  {showDateSeparator && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 0.5 }}>
+                      <Divider sx={{ flex: 1 }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ px: 1, whiteSpace: 'nowrap' }}>
+                        {dayLabel}
+                      </Typography>
+                      <Divider sx={{ flex: 1 }} />
+                    </Box>
+                  )}
+                  <MessageBubble
+                    msg={msg}
+                    contactName={selectedLead.name}
+                    onLongPressMessage={setSelectedMessageForActions}
+                    highlightedMessageId={highlightedMessageId}
+                    scrollToMessage={scrollToMessage}
+                    onRemoveOwnReaction={handleRemoveOwnReaction}
+                  />
+                </React.Fragment>
+              );
+            })
           )}
           <Box ref={conversationEndRef} />
         </Box>
@@ -1302,36 +1564,190 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
         />
       </Box>
 
-      {shouldShowScopeChipGroup && (
-        <Stack direction="row" spacing={1} sx={{ px: 2, pb: 1, flexShrink: 0 }}>
-          {showMisChip && (
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ px: 2, pb: 1, flexShrink: 0 }}>
+        {shouldShowScopeChipGroup && (
+          <>
+            {showMisChip && (
+              <Chip
+                label="Mis leads"
+                size="small"
+                color={leadScope === 'mis' ? 'primary' : 'default'}
+                variant={leadScope === 'mis' ? 'filled' : 'outlined'}
+                onClick={canToggleScope ? () => onLeadScopeChange('mis') : undefined}
+                sx={{ fontWeight: 700 }}
+              />
+            )}
+            {showTodosChip && (
+              <Chip
+                label="Todos"
+                size="small"
+                color={leadScope === 'todos' ? 'primary' : 'default'}
+                variant={leadScope === 'todos' ? 'filled' : 'outlined'}
+                onClick={canToggleScope ? () => onLeadScopeChange('todos') : undefined}
+                sx={{ fontWeight: 700 }}
+              />
+            )}
+          </>
+        )}
+        {(() => {
+          const filtrosActivos = Boolean(vendedorFilterId) || selectedTagIds.length > 0 || opportunityFilter !== 'todos' || vistaFinalizadas;
+          return (
             <Chip
-              label="Mis leads"
+              icon={<FilterListIcon fontSize="small" />}
+              label="Filtros"
               size="small"
-              color={leadScope === 'mis' ? 'primary' : 'default'}
-              variant={leadScope === 'mis' ? 'filled' : 'outlined'}
-              onClick={canToggleScope ? () => {
-                setLeadScope('mis');
-                setScopeTouched(true);
-              } : undefined}
+              color={filtrosActivos ? 'primary' : 'default'}
+              variant={filtrosActivos ? 'filled' : 'outlined'}
+              onClick={(event) => setFiltrosAnchor(event.currentTarget)}
               sx={{ fontWeight: 700 }}
             />
-          )}
-          {showTodosChip && (
-            <Chip
-              label="Todos"
+          );
+        })()}
+      </Stack>
+
+      {/* Popover de filtros secundarios: mismo contenido y misma lógica de
+          cada filtro (vendedor/etiquetas/oportunidad/finalizadas) que ya usa
+          LeadsDesktopView, solo se agrega el control en mobile. */}
+      <Popover
+        open={Boolean(filtrosAnchor)}
+        anchorEl={filtrosAnchor}
+        onClose={() => setFiltrosAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        <Stack spacing={1.5} sx={{ p: 2, minWidth: 280, maxWidth: 320 }}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            Filtros
+          </Typography>
+
+          <Stack spacing={1}>
+            {isAdmin && (
+              <TextField
+                select
+                size="small"
+                label="Vendedor"
+                value={vendedorFilterId ? String(vendedorFilterId) : ''}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setVendedorFilterId(value ? Number(value) : null);
+                }}
+                SelectProps={{ MenuProps: leadSelectMenuProps }}
+                fullWidth
+                disabled={leadScope === 'mis'}
+              >
+                <MenuItem value="">Todos los vendedores</MenuItem>
+                {vendorOptions.map((v) => (
+                  <MenuItem key={v.id} value={String(v.id)}>
+                    {v.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+            <TextField
+              select
               size="small"
-              color={leadScope === 'todos' ? 'primary' : 'default'}
-              variant={leadScope === 'todos' ? 'filled' : 'outlined'}
-              onClick={canToggleScope ? () => {
-                setLeadScope('todos');
-                setScopeTouched(true);
-              } : undefined}
-              sx={{ fontWeight: 700 }}
-            />
-          )}
+              value={selectedTagIds}
+              onChange={(event) => {
+                const value = event.target.value;
+                const rawValues = Array.isArray(value)
+                  ? value
+                  : typeof value === 'string'
+                    ? value.split(',')
+                    : [];
+                const nextValues = rawValues.map((item) => Number(item)).filter((item) => Number.isFinite(item));
+                setSelectedTagIds(nextValues);
+              }}
+              SelectProps={{
+                multiple: true,
+                displayEmpty: true,
+                open: tagsSelectOpen,
+                onOpen: () => setTagsSelectOpen(true),
+                onClose: () => setTagsSelectOpen(false),
+                renderValue: () => (
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {selectedTags.length ? selectedTags.map((tag) => (
+                      <Chip
+                        key={tag.id}
+                        size="small"
+                        label={tag.nombre}
+                        sx={{ bgcolor: `${tag.color}22`, color: 'text.primary' }}
+                      />
+                    )) : (
+                      <Typography variant="caption" color="text.secondary">
+                        Etiquetas
+                      </Typography>
+                    )}
+                  </Stack>
+                ),
+                MenuProps: leadSelectMenuProps,
+              }}
+              inputProps={{ 'aria-label': 'Etiquetas' }}
+              fullWidth
+            >
+              {availableTags.length === 0 ? (
+                <MenuItem value="" disabled>
+                  Sin etiquetas disponibles
+                </MenuItem>
+              ) : availableTags.map((tag) => (
+                <MenuItem key={tag.id} value={tag.id}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: tag.color }} />
+                    <Typography variant="body2" fontWeight={600}>
+                      {tag.nombre}
+                    </Typography>
+                  </Stack>
+                </MenuItem>
+              ))}
+            </TextField>
+            {isAdmin && leadScope === 'mis' && (
+              <Typography variant="caption" color="text.secondary">
+                Cambia a “Todos” para filtrar por vendedor.
+              </Typography>
+            )}
+          </Stack>
+
+          <Divider />
+
+          <Stack spacing={1}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              Oportunidad
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {(
+                [
+                  { key: 'todos', label: 'Todos' },
+                  { key: 'con', label: 'Con oportunidad' },
+                  { key: 'sin', label: 'Sin oportunidad' },
+                ] as const
+              ).map((opt) => (
+                <Chip
+                  key={opt.key}
+                  label={opt.label}
+                  variant={opportunityFilter === opt.key ? 'filled' : 'outlined'}
+                  onClick={() => setOpportunityFilter(opt.key)}
+                  sx={{
+                    fontWeight: 700,
+                    color: opportunityFilter === opt.key ? '#ffffff' : '#0f766e',
+                    backgroundColor: opportunityFilter === opt.key ? '#0f766e' : '#f0fdfa',
+                    borderColor: '#99f6e4',
+                  }}
+                />
+              ))}
+              <Chip
+                label="Finalizadas"
+                onClick={() => setVistaFinalizadas((prev) => !prev)}
+                sx={{
+                  fontWeight: 700,
+                  color: vistaFinalizadas ? '#ffffff' : 'text.secondary',
+                  backgroundColor: vistaFinalizadas ? 'text.secondary' : 'transparent',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              />
+            </Stack>
+          </Stack>
         </Stack>
-      )}
+      </Popover>
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
         {isLoadingConversations && leadsFiltradosOrdenados.length === 0 ? (
@@ -1347,9 +1763,9 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
         ) : (
           <List disablePadding>
             {leadsFiltradosOrdenados.map((lead) => {
-              const contacto = lead.contactoId ? contactosById[Number(lead.contactoId)] : undefined;
               const ownerLabel = buildLeadOwnerLabel(lead, vendedoresById, vendedorContactoId);
               const requiresAttention = lead.statusType === 'attention';
+              const displayName = lead.name?.trim() || `WhatsApp ${lead.phone}`;
 
               return (
                 <React.Fragment key={lead.id}>
@@ -1358,47 +1774,74 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                     selected={lead.id === selectedLeadId}
                     sx={{
                       alignItems: 'flex-start',
-                      py: 1.25,
+                      gap: 1,
+                      py: 1,
                       px: 2,
                       borderLeft: '3px solid',
                       borderLeftColor: requiresAttention ? 'error.main' : 'transparent',
                     }}
                   >
-                    <Stack spacing={0.35} sx={{ width: '100%', minWidth: 0 }}>
+                    {/* Avatar puramente visual: iniciales + color determinístico
+                        a partir del id del lead, mismo criterio que desktop. */}
+                    <Avatar
+                      sx={{
+                        width: 30,
+                        height: 30,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        bgcolor: getLeadAvatarColor(lead.id),
+                        flexShrink: 0,
+                        mt: 0.25,
+                      }}
+                    >
+                      {getLeadInitials(lead.name)}
+                    </Avatar>
+                    <Stack spacing={0.25} sx={{ flex: 1, minWidth: 0 }}>
+                      {/* Línea 1: nombre + tiempo relativo */}
                       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                        <Typography variant="subtitle2" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0 }}>
-                          {lead.name?.trim() || `WhatsApp ${lead.phone}`}
+                        <Typography variant="body2" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0 }}>
+                          {displayName}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                           {formatMinutesAgo(lead.lastMessageTimeMinutesAgo)}
                         </Typography>
                       </Stack>
-                      {contacto?.zona && (
-                        <Typography variant="caption" color="text.secondary" noWrap>
-                          {contacto.zona}
-                        </Typography>
-                      )}
+                      {/* Línea 2: último mensaje */}
                       <Typography variant="body2" color="text.secondary" noWrap>
                         {lead.lastMessage || 'Sin mensajes'}
                       </Typography>
-                      <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                      {/* Línea 3 (secundaria, compacta): señal de atención
+                          primero, etapa/vendedor al final. */}
+                      <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ color: 'text.secondary', rowGap: 0.25 }}>
+                        <Box
+                          sx={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: '50%',
+                            bgcolor: requiresAttention ? 'error.main' : 'grey.400',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: requiresAttention ? 700 : 500,
+                            color: requiresAttention ? 'error.main' : 'text.secondary',
+                          }}
+                        >
+                          {lead.statusLabel}
+                        </Typography>
                         {lead.etapa_oportunidad && (
                           <Chip
                             size="small"
                             label={lead.etapa_oportunidad}
                             color={etapaChipColor[lead.etapa_oportunidad]}
-                            sx={{ textTransform: 'capitalize', height: 20 }}
+                            sx={{ height: 16, fontSize: 10, textTransform: 'capitalize', fontWeight: 600, '& .MuiChip-label': { px: 0.6 } }}
                           />
                         )}
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color="text.disabled" noWrap>
                           {ownerLabel}
                         </Typography>
-                        {requiresAttention && (
-                          <Chip size="small" label="Requiere atención" color="error" sx={{ height: 20, fontWeight: 700 }} />
-                        )}
-                        {lead.requiresTemplate && (
-                          <Chip size="small" label="Ventana cerrada" color="warning" variant="outlined" sx={{ height: 20 }} />
-                        )}
                       </Stack>
                     </Stack>
                   </ListItemButton>
@@ -1457,10 +1900,10 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
         </DialogActions>
       </Dialog>
 
-      {/* Mismo texto que LeadsDesktopView para la ventana de 24h cerrada.
-          Diferencia exclusivamente visual: se omite el botón "Enviar
-          plantilla" porque el selector de plantillas todavía no existe en
-          móvil (fuera de alcance de este bloque) — solo queda "Entendido". */}
+      {/* Mismo texto y mismo flujo de plantilla que LeadsDesktopView para la
+          ventana de 24h cerrada: "Enviar plantilla" dispara handleSendTemplate
+          (mismo handler), que abre el mismo SendWhatsappTemplateDialog ya
+          renderizado más abajo — ningún selector de plantillas nuevo. */}
       <Dialog
         open={ventanaCerradaDialogOpen}
         onClose={() => setVentanaCerradaDialogOpen(false)}
@@ -1479,8 +1922,17 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setVentanaCerradaDialogOpen(false)} variant="contained">
+          <Button onClick={() => setVentanaCerradaDialogOpen(false)} variant="text">
             Entendido
+          </Button>
+          <Button
+            onClick={() => {
+              setVentanaCerradaDialogOpen(false);
+              handleSendTemplate();
+            }}
+            variant="contained"
+          >
+            Enviar plantilla
           </Button>
         </DialogActions>
       </Dialog>
@@ -1514,6 +1966,127 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
           void loadConversations({ incremental: true });
         }}
       />
+
+      {/* Mismo componente y mismo estado que ya usa LeadsDesktopView, ahora
+          también disponible en mobile: desde el bottom sheet de detalle
+          (botón "Plantilla") y desde el diálogo de ventana cerrada (botón
+          "Enviar plantilla"). */}
+      <SendWhatsappTemplateDialog
+        open={isTemplateDialogOpen}
+        onClose={() => setIsTemplateDialogOpen(false)}
+        telefono={selectedLead?.phone ?? ''}
+        contacto={{
+          nombre: selectedContacto?.nombre || selectedLead?.name || null,
+          telefono: selectedLead?.phone || null,
+          empresa: selectedContacto?.zona || null,
+        }}
+        onSuccess={handleTemplateSuccess}
+      />
+
+      {/* Mismo componente y mismos handlers/estado que ya usa
+          LeadsDesktopView para administrar etiquetas (menú de alternar +
+          diálogo CRUD completo) — necesario para que "Agregar etiqueta"
+          dentro del bottom sheet de detalle funcione igual que en desktop. */}
+      <LeadTagsManager
+        tagsMenuAnchor={tagsMenuAnchor}
+        handleCloseTagsMenu={handleCloseTagsMenu}
+        availableTags={availableTags}
+        conversationTags={conversationTags}
+        toggleConversationTag={toggleConversationTag}
+        isCreatingTag={isCreatingTag}
+        newTagName={newTagName}
+        setNewTagName={setNewTagName}
+        newTagColor={newTagColor}
+        setNewTagColor={setNewTagColor}
+        handleCancelCreateTag={handleCancelCreateTag}
+        handleSaveNewTag={handleSaveNewTag}
+        handleStartCreateTag={handleStartCreateTag}
+        manageTagsOpen={manageTagsOpen}
+        handleCloseManageTags={handleCloseManageTags}
+        tagActionError={tagActionError}
+        setTagActionError={setTagActionError}
+        handleOpenEditTagForm={handleOpenEditTagForm}
+        handleDeactivateTag={handleDeactivateTag}
+        tagDeactivatingId={tagDeactivatingId}
+        tagFormOpen={tagFormOpen}
+        tagFormId={tagFormId}
+        tagFormName={tagFormName}
+        setTagFormName={setTagFormName}
+        tagFormColor={tagFormColor}
+        setTagFormColor={setTagFormColor}
+        tagFormError={tagFormError}
+        handleCancelTagForm={handleCancelTagForm}
+        handleSubmitTagForm={handleSubmitTagForm}
+        tagFormSaving={tagFormSaving}
+        handleOpenCreateTagForm={handleOpenCreateTagForm}
+      />
+
+      {/* Bottom sheet de detalle del lead: mismo contenido/handlers ya
+          aprobados en el inspector de LeadsDesktopView (LeadDetailPanel),
+          sin duplicar lógica. Se abre desde el ícono de info del header. */}
+      <Drawer
+        anchor="bottom"
+        open={detailSheetOpen}
+        onClose={() => setDetailSheetOpen(false)}
+        PaperProps={{
+          sx: {
+            height: '85vh',
+            maxHeight: '85dvh',
+            borderTopLeftRadius: 12,
+            borderTopRightRadius: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            p: 2,
+          },
+        }}
+      >
+        {selectedLead && (
+          <>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0, mb: 1 }}>
+              <Typography variant="subtitle1" fontWeight={700}>
+                Detalle del lead
+              </Typography>
+              <IconButton size="small" aria-label="Cerrar detalle" onClick={() => setDetailSheetOpen(false)}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Stack>
+            <LeadDetailPanel
+              selectedLead={selectedLead}
+              isAdmin={isAdmin}
+              selectedContactoId={selectedContactoId}
+              selectedVendedorId={selectedVendedorId}
+              vendedoresById={vendedoresById}
+              vendedorContactoId={vendedorContactoId}
+              isUpdatingOwner={isUpdatingOwner}
+              vendorOptions={vendorOptions}
+              openCompleteContactDialog={openCompleteContactDialog}
+              handleOwnerChange={handleOwnerChange}
+              updateLead={updateLead}
+              conversationTags={conversationTags}
+              toggleConversationTag={toggleConversationTag}
+              handleOpenTagsMenu={handleOpenTagsMenu}
+              selectedLeadPriority={selectedLeadPriority}
+              isSending={isSending}
+              sendSuccess={sendSuccess}
+              handleSendWhatsapp={handleSendWhatsapp}
+              isSuggesting={isSuggesting}
+              handleSuggestMessage={handleSuggestMessage}
+              handleSendTemplate={handleSendTemplate}
+              handleGenerarCotizacion={handleGenerarCotizacion}
+              oportunidadesOpen={oportunidadesOpen}
+              setOportunidadesOpen={setOportunidadesOpen}
+              isLoadingOportunidades={isLoadingOportunidades}
+              oportunidadesError={oportunidadesError}
+              oportunidades={oportunidades}
+              navigate={navigate}
+              motivoFinalizacionLabel={motivoFinalizacionLabel}
+              handleOpenFinalizarDialog={handleOpenFinalizarDialog}
+              handleReabrirConversacion={handleReabrirConversacion}
+              reabrirSavingId={reabrirSavingId}
+            />
+          </>
+        )}
+      </Drawer>
 
       {/* Mismo estado snackbar que ya usa LeadsDesktopView (pasado ahora
           también a esta vista); antes esta vista no renderizaba ningún
