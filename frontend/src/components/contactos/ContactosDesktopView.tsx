@@ -1,8 +1,10 @@
-import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField, Tooltip } from '@mui/material';
+import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import DownloadIcon from '@mui/icons-material/Download';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import ViewListOutlinedIcon from '@mui/icons-material/ViewListOutlined';
+import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import { GridContextMenu } from '../grids/GridContextMenu';
 import { EmphasysDataGrid } from '../grids/EmphasysDataGrid';
 import {
@@ -12,6 +14,8 @@ import {
 } from '../grids/standardDataGridSx';
 import type { ContactosDesktopViewProps } from './ContactosView.types';
 import ContactosAdvancedFilters from './ContactosAdvancedFilters';
+import ContactosListaCompacta from './ContactosListaCompacta';
+import ContactoWorkspace from './ContactoWorkspace';
 
 export default function ContactosDesktopView({
   contactos,
@@ -58,6 +62,14 @@ export default function ContactosDesktopView({
   onObservacionesChange,
   onClearAdvancedFilters,
   onCreateContacto,
+  viewMode,
+  onViewModeChange,
+  selectedContactoId,
+  onSelectContacto,
+  onEditContacto,
+  onDeleteContacto,
+  onViewActividades,
+  vendedorNombre,
 }: ContactosDesktopViewProps) {
   return (
     <Box sx={{ width: '100%', px: 3, pt: 2, pb: 0, display: 'flex', justifyContent: 'center' }}>
@@ -85,6 +97,25 @@ export default function ContactosDesktopView({
             }}
           />
           <Stack direction="row" spacing={1}>
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={viewMode}
+              onChange={(_, value) => {
+                if (value) onViewModeChange(value);
+              }}
+            >
+              <ToggleButton value="lista" aria-label="Vista de lista">
+                <Tooltip title="Vista de lista">
+                  <ViewListOutlinedIcon fontSize="small" />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="tabla" aria-label="Vista de tabla">
+                <Tooltip title="Vista de tabla">
+                  <TableChartOutlinedIcon fontSize="small" />
+                </Tooltip>
+              </ToggleButton>
+            </ToggleButtonGroup>
             <Tooltip title="Guía de ayuda">
               <IconButton
                 aria-label="Abrir guía de ayuda"
@@ -138,55 +169,80 @@ export default function ContactosDesktopView({
           onClearAdvancedFilters={onClearAdvancedFilters}
         />
 
-        <Box sx={{ width: '100%', backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          <EmphasysDataGrid
-            rows={contactos}
-            columns={orderedColumns}
-            rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
-            columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
-            autoHeight
-            pagination
-            paginationMode="server"
-            rowCount={rowCount}
-            loading={loading}
-            paginationModel={paginationModel}
-            pageSizeOptions={[25, 50, 100]}
-            onPaginationModelChange={onPaginationModelChange}
-            density={density}
-            sortModel={sortModel}
-            onSortModelChange={onSortModelChange}
-            filterModel={filterModel}
-            onFilterModelChange={onFilterModelChange}
-            columnVisibilityModel={columnVisibilityModel}
-            onColumnVisibilityModelChange={onColumnVisibilityModelChange}
-            onColumnWidthChange={onColumnWidthChange}
-            onColumnOrderChange={onColumnOrderChange}
-            rowSelectionModel={selectedRowIds}
-            onRowSelectionModelChange={onRowSelectionModelChange}
-            onRowDoubleClick={onRowDoubleClick}
-            {...(slotProps ? { slotProps } : {})}
-            hideFooterSelectedRowCount
-            sx={[
-              standardDataGridSx,
-              {
-                '--DataGrid-overlayHeight': '200px',
-                '& .MuiDataGrid-cell': {
-                  display: 'flex',
-                  alignItems: 'center',
+        {viewMode === 'tabla' ? (
+          <Box sx={{ width: '100%', backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+            <EmphasysDataGrid
+              rows={contactos}
+              columns={orderedColumns}
+              rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
+              columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
+              autoHeight
+              pagination
+              paginationMode="server"
+              rowCount={rowCount}
+              loading={loading}
+              paginationModel={paginationModel}
+              pageSizeOptions={[25, 50, 100]}
+              onPaginationModelChange={onPaginationModelChange}
+              density={density}
+              sortModel={sortModel}
+              onSortModelChange={onSortModelChange}
+              filterModel={filterModel}
+              onFilterModelChange={onFilterModelChange}
+              columnVisibilityModel={columnVisibilityModel}
+              onColumnVisibilityModelChange={onColumnVisibilityModelChange}
+              onColumnWidthChange={onColumnWidthChange}
+              onColumnOrderChange={onColumnOrderChange}
+              rowSelectionModel={selectedRowIds}
+              onRowSelectionModelChange={onRowSelectionModelChange}
+              onRowDoubleClick={onRowDoubleClick}
+              {...(slotProps ? { slotProps } : {})}
+              hideFooterSelectedRowCount
+              sx={[
+                standardDataGridSx,
+                {
+                  '--DataGrid-overlayHeight': '200px',
+                  '& .MuiDataGrid-cell': {
+                    display: 'flex',
+                    alignItems: 'center',
+                  },
+                  '& .MuiDataGrid-row': {
+                    cursor: 'default',
+                  },
                 },
-                '& .MuiDataGrid-row': {
-                  cursor: 'default',
-                },
-              },
-            ]}
-          />
-          <GridContextMenu
-            actions={contextMenuActions}
-            anchorPosition={contextMenuPosition}
-            open={contextMenuOpen}
-            onClose={onCloseContextMenu}
-          />
-        </Box>
+              ]}
+            />
+            <GridContextMenu
+              actions={contextMenuActions}
+              anchorPosition={contextMenuPosition}
+              open={contextMenuOpen}
+              onClose={onCloseContextMenu}
+            />
+          </Box>
+        ) : (
+          <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+            <ContactosListaCompacta
+              contactos={contactos}
+              rowCount={rowCount}
+              loading={loading}
+              paginationModel={paginationModel}
+              onPaginationModelChange={onPaginationModelChange}
+              selectedContactoId={selectedContactoId}
+              onSelectContacto={onSelectContacto}
+              onEditContacto={onEditContacto}
+              onDeleteContacto={onDeleteContacto}
+              onViewActividades={onViewActividades}
+              vendedorNombre={vendedorNombre}
+            />
+            <ContactoWorkspace
+              contactoId={selectedContactoId}
+              vendedorNombre={vendedorNombre}
+              onEditar={onEditContacto}
+              onEliminar={onDeleteContacto}
+              onVerActividades={onViewActividades}
+            />
+          </Box>
+        )}
       </Box>
     </Box>
   );
