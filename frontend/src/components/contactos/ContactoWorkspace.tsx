@@ -244,17 +244,18 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
   React.useEffect(() => {
     if (!contactoId) return;
     if (tab === 3 && cotizacionesLoadedForRef.current !== contactoId) {
-      cotizacionesLoadedForRef.current = contactoId;
       let active = true;
       setCotizacionesLoading(true);
       getDocumentosPaginados('cotizacion', { page: 1, limit: 8, clienteId: contactoId })
         .then((response) => {
           if (!active) return;
+          cotizacionesLoadedForRef.current = contactoId;
           setCotizaciones(response.data as unknown as CotizacionListado[]);
           setCotizacionesTotal(response.total);
         })
         .catch(() => {
           if (!active) return;
+          cotizacionesLoadedForRef.current = null;
           setCotizaciones([]);
           setCotizacionesTotal(0);
         })
@@ -271,17 +272,18 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
   React.useEffect(() => {
     if (!contactoId) return;
     if (tab === 4 && facturasLoadedForRef.current !== contactoId) {
-      facturasLoadedForRef.current = contactoId;
       let active = true;
       setFacturasLoading(true);
       getDocumentosPaginados('factura', { page: 1, limit: 8, clienteId: contactoId })
         .then((response) => {
           if (!active) return;
+          facturasLoadedForRef.current = contactoId;
           setFacturas(response.data as unknown as CotizacionListado[]);
           setFacturasTotal(response.total);
         })
         .catch(() => {
           if (!active) return;
+          facturasLoadedForRef.current = null;
           setFacturas([]);
           setFacturasTotal(0);
         })
