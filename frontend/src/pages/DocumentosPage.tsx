@@ -137,6 +137,8 @@ import {
 } from '../modules/documentos/documentoNavigation';
 import DocumentosDesktopView from '../components/documentos/DocumentosDesktopView';
 import DocumentosMobileView from '../components/documentos/DocumentosMobileView';
+import FacturasWorkspaceView from '../components/documentos/facturas/FacturasWorkspaceView';
+import { resolveFacturasWorkspaceEnabled } from '../modules/documentos/facturasWorkspaceFlag';
 import FacturaGlobalDialog from '../modules/documentos/FacturaGlobalDialog';
 import { StatusAction, StatusIndicator, type StatusIconComponent, type StatusTone } from '../components/status';
 import {
@@ -3693,6 +3695,56 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     />
   );
 
+  // Vista alterna de Facturas (lista + workspace), detrás de un flag
+  // reversible. Sólo aplica a facturas de venta; el resto de tipos de
+  // documento (cotización, nota de crédito, pedido, orden de servicio, etc.)
+  // siguen exactamente igual, sobre `desktopView`/`mobileView`. Reutiliza
+  // los mismos datos/handlers ya calculados arriba — no duplica lógica.
+  const facturasWorkspaceEnabled =
+    tipoDocumento === 'factura' && modulo === 'ventas' && resolveFacturasWorkspaceEnabled(empresaId, session.user?.id ?? null);
+
+  const facturasWorkspaceView = facturasWorkspaceEnabled ? (
+    <Container maxWidth={false} sx={{ py: 2 }}>
+      <FacturasWorkspaceView
+        rows={filteredRows}
+        isLoading={loading || loadingPreferences}
+        tipoDocumento={tipoDocumento}
+        searchTerm={search}
+        onSearchTermChange={setSearch}
+        onClearSearch={() => setSearch('')}
+        quickFilter={quickFilter}
+        onQuickFilterChange={setQuickFilter}
+        statusOptions={statusOptions}
+        resumenTotales={resumenTotales}
+        filtersContent={filtersContent}
+        filtersOpen={filtersOpen}
+        onFiltersOpenChange={setFiltersOpen}
+        hayFiltrosActivos={hayFiltrosActivos}
+        filtrosActivosCount={filtrosActivosCount}
+        sortModel={sortModel as GridSortModel}
+        onSortModelChange={setSortModel}
+        extraActionsContent={extraActionsContent}
+        onCreateDocumento={() => navigate(`${basePath}/nuevo`)}
+        indicatorsByDocumentId={indicadoresFacturaPorId}
+        gridContextMenuActions={gridContextMenuActions}
+        onSelectFactura={openContextMenuForRow}
+        formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
+        formatDate={formatCivilDate}
+        currency={currency}
+        rowCount={rowCount}
+        paginationModel={{ page, pageSize }}
+        onPaginationModelChange={(model) => {
+          if (model.pageSize !== pageSize) {
+            setPageSize(Math.min(model.pageSize, 100));
+            setPage(0);
+          } else {
+            setPage(model.page);
+          }
+        }}
+      />
+    </Container>
+  ) : null;
+
   const mobileView = (
     <DocumentosMobileView
       title={textos.titulo}
@@ -3735,7 +3787,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
   return (
     <>
-      {isMobile ? (
+      {!isMobile && facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
         <Container maxWidth={false} sx={{ py: 2 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             {mobileView}
