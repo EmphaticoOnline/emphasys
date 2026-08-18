@@ -17,6 +17,22 @@ import {
   marcarProductoArchivoPrincipalRepository,
 } from './productos.repository';
 import { generarPdfPreviewSiFalta } from '../../services/pdfPreviewImage.service';
+import { resolverContextoScopeComercial } from '../auth/scope-comercial';
+import {
+  omitirCamposEconomicos,
+  omitirCamposEconomicosLista,
+  filtrarCamposEconomicosDeEntrada,
+  excluirColumnasEconomicas,
+} from './productos.economic-fields';
+
+async function resolverEsAdmin(req: Request, empresaId: number): Promise<boolean> {
+  const { esAdmin } = await resolverContextoScopeComercial(
+    empresaId,
+    req.auth?.userId,
+    req.auth?.esSuperadmin
+  );
+  return esAdmin;
+}
 
 function sanitizarPayloadProducto(body: any) {
   if (typeof body?.especificaciones === 'string') {
@@ -36,8 +52,10 @@ export async function crearProducto(req: Request, res: Response) {
       return res.status(400).json({ message: "empresaId no disponible en contexto" });
     }
 
-    const producto = await insertarProductoRepository(sanitizarPayloadProducto(req.body), Number(empresaId));
-    res.status(201).json(producto);
+    const esAdmin = await resolverEsAdmin(req, Number(empresaId));
+    const payload = filtrarCamposEconomicosDeEntrada(sanitizarPayloadProducto(req.body), esAdmin);
+    const producto = await insertarProductoRepository(payload, Number(empresaId));
+    res.status(201).json(omitirCamposEconomicos(producto, esAdmin));
   } catch (error) {
     // Mostrar el error real en la respuesta para depuración
     res.status(500).json({ error: 'Error al crear producto', detalle: error instanceof Error ? error.message : error });
@@ -58,14 +76,16 @@ export async function getProductos(req: Request, res: Response) {
     const limit = typeof limitRaw === 'string' ? Number(limitRaw) : undefined;
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
 
+    const esAdmin = await resolverEsAdmin(req, Number(empresaId));
+
     const usingPagination = Number.isFinite(page) && Number.isFinite(limit);
     if (usingPagination && page && page >= 1 && limit && limit >= 1 && limit <= 100) {
       const result = await getProductosPaginadosRepository(Number(empresaId), { page, limit, search });
-      return res.json({ data: result.data, total: result.total, page, limit });
+      return res.json({ data: omitirCamposEconomicosLista(result.data, esAdmin), total: result.total, page, limit });
     }
 
     const productos = await getProductosRepository(Number(empresaId));
-    res.json(productos);
+    res.json(omitirCamposEconomicosLista(productos, esAdmin));
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener productos' });
   }
@@ -82,7 +102,8 @@ export async function getProducto(req: Request, res: Response) {
 
     const producto = await getProductoByIdRepository(id, Number(empresaId));
     if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
-    res.json(producto);
+    const esAdmin = await resolverEsAdmin(req, Number(empresaId));
+    res.json(omitirCamposEconomicos(producto, esAdmin));
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener producto' });
   }
@@ -97,9 +118,11 @@ export async function updateProducto(req: Request, res: Response) {
       return res.status(400).json({ message: "empresaId no disponible en contexto" });
     }
 
-    const producto = await updateProductoRepository(id, sanitizarPayloadProducto(req.body), Number(empresaId));
+    const esAdmin = await resolverEsAdmin(req, Number(empresaId));
+    const payload = filtrarCamposEconomicosDeEntrada(sanitizarPayloadProducto(req.body), esAdmin);
+    const producto = await updateProductoRepository(id, payload, Number(empresaId));
     if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
-    res.json(producto);
+    res.json(omitirCamposEconomicos(producto, esAdmin));
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar producto' });
   }
@@ -116,7 +139,8 @@ export async function deleteProducto(req: Request, res: Response) {
 
     const producto = await deleteProductoRepository(id, Number(empresaId));
     if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
-    res.json(producto);
+    const esAdmin = await resolverEsAdmin(req, Number(empresaId));
+    res.json(omitirCamposEconomicos(producto, esAdmin));
   } catch (error) {
     res.status(500).json({ error: 'Error al eliminar producto' });
   }
@@ -269,9 +293,14 @@ export async function exportarProductos(req: Request, res: Response) {
       return res.status(400).json({ message: 'columns es obligatorio' });
     }
 
-    const exportColumns = columns
-      .filter((c) => c && typeof c.field === 'string' && typeof c.headerName === 'string')
-      .slice(0, 50);
+    const esAdmin = await resolverEsAdmin(req, Number(empresaId));
+
+    const exportColumns = excluirColumnasEconomicas(
+      columns
+        .filter((c) => c && typeof c.field === 'string' && typeof c.headerName === 'string')
+        .slice(0, 50),
+      esAdmin
+    );
 
     if (exportColumns.length === 0) {
       return res.status(400).json({ message: 'No hay columnas válidas para exportar' });
@@ -279,7 +308,10 @@ export async function exportarProductos(req: Request, res: Response) {
 
     const search = typeof filters.search === 'string' ? filters.search.trim().toLowerCase() : '';
 
-    let productos: Record<string, any>[] = await getProductosRepository(Number(empresaId));
+    let productos: Record<string, any>[] = omitirCamposEconomicosLista(
+      await getProductosRepository(Number(empresaId)),
+      esAdmin
+    );
 
     if (search) {
       productos = productos.filter((p) =>

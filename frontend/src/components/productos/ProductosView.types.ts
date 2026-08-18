@@ -19,6 +19,8 @@ export interface ProductosViewCommonProps {
   onCreateProducto: () => void;
 }
 
+export type ProductosViewMode = 'lista' | 'tabla';
+
 export interface ProductosDesktopViewProps extends ProductosViewCommonProps {
   productos: Producto[];
   columns: GridColDef[];
@@ -40,6 +42,13 @@ export interface ProductosDesktopViewProps extends ProductosViewCommonProps {
   onCloseContextMenu: () => void;
   onExport: () => void;
   exportLoading?: boolean;
+  viewMode: ProductosViewMode;
+  onViewModeChange: (mode: ProductosViewMode) => void;
+  esAdmin: boolean;
+  selectedProductoId: number | null;
+  onSelectProducto: (productoId: number) => void;
+  onEditProducto: (productoId: number) => void;
+  onDeleteProducto: (producto: Producto) => void;
 }
 
 export interface ProductosMobileViewProps extends ProductosViewCommonProps {

@@ -28,7 +28,9 @@ import { useGridPreferences } from '../hooks/useGridPreferences';
 import ProductosDesktopView from '../components/productos/ProductosDesktopView';
 import ProductosMobileView from '../components/productos/ProductosMobileView';
 import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
+import type { ProductosViewMode } from '../components/productos/ProductosView.types';
 import { useSession } from '../session/useSession';
+import { esRolAdmin } from '../session/rolScope';
 
 export default function ProductosPage() {
   const navigate = useNavigate();
@@ -50,6 +52,9 @@ export default function ProductosPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [globalSpecsOpen, setGlobalSpecsOpen] = useState(false);
   const [especificacionesHabilitadas, setEspecificacionesHabilitadas] = useState(false);
+  const [viewMode, setViewMode] = useState<ProductosViewMode>('lista');
+  const [selectedProductoId, setSelectedProductoId] = useState<number | null>(null);
+  const esAdmin = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
 
   const {
     loadingPreferences,
@@ -131,6 +136,19 @@ export default function ProductosPage() {
       .catch(() => setEspecificacionesHabilitadas(false));
   }, [session.empresaActivaId]);
 
+  // Autoselección del primer producto visible en la vista Lista, igual que Contactos.
+  useEffect(() => {
+    if (viewMode !== 'lista' || loading) return;
+    if (productos.length === 0) {
+      setSelectedProductoId(null);
+      return;
+    }
+    const stillVisible = selectedProductoId != null && productos.some((producto) => producto.id === selectedProductoId);
+    if (!stillVisible && productos[0]) {
+      setSelectedProductoId(productos[0].id);
+    }
+  }, [productos, viewMode, loading, selectedProductoId]);
+
   const handleDelete = async (producto: Producto) => {
     const confirmed = window.confirm(`¿Eliminar el producto "${producto.descripcion}"?`);
     if (!confirmed) return;
@@ -138,6 +156,7 @@ export default function ProductosPage() {
     try {
       await deleteProducto(producto.id);
       setSnackbar({ open: true, message: 'Producto eliminado', severity: 'success' });
+      if (selectedProductoId === producto.id) setSelectedProductoId(null);
       loadProductos();
     } catch (e) {
       setSnackbar({
@@ -351,6 +370,13 @@ export default function ProductosPage() {
       onCloseContextMenu={closeContextMenu}
       onExport={() => void handleExport()}
       exportLoading={exportLoading}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      esAdmin={esAdmin}
+      selectedProductoId={selectedProductoId}
+      onSelectProducto={setSelectedProductoId}
+      onEditProducto={(productoId) => navigate(`/productos/${productoId}`)}
+      onDeleteProducto={(producto) => void handleDelete(producto)}
     />
   );
 

@@ -343,12 +343,8 @@ export async function getProductoByIdRepository(id: number, empresaId: number) {
     WHERE p.empresa_id = $1 AND p.id = $2
     LIMIT 1
   `;
-  console.log('[BACK SQL DEBUG] getProductoById SQL', query);
-  console.log('[BACK SQL DEBUG] getProductoById params', [empresaId, id]);
   const { rows } = await pool.query(query, [empresaId, id]);
-  const row = rows[0];
-  console.log('[BACK IVA DEBUG] getProductoById row', row ? { id: row.id, iva_porcentaje: row.iva_porcentaje } : null);
-  return row;
+  return rows[0];
 }
 
 export async function obtenerCatalogosConfigurablesDeProducto(
