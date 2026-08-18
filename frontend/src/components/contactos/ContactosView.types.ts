@@ -65,6 +65,8 @@ export interface ContactosViewCommonProps {
   onClearAdvancedFilters: () => void;
 }
 
+export type ContactosViewMode = 'lista' | 'tabla';
+
 export interface ContactosDesktopViewProps extends ContactosViewCommonProps {
   contactos: ContactoRow[];
   orderedColumns: GridColDef[];
@@ -91,6 +93,14 @@ export interface ContactosDesktopViewProps extends ContactosViewCommonProps {
   onCloseContextMenu: () => void;
   onExport: () => void;
   exportLoading?: boolean;
+  viewMode: ContactosViewMode;
+  onViewModeChange: (mode: ContactosViewMode) => void;
+  selectedContactoId: number | null;
+  onSelectContacto: (contactoId: number) => void;
+  onEditContacto: (contactoId: number | string) => void;
+  onDeleteContacto: (contactoId: number | string) => void;
+  onViewActividades: (contacto: ContactoRow) => void;
+  vendedorNombre: Map<number, string>;
 }
 
 export interface ContactosMobileViewProps extends ContactosViewCommonProps {

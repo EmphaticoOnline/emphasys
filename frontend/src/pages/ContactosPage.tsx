@@ -33,6 +33,7 @@ import type {
   ContactoOrigenOption,
   ContactoRow,
   ContactosAdvancedFiltersState,
+  ContactosViewMode,
 } from '../components/contactos/ContactosView.types';
 import { formatearTelefonoParaMostrar } from '../utils/telefono';
 
@@ -77,6 +78,8 @@ export default function ContactosPage() {
   const [seguimientoContacto, setSeguimientoContacto] = useState<ContactoRow | null>(null);
   const [seguimientoDrawerOpen, setSeguimientoDrawerOpen] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<ContactosViewMode>('lista');
+  const [selectedContactoId, setSelectedContactoId] = useState<number | null>(null);
   const drawerReopenHandled = useRef(false);
 
   const vendedorNombre = useMemo(() => {
@@ -384,6 +387,18 @@ export default function ContactosPage() {
   }, [contactos]);
 
   useEffect(() => {
+    if (viewMode !== 'lista' || loading) return;
+    if (contactos.length === 0) {
+      setSelectedContactoId(null);
+      return;
+    }
+    const stillVisible = selectedContactoId != null && contactos.some((contacto) => contacto.id === selectedContactoId);
+    if (!stillVisible && contactos[0]) {
+      setSelectedContactoId(contactos[0].id);
+    }
+  }, [contactos, viewMode, loading, selectedContactoId]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (selectedRowIds.length === 0) {
         return;
@@ -595,6 +610,14 @@ export default function ContactosPage() {
       onCloseContextMenu={closeContextMenu}
       onExport={handleExport}
       exportLoading={exportLoading}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      selectedContactoId={selectedContactoId}
+      onSelectContacto={setSelectedContactoId}
+      onEditContacto={handleEditarContacto}
+      onDeleteContacto={handleEliminarContacto}
+      onViewActividades={handleVerActividades}
+      vendedorNombre={vendedorNombre}
     />
   );
 
