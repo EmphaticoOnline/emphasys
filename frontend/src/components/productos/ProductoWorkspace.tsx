@@ -61,13 +61,44 @@ function formatCurrency(value?: number | string | null) {
   return currencyFormatter.format(numeric);
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+function normalizarTexto(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+// Deriva un valor de Resumen (Clasificación/Familia/Línea) a partir de los
+// catálogos comerciales configurables asociados al producto, NUNCA de las
+// columnas legacy producto.clasificacion/familia/linea. El framework de
+// catálogos no expone un identificador estable por concepto (solo `nombre`
+// libre por empresa), así que se ubica el tipo de catálogo por coincidencia
+// de texto contra el nombre configurado (p. ej. "Clasificaciones de
+// Productos" contiene "clasificacion"). Si la empresa no tiene un catálogo
+// con ese nombre, o no hay valores seleccionados, se devuelve null para que
+// el llamador omita la etiqueta en vez de mostrar un "—".
+function valorCatalogoPorNombre(catalogos: CatalogoConfigurablesProductoRespuesta | null, patron: string): string | null {
+  if (!catalogos) return null;
+  const tipo = catalogos.tipos.find((t) => t.nombre && normalizarTexto(t.nombre).includes(patron));
+  if (!tipo) return null;
+  const seleccionados = tipo.valores
+    .filter((v) => catalogos.seleccionados.includes(v.id))
+    .map((v) => v.descripcion);
+  return seleccionados.length ? seleccionados.join(', ') : null;
+}
+
+function InfoRow({ label, value, compact }: { label: string; value: React.ReactNode; compact?: boolean }) {
   return (
     <Box>
       <Typography variant="caption" color="#6b7280" sx={{ display: 'block', mb: 0.25 }}>
         {label}
       </Typography>
-      <Typography variant="body2" fontWeight={600} color="#111827" sx={{ wordBreak: 'break-word' }}>
+      <Typography
+        variant="body2"
+        fontWeight={compact ? 500 : 600}
+        color="#111827"
+        sx={{ wordBreak: 'break-word', ...(compact ? { fontSize: 13 } : {}) }}
+      >
         {value || value === 0 ? value : '—'}
       </Typography>
     </Box>
@@ -336,6 +367,14 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
     }))
     .filter((row) => row.v);
 
+  // Clasificación/Familia/Línea de Resumen: SIEMPRE derivadas de los catálogos
+  // comerciales configurables (nunca de producto.clasificacion/familia/linea,
+  // columnas legacy). Si la empresa no tiene el catálogo correspondiente
+  // configurado, o no hay valor seleccionado, quedan en null y no se muestran.
+  const clasificacionCatalogo = valorCatalogoPorNombre(catalogos, 'clasificacion');
+  const familiaCatalogo = valorCatalogoPorNombre(catalogos, 'familia');
+  const lineaCatalogo = valorCatalogoPorNombre(catalogos, 'linea');
+
   const costoBase = producto.costo_estandar ?? producto.costo_promedio ?? producto.ultimo_costo ?? null;
   const nivelesPrecio: { nivel: string; valor: number | null }[] = [
     { nivel: 'Público', valor: producto.precio_publico },
@@ -403,13 +442,26 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
                   />
                 ) : null}
               </Stack>
-              <Typography variant="h6" fontWeight={700} color="#fff" sx={{ lineHeight: 1.25, mt: 0.5 }} noWrap>
+              <Typography
+                fontWeight={600}
+                color="#fff"
+                sx={{
+                  fontSize: 15,
+                  lineHeight: 1.35,
+                  mt: 0.5,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 {producto.descripcion}
               </Typography>
               <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                {producto.familia ? (
+                {familiaCatalogo ? (
                   <Typography variant="body2" color="rgba(255,255,255,0.62)">
-                    Familia: <Typography component="span" variant="body2" color="#fff" fontWeight={500}>{producto.familia}</Typography>
+                    Familia: <Typography component="span" variant="body2" color="#fff" fontWeight={500}>{familiaCatalogo}</Typography>
                   </Typography>
                 ) : null}
                 {producto.unidad_venta_clave ? (
@@ -466,9 +518,9 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
           variant="scrollable"
           scrollButtons="auto"
           sx={{
-            mt: 1.5,
-            minHeight: 32,
-            '& .MuiTab-root': { minHeight: 32, py: 0.5, color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'none' },
+            mt: 1.25,
+            minHeight: 28,
+            '& .MuiTab-root': { minHeight: 28, py: 0.25, color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'none' },
             '& .Mui-selected': { color: '#fff !important' },
             '& .MuiTabs-indicator': { backgroundColor: '#fff' },
           }}
@@ -489,11 +541,11 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
             <SectionCard title="Datos generales">
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
                 <InfoRow label="Clave" value={producto.clave} />
-                <InfoRow label="Descripción" value={producto.descripcion} />
+                <InfoRow label="Descripción" value={producto.descripcion} compact />
                 <InfoRow label="Tipo de producto" value={producto.tipo_producto} />
-                <InfoRow label="Clasificación" value={producto.clasificacion} />
-                <InfoRow label="Familia" value={producto.familia} />
-                <InfoRow label="Línea" value={producto.linea} />
+                {clasificacionCatalogo ? <InfoRow label="Clasificación" value={clasificacionCatalogo} /> : null}
+                {familiaCatalogo ? <InfoRow label="Familia" value={familiaCatalogo} /> : null}
+                {lineaCatalogo ? <InfoRow label="Línea" value={lineaCatalogo} /> : null}
                 <InfoRow label="Estado" value={producto.activo ? 'Activo' : 'Inactivo'} />
                 <InfoRow label="Creado" value={formatDate(producto.fecha_creacion)} />
               </Box>
