@@ -9,9 +9,15 @@ import StarIcon from '@mui/icons-material/Star';
 import { actualizarEspecificacionBiblioteca, cambiarBajaEspecificacionBiblioteca, crearEspecificacionBiblioteca, fetchEspecificacionesBiblioteca, reordenarEspecificacionesBiblioteca, type EspecificacionBiblioteca, type TipoEspecificacionBiblioteca } from '../../services/productosService';
 
 const TIPOS: TipoEspecificacionBiblioteca[] = ['medida', 'material', 'accesorio', 'garantia', 'entrega', 'condicion', 'otro'];
-type Props = { productoId?: number; alcance: 'global' | 'producto'; onError?: (message: string) => void };
+type Props = {
+  productoId?: number | undefined;
+  alcance: 'global' | 'producto';
+  onError?: (message: string) => void;
+  /** Opcional: notifica al padre cuántas filas hay tras cada carga (para badges/contadores externos). No cambia el comportamiento interno del editor. */
+  onCountChange?: (count: number) => void;
+};
 
-export default function EspecificacionesBibliotecaEditor({ productoId, alcance, onError }: Props) {
+export default function EspecificacionesBibliotecaEditor({ productoId, alcance, onError, onCountChange }: Props) {
   const [rows, setRows] = useState<EspecificacionBiblioteca[]>([]);
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -25,7 +31,11 @@ export default function EspecificacionesBibliotecaEditor({ productoId, alcance, 
   const canLoad = alcance === 'global' || Boolean(productoId);
   const load = async () => {
     if (!canLoad) return;
-    try { setRows(await fetchEspecificacionesBiblioteca(alcance === 'global' ? 'global' : productoId!, showInactive)); }
+    try {
+      const data = await fetchEspecificacionesBiblioteca(alcance === 'global' ? 'global' : productoId!, showInactive);
+      setRows(data);
+      onCountChange?.(data.filter((r) => !r.fecha_baja).length);
+    }
     catch (e) { onError?.(e instanceof Error ? e.message : 'No se pudieron cargar las especificaciones'); }
   };
   useEffect(() => { void load(); }, [productoId, alcance, showInactive]);

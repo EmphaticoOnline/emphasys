@@ -44,6 +44,16 @@ function sanitizarPayloadProducto(body: any) {
   return body;
 }
 
+// Violación de unicidad de Postgres (código 23505). Usamos el mismo criterio
+// que otros módulos del backend (roles, precios-listas, etc.): la única
+// restricción única conocida sobre `productos` es (empresa_id, clave)
+// (inferida por el uso de ON CONFLICT (empresa_id, clave) en
+// productos.repository.ts). No se agrega detección por nombre de constraint
+// porque no se pudo introspeccionar el catálogo real (BD remota compartida).
+function esViolacionClaveDuplicada(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && (error as { code?: string }).code === '23505');
+}
+
 // POST /api/productos
 export async function crearProducto(req: Request, res: Response) {
   try {
@@ -57,6 +67,9 @@ export async function crearProducto(req: Request, res: Response) {
     const producto = await insertarProductoRepository(payload, Number(empresaId));
     res.status(201).json(omitirCamposEconomicos(producto, esAdmin));
   } catch (error) {
+    if (esViolacionClaveDuplicada(error)) {
+      return res.status(409).json({ error: 'Ya existe un producto con esa clave' });
+    }
     // Mostrar el error real en la respuesta para depuración
     res.status(500).json({ error: 'Error al crear producto', detalle: error instanceof Error ? error.message : error });
   }
@@ -124,6 +137,9 @@ export async function updateProducto(req: Request, res: Response) {
     if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json(omitirCamposEconomicos(producto, esAdmin));
   } catch (error) {
+    if (esViolacionClaveDuplicada(error)) {
+      return res.status(409).json({ error: 'Ya existe un producto con esa clave' });
+    }
     res.status(500).json({ error: 'Error al actualizar producto' });
   }
 }

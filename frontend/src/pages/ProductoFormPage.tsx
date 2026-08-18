@@ -1,34 +1,28 @@
 import * as React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
+  Chip,
   CircularProgress,
-  FormControlLabel,
-  Autocomplete,
-  Tabs,
-  Tab,
-  MenuItem,
-  IconButton,
   Paper,
   Snackbar,
   Stack,
-  Switch,
   TextField,
-  Toolbar,
   Tooltip,
   Typography,
 } from '@mui/material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
-import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
-import StarBorderOutlinedIcon from '@mui/icons-material/StarBorderOutlined';
-import StarIcon from '@mui/icons-material/Star';
 
-import FloatingFormActions from '../components/FloatingFormActions';
 import RichTextEditor from '../components/RichTextEditor';
+import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
+import SeccionCard from '../components/productos/formulario/SeccionCard';
+import SeccionesIndice, { type SeccionIndiceItem } from '../components/productos/formulario/SeccionesIndice';
+import SeccionIdentificacion from '../components/productos/formulario/SeccionIdentificacion';
+import SeccionFiscalUnidades, { type ProductoServicioSatOption } from '../components/productos/formulario/SeccionFiscalUnidades';
+import SeccionImagenesArchivos from '../components/productos/formulario/SeccionImagenesArchivos';
 
 import type { ProductoBasico, Producto } from '../types/producto';
 import {
@@ -45,15 +39,11 @@ import {
   type CatalogoConfigurablesProductoRespuesta,
   type ProductoArchivo,
 } from '../services/productosService';
-import { apiFetch } from '../services/apiFetch';
+import { apiFetch, type ApiFetchError } from '../services/apiFetch';
 import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
 import { PRODUCTOS_CAMPOS } from '../definitions/productos.fields';
 import { fetchUnidades, type Unidad } from '../services/unidadesService';
-import { buildAssetUrl } from '../services/empresasAssetsService';
-import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
 import { useSession } from '../session/useSession';
-
-const tipoProductoOptions = ['Inventariable', 'No inventariable', 'Kit'] as const;
 
 const initialForm: ProductoBasico = {
   clave: '',
@@ -64,12 +54,8 @@ const initialForm: ProductoBasico = {
   clave_producto_sat: null,
   unidad_venta_id: null,
   unidad_inventario_id: null,
+  factor_conversion: null,
   especificaciones: '',
-};
-
-type ProductoServicioSatOption = {
-  id: string;
-  texto: string;
 };
 
 type CatalogoComercialValor = {
@@ -87,15 +73,52 @@ type CatalogoComercialTipo = {
   valores: CatalogoComercialValor[];
 };
 
+// Mapa campo nativo -> sección del documento, usado solo para pintar el
+// indicador de error en el índice lateral (SeccionesIndice).
+const CAMPO_A_SECCION: Record<string, 'identificacion' | 'fiscal'> = {
+  clave: 'identificacion',
+  descripcion: 'identificacion',
+  clasificacion: 'identificacion',
+  clave_producto_sat: 'fiscal',
+  unidad_venta_id: 'fiscal',
+  unidad_inventario_id: 'fiscal',
+};
+
+function construirEtiquetaObligatoriedad(tipoProducto: string, camposObligatorios: Set<string>): string {
+  const etiquetas = Array.from(camposObligatorios)
+    .filter((campo) => campo !== 'clave' && campo !== 'descripcion')
+    .map((campo) => PRODUCTOS_CAMPOS.find((d) => d.campo === campo)?.etiqueta ?? campo);
+
+  if (etiquetas.length === 0) {
+    return `El tipo ${tipoProducto} no tiene campos adicionales configurados como obligatorios. Cambiar el tipo puede activar nuevas reglas.`;
+  }
+
+  return `El tipo ${tipoProducto} hace obligatorios: ${etiquetas.join(', ')}. Cambiar el tipo actualiza estas reglas.`;
+}
+
 export default function ProductoFormPage() {
-  const { id } = useParams();
+  const { id: routeId } = useParams();
   const navigate = useNavigate();
   const { session } = useSession();
 
-  const isEdit = Boolean(id && id !== 'nuevo');
+  // Se captura una sola vez al montar: ¿esta instancia arrancó como alta?
+  // Determina si se ofrece "Guardar y nuevo" en la cabecera.
+  const esFlujoAltaRef = useRef<boolean>(!routeId || routeId === 'nuevo');
+  // Id de ruta al que navegamos nosotros mismos tras crear (alta continua),
+  // para que el efecto de carga no vuelva a pedir al servidor datos que ya
+  // tenemos en memoria.
+  const idAutoNavegadoRef = useRef<string | null>(null);
+
+  const [productoId, setProductoId] = useState<number | null>(() => {
+    if (!routeId || routeId === 'nuevo') return null;
+    const parsed = Number(routeId);
+    return Number.isFinite(parsed) ? parsed : null;
+  });
+  const isEdit = productoId !== null;
+
   const [form, setForm] = useState<ProductoBasico>(initialForm);
+  const [formSnapshot, setFormSnapshot] = useState<string>(JSON.stringify(initialForm));
   const [loading, setLoading] = useState(isEdit);
-  const [activeTab, setActiveTab] = useState(0);
   const [loadingUnidades, setLoadingUnidades] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +131,7 @@ export default function ProductoFormPage() {
   const [productosSatLoading, setProductosSatLoading] = useState(false);
   const [comercialTipos, setComercialTipos] = useState<CatalogoComercialTipo[]>([]);
   const [comercialSeleccionados, setComercialSeleccionados] = useState<Record<number, number[]>>({});
+  const [comercialSnapshot, setComercialSnapshot] = useState<string>('{}');
   const [comercialLoading, setComercialLoading] = useState<boolean>(false);
   const [comercialError, setComercialError] = useState<string | null>(null);
   const [archivos, setArchivos] = useState<ProductoArchivo[]>([]);
@@ -116,10 +140,32 @@ export default function ProductoFormPage() {
   const [uploadingImagenes, setUploadingImagenes] = useState(false);
   const [camposObligatorios, setCamposObligatorios] = useState<Set<string>>(new Set());
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+  const [claveDuplicadaError, setClaveDuplicadaError] = useState<string | null>(null);
   const [especificacionesHabilitadas, setEspecificacionesHabilitadas] = useState(false);
+  const [especificacionesVista, setEspecificacionesVista] = useState<'texto' | 'biblioteca'>('texto');
+  const [especificacionesCount, setEspecificacionesCount] = useState(0);
   const [archivoActionId, setArchivoActionId] = useState<number | null>(null);
+  const [activeSection, setActiveSection] = useState('identificacion');
   const imagenesInputRef = React.useRef<HTMLInputElement | null>(null);
   const productosSatDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Estado de error "en vivo": intersección entre lo que falló en el último
+  // intento de guardar y lo que es obligatorio HOY según el tipo de producto
+  // actual. Corrige el desfase anterior: si el usuario cambia de tipo y un
+  // campo deja de ser obligatorio, su marca de error desaparece de inmediato
+  // sin esperar a un nuevo intento de guardar.
+  const erroresActivos = useMemo(() => {
+    const activos = new Set<string>();
+    validationErrors.forEach((campo) => {
+      if (camposObligatorios.has(campo)) activos.add(campo);
+    });
+    return activos;
+  }, [validationErrors, camposObligatorios]);
+
+  const isDirty = useMemo(
+    () => JSON.stringify(form) !== formSnapshot || JSON.stringify(comercialSeleccionados) !== comercialSnapshot,
+    [form, formSnapshot, comercialSeleccionados, comercialSnapshot]
+  );
 
   useEffect(() => {
     void fetchConfiguracionEspecificaciones()
@@ -171,14 +217,29 @@ export default function ProductoFormPage() {
     loadUnidades();
   }, []);
 
+  // Carga del producto existente por URL. Se omite deliberadamente cuando el
+  // cambio de ruta lo causamos nosotros mismos tras un alta en sitio (ver
+  // idAutoNavegadoRef): en ese caso ya tenemos los datos en memoria.
   useEffect(() => {
-    if (!isEdit) return;
+    if (!routeId || routeId === 'nuevo') return;
+
+    if (idAutoNavegadoRef.current === routeId) {
+      idAutoNavegadoRef.current = null;
+      return;
+    }
+
+    const parsedId = Number(routeId);
+    if (!Number.isFinite(parsedId)) return;
+
+    let cancelado = false;
     const load = async () => {
       try {
         setLoading(true);
-        const producto = await fetchProducto(Number(id));
+        const producto = await fetchProducto(parsedId);
+        if (cancelado) return;
+        setProductoId(producto.id);
         setProductoLoaded(producto);
-        setForm({
+        const nuevoForm: ProductoBasico = {
           clave: producto.clave,
           descripcion: producto.descripcion,
           clasificacion: producto.clasificacion ?? '',
@@ -187,20 +248,27 @@ export default function ProductoFormPage() {
           clave_producto_sat: producto.clave_producto_sat ?? null,
           unidad_venta_id: producto.unidad_venta_id ?? null,
           unidad_inventario_id: producto.unidad_inventario_id ?? null,
+          factor_conversion: producto.factor_conversion ?? null,
           especificaciones: producto.especificaciones ?? '',
-        });
+        };
+        setForm(nuevoForm);
+        setFormSnapshot(JSON.stringify(nuevoForm));
         if (producto.clave_producto_sat) {
           void loadProductosSat(producto.clave_producto_sat);
         }
         setError(null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'No se pudo cargar el producto');
+        if (!cancelado) setError(e instanceof Error ? e.message : 'No se pudo cargar el producto');
       } finally {
-        setLoading(false);
+        if (!cancelado) setLoading(false);
       }
     };
-    load();
-  }, [id, isEdit, loadProductosSat]);
+    void load();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [routeId, loadProductosSat]);
 
   useEffect(() => () => {
     if (productosSatDebounceRef.current) {
@@ -227,16 +295,23 @@ export default function ProductoFormPage() {
     }, {});
   };
 
+  // Catálogos comerciales: reactivo a productoId. Tras el primer guardado
+  // esto se vuelve a disparar y refresca contra el servidor la selección
+  // que el propio handleSubmit acaba de persistir — es una relectura
+  // redundante pero inofensiva (idempotente), preferida aquí sobre agregar
+  // otra guarda de "auto-navegación" para mantener este efecto simple.
   useEffect(() => {
     let isMounted = true;
 
     const loadComercial = async () => {
       setComercialLoading(true);
       try {
-        const data: CatalogoConfigurablesProductoRespuesta = await obtenerCatalogosConfigurablesProducto(isEdit ? Number(id) : undefined);
+        const data: CatalogoConfigurablesProductoRespuesta = await obtenerCatalogosConfigurablesProducto(productoId ?? undefined);
         if (!isMounted) return;
+        const seleccionInicial = buildSeleccionInicial(data.tipos || [], data.seleccionados || []);
         setComercialTipos(data.tipos || []);
-        setComercialSeleccionados(buildSeleccionInicial(data.tipos || [], data.seleccionados || []));
+        setComercialSeleccionados(seleccionInicial);
+        setComercialSnapshot(JSON.stringify(seleccionInicial));
         setComercialError(null);
       } catch (err) {
         if (!isMounted) return;
@@ -254,18 +329,12 @@ export default function ProductoFormPage() {
     return () => {
       isMounted = false;
     };
-  }, [id, isEdit]);
+  }, [productoId]);
 
-  const loadArchivos = React.useCallback(async () => {
-    if (!isEdit || !id) {
-      setArchivos([]);
-      setArchivosError(null);
-      return;
-    }
-
+  const loadArchivos = React.useCallback(async (id: number) => {
     try {
       setArchivosLoading(true);
-      const data = await fetchProductoArchivos(Number(id));
+      const data = await fetchProductoArchivos(id);
       setArchivos(Array.isArray(data) ? data : []);
       setArchivosError(null);
     } catch (err) {
@@ -274,18 +343,22 @@ export default function ProductoFormPage() {
     } finally {
       setArchivosLoading(false);
     }
-  }, [id, isEdit]);
+  }, []);
 
+  // Carga eager (no atada a ninguna pestaña, ya que el documento es
+  // continuo): en cuanto hay productoId, se listan sus imágenes.
   useEffect(() => {
-    if (activeTab !== 2) {
+    if (productoId === null) {
+      setArchivos([]);
+      setArchivosError(null);
       return;
     }
-
-    void loadArchivos();
-  }, [activeTab, loadArchivos]);
+    void loadArchivos(productoId);
+  }, [productoId, loadArchivos]);
 
   const handleChange = (field: keyof ProductoBasico, value: unknown) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === 'clave') setClaveDuplicadaError(null);
   };
 
   const handleComercialChange = (tipoId: number, values: CatalogoComercialValor[]) => {
@@ -307,7 +380,24 @@ export default function ProductoFormPage() {
     return !String(value).trim();
   };
 
-  const handleSubmit = async () => {
+  const resetFormularioParaNuevaAlta = () => {
+    setForm(initialForm);
+    setFormSnapshot(JSON.stringify(initialForm));
+    setProductoId(null);
+    setProductoLoaded(null);
+    setArchivos([]);
+    setArchivosError(null);
+    setComercialSeleccionados({});
+    setValidationErrors(new Set());
+    setClaveDuplicadaError(null);
+    setProductosSatOptions([]);
+    setEspecificacionesVista('texto');
+    if (routeId !== 'nuevo') {
+      navigate('/productos/nuevo', { replace: true });
+    }
+  };
+
+  const handleSubmit = async (modo: 'normal' | 'nuevo' = 'normal') => {
     const errores = new Set<string>();
     for (const campo of camposObligatorios) {
       if (esCampoVacio(campo)) errores.add(campo);
@@ -318,10 +408,12 @@ export default function ProductoFormPage() {
         (c) => PRODUCTOS_CAMPOS.find((d) => d.campo === c)?.etiqueta ?? c
       );
       setSnackbar({ open: true, message: `Campos obligatorios sin completar: ${etiquetas.join(', ')}.`, severity: 'error' });
-      setActiveTab(0);
+      setActiveSection('identificacion');
+      document.getElementById('identificacion')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
     setValidationErrors(new Set());
+    setClaveDuplicadaError(null);
 
     if (!form.clave.trim() || !form.descripcion.trim()) {
       setSnackbar({ open: true, message: 'Clave y descripción son obligatorias.', severity: 'error' });
@@ -333,65 +425,94 @@ export default function ProductoFormPage() {
       descripcion: form.descripcion.trim(),
       clasificacion: form.clasificacion?.trim() || null,
       tipo_producto: form.tipo_producto || 'Inventariable',
+      factor_conversion: form.factor_conversion ?? null,
       especificaciones: form.especificaciones?.trim() || null,
     };
 
     try {
       setSaving(true);
-      let productoId = isEdit && id ? Number(id) : null;
+      let productoIdActual = productoId;
 
-      if (isEdit && id) {
-        const actualizado = await updateProducto(Number(id), payload);
-        productoId = actualizado?.id ?? productoId;
+      if (productoId !== null) {
+        const actualizado = await updateProducto(productoId, payload);
+        productoIdActual = actualizado?.id ?? productoId;
+        setProductoLoaded(actualizado ?? null);
         setSnackbar({ open: true, message: 'Producto actualizado', severity: 'success' });
       } else {
         const creado = await createProducto(payload);
-        productoId = creado?.id ?? null;
-        setSnackbar({ open: true, message: 'Producto creado', severity: 'success' });
+        productoIdActual = creado?.id ?? null;
+        setProductoLoaded(creado ?? null);
+        // Si el usuario pidió "Guardar y nuevo", no navegamos al registro
+        // recién creado: se guardan sus catálogos comerciales más abajo y
+        // luego se resetea el formulario para una nueva alta. Navegar aquí
+        // y resetear el estado inmediatamente después dejaría la URL
+        // apuntando a un producto que la pantalla ya no muestra.
+        if (productoIdActual && modo === 'normal') {
+          setProductoId(productoIdActual);
+          idAutoNavegadoRef.current = String(productoIdActual);
+          navigate(`/productos/${productoIdActual}`, { replace: true });
+        }
+        setSnackbar({
+          open: true,
+          message: modo === 'normal'
+            ? 'Producto creado. Ya puedes cargar imágenes y especificaciones sin salir de esta pantalla.'
+            : 'Producto creado.',
+          severity: 'success',
+        });
       }
 
-      if (productoId && Number.isFinite(productoId)) {
+      if (productoIdActual && Number.isFinite(productoIdActual)) {
         const catalogoIds = obtenerCatalogosSeleccionados();
-        await guardarCatalogosConfigurablesProducto(productoId, catalogoIds);
+        await guardarCatalogosConfigurablesProducto(productoIdActual, catalogoIds);
+        setComercialSnapshot(JSON.stringify(comercialSeleccionados));
       }
-      setTimeout(() => navigate('/productos'), 300);
+
+      // Sincroniza el form con los valores normalizados (trim, defaults) que
+      // realmente se persistieron, para que el indicador "cambios sin
+      // guardar" no quede en falso positivo por espacios recortados u otras
+      // normalizaciones que el payload aplicó pero el estado en pantalla no.
+      setForm(payload);
+      setFormSnapshot(JSON.stringify(payload));
+
+      if (modo === 'nuevo') {
+        resetFormularioParaNuevaAlta();
+      }
     } catch (e) {
-      setSnackbar({ open: true, message: e instanceof Error ? e.message : 'No se pudo guardar', severity: 'error' });
+      const apiError = e as ApiFetchError;
+      if (apiError?.status === 409) {
+        const mensaje = (apiError.payload as { error?: string } | null)?.error || 'Ya existe un producto con esa clave.';
+        setClaveDuplicadaError(mensaje);
+        setValidationErrors((prev) => new Set(prev).add('clave'));
+        setActiveSection('identificacion');
+        document.getElementById('identificacion')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setSnackbar({ open: true, message: mensaje, severity: 'error' });
+      } else {
+        setSnackbar({ open: true, message: e instanceof Error ? e.message : 'No se pudo guardar', severity: 'error' });
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
-  };
-
   const handleAgregarImagenesClick = () => {
-    if (!isEdit) {
-      return;
-    }
-
+    if (productoId === null) return;
     imagenesInputRef.current?.click();
   };
 
   const handleImagenesChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
 
-    if (!isEdit || !id || files.length === 0) {
-      if (event.target) {
-        event.target.value = '';
-      }
+    if (productoId === null || files.length === 0) {
+      if (event.target) event.target.value = '';
       return;
     }
 
     try {
       setUploadingImagenes(true);
-
       for (const file of files) {
-        await uploadProductoImagen(Number(id), file);
+        await uploadProductoImagen(productoId, file);
       }
-
-      await loadArchivos();
+      await loadArchivos(productoId);
       setSnackbar({ open: true, message: files.length > 1 ? 'Imágenes cargadas' : 'Imagen cargada', severity: 'success' });
     } catch (err) {
       setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudieron cargar las imágenes', severity: 'error' });
@@ -402,14 +523,11 @@ export default function ProductoFormPage() {
   };
 
   const handleEliminarArchivo = async (archivo: ProductoArchivo) => {
-    if (!window.confirm('¿Eliminar esta imagen del producto?')) {
-      return;
-    }
-
+    if (!window.confirm('¿Eliminar esta imagen del producto?')) return;
     try {
       setArchivoActionId(archivo.id);
       await deleteProductoArchivo(archivo.id);
-      await loadArchivos();
+      if (productoId !== null) await loadArchivos(productoId);
       setSnackbar({ open: true, message: 'Imagen eliminada', severity: 'success' });
     } catch (err) {
       setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudo eliminar la imagen', severity: 'error' });
@@ -422,7 +540,7 @@ export default function ProductoFormPage() {
     try {
       setArchivoActionId(archivo.id);
       await marcarProductoArchivoPrincipal(archivo.id);
-      await loadArchivos();
+      if (productoId !== null) await loadArchivos(productoId);
       setSnackbar({ open: true, message: 'Imagen principal actualizada', severity: 'success' });
     } catch (err) {
       setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudo actualizar la imagen principal', severity: 'error' });
@@ -431,23 +549,108 @@ export default function ProductoFormPage() {
     }
   };
 
-  const title = isEdit ? 'Editar producto' : 'Nuevo producto';
-  const imagenPrincipal = archivos.find((archivo) => archivo.principal) ?? archivos[0] ?? null;
+  const handleIrASeccion = (id: string) => {
+    setActiveSection(id);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const explicacionObligatoriedad = construirEtiquetaObligatoriedad(form.tipo_producto || 'Inventariable', camposObligatorios);
+
+  const erroresPorSeccion = useMemo(() => {
+    const porSeccion = { identificacion: false, fiscal: false } as Record<'identificacion' | 'fiscal', boolean>;
+    erroresActivos.forEach((campo) => {
+      const seccion = CAMPO_A_SECCION[campo];
+      if (seccion) porSeccion[seccion] = true;
+    });
+    if (claveDuplicadaError) porSeccion.identificacion = true;
+    return porSeccion;
+  }, [erroresActivos, claveDuplicadaError]);
+
+  const seccionesIndice: SeccionIndiceItem[] = [
+    { id: 'identificacion', etiqueta: 'Identificación', estado: erroresPorSeccion.identificacion ? 'error' : 'disponible' },
+    { id: 'catalogos', etiqueta: 'Catálogos comerciales', estado: 'disponible' },
+    { id: 'fiscal', etiqueta: 'Fiscal y unidades', estado: erroresPorSeccion.fiscal ? 'error' : 'disponible' },
+    { id: 'adicionales', etiqueta: 'Datos adicionales', estado: 'disponible' },
+    { id: 'archivos', etiqueta: 'Imágenes y archivos', estado: productoId === null ? 'pendiente' : 'disponible', contador: productoId === null ? undefined : archivos.length },
+    // "Especificaciones" nunca queda 'pendiente' del todo: el texto legado
+    // (RichTextEditor) siempre fue editable sin id, igual que antes de este
+    // cambio; solo la biblioteca (contador) depende de producto.id.
+    { id: 'especificaciones', etiqueta: 'Especificaciones', estado: 'disponible', contador: especificacionesHabilitadas && productoId !== null ? especificacionesCount : undefined },
+  ];
+
+  const guardarDeshabilitado = saving || loading || (productoId !== null && !isDirty);
+  const title = productoId !== null ? (form.descripcion || productoLoaded?.descripcion || 'Producto') : 'Nuevo producto';
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: '96px' }}>
-      <Toolbar disableGutters sx={{ alignItems: 'center', pb: 1 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Box>
-            <Typography variant="h5" fontWeight={700} color="#1d2f68">
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Paper
+        elevation={0}
+        sx={{ borderRadius: 1.5, border: '1px solid #e5e7eb', backgroundColor: '#ffffff', px: 2, py: 1 }}
+      >
+        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" spacing={1.5}>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ minWidth: 0 }}>
+            <Typography variant="body2" color="#6b7280" fontSize={12.5}>
+              Productos /
+            </Typography>
+            <Typography variant="subtitle1" fontWeight={700} color="#111827" fontSize={14.5} noWrap>
               {title}
             </Typography>
-            <Typography variant="body2" color="#4b5563">
-              Configura los datos básicos del producto. Próximamente se añadirán tabs con más detalles.
-            </Typography>
-          </Box>
+            {form.clave && (
+              <Box
+                component="span"
+                sx={{
+                  fontFamily: '"Roboto Mono", monospace',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  color: '#1d2f68',
+                  backgroundColor: 'rgba(29,47,104,0.08)',
+                  borderRadius: 1,
+                  px: 0.75,
+                  py: 0.125,
+                }}
+              >
+                {form.clave}
+              </Box>
+            )}
+            {productoId === null ? (
+              <Chip label="Borrador" size="small" sx={{ height: 20, fontSize: 11 }} />
+            ) : (
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: form.activo ? '#00b3ad' : '#9ca3af' }} />
+                <Typography variant="caption" color="#6b7280">{form.activo ? 'Activo' : 'Inactivo'}</Typography>
+              </Stack>
+            )}
+            {isDirty && (
+              <Tooltip title="Hay cambios que aún no se guardan">
+                <Typography variant="caption" color="#b45309" fontWeight={600}>
+                  Cambios sin guardar
+                </Typography>
+              </Tooltip>
+            )}
+          </Stack>
+
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Button size="small" onClick={() => navigate('/productos')} sx={{ color: '#6b7280' }}>
+              Cancelar
+            </Button>
+            {esFlujoAltaRef.current && (
+              <Button size="small" variant="outlined" onClick={() => void handleSubmit('nuevo')} disabled={saving || loading}>
+                Guardar y nuevo
+              </Button>
+            )}
+            <Button
+              size="small"
+              variant="contained"
+              onClick={() => void handleSubmit('normal')}
+              disabled={guardarDeshabilitado}
+              startIcon={saving ? <CircularProgress size={14} color="inherit" /> : undefined}
+              sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
+            >
+              {saving ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </Stack>
         </Stack>
-      </Toolbar>
+      </Paper>
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
@@ -455,418 +658,204 @@ export default function ProductoFormPage() {
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, p: 3 }}>
-        {loading ? (
+      {loading ? (
+        <Paper variant="outlined" sx={{ borderRadius: 1.5, borderColor: '#e5e7eb', p: 3 }}>
           <Stack direction="row" alignItems="center" spacing={1.5}>
             <CircularProgress size={20} />
             <Typography color="text.secondary">Cargando producto...</Typography>
           </Stack>
-        ) : (
-          <Stack spacing={2.5}>
-            <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" allowScrollButtonsMobile>
-              <Tab label="General" />
-              <Tab label="Comercial" />
-              <Tab label="Archivos" />
-              <Tab label="Especificaciones" />
-            </Tabs>
+        </Paper>
+      ) : (
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexDirection: { xs: 'column', md: 'row' } }}>
+          <SeccionesIndice secciones={seccionesIndice} activaId={activeSection} onSeleccionar={handleIrASeccion} />
 
-            {activeTab === 0 && (
-              <Stack spacing={2.5}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                  <TextField
-                    label="Clave"
-                    value={form.clave}
-                    onChange={(e) => handleChange('clave', e.target.value)}
-                    required
-                    error={validationErrors.has('clave')}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Tipo de producto"
-                    select
-                    value={form.tipo_producto || 'Inventariable'}
-                    onChange={(e) => handleChange('tipo_producto', e.target.value)}
-                    fullWidth
-                  >
-                    {tipoProductoOptions.map((opt) => (
-                      <MenuItem key={opt} value={opt}>
-                        {opt}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Stack>
+          <Stack spacing={1.5} sx={{ flex: 1, minWidth: 0, width: '100%', pb: 4 }}>
+            <SeccionIdentificacion
+              clave={form.clave}
+              descripcion={form.descripcion}
+              clasificacion={form.clasificacion ?? ''}
+              tipoProducto={form.tipo_producto || 'Inventariable'}
+              activo={form.activo}
+              onClaveChange={(v) => handleChange('clave', v)}
+              onDescripcionChange={(v) => handleChange('descripcion', v)}
+              onClasificacionChange={(v) => handleChange('clasificacion', v)}
+              onTipoProductoChange={(v) => handleChange('tipo_producto', v)}
+              onActivoChange={(v) => handleChange('activo', v)}
+              erroresActivos={erroresActivos}
+              camposObligatorios={camposObligatorios}
+              claveDuplicadaError={claveDuplicadaError}
+              explicacionObligatoriedad={explicacionObligatoriedad}
+            />
 
-                <TextField
-                  label="Descripción"
-                  value={form.descripcion}
-                  onChange={(e) => handleChange('descripcion', e.target.value)}
-                  required
-                  error={validationErrors.has('descripcion')}
-                  fullWidth
-                  multiline
-                  minRows={2}
-                />
-                <Autocomplete
-                  options={productosSatOptions}
-                  loading={productosSatLoading}
-                  filterOptions={(options) => options}
-                  value={
-                    productosSatOptions.find((option) => option.id === form.clave_producto_sat) ||
-                    (form.clave_producto_sat ? { id: form.clave_producto_sat, texto: '' } : null)
-                  }
-                  isOptionEqualToValue={(option, value) => option.id === value.id}
-                  getOptionLabel={(option) => option.texto ? `${option.id} - ${option.texto}` : option.id}
-                  onOpen={() => {
-                    if (!productosSatOptions.length) {
-                      void loadProductosSat(form.clave_producto_sat || '');
-                    }
-                  }}
-                  onInputChange={(_, value, reason) => {
-                    if (reason === 'input') {
-                      queueLoadProductosSat(value);
-                    }
-                  }}
-                  onChange={(_, value) => handleChange('clave_producto_sat', value?.id || null)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...(params as any)}
-                      label="Clave SAT"
-                      fullWidth
-                      required={camposObligatorios.has('clave_producto_sat')}
-                      error={validationErrors.has('clave_producto_sat')}
-                      helperText="Busca por clave o descripción SAT"
-                      InputProps={{
-                        ...params.InputProps,
-                        endAdornment: (
-                          <>
-                            {productosSatLoading ? <CircularProgress size={18} /> : null}
-                            {params.InputProps.endAdornment}
-                          </>
-                        ) as React.ReactNode,
-                      }}
-                    />
-                  )}
-                  noOptionsText={productosSatLoading ? 'Cargando...' : 'Sin resultados'}
-                />
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                  <TextField
-                    label="Clasificación"
-                    value={form.clasificacion ?? ''}
-                    onChange={(e) => handleChange('clasificacion', e.target.value)}
-                    required={camposObligatorios.has('clasificacion')}
-                    error={validationErrors.has('clasificacion')}
-                    fullWidth
-                  />
-                  <TextField
-                    select
-                    label="Unidad de venta"
-                    value={form.unidad_venta_id ?? ''}
-                    onChange={(e) => handleChange('unidad_venta_id', e.target.value === '' ? null : Number(e.target.value))}
-                    fullWidth
-                    disabled={loadingUnidades}
-                    required={camposObligatorios.has('unidad_venta_id')}
-                    error={validationErrors.has('unidad_venta_id')}
-                    helperText={loadingUnidades ? 'Cargando unidades...' : undefined}
-                  >
-                    {unidades.map((u) => (
-                      <MenuItem key={u.id} value={u.id}>
-                        {u.descripcion} ({u.clave})
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Stack>
-
-                <TextField
-                  select
-                  label="Unidad de inventario"
-                  value={form.unidad_inventario_id ?? ''}
-                  onChange={(e) => handleChange('unidad_inventario_id', e.target.value === '' ? null : Number(e.target.value))}
-                  fullWidth
-                  disabled={loadingUnidades}
-                  required={camposObligatorios.has('unidad_inventario_id')}
-                  error={validationErrors.has('unidad_inventario_id')}
-                  helperText={loadingUnidades ? 'Cargando unidades...' : undefined}
-                >
-                  {unidades.map((u) => (
-                    <MenuItem key={u.id} value={u.id}>
-                      {u.descripcion} ({u.clave})
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                {isEdit && productoLoaded && (
-                  <TextField
-                    label="Existencia actual"
-                    value={productoLoaded.existencia_actual ?? 0}
-                    InputProps={{ readOnly: true }}
-                    fullWidth
-                    helperText="Solo lectura"
-                  />
-                )}
-
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={form.activo}
-                      onChange={(e) => handleChange('activo', e.target.checked)}
-                      color="primary"
-                    />
-                  }
-                  label="Activo"
-                />
-
-                <Typography variant="caption" color="text.secondary">
-                  Este formulario se ampliará con pestañas internas para dimensiones, archivos, impuestos y proveedores.
-                </Typography>
-              </Stack>
-            )}
-
-            {activeTab === 1 && (
-              <Stack spacing={2}>
-                {comercialLoading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                    <CircularProgress size={24} />
-                  </Box>
-                ) : comercialError ? (
-                  <Typography color="#b91c1c">{comercialError}</Typography>
-                ) : !comercialTipos.length ? (
-                  <Typography color="#4b5563">No hay catálogos configurables para productos.</Typography>
-                ) : (
-                  comercialTipos.map((tipo) => {
+            <SeccionCard
+              id="catalogos"
+              titulo="Catálogos comerciales"
+              subtitulo="Configurables por empresa"
+              accion={
+                <Tooltip title="Los catálogos se administran en Configuración">
+                  <span>
+                    <Typography component="span" sx={{ fontSize: 18, color: '#9ca3af', cursor: 'default', px: 0.5 }}>
+                      ⋯
+                    </Typography>
+                  </span>
+                </Tooltip>
+              }
+            >
+              {comercialLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 1.5 }}>
+                  <CircularProgress size={22} />
+                </Box>
+              ) : comercialError ? (
+                <Typography color="#b91c1c" variant="body2">{comercialError}</Typography>
+              ) : !comercialTipos.length ? (
+                <Typography color="#6b7280" variant="body2">No hay catálogos configurables para productos.</Typography>
+              ) : (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(12, 1fr)' }, gap: 1.5 }}>
+                  {comercialTipos.map((tipo) => {
                     const seleccionadosIds = comercialSeleccionados[tipo.id] || [];
                     const valorSeleccionado = tipo.valores.filter((v) => seleccionadosIds.includes(v.id));
 
                     return (
-                      <Stack key={tipo.id} spacing={1}>
-                        <Box>
-                          <Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
-                            {tipo.nombre || 'Catálogo'}
-                          </Typography>
-                          {tipo.descripcion ? (
-                            <Typography variant="body2" color="#4b5563">
-                              {tipo.descripcion}
-                            </Typography>
-                          ) : null}
-                        </Box>
-
+                      <Box key={tipo.id} sx={{ gridColumn: { sm: 'span 3' } }}>
                         <Autocomplete
                           multiple
+                          size="small"
                           options={tipo.valores}
                           value={valorSeleccionado}
                           getOptionLabel={(option) => option.clave || option.descripcion || ''}
                           onChange={(_, values) => handleComercialChange(tipo.id, values)}
                           renderInput={(params) => (
-                            <TextField
-                              {...(params as any)}
-                              label={tipo.nombre || 'Valores'}
-                              placeholder="Selecciona valores"
-                              fullWidth
-                            />
+                            <TextField {...(params as any)} label={tipo.nombre || 'Catálogo'} placeholder="Sin asignar" />
                           )}
                           noOptionsText="Sin valores"
                           disableCloseOnSelect
                         />
-                      </Stack>
-                    );
-                  })
-                )}
-              </Stack>
-            )}
-
-            {activeTab === 2 && (
-              <Stack spacing={2.5}>
-                {!isEdit ? (
-                  <Paper variant="outlined" sx={{ borderRadius: 2, p: 3, borderColor: '#dbe3ee', backgroundColor: '#f8fafc' }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Guarda primero el producto para poder administrar imágenes y archivos.
-                    </Typography>
-                  </Paper>
-                ) : (
-                  <>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
-                      <Box>
-                        <Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
-                          Imágenes del producto
-                        </Typography>
-                        <Typography variant="body2" color="#4b5563">
-                          Agrega imágenes y define cuál se mostrará como principal.
-                        </Typography>
                       </Box>
+                    );
+                  })}
+                </Box>
+              )}
+            </SeccionCard>
 
-                      <>
-                        <input
-                          ref={imagenesInputRef}
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          hidden
-                          onChange={handleImagenesChange}
-                        />
-                        <Button
-                          variant="contained"
-                          startIcon={<PhotoLibraryOutlinedIcon />}
-                          onClick={handleAgregarImagenesClick}
-                          disabled={uploadingImagenes}
-                        >
-                          {uploadingImagenes ? 'Cargando...' : 'Agregar imágenes'}
-                        </Button>
-                      </>
-                    </Stack>
+            <SeccionFiscalUnidades
+              claveProductoSat={form.clave_producto_sat ?? null}
+              productosSatOptions={productosSatOptions}
+              productosSatLoading={productosSatLoading}
+              onClaveProductoSatChange={(v) => handleChange('clave_producto_sat', v)}
+              onAbrirSat={() => {
+                if (!productosSatOptions.length) void loadProductosSat(form.clave_producto_sat || '');
+              }}
+              onBuscarSat={queueLoadProductosSat}
+              unidades={unidades}
+              loadingUnidades={loadingUnidades}
+              unidadVentaId={form.unidad_venta_id ?? null}
+              unidadInventarioId={form.unidad_inventario_id ?? null}
+              onUnidadVentaChange={(v) => handleChange('unidad_venta_id', v)}
+              onUnidadInventarioChange={(v) => handleChange('unidad_inventario_id', v)}
+              factorConversion={form.factor_conversion ?? null}
+              onFactorConversionChange={(v) => handleChange('factor_conversion', v)}
+              erroresActivos={erroresActivos}
+              camposObligatorios={camposObligatorios}
+              existenciaActual={productoLoaded?.existencia_actual}
+            />
 
-                    {archivosError ? (
-                      <Alert severity="error" onClose={() => setArchivosError(null)}>
-                        {archivosError}
-                      </Alert>
-                    ) : null}
+            <SeccionCard
+              id="adicionales"
+              titulo="Datos adicionales"
+              badge={
+                <Box component="span" sx={{ fontSize: 10.5, fontWeight: 700, color: '#6b7280', backgroundColor: '#f1f3f5', borderRadius: 1, px: 0.75, py: 0.125 }}>
+                  Reservado
+                </Box>
+              }
+              reservado
+            >
+              <Typography variant="body2" color="#6b7280">
+                Espacio estructural para secciones o campos futuros. Alcance funcional aún no definido; se insertan aquí con la misma rejilla de 12 columnas.
+              </Typography>
+            </SeccionCard>
 
-                    {archivosLoading ? (
-                      <Stack direction="row" spacing={1.5} alignItems="center">
-                        <CircularProgress size={20} />
-                        <Typography color="text.secondary">Cargando imágenes...</Typography>
-                      </Stack>
-                    ) : imagenPrincipal ? (
-                      <Stack spacing={2}>
-                        <Paper variant="outlined" sx={{ borderRadius: 2, p: 2, borderColor: '#dbe3ee' }}>
-                          <Stack spacing={1.5}>
-                            <Typography variant="body2" fontWeight={600} color="#1d2f68">
-                              Imagen principal
-                            </Typography>
-                            <Box
-                              component="img"
-                              src={buildAssetUrl(imagenPrincipal.archivo)}
-                              alt={imagenPrincipal.descripcion || form.descripcion || 'Imagen del producto'}
-                              sx={{
-                                width: '100%',
-                                maxHeight: 340,
-                                objectFit: 'contain',
-                                borderRadius: 1.5,
-                                border: '1px solid #e5e7eb',
-                                backgroundColor: '#ffffff',
-                                p: 1,
-                              }}
-                            />
-                          </Stack>
-                        </Paper>
+            <SeccionImagenesArchivos
+              disponible={productoId !== null}
+              descripcionProducto={form.descripcion}
+              archivos={archivos}
+              archivosLoading={archivosLoading}
+              archivosError={archivosError}
+              onCerrarError={() => setArchivosError(null)}
+              uploadingImagenes={uploadingImagenes}
+              archivoActionId={archivoActionId}
+              inputRef={imagenesInputRef}
+              onAgregarClick={handleAgregarImagenesClick}
+              onArchivosChange={handleImagenesChange}
+              onEliminar={handleEliminarArchivo}
+              onMarcarPrincipal={handleMarcarPrincipal}
+            />
 
-                        <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap">
-                          {archivos.map((archivo) => {
-                            const isPrincipal = archivo.principal;
-                            const isProcessing = archivoActionId === archivo.id;
-
-                            return (
-                              <Paper
-                                key={archivo.id}
-                                variant="outlined"
-                                sx={{
-                                  width: { xs: '100%', sm: 170 },
-                                  borderRadius: 2,
-                                  p: 1.25,
-                                  borderColor: isPrincipal ? '#93c5fd' : '#dbe3ee',
-                                }}
-                              >
-                                <Stack spacing={1}>
-                                  <Box
-                                    component="img"
-                                    src={buildAssetUrl(archivo.archivo)}
-                                    alt={archivo.descripcion || form.descripcion || 'Imagen del producto'}
-                                    sx={{
-                                      width: '100%',
-                                      height: 120,
-                                      objectFit: 'cover',
-                                      borderRadius: 1.25,
-                                      border: '1px solid #e5e7eb',
-                                      backgroundColor: '#ffffff',
-                                    }}
-                                  />
-
-                                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                                    <Tooltip title={isPrincipal ? 'Imagen principal' : 'Marcar como principal'}>
-                                      <span>
-                                        <IconButton
-                                          size="small"
-                                          color={isPrincipal ? 'warning' : 'default'}
-                                          onClick={() => handleMarcarPrincipal(archivo)}
-                                          disabled={isPrincipal || isProcessing}
-                                          sx={{
-                                            border: '1px solid',
-                                            borderColor: isPrincipal ? '#fcd34d' : '#dbe3ee',
-                                            backgroundColor: isPrincipal ? '#fef3c7' : '#ffffff',
-                                          }}
-                                        >
-                                          {isPrincipal ? <StarIcon fontSize="small" /> : <StarBorderOutlinedIcon fontSize="small" />}
-                                        </IconButton>
-                                      </span>
-                                    </Tooltip>
-
-                                    <Tooltip title="Eliminar imagen">
-                                      <span>
-                                        <IconButton
-                                          size="small"
-                                          color="error"
-                                          onClick={() => handleEliminarArchivo(archivo)}
-                                          disabled={isProcessing}
-                                          sx={{
-                                            border: '1px solid',
-                                            borderColor: '#fecaca',
-                                            backgroundColor: '#ffffff',
-                                          }}
-                                        >
-                                          <DeleteOutlineIcon fontSize="small" />
-                                        </IconButton>
-                                      </span>
-                                    </Tooltip>
-                                  </Stack>
-                                </Stack>
-                              </Paper>
-                            );
-                          })}
-                        </Stack>
-                      </Stack>
-                    ) : (
-                      <Paper variant="outlined" sx={{ borderRadius: 2, p: 3, borderColor: '#dbe3ee', backgroundColor: '#f8fafc' }}>
-                        <Stack spacing={1} alignItems="center" textAlign="center">
-                          <ImageOutlinedIcon sx={{ fontSize: 32, color: '#94a3b8' }} />
-                          <Typography variant="body2" color="text.secondary">
-                            Aún no hay imágenes cargadas para este producto.
-                          </Typography>
-                        </Stack>
-                      </Paper>
-                    )}
-                  </>
-                )}
-              </Stack>
-            )}
-
-            {activeTab === 3 && (
-              <Stack spacing={1.5}>
-                {especificacionesHabilitadas && <><Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
-                  Biblioteca de especificaciones del producto
-                </Typography>
-                <Typography variant="body2" color="#4b5563">
-                  Administra elementos reutilizables, su tipo, preferencia y orden. Arrástralos para reordenar.
-                </Typography>
-                <EspecificacionesBibliotecaEditor
-                  alcance="producto"
-                  productoId={isEdit ? Number(id) : undefined}
-                  onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
-                />
-                </>}
-                <Typography variant="subtitle2" fontWeight={600} sx={{ pt: 2 }}>
-                  Especificaciones anteriores (compatibilidad)
-                </Typography>
-                <Typography variant="body2" color="#4b5563">
-                  Este bloque enriquecido se conserva sin cambios y no se mezcla automáticamente con la nueva biblioteca.
-                </Typography>
-                <RichTextEditor
-                  content={form.especificaciones ?? ''}
-                  onChange={(html) => handleChange('especificaciones', html)}
-                  placeholder="Captura aquí las especificaciones técnicas o comerciales del producto..."
-                />
-              </Stack>
-            )}
+            <SeccionCard
+              id="especificaciones"
+              titulo="Especificaciones"
+              badge={
+                <Box component="span" sx={{ fontSize: 10.5, fontWeight: 700, color: '#006261', backgroundColor: 'rgba(0,98,97,0.1)', borderRadius: 1, px: 0.75, py: 0.125 }}>
+                  Se guarda al instante
+                </Box>
+              }
+              accion={
+                especificacionesHabilitadas ? (
+                  <Stack direction="row" spacing={0.5}>
+                    <Button
+                      size="small"
+                      variant={especificacionesVista === 'texto' ? 'contained' : 'text'}
+                      onClick={() => setEspecificacionesVista('texto')}
+                      sx={especificacionesVista === 'texto' ? { backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } } : { color: '#6b7280' }}
+                    >
+                      Texto del producto
+                    </Button>
+                    <Button
+                      size="small"
+                      variant={especificacionesVista === 'biblioteca' ? 'contained' : 'text'}
+                      onClick={() => setEspecificacionesVista('biblioteca')}
+                      sx={especificacionesVista === 'biblioteca' ? { backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } } : { color: '#6b7280' }}
+                    >
+                      {`Biblioteca · ${especificacionesCount}`}
+                    </Button>
+                  </Stack>
+                ) : undefined
+              }
+            >
+              {/*
+                Ambos bloques se montan siempre que la biblioteca esté
+                habilitada (solo se alterna la visibilidad, no el montaje),
+                para que el conteo "Biblioteca · N" del botón y del índice
+                lateral quede actualizado desde que hay producto.id, sin
+                depender de que el usuario haya entrado a esa vista.
+              */}
+              {especificacionesHabilitadas && (
+                <Box sx={{ display: especificacionesVista === 'biblioteca' ? 'block' : 'none' }}>
+                  <EspecificacionesBibliotecaEditor
+                    alcance="producto"
+                    productoId={productoId ?? undefined}
+                    onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
+                    onCountChange={setEspecificacionesCount}
+                  />
+                </Box>
+              )}
+              <Box sx={{ display: !especificacionesHabilitadas || especificacionesVista === 'texto' ? 'block' : 'none' }}>
+                <Stack spacing={1}>
+                  {especificacionesHabilitadas && (
+                    <Typography variant="caption" color="#6b7280">
+                      Este texto es independiente de la biblioteca de especificaciones; no se mezclan automáticamente.
+                    </Typography>
+                  )}
+                  <RichTextEditor
+                    content={form.especificaciones ?? ''}
+                    onChange={(html) => handleChange('especificaciones', html)}
+                    placeholder="Captura aquí las especificaciones técnicas o comerciales del producto..."
+                  />
+                </Stack>
+              </Box>
+            </SeccionCard>
           </Stack>
-        )}
-      </Paper>
+        </Box>
+      )}
 
       <Snackbar
         open={snackbar.open}
@@ -878,13 +867,6 @@ export default function ProductoFormPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-
-      <FloatingFormActions
-        onBack={() => navigate('/productos')}
-        onSave={handleSubmit}
-        saving={saving}
-        saveDisabled={saving || loading}
-      />
     </Box>
   );
 }
