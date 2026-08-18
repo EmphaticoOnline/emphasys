@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:erp": "vite build --outDir dist/erp",
+    "build:compass": "vite build --outDir dist/compass",
     "preview": "vite preview"
   },
   "keywords": [],
