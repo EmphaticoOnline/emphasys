@@ -393,7 +393,7 @@ export default function ContactosPage() {
       return;
     }
     const stillVisible = selectedContactoId != null && contactos.some((contacto) => contacto.id === selectedContactoId);
-    if (!stillVisible) {
+    if (!stillVisible && contactos[0]) {
       setSelectedContactoId(contactos[0].id);
     }
   }, [contactos, viewMode, loading, selectedContactoId]);

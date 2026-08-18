@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
   Box,
@@ -53,9 +54,10 @@ function formatDate(value?: string | null) {
 
 function getInitials(nombre: string) {
   const parts = nombre.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  const [first, second] = parts;
+  if (!first) return '?';
+  if (!second) return first.slice(0, 2).toUpperCase();
+  return `${first[0] ?? ''}${second[0] ?? ''}`.toUpperCase();
 }
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -114,6 +116,8 @@ function DocumentosMiniLista({
   emptyLabel: string;
   codigo: string;
 }) {
+  const navigate = useNavigate();
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -137,8 +141,15 @@ function DocumentosMiniLista({
       {documentos.map((doc) => (
         <Box
           key={doc.id}
-          component="a"
-          href={`/ventas/${codigo}/${doc.id}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate(`/ventas/${codigo}/${doc.id}`)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              navigate(`/ventas/${codigo}/${doc.id}`);
+            }
+          }}
           sx={{
             display: 'flex',
             alignItems: 'center',
@@ -148,7 +159,7 @@ function DocumentosMiniLista({
             borderRadius: 1.5,
             px: 1.5,
             py: 1,
-            textDecoration: 'none',
+            cursor: 'pointer',
             color: 'inherit',
             '&:hover': { backgroundColor: '#f8fafc' },
           }}
@@ -179,10 +190,10 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
   const [detalle, setDetalle] = React.useState<ContactoDetalle | null>(null);
   const [tab, setTab] = React.useState(0);
   const [cotizaciones, setCotizaciones] = React.useState<CotizacionListado[]>([]);
-  const [cotizacionesTotal, setCotizacionesTotal] = React.useState(0);
+  const [cotizacionesTotal, setCotizacionesTotal] = React.useState<number | null>(null);
   const [cotizacionesLoading, setCotizacionesLoading] = React.useState(false);
   const [facturas, setFacturas] = React.useState<CotizacionListado[]>([]);
-  const [facturasTotal, setFacturasTotal] = React.useState(0);
+  const [facturasTotal, setFacturasTotal] = React.useState<number | null>(null);
   const [facturasLoading, setFacturasLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -218,52 +229,71 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
     };
   }, [contactoId]);
 
+  const cotizacionesLoadedForRef = React.useRef<number | null>(null);
+  const facturasLoadedForRef = React.useRef<number | null>(null);
+
   React.useEffect(() => {
-    if (!contactoId) {
-      setCotizaciones([]);
-      setCotizacionesTotal(0);
-      setFacturas([]);
-      setFacturasTotal(0);
-      return;
-    }
-
-    let active = true;
-    setCotizacionesLoading(true);
-    getDocumentosPaginados('cotizacion', { page: 1, limit: 8, clienteId: contactoId })
-      .then((response) => {
-        if (!active) return;
-        setCotizaciones(response.data as unknown as CotizacionListado[]);
-        setCotizacionesTotal(response.total);
-      })
-      .catch(() => {
-        if (!active) return;
-        setCotizaciones([]);
-        setCotizacionesTotal(0);
-      })
-      .finally(() => {
-        if (active) setCotizacionesLoading(false);
-      });
-
-    setFacturasLoading(true);
-    getDocumentosPaginados('factura', { page: 1, limit: 8, clienteId: contactoId })
-      .then((response) => {
-        if (!active) return;
-        setFacturas(response.data as unknown as CotizacionListado[]);
-        setFacturasTotal(response.total);
-      })
-      .catch(() => {
-        if (!active) return;
-        setFacturas([]);
-        setFacturasTotal(0);
-      })
-      .finally(() => {
-        if (active) setFacturasLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    setCotizaciones([]);
+    setCotizacionesTotal(null);
+    setFacturas([]);
+    setFacturasTotal(null);
+    cotizacionesLoadedForRef.current = null;
+    facturasLoadedForRef.current = null;
   }, [contactoId]);
+
+  React.useEffect(() => {
+    if (!contactoId) return;
+    if (tab === 3 && cotizacionesLoadedForRef.current !== contactoId) {
+      cotizacionesLoadedForRef.current = contactoId;
+      let active = true;
+      setCotizacionesLoading(true);
+      getDocumentosPaginados('cotizacion', { page: 1, limit: 8, clienteId: contactoId })
+        .then((response) => {
+          if (!active) return;
+          setCotizaciones(response.data as unknown as CotizacionListado[]);
+          setCotizacionesTotal(response.total);
+        })
+        .catch(() => {
+          if (!active) return;
+          setCotizaciones([]);
+          setCotizacionesTotal(0);
+        })
+        .finally(() => {
+          if (active) setCotizacionesLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
+    return undefined;
+  }, [contactoId, tab]);
+
+  React.useEffect(() => {
+    if (!contactoId) return;
+    if (tab === 4 && facturasLoadedForRef.current !== contactoId) {
+      facturasLoadedForRef.current = contactoId;
+      let active = true;
+      setFacturasLoading(true);
+      getDocumentosPaginados('factura', { page: 1, limit: 8, clienteId: contactoId })
+        .then((response) => {
+          if (!active) return;
+          setFacturas(response.data as unknown as CotizacionListado[]);
+          setFacturasTotal(response.total);
+        })
+        .catch(() => {
+          if (!active) return;
+          setFacturas([]);
+          setFacturasTotal(0);
+        })
+        .finally(() => {
+          if (active) setFacturasLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }
+    return undefined;
+  }, [contactoId, tab]);
 
   if (!contactoId) {
     return (
@@ -330,32 +360,36 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>
       {/* Header */}
-      <Box sx={{ p: 2.5, borderBottom: '1px solid #e5e7eb' }}>
+      <Box sx={{ p: 2.5, backgroundColor: '#091D5A', color: '#fff' }}>
         <Stack direction="row" spacing={2} alignItems="flex-start" justifyContent="space-between">
           <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
-            <Avatar sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }}>{getInitials(contacto.nombre)}</Avatar>
+            <Avatar sx={{ bgcolor: '#fff', color: '#091D5A', fontWeight: 700 }}>{getInitials(contacto.nombre)}</Avatar>
             <Box sx={{ minWidth: 0 }}>
               <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                <Typography variant="h6" fontWeight={700} color="#111827" sx={{ lineHeight: 1.2 }}>
+                <Typography variant="h6" fontWeight={700} color="#fff" sx={{ lineHeight: 1.2 }}>
                   {contacto.nombre}
                 </Typography>
                 {contacto.tipo_contacto ? (
-                  <Chip size="small" label={contacto.tipo_contacto.toUpperCase()} sx={{ fontWeight: 700, backgroundColor: '#eef1f4' }} />
+                  <Chip
+                    size="small"
+                    label={contacto.tipo_contacto.toUpperCase()}
+                    sx={{ fontWeight: 700, backgroundColor: 'rgba(255,255,255,0.16)', color: '#fff' }}
+                  />
                 ) : null}
               </Stack>
               <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 0.5 }}>
                 {contacto.nombre_contacto ? (
-                  <Typography variant="body2" color="#4b5563">
+                  <Typography variant="body2" color="rgba(255,255,255,0.85)">
                     {contacto.nombre_contacto}
                   </Typography>
                 ) : null}
                 {contacto.telefono ? (
-                  <Typography variant="body2" color="#4b5563">
+                  <Typography variant="body2" color="rgba(255,255,255,0.85)">
                     {formatearTelefonoParaMostrar(contacto.telefono)}
                   </Typography>
                 ) : null}
                 {vendedorAsignado ? (
-                  <Typography variant="body2" color="#4b5563">
+                  <Typography variant="body2" color="rgba(255,255,255,0.85)">
                     {vendedorAsignado}
                   </Typography>
                 ) : null}
@@ -366,6 +400,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
             <Tooltip title="Ver actividades">
               <IconButton
                 size="small"
+                sx={{ color: '#fff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }}
                 onClick={() =>
                   onVerActividades({
                     ...(contacto as ContactoRow),
@@ -377,12 +412,20 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
               </IconButton>
             </Tooltip>
             <Tooltip title="Editar contacto">
-              <IconButton size="small" onClick={() => onEditar(contacto.id)}>
+              <IconButton
+                size="small"
+                sx={{ color: '#fff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }}
+                onClick={() => onEditar(contacto.id)}
+              >
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="Eliminar contacto">
-              <IconButton size="small" color="error" onClick={() => onEliminar(contacto.id)}>
+              <IconButton
+                size="small"
+                sx={{ color: '#ff8a80', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }}
+                onClick={() => onEliminar(contacto.id)}
+              >
                 <DeleteOutlineIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -399,8 +442,8 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
               <Tab label="Contactos adicionales" disabled />
             </span>
           </Tooltip>
-          <Tab label={`Cotizaciones (${cotizacionesTotal})`} />
-          <Tab label={`Facturas (${facturasTotal})`} />
+          <Tab label={cotizacionesTotal !== null ? `Cotizaciones (${cotizacionesTotal})` : 'Cotizaciones'} />
+          <Tab label={facturasTotal !== null ? `Facturas (${facturasTotal})` : 'Facturas'} />
         </Tabs>
       </Box>
 
@@ -414,7 +457,9 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
               {diasCredito ? (
                 <StatCard icon={<CalendarMonthOutlinedIcon />} label="Días de crédito" value={diasCredito} />
               ) : null}
-              <StatCard icon={<DescriptionOutlinedIcon />} label="Cotizaciones" value={String(cotizacionesTotal)} />
+              {cotizacionesTotal !== null ? (
+                <StatCard icon={<DescriptionOutlinedIcon />} label="Cotizaciones" value={String(cotizacionesTotal)} />
+              ) : null}
               {ultimaActualizacion ? (
                 <StatCard icon={<UpdateOutlinedIcon />} label="Última actualización" value={ultimaActualizacion} />
               ) : null}
