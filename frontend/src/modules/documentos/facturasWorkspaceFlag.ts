@@ -1,15 +1,10 @@
-// Flag reversible para activar el nuevo workspace de Facturas (lista +
-// panel de trabajo) sin afectar a ningún otro tipo de documento. Sigue el
-// mismo patrón ya usado en DocumentosPage.tsx para la preferencia "Emitir al
-// generar" (localStorage, clave por empresa+usuario), más un override por
-// query param para poder probarlo/desactivarlo al instante sin persistir
-// nada. Mientras el flag esté apagado (comportamiento por defecto), la
-// pantalla de Facturas es exactamente la tabla actual — cero cambios.
+// Flag reversible para seleccionar la vista de Facturas (lista + panel de
+// trabajo) sin afectar a ningún otro tipo de documento. El workspace es la
+// vista predeterminada y el query param permite forzar cualquiera de las dos
+// vistas sin persistir nada.
 //
 // Cómo volver atrás en cualquier momento:
-//   - Quitar `?vistaFacturas=workspace` de la URL (no persiste nada por sí solo).
-//   - O, si ya quedó guardado en localStorage, `?vistaFacturas=clasica` una vez
-//     (o llamar a `desactivarFacturasWorkspace(empresaId, usuarioId)`).
+//   - Usar `?vistaFacturas=clasica` para forzar temporalmente la vista anterior.
 
 const PREFERENCE_PREFIX = 'emphasys:documentos:facturas-workspace';
 const QUERY_PARAM = 'vistaFacturas';
@@ -55,11 +50,10 @@ const leerOverrideQueryParam = (): 'workspace' | 'clasica' | null => {
 
 // Resuelve si el workspace de Facturas debe mostrarse. El query param manda
 // (permite forzar cualquiera de los dos estados sin depender de lo guardado);
-// si no hay override en la URL, se usa la preferencia persistida (por
-// defecto apagada = tabla actual).
+// si no hay override en la URL, el workspace es la vista predeterminada.
 export const resolveFacturasWorkspaceEnabled = (empresaId: number | null, usuarioId: number | null): boolean => {
   const override = leerOverrideQueryParam();
   if (override === 'workspace') return true;
   if (override === 'clasica') return false;
-  return leerFacturasWorkspacePreferencia(empresaId, usuarioId);
+  return true;
 };
