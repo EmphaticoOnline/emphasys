@@ -79,14 +79,37 @@ import InventarioValorizadoPage from './pages/informes/inventario/InventarioValo
 import BalanzaAnaliticaPage from './pages/informes/contabilidad/BalanzaAnaliticaPage';
 import EstadoResultadosPage from './pages/informes/contabilidad/EstadoResultadosPage';
 import BalanceGeneralPage from './pages/informes/contabilidad/BalanceGeneralPage';
+import {
+  BandejaView, CalendarioView, CompassLayout, DecisionesView, HoyView, IdeasView,
+  RealFrenteDetailView, RealFrentesView, RevisionSemanalView, TareasView,
+} from './compass/CompassModule';
+import { isCompassHostname } from './routing/appHostname';
 
 export default function App() {
+  const compassHost = isCompassHostname(window.location.hostname);
+
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
 
         <Route element={<RequireAuth />}>
+          <Route path="/compass" element={<CompassLayout />}>
+            <Route index element={<HoyView />} />
+            <Route path="hoy" element={<HoyView />} />
+            <Route path="frentes" element={<RealFrentesView />} />
+            <Route path="frentes/:id" element={<RealFrenteDetailView />} />
+            <Route path="tareas" element={<TareasView />} />
+            <Route path="calendario" element={<CalendarioView />} />
+            <Route path="bandeja" element={<BandejaView />} />
+            <Route path="ideas" element={<IdeasView />} />
+            <Route path="decisiones" element={<DecisionesView />} />
+            <Route path="revision-semanal" element={<RevisionSemanalView />} />
+          </Route>
+
+          {compassHost ? (
+            <Route path="*" element={<Navigate to="/compass" replace />} />
+          ) : (
           <Route element={<SidebarLayout />}>
             {/* Selección de empresa: no requiere empresa activa */}
             <Route path="/seleccionar-empresa" element={<SeleccionEmpresaPage />} />
@@ -206,6 +229,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/contactos" replace />} />
             </Route>
           </Route>
+          )}
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

@@ -114,6 +114,7 @@ function getBreadcrumbs(pathname: string): string[] {
   if (pathname.startsWith('/contactos'))     return ['Catálogos', 'Contactos'];
   if (pathname.startsWith('/productos'))     return ['Catálogos', 'Productos'];
   if (pathname.startsWith('/crm'))           return ['CRM'];
+  if (pathname.startsWith('/compass'))       return ['Compass', 'Frentes'];
   if (pathname.startsWith('/ventas'))        return ['Ventas'];
   if (pathname.startsWith('/compras'))       return ['Compras'];
   if (pathname.startsWith('/finanzas'))      return ['Finanzas'];

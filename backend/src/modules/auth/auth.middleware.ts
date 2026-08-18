@@ -91,6 +91,11 @@ export async function requireEmpresaActiva(req: Request, res: Response, next: Ne
   }
 }
 
+export async function optionalEmpresaActiva(req: Request, res: Response, next: NextFunction) {
+  if (!req.get("X-Empresa-Id")) return next();
+  return requireEmpresaActiva(req, res, next);
+}
+
 export async function obtenerEmpresaActivaPorId(empresaId: number): Promise<EmpresaResumen | null> {
   const { rows } = await pool.query<EmpresaResumen>(
     `SELECT id, identificador, nombre

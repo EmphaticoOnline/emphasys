@@ -1,0 +1,47 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+@source "./";
+
+.compass-root {
+  color-scheme: light;
+  --font-body: "Manrope", sans-serif;
+  --font-heading: "Space Grotesk", sans-serif;
+  --background: oklch(0.975 0.005 85);
+  --foreground: oklch(0.24 0.02 250);
+  --card: oklch(0.99 0.003 85);
+  --card-foreground: oklch(0.24 0.02 250);
+  --popover: oklch(0.99 0.003 85);
+  --popover-foreground: oklch(0.24 0.02 250);
+  --primary: oklch(0.34 0.045 205);
+  --primary-foreground: oklch(0.98 0.006 205);
+  --secondary: oklch(0.93 0.008 80);
+  --secondary-foreground: oklch(0.3 0.02 250);
+  --muted: oklch(0.945 0.008 80);
+  --muted-foreground: oklch(0.5 0.018 100);
+  --accent: oklch(0.82 0.07 85);
+  --accent-foreground: oklch(0.28 0.04 85);
+  --destructive: oklch(0.55 0.16 28);
+  --border: oklch(0.89 0.008 80);
+  --input: oklch(0.89 0.008 80);
+  --ring: oklch(0.6 0.05 205);
+  --congruent: oklch(0.5 0.09 148);
+  --at-risk: oklch(0.68 0.12 75);
+  --neglected: oklch(0.53 0.1 35);
+  --overattended: oklch(0.53 0.08 278);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.96 0.006 85);
+  --sidebar-foreground: oklch(0.24 0.02 250);
+  --sidebar-primary: oklch(0.34 0.045 205);
+  --sidebar-primary-foreground: oklch(0.98 0.006 205);
+  --sidebar-accent: oklch(0.91 0.01 80);
+  --sidebar-accent-foreground: oklch(0.28 0.02 250);
+  --sidebar-border: oklch(0.89 0.008 80);
+  --sidebar-ring: oklch(0.6 0.05 205);
+  min-height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+}
+.compass-root *, .compass-root *::before, .compass-root *::after { box-sizing: border-box; border-color: var(--border); }
+.compass-root .font-heading { font-family: var(--font-heading); }

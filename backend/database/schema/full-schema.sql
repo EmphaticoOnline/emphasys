@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-07-28T16:51:20.664Z
+-- Generated at: 2026-08-18T18:43:24.869Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict fgZdcqCnyvro51pnWytHjnJccHLpe7CTwk4eufmcWhhvlPc4MbYH0AYeA2eemnM
+\restrict SrEdWFDAeS73Z72979yUdduZ4NfgasCZOEpIpuG19QRFLRhMuS2cxBfnhTDWvB0
 
 -- Dumped from database version 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -21,6 +21,13 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
+
+--
+-- Name: compass; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA compass;
+
 
 --
 -- Name: contabilidad; Type: SCHEMA; Schema: -; Owner: -
@@ -168,6 +175,57 @@ CREATE TYPE public.tipo_contacto_enum AS ENUM (
     'Lead',
     'Varios'
 );
+
+
+--
+-- Name: set_updated_at(); Type: FUNCTION; Schema: compass; Owner: -
+--
+
+CREATE FUNCTION compass.set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: validar_actividad_tarea_frente(); Type: FUNCTION; Schema: compass; Owner: -
+--
+
+CREATE FUNCTION compass.validar_actividad_tarea_frente() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_frente_id INTEGER;
+BEGIN
+    IF NEW.tarea_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT frente_id
+      INTO v_frente_id
+      FROM compass.tareas
+     WHERE empresa_id = NEW.empresa_id
+       AND usuario_id = NEW.usuario_id
+       AND id = NEW.tarea_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'La tarea % no existe para la empresa/usuario indicados',
+            NEW.tarea_id;
+    END IF;
+
+    IF NEW.frente_id IS DISTINCT FROM v_frente_id THEN
+        RAISE EXCEPTION
+            'El Frente de la Actividad debe coincidir con el Frente de la Tarea';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
 
 
 --
@@ -700,6 +758,86 @@ $$;
 
 
 --
+-- Name: validar_biblioteca_especificacion_partida(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.validar_biblioteca_especificacion_partida() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  biblioteca_empresa_id integer;
+  biblioteca_producto_id integer;
+  biblioteca_alcance character varying(20);
+  partida_empresa_id integer;
+  partida_producto_id integer;
+BEGIN
+  IF NEW.origen = 'manual' AND NEW.especificacion_biblioteca_id IS NOT NULL THEN
+    RAISE EXCEPTION 'Una especificacion manual no puede referir a la biblioteca';
+  END IF;
+
+  IF TG_OP = 'INSERT'
+     AND NEW.origen IN ('global', 'producto')
+     AND NEW.especificacion_biblioteca_id IS NULL THEN
+    RAISE EXCEPTION 'El origen de biblioteca requiere una referencia valida';
+  END IF;
+
+  IF NEW.especificacion_biblioteca_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT eb.empresa_id, eb.producto_id, eb.alcance
+    INTO biblioteca_empresa_id, biblioteca_producto_id, biblioteca_alcance
+    FROM public.especificaciones_biblioteca eb
+   WHERE eb.id = NEW.especificacion_biblioteca_id;
+
+  SELECT d.empresa_id, dp.producto_id
+    INTO partida_empresa_id, partida_producto_id
+    FROM public.documentos_partidas dp
+    JOIN public.documentos d ON d.id = dp.documento_id
+   WHERE dp.id = NEW.partida_id;
+
+  IF biblioteca_empresa_id IS DISTINCT FROM partida_empresa_id THEN
+    RAISE EXCEPTION 'La especificacion de biblioteca no pertenece a la empresa del documento';
+  END IF;
+
+  IF biblioteca_alcance = 'producto'
+     AND biblioteca_producto_id IS DISTINCT FROM partida_producto_id THEN
+    RAISE EXCEPTION 'La especificacion de biblioteca no pertenece al producto de la partida';
+  END IF;
+
+  IF NEW.origen = 'global' AND biblioteca_alcance <> 'global' THEN
+    RAISE EXCEPTION 'El origen global no coincide con el alcance de la biblioteca';
+  END IF;
+
+  IF NEW.origen = 'producto' AND biblioteca_alcance <> 'producto' THEN
+    RAISE EXCEPTION 'El origen producto no coincide con el alcance de la biblioteca';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: validar_empresa_especificacion_producto(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.validar_empresa_especificacion_producto() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.producto_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.productos p
+     WHERE p.id = NEW.producto_id AND p.empresa_id = NEW.empresa_id
+  ) THEN
+    RAISE EXCEPTION 'El producto no pertenece a la empresa de la especificacion';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: fn_actualizar_estadisticas_whatsapp(); Type: FUNCTION; Schema: whatsapp; Owner: -
 --
 
@@ -921,6 +1059,393 @@ $$;
 
 
 SET default_table_access_method = heap;
+
+--
+-- Name: actividades; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.actividades (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    frente_id integer,
+    tarea_id integer,
+    actividad_origen_id integer,
+    tipo_origen character varying(20),
+    titulo character varying(300) NOT NULL,
+    inicio_programado timestamp with time zone NOT NULL,
+    fin_programado timestamp with time zone NOT NULL,
+    estado character varying(25) DEFAULT 'programada'::character varying NOT NULL,
+    minutos_efectivos integer,
+    resultado text,
+    fecha_cierre timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_actividades_estado CHECK (((estado)::text = ANY ((ARRAY['programada'::character varying, 'realizada'::character varying, 'parcial'::character varying, 'no_realizada'::character varying, 'cancelada'::character varying])::text[]))),
+    CONSTRAINT ck_actividades_intervalo CHECK ((fin_programado > inicio_programado)),
+    CONSTRAINT ck_actividades_minutos CHECK (((minutos_efectivos IS NULL) OR (minutos_efectivos >= 0))),
+    CONSTRAINT ck_actividades_no_autorreferencia CHECK (((actividad_origen_id IS NULL) OR (actividad_origen_id <> id))),
+    CONSTRAINT ck_actividades_origen_consistente CHECK ((((actividad_origen_id IS NULL) AND (tipo_origen IS NULL)) OR ((actividad_origen_id IS NOT NULL) AND (tipo_origen IS NOT NULL)))),
+    CONSTRAINT ck_actividades_tipo_origen CHECK (((tipo_origen IS NULL) OR ((tipo_origen)::text = ANY ((ARRAY['reprogramacion'::character varying, 'continuacion'::character varying])::text[]))))
+);
+
+
+--
+-- Name: actividades_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.actividades_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: actividades_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.actividades_id_seq OWNED BY compass.actividades.id;
+
+
+--
+-- Name: capturas; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.capturas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    texto text NOT NULL,
+    estado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    tipo_destino character varying(20),
+    destino_id integer,
+    captured_at timestamp with time zone DEFAULT now() NOT NULL,
+    processed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_capturas_destino CHECK (((tipo_destino IS NULL) OR ((tipo_destino)::text = ANY ((ARRAY['frente'::character varying, 'tarea'::character varying, 'actividad'::character varying, 'idea'::character varying, 'decision'::character varying])::text[])))),
+    CONSTRAINT ck_capturas_estado CHECK (((estado)::text = ANY ((ARRAY['pendiente'::character varying, 'procesada'::character varying, 'descartada'::character varying])::text[]))),
+    CONSTRAINT ck_capturas_procesamiento CHECK (((((estado)::text = 'pendiente'::text) AND (tipo_destino IS NULL) AND (destino_id IS NULL)) OR (((estado)::text = 'procesada'::text) AND (tipo_destino IS NOT NULL) AND (destino_id IS NOT NULL)) OR (((estado)::text = 'descartada'::text) AND (tipo_destino IS NULL) AND (destino_id IS NULL))))
+);
+
+
+--
+-- Name: capturas_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.capturas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: capturas_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.capturas_id_seq OWNED BY compass.capturas.id;
+
+
+--
+-- Name: decisiones; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.decisiones (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    frente_id integer,
+    titulo character varying(300) NOT NULL,
+    descripcion text,
+    motivo text,
+    fecha_decision date DEFAULT CURRENT_DATE NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: decisiones_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.decisiones_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: decisiones_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.decisiones_id_seq OWNED BY compass.decisiones.id;
+
+
+--
+-- Name: frentes; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.frentes (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    nombre character varying(200) NOT NULL,
+    proposito text NOT NULL,
+    categoria character varying(20) NOT NULL,
+    estado character varying(20) DEFAULT 'activo'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_cierre timestamp with time zone,
+    CONSTRAINT ck_frentes_categoria CHECK (((categoria)::text = ANY ((ARRAY['personal'::character varying, 'profesional'::character varying])::text[]))),
+    CONSTRAINT ck_frentes_estado CHECK (((estado)::text = ANY ((ARRAY['activo'::character varying, 'pausado'::character varying, 'completado'::character varying, 'archivado'::character varying])::text[])))
+);
+
+
+--
+-- Name: frentes_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.frentes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: frentes_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.frentes_id_seq OWNED BY compass.frentes.id;
+
+
+--
+-- Name: ideas; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.ideas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    frente_id integer,
+    titulo character varying(300) NOT NULL,
+    descripcion text,
+    estado character varying(20) DEFAULT 'activa'::character varying NOT NULL,
+    tipo_conversion character varying(20),
+    conversion_id integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_archivo timestamp with time zone,
+    CONSTRAINT ck_ideas_conversion CHECK (((tipo_conversion IS NULL) OR ((tipo_conversion)::text = ANY ((ARRAY['frente'::character varying, 'tarea'::character varying, 'actividad'::character varying])::text[])))),
+    CONSTRAINT ck_ideas_conversion_consistente CHECK ((((tipo_conversion IS NULL) AND (conversion_id IS NULL)) OR ((tipo_conversion IS NOT NULL) AND (conversion_id IS NOT NULL) AND ((estado)::text = 'archivada'::text)))),
+    CONSTRAINT ck_ideas_estado CHECK (((estado)::text = ANY ((ARRAY['activa'::character varying, 'archivada'::character varying])::text[])))
+);
+
+
+--
+-- Name: ideas_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.ideas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: ideas_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.ideas_id_seq OWNED BY compass.ideas.id;
+
+
+--
+-- Name: intenciones_semanales; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.intenciones_semanales (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    frente_id integer NOT NULL,
+    semana_inicio date NOT NULL,
+    prioridad character varying(20) NOT NULL,
+    horas_objetivo numeric(6,2),
+    expectativa_atencion character varying(20),
+    comentario text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_intencion_expectativa CHECK (((expectativa_atencion IS NULL) OR ((expectativa_atencion)::text = ANY ((ARRAY['sin_compromiso'::character varying, 'atender'::character varying, 'prioritario'::character varying])::text[])))),
+    CONSTRAINT ck_intencion_horas CHECK (((horas_objetivo IS NULL) OR (horas_objetivo > (0)::numeric))),
+    CONSTRAINT ck_intencion_prioridad CHECK (((prioridad)::text = ANY ((ARRAY['alta'::character varying, 'media'::character varying, 'baja'::character varying])::text[]))),
+    CONSTRAINT ck_intencion_semana_lunes CHECK ((EXTRACT(isodow FROM semana_inicio) = (1)::numeric)),
+    CONSTRAINT ck_intencion_tipo CHECK ((((horas_objetivo IS NOT NULL) AND (expectativa_atencion IS NULL)) OR ((horas_objetivo IS NULL) AND (expectativa_atencion IS NOT NULL))))
+);
+
+
+--
+-- Name: intenciones_semanales_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.intenciones_semanales_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: intenciones_semanales_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.intenciones_semanales_id_seq OWNED BY compass.intenciones_semanales.id;
+
+
+--
+-- Name: revisiones_frente; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.revisiones_frente (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    revision_semanal_id integer NOT NULL,
+    frente_id integer NOT NULL,
+    intencion_semanal_id integer,
+    horas_planificadas numeric(6,2),
+    horas_efectivas numeric(6,2),
+    congruencia_sugerida character varying(20),
+    congruencia_confirmada character varying(20),
+    que_ocurrio text,
+    que_bloqueo text,
+    que_aprendi text,
+    que_cambiare text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_revision_congruencia_confirmada CHECK (((congruencia_confirmada IS NULL) OR ((congruencia_confirmada)::text = ANY ((ARRAY['congruente'::character varying, 'en_riesgo'::character varying, 'descuidado'::character varying, 'sobreatendido'::character varying])::text[])))),
+    CONSTRAINT ck_revision_congruencia_sugerida CHECK (((congruencia_sugerida IS NULL) OR ((congruencia_sugerida)::text = ANY ((ARRAY['congruente'::character varying, 'en_riesgo'::character varying, 'descuidado'::character varying, 'sobreatendido'::character varying])::text[])))),
+    CONSTRAINT ck_revision_horas_efectivas CHECK (((horas_efectivas IS NULL) OR (horas_efectivas >= (0)::numeric))),
+    CONSTRAINT ck_revision_horas_planificadas CHECK (((horas_planificadas IS NULL) OR (horas_planificadas >= (0)::numeric)))
+);
+
+
+--
+-- Name: revisiones_frente_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.revisiones_frente_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: revisiones_frente_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.revisiones_frente_id_seq OWNED BY compass.revisiones_frente.id;
+
+
+--
+-- Name: revisiones_semanales; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.revisiones_semanales (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    semana_inicio date NOT NULL,
+    fecha_revision timestamp with time zone DEFAULT now() NOT NULL,
+    resumen_general text,
+    aprendizaje_principal text,
+    ajuste_general text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_revision_semana_lunes CHECK ((EXTRACT(isodow FROM semana_inicio) = (1)::numeric))
+);
+
+
+--
+-- Name: revisiones_semanales_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.revisiones_semanales_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: revisiones_semanales_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.revisiones_semanales_id_seq OWNED BY compass.revisiones_semanales.id;
+
+
+--
+-- Name: tareas; Type: TABLE; Schema: compass; Owner: -
+--
+
+CREATE TABLE compass.tareas (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    frente_id integer,
+    titulo character varying(300) NOT NULL,
+    estado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    prioridad_operativa character varying(20),
+    fecha_limite date,
+    es_siguiente_accion boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_finalizacion timestamp with time zone,
+    CONSTRAINT ck_tareas_estado CHECK (((estado)::text = ANY ((ARRAY['pendiente'::character varying, 'en_curso'::character varying, 'completada'::character varying, 'cancelada'::character varying])::text[]))),
+    CONSTRAINT ck_tareas_prioridad CHECK (((prioridad_operativa IS NULL) OR ((prioridad_operativa)::text = ANY ((ARRAY['alta'::character varying, 'media'::character varying, 'baja'::character varying])::text[])))),
+    CONSTRAINT ck_tareas_siguiente_accion CHECK (((NOT es_siguiente_accion) OR (frente_id IS NOT NULL)))
+);
+
+
+--
+-- Name: tareas_id_seq; Type: SEQUENCE; Schema: compass; Owner: -
+--
+
+CREATE SEQUENCE compass.tareas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tareas_id_seq; Type: SEQUENCE OWNED BY; Schema: compass; Owner: -
+--
+
+ALTER SEQUENCE compass.tareas_id_seq OWNED BY compass.tareas.id;
+
 
 --
 -- Name: configuracion; Type: TABLE; Schema: contabilidad; Owner: -
@@ -4193,6 +4718,7 @@ CREATE TABLE core.empresas_tipos_documento (
     whatsapp_plantilla_default_id bigint,
     afecta_inventario character varying(20) DEFAULT NULL::character varying,
     afecta_reservado boolean DEFAULT false NOT NULL,
+    usar_especificaciones boolean DEFAULT false NOT NULL,
     colorear_filas_por_estatus boolean DEFAULT false NOT NULL
 );
 
@@ -4265,6 +4791,13 @@ COMMENT ON COLUMN core.empresas_tipos_documento.afecta_inventario IS 'Define có
 --
 
 COMMENT ON COLUMN core.empresas_tipos_documento.afecta_reservado IS 'Indica si el documento afecta cantidades reservadas (apartados o compromisos).';
+
+
+--
+-- Name: COLUMN empresas_tipos_documento.usar_especificaciones; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_tipos_documento.usar_especificaciones IS 'Habilita la captura de especificaciones para este tipo de documento cuando el parametro general de la empresa tambien esta activo.';
 
 
 --
@@ -5770,6 +6303,58 @@ ALTER SEQUENCE crm.etiquetas_id_seq OWNED BY crm.etiquetas.id;
 
 
 --
+-- Name: mensaje_reacciones; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.mensaje_reacciones (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    mensaje_id bigint NOT NULL,
+    autor character varying(10) NOT NULL,
+    usuario_id integer,
+    emoji character varying(16) NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mensaje_reacciones_autor_check CHECK (((autor)::text = ANY ((ARRAY['contacto'::character varying, 'agente'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE mensaje_reacciones; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.mensaje_reacciones IS 'Reacciones (emoji) sobre mensajes de crm.mensajes. No representan mensajes propios: son metadata asociada al mensaje original.';
+
+
+--
+-- Name: COLUMN mensaje_reacciones.autor; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensaje_reacciones.autor IS 'contacto = reacción hecha por el cliente vía WhatsApp; agente = reacción hecha desde Emphasys.';
+
+
+--
+-- Name: COLUMN mensaje_reacciones.usuario_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensaje_reacciones.usuario_id IS 'Usuario de Emphasys que reaccionó, solo cuando autor = agente.';
+
+
+--
+-- Name: mensaje_reacciones_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+ALTER TABLE crm.mensaje_reacciones ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME crm.mensaje_reacciones_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: mensajes; Type: TABLE; Schema: crm; Owner: -
 --
 
@@ -5802,7 +6387,7 @@ CREATE TABLE crm.mensajes (
     mensaje_respuesta_id bigint,
     CONSTRAINT mensajes_status_check CHECK ((((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('sent'::character varying)::text, ('delivered'::character varying)::text, ('read'::character varying)::text, ('failed'::character varying)::text, ('received'::character varying)::text])) OR (status IS NULL))),
     CONSTRAINT mensajes_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text)),
-    CONSTRAINT mensajes_tipo_contenido_chk CHECK (((tipo_contenido)::text = ANY ((ARRAY['text'::character varying, 'image'::character varying, 'audio'::character varying, 'document'::character varying])::text[]))),
+    CONSTRAINT mensajes_tipo_contenido_chk CHECK (((tipo_contenido)::text = ANY ((ARRAY['text'::character varying, 'image'::character varying, 'audio'::character varying, 'document'::character varying, 'video'::character varying])::text[]))),
     CONSTRAINT mensajes_tipo_mensaje_check CHECK (((tipo_mensaje)::text = ANY (ARRAY[('saliente'::character varying)::text, ('entrante'::character varying)::text])))
 );
 
@@ -5825,7 +6410,7 @@ COMMENT ON COLUMN crm.mensajes.empresa_id IS 'Empresa propietaria del mensaje.';
 -- Name: COLUMN mensajes.tipo_contenido; Type: COMMENT; Schema: crm; Owner: -
 --
 
-COMMENT ON COLUMN crm.mensajes.tipo_contenido IS 'Tipo de contenido del mensaje: text, image, audio, document';
+COMMENT ON COLUMN crm.mensajes.tipo_contenido IS 'Tipo de contenido del mensaje: text, image, audio, document, video';
 
 
 --
@@ -8452,6 +9037,57 @@ ALTER SEQUENCE public.documentos_partidas_campos_id_seq OWNED BY public.document
 
 
 --
+-- Name: documentos_partidas_especificaciones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.documentos_partidas_especificaciones (
+    id bigint NOT NULL,
+    partida_id integer NOT NULL,
+    especificacion_biblioteca_id bigint,
+    orden integer DEFAULT 0 NOT NULL,
+    tipo character varying(20) DEFAULT 'otro'::character varying NOT NULL,
+    origen character varying(20) NOT NULL,
+    contenido text NOT NULL,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_modificacion timestamp with time zone,
+    CONSTRAINT chk_documentos_partidas_especificaciones_contenido CHECK ((length(btrim(contenido)) > 0)),
+    CONSTRAINT chk_documentos_partidas_especificaciones_orden CHECK ((orden >= 0)),
+    CONSTRAINT chk_documentos_partidas_especificaciones_origen CHECK (((origen)::text = ANY ((ARRAY['global'::character varying, 'producto'::character varying, 'manual'::character varying, 'heredada'::character varying])::text[]))),
+    CONSTRAINT chk_documentos_partidas_especificaciones_tipo CHECK (((tipo)::text = ANY ((ARRAY['medida'::character varying, 'material'::character varying, 'accesorio'::character varying, 'garantia'::character varying, 'entrega'::character varying, 'condicion'::character varying, 'otro'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE documentos_partidas_especificaciones; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.documentos_partidas_especificaciones IS 'Snapshot independiente y ordenado de especificaciones utilizadas en una partida de documento.';
+
+
+--
+-- Name: COLUMN documentos_partidas_especificaciones.especificacion_biblioteca_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.documentos_partidas_especificaciones.especificacion_biblioteca_id IS 'Referencia informativa al origen; el contenido snapshot es la fuente documental autoritativa.';
+
+
+--
+-- Name: documentos_partidas_especificaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.documentos_partidas_especificaciones ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.documentos_partidas_especificaciones_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: documentos_partidas_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -8732,6 +9368,93 @@ CREATE VIEW public.documentos_saldo AS
 --
 
 COMMENT ON VIEW public.documentos_saldo IS 'Vista universal de saldos documentales basada en naturaleza_saldo.';
+
+
+--
+-- Name: documentos_saldo_operativo; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.documentos_saldo_operativo AS
+ SELECT ds.id,
+    ds.empresa_id,
+    ds.tipo_documento,
+    ds.moneda,
+    ds.tipo_cambio,
+    ds.total,
+    ds.saldo AS saldo_registrado,
+        CASE
+            WHEN ((lower(TRIM(BOTH FROM COALESCE(d.estatus_documento, ''::character varying))) = ANY (ARRAY['cancelado'::text, 'cancelada'::text])) OR ((dc.cancelacion_estado)::text = 'cancelada'::text) OR ((intento.estado)::text = ANY ((ARRAY['iniciado'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[])) OR ((dc.cancelacion_estado)::text = ANY ((ARRAY['solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[]))) THEN (0)::numeric
+            ELSE ds.saldo
+        END AS saldo_operativo,
+        CASE
+            WHEN (((intento.estado)::text = ANY ((ARRAY['iniciado'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[])) OR ((dc.cancelacion_estado)::text = ANY ((ARRAY['solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[]))) THEN ds.saldo
+            ELSE (0)::numeric
+        END AS saldo_suspendido_cancelacion,
+    COALESCE(intento.estado, dc.cancelacion_estado, 'no_solicitada'::character varying) AS cancelacion_estado_operativo,
+    (((intento.estado)::text = ANY ((ARRAY['iniciado'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[])) OR ((dc.cancelacion_estado)::text = ANY ((ARRAY['solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying, 'cancelada'::character varying])::text[])) OR (lower(TRIM(BOTH FROM COALESCE(d.estatus_documento, ''::character varying))) = ANY (ARRAY['cancelado'::text, 'cancelada'::text]))) AS cobro_bloqueado
+   FROM (((public.documentos_saldo ds
+     JOIN public.documentos d ON (((d.id = ds.id) AND (d.empresa_id = ds.empresa_id))))
+     LEFT JOIN public.documentos_cfdi dc ON ((dc.documento_id = d.id)))
+     LEFT JOIN LATERAL ( SELECT i.estado
+           FROM public.documentos_cancelacion_intentos i
+          WHERE ((i.empresa_id = d.empresa_id) AND (i.documento_id = d.id) AND ((i.estado)::text = ANY ((ARRAY['iniciado'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[])))
+          ORDER BY i.created_at DESC, i.id DESC
+         LIMIT 1) intento ON (true));
+
+
+--
+-- Name: VIEW documentos_saldo_operativo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.documentos_saldo_operativo IS 'Conserva el saldo financiero real y deriva el saldo cobrable. Una cancelación activa suspende el cobro sin destruir el saldo registrado.';
+
+
+--
+-- Name: especificaciones_biblioteca; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.especificaciones_biblioteca (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    producto_id integer,
+    alcance character varying(20) NOT NULL,
+    tipo character varying(20) DEFAULT 'otro'::character varying NOT NULL,
+    contenido text NOT NULL,
+    orden integer DEFAULT 0 NOT NULL,
+    es_preferida boolean DEFAULT false NOT NULL,
+    fecha_baja timestamp with time zone,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    usuario_baja_id integer,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_modificacion timestamp with time zone,
+    CONSTRAINT chk_especificaciones_biblioteca_alcance CHECK (((alcance)::text = ANY ((ARRAY['global'::character varying, 'producto'::character varying])::text[]))),
+    CONSTRAINT chk_especificaciones_biblioteca_contenido CHECK ((length(btrim(contenido)) > 0)),
+    CONSTRAINT chk_especificaciones_biblioteca_orden CHECK ((orden >= 0)),
+    CONSTRAINT chk_especificaciones_biblioteca_producto_alcance CHECK (((((alcance)::text = 'global'::text) AND (producto_id IS NULL)) OR (((alcance)::text = 'producto'::text) AND (producto_id IS NOT NULL)))),
+    CONSTRAINT chk_especificaciones_biblioteca_tipo CHECK (((tipo)::text = ANY ((ARRAY['medida'::character varying, 'material'::character varying, 'accesorio'::character varying, 'garantia'::character varying, 'entrega'::character varying, 'condicion'::character varying, 'otro'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE especificaciones_biblioteca; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.especificaciones_biblioteca IS 'Biblioteca multiempresa de especificaciones globales y propias de productos.';
+
+
+--
+-- Name: especificaciones_biblioteca_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.especificaciones_biblioteca ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.especificaciones_biblioteca_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -11187,6 +11910,69 @@ COMMENT ON VIEW whatsapp.vcontactos_telefonos IS 'Vista que expone contactos con
 
 
 --
+-- Name: actividades id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.actividades ALTER COLUMN id SET DEFAULT nextval('compass.actividades_id_seq'::regclass);
+
+
+--
+-- Name: capturas id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.capturas ALTER COLUMN id SET DEFAULT nextval('compass.capturas_id_seq'::regclass);
+
+
+--
+-- Name: decisiones id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.decisiones ALTER COLUMN id SET DEFAULT nextval('compass.decisiones_id_seq'::regclass);
+
+
+--
+-- Name: frentes id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.frentes ALTER COLUMN id SET DEFAULT nextval('compass.frentes_id_seq'::regclass);
+
+
+--
+-- Name: ideas id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.ideas ALTER COLUMN id SET DEFAULT nextval('compass.ideas_id_seq'::regclass);
+
+
+--
+-- Name: intenciones_semanales id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.intenciones_semanales ALTER COLUMN id SET DEFAULT nextval('compass.intenciones_semanales_id_seq'::regclass);
+
+
+--
+-- Name: revisiones_frente id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_frente ALTER COLUMN id SET DEFAULT nextval('compass.revisiones_frente_id_seq'::regclass);
+
+
+--
+-- Name: revisiones_semanales id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_semanales ALTER COLUMN id SET DEFAULT nextval('compass.revisiones_semanales_id_seq'::regclass);
+
+
+--
+-- Name: tareas id; Type: DEFAULT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.tareas ALTER COLUMN id SET DEFAULT nextval('compass.tareas_id_seq'::regclass);
+
+
+--
 -- Name: configuracion id; Type: DEFAULT; Schema: contabilidad; Owner: -
 --
 
@@ -11877,6 +12663,134 @@ ALTER TABLE ONLY whatsapp.intentos_contacto ALTER COLUMN id SET DEFAULT nextval(
 --
 
 ALTER TABLE ONLY whatsapp.plantillas ALTER COLUMN id SET DEFAULT nextval('whatsapp.plantillas_id_seq'::regclass);
+
+
+--
+-- Name: actividades actividades_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.actividades
+    ADD CONSTRAINT actividades_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: capturas capturas_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.capturas
+    ADD CONSTRAINT capturas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: decisiones decisiones_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.decisiones
+    ADD CONSTRAINT decisiones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: frentes frentes_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.frentes
+    ADD CONSTRAINT frentes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ideas ideas_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.ideas
+    ADD CONSTRAINT ideas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: intenciones_semanales intenciones_semanales_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.intenciones_semanales
+    ADD CONSTRAINT intenciones_semanales_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: revisiones_frente revisiones_frente_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_frente
+    ADD CONSTRAINT revisiones_frente_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: revisiones_semanales revisiones_semanales_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_semanales
+    ADD CONSTRAINT revisiones_semanales_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tareas tareas_pkey; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.tareas
+    ADD CONSTRAINT tareas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: actividades uq_actividades_empresa_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.actividades
+    ADD CONSTRAINT uq_actividades_empresa_usuario_id UNIQUE (empresa_id, usuario_id, id);
+
+
+--
+-- Name: frentes uq_frentes_empresa_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.frentes
+    ADD CONSTRAINT uq_frentes_empresa_usuario_id UNIQUE (empresa_id, usuario_id, id);
+
+
+--
+-- Name: intenciones_semanales uq_intencion_frente_semana; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.intenciones_semanales
+    ADD CONSTRAINT uq_intencion_frente_semana UNIQUE (empresa_id, usuario_id, frente_id, semana_inicio);
+
+
+--
+-- Name: revisiones_frente uq_revision_frente; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_frente
+    ADD CONSTRAINT uq_revision_frente UNIQUE (empresa_id, usuario_id, revision_semanal_id, frente_id);
+
+
+--
+-- Name: revisiones_semanales uq_revision_semana; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_semanales
+    ADD CONSTRAINT uq_revision_semana UNIQUE (empresa_id, usuario_id, semana_inicio);
+
+
+--
+-- Name: revisiones_semanales uq_revisiones_empresa_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_semanales
+    ADD CONSTRAINT uq_revisiones_empresa_usuario_id UNIQUE (empresa_id, usuario_id, id);
+
+
+--
+-- Name: tareas uq_tareas_empresa_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.tareas
+    ADD CONSTRAINT uq_tareas_empresa_usuario_id UNIQUE (empresa_id, usuario_id, id);
 
 
 --
@@ -12589,6 +13503,22 @@ ALTER TABLE ONLY crm.etiquetas
 
 
 --
+-- Name: mensaje_reacciones mensaje_reacciones_mensaje_id_autor_key; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensaje_reacciones
+    ADD CONSTRAINT mensaje_reacciones_mensaje_id_autor_key UNIQUE (mensaje_id, autor);
+
+
+--
+-- Name: mensaje_reacciones mensaje_reacciones_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensaje_reacciones
+    ADD CONSTRAINT mensaje_reacciones_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: mensajes mensajes_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
 --
 
@@ -12861,6 +13791,14 @@ ALTER TABLE ONLY public.documentos_partidas_campos
 
 
 --
+-- Name: documentos_partidas_especificaciones documentos_partidas_especificaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_especificaciones
+    ADD CONSTRAINT documentos_partidas_especificaciones_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: documentos_partidas_impuestos documentos_partidas_impuestos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12906,6 +13844,14 @@ ALTER TABLE ONLY public.documentos_relaciones
 
 ALTER TABLE ONLY public.documentos_relaciones
     ADD CONSTRAINT documentos_relaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: especificaciones_biblioteca especificaciones_biblioteca_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.especificaciones_biblioteca
+    ADD CONSTRAINT especificaciones_biblioteca_pkey PRIMARY KEY (id);
 
 
 --
@@ -13106,6 +14052,14 @@ ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle
 
 ALTER TABLE ONLY public.documentos_partidas_vinculos
     ADD CONSTRAINT uq_doc_partidas_vinculos UNIQUE (partida_origen_id, partida_destino_id);
+
+
+--
+-- Name: documentos_partidas_especificaciones uq_documentos_partidas_especificaciones_orden; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_especificaciones
+    ADD CONSTRAINT uq_documentos_partidas_especificaciones_orden UNIQUE (partida_id, orden);
 
 
 --
@@ -13497,6 +14451,90 @@ ALTER TABLE ONLY whatsapp.intentos_contacto
 
 ALTER TABLE ONLY whatsapp.plantillas
     ADD CONSTRAINT plantillas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ix_actividades_frente_inicio; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_actividades_frente_inicio ON compass.actividades USING btree (empresa_id, usuario_id, frente_id, inicio_programado);
+
+
+--
+-- Name: ix_actividades_inicio; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_actividades_inicio ON compass.actividades USING btree (empresa_id, usuario_id, inicio_programado);
+
+
+--
+-- Name: ix_actividades_tarea; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_actividades_tarea ON compass.actividades USING btree (empresa_id, usuario_id, tarea_id) WHERE (tarea_id IS NOT NULL);
+
+
+--
+-- Name: ix_capturas_pendientes; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_capturas_pendientes ON compass.capturas USING btree (empresa_id, usuario_id, captured_at) WHERE ((estado)::text = 'pendiente'::text);
+
+
+--
+-- Name: ix_decisiones_frente_fecha; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_decisiones_frente_fecha ON compass.decisiones USING btree (empresa_id, usuario_id, frente_id, fecha_decision);
+
+
+--
+-- Name: ix_frentes_usuario_estado; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_frentes_usuario_estado ON compass.frentes USING btree (empresa_id, usuario_id, estado);
+
+
+--
+-- Name: ix_ideas_activas; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_ideas_activas ON compass.ideas USING btree (empresa_id, usuario_id, created_at) WHERE ((estado)::text = 'activa'::text);
+
+
+--
+-- Name: ix_intenciones_semana; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_intenciones_semana ON compass.intenciones_semanales USING btree (empresa_id, usuario_id, semana_inicio);
+
+
+--
+-- Name: ix_revisiones_semana; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_revisiones_semana ON compass.revisiones_semanales USING btree (empresa_id, usuario_id, semana_inicio);
+
+
+--
+-- Name: ix_tareas_fecha_limite; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_tareas_fecha_limite ON compass.tareas USING btree (empresa_id, usuario_id, fecha_limite) WHERE (fecha_limite IS NOT NULL);
+
+
+--
+-- Name: ix_tareas_frente_estado; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_tareas_frente_estado ON compass.tareas USING btree (empresa_id, usuario_id, frente_id, estado);
+
+
+--
+-- Name: uq_tareas_siguiente_accion_frente; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_tareas_siguiente_accion_frente ON compass.tareas USING btree (empresa_id, usuario_id, frente_id) WHERE (es_siguiente_accion = true);
 
 
 --
@@ -14403,6 +15441,13 @@ CREATE INDEX ix_conv_empresa_estado ON crm.conversaciones USING btree (empresa_i
 
 
 --
+-- Name: ix_mensaje_reacciones_mensaje_id; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_mensaje_reacciones_mensaje_id ON crm.mensaje_reacciones USING btree (mensaje_id);
+
+
+--
 -- Name: ix_mensajes_conversacion_id; Type: INDEX; Schema: crm; Owner: -
 --
 
@@ -15096,6 +16141,13 @@ CREATE INDEX idx_documentos_partidas_descripcion_alterna_trgm ON public.document
 
 
 --
+-- Name: idx_documentos_partidas_especificaciones_partida; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_documentos_partidas_especificaciones_partida ON public.documentos_partidas_especificaciones USING btree (partida_id, orden, id);
+
+
+--
 -- Name: idx_documentos_partidas_impuestos_partida_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15170,6 +16222,20 @@ CREATE INDEX idx_dpc_partida ON public.documentos_partidas_campos USING btree (p
 --
 
 COMMENT ON INDEX public.idx_dpc_partida IS 'Optimiza consultas de campos dinámicos por partida.';
+
+
+--
+-- Name: idx_especificaciones_biblioteca_empresa_alcance_vigencia; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_especificaciones_biblioteca_empresa_alcance_vigencia ON public.especificaciones_biblioteca USING btree (empresa_id, alcance, fecha_baja, es_preferida DESC, orden, id);
+
+
+--
+-- Name: idx_especificaciones_biblioteca_producto_vigencia; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_especificaciones_biblioteca_producto_vigencia ON public.especificaciones_biblioteca USING btree (empresa_id, producto_id, fecha_baja, es_preferida DESC, orden, id);
 
 
 --
@@ -15810,6 +16876,76 @@ CREATE INDEX whatsapp_plantillas_empresa_tipo_idx ON whatsapp.plantillas USING b
 
 
 --
+-- Name: actividades trg_actividades_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_actividades_updated_at BEFORE UPDATE ON compass.actividades FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: actividades trg_actividades_validar_tarea_frente; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_actividades_validar_tarea_frente BEFORE INSERT OR UPDATE OF empresa_id, usuario_id, tarea_id, frente_id ON compass.actividades FOR EACH ROW EXECUTE FUNCTION compass.validar_actividad_tarea_frente();
+
+
+--
+-- Name: capturas trg_capturas_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_capturas_updated_at BEFORE UPDATE ON compass.capturas FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: decisiones trg_decisiones_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_decisiones_updated_at BEFORE UPDATE ON compass.decisiones FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: frentes trg_frentes_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_frentes_updated_at BEFORE UPDATE ON compass.frentes FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: ideas trg_ideas_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_ideas_updated_at BEFORE UPDATE ON compass.ideas FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: intenciones_semanales trg_intenciones_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_intenciones_updated_at BEFORE UPDATE ON compass.intenciones_semanales FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: revisiones_frente trg_revisiones_frente_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_revisiones_frente_updated_at BEFORE UPDATE ON compass.revisiones_frente FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: revisiones_semanales trg_revisiones_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_revisiones_updated_at BEFORE UPDATE ON compass.revisiones_semanales FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: tareas trg_tareas_updated_at; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_tareas_updated_at BEFORE UPDATE ON compass.tareas FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
 -- Name: usuarios trg_usuarios_vendedor_contacto; Type: TRIGGER; Schema: core; Owner: -
 --
 
@@ -15856,6 +16992,212 @@ CREATE TRIGGER trg_finanzas_desaplicaciones_pago_inmutable BEFORE DELETE OR UPDA
 --
 
 CREATE TRIGGER trg_set_updated_at BEFORE UPDATE ON public.plantillas_documento FOR EACH ROW EXECUTE FUNCTION whatsapp.set_updated_at();
+
+
+--
+-- Name: documentos_partidas_especificaciones trg_validar_biblioteca_especificacion_partida; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_validar_biblioteca_especificacion_partida BEFORE INSERT OR UPDATE OF partida_id, especificacion_biblioteca_id, origen ON public.documentos_partidas_especificaciones FOR EACH ROW EXECUTE FUNCTION public.validar_biblioteca_especificacion_partida();
+
+
+--
+-- Name: especificaciones_biblioteca trg_validar_empresa_especificacion_producto; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_validar_empresa_especificacion_producto BEFORE INSERT OR UPDATE OF empresa_id, producto_id ON public.especificaciones_biblioteca FOR EACH ROW EXECUTE FUNCTION public.validar_empresa_especificacion_producto();
+
+
+--
+-- Name: actividades fk_actividades_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.actividades
+    ADD CONSTRAINT fk_actividades_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: actividades fk_actividades_frente; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.actividades
+    ADD CONSTRAINT fk_actividades_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+
+
+--
+-- Name: actividades fk_actividades_origen; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.actividades
+    ADD CONSTRAINT fk_actividades_origen FOREIGN KEY (empresa_id, usuario_id, actividad_origen_id) REFERENCES compass.actividades(empresa_id, usuario_id, id);
+
+
+--
+-- Name: actividades fk_actividades_tarea; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.actividades
+    ADD CONSTRAINT fk_actividades_tarea FOREIGN KEY (empresa_id, usuario_id, tarea_id) REFERENCES compass.tareas(empresa_id, usuario_id, id);
+
+
+--
+-- Name: actividades fk_actividades_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.actividades
+    ADD CONSTRAINT fk_actividades_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: capturas fk_capturas_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.capturas
+    ADD CONSTRAINT fk_capturas_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: capturas fk_capturas_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.capturas
+    ADD CONSTRAINT fk_capturas_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: decisiones fk_decisiones_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.decisiones
+    ADD CONSTRAINT fk_decisiones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: decisiones fk_decisiones_frente; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.decisiones
+    ADD CONSTRAINT fk_decisiones_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+
+
+--
+-- Name: decisiones fk_decisiones_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.decisiones
+    ADD CONSTRAINT fk_decisiones_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: frentes fk_frentes_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.frentes
+    ADD CONSTRAINT fk_frentes_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: frentes fk_frentes_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.frentes
+    ADD CONSTRAINT fk_frentes_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: ideas fk_ideas_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.ideas
+    ADD CONSTRAINT fk_ideas_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: ideas fk_ideas_frente; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.ideas
+    ADD CONSTRAINT fk_ideas_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+
+
+--
+-- Name: ideas fk_ideas_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.ideas
+    ADD CONSTRAINT fk_ideas_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: intenciones_semanales fk_intenciones_frente; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.intenciones_semanales
+    ADD CONSTRAINT fk_intenciones_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+
+
+--
+-- Name: revisiones_frente fk_revision_frente_frente; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_frente
+    ADD CONSTRAINT fk_revision_frente_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+
+
+--
+-- Name: revisiones_frente fk_revision_frente_intencion; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_frente
+    ADD CONSTRAINT fk_revision_frente_intencion FOREIGN KEY (intencion_semanal_id) REFERENCES compass.intenciones_semanales(id);
+
+
+--
+-- Name: revisiones_frente fk_revision_frente_revision; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_frente
+    ADD CONSTRAINT fk_revision_frente_revision FOREIGN KEY (empresa_id, usuario_id, revision_semanal_id) REFERENCES compass.revisiones_semanales(empresa_id, usuario_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: revisiones_semanales fk_revisiones_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_semanales
+    ADD CONSTRAINT fk_revisiones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: revisiones_semanales fk_revisiones_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_semanales
+    ADD CONSTRAINT fk_revisiones_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: tareas fk_tareas_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.tareas
+    ADD CONSTRAINT fk_tareas_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: tareas fk_tareas_frente; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.tareas
+    ADD CONSTRAINT fk_tareas_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+
+
+--
+-- Name: tareas fk_tareas_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.tareas
+    ADD CONSTRAINT fk_tareas_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
 
 
 --
@@ -16877,6 +18219,22 @@ ALTER TABLE ONLY crm.mensajes
 
 
 --
+-- Name: mensaje_reacciones mensaje_reacciones_mensaje_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensaje_reacciones
+    ADD CONSTRAINT mensaje_reacciones_mensaje_id_fkey FOREIGN KEY (mensaje_id) REFERENCES crm.mensajes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: mensaje_reacciones mensaje_reacciones_usuario_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensaje_reacciones
+    ADD CONSTRAINT mensaje_reacciones_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
 -- Name: mensajes mensajes_mensaje_respuesta_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
 --
 
@@ -17085,6 +18443,38 @@ ALTER TABLE ONLY public.documentos
 
 
 --
+-- Name: documentos_partidas_especificaciones documentos_partidas_especific_especificacion_biblioteca_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_especificaciones
+    ADD CONSTRAINT documentos_partidas_especific_especificacion_biblioteca_id_fkey FOREIGN KEY (especificacion_biblioteca_id) REFERENCES public.especificaciones_biblioteca(id) ON DELETE SET NULL;
+
+
+--
+-- Name: documentos_partidas_especificaciones documentos_partidas_especificacion_usuario_modificacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_especificaciones
+    ADD CONSTRAINT documentos_partidas_especificacion_usuario_modificacion_id_fkey FOREIGN KEY (usuario_modificacion_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: documentos_partidas_especificaciones documentos_partidas_especificaciones_partida_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_especificaciones
+    ADD CONSTRAINT documentos_partidas_especificaciones_partida_id_fkey FOREIGN KEY (partida_id) REFERENCES public.documentos_partidas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: documentos_partidas_especificaciones documentos_partidas_especificaciones_usuario_creacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_partidas_especificaciones
+    ADD CONSTRAINT documentos_partidas_especificaciones_usuario_creacion_id_fkey FOREIGN KEY (usuario_creacion_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
 -- Name: documentos_relaciones documentos_relaciones_documento_destino_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17114,6 +18504,46 @@ ALTER TABLE ONLY public.documentos_relaciones
 
 ALTER TABLE ONLY public.documentos_relaciones
     ADD CONSTRAINT documentos_relaciones_usuario_creacion_id_fkey FOREIGN KEY (usuario_creacion_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: especificaciones_biblioteca especificaciones_biblioteca_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.especificaciones_biblioteca
+    ADD CONSTRAINT especificaciones_biblioteca_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: especificaciones_biblioteca especificaciones_biblioteca_producto_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.especificaciones_biblioteca
+    ADD CONSTRAINT especificaciones_biblioteca_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES public.productos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: especificaciones_biblioteca especificaciones_biblioteca_usuario_baja_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.especificaciones_biblioteca
+    ADD CONSTRAINT especificaciones_biblioteca_usuario_baja_id_fkey FOREIGN KEY (usuario_baja_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: especificaciones_biblioteca especificaciones_biblioteca_usuario_creacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.especificaciones_biblioteca
+    ADD CONSTRAINT especificaciones_biblioteca_usuario_creacion_id_fkey FOREIGN KEY (usuario_creacion_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: especificaciones_biblioteca especificaciones_biblioteca_usuario_modificacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.especificaciones_biblioteca
+    ADD CONSTRAINT especificaciones_biblioteca_usuario_modificacion_id_fkey FOREIGN KEY (usuario_modificacion_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
 
 
 --
@@ -17816,4 +19246,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict fgZdcqCnyvro51pnWytHjnJccHLpe7CTwk4eufmcWhhvlPc4MbYH0AYeA2eemnM
+\unrestrict SrEdWFDAeS73Z72979yUdduZ4NfgasCZOEpIpuG19QRFLRhMuS2cxBfnhTDWvB0
+
