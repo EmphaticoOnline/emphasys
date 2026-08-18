@@ -171,7 +171,7 @@ export default function FacturaDocumentoResumenView({
                     </Typography>
                   </Box>
                   <Typography sx={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {currency.format(Number(p.total_partida || 0))}
+                    {currency.format(Number(p.subtotal_partida || 0))}
                   </Typography>
                 </Stack>
               ))}
