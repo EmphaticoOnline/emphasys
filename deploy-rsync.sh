@@ -151,12 +151,30 @@ mv -Tf "\$next_link" current
 # al reemplazo antes de retirar el worker anterior.
 if ! pm2 startOrReload ecosystem.config.js --only emphasys-api --env production --update-env; then
   echo "PM2 no activó el release; restaurando el enlace anterior."
-  if [ -n "\$previous_release" ]; then
-    rollback_link=".current-rollback-$BUILD_ID"
-    ln -s "\$previous_release" "\$rollback_link"
-    mv -Tf "\$rollback_link" current
-  else
-    unlink current
+  if [ -z "\$previous_release" ]; then
+    echo "No existe un release anterior para restaurar."
+    exit 1
+  fi
+
+  rollback_link=".current-rollback-$BUILD_ID"
+  ln -s "\$previous_release" "\$rollback_link"
+  mv -Tf "\$rollback_link" current
+
+  rollback_reload_failed=false
+  if ! pm2 startOrReload ecosystem.config.js --only emphasys-api --env production --update-env; then
+    rollback_reload_failed=true
+  fi
+
+  rollback_health_failed=false
+  if ! curl --fail --silent --show-error --max-time 10 http://127.0.0.1:7001/health >/dev/null; then
+    rollback_health_failed=true
+  fi
+
+  if [ "\$rollback_reload_failed" = "true" ]; then
+    echo "PM2 no pudo recargar el release restaurado."
+  fi
+  if [ "\$rollback_health_failed" = "true" ]; then
+    echo "El health check del release restaurado falló."
   fi
   exit 1
 fi

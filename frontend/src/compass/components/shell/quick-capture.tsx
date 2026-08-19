@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useRealWork } from "@/lib/real-work-store"
 import { cn } from "@/lib/utils"
 
-export function QuickCapture({ className }: { className?: string }) {
+export function QuickCapture({ className, label }: { className?: string; label?: string }) {
   const { crearCaptura, loading } = useRealWork()
   const [open, setOpen] = useState(false)
   const [texto, setTexto] = useState("")
@@ -34,16 +34,30 @@ export function QuickCapture({ className }: { className?: string }) {
     <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
       <DrawerTrigger
         render={
-          <button
-            type="button"
-            aria-label="Capturar algo nuevo"
-            className={cn(
-              "flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-transform active:scale-95",
-              className,
-            )}
-          >
-            <Plus className="size-6" />
-          </button>
+          label ? (
+            <button
+              type="button"
+              aria-label="Capturar algo nuevo"
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-transform active:scale-95",
+                className,
+              )}
+            >
+              <Plus className="size-4" />
+              {label}
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label="Capturar algo nuevo"
+              className={cn(
+                "flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 transition-transform active:scale-95",
+                className,
+              )}
+            >
+              <Plus className="size-6" />
+            </button>
+          )
         }
       />
       <DrawerContent>

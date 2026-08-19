@@ -1,34 +1,23 @@
-## Despliegue
+## Deploy de producción
 
-### Windows
+ERP + Compass:
 
-1. Requisitos: PowerShell 5+, acceso SSH al servidor (`ubuntu@api.emphasys.cloud`).
-2. Comando estándar (completo, copia todo):
-	```powershell
-	npm run deploy:win
-	```
-3. Comando rápido con sincronización incremental (usa rsync si está disponible, o tar+scp como fallback):
-	```powershell
-	npm run deploy:win:rsync
-	```
-	- Para mejor rendimiento instala rsync nativo (`choco install rsync`) o usa WSL con `sudo apt install rsync`.
-	- Opcionales: `SKIP_FRONTEND=true`, `SKIP_LOCAL_INSTALL=true`, `SKIP_REMOTE_INSTALL=true` antes del comando.
+```bash
+npm run deploy
+```
 
-### macOS / Linux / WSL
+ERP:
 
-1. Requisitos: bash, rsync, SSH, Node.
-2. Comando estándar (completo, copia todo):
-	```bash
-	npm run deploy
-	```
-3. Comando rápido incremental:
-	```bash
-	npm run deploy:rsync
-	```
-	- Requiere `rsync` instalado (`brew install rsync` o `sudo apt install rsync`).
-	- Opcionales: `SKIP_FRONTEND=true`, `SKIP_LOCAL_INSTALL=true`, `SKIP_REMOTE_INSTALL=true` antes del comando.
+```bash
+npm run deploy:erp
+```
 
-### Notas
-- Ambos flujos construyen frontend y backend localmente antes de subir artefactos.
-- En el servidor se ejecuta `npm install --omit=dev` solo si cambia el `package-lock.json` (en los comandos *:rsync*).
-- PM2 se recarga con `ecosystem.config.js` al final del deploy.
+Compass:
+
+```bash
+npm run deploy:compass
+```
+
+El backend siempre se construye y despliega. En un deploy individual, el frontend no seleccionado se conserva exactamente desde el release activo. Cada comando genera automáticamente un release aislado, lo activa mediante el cambio atómico de `current`, recarga PM2 con `startOrReload`, valida `/health` y restaura automáticamente el release anterior si falla PM2 o el health check.
+
+No se deben usar `deploy.sh`, `deploy.ps1`, `deploy-rsync.ps1`, `deploy_rapido.sh`, `scripts/deploy.js` ni los comandos npm con prefijo `legacy:` para producción. Son flujos antiguos que pueden escribir sobre rutas activas o provocar downtime.

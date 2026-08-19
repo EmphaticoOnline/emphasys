@@ -1,3 +1,5 @@
+# LEGACY/DEPRECATED: no usar en producción. Puede causar downtime.
+# Usar npm run deploy, deploy:erp o deploy:compass.
 try {
   $ErrorActionPreference = "Stop"
 

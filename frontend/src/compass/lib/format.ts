@@ -1,51 +1,50 @@
-// All formatters below parse the plain wall-clock components out of the ISO
-// string and re-assemble them with Date.UTC + timeZone: "UTC". This keeps
-// output identical between server and client regardless of the runtime's
-// local timezone, avoiding hydration mismatches from date-only strings like
-// "2026-08-18" (which `new Date()` would otherwise interpret as UTC midnight
-// and then render shifted by a day in a negative-offset local timezone).
+import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
+import timezone from "dayjs/plugin/timezone"
 
-function parseComponentes(iso: string) {
-  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/)
-  if (!match) return { y: 1970, m: 1, d: 1, hh: 0, mm: 0 }
-  const [, y, m, d, hh, mm] = match
-  return {
-    y: Number(y),
-    m: Number(m),
-    d: Number(d),
-    hh: hh ? Number(hh) : 0,
-    mm: mm ? Number(mm) : 0,
-  }
+dayjs.extend(utc)
+dayjs.extend(timezone)
+
+export const COMPASS_TIME_ZONE = "America/Mexico_City"
+
+const formatter = (options: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat("es-MX", { ...options, timeZone: COMPASS_TIME_ZONE })
+
+function fechaValida(iso: string) {
+  const fecha = new Date(iso)
+  if (Number.isNaN(fecha.getTime())) throw new Error(`Fecha ISO inválida: ${iso}`)
+  return fecha
 }
 
-function comoFechaUTC(iso: string) {
-  const { y, m, d, hh, mm } = parseComponentes(iso)
-  return new Date(Date.UTC(y, m - 1, d, hh, mm))
+/** Convierte la hora de pared capturada en Compass a un instante UTC. */
+export function fechaHoraLocalAISOString(valor: string) {
+  const fecha = dayjs.tz(valor, COMPASS_TIME_ZONE)
+  if (!fecha.isValid()) throw new Error(`Fecha y hora local inválida: ${valor}`)
+  return fecha.toISOString()
+}
+
+export function fechaYHoraLocalAISOString(fecha: string, hora = "00:00") {
+  return fechaHoraLocalAISOString(`${fecha}T${hora}:00`)
 }
 
 export function formatHora(iso: string) {
-  return comoFechaUTC(iso).toLocaleTimeString("es-MX", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "UTC",
-  })
+  return formatter({ hour: "numeric", minute: "2-digit" }).format(fechaValida(iso))
+}
+
+export function formatHora24(iso: string) {
+  return formatter({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(fechaValida(iso))
 }
 
 export function formatFechaCorta(iso: string) {
-  return comoFechaUTC(iso).toLocaleDateString("es-MX", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  })
+  return formatter({ day: "numeric", month: "short" }).format(fechaValida(iso))
 }
 
 export function formatFechaLarga(iso: string) {
-  return comoFechaUTC(iso).toLocaleDateString("es-MX", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  })
+  return formatter({ weekday: "long", day: "numeric", month: "long" }).format(fechaValida(iso))
+}
+
+export function formatFechaHora(iso: string) {
+  return formatter({ dateStyle: "short", timeStyle: "short" }).format(fechaValida(iso))
 }
 
 export function formatDuracionMin(min: number) {
@@ -57,22 +56,36 @@ export function formatDuracionMin(min: number) {
 }
 
 export function duracionMinutos(inicio: string, fin: string) {
-  return Math.round((comoFechaUTC(fin).getTime() - comoFechaUTC(inicio).getTime()) / 60000)
+  return Math.round((fechaValida(fin).getTime() - fechaValida(inicio).getTime()) / 60000)
 }
 
 export function horasEntre(inicio: string, fin: string) {
   return duracionMinutos(inicio, fin) / 60
 }
 
-/** Componentes de hora/minuto en punto de pared, sin conversiones de zona horaria. */
 export function horaYMinuto(iso: string) {
-  const { hh, mm } = parseComponentes(iso)
-  return { hora: hh, minuto: mm }
+  const parts = formatter({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(fechaValida(iso))
+  return {
+    hora: Number(parts.find((part) => part.type === "hour")?.value),
+    minuto: Number(parts.find((part) => part.type === "minute")?.value),
+  }
 }
 
-/** Fecha (YYYY-MM-DD) en punto de pared, sin conversiones de zona horaria. */
+/** Fecha calendario de un instante en la zona horaria de Compass. */
 export function soloFecha(iso: string) {
-  return iso.slice(0, 10)
+  const parts = formatter({ year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(fechaValida(iso))
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value
+  return `${value("year")}-${value("month")}-${value("day")}`
+}
+
+export function hoyLocal() {
+  return soloFecha(new Date().toISOString())
+}
+
+export function formatHorasCompacto(horas: number) {
+  const h = Math.floor(horas)
+  const m = Math.round((horas - h) * 60)
+  return m === 0 ? `${h}h` : `${h}h ${String(m).padStart(2, "0")}`
 }
 
 export function capitalizarPrimera(texto: string) {

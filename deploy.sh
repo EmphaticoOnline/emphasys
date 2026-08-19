@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# LEGACY/DEPRECATED: no usar en producción. Puede causar downtime.
+# Usar npm run deploy, deploy:erp o deploy:compass.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

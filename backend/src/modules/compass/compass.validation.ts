@@ -49,10 +49,10 @@ function dateOnly(value: unknown, field: string): string | null {
 }
 
 function timestamp(value: unknown, field: string): string {
-  if (typeof value !== 'string' || !value.trim() || Number.isNaN(Date.parse(value))) {
-    throw new CompassValidationError(`${field} debe ser una fecha y hora ISO válida`);
+  if (typeof value !== 'string' || !value.trim() || Number.isNaN(Date.parse(value)) || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) {
+    throw new CompassValidationError(`${field} debe ser una fecha y hora ISO con Z u offset`);
   }
-  return value;
+  return new Date(value).toISOString();
 }
 
 function booleanValue(value: unknown, field: string): boolean {
