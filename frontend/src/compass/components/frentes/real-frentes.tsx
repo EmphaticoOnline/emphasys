@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, Compass, Pencil, Plus, RefreshCw } from "lucide-react"
+import { ArrowLeft, Lightbulb, Pencil, Plus, RefreshCw, Scale } from "lucide-react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,11 +8,13 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { colorVarDeFrente } from "@/lib/frente-color"
+import { formatDuracionMin, formatFechaCorta, formatHora, formatHorasCompacto, horasEntre } from "@/lib/format"
 import {
   createFrente, getFrente, listFrentes, saveIntencionSemanal, updateFrente,
-  type ExpectativaAtencion, type Frente, type FrenteCategoria, type FrenteEstado,
-  type IntencionPrioridad,
-  listActividades, listTareas, updateTarea, type Actividad, type Tarea,
+  type ActividadEstado, type Congruencia, type Decision, type ExpectativaAtencion, type Frente,
+  type FrenteCategoria, type FrenteEstado, type Idea, type IntencionPrioridad, type RevisionFrente, type TareaEstado,
+  listActividades, listDecisiones, listIdeas, listTareas, getRevisionSemanal, updateTarea,
+  type Actividad, type Tarea,
 } from "../../../services/compassService"
 
 const allStates: FrenteEstado[] = ["activo", "pausado", "completado", "archivado"]
@@ -21,6 +23,28 @@ const notaEstado: Record<"pausado" | "completado" | "archivado", string> = {
   pausado: "Sigue existiendo como dirección; no compite por atención esta semana.",
   completado: "Cerrado. Se conserva para la revisión semanal.",
   archivado: "Fuera del mapa activo; visible solo al filtrar.",
+}
+
+const congruenciaLabel: Record<Congruencia, string> = {
+  congruente: "Congruente",
+  en_riesgo: "En riesgo",
+  descuidado: "Descuidado",
+  sobreatendido: "Sobreatendido",
+}
+
+const congruenciaColorVar: Record<Congruencia, string> = {
+  congruente: "var(--congruent)",
+  en_riesgo: "var(--at-risk)",
+  descuidado: "var(--neglected)",
+  sobreatendido: "var(--overattended)",
+}
+
+const actividadEstadoColorVar: Record<ActividadEstado, string> = {
+  programada: "var(--muted-foreground)",
+  realizada: "var(--congruent)",
+  parcial: "var(--at-risk)",
+  no_realizada: "var(--overattended)",
+  cancelada: "var(--neglected)",
 }
 
 function monday(): string {
@@ -39,6 +63,17 @@ function objetivoLabel(frente: Frente) {
   if (frente.horas_objetivo != null) return `${frente.horas_objetivo} h`
   if (frente.expectativa_atencion != null) return pretty(frente.expectativa_atencion)
   return "Sin definir"
+}
+
+/** Formatea una fecha-calendario (YYYY-MM-DD, sin hora) sin pasar por conversión de zona horaria. */
+function formatSoloFechaCorta(ymd: string) {
+  return new Date(`${ymd}T12:00:00`).toLocaleDateString("es-MX", { day: "numeric", month: "short" })
+}
+
+function tareaMeta(t: Tarea) {
+  const partes = [t.fecha_limite ? formatSoloFechaCorta(t.fecha_limite).toUpperCase() : "SIN FECHA"]
+  if (t.prioridad_operativa) partes.push(t.prioridad_operativa.toUpperCase())
+  return partes.join(" · ")
 }
 
 function Status({ loading, error, retry }: { loading: boolean; error: string; retry: () => void }) {
@@ -274,14 +309,23 @@ export function RealFrentesView() {
   )
 }
 
+const gruposTarea: { key: TareaEstado; label: string }[] = [
+  { key: "en_curso", label: "EN CURSO" },
+  { key: "pendiente", label: "PENDIENTES" },
+  { key: "completada", label: "COMPLETADAS ESTA SEMANA" },
+  { key: "cancelada", label: "CANCELADAS" },
+]
+
 export function RealFrenteDetailView() {
   const params = useParams()
   const id = Number(params.id)
   const [frente, setFrente] = useState<Frente | null>(null)
+  const [frentesOrden, setFrentesOrden] = useState<Frente[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const [editing, setEditing] = useState(false)
+  const [editingFrente, setEditingFrente] = useState(false)
+  const [editingIntencion, setEditingIntencion] = useState(false)
   const [nombre, setNombre] = useState("")
   const [proposito, setProposito] = useState("")
   const [categoria, setCategoria] = useState<FrenteCategoria>("profesional")
@@ -293,11 +337,31 @@ export function RealFrenteDetailView() {
   const [comentario, setComentario] = useState("")
   const [tareas, setTareas] = useState<Tarea[]>([])
   const [actividades, setActividades] = useState<Actividad[]>([])
+  const [ideas, setIdeas] = useState<Idea[]>([])
+  const [decisiones, setDecisiones] = useState<Decision[]>([])
+  const [revisionFrente, setRevisionFrente] = useState<RevisionFrente | null>(null)
+
   const loadTrabajo = useCallback(async () => {
     if (!Number.isInteger(id)) return
     const [nextTareas, nextActividades] = await Promise.all([listTareas({ frente_id: id }), listActividades({ frente_id: id })])
     setTareas(nextTareas); setActividades(nextActividades.slice(-8).reverse())
   }, [id])
+
+  const loadContexto = useCallback(async () => {
+    if (!Number.isInteger(id)) return
+    try {
+      const [todasIdeas, todasDecisiones, revision, ordenFrentes] = await Promise.all([
+        listIdeas("activa"), listDecisiones(), getRevisionSemanal(monday()), listFrentes(allStates),
+      ])
+      setIdeas(todasIdeas.filter((i) => i.frente_id === id))
+      setDecisiones(todasDecisiones.filter((d) => d.frente_id === id))
+      setRevisionFrente(revision.frentes.find((f) => f.frente_id === id) ?? null)
+      setFrentesOrden(ordenFrentes)
+    } catch {
+      // Contexto secundario: si falla, el resto de la pantalla sigue siendo útil.
+    }
+  }, [id])
+
   const load = useCallback(async () => {
     try { setLoading(true); setError(""); const data = await getFrente(id); setFrente(data); setNombre(data.nombre); setProposito(data.proposito); setCategoria(data.categoria); setEstado(data.estado); if (data.intencion_semanal) { setPrioridad(data.intencion_semanal.prioridad); setComentario(data.intencion_semanal.comentario ?? ""); if (data.intencion_semanal.horas_objetivo != null) { setMode("horas"); setHoras(String(data.intencion_semanal.horas_objetivo)) } else { setMode("expectativa"); setExpectativa(data.intencion_semanal.expectativa_atencion ?? "atender") } } }
     catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo cargar el Frente") }
@@ -305,17 +369,303 @@ export function RealFrenteDetailView() {
   }, [id])
   useEffect(() => { void load() }, [load])
   useEffect(() => { void loadTrabajo() }, [loadTrabajo])
-  const saveFrente = async () => { try { setSaving(true); setError(""); const data = await updateFrente(id, { nombre, proposito, categoria, estado }); setFrente(data); setEditing(false) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar el Frente") } finally { setSaving(false) } }
-  const saveIntent = async () => { try { setSaving(true); setError(""); await saveIntencionSemanal(id, { semana_inicio: monday(), prioridad, horas_objetivo: mode === "horas" ? Number(horas) : null, expectativa_atencion: mode === "expectativa" ? expectativa : null, comentario: comentario.trim() || null }); await load() } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo guardar la intención") } finally { setSaving(false) } }
+  useEffect(() => { void loadContexto() }, [loadContexto])
+
+  const saveFrente = async () => { try { setSaving(true); setError(""); const data = await updateFrente(id, { nombre, proposito, categoria, estado }); setFrente(data); setEditingFrente(false) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar el Frente") } finally { setSaving(false) } }
+  const saveIntent = async () => { try { setSaving(true); setError(""); await saveIntencionSemanal(id, { semana_inicio: monday(), prioridad, horas_objetivo: mode === "horas" ? Number(horas) : null, expectativa_atencion: mode === "expectativa" ? expectativa : null, comentario: comentario.trim() || null }); setEditingIntencion(false); await Promise.all([load(), loadContexto()]) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo guardar la intención") } finally { setSaving(false) } }
+
+  const siguienteTarea = tareas.find((t) => t.es_siguiente_accion) ?? null
+  const tareasElegibles = useMemo(() => tareas.filter((t) => !t.es_siguiente_accion && (t.estado === "pendiente" || t.estado === "en_curso")), [tareas])
+  const cambiarSiguienteAccion = async (nextId: number) => {
+    try {
+      setSaving(true); setError("")
+      const current = tareas.find((t) => t.es_siguiente_accion)
+      if (current && current.id !== nextId) await updateTarea(current.id, { es_siguiente_accion: false })
+      await updateTarea(nextId, { es_siguiente_accion: true })
+      await loadTrabajo()
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar la siguiente acción") }
+    finally { setSaving(false) }
+  }
+  const marcarSiguienteHecha = async () => {
+    if (!siguienteTarea) return
+    try { setSaving(true); setError(""); await updateTarea(siguienteTarea.id, { estado: "completada", es_siguiente_accion: false }); await loadTrabajo() }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar la tarea") }
+    finally { setSaving(false) }
+  }
+  const toggleTareaHecha = async (t: Tarea) => {
+    try { setSaving(true); setError(""); await updateTarea(t.id, { estado: t.estado === "completada" ? "pendiente" : "completada" }); await loadTrabajo() }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar la tarea") }
+    finally { setSaving(false) }
+  }
+
   if (loading) return <Status loading error="" retry={() => void load()} />
   if (!frente) return <div className="flex flex-col gap-4"><p className="text-sm text-destructive">{error || "No se encontró este Frente."}</p><Link to="/compass/frentes" className="text-sm underline">Volver a Frentes</Link></div>
-  return <div className="flex flex-col gap-10">
-    <Link to="/compass/frentes" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-3.5" />Frentes</Link>
+
+  const color = colorVarDeFrente(frentesOrden.length ? frentesOrden : [frente], frente.id)
+  const objetivoActual = frente.horas_objetivo ?? revisionFrente?.horas_objetivo_snapshot ?? null
+  const horasEfectivas = revisionFrente?.horas_efectivas ?? null
+  const progresoPct = objetivoActual != null && objetivoActual > 0 && horasEfectivas != null ? Math.min(100, Math.round((horasEfectivas / objetivoActual) * 100)) : null
+  const congruencia = revisionFrente?.congruencia_sugerida ?? null
+  const abiertas = tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso").length
+  const cerradas = tareas.length - abiertas
+
+  return <div className="flex flex-col gap-8">
+    <Link to="/compass/frentes" className="inline-flex items-center gap-1.5 font-mono-compass text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase hover:text-foreground"><ArrowLeft className="size-3.5" />Frentes</Link>
     {error && <p className="rounded-xl border border-destructive/30 bg-card px-4 py-3 text-sm text-destructive">{error}</p>}
-    <header className="flex flex-col gap-3"><div className="flex items-center gap-2.5"><span className="size-2.5 rounded-full bg-congruent" /><Badge variant="secondary">{pretty(frente.categoria)}</Badge>{frente.estado !== "activo" && <Badge variant="outline">{pretty(frente.estado)}</Badge>}<button onClick={() => setEditing((value) => !value)} className="ml-auto rounded-full p-2 text-muted-foreground hover:bg-secondary"><Pencil className="size-4" /></button></div><h1 className="font-heading text-3xl tracking-tight text-foreground">{frente.nombre}</h1><p className="max-w-lg text-sm leading-relaxed text-muted-foreground">{frente.proposito}</p></header>
-    {editing && <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card px-5 py-4"><Field><FieldLabel>Nombre</FieldLabel><Input value={nombre} onChange={(e) => setNombre(e.target.value)} /></Field><Field><FieldLabel>Propósito</FieldLabel><Textarea value={proposito} onChange={(e) => setProposito(e.target.value)} /></Field><div className="grid gap-4 sm:grid-cols-2"><Field><FieldLabel>Categoría</FieldLabel><select value={categoria} onChange={(e) => setCategoria(e.target.value as FrenteCategoria)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"><option value="profesional">Profesional</option><option value="personal">Personal</option></select></Field><Field><FieldLabel>Estado</FieldLabel><select value={estado} onChange={(e) => setEstado(e.target.value as FrenteEstado)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm">{allStates.map((item) => <option value={item} key={item}>{pretty(item)}</option>)}</select></Field></div><div className="flex gap-2"><Button onClick={saveFrente} disabled={saving}>Guardar cambios</Button><Button variant="ghost" onClick={() => setEditing(false)}>Cancelar</Button></div></section>}
-    <section className="flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/[0.04] px-5 py-4"><div className="flex items-center gap-2 text-primary"><Compass className="size-3.5" /><h2 className="font-heading text-sm">Siguiente acción</h2></div><select value={tareas.find(t => t.es_siguiente_accion)?.id ?? ""} onChange={async e => { const next = Number(e.target.value); const current = tareas.find(t => t.es_siguiente_accion); if (!next && current) await updateTarea(current.id, { es_siguiente_accion: false }); else if (next) await updateTarea(next, { es_siguiente_accion: true }); await Promise.all([load(), loadTrabajo()]) }} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"><option value="">Sin siguiente acción</option>{tareas.filter(t => t.estado === "pendiente" || t.estado === "en_curso").map(t => <option key={t.id} value={t.id}>{t.titulo}</option>)}</select></section>
-    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card px-5 py-4"><div><h2 className="font-heading text-sm text-muted-foreground">Intención esta semana</h2><p className="mt-1 text-xs text-muted-foreground">Semana del {monday()}</p></div><div className="grid gap-4 sm:grid-cols-2"><Field><FieldLabel>Prioridad</FieldLabel><select value={prioridad} onChange={(e) => setPrioridad(e.target.value as IntencionPrioridad)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></Field><Field><FieldLabel>Tipo de objetivo</FieldLabel><select value={mode} onChange={(e) => setMode(e.target.value as "horas" | "expectativa")} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"><option value="horas">Horas objetivo</option><option value="expectativa">Expectativa de atención</option></select></Field></div>{mode === "horas" ? <Field><FieldLabel>Horas objetivo</FieldLabel><Input type="number" min="0.01" max="9999.99" step="0.25" value={horas} onChange={(e) => setHoras(e.target.value)} /></Field> : <Field><FieldLabel>Expectativa</FieldLabel><select value={expectativa} onChange={(e) => setExpectativa(e.target.value as ExpectativaAtencion)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"><option value="sin_compromiso">Sin compromiso</option><option value="atender">Atender</option><option value="prioritario">Prioritario</option></select></Field>}<Field><FieldLabel>Comentario opcional</FieldLabel><Textarea value={comentario} onChange={(e) => setComentario(e.target.value)} className="min-h-20 resize-none" /></Field><Button className="self-start" onClick={saveIntent} disabled={saving || (mode === "horas" && !(Number(horas) > 0))}>{frente.intencion_semanal ? "Actualizar intención" : "Definir intención"}</Button></section>
-    <section className="grid gap-6 md:grid-cols-2"><div className="flex flex-col gap-3"><h2 className="font-heading text-sm text-muted-foreground">Tareas del Frente</h2><div className="rounded-2xl border border-border bg-card">{tareas.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">No hay tareas.</p> : tareas.map(t => <div key={t.id} className="border-b border-border px-5 py-3 last:border-0"><p className={`text-sm ${t.estado === "completada" ? "line-through text-muted-foreground" : ""}`}>{t.titulo}</p><p className="text-xs text-muted-foreground">{pretty(t.estado)}{t.fecha_limite ? ` · ${t.fecha_limite}` : ""}</p></div>)}</div></div><div className="flex flex-col gap-3"><h2 className="font-heading text-sm text-muted-foreground">Actividades recientes</h2><div className="rounded-2xl border border-border bg-card">{actividades.length === 0 ? <p className="px-5 py-6 text-sm text-muted-foreground">No hay actividades.</p> : actividades.map(a => <div key={a.id} className="border-b border-border px-5 py-3 last:border-0"><p className="text-sm">{a.titulo}</p><p className="text-xs text-muted-foreground">{new Date(a.inicio_programado).toLocaleString("es-MX")} · {pretty(a.estado)}</p></div>)}</div></div></section>
+
+    <header className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--surface-header)] to-[var(--surface-header-end)] px-6 py-6 md:px-8 md:py-7">
+      <span className="absolute inset-y-0 left-0 w-[5px]" style={{ background: color }} aria-hidden />
+      <div className="flex flex-col gap-5 pl-3 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+        <div className="flex max-w-2xl flex-col gap-2">
+          <span className="flex items-center gap-2 font-mono-compass text-[10.5px] font-medium tracking-[0.11em] text-muted-foreground uppercase">
+            <span className="size-2 rounded-full" style={{ background: color }} aria-hidden />
+            {pretty(frente.categoria)} · {pretty(frente.estado)}
+          </span>
+          <h1 className="font-editorial text-4xl leading-[0.98] tracking-tight text-foreground text-pretty md:text-5xl">{frente.nombre}</h1>
+          <p className="text-sm leading-relaxed text-muted-foreground text-pretty md:text-[15px]">{frente.proposito}</p>
+        </div>
+        <div className="flex flex-col items-start gap-3.5 lg:items-end">
+          <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-0.5 rounded-xl px-3.5 py-2" style={{ background: `color-mix(in oklch, ${color}, transparent 88%)` }}>
+              <span className="font-editorial text-2xl leading-none" style={{ color }}>{frente.prioridad_semanal ? pretty(frente.prioridad_semanal) : "—"}</span>
+              <span className="font-mono-compass text-[10px] font-medium tracking-[0.08em]" style={{ color }}>PRIORIDAD</span>
+            </div>
+            <div className="flex flex-col gap-0.5 rounded-xl bg-[var(--surface-raised)] px-3.5 py-2">
+              <span className="font-editorial text-2xl leading-none text-foreground">{objetivoLabel(frente)}</span>
+              <span className="font-mono-compass text-[10px] font-medium tracking-[0.08em] text-muted-foreground">{frente.horas_objetivo != null ? "OBJETIVO" : "EXPECTATIVA"}</span>
+            </div>
+            {horasEfectivas != null && (
+              <div className="flex flex-col gap-0.5 rounded-xl bg-[var(--surface-raised)] px-3.5 py-2">
+                <span className="font-editorial text-2xl leading-none text-foreground">{formatHorasCompacto(horasEfectivas)}</span>
+                <span className="font-mono-compass text-[10px] font-medium tracking-[0.08em] text-muted-foreground">EFECTIVAS</span>
+              </div>
+            )}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setEditingFrente((v) => !v)}><Pencil />Editar Frente</Button>
+        </div>
+      </div>
+
+      {editingFrente && (
+        <div className="mt-6 grid gap-4 border-t border-border pl-3 pt-5 sm:grid-cols-3">
+          <Field className="sm:col-span-2"><FieldLabel>Nombre</FieldLabel><Input value={nombre} onChange={(e) => setNombre(e.target.value)} /></Field>
+          <Field><FieldLabel>Categoría</FieldLabel><select value={categoria} onChange={(e) => setCategoria(e.target.value as FrenteCategoria)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"><option value="profesional">Profesional</option><option value="personal">Personal</option></select></Field>
+          <Field><FieldLabel>Estado</FieldLabel><select value={estado} onChange={(e) => setEstado(e.target.value as FrenteEstado)} className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm">{allStates.map((item) => <option value={item} key={item}>{pretty(item)}</option>)}</select></Field>
+          <Field className="sm:col-span-3"><FieldLabel>Propósito</FieldLabel><Textarea value={proposito} onChange={(e) => setProposito(e.target.value)} className="min-h-20 resize-none" /></Field>
+          <div className="flex gap-2 sm:col-span-3"><Button onClick={saveFrente} disabled={saving}>Guardar cambios</Button><Button variant="ghost" onClick={() => setEditingFrente(false)}>Cancelar</Button></div>
+        </div>
+      )}
+    </header>
+
+    <section className="grid overflow-hidden rounded-2xl border border-border bg-card lg:grid-cols-[1fr_300px]">
+      <div className="flex flex-col gap-3.5 px-6 py-6">
+        <div className="flex items-center justify-between gap-4">
+          <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.1em] text-muted-foreground">INTENCIÓN DE ESTA SEMANA</span>
+          <button onClick={() => setEditingIntencion((v) => !v)} className="border-b border-primary/40 pb-px text-[11.5px] font-semibold text-primary hover:border-primary">Ajustar intención</button>
+        </div>
+
+        {frente.intencion_semanal ? (
+          <>
+            {frente.intencion_semanal.comentario ? (
+              <p className="max-w-xl font-editorial text-[22px] leading-snug tracking-tight text-foreground text-pretty md:text-[26px]">«{frente.intencion_semanal.comentario}»</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Sin comentario para esta intención.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full px-2.5 py-1 font-mono-compass text-[10.5px] font-medium tracking-[0.06em]" style={{ background: `color-mix(in oklch, ${color}, transparent 88%)`, color }}>
+                PRIORIDAD {frente.intencion_semanal.prioridad.toUpperCase()}
+              </span>
+              <span className="rounded-full bg-[var(--surface-sunken)] px-2.5 py-1 font-mono-compass text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground">
+                {frente.intencion_semanal.horas_objetivo != null ? `OBJETIVO ${frente.intencion_semanal.horas_objetivo} H` : `EXPECTATIVA ${pretty(frente.intencion_semanal.expectativa_atencion).toUpperCase()}`}
+              </span>
+              {frente.intencion_semanal.semana_inicio && (
+                <span className="rounded-full bg-[var(--surface-sunken)] px-2.5 py-1 font-mono-compass text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground">
+                  DEFINIDA EL {formatSoloFechaCorta(frente.intencion_semanal.semana_inicio).toUpperCase()}
+                </span>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col gap-2.5 rounded-xl bg-[var(--surface-sunken)] px-4 py-3.5">
+            <span className="font-editorial text-lg text-foreground">Aún no defines la intención de esta semana.</span>
+            <Button size="sm" className="self-start" onClick={() => setEditingIntencion(true)}>Definir intención</Button>
+          </div>
+        )}
+
+        {editingIntencion && (
+          <div className="mt-1 grid grid-cols-1 gap-4 rounded-xl bg-[var(--surface-sunken)] p-4 sm:grid-cols-3">
+            <Field><FieldLabel>Prioridad</FieldLabel><select value={prioridad} onChange={(e) => setPrioridad(e.target.value as IntencionPrioridad)} className="h-8 rounded-lg border border-input bg-[var(--card)] px-2.5 text-sm"><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></Field>
+            <Field><FieldLabel>Tipo de objetivo</FieldLabel><select value={mode} onChange={(e) => setMode(e.target.value as "horas" | "expectativa")} className="h-8 rounded-lg border border-input bg-[var(--card)] px-2.5 text-sm"><option value="horas">Horas objetivo</option><option value="expectativa">Expectativa de atención</option></select></Field>
+            {mode === "horas" ? <Field><FieldLabel>Horas objetivo</FieldLabel><Input type="number" min="0.01" max="9999.99" step="0.25" value={horas} onChange={(e) => setHoras(e.target.value)} /></Field> : <Field><FieldLabel>Expectativa</FieldLabel><select value={expectativa} onChange={(e) => setExpectativa(e.target.value as ExpectativaAtencion)} className="h-8 rounded-lg border border-input bg-[var(--card)] px-2.5 text-sm"><option value="sin_compromiso">Sin compromiso</option><option value="atender">Atender</option><option value="prioritario">Prioritario</option></select></Field>}
+            <Field className="sm:col-span-3"><FieldLabel>Comentario opcional</FieldLabel><Textarea value={comentario} onChange={(e) => setComentario(e.target.value)} className="min-h-20 resize-none" /></Field>
+            <div className="flex gap-2 sm:col-span-3">
+              <Button onClick={saveIntent} disabled={saving || (mode === "horas" && !(Number(horas) > 0))}>{frente.intencion_semanal ? "Actualizar intención" : "Definir intención"}</Button>
+              <Button variant="ghost" onClick={() => setEditingIntencion(false)}>Cancelar</Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-border bg-[var(--surface-sunken)] px-6 py-6 lg:border-t-0 lg:border-l">
+        <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.1em] text-muted-foreground">ATENCIÓN REAL</span>
+        {horasEfectivas != null ? (
+          <div className="mt-3 flex flex-col gap-2.5">
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-editorial text-4xl leading-none text-foreground">{formatHorasCompacto(horasEfectivas)}</span>
+              {objetivoActual != null && <span className="font-mono-compass text-xs text-muted-foreground">/ {objetivoActual} h</span>}
+            </div>
+            {progresoPct != null && (
+              <div className="h-1.5 overflow-hidden rounded-full bg-border">
+                <div className="h-full rounded-full" style={{ width: `${progresoPct}%`, background: congruencia ? congruenciaColorVar[congruencia] : "var(--muted-foreground)" }} />
+              </div>
+            )}
+            {congruencia && (
+              <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.07em]" style={{ color: congruenciaColorVar[congruencia] }}>{congruenciaLabel[congruencia].toUpperCase()}</span>
+            )}
+            <p className="text-xs leading-relaxed text-muted-foreground text-pretty">Horas reales de esta semana, sumadas de las actividades registradas para este Frente.</p>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground text-pretty">Aún no hay actividades registradas esta semana para medir la atención real.</p>
+        )}
+      </div>
+    </section>
+
+    <section className="relative overflow-hidden rounded-2xl border px-6 py-5 md:px-7" style={{ background: `color-mix(in oklch, ${color}, var(--card) 92%)`, borderColor: `color-mix(in oklch, ${color}, transparent 78%)` }}>
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: color }} aria-hidden />
+      {siguienteTarea ? (
+        <div className="flex flex-col gap-4 pl-2 md:flex-row md:items-center md:justify-between md:gap-8">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.1em]" style={{ color }}>SIGUIENTE ACCIÓN</span>
+            <span className="font-editorial text-2xl leading-tight text-foreground text-pretty md:text-[28px]">{siguienteTarea.titulo}</span>
+            <span className="text-xs text-muted-foreground">{tareaMeta(siguienteTarea)}</span>
+          </div>
+          <div className="flex flex-none flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => void marcarSiguienteHecha()} disabled={saving}>Marcar hecha</Button>
+            {tareasElegibles.length > 0 && (
+              <select defaultValue="" onChange={(e) => e.target.value && void cambiarSiguienteAccion(Number(e.target.value))} className="h-8 rounded-lg border border-input bg-[var(--card)] px-2.5 text-xs">
+                <option value="" disabled>Cambiar…</option>
+                {tareasElegibles.map((t) => <option key={t.id} value={t.id}>{t.titulo}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 pl-2 md:flex-row md:items-center md:justify-between md:gap-8">
+          <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.1em] text-muted-foreground">SIGUIENTE ACCIÓN</span>
+          <span className="font-editorial text-xl text-foreground md:mr-auto md:ml-4">Aún no eliges qué sigue.</span>
+          {tareasElegibles.length > 0 ? (
+            <select defaultValue="" onChange={(e) => e.target.value && void cambiarSiguienteAccion(Number(e.target.value))} className="h-9 rounded-lg border border-input bg-[var(--card)] px-3 text-sm">
+              <option value="" disabled>Elegir una tarea…</option>
+              {tareasElegibles.map((t) => <option key={t.id} value={t.id}>{t.titulo}</option>)}
+            </select>
+          ) : (
+            <span className="text-xs text-muted-foreground">No hay tareas pendientes para elegir.</span>
+          )}
+        </div>
+      )}
+    </section>
+
+    <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-start">
+      <div className="flex flex-col gap-8">
+        <section className="flex flex-col gap-3">
+          <div className="flex items-baseline gap-3">
+            <h2 className="font-editorial text-2xl leading-none text-foreground">Tareas del Frente</h2>
+            {tareas.length > 0 && <span className="font-mono-compass text-[11px] font-medium tracking-[0.06em] text-muted-foreground">{abiertas} ABIERTAS · {cerradas} CERRADAS</span>}
+          </div>
+          {tareas.length === 0 ? (
+            <p className="rounded-2xl border border-border bg-card px-5 py-6 text-sm text-muted-foreground">No hay tareas para este Frente.</p>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              {gruposTarea.map(({ key, label }) => {
+                const items = tareas.filter((t) => t.estado === key)
+                if (items.length === 0) return null
+                return (
+                  <div key={key}>
+                    <div className="bg-[var(--surface-sunken)] px-5 py-2 font-mono-compass text-[10px] font-semibold tracking-[0.1em] text-muted-foreground">{label}</div>
+                    {items.map((t) => (
+                      <label key={t.id} className="flex cursor-pointer items-center gap-3 border-t border-border/70 px-5 py-3 hover:bg-accent/20">
+                        <input type="checkbox" checked={t.estado === "completada"} onChange={() => void toggleTareaHecha(t)} className="size-4 shrink-0" style={{ accentColor: "var(--primary)" }} />
+                        <span className={`flex-1 text-sm ${t.estado === "completada" ? "text-muted-foreground line-through" : "font-medium text-foreground"}`}>{t.titulo}</span>
+                        <span className="shrink-0 font-mono-compass text-[10.5px] tracking-[0.05em] text-muted-foreground">{tareaMeta(t)}</span>
+                      </label>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <div className="flex items-baseline gap-3">
+            <h2 className="font-editorial text-2xl leading-none text-foreground">Cómo se gastó el tiempo</h2>
+            {actividades.length > 0 && <span className="font-mono-compass text-[11px] font-medium tracking-[0.06em] text-muted-foreground">ÚLTIMAS {actividades.length} ACTIVIDADES</span>}
+          </div>
+          {actividades.length === 0 ? (
+            <p className="rounded-2xl border border-border bg-card px-5 py-6 text-sm text-muted-foreground">No hay actividades registradas para este Frente.</p>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              {actividades.map((a) => (
+                <div key={a.id} className="grid grid-cols-[auto_1fr_auto] items-start gap-4 border-t border-border/70 px-5 py-3.5 first:border-t-0">
+                  <span className="font-mono-compass text-[10.5px] leading-relaxed tracking-[0.04em] text-muted-foreground text-pretty">{formatFechaCorta(a.inicio_programado)}<br />{formatHora(a.inicio_programado)}</span>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-sm font-medium text-foreground">{a.titulo}</span>
+                    {a.resultado && <span className="font-editorial text-[13px] leading-snug text-muted-foreground italic text-pretty">{a.resultado}</span>}
+                  </span>
+                  <span className="flex flex-none items-center gap-2.5">
+                    <span className="font-editorial text-base text-foreground">{a.minutos_efectivos != null ? formatDuracionMin(a.minutos_efectivos) : formatDuracionMin(Math.round(horasEntre(a.inicio_programado, a.fin_programado) * 60))}</span>
+                    <span className="rounded-full px-2 py-1 font-mono-compass text-[9.5px] font-semibold tracking-[0.06em]" style={{ background: `color-mix(in oklch, ${actividadEstadoColorVar[a.estado]}, transparent 88%)`, color: actividadEstadoColorVar[a.estado] }}>
+                      {a.estado.replaceAll("_", " ").toUpperCase()}
+                    </span>
+                  </span>
+                </div>
+              ))}
+              <Link to="/compass/calendario" className="block px-5 py-3 text-[11.5px] font-semibold text-primary hover:underline">Ver todas en Calendario →</Link>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <aside className="flex flex-col gap-4">
+        <div className="rounded-2xl bg-[var(--surface-raised)] p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <Lightbulb className="size-3.5 text-foreground/70" />
+            <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.1em] text-foreground/80">IDEAS DE ESTE FRENTE</span>
+          </div>
+          {ideas.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Sin ideas registradas para este Frente.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {ideas.map((idea) => (
+                <div key={idea.id} className="rounded-xl bg-card px-3.5 py-2.5">
+                  <p className="text-[13px] leading-snug font-medium text-foreground">{idea.titulo}</p>
+                  {idea.descripcion && <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">{idea.descripcion}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+          <Link to="/compass/ideas" className="mt-3 inline-block text-[11.5px] font-semibold text-primary hover:underline">Ver todas las Ideas →</Link>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <Scale className="size-3.5 text-muted-foreground" />
+            <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.1em] text-muted-foreground">DECISIONES</span>
+          </div>
+          {decisiones.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Sin decisiones registradas para este Frente.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {decisiones.map((d) => (
+                <div key={d.id} className="flex flex-col gap-1 border-b border-border/70 pb-3 last:border-0 last:pb-0">
+                  <span className="font-mono-compass text-[10px] tracking-[0.06em] text-muted-foreground">{formatSoloFechaCorta(d.fecha).toUpperCase()}</span>
+                  <span className="font-editorial text-base leading-snug text-foreground text-pretty">{d.titulo}</span>
+                  {d.motivo && <span className="text-xs leading-relaxed text-muted-foreground text-pretty">{d.motivo}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
   </div>
 }
