@@ -113,6 +113,16 @@ export async function actualizarActividad(scope: CompassOwnerScope, id: number, 
     const fields:string[]=[]; const values:unknown[]=[scope.usuarioId,id]; for(const [key,value] of Object.entries(patch)){values.push(value);fields.push(`${key}=$${values.length}`);} await client.query(`UPDATE compass.actividades SET ${fields.join(',')},updated_at=now() WHERE usuario_id=$1 AND id=$2`,values); return obtenerActividad(scope,id,client); });
 }
 
+export async function eliminarActividad(scope: CompassOwnerScope, id: number) {
+  return transaction(async client => {
+    const current = await obtenerActividad(scope, id, client, true);
+    if (!current) throw new CompassNotFoundError('Actividad no encontrada');
+    const { rows: derivadas } = await client.query('SELECT id FROM compass.actividades WHERE usuario_id=$1 AND actividad_origen_id=$2 LIMIT 1', [scope.usuarioId, id]);
+    if (derivadas[0]) throw new CompassBusinessError('No se puede eliminar una Actividad que conserva reprogramaciones o continuaciones');
+    await client.query('DELETE FROM compass.actividades WHERE usuario_id=$1 AND id=$2', [scope.usuarioId, id]);
+  });
+}
+
 export async function cerrarActividad(scope: CompassOwnerScope,id:number,input:CierreActividadInput){return transaction(async client=>{const current=await obtenerActividad(scope,id,client,true);if(!current)throw new CompassNotFoundError('Actividad no encontrada');if(current.estado!=='programada')throw new CompassBusinessError('La Actividad ya está cerrada');await client.query(`UPDATE compass.actividades SET estado=$3,minutos_efectivos=$4,resultado=$5,fecha_cierre=now(),updated_at=now() WHERE usuario_id=$1 AND id=$2`,[scope.usuarioId,id,input.estado,input.minutos_efectivos,input.resultado]);return obtenerActividad(scope,id,client);});}
 
 async function derive(scope:CompassOwnerScope,id:number,input:DerivadaActividadInput,type:'reprogramacion'|'continuacion'){return transaction(async client=>{const original=await obtenerActividad(scope,id,client,true);if(!original)throw new CompassNotFoundError('Actividad no encontrada');if(type==='reprogramacion'&&original.estado!=='programada')throw new CompassBusinessError('Sólo una Actividad programada puede reprogramarse');if(type==='reprogramacion')await client.query(`UPDATE compass.actividades SET estado='cancelada',fecha_cierre=now(),updated_at=now() WHERE usuario_id=$1 AND id=$2`,[scope.usuarioId,id]);return insertActividad(client,scope,{titulo:input.titulo??original.titulo,frente_id:original.frente_id,tarea_id:original.tarea_id,inicio_programado:input.nuevo_inicio,fin_programado:input.nuevo_fin},id,type);});}

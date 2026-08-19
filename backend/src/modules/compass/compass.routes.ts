@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { optionalEmpresaActiva, requireAuth } from '../auth/auth.middleware';
 import { getFrente, getFrentes, patchFrente, postFrente, putIntencionSemanal } from './compass.controller';
-import { getActividad, getActividades, getTarea, getTareas, patchActividad, patchTarea, postActividad, postCerrarActividad, postContinuarActividad, postReprogramarActividad, postTarea } from './compass.controller';
+import { deleteActividad, getActividad, getActividades, getTarea, getTareas, patchActividad, patchTarea, postActividad, postCerrarActividad, postContinuarActividad, postReprogramarActividad, postTarea } from './compass.controller';
 import { getCapturas, patchCaptura, postCaptura, postProcesarCaptura } from './compass.controller';
 import { getDecision, getDecisiones, getIdea, getIdeas, patchDecision, patchIdea, postConvertirIdea, postDecision, postIdea } from './compass.controller';
 import { getRevisionSemanal, putRevisionSemanal } from './compass.controller';
@@ -21,6 +21,7 @@ router.get('/actividades', optionalEmpresaActiva, getActividades);
 router.get('/actividades/:id', optionalEmpresaActiva, getActividad);
 router.post('/actividades', optionalEmpresaActiva, postActividad);
 router.patch('/actividades/:id', optionalEmpresaActiva, patchActividad);
+router.delete('/actividades/:id', optionalEmpresaActiva, deleteActividad);
 router.post('/actividades/:id/cerrar', optionalEmpresaActiva, postCerrarActividad);
 router.post('/actividades/:id/reprogramar', optionalEmpresaActiva, postReprogramarActividad);
 router.post('/actividades/:id/continuar', optionalEmpresaActiva, postContinuarActividad);

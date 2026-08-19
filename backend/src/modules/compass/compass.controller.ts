@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { actualizarFrente, crearFrente, listarFrentes, obtenerFrente, upsertIntencion } from './compass.repository';
 import { CompassValidationError, parseEstados, parseFrenteCreate, parseFrentePatch, parseIntencionSemanal, parsePositiveId } from './compass.validation';
-import { actualizarActividad, actualizarTarea, cerrarActividad, CompassBusinessError, CompassNotFoundError, continuarActividad, crearActividad, crearTarea, listarActividades, listarTareas, obtenerActividad, obtenerTarea, reprogramarActividad } from './compass-work.repository';
+import { actualizarActividad, actualizarTarea, cerrarActividad, CompassBusinessError, CompassNotFoundError, continuarActividad, crearActividad, crearTarea, eliminarActividad, listarActividades, listarTareas, obtenerActividad, obtenerTarea, reprogramarActividad } from './compass-work.repository';
 import { parseActividadCreate, parseActividadFilters, parseActividadPatch, parseCierreActividad, parseDerivadaActividad, parseTareaCreate, parseTareaFilters, parseTareaPatch } from './compass.validation';
 import { actualizarEstadoCaptura, crearCaptura, listarCapturas, procesarCaptura } from './compass-capture.repository';
 import { parseCapturaCreate, parseCapturaEstado, parseCapturaPatch, parseProcesarCaptura } from './compass.validation';
@@ -30,6 +30,7 @@ export async function getActividades(req:Request,res:Response){try{return res.js
 export async function getActividad(req:Request,res:Response){try{const item=await obtenerActividad(ownerScope(req),parsePositiveId(req.params.id));return item?res.json(item):res.status(404).json({message:'Actividad no encontrada'});}catch(error){return handleError(res,error,'consultar la Actividad');}}
 export async function postActividad(req:Request,res:Response){try{return res.status(201).json(await crearActividad(ownerScope(req),parseActividadCreate(req.body)));}catch(error){return handleError(res,error,'crear la Actividad');}}
 export async function patchActividad(req:Request,res:Response){try{return res.json(await actualizarActividad(ownerScope(req),parsePositiveId(req.params.id),parseActividadPatch(req.body)));}catch(error){return handleError(res,error,'actualizar la Actividad');}}
+export async function deleteActividad(req:Request,res:Response){try{await eliminarActividad(ownerScope(req),parsePositiveId(req.params.id));return res.status(204).send();}catch(error){return handleError(res,error,'eliminar la Actividad');}}
 export async function postCerrarActividad(req:Request,res:Response){try{return res.json(await cerrarActividad(ownerScope(req),parsePositiveId(req.params.id),parseCierreActividad(req.body)));}catch(error){return handleError(res,error,'cerrar la Actividad');}}
 export async function postReprogramarActividad(req:Request,res:Response){try{return res.status(201).json(await reprogramarActividad(ownerScope(req),parsePositiveId(req.params.id),parseDerivadaActividad(req.body)));}catch(error){return handleError(res,error,'reprogramar la Actividad');}}
 export async function postContinuarActividad(req:Request,res:Response){try{return res.status(201).json(await continuarActividad(ownerScope(req),parsePositiveId(req.params.id),parseDerivadaActividad(req.body)));}catch(error){return handleError(res,error,'continuar la Actividad');}}

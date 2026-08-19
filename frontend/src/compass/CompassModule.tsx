@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { Outlet } from "react-router-dom"
 import { AppShell } from "@/components/shell/app-shell"
 import { HoyView } from "@/components/hoy/hoy-view"
@@ -10,6 +11,12 @@ import { DecisionesView } from "@/components/decisiones/decisiones-view"
 import { RevisionSemanalView } from "@/components/revision/revision-semanal-view"
 
 export function CompassLayout() {
+  useEffect(() => {
+    const previousTitle = document.title
+    document.title = "Emphasys Compass"
+    return () => { document.title = previousTitle }
+  }, [])
+
   return <AppShell><Outlet /></AppShell>
 }
 

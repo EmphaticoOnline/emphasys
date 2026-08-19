@@ -111,6 +111,7 @@ export const listActividades = (filters: ActividadFilters = {}) => apiFetch<Acti
 export const getActividad = (id: number) => apiFetch<Actividad>(`/api/compass/actividades/${id}`);
 export const createActividad = (payload: ActividadCreate) => apiFetch<Actividad>('/api/compass/actividades', { method: 'POST', body: payload });
 export const updateActividad = (id: number, payload: ActividadPatch) => apiFetch<Actividad>(`/api/compass/actividades/${id}`, { method: 'PATCH', body: payload });
+export const deleteActividad = (id: number) => apiFetch<void>(`/api/compass/actividades/${id}`, { method: 'DELETE' });
 export const closeActividad = (id: number, payload: ActividadCierre) => apiFetch<Actividad>(`/api/compass/actividades/${id}/cerrar`, { method: 'POST', body: payload });
 export const rescheduleActividad = (id: number, payload: ActividadDerivada) => apiFetch<Actividad>(`/api/compass/actividades/${id}/reprogramar`, { method: 'POST', body: payload });
 export const continueActividad = (id: number, payload: ActividadDerivada) => apiFetch<Actividad>(`/api/compass/actividades/${id}/continuar`, { method: 'POST', body: payload });
