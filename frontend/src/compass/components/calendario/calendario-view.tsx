@@ -114,6 +114,8 @@ export function CalendarioView() {
   const [creando, setCreando] = useState<string | null>(null)
   const [editando, setEditando] = useState<Actividad | null>(null)
   const [cambiosTemporales, setCambiosTemporales] = useState<Map<number, Actividad>>(new Map())
+  const [dragInfo, setDragInfo] = useState<{ actividad: Actividad; grabOffsetY: number } | null>(null)
+  const [dragPreview, setDragPreview] = useState<{ dia: string; minutoDia: number } | null>(null)
   const [actionError, setActionError] = useState("")
   const [titulo, setTitulo] = useState("")
   const [diaForm, setDiaForm] = useState(0)
@@ -207,17 +209,33 @@ export function CalendarioView() {
     void persistirHorario(actividad, new Date(nuevoInicio).toISOString(), new Date(nuevoFin).toISOString())
   }
 
+  const minutoDeDrop = (event: DragEvent<HTMLDivElement>, actividad: Actividad, grabOffsetY: number) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const minutosDesdeInicio = ((event.clientY - rect.top - grabOffsetY) / ALTURA_HORA) * 60
+    const snapped = Math.round(minutosDesdeInicio / 15) * 15
+    const duracionMinutos = Math.round((new Date(actividad.fin_programado).getTime() - new Date(actividad.inicio_programado).getTime()) / 60_000)
+    return Math.max(0, Math.min(24 * 60 - duracionMinutos, horaMin * 60 + snapped))
+  }
+
+  const previsualizarDrop = (event: DragEvent<HTMLDivElement>, dia: string) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "move"
+    if (!dragInfo) return
+    const minutoDia = minutoDeDrop(event, dragInfo.actividad, dragInfo.grabOffsetY)
+    if (dragPreview?.dia !== dia || dragPreview.minutoDia !== minutoDia) setDragPreview({ dia, minutoDia })
+  }
+
   const soltarActividad = (event: DragEvent<HTMLDivElement>, dia: string) => {
     event.preventDefault()
     const id = Number(event.dataTransfer.getData("application/x-compass-actividad"))
-    const actividad = actividadesVisibles.find((item) => item.id === id)
+    const actividad = dragInfo?.actividad.id === id ? dragInfo.actividad : actividadesVisibles.find((item) => item.id === id)
     if (!actividad || actividad.estado !== "programada") return
-    const rect = event.currentTarget.getBoundingClientRect()
-    const minutosDesdeInicio = Math.round((((event.clientY - rect.top) / ALTURA_HORA) * 60) / 15) * 15
-    const minutoDia = Math.max(0, Math.min(24 * 60 - 15, horaMin * 60 + minutosDesdeInicio))
+    const minutoDia = dragPreview?.dia === dia ? dragPreview.minutoDia : minutoDeDrop(event, actividad, dragInfo?.grabOffsetY ?? 0)
     const duration = new Date(actividad.fin_programado).getTime() - new Date(actividad.inicio_programado).getTime()
     const hora = `${String(Math.floor(minutoDia / 60)).padStart(2, "0")}:${String(minutoDia % 60).padStart(2, "0")}`
     const nuevoInicio = fechaYHoraLocalAISOString(dia, hora)
+    setDragInfo(null)
+    setDragPreview(null)
     void persistirHorario(actividad, nuevoInicio, new Date(new Date(nuevoInicio).getTime() + duration).toISOString())
   }
 
@@ -374,7 +392,7 @@ export function CalendarioView() {
                 return (
                   <div
                     key={dia}
-                    onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move" }}
+                    onDragOver={(event) => previsualizarDrop(event, dia)}
                     onDrop={(event) => soltarActividad(event, dia)}
                     className="relative flex-1 border-r border-border last:border-r-0"
                     style={{
@@ -385,6 +403,19 @@ export function CalendarioView() {
                     {actsDia.length === 0 && (
                       <div className="absolute inset-0 flex items-center justify-center">
                         <span className="font-mono-compass text-[10px] tracking-[0.1em] text-muted-foreground/50 uppercase">Sin actividades</span>
+                      </div>
+                    )}
+                    {dragInfo && dragPreview?.dia === dia && (
+                      <div
+                        className="pointer-events-none absolute inset-x-1 z-[2] rounded-lg border border-dashed border-primary/60 bg-primary/8"
+                        style={{
+                          top: (dragPreview.minutoDia / 60 - horaMin) * ALTURA_HORA,
+                          height: Math.max(14, ((new Date(dragInfo.actividad.fin_programado).getTime() - new Date(dragInfo.actividad.inicio_programado).getTime()) / 3_600_000) * ALTURA_HORA),
+                        }}
+                      >
+                        <span className="absolute -top-2 left-1 rounded-md bg-primary px-1.5 py-0.5 font-mono-compass text-[9px] text-primary-foreground shadow-sm">
+                          {String(Math.floor(dragPreview.minutoDia / 60)).padStart(2, "0")}:{String(dragPreview.minutoDia % 60).padStart(2, "0")}
+                        </span>
                       </div>
                     )}
                     {actsDia.map((act) => {
@@ -402,6 +433,8 @@ export function CalendarioView() {
                           widthPct={(1 / lane.carriles) * 100}
                           onSelect={setSeleccionada}
                           onResize={redimensionar}
+                          onDragBegin={(actividad, grabOffsetY) => { setDragInfo({ actividad, grabOffsetY }); setDragPreview(null) }}
+                          onDragFinish={() => { setDragInfo(null); setDragPreview(null) }}
                         />
                       )
                     })}

@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef, useState } from "react"
 import { colorVarDeFrente } from "@/lib/frente-color"
 import { formatHora24 } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -15,6 +16,8 @@ export function ActividadBloque({
   widthPct,
   onSelect,
   onResize,
+  onDragBegin,
+  onDragFinish,
 }: {
   actividad: Actividad
   frentes: Frente[]
@@ -24,6 +27,8 @@ export function ActividadBloque({
   widthPct: number
   onSelect: (a: Actividad) => void
   onResize: (a: Actividad, edge: "inicio" | "fin", deltaMinutes: number) => void
+  onDragBegin: (a: Actividad, grabOffsetY: number) => void
+  onDragFinish: () => void
 }) {
   const color = colorVarDeFrente(frentes, actividad.frente_id)
   const deco = decoracionEstado(actividad.estado, color)
@@ -32,6 +37,13 @@ export function ActividadBloque({
   const mostrarFrente = height >= 58
   const mostrarTarea = mostrarFrente && height >= 82 && Boolean(actividad.tarea_titulo)
   const mostrarDeriv = height >= 104 && (esDerivada || actividad.estado !== "programada")
+  const resizeActivo = useRef(false)
+  const [resizePreview, setResizePreview] = useState<{ edge: "inicio" | "fin"; delta: number } | null>(null)
+
+  const horaPreview = (edge: "inicio" | "fin", delta: number) => {
+    const base = edge === "inicio" ? actividad.inicio_programado : actividad.fin_programado
+    return formatHora24(new Date(new Date(base).getTime() + delta * 60_000).toISOString())
+  }
 
   return (
     <div
@@ -39,9 +51,13 @@ export function ActividadBloque({
       tabIndex={0}
       draggable={actividad.estado === "programada"}
       onDragStart={(event) => {
+        if (resizeActivo.current) { event.preventDefault(); return }
         event.dataTransfer.effectAllowed = "move"
         event.dataTransfer.setData("application/x-compass-actividad", String(actividad.id))
+        const grabOffsetY = event.clientY - event.currentTarget.getBoundingClientRect().top
+        onDragBegin(actividad, grabOffsetY)
       }}
+      onDragEnd={onDragFinish}
       onClick={() => onSelect(actividad)}
       onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(actividad) } }}
       className={cn("absolute z-[3] flex flex-col overflow-hidden rounded-[11px] px-2.5 py-1.5 text-left transition-shadow hover:shadow-[0_2px_8px_rgba(60,45,25,0.12)]", actividad.estado === "programada" && "cursor-grab active:cursor-grabbing")}
@@ -86,15 +102,24 @@ export function ActividadBloque({
       )}
       {actividad.estado === "programada" && (
         <>
-          <ResizeHandle edge="inicio" onResize={(delta) => onResize(actividad, "inicio", delta)} />
-          <ResizeHandle edge="fin" onResize={(delta) => onResize(actividad, "fin", delta)} />
+          <ResizeHandle edge="inicio" onActiveChange={(active) => { resizeActivo.current = active; if (!active) setResizePreview(null) }} onPreview={(delta) => setResizePreview({ edge: "inicio", delta })} onResize={(delta) => onResize(actividad, "inicio", delta)} />
+          <ResizeHandle edge="fin" onActiveChange={(active) => { resizeActivo.current = active; if (!active) setResizePreview(null) }} onPreview={(delta) => setResizePreview({ edge: "fin", delta })} onResize={(delta) => onResize(actividad, "fin", delta)} />
         </>
+      )}
+      {resizePreview && (
+        <span className={cn("pointer-events-none absolute right-1 z-20 rounded-md bg-foreground px-1.5 py-0.5 font-mono-compass text-[9px] text-background shadow-sm", resizePreview.edge === "inicio" ? "top-2.5" : "bottom-2.5")}>
+          {horaPreview(resizePreview.edge, resizePreview.delta)}
+        </span>
       )}
     </div>
   )
 }
 
-function ResizeHandle({ edge, onResize }: { edge: "inicio" | "fin"; onResize: (deltaMinutes: number) => void }) {
+function ResizeHandle({ edge, onResize, onPreview, onActiveChange }: { edge: "inicio" | "fin"; onResize: (deltaMinutes: number) => void; onPreview: (deltaMinutes: number) => void; onActiveChange: (active: boolean) => void }) {
+  const startY = useRef<number | null>(null)
+  const lastDelta = useRef(0)
+  const snapDelta = (clientY: number) => Math.round((((clientY - (startY.current ?? clientY)) / 56) * 60) / 15) * 15
+
   return (
     <button
       type="button"
@@ -104,16 +129,32 @@ function ResizeHandle({ edge, onResize }: { edge: "inicio" | "fin"; onResize: (d
       onPointerDown={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        const startY = event.clientY
-        const onUp = (upEvent: PointerEvent) => {
-          document.removeEventListener("pointerup", onUp)
-          const rawMinutes = ((upEvent.clientY - startY) / 56) * 60
-          const snapped = Math.round(rawMinutes / 15) * 15
-          if (snapped !== 0) onResize(snapped)
-        }
-        document.addEventListener("pointerup", onUp, { once: true })
+        event.currentTarget.setPointerCapture(event.pointerId)
+        startY.current = event.clientY
+        lastDelta.current = 0
+        onActiveChange(true)
+        onPreview(0)
       }}
-      className={cn("absolute inset-x-2 z-10 h-2 cursor-ns-resize rounded-full bg-foreground/0 hover:bg-foreground/20", edge === "inicio" ? "top-0" : "bottom-0")}
-    />
+      onPointerMove={(event) => {
+        if (startY.current == null) return
+        const delta = snapDelta(event.clientY)
+        lastDelta.current = delta
+        onPreview(delta)
+      }}
+      onPointerUp={(event) => {
+        if (startY.current == null) return
+        event.preventDefault()
+        event.stopPropagation()
+        const delta = lastDelta.current
+        startY.current = null
+        event.currentTarget.releasePointerCapture(event.pointerId)
+        onActiveChange(false)
+        if (delta !== 0) onResize(delta)
+      }}
+      onPointerCancel={() => { startY.current = null; onActiveChange(false) }}
+      className={cn("group absolute inset-x-1 z-20 flex h-2.5 touch-none cursor-ns-resize items-center justify-center", edge === "inicio" ? "top-0" : "bottom-0")}
+    >
+      <span className="h-0.5 w-8 rounded-full bg-foreground/0 transition-colors group-hover:bg-foreground/35 group-focus-visible:bg-foreground/35" />
+    </button>
   )
 }
