@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, Compass, Pencil, Plus, RefreshCw } from "lucide-react"
+import { ArrowLeft, Compass, Pencil, Plus, RefreshCw } from "lucide-react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { colorVarDeFrente } from "@/lib/frente-color"
 import {
   createFrente, getFrente, listFrentes, saveIntencionSemanal, updateFrente,
   type ExpectativaAtencion, type Frente, type FrenteCategoria, type FrenteEstado,
@@ -14,7 +16,12 @@ import {
 } from "../../../services/compassService"
 
 const allStates: FrenteEstado[] = ["activo", "pausado", "completado", "archivado"]
-const colors = ["congruent", "at-risk", "overattended", "neglected"]
+
+const notaEstado: Record<"pausado" | "completado" | "archivado", string> = {
+  pausado: "Sigue existiendo como dirección; no compite por atención esta semana.",
+  completado: "Cerrado. Se conserva para la revisión semanal.",
+  archivado: "Fuera del mapa activo; visible solo al filtrar.",
+}
 
 function monday(): string {
   const now = new Date()
@@ -28,19 +35,103 @@ function pretty(value: string | null | undefined) {
   return value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase())
 }
 
+function objetivoLabel(frente: Frente) {
+  if (frente.horas_objetivo != null) return `${frente.horas_objetivo} h`
+  if (frente.expectativa_atencion != null) return pretty(frente.expectativa_atencion)
+  return "Sin definir"
+}
+
 function Status({ loading, error, retry }: { loading: boolean; error: string; retry: () => void }) {
   if (loading) return <div className="rounded-2xl border border-border bg-card px-5 py-10 text-center text-sm text-muted-foreground">Cargando Frentes…</div>
   if (!error) return null
-  return <div className="rounded-2xl border border-destructive/30 bg-card px-5 py-5 text-sm text-destructive"><p>{error}</p><Button variant="outline" className="mt-3" onClick={retry}><RefreshCw />Reintentar</Button></div>
+  return (
+    <div className="rounded-2xl border border-destructive/30 bg-card px-5 py-5">
+      <p className="font-editorial text-lg text-destructive">{error}</p>
+      <Button variant="outline" className="mt-3" onClick={retry}><RefreshCw />Reintentar</Button>
+    </div>
+  )
 }
 
-function FrenteCard({ frente, index }: { frente: Frente; index: number }) {
-  const inactivo = frente.estado !== "activo"
-  return <Link to={`/compass/frentes/${frente.id}`} className={`group flex flex-col gap-3 rounded-2xl border border-border bg-card px-5 py-4 transition-colors hover:border-primary/30 ${inactivo ? "opacity-60" : ""}`}>
-    <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-2.5"><span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: `var(--${colors[index % colors.length]})` }} /><div><p className="text-sm font-medium text-foreground">{frente.nombre}</p><p className="text-xs text-muted-foreground">{pretty(frente.categoria)}</p></div></div><ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" /></div>
-    <p className="text-sm leading-relaxed text-muted-foreground">{frente.proposito}</p>
-    <div className="flex items-center justify-between border-t border-border pt-3"><span className="text-xs text-muted-foreground">{pretty(frente.estado)}</span><span className="text-xs text-muted-foreground">{frente.horas_objetivo != null ? `${frente.horas_objetivo}h objetivo` : pretty(frente.expectativa_atencion)}</span></div>
-  </Link>
+function FrenteCard({ frente, color }: { frente: Frente; color: string }) {
+  if (frente.estado !== "activo") {
+    const estado = frente.estado as "pausado" | "completado" | "archivado"
+    return (
+      <Link
+        to={`/compass/frentes/${frente.id}`}
+        className="flex flex-col gap-2 rounded-2xl border border-dashed border-border bg-card px-4 py-3.5 transition-colors hover:border-primary/30"
+      >
+        <Badge variant="secondary" className="self-start font-mono-compass text-[9.5px] font-semibold tracking-[0.08em] uppercase">
+          {pretty(frente.estado)}
+        </Badge>
+        <span className="font-editorial text-lg leading-tight text-foreground/80 text-pretty">{frente.nombre}</span>
+        <span className="text-[11.5px] leading-relaxed text-muted-foreground text-pretty">{notaEstado[estado]}</span>
+      </Link>
+    )
+  }
+
+  const prioridad = frente.prioridad_semanal
+  const barWidth = prioridad === "alta" ? 5 : prioridad === "media" ? 3 : 2
+  const tieneIntencion = frente.intencion_semanal != null
+  const tieneAccion = frente.siguiente_accion != null
+
+  return (
+    <div
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/30 hover:shadow-sm"
+      style={prioridad === "alta" ? { background: `color-mix(in oklch, ${color}, var(--card) 94%)` } : undefined}
+    >
+      <span
+        className="absolute inset-y-0 left-0"
+        style={{ width: `${barWidth}px`, background: prioridad === "baja" ? `color-mix(in oklch, ${color}, transparent 55%)` : color }}
+        aria-hidden
+      />
+      <div className="flex flex-col gap-3.5 py-4 pr-4.5 pl-5">
+        <Link to={`/compass/frentes/${frente.id}`} className="flex flex-col gap-1.5 rounded-lg">
+          <span className="flex items-center gap-2">
+            <span className="size-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
+            <span className="font-mono-compass text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">
+              {pretty(frente.categoria)} · {pretty(frente.estado)}
+            </span>
+          </span>
+          <span className="font-editorial text-xl leading-tight text-foreground text-pretty group-hover:text-primary">{frente.nombre}</span>
+          <span className="text-[13px] leading-relaxed text-muted-foreground text-pretty">{frente.proposito}</span>
+        </Link>
+
+        <div className="flex flex-col gap-2 rounded-xl bg-[var(--surface-sunken)] px-3.5 py-3">
+          <div className="flex items-baseline justify-between gap-2.5">
+            <span className="font-mono-compass text-[10px] font-semibold tracking-[0.1em] text-muted-foreground">PRIORIDAD</span>
+            <span className="font-editorial text-base text-foreground">{prioridad ? pretty(prioridad) : "Sin definir"}</span>
+          </div>
+          <div className="flex items-baseline justify-between gap-2.5">
+            <span className="font-mono-compass text-[10px] font-semibold tracking-[0.1em] text-muted-foreground">OBJETIVO</span>
+            <span className="font-editorial text-base text-foreground">{objetivoLabel(frente)}</span>
+          </div>
+          {!tieneIntencion && (
+            <Link
+              to={`/compass/frentes/${frente.id}`}
+              className="self-start border-b border-primary/40 pb-px text-[11px] font-semibold text-primary hover:border-primary"
+            >
+              Definir intención de la semana
+            </Link>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="font-mono-compass text-[10px] font-semibold tracking-[0.1em] text-muted-foreground">SIGUIENTE ACCIÓN</span>
+          <div className="flex items-baseline justify-between gap-2.5">
+            <span className="text-sm text-muted-foreground">{frente.siguiente_accion?.titulo ?? "Sin definir"}</span>
+            {!tieneAccion && (
+              <Link
+                to={`/compass/frentes/${frente.id}`}
+                className="shrink-0 border-b border-primary/40 pb-px text-[11px] font-semibold text-primary hover:border-primary"
+              >
+                Elegir tarea
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function NewFrente({ open, close, saved }: { open: boolean; close: () => void; saved: (frente: Frente) => void }) {
@@ -74,18 +165,113 @@ export function RealFrentesView() {
   const [creating, setCreating] = useState(false)
   const load = useCallback(async () => { try { setLoading(true); setError(""); setFrentes(await listFrentes(allStates)) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudieron cargar los Frentes") } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
+
   const visible = useMemo(() => frentes.filter((item) => filter === "todos" || item.categoria === filter), [filter, frentes])
   const activos = visible.filter((item) => item.estado === "activo")
   const otros = visible.filter((item) => item.estado !== "activo")
-  return <div className="flex flex-col gap-8">
-    <header className="flex flex-col gap-2"><div className="flex items-start justify-between gap-3"><div><h1 className="font-heading text-3xl tracking-tight text-foreground">Frentes</h1><p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">Los frentes son las áreas de tu vida a las que decidiste prestar atención. No son tareas — son direcciones.</p></div><Button onClick={() => setCreating(true)}><Plus />Nuevo</Button></div></header>
-    <div className="flex items-center gap-2">{([['todos','Todos'],['profesional','Profesional'],['personal','Personal']] as const).map(([value, text]) => <button key={value} onClick={() => setFilter(value)} className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${filter === value ? "bg-foreground text-background" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>{text}</button>)}</div>
-    <Status loading={loading} error={error} retry={() => void load()} />
-    {!loading && !error && visible.length === 0 && <div className="rounded-2xl border border-border bg-card px-6 py-10 text-center"><p className="font-heading text-lg">Aún no hay Frentes</p><p className="mt-2 text-sm text-muted-foreground">Crea el primero para definir su intención semanal.</p><Button className="mt-4" onClick={() => setCreating(true)}><Plus />Crear Frente</Button></div>}
-    <section className="flex flex-col gap-3">{activos.map((item, index) => <FrenteCard key={item.id} frente={item} index={index} />)}</section>
-    {otros.length > 0 && <section className="flex flex-col gap-3"><div className="flex items-center gap-2"><h2 className="font-heading text-sm text-muted-foreground">Sin actividad reciente</h2><Badge variant="secondary">{otros.length}</Badge></div>{otros.map((item, index) => <FrenteCard key={item.id} frente={item} index={index + activos.length} />)}</section>}
-    <NewFrente open={creating} close={() => setCreating(false)} saved={(frente) => { setCreating(false); navigate(`/compass/frentes/${frente.id}`) }} />
-  </div>
+
+  const todosActivos = useMemo(() => frentes.filter((f) => f.estado === "activo"), [frentes])
+  const nConIntencion = useMemo(() => todosActivos.filter((f) => f.intencion_semanal != null).length, [todosActivos])
+  const nActivos = todosActivos.length
+  const nSinDefinir = nActivos - nConIntencion
+
+  const semanaLabel = useMemo(
+    () => `Semana del ${new Date(`${monday()}T12:00:00`).toLocaleDateString("es-MX", { day: "numeric", month: "long" })}`,
+    [],
+  )
+
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="rounded-2xl bg-gradient-to-b from-[var(--surface-header)] to-[var(--surface-header-end)] px-5 py-4 md:px-8 md:py-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex max-w-lg flex-col gap-1">
+            <span className="font-mono-compass text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+              Mapa de atención · {semanaLabel}
+            </span>
+            <h1 className="font-editorial text-4xl leading-[0.95] tracking-tight text-foreground md:text-5xl">Frentes</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground text-pretty">
+              Los frentes son las áreas de tu vida a las que decidiste prestar atención. No son tareas — son direcciones.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-2">
+              <div className="flex flex-col gap-0.5 rounded-xl bg-[var(--surface-raised)] px-3.5 py-2">
+                <span className="font-editorial text-2xl leading-none text-foreground">{nActivos}</span>
+                <span className="font-mono-compass text-[10px] font-medium tracking-[0.08em] text-muted-foreground">ACTIVOS</span>
+              </div>
+              <div className="flex flex-col gap-0.5 rounded-xl bg-[var(--surface-raised)] px-3.5 py-2">
+                <span className="font-editorial text-2xl leading-none text-foreground">{nConIntencion}</span>
+                <span className="font-mono-compass text-[10px] font-medium tracking-[0.08em] text-muted-foreground">CON INTENCIÓN</span>
+              </div>
+              <div className="flex flex-col gap-0.5 rounded-xl px-3.5 py-2" style={{ background: "color-mix(in oklch, var(--chart-1), transparent 88%)" }}>
+                <span className="font-editorial text-2xl leading-none" style={{ color: "var(--chart-1)" }}>{nSinDefinir}</span>
+                <span className="font-mono-compass text-[10px] font-medium tracking-[0.08em]" style={{ color: "var(--chart-1)" }}>SIN DEFINIR</span>
+              </div>
+            </div>
+            <Button onClick={() => setCreating(true)} className="min-h-11 md:min-h-8"><Plus />Nuevo</Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex items-center gap-2" role="tablist" aria-label="Filtrar Frentes por categoría">
+        {([["todos", "Todos"], ["profesional", "Profesional"], ["personal", "Personal"]] as const).map(([value, text]) => (
+          <button
+            key={value}
+            role="tab"
+            aria-selected={filter === value}
+            onClick={() => setFilter(value)}
+            className={`min-h-9 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors md:min-h-0 ${filter === value ? "bg-foreground text-background" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+
+      <Status loading={loading} error={error} retry={() => void load()} />
+
+      {!loading && !error && visible.length === 0 && (
+        <Empty className="rounded-2xl bg-[var(--surface-sunken)] py-8">
+          <EmptyHeader>
+            <EmptyTitle className="font-editorial text-xl font-normal">Aún no hay Frentes.</EmptyTitle>
+            <EmptyDescription>Crea el primero para definir su intención semanal.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => setCreating(true)}><Plus />Crear Frente</Button>
+          </EmptyContent>
+        </Empty>
+      )}
+
+      {activos.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-baseline gap-2.5">
+            <h2 className="font-editorial text-xl leading-none text-foreground">Dónde está puesta la atención</h2>
+            <span className="font-mono-compass text-[11px] font-medium tracking-[0.08em] text-muted-foreground">{activos.length} ACTIVOS</span>
+          </div>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(264px,1fr))] gap-3.5">
+            {activos.map((item) => (
+              <FrenteCard key={item.id} frente={item} color={colorVarDeFrente(frentes, item.id)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {otros.length > 0 && (
+        <section className="flex flex-col gap-3 rounded-2xl bg-[var(--surface-sunken)] p-4">
+          <div className="flex items-center gap-2">
+            <h2 className="font-editorial text-lg leading-none text-foreground">Fuera del foco de esta semana</h2>
+            <Badge variant="secondary">{otros.length}</Badge>
+          </div>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
+            {otros.map((item) => (
+              <FrenteCard key={item.id} frente={item} color={colorVarDeFrente(frentes, item.id)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <NewFrente open={creating} close={() => setCreating(false)} saved={(frente) => { setCreating(false); navigate(`/compass/frentes/${frente.id}`) }} />
+    </div>
+  )
 }
 
 export function RealFrenteDetailView() {
