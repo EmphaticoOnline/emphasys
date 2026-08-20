@@ -49,7 +49,7 @@ export function ActividadBloque({
     <div
       role="button"
       tabIndex={0}
-      draggable={actividad.estado === "programada"}
+      draggable
       onDragStart={(event) => {
         if (resizeActivo.current) { event.preventDefault(); return }
         event.dataTransfer.effectAllowed = "move"
@@ -60,7 +60,7 @@ export function ActividadBloque({
       onDragEnd={onDragFinish}
       onClick={() => onSelect(actividad)}
       onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(actividad) } }}
-      className={cn("absolute z-[3] flex flex-col overflow-hidden rounded-[11px] px-2.5 py-1.5 text-left transition-shadow hover:shadow-[0_2px_8px_rgba(60,45,25,0.12)]", actividad.estado === "programada" && "cursor-grab active:cursor-grabbing")}
+      className="absolute z-[3] flex cursor-grab flex-col overflow-hidden rounded-[11px] px-2.5 py-1.5 text-left transition-shadow hover:shadow-[0_2px_8px_rgba(60,45,25,0.12)] active:cursor-grabbing"
       style={{
         top,
         height,
@@ -100,12 +100,8 @@ export function ActividadBloque({
           {actividad.tipo_origen === "reprogramacion" ? "Reprogramada" : "Continuación"}
         </span>
       )}
-      {actividad.estado === "programada" && (
-        <>
-          <ResizeHandle edge="inicio" onActiveChange={(active) => { resizeActivo.current = active; if (!active) setResizePreview(null) }} onPreview={(delta) => setResizePreview({ edge: "inicio", delta })} onResize={(delta) => onResize(actividad, "inicio", delta)} />
-          <ResizeHandle edge="fin" onActiveChange={(active) => { resizeActivo.current = active; if (!active) setResizePreview(null) }} onPreview={(delta) => setResizePreview({ edge: "fin", delta })} onResize={(delta) => onResize(actividad, "fin", delta)} />
-        </>
-      )}
+      <ResizeHandle edge="inicio" onActiveChange={(active) => { resizeActivo.current = active; if (!active) setResizePreview(null) }} onPreview={(delta) => setResizePreview({ edge: "inicio", delta })} onResize={(delta) => onResize(actividad, "inicio", delta)} />
+      <ResizeHandle edge="fin" onActiveChange={(active) => { resizeActivo.current = active; if (!active) setResizePreview(null) }} onPreview={(delta) => setResizePreview({ edge: "fin", delta })} onResize={(delta) => onResize(actividad, "fin", delta)} />
       {resizePreview && (
         <span className={cn("pointer-events-none absolute right-1 z-20 rounded-md bg-foreground px-1.5 py-0.5 font-mono-compass text-[9px] text-background shadow-sm", resizePreview.edge === "inicio" ? "top-2.5" : "bottom-2.5")}>
           {horaPreview(resizePreview.edge, resizePreview.delta)}

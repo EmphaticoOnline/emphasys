@@ -6,9 +6,10 @@ import { estadoActividadBloque } from "@/components/actividad/estado-actividad"
 import { useCompass } from "@/lib/store"
 import type { Actividad } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { HORA_FIN_JORNADA, HORA_INICIO_JORNADA } from "@/lib/disponibilidad-semanal"
 
-const HORA_INICIO = 6
-const HORA_FIN = 21
+const HORA_INICIO = HORA_INICIO_JORNADA
+const HORA_FIN = HORA_FIN_JORNADA
 const HORAS = Array.from({ length: HORA_FIN - HORA_INICIO + 1 }, (_, i) => HORA_INICIO + i)
 const ROW_H = 48
 

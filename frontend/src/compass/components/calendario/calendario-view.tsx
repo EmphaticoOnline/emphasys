@@ -8,6 +8,7 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { CerrarActividadDrawer } from "@/components/actividad/cerrar-actividad-drawer"
 import { diasDeSemana, nombreDiaCorto, sumarDias } from "@/lib/calendario-fechas"
+import { HORA_FIN_JORNADA, HORA_INICIO_JORNADA } from "@/lib/disponibilidad-semanal"
 import { useRealWork } from "@/lib/real-work-store"
 import { colorVarDeFrente } from "@/lib/frente-color"
 import { fechaYHoraLocalAISOString, formatDuracionMin, formatHora24, hoyLocal, horaYMinuto, soloFecha } from "@/lib/format"
@@ -19,8 +20,8 @@ import { ESTADO_GLYPH, ESTADO_LABEL, decoracionEstado } from "./estado-actividad
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 const ESTADOS_LEYENDA: ActividadEstado[] = ["programada", "realizada", "parcial", "no_realizada", "cancelada"]
-const HORA_MIN_DEFAULT = 7
-const HORA_MAX_DEFAULT = 21
+const HORA_MIN_DEFAULT = HORA_INICIO_JORNADA
+const HORA_MAX_DEFAULT = HORA_FIN_JORNADA
 const ALTURA_HORA = 56
 
 function horaFraccional(iso: string) {
@@ -206,7 +207,13 @@ export function CalendarioView() {
     const nuevoInicio = edge === "inicio" ? inicioActual + delta : inicioActual
     const nuevoFin = edge === "fin" ? finActual + delta : finActual
     if (nuevoFin <= nuevoInicio) { setActionError("La actividad debe durar al menos 15 minutos."); return }
-    void persistirHorario(actividad, new Date(nuevoInicio).toISOString(), new Date(nuevoFin).toISOString())
+    const inicioIso = new Date(nuevoInicio).toISOString()
+    const finIso = new Date(nuevoFin).toISOString()
+    if (horaFraccional(inicioIso) < HORA_INICIO_JORNADA || horaFraccional(finIso) > HORA_FIN_JORNADA) {
+      setActionError(`La jornada del calendario va de ${HORA_INICIO_JORNADA}:00 a ${HORA_FIN_JORNADA}:00.`)
+      return
+    }
+    void persistirHorario(actividad, inicioIso, finIso)
   }
 
   const minutoDeDrop = (event: DragEvent<HTMLDivElement>, actividad: Actividad, grabOffsetY: number) => {
@@ -214,7 +221,7 @@ export function CalendarioView() {
     const minutosDesdeInicio = ((event.clientY - rect.top - grabOffsetY) / ALTURA_HORA) * 60
     const snapped = Math.round(minutosDesdeInicio / 15) * 15
     const duracionMinutos = Math.round((new Date(actividad.fin_programado).getTime() - new Date(actividad.inicio_programado).getTime()) / 60_000)
-    return Math.max(0, Math.min(24 * 60 - duracionMinutos, horaMin * 60 + snapped))
+    return Math.max(HORA_INICIO_JORNADA * 60, Math.min(HORA_FIN_JORNADA * 60 - duracionMinutos, horaMin * 60 + snapped))
   }
 
   const previsualizarDrop = (event: DragEvent<HTMLDivElement>, dia: string) => {
@@ -229,7 +236,7 @@ export function CalendarioView() {
     event.preventDefault()
     const id = Number(event.dataTransfer.getData("application/x-compass-actividad"))
     const actividad = dragInfo?.actividad.id === id ? dragInfo.actividad : actividadesVisibles.find((item) => item.id === id)
-    if (!actividad || actividad.estado !== "programada") return
+    if (!actividad) return
     const minutoDia = dragPreview?.dia === dia ? dragPreview.minutoDia : minutoDeDrop(event, actividad, dragInfo?.grabOffsetY ?? 0)
     const duration = new Date(actividad.fin_programado).getTime() - new Date(actividad.inicio_programado).getTime()
     const hora = `${String(Math.floor(minutoDia / 60)).padStart(2, "0")}:${String(minutoDia % 60).padStart(2, "0")}`
@@ -528,11 +535,11 @@ export function CalendarioView() {
               </Field>
               <Field className="w-28">
                 <FieldLabel htmlFor="act-inicio">Inicio</FieldLabel>
-                <Input id="act-inicio" type="time" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+                <Input id="act-inicio" type="time" min={`${String(HORA_INICIO_JORNADA).padStart(2, "0")}:00`} max={`${String(HORA_FIN_JORNADA).padStart(2, "0")}:00`} value={inicio} onChange={(e) => setInicio(e.target.value)} />
               </Field>
               <Field className="w-28">
                 <FieldLabel htmlFor="act-fin">Fin</FieldLabel>
-                <Input id="act-fin" type="time" value={fin} onChange={(e) => setFin(e.target.value)} />
+                <Input id="act-fin" type="time" min={`${String(HORA_INICIO_JORNADA).padStart(2, "0")}:00`} max={`${String(HORA_FIN_JORNADA).padStart(2, "0")}:00`} value={fin} onChange={(e) => setFin(e.target.value)} />
               </Field>
             </div>
 
@@ -554,7 +561,7 @@ export function CalendarioView() {
 
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="ghost" onClick={() => { setCreando(null); setEditando(null) }}>Cancelar</Button>
-              <Button onClick={() => void (editando ? guardarEdicion() : guardarCreacion())} disabled={!titulo.trim() || fin <= inicio || loading}>{editando ? "Guardar cambios" : "Agendar"}</Button>
+              <Button onClick={() => void (editando ? guardarEdicion() : guardarCreacion())} disabled={!titulo.trim() || fin <= inicio || inicio < `${String(HORA_INICIO_JORNADA).padStart(2, "0")}:00` || fin > `${String(HORA_FIN_JORNADA).padStart(2, "0")}:00` || loading}>{editando ? "Guardar cambios" : "Agendar"}</Button>
             </div>
           </div>
         </div>

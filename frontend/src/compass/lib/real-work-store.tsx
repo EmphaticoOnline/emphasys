@@ -35,12 +35,17 @@ export function RealWorkProvider({ children }: { children: ReactNode }) {
   const loadTareas = useCallback(async (filters: TareaFilters = {}) => { await run(async () => setTareas(await listTareas(filters))) }, [run])
   const loadActividades = useCallback(async (filters: ActividadFilters = {}) => { await run(async () => setActividades(await listActividades(filters))) }, [run])
   const loadCapturas = useCallback(async () => { await run(async () => setCapturas(await listCapturas())) }, [run])
+  const crearCaptura = useCallback((texto: string) => run(async () => {
+    const captura = await createCaptura(texto)
+    setCapturas((actuales) => [captura, ...actuales.filter((item) => item.id !== captura.id)])
+    return captura
+  }), [run])
   const value = useMemo<RealWorkState>(() => ({ frentes,tareas,actividades,capturas,loading,error,loadFrentes,loadTareas,loadActividades,loadCapturas,
     crearTarea: payload => run(() => createTarea(payload)), actualizarTarea: (id,patch) => run(() => updateTarea(id,patch)),
     crearActividad: payload => run(() => createActividad(payload)), actualizarActividad: (id,payload) => run(() => updateActividad(id,payload)), eliminarActividad: id => run(() => deleteActividad(id)), cerrarActividad: (id,payload) => run(() => closeActividad(id,payload)),
     reprogramarActividad: (id,payload) => run(() => rescheduleActividad(id,payload)), continuarActividad: (id,payload) => run(() => continueActividad(id,payload)),
-    crearCaptura: texto => run(() => createCaptura(texto)), procesarCaptura: (id,payload) => run(() => processCaptura(id,payload)),
-  }),[frentes,tareas,actividades,capturas,loading,error,loadFrentes,loadTareas,loadActividades,loadCapturas,run])
+    crearCaptura, procesarCaptura: (id,payload) => run(() => processCaptura(id,payload)),
+  }),[frentes,tareas,actividades,capturas,loading,error,loadFrentes,loadTareas,loadActividades,loadCapturas,crearCaptura,run])
   return <Context.Provider value={value}>{children}</Context.Provider>
 }
 export function useRealWork(){const value=useContext(Context);if(!value)throw new Error('useRealWork requiere RealWorkProvider');return value}

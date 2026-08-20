@@ -108,7 +108,7 @@ async function insertActividad(client: PoolClient, scope: CompassOwnerScope, inp
 export async function crearActividad(scope: CompassOwnerScope, input: ActividadInput) { return transaction(async client => { await validateLinks(client,scope,input.frente_id,input.tarea_id); return insertActividad(client,scope,input); }); }
 
 export async function actualizarActividad(scope: CompassOwnerScope, id: number, patch: ActividadPatch) {
-  return transaction(async client => { const current=await obtenerActividad(scope,id,client,true); if(!current) throw new CompassNotFoundError('Actividad no encontrada'); if(current.estado!=='programada') throw new CompassBusinessError('Sólo una Actividad programada puede modificarse');
+  return transaction(async client => { const current=await obtenerActividad(scope,id,client,true); if(!current) throw new CompassNotFoundError('Actividad no encontrada');
     const merged={...current,...patch}; if(Date.parse(merged.fin_programado)<=Date.parse(merged.inicio_programado)) throw new CompassBusinessError('fin_programado debe ser posterior a inicio_programado'); await validateLinks(client,scope,merged.frente_id,merged.tarea_id);
     const fields:string[]=[]; const values:unknown[]=[scope.usuarioId,id]; for(const [key,value] of Object.entries(patch)){values.push(value);fields.push(`${key}=$${values.length}`);} await client.query(`UPDATE compass.actividades SET ${fields.join(',')},updated_at=now() WHERE usuario_id=$1 AND id=$2`,values); return obtenerActividad(scope,id,client); });
 }

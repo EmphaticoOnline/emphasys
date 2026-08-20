@@ -108,11 +108,9 @@ export function ActividadDetallePanel({
 
         <div className={cn("flex flex-col gap-2.5 border-t border-border pt-4", !programada && "gap-2")}>
           <div className="flex gap-2.5">
-            {programada && (
-              <button type="button" onClick={onEditar} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-border text-[13px] font-semibold text-foreground hover:bg-muted">
-                <Pencil className="size-3.5" />Editar
-              </button>
-            )}
+            <button type="button" onClick={onEditar} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-border text-[13px] font-semibold text-foreground hover:bg-muted">
+              <Pencil className="size-3.5" />Editar
+            </button>
             <button type="button" onClick={onEliminar} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-destructive/30 text-[13px] font-semibold text-destructive hover:bg-destructive/5">
               <Trash2 className="size-3.5" />Eliminar
             </button>

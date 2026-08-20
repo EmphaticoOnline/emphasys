@@ -52,7 +52,7 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-.compass-root {
+:where(.compass-root, .compass-overlay-theme) {
   color-scheme: light;
   --font-body: "Manrope", sans-serif;
   --font-heading: "Space Grotesk", sans-serif;
@@ -98,6 +98,9 @@
   --sidebar-accent-foreground: oklch(0.28 0.02 250);
   --sidebar-border: oklch(0.89 0.008 80);
   --sidebar-ring: oklch(0.6 0.05 205);
+}
+
+.compass-root {
   min-height: 100%;
   background: var(--background);
   color: var(--foreground);
@@ -110,18 +113,18 @@
 /* Scoped equivalent of the v0/Tailwind preflight. This is deliberately not
    applied to :root or body because Compass is mounted beside the ERP. */
 @layer base {
-  .compass-root *,
-  .compass-root *::before,
-  .compass-root *::after {
+  :where(.compass-root, .compass-overlay-theme) *,
+  :where(.compass-root, .compass-overlay-theme) *::before,
+  :where(.compass-root, .compass-overlay-theme) *::after {
     box-sizing: border-box;
     border-width: 0;
     border-style: solid;
     border-color: var(--border);
   }
-  .compass-root :where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd) { margin: 0; }
-  .compass-root :where(ol, ul, menu) { margin: 0; padding: 0; list-style: none; }
-  .compass-root :where(a) { color: inherit; text-decoration: inherit; }
-  .compass-root :where(button, input, optgroup, select, textarea) {
+  :where(.compass-root, .compass-overlay-theme) :where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd) { margin: 0; }
+  :where(.compass-root, .compass-overlay-theme) :where(ol, ul, menu) { margin: 0; padding: 0; list-style: none; }
+  :where(.compass-root, .compass-overlay-theme) :where(a) { color: inherit; text-decoration: inherit; }
+  :where(.compass-root, .compass-overlay-theme) :where(button, input, optgroup, select, textarea) {
     margin: 0;
     font: inherit;
     letter-spacing: inherit;
@@ -129,16 +132,16 @@
     background-color: transparent;
     border-radius: 0;
   }
-  .compass-root :where(button, select) { text-transform: none; }
-  .compass-root :where(button, [role="button"]) { cursor: pointer; }
-  .compass-root :where(button:disabled, [role="button"]:disabled) { cursor: default; }
-  .compass-root :where(img, svg, video, canvas, audio, iframe, embed, object) { display: block; vertical-align: middle; }
-  .compass-root :where(img, video) { max-width: 100%; height: auto; }
-  .compass-root :where([hidden]) { display: none !important; }
+  :where(.compass-root, .compass-overlay-theme) :where(button, select) { text-transform: none; }
+  :where(.compass-root, .compass-overlay-theme) :where(button, [role="button"]) { cursor: pointer; }
+  :where(.compass-root, .compass-overlay-theme) :where(button:disabled, [role="button"]:disabled) { cursor: default; }
+  :where(.compass-root, .compass-overlay-theme) :where(img, svg, video, canvas, audio, iframe, embed, object) { display: block; vertical-align: middle; }
+  :where(.compass-root, .compass-overlay-theme) :where(img, video) { max-width: 100%; height: auto; }
+  :where(.compass-root, .compass-overlay-theme) :where([hidden]) { display: none !important; }
 }
-.compass-root .font-heading { font-family: var(--font-heading); }
-.compass-root .font-editorial { font-family: var(--font-editorial); }
-.compass-root .font-mono-compass { font-family: var(--font-mono-compass); }
+:where(.compass-root, .compass-overlay-theme) .font-heading { font-family: var(--font-heading); }
+:where(.compass-root, .compass-overlay-theme) .font-editorial { font-family: var(--font-editorial); }
+:where(.compass-root, .compass-overlay-theme) .font-mono-compass { font-family: var(--font-mono-compass); }
 
 @keyframes compass-now-pulse {
   0%, 100% { box-shadow: 0 0 0 0 oklch(0.38 0.06 205 / 0.35); }

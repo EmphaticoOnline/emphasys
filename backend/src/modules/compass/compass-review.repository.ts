@@ -1,33 +1,31 @@
 import type { PoolClient } from 'pg';
 import pool from '../../config/database';
-import type { CompassOwnerScope, Congruencia, RevisionSemanalInput } from './compass.types';
+import type { CompassOwnerScope, Congruencia, ExpectativaAtencion, RevisionSemanalInput } from './compass.types';
 import { upsertIntencionEnTransaccion } from './compass.repository';
 import { CompassNotFoundError } from './compass-work.repository';
+import { calcularAtencionPorFrente, sugerirCongruenciaPorCobertura } from './compass-attention';
 
-function sugerir(objetivo:number|null,planificadas:number,efectivas:number):Congruencia|null {
-  if(!objetivo||objetivo<=0)return null;
-  if(efectivas/objetivo>=1.4)return 'sobreatendido';
-  if(planificadas/objetivo>=.85&&efectivas/objetivo>=.85)return 'congruente';
-  if(planificadas/objetivo>=.45||efectivas/objetivo>=.45)return 'en_riesgo';
-  return 'descuidado';
+export function sugerirCongruencia(objetivo:number|null,expectativa:ExpectativaAtencion|null,reservadas:number,efectivas:number):Congruencia|null {
+  return sugerirCongruenciaPorCobertura(objetivo,expectativa,efectivas,reservadas);
 }
 async function calculated(s:CompassOwnerScope,week:string,db:PoolClient|typeof pool=pool){
-  const {rows}=await db.query(`WITH metricas AS (
-    SELECT frente_id,
-      COALESCE(sum(EXTRACT(epoch FROM (fin_programado-inicio_programado))/3600) FILTER (WHERE estado<>'cancelada'),0)::float8 horas_planificadas,
-      COALESCE(sum(minutos_efectivos) FILTER (WHERE estado IN ('realizada','parcial')),0)::float8/60 horas_efectivas
-    FROM compass.actividades WHERE usuario_id=$1 AND inicio_programado >= $2::date AND inicio_programado < $2::date+interval '7 days' GROUP BY frente_id)
+  const actividades=(await db.query(`SELECT frente_id,inicio_programado,fin_programado,estado,minutos_efectivos
+    FROM compass.actividades WHERE usuario_id=$1 AND inicio_programado >= $2::date AND inicio_programado < $2::date+interval '7 days'`,[s.usuarioId,week])).rows;
+  const metricas=calcularAtencionPorFrente(actividades);
+  const {rows}=await db.query(`WITH actividad_frentes AS (
+    SELECT DISTINCT frente_id FROM compass.actividades
+    WHERE usuario_id=$1 AND inicio_programado >= $2::date AND inicio_programado < $2::date+interval '7 days')
     SELECT f.id frente_id,f.nombre,i.id intencion_semanal_id,i.prioridad prioridad_snapshot,i.horas_objetivo::float8 horas_objetivo_snapshot,
-      i.expectativa_atencion expectativa_atencion_snapshot,COALESCE(m.horas_planificadas,0) horas_planificadas,COALESCE(m.horas_efectivas,0) horas_efectivas
+      i.expectativa_atencion expectativa_atencion_snapshot
     FROM compass.frentes f LEFT JOIN compass.intenciones_semanales i ON i.usuario_id=f.usuario_id AND i.frente_id=f.id AND i.semana_inicio=$2::date
-    LEFT JOIN metricas m ON m.frente_id=f.id WHERE f.usuario_id=$1 AND (f.estado<>'archivado' OR i.id IS NOT NULL OR m.frente_id IS NOT NULL) ORDER BY f.nombre`,[s.usuarioId,week]);
-  return rows.map(r=>({...r,congruencia_sugerida:sugerir(r.horas_objetivo_snapshot,Number(r.horas_planificadas),Number(r.horas_efectivas)),congruencia_confirmada:null,que_ocurrio:null,que_bloqueo:null,que_aprendi:null,que_cambiare:null}));
+    LEFT JOIN actividad_frentes af ON af.frente_id=f.id WHERE f.usuario_id=$1 AND (f.estado<>'archivado' OR i.id IS NOT NULL OR af.frente_id IS NOT NULL) ORDER BY f.nombre`,[s.usuarioId,week]);
+  return rows.map(r=>{const m=metricas.get(r.frente_id)??{horas_planificadas:0,horas_efectivas:0,horas_reservadas:0};return {...r,...m,congruencia_sugerida:sugerirCongruenciaPorCobertura(r.horas_objetivo_snapshot,r.expectativa_atencion_snapshot,m.horas_efectivas,m.horas_reservadas),congruencia_confirmada:null,que_ocurrio:null,que_bloqueo:null,que_aprendi:null,que_cambiare:null}});
 }
 export async function obtenerRevision(s:CompassOwnerScope,week:string){
   const {rows}=await pool.query(`SELECT id,to_char(semana_inicio,'YYYY-MM-DD') semana_inicio,fecha_revision,resumen_general,aprendizaje_principal,ajuste_general,created_at,updated_at FROM compass.revisiones_semanales WHERE usuario_id=$1 AND semana_inicio=$2::date LIMIT 1`,[s.usuarioId,week]);
   if(!rows[0])return {revision:null,semana_inicio:week,frentes:await calculated(s,week),historica:false};
   const review=rows[0];let resumen:any={};try{resumen=JSON.parse(review.resumen_general||'{}')}catch{resumen={atencion_esperada:review.resumen_general,frentes_descuidados:''}}
-  const details=(await pool.query(`SELECT rf.frente_id,f.nombre,rf.intencion_semanal_id,rf.prioridad_snapshot,rf.horas_objetivo_snapshot::float8,rf.expectativa_atencion_snapshot,rf.horas_planificadas::float8,rf.horas_efectivas::float8,rf.congruencia_sugerida,rf.congruencia_confirmada,rf.que_ocurrio,rf.que_bloqueo,rf.que_aprendi,rf.que_cambiare FROM compass.revisiones_frente rf JOIN compass.frentes f ON f.usuario_id=rf.usuario_id AND f.id=rf.frente_id WHERE rf.usuario_id=$1 AND rf.revision_semanal_id=$2 ORDER BY f.nombre`,[s.usuarioId,review.id])).rows;
+  const details=(await pool.query(`SELECT rf.frente_id,f.nombre,rf.intencion_semanal_id,rf.prioridad_snapshot,rf.horas_objetivo_snapshot::float8,rf.expectativa_atencion_snapshot,rf.horas_planificadas::float8,rf.horas_efectivas::float8,0::float8 horas_reservadas,rf.congruencia_sugerida,rf.congruencia_confirmada,rf.que_ocurrio,rf.que_bloqueo,rf.que_aprendi,rf.que_cambiare FROM compass.revisiones_frente rf JOIN compass.frentes f ON f.usuario_id=rf.usuario_id AND f.id=rf.frente_id WHERE rf.usuario_id=$1 AND rf.revision_semanal_id=$2 ORDER BY f.nombre`,[s.usuarioId,review.id])).rows;
   return {revision:{...review,atencion_esperada:resumen.atencion_esperada??'',frentes_descuidados:resumen.frentes_descuidados??''},semana_inicio:week,frentes:details,historica:true};
 }
 export async function guardarRevision(s:CompassOwnerScope,input:RevisionSemanalInput){const client=await pool.connect();try{await client.query('BEGIN');const current=await calculated(s,input.semana_inicio,client);const byId=new Map(input.frentes.map(x=>[x.frente_id,x]));for(const answer of input.frentes)if(!current.some(x=>x.frente_id===answer.frente_id))throw new CompassNotFoundError('Frente no encontrado');

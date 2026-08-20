@@ -22,15 +22,9 @@ export function sugerirCongruencia(
 
   const expectativa: Expectativa = intencion?.expectativa ?? "Atender"
   if (expectativa === "Sin compromiso") return "Congruente"
-  if (expectativa === "Prioritario") {
-    if (efectivas >= 4) return "Congruente"
-    if (efectivas >= 1) return "En riesgo"
-    return "Descuidado"
-  }
-  // Atender
-  if (efectivas >= 2) return "Congruente"
-  if (efectivas >= 0.5) return "En riesgo"
-  return "Descuidado"
+  // Una expectativa cualitativa comprueba presencia de atención, sin imponer
+  // un mínimo arbitrario de horas.
+  return efectivas > 0 ? "Congruente" : "Descuidado"
 }
 
 export const congruenciaLabel: Record<EstadoCongruencia, string> = {

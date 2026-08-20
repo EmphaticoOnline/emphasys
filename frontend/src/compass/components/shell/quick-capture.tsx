@@ -3,16 +3,7 @@
 import { useState } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer"
+import { ResponsiveOperationOverlay } from "@/components/ui/responsive-operation-overlay"
 import { Textarea } from "@/components/ui/textarea"
 import { useRealWork } from "@/lib/real-work-store"
 import { cn } from "@/lib/utils"
@@ -31,9 +22,13 @@ export function QuickCapture({ className, label }: { className?: string; label?:
   }
 
   return (
-    <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
-      <DrawerTrigger
-        render={
+    <ResponsiveOperationOverlay
+      open={open}
+      onOpenChange={setOpen}
+      eyebrow="Captura rápida"
+      title="¿Qué tienes en mente?"
+      description="Escribe lo que tengas en mente. Lo clasificas después, en la bandeja."
+      trigger={
           label ? (
             <button
               type="button"
@@ -58,20 +53,23 @@ export function QuickCapture({ className, label }: { className?: string; label?:
               <Plus className="size-6" />
             </button>
           )
-        }
-      />
-      <DrawerContent>
-        <DrawerHeader>
-          <DrawerTitle className="font-heading text-lg">Captura rápida</DrawerTitle>
-          <DrawerDescription>Escribe lo que tengas en mente. Lo clasificas después, en la bandeja.</DrawerDescription>
-        </DrawerHeader>
-        <div className="px-4 py-3">
+      }
+      footer={
+        <>
+          <Button size="lg" onClick={() => void handleSubmit()} disabled={!texto.trim() || loading}>
+            Guardar en la bandeja
+          </Button>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+        </>
+      }
+    >
+        <div>
           <Textarea
             autoFocus
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             placeholder="¿Qué tienes en mente?"
-            className="min-h-28 resize-none text-base"
+            className="min-h-32 resize-none rounded-xl border-border bg-card px-3.5 py-3 text-base shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] focus-visible:border-ring/70 focus-visible:ring-2 focus-visible:ring-ring/20"
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault()
@@ -80,13 +78,6 @@ export function QuickCapture({ className, label }: { className?: string; label?:
             }}
           />
         </div>
-        <DrawerFooter>
-          <Button size="lg" onClick={() => void handleSubmit()} disabled={!texto.trim() || loading}>
-            Guardar en la bandeja
-          </Button>
-          <DrawerClose render={<Button variant="ghost">Cancelar</Button>} />
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+    </ResponsiveOperationOverlay>
   )
 }

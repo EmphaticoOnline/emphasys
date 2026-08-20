@@ -1,22 +1,66 @@
 "use client"
-import { useEffect,useState } from "react"
-import { CalendarPlus,Compass,Lightbulb,ListChecks,ScrollText,X } from "lucide-react"
+
+import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Sheet,SheetClose,SheetContent,SheetDescription,SheetFooter,SheetHeader,SheetTitle } from "@/components/ui/sheet"
-import { Field,FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { useRealWork } from "@/lib/real-work-store"
-import type { Captura,FrenteCategoria,ProcesarCaptura } from "../../../services/compassService"
-import { cn } from "@/lib/utils"
-import { fechaHoraLocalAISOString } from "@/lib/format"
-type Destino="tarea"|"actividad"|"idea"|"decision"|"frente"
-const opciones=[{value:"tarea",label:"Tarea",icon:ListChecks,enabled:true},{value:"actividad",label:"Actividad",icon:CalendarPlus,enabled:true},{value:"idea",label:"Idea",icon:Lightbulb,enabled:true},{value:"decision",label:"Decisión",icon:ScrollText,enabled:true},{value:"frente",label:"Frente",icon:Compass,enabled:true}] as const
-export function ProcesarCapturaSheet({captura,open,onOpenChange,restantes=0,onProcesada}:{captura:Captura|null;open:boolean;onOpenChange:(v:boolean)=>void;restantes?:number;onProcesada?:()=>void|Promise<void>}){
- const {frentes,loadFrentes,procesarCaptura,loading}=useRealWork();const [destino,setDestino]=useState<Destino|null>(null);const [frenteId,setFrenteId]=useState("");const [fechaHora,setFechaHora]=useState("");const [nombre,setNombre]=useState("");const [proposito,setProposito]=useState("");const [categoria,setCategoria]=useState<FrenteCategoria>("personal")
- useEffect(()=>{if(open)void loadFrentes()},[open,loadFrentes]);useEffect(()=>{setDestino(null);setFrenteId("");setFechaHora("");setNombre("");setProposito("");setCategoria("personal")},[captura?.id])
- if(!captura)return null
- async function submit(discard=false){let payload:ProcesarCaptura;if(discard)payload={destino:"descartar"};else if(destino==="tarea")payload={destino,frente_id:frenteId?Number(frenteId):null};else if(destino==="actividad"){const start=new Date(fechaHoraLocalAISOString(fechaHora));payload={destino,frente_id:frenteId?Number(frenteId):null,tarea_id:null,inicio_programado:start.toISOString(),fin_programado:new Date(start.getTime()+3600000).toISOString()}}else if(destino==="frente")payload={destino,nombre:nombre.trim(),proposito:proposito.trim()||captura.texto,categoria};else if(destino==="idea")payload={destino,frente_id:frenteId?Number(frenteId):null};else if(destino==="decision")payload={destino,frente_id:frenteId?Number(frenteId):null,motivo:proposito.trim()||null};else return;await procesarCaptura(captura.id,payload);await onProcesada?.()}
- const valid=destino==="tarea"||destino==="idea"||destino==="decision"||(destino==="actividad"&&!!fechaHora)||(destino==="frente"&&!!nombre.trim())
- return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent side="bottom" className="mx-auto max-h-[85vh] rounded-t-2xl sm:max-w-lg"><SheetHeader><SheetTitle className="font-heading text-lg">¿Qué es esto?</SheetTitle><SheetDescription className="text-foreground">{captura.texto}</SheetDescription></SheetHeader><div className="flex flex-col gap-4 overflow-y-auto px-4 py-3"><div className="grid grid-cols-2 gap-2">{opciones.map(o=><button key={o.value} disabled={!o.enabled} onClick={()=>o.enabled&&setDestino(o.value)} className={cn("flex items-center gap-2 rounded-xl border px-3.5 py-3 text-sm",destino===o.value?"border-foreground bg-foreground text-background":"border-border",!o.enabled&&"cursor-not-allowed opacity-45")}><o.icon className="size-4"/>{o.label}</button>)}</div>{destino&&destino!=="frente"&&<Field><FieldLabel>Frente relacionado (opcional)</FieldLabel><select value={frenteId} onChange={e=>setFrenteId(e.target.value)} className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"><option value="">Ninguno</option>{frentes.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}</select></Field>}{destino==="actividad"&&<Field><FieldLabel>Fecha y hora</FieldLabel><input type="datetime-local" value={fechaHora} onChange={e=>setFechaHora(e.target.value)} className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"/></Field>}{destino==="frente"&&<div className="flex flex-col gap-4"><Field><FieldLabel>Nombre del Frente</FieldLabel><Input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder={captura.texto.slice(0,40)}/></Field><Field><FieldLabel>Propósito (opcional)</FieldLabel><Textarea value={proposito} onChange={e=>setProposito(e.target.value)}/></Field><Field><FieldLabel>Categoría</FieldLabel><select value={categoria} onChange={e=>setCategoria(e.target.value as FrenteCategoria)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"><option value="personal">Personal</option><option value="profesional">Profesional</option></select></Field></div>}</div><SheetFooter>{restantes>0&&<p className="text-center text-xs text-muted-foreground">{restantes} captura{restantes===1?"":"s"} más</p>}<Button size="lg" onClick={()=>void submit()} disabled={!valid||loading}>Confirmar</Button><div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={()=>void submit(true)} disabled={loading}><X/>Descartar</Button><SheetClose render={<Button variant="ghost" className="flex-1">Cerrar</Button>}/></div></SheetFooter></SheetContent></Sheet>
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { ProcesarCapturaCampos } from "./procesar-captura-campos"
+import { useProcesarCaptura } from "./use-procesar-captura"
+import type { Captura } from "../../../services/compassService"
+
+export function ProcesarCapturaSheet({
+  captura,
+  open,
+  onOpenChange,
+  restantes = 0,
+  onProcesada,
+}: {
+  captura: Captura | null
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  restantes?: number
+  onProcesada?: () => void | Promise<void>
+}) {
+  const c = useProcesarCaptura(captura, onProcesada)
+  if (!captura) return null
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="mx-auto max-h-[85vh] rounded-t-2xl sm:max-w-lg">
+        <SheetHeader>
+          <SheetTitle className="font-editorial text-xl font-normal">¿En qué se convierte?</SheetTitle>
+          <SheetDescription className="text-foreground">{captura.texto}</SheetDescription>
+        </SheetHeader>
+
+        <div className="flex flex-col gap-4 overflow-y-auto px-4 py-3">
+          <ProcesarCapturaCampos
+            captura={captura}
+            frentes={c.frentes}
+            destino={c.destino}
+            setDestino={c.setDestino}
+            frenteId={c.frenteId}
+            setFrenteId={c.setFrenteId}
+            fecha={c.fecha}
+            setFecha={c.setFecha}
+            hora={c.hora}
+            setHora={c.setHora}
+            nombre={c.nombre}
+            setNombre={c.setNombre}
+            proposito={c.proposito}
+            setProposito={c.setProposito}
+            categoria={c.categoria}
+            setCategoria={c.setCategoria}
+          />
+        </div>
+
+        <SheetFooter>
+          {restantes > 0 && <p className="text-center text-xs text-muted-foreground">{restantes} captura{restantes === 1 ? "" : "s"} más</p>}
+          <Button size="lg" onClick={() => void c.confirmar()} disabled={!c.valid || c.loading}>Confirmar</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => void c.descartar()} disabled={c.loading}><X />Descartar</Button>
+            <SheetClose render={<Button variant="ghost" className="flex-1">Cerrar</Button>} />
+          </div>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  )
 }

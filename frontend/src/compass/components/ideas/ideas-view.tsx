@@ -1,15 +1,135 @@
 "use client"
-import { useCallback,useEffect,useState } from "react"
-import { Lightbulb,Plus } from "lucide-react"
+
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Lightbulb, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Empty,EmptyDescription,EmptyHeader,EmptyMedia,EmptyTitle } from "@/components/ui/empty"
-import { convertIdea,createIdea,listFrentes,listIdeas,updateIdea,type Frente,type Idea } from "../../../services/compassService"
-import { fechaHoraLocalAISOString } from "@/lib/format"
-export function IdeasView(){const [ideas,setIdeas]=useState<Idea[]>([]);const [frentes,setFrentes]=useState<Frente[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [creating,setCreating]=useState(false);const [titulo,setTitulo]=useState("");const [descripcion,setDescripcion]=useState("");const [frente,setFrente]=useState("");const [convert,setConvert]=useState<Idea|null>(null);const [destino,setDestino]=useState<"tarea"|"actividad"|"frente">("tarea");const [fecha,setFecha]=useState("");const [nombre,setNombre]=useState("")
- const load=useCallback(async()=>{try{setLoading(true);setError("");const [i,f]=await Promise.all([listIdeas(),listFrentes(["activo","pausado","completado","archivado"])]);setIdeas(i);setFrentes(f)}catch(e){setError(e instanceof Error?e.message:"No se pudieron cargar las Ideas")}finally{setLoading(false)}},[]);useEffect(()=>{void load()},[load])
- async function add(){await createIdea({titulo:titulo.trim(),descripcion:descripcion.trim()||null,frente_id:frente?Number(frente):null});setCreating(false);setTitulo("");setDescripcion("");setFrente("");await load()}
- async function doConvert(){if(!convert)return;if(destino==="tarea")await convertIdea(convert.id,{destino,frente_id:convert.frente_id});else if(destino==="actividad"){const start=new Date(fechaHoraLocalAISOString(fecha));await convertIdea(convert.id,{destino,frente_id:convert.frente_id,tarea_id:null,inicio_programado:start.toISOString(),fin_programado:new Date(start.getTime()+3600000).toISOString()})}else await convertIdea(convert.id,{destino,nombre:nombre.trim(),proposito:convert.descripcion||convert.titulo,categoria:"personal"});setConvert(null);await load()}
- return <div className="flex flex-col gap-8"><header className="flex items-start justify-between gap-3"><div><h1 className="font-heading text-3xl tracking-tight">Ideas</h1><p className="mt-2 text-sm text-muted-foreground">Pensamientos sueltos que no exigen acción todavía.</p></div><Button onClick={()=>setCreating(true)}><Plus/>Nueva</Button></header>{error&&<p className="text-sm text-destructive">{error}</p>}{!loading&&ideas.length===0?<Empty><EmptyHeader><EmptyMedia variant="icon"><Lightbulb/></EmptyMedia><EmptyTitle>Sin ideas guardadas</EmptyTitle><EmptyDescription>Las ideas que captures aparecerán aquí.</EmptyDescription></EmptyHeader></Empty>:<div className="flex flex-col gap-2">{ideas.map(i=><div key={i.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3.5"><p className="text-sm">{i.titulo}</p>{i.descripcion&&<p className="text-sm text-muted-foreground">{i.descripcion}</p>}<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>{i.frente_nombre??"Sin Frente"}</span><span>· {new Date(i.created_at).toLocaleDateString("es-MX")}</span><span>· {i.estado}</span><div className="ml-auto flex gap-2">{!i.tipo_conversion&&<button className="underline" onClick={async()=>{await updateIdea(i.id,{estado:i.estado==="activa"?"archivada":"activa"});await load()}}>{i.estado==="activa"?"Archivar":"Reactivar"}</button>}{i.estado==="activa"&&<button className="underline" onClick={()=>{setConvert(i);setNombre(i.titulo)}}>Convertir</button>}</div></div></div>)}</div>}{(creating||convert)&&<div className="fixed inset-0 z-[1300] flex items-end justify-center bg-black/20 sm:items-center sm:p-4"><div className="w-full max-w-lg rounded-t-2xl border border-border bg-popover p-5 sm:rounded-2xl">{creating?<><h2 className="font-heading text-xl">Nueva Idea</h2><div className="mt-4 flex flex-col gap-3"><Input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Idea"/><Textarea value={descripcion} onChange={e=>setDescripcion(e.target.value)} placeholder="Descripción opcional"/><select value={frente} onChange={e=>setFrente(e.target.value)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"><option value="">Sin Frente</option>{frentes.map(f=><option key={f.id} value={f.id}>{f.nombre}</option>)}</select></div><div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={()=>setCreating(false)}>Cancelar</Button><Button onClick={()=>void add()} disabled={!titulo.trim()}>Guardar</Button></div></>:<><h2 className="font-heading text-xl">Convertir Idea</h2><div className="mt-4 flex flex-col gap-3"><select value={destino} onChange={e=>setDestino(e.target.value as typeof destino)} className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"><option value="tarea">Tarea</option><option value="actividad">Actividad</option><option value="frente">Frente</option></select>{destino==="actividad"&&<Input type="datetime-local" value={fecha} onChange={e=>setFecha(e.target.value)}/>} {destino==="frente"&&<Input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Nombre del Frente"/>}</div><div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={()=>setConvert(null)}>Cancelar</Button><Button onClick={()=>void doConvert()} disabled={(destino==="actividad"&&!fecha)||(destino==="frente"&&!nombre.trim())}>Convertir</Button></div></>}</div></div>}</div>
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { createIdea, listFrentes, listIdeas, updateIdea, type Frente, type Idea, type IdeaCreate, type IdeaEstado } from "../../../services/compassService"
+import { ConvertirIdeaDialog } from "./convertir-idea-dialog"
+import { CrearIdeaDialog } from "./crear-idea-dialog"
+import { IdeaCard } from "./idea-card"
+
+const TODOS_LOS_ESTADOS_FRENTE = ["activo", "pausado", "completado", "archivado"] as const
+
+export function IdeasView() {
+  const [ideas, setIdeas] = useState<Idea[]>([])
+  const [frentes, setFrentes] = useState<Frente[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [tab, setTab] = useState<IdeaEstado>("activa")
+  const [creating, setCreating] = useState(false)
+  const [convirtiendo, setConvirtiendo] = useState<Idea | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true); setError("")
+      const [i, f] = await Promise.all([listIdeas(), listFrentes([...TODOS_LOS_ESTADOS_FRENTE])])
+      setIdeas(i); setFrentes(f)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "No se pudieron cargar las Ideas")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  const activas = useMemo(() => ideas.filter((i) => i.estado === "activa"), [ideas])
+  const archivadas = useMemo(() => ideas.filter((i) => i.estado === "archivada"), [ideas])
+  const visibles = tab === "activa" ? activas : archivadas
+
+  async function crear(payload: IdeaCreate) {
+    await createIdea(payload)
+    await load()
+  }
+
+  async function archivar(idea: Idea) {
+    await updateIdea(idea.id, { estado: idea.estado === "activa" ? "archivada" : "activa" })
+    await load()
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="rounded-2xl bg-gradient-to-b from-[var(--surface-header)] to-[var(--surface-header-end)] px-5 py-4 md:px-8 md:py-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex max-w-lg flex-col gap-1">
+            <h1 className="font-editorial text-4xl leading-[0.95] tracking-tight text-foreground md:text-5xl">Ideas</h1>
+            <p className="mt-0.5 font-editorial text-lg text-pretty text-muted-foreground italic">Una posibilidad, no un compromiso.</p>
+          </div>
+          <Button onClick={() => setCreating(true)} className="min-h-11 md:min-h-9"><Plus />Nueva idea</Button>
+        </div>
+      </header>
+
+      {error && (
+        <div className="rounded-2xl border border-destructive/30 bg-card px-5 py-5">
+          <p className="font-editorial text-lg text-destructive">No pudimos cargar tus ideas</p>
+          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+          <Button variant="outline" className="mt-3" onClick={() => void load()}>Reintentar</Button>
+        </div>
+      )}
+
+      {!error && loading && ideas.length === 0 && (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="h-[150px] animate-pulse rounded-2xl border border-border bg-[var(--surface-sunken)]" />)}
+        </div>
+      )}
+
+      {!error && !(loading && ideas.length === 0) && (
+        <>
+          <div className="flex items-center gap-2 rounded-2xl bg-[var(--surface-sunken)] p-1.5" role="tablist" aria-label="Filtrar Ideas">
+            {(["activa", "archivada"] as const).map((key) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={`min-h-10 flex-1 rounded-xl px-4 text-sm font-semibold sm:flex-none ${tab === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {key === "activa" ? "Activas" : "Archivadas"}
+                <span className="ml-2 font-mono-compass text-[11px] opacity-60">{key === "activa" ? activas.length : archivadas.length}</span>
+              </button>
+            ))}
+          </div>
+
+          {visibles.length === 0 ? (
+            <Empty className="rounded-2xl bg-[var(--surface-sunken)] py-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><Lightbulb /></EmptyMedia>
+                <EmptyTitle className="font-editorial text-xl font-normal">
+                  {tab === "activa" ? "Ninguna idea activa ahora mismo" : "Todavía no archivaste ninguna idea"}
+                </EmptyTitle>
+                <EmptyDescription>Anota lo que podría ser. No hace falta decidir nada ahora.</EmptyDescription>
+              </EmptyHeader>
+              {tab === "activa" && (
+                <EmptyContent>
+                  <Button onClick={() => setCreating(true)}><Plus />Nueva idea</Button>
+                </EmptyContent>
+              )}
+            </Empty>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+              {visibles.map((idea) => (
+                <IdeaCard
+                  key={idea.id}
+                  idea={idea}
+                  frentes={frentes}
+                  onConvertir={() => setConvirtiendo(idea)}
+                  onArchivar={() => void archivar(idea)}
+                  onReactivar={() => void archivar(idea)}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {creating && <CrearIdeaDialog frentes={frentes} onClose={() => setCreating(false)} onCreate={crear} />}
+      {convirtiendo && (
+        <ConvertirIdeaDialog
+          idea={convirtiendo}
+          onClose={() => setConvirtiendo(null)}
+          onConverted={async () => { setConvirtiendo(null); setTab("archivada"); await load() }}
+        />
+      )}
+    </div>
+  )
 }

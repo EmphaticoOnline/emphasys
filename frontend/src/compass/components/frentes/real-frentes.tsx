@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, Lightbulb, Pencil, Plus, RefreshCw, Scale } from "lucide-react"
+import { ArrowLeft, ChevronDown, Lightbulb, Pencil, Plus, RefreshCw, Scale } from "lucide-react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,10 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { colorVarDeFrente } from "@/lib/frente-color"
-import { formatDuracionMin, formatFechaCorta, formatHora, formatHorasCompacto, horasEntre } from "@/lib/format"
+import { resolverSiguienteAccion, resolverSiguientesAcciones, type SiguienteAccionResuelta } from "@/lib/siguiente-accion"
+import { calcularDisponibilidadSemanal, opcionesRapidasHoras, type DisponibilidadSemanal } from "@/lib/disponibilidad-semanal"
+import { sumarDias, nombreDiaCorto } from "@/lib/calendario-fechas"
+import { fechaYHoraLocalAISOString, formatDuracionMin, formatFechaCorta, formatHora, formatHorasCompacto, horasEntre } from "@/lib/format"
 import {
   createFrente, getFrente, listFrentes, saveIntencionSemanal, updateFrente,
   type ActividadEstado, type Congruencia, type Decision, type ExpectativaAtencion, type Frente,
@@ -76,6 +79,12 @@ function tareaMeta(t: Tarea) {
   return partes.join(" · ")
 }
 
+function accionMeta(accion: SiguienteAccionResuelta) {
+  if (accion.estado === "en_curso") return `En curso · hasta las ${formatHora(accion.fin!)}`
+  if (accion.estado === "reservada") return `${formatFechaCorta(accion.inicio!)} · ${formatHora(accion.inicio!)} · ${formatDuracionMin(accion.duracionMinutos!)} reservadas`
+  return accion.tarea ? tareaMeta(accion.tarea) : null
+}
+
 function Status({ loading, error, retry }: { loading: boolean; error: string; retry: () => void }) {
   if (loading) return <div className="rounded-2xl border border-border bg-card px-5 py-10 text-center text-sm text-muted-foreground">Cargando Frentes…</div>
   if (!error) return null
@@ -87,7 +96,7 @@ function Status({ loading, error, retry }: { loading: boolean; error: string; re
   )
 }
 
-function FrenteCard({ frente, color }: { frente: Frente; color: string }) {
+function FrenteCard({ frente, color, siguienteAccion }: { frente: Frente; color: string; siguienteAccion: SiguienteAccionResuelta | null }) {
   if (frente.estado !== "activo") {
     const estado = frente.estado as "pausado" | "completado" | "archivado"
     return (
@@ -107,7 +116,7 @@ function FrenteCard({ frente, color }: { frente: Frente; color: string }) {
   const prioridad = frente.prioridad_semanal
   const barWidth = prioridad === "alta" ? 5 : prioridad === "media" ? 3 : 2
   const tieneIntencion = frente.intencion_semanal != null
-  const tieneAccion = frente.siguiente_accion != null
+  const tieneAccion = siguienteAccion != null
 
   return (
     <div
@@ -153,7 +162,10 @@ function FrenteCard({ frente, color }: { frente: Frente; color: string }) {
         <div className="flex flex-col gap-1">
           <span className="font-mono-compass text-[10px] font-semibold tracking-[0.1em] text-muted-foreground">SIGUIENTE ACCIÓN</span>
           <div className="flex items-baseline justify-between gap-2.5">
-            <span className="text-sm text-muted-foreground">{frente.siguiente_accion?.titulo ?? "Sin definir"}</span>
+            <span className="flex min-w-0 flex-col gap-0.5 text-sm text-muted-foreground">
+              <span>{siguienteAccion?.titulo ?? "Sin definir"}</span>
+              {siguienteAccion && accionMeta(siguienteAccion) && <span className="text-[11px]">{accionMeta(siguienteAccion)}</span>}
+            </span>
             {!tieneAccion && (
               <Link
                 to={`/compass/frentes/${frente.id}`}
@@ -194,14 +206,17 @@ function NewFrente({ open, close, saved }: { open: boolean; close: () => void; s
 export function RealFrentesView() {
   const navigate = useNavigate()
   const [frentes, setFrentes] = useState<Frente[]>([])
+  const [tareas, setTareas] = useState<Tarea[]>([])
+  const [actividades, setActividades] = useState<Actividad[]>([])
   const [filter, setFilter] = useState<"todos" | FrenteCategoria>("todos")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [creating, setCreating] = useState(false)
-  const load = useCallback(async () => { try { setLoading(true); setError(""); setFrentes(await listFrentes(allStates)) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudieron cargar los Frentes") } finally { setLoading(false) } }, [])
+  const load = useCallback(async () => { try { setLoading(true); setError(""); const [nextFrentes, nextTareas, nextActividades] = await Promise.all([listFrentes(allStates), listTareas({ pendientes: true }), listActividades()]); setFrentes(nextFrentes); setTareas(nextTareas); setActividades(nextActividades) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudieron cargar los Frentes") } finally { setLoading(false) } }, [])
   useEffect(() => { void load() }, [load])
 
   const visible = useMemo(() => frentes.filter((item) => filter === "todos" || item.categoria === filter), [filter, frentes])
+  const siguientesPorFrente = useMemo(() => new Map(resolverSiguientesAcciones(frentes, tareas, actividades).map((accion) => [accion.frente.id, accion])), [frentes, tareas, actividades])
   const activos = visible.filter((item) => item.estado === "activo")
   const otros = visible.filter((item) => item.estado !== "activo")
 
@@ -284,7 +299,7 @@ export function RealFrentesView() {
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(264px,1fr))] gap-3.5">
             {activos.map((item) => (
-              <FrenteCard key={item.id} frente={item} color={colorVarDeFrente(frentes, item.id)} />
+              <FrenteCard key={item.id} frente={item} color={colorVarDeFrente(frentes, item.id)} siguienteAccion={siguientesPorFrente.get(item.id) ?? null} />
             ))}
           </div>
         </section>
@@ -298,7 +313,7 @@ export function RealFrentesView() {
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
             {otros.map((item) => (
-              <FrenteCard key={item.id} frente={item} color={colorVarDeFrente(frentes, item.id)} />
+              <FrenteCard key={item.id} frente={item} color={colorVarDeFrente(frentes, item.id)} siguienteAccion={siguientesPorFrente.get(item.id) ?? null} />
             ))}
           </div>
         </section>
@@ -335,6 +350,10 @@ export function RealFrenteDetailView() {
   const [horas, setHoras] = useState("")
   const [expectativa, setExpectativa] = useState<ExpectativaAtencion>("atender")
   const [comentario, setComentario] = useState("")
+  const [disponibilidad, setDisponibilidad] = useState<DisponibilidadSemanal | null>(null)
+  const [loadingDisponibilidad, setLoadingDisponibilidad] = useState(false)
+  const [errorDisponibilidad, setErrorDisponibilidad] = useState("")
+  const [detalleDisponibilidad, setDetalleDisponibilidad] = useState(false)
   const [tareas, setTareas] = useState<Tarea[]>([])
   const [actividades, setActividades] = useState<Actividad[]>([])
   const [ideas, setIdeas] = useState<Idea[]>([])
@@ -344,7 +363,7 @@ export function RealFrenteDetailView() {
   const loadTrabajo = useCallback(async () => {
     if (!Number.isInteger(id)) return
     const [nextTareas, nextActividades] = await Promise.all([listTareas({ frente_id: id }), listActividades({ frente_id: id })])
-    setTareas(nextTareas); setActividades(nextActividades.slice(-8).reverse())
+    setTareas(nextTareas); setActividades(nextActividades)
   }, [id])
 
   const loadContexto = useCallback(async () => {
@@ -371,11 +390,33 @@ export function RealFrenteDetailView() {
   useEffect(() => { void loadTrabajo() }, [loadTrabajo])
   useEffect(() => { void loadContexto() }, [loadContexto])
 
-  const saveFrente = async () => { try { setSaving(true); setError(""); const data = await updateFrente(id, { nombre, proposito, categoria, estado }); setFrente(data); setEditingFrente(false) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar el Frente") } finally { setSaving(false) } }
-  const saveIntent = async () => { try { setSaving(true); setError(""); await saveIntencionSemanal(id, { semana_inicio: monday(), prioridad, horas_objetivo: mode === "horas" ? Number(horas) : null, expectativa_atencion: mode === "expectativa" ? expectativa : null, comentario: comentario.trim() || null }); setEditingIntencion(false); await Promise.all([load(), loadContexto()]) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo guardar la intención") } finally { setSaving(false) } }
+  const semanaIntencion = frente?.intencion_semanal?.semana_inicio ?? monday()
+  useEffect(() => {
+    if (!editingIntencion || mode !== "horas") return
+    let vigente = true
+    setLoadingDisponibilidad(true)
+    setErrorDisponibilidad("")
+    setDisponibilidad(null)
+    void listActividades({
+      fecha_inicio: fechaYHoraLocalAISOString(semanaIntencion),
+      fecha_fin: fechaYHoraLocalAISOString(sumarDias(semanaIntencion, 7)),
+    }).then((items) => {
+      if (vigente) setDisponibilidad(calcularDisponibilidadSemanal(items, semanaIntencion))
+    }).catch(() => {
+      if (vigente) setErrorDisponibilidad("No se pudo calcular la disponibilidad.")
+    }).finally(() => {
+      if (vigente) setLoadingDisponibilidad(false)
+    })
+    return () => { vigente = false }
+  }, [editingIntencion, mode, semanaIntencion])
 
-  const siguienteTarea = tareas.find((t) => t.es_siguiente_accion) ?? null
+  const saveFrente = async () => { try { setSaving(true); setError(""); const data = await updateFrente(id, { nombre, proposito, categoria, estado }); setFrente(data); setEditingFrente(false) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo actualizar el Frente") } finally { setSaving(false) } }
+  const saveIntent = async () => { try { setSaving(true); setError(""); await saveIntencionSemanal(id, { semana_inicio: semanaIntencion, prioridad, horas_objetivo: mode === "horas" ? Number(horas) : null, expectativa_atencion: mode === "expectativa" ? expectativa : null, comentario: comentario.trim() || null }); setEditingIntencion(false); await Promise.all([load(), loadContexto()]) } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo guardar la intención") } finally { setSaving(false) } }
+
+  const siguienteAccion = frente ? resolverSiguienteAccion(frente, tareas, actividades) : null
+  const siguienteTarea = siguienteAccion?.tarea ?? null
   const tareasElegibles = useMemo(() => tareas.filter((t) => !t.es_siguiente_accion && (t.estado === "pendiente" || t.estado === "en_curso")), [tareas])
+  const siguienteActividad = siguienteAccion?.actividad ?? null
   const cambiarSiguienteAccion = async (nextId: number) => {
     try {
       setSaving(true); setError("")
@@ -408,6 +449,11 @@ export function RealFrenteDetailView() {
   const congruencia = revisionFrente?.congruencia_sugerida ?? null
   const abiertas = tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso").length
   const cerradas = tareas.length - abiertas
+  const horasSolicitadas = Number(horas)
+  const minutosSolicitados = Number.isFinite(horasSolicitadas) && horasSolicitadas > 0 ? Math.round(horasSolicitadas * 60) : null
+  const diferenciaDisponibilidad = disponibilidad && minutosSolicitados != null ? disponibilidad.minutosDisponibles - minutosSolicitados : null
+  const opcionesHoras = disponibilidad ? opcionesRapidasHoras(disponibilidad.minutosDisponibles) : []
+  const actividadesHistorial = actividades.slice(-8).reverse()
 
   return <div className="flex flex-col gap-8">
     <Link to="/compass/frentes" className="inline-flex items-center gap-1.5 font-mono-compass text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase hover:text-foreground"><ArrowLeft className="size-3.5" />Frentes</Link>
@@ -496,6 +542,45 @@ export function RealFrenteDetailView() {
             <Field><FieldLabel>Prioridad</FieldLabel><select value={prioridad} onChange={(e) => setPrioridad(e.target.value as IntencionPrioridad)} className="h-8 rounded-lg border border-input bg-[var(--card)] px-2.5 text-sm"><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></Field>
             <Field><FieldLabel>Tipo de objetivo</FieldLabel><select value={mode} onChange={(e) => setMode(e.target.value as "horas" | "expectativa")} className="h-8 rounded-lg border border-input bg-[var(--card)] px-2.5 text-sm"><option value="horas">Horas objetivo</option><option value="expectativa">Expectativa de atención</option></select></Field>
             {mode === "horas" ? <Field><FieldLabel>Horas objetivo</FieldLabel><Input type="number" min="0.01" max="9999.99" step="0.25" value={horas} onChange={(e) => setHoras(e.target.value)} /></Field> : <Field><FieldLabel>Expectativa</FieldLabel><select value={expectativa} onChange={(e) => setExpectativa(e.target.value as ExpectativaAtencion)} className="h-8 rounded-lg border border-input bg-[var(--card)] px-2.5 text-sm"><option value="sin_compromiso">Sin compromiso</option><option value="atender">Atender</option><option value="prioritario">Prioritario</option></select></Field>}
+            {mode === "horas" && (
+              <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-[var(--card)] px-3.5 py-3 sm:col-span-3">
+                {loadingDisponibilidad ? (
+                  <span className="text-xs text-muted-foreground">Calculando disponibilidad…</span>
+                ) : errorDisponibilidad ? (
+                  <span className="text-xs text-muted-foreground">{errorDisponibilidad}</span>
+                ) : disponibilidad ? (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm text-foreground">Esta semana · {formatDuracionMin(disponibilidad.minutosDisponibles)} disponibles</span>
+                      <button type="button" onClick={() => setDetalleDisponibilidad((actual) => !actual)} className="inline-flex items-center gap-1 border-b border-primary/40 pb-px text-[11px] font-semibold text-primary hover:border-primary" aria-expanded={detalleDisponibilidad}>
+                        {detalleDisponibilidad ? "Ocultar detalle" : "Ver disponibilidad"}<ChevronDown className={`size-3 transition-transform ${detalleDisponibilidad ? "rotate-180" : ""}`} />
+                      </button>
+                    </div>
+                    {opcionesHoras.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5" aria-label="Opciones rápidas de horas objetivo">
+                        {opcionesHoras.map((opcion, indice) => (
+                          <button key={opcion} type="button" onClick={() => setHoras(String(opcion))} className="rounded-full border border-border bg-[var(--surface-sunken)] px-2.5 py-1 font-mono-compass text-[10.5px] font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground">
+                            {formatHorasCompacto(opcion)}{indice === opcionesHoras.length - 1 ? " disponibles" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {diferenciaDisponibilidad != null && (
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {diferenciaDisponibilidad >= 0
+                          ? `${formatDuracionMin(minutosSolicitados!)} caben en tu semana. Quedarían ${formatDuracionMin(diferenciaDisponibilidad)} disponibles.`
+                          : `Tu semana tiene ${formatDuracionMin(disponibilidad.minutosDisponibles)} disponibles. Este objetivo excede la disponibilidad actual en ${formatDuracionMin(Math.abs(diferenciaDisponibilidad))}.`}
+                      </p>
+                    )}
+                    {detalleDisponibilidad && (
+                      <div className="flex flex-wrap gap-1.5 border-t border-border pt-2.5">
+                        {disponibilidad.dias.map((dia) => <span key={dia.fecha} className="rounded-full bg-[var(--surface-sunken)] px-2.5 py-1 font-mono-compass text-[10px] text-muted-foreground">{nombreDiaCorto(dia.fecha)} {formatDuracionMin(dia.minutosDisponibles)}</span>)}
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
+            )}
             <Field className="sm:col-span-3"><FieldLabel>Comentario opcional</FieldLabel><Textarea value={comentario} onChange={(e) => setComentario(e.target.value)} className="min-h-20 resize-none" /></Field>
             <div className="flex gap-2 sm:col-span-3">
               <Button onClick={saveIntent} disabled={saving || (mode === "horas" && !(Number(horas) > 0))}>{frente.intencion_semanal ? "Actualizar intención" : "Definir intención"}</Button>
@@ -531,18 +616,18 @@ export function RealFrenteDetailView() {
 
     <section className="relative overflow-hidden rounded-2xl border px-6 py-5 md:px-7" style={{ background: `color-mix(in oklch, ${color}, var(--card) 92%)`, borderColor: `color-mix(in oklch, ${color}, transparent 78%)` }}>
       <span className="absolute inset-y-0 left-0 w-1" style={{ background: color }} aria-hidden />
-      {siguienteTarea ? (
+      {siguienteTarea || siguienteActividad ? (
         <div className="flex flex-col gap-4 pl-2 md:flex-row md:items-center md:justify-between md:gap-8">
           <div className="flex min-w-0 flex-col gap-1">
             <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.1em]" style={{ color }}>SIGUIENTE ACCIÓN</span>
-            <span className="font-editorial text-2xl leading-tight text-foreground text-pretty md:text-[28px]">{siguienteTarea.titulo}</span>
-            <span className="text-xs text-muted-foreground">{tareaMeta(siguienteTarea)}</span>
+            <span className="font-editorial text-2xl leading-tight text-foreground text-pretty md:text-[28px]">{siguienteAccion!.titulo}</span>
+            <span className="text-xs text-muted-foreground">{accionMeta(siguienteAccion!)}</span>
           </div>
           <div className="flex flex-none flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => void marcarSiguienteHecha()} disabled={saving}>Marcar hecha</Button>
+            {siguienteTarea && <Button size="sm" onClick={() => void marcarSiguienteHecha()} disabled={saving}>Marcar hecha</Button>}
             {tareasElegibles.length > 0 && (
               <select defaultValue="" onChange={(e) => e.target.value && void cambiarSiguienteAccion(Number(e.target.value))} className="h-8 rounded-lg border border-input bg-[var(--card)] px-2.5 text-xs">
-                <option value="" disabled>Cambiar…</option>
+                <option value="" disabled>{siguienteTarea ? "Cambiar…" : "Elegir tarea…"}</option>
                 {tareasElegibles.map((t) => <option key={t.id} value={t.id}>{t.titulo}</option>)}
               </select>
             )}
@@ -551,14 +636,14 @@ export function RealFrenteDetailView() {
       ) : (
         <div className="flex flex-col gap-3 pl-2 md:flex-row md:items-center md:justify-between md:gap-8">
           <span className="font-mono-compass text-[10.5px] font-semibold tracking-[0.1em] text-muted-foreground">SIGUIENTE ACCIÓN</span>
-          <span className="font-editorial text-xl text-foreground md:mr-auto md:ml-4">Aún no eliges qué sigue.</span>
+          <span className="font-editorial text-xl text-foreground md:mr-auto md:ml-4">{tareasElegibles.length > 0 ? "Aún no eliges qué sigue." : "Aún no defines qué sigue."}</span>
           {tareasElegibles.length > 0 ? (
             <select defaultValue="" onChange={(e) => e.target.value && void cambiarSiguienteAccion(Number(e.target.value))} className="h-9 rounded-lg border border-input bg-[var(--card)] px-3 text-sm">
               <option value="" disabled>Elegir una tarea…</option>
               {tareasElegibles.map((t) => <option key={t.id} value={t.id}>{t.titulo}</option>)}
             </select>
           ) : (
-            <span className="text-xs text-muted-foreground">No hay tareas pendientes para elegir.</span>
+            <span className="text-xs text-muted-foreground">No hay tareas ni actividades futuras para este Frente.</span>
           )}
         </div>
       )}
@@ -598,13 +683,13 @@ export function RealFrenteDetailView() {
         <section className="flex flex-col gap-3">
           <div className="flex items-baseline gap-3">
             <h2 className="font-editorial text-2xl leading-none text-foreground">Cómo se gastó el tiempo</h2>
-            {actividades.length > 0 && <span className="font-mono-compass text-[11px] font-medium tracking-[0.06em] text-muted-foreground">ÚLTIMAS {actividades.length} ACTIVIDADES</span>}
+            {actividadesHistorial.length > 0 && <span className="font-mono-compass text-[11px] font-medium tracking-[0.06em] text-muted-foreground">ÚLTIMAS {actividadesHistorial.length} ACTIVIDADES</span>}
           </div>
           {actividades.length === 0 ? (
             <p className="rounded-2xl border border-border bg-card px-5 py-6 text-sm text-muted-foreground">No hay actividades registradas para este Frente.</p>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              {actividades.map((a) => (
+              {actividadesHistorial.map((a) => (
                 <div key={a.id} className="grid grid-cols-[auto_1fr_auto] items-start gap-4 border-t border-border/70 px-5 py-3.5 first:border-t-0">
                   <span className="font-mono-compass text-[10.5px] leading-relaxed tracking-[0.04em] text-muted-foreground text-pretty">{formatFechaCorta(a.inicio_programado)}<br />{formatHora(a.inicio_programado)}</span>
                   <span className="flex min-w-0 flex-col gap-0.5">

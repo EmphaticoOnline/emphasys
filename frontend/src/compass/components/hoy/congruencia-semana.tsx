@@ -49,7 +49,8 @@ export function CongruenciaSemana({ dia, frentes, frenteIdsHoy }: { dia: string;
               const info = estado ? estadoInfo[estado] : null
               const colorVar = colorVarDeFrente(frentes, f.frente_id)
               const tieneObjetivo = f.horas_objetivo_snapshot != null && f.horas_objetivo_snapshot > 0
-              const ratio = tieneObjetivo ? Math.min(1, f.horas_efectivas / f.horas_objetivo_snapshot!) : null
+              const horasCubiertas = f.horas_efectivas + f.horas_reservadas
+              const ratio = tieneObjetivo ? Math.min(1, horasCubiertas / f.horas_objetivo_snapshot!) : null
               const tocadoHoy = frenteIdsHoy.has(f.frente_id)
               return (
                 <div
@@ -65,9 +66,14 @@ export function CongruenciaSemana({ dia, frentes, frenteIdsHoy }: { dia: string;
                     <span className="min-w-0 break-words text-[13px] leading-tight font-semibold text-foreground">{f.nombre}</span>
                   </div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-editorial text-xl leading-none text-foreground">{formatHorasCompacto(f.horas_efectivas)}</span>
+                    <span className="font-editorial text-xl leading-none text-foreground">{formatHorasCompacto(tieneObjetivo ? horasCubiertas : f.horas_efectivas)}</span>
                     {tieneObjetivo && <span className="font-mono-compass text-[11px] text-muted-foreground">/ {formatHorasCompacto(f.horas_objetivo_snapshot!)}</span>}
                   </div>
+                  {tieneObjetivo && (
+                    <span className="text-[10.5px] leading-tight text-muted-foreground">
+                      {formatHorasCompacto(f.horas_efectivas)} ejecutadas · {formatHorasCompacto(f.horas_reservadas)} reservadas
+                    </span>
+                  )}
                   <div className="h-1 overflow-hidden rounded-full bg-foreground/10">
                     {ratio != null && info && <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: `var(${info.var})` }} />}
                   </div>

@@ -10,25 +10,35 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { QuickCapture } from "@/components/shell/quick-capture"
 import { useRealWork } from "@/lib/real-work-store"
 import { colorVarDeFrente } from "@/lib/frente-color"
-import { fechaYHoraLocalAISOString, formatHorasCompacto, horasEntre, hoyLocal, soloFecha } from "@/lib/format"
-import type { Actividad } from "../../../services/compassService"
+import { fechaYHoraLocalAISOString, formatDuracionMin, formatFechaCorta, formatHora, formatHorasCompacto, horasEntre, hoyLocal, soloFecha } from "@/lib/format"
+import { resolverSiguientesAcciones, type SiguienteAccionResuelta } from "@/lib/siguiente-accion"
+import { listActividades, type Actividad } from "../../../services/compassService"
 
 const today = hoyLocal
 const iso = (day: string, plus = 0) => fechaYHoraLocalAISOString(sumarDia(day, plus))
 const sumarDia = (day: string, plus: number) => { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + plus); return d.toISOString().slice(0, 10) }
 
+function accionMeta(accion: SiguienteAccionResuelta) {
+  if (accion.estado === "en_curso") return `En curso · hasta las ${formatHora(accion.fin!)}`
+  if (accion.estado === "reservada") return `${formatFechaCorta(accion.inicio!)} · ${formatHora(accion.inicio!)} · ${formatDuracionMin(accion.duracionMinutos!)} reservadas`
+  return "Sin tiempo reservado"
+}
+
 export function HoyView() {
   const day = today()
   const { actividades, frentes, tareas, capturas, loading, error, loadActividades, loadFrentes, loadTareas, loadCapturas } = useRealWork()
   const [selected, setSelected] = useState<Actividad | null>(null)
+  const [actividadesParaAcciones, setActividadesParaAcciones] = useState<Actividad[]>([])
 
   const load = useCallback(async () => {
-    await Promise.all([
+    const [, , , , todasLasActividades] = await Promise.all([
       loadActividades({ fecha_inicio: iso(day), fecha_fin: iso(day, 1) }),
       loadFrentes(),
       loadTareas({ pendientes: true }),
       loadCapturas(),
+      listActividades(),
     ])
+    setActividadesParaAcciones(todasLasActividades)
   }, [day, loadActividades, loadFrentes, loadTareas, loadCapturas])
   useEffect(() => { void load() }, [load])
 
@@ -51,7 +61,7 @@ export function HoyView() {
     return frentes.find((f) => f.id === mejorId) ?? null
   }, [visibles, frentes])
 
-  const actions = tareas.filter((t) => t.es_siguiente_accion)
+  const actions = useMemo(() => resolverSiguientesAcciones(frentesActivos, tareas, actividadesParaAcciones), [frentesActivos, tareas, actividadesParaAcciones])
   const actionsShown = actions.slice(0, 3)
   const capturasHoy = capturas.filter((c) => soloFecha(c.captured_at) === day)
 
@@ -137,16 +147,16 @@ export function HoyView() {
             ) : (
               <>
                 <div className="flex flex-col gap-0.5">
-                  {actionsShown.map((t) => (
+                  {actionsShown.map((accion) => (
                     <Link
-                      key={t.id}
-                      to={t.frente_id ? `/compass/frentes/${t.frente_id}` : "/compass/tareas"}
+                      key={accion.frente.id}
+                      to={`/compass/frentes/${accion.frente.id}`}
                       className="flex items-start gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-accent/40"
                     >
-                      <span className="mt-1 size-2 shrink-0 rounded-sm" style={{ background: colorVarDeFrente(frentes, t.frente_id ?? null) }} />
+                      <span className="mt-1 size-2 shrink-0 rounded-sm" style={{ background: colorVarDeFrente(frentes, accion.frente.id) }} />
                       <span className="flex flex-col gap-0.5">
-                        <span className="text-sm font-semibold text-foreground">{t.titulo}</span>
-                        <span className="text-[11px] text-muted-foreground">{t.frente_nombre ?? "Sin Frente"}</span>
+                        <span className="text-sm font-semibold text-foreground">{accion.titulo}</span>
+                        <span className="text-[11px] text-muted-foreground">{accion.frente.nombre} · {accionMeta(accion)}</span>
                       </span>
                     </Link>
                   ))}
