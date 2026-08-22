@@ -8,7 +8,7 @@ const envLocalPath = path.resolve(process.cwd(), ".env.local");
 const envPath = path.resolve(process.cwd(), ".env");
 
 if (fs.existsSync(envLocalPath)) {
-  dotenv.config({ path: envLocalPath, override: true });
+  dotenv.config({ path: envLocalPath });
 }
 
 if (fs.existsSync(envPath)) {
