@@ -14,8 +14,8 @@ const normalizeRate = (value: number): number => (value > 1 ? value / 100 : valu
 
 const mapImpuestoClave = (impuesto?: string | null): string => {
   const val = (impuesto || '').toUpperCase();
-  if (val === 'IVA' || val === '002') return '002';
-  if (val === 'ISR' || val === '001') return '001';
+  if (val === 'IVA' || val === '002' || val === 'IVA_16' || val === 'IVA_0' || val === 'RET_IVA' || val === 'RET_IVA_4') return '002';
+  if (val === 'ISR' || val === '001' || val === 'RET_ISR') return '001';
   if (val === 'IEPS' || val === '003') return '003';
   return val || IVA_IMPUESTO;
 };

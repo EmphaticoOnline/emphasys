@@ -13,6 +13,9 @@ interface RichTextEditorProps {
   onChange: (html: string) => void;
   placeholder?: string;
   minHeight?: number;
+  maxHeight?: number;
+  contentFontSize?: number | string;
+  denseToolbar?: boolean;
 }
 
 export interface RichTextEditorHandle {
@@ -20,7 +23,7 @@ export interface RichTextEditorHandle {
 }
 
 const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor(
-  { content, onChange, placeholder, minHeight = 260 },
+  { content, onChange, placeholder, minHeight = 260, maxHeight = 480, contentFontSize, denseToolbar = false },
   ref
 ) {
   const editor = useEditor({
@@ -60,7 +63,18 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
         overflow: 'hidden',
       }}
     >
-      <ToggleButtonGroup size="small" sx={{ p: 1, gap: 0.5, backgroundColor: '#f8fafc' }}>
+      <ToggleButtonGroup
+        size="small"
+        sx={{
+          p: denseToolbar ? 0.5 : 1,
+          gap: denseToolbar ? 0.25 : 0.5,
+          backgroundColor: '#f8fafc',
+          ...(denseToolbar && {
+            '& .MuiToggleButton-root': { p: 0.4 },
+            '& .MuiSvgIcon-root': { fontSize: 16 },
+          }),
+        }}
+      >
         <ToggleButton
           value="bold"
           selected={editor.isActive('bold')}
@@ -75,7 +89,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
         >
           <FormatItalicIcon fontSize="small" />
         </ToggleButton>
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+        <Divider orientation="vertical" flexItem sx={{ mx: denseToolbar ? 0.25 : 0.5 }} />
         <ToggleButton
           value="bulletList"
           selected={editor.isActive('bulletList')}
@@ -98,9 +112,10 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
         sx={{
           p: 2,
           minHeight,
-          maxHeight: 480,
+          maxHeight,
           overflowY: 'auto',
           cursor: 'text',
+          fontSize: contentFontSize,
           '& .ProseMirror': {
             outline: 'none',
             minHeight: minHeight - 32,
@@ -111,6 +126,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
             float: 'left',
             height: 0,
             pointerEvents: 'none',
+            fontSize: contentFontSize,
           },
           '& ul, & ol': {
             paddingLeft: '1.5rem',

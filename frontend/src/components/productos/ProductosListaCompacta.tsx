@@ -31,6 +31,8 @@ export default function ProductosListaCompacta({
       sx={{
         width: { xs: '100%', md: 380 },
         flexShrink: 0,
+        height: '100%',
+        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         border: '1px solid #e5e7eb',
@@ -127,6 +129,7 @@ export default function ProductosListaCompacta({
           onRowsPerPageChange={(event) => onPaginationModelChange({ page: 0, pageSize: Number(event.target.value) })}
           rowsPerPageOptions={[25, 50, 100]}
           labelRowsPerPage="Filas"
+          labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count === -1 ? `más de ${to}` : count}`}
           sx={{ '& .MuiTablePagination-toolbar': { px: 1.5 } }}
         />
       </Box>

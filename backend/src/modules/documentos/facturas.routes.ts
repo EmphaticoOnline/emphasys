@@ -11,6 +11,7 @@ import {
   reemplazarPartidas,
   obtenerFacturaPDF,
   obtenerFacturaXML,
+  descargarFacturaCfdi,
   obtenerFacturaPublicLinks,
   timbrarFacturaCfdi,
   enviarFacturaPorCorreo,
@@ -30,6 +31,9 @@ router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerFacturaPDF);
 
 // GET /api/facturas/:id/xml
 router.get('/:id/xml', requireAuth, requireEmpresaActiva, obtenerFacturaXML);
+
+// GET /api/facturas/:id/cfdi — PDF representativo + XML timbrado original
+router.get('/:id/cfdi', requireAuth, requireEmpresaActiva, descargarFacturaCfdi);
 
 // POST /api/facturas/:id/public-links
 router.post('/:id/public-links', requireAuth, requireEmpresaActiva, obtenerFacturaPublicLinks);

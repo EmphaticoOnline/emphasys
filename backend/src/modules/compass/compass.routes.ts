@@ -4,7 +4,7 @@ import { getFrente, getFrentes, patchFrente, postFrente, putIntencionSemanal } f
 import { deleteActividad, getActividad, getActividades, getTarea, getTareas, patchActividad, patchTarea, postActividad, postCerrarActividad, postContinuarActividad, postReprogramarActividad, postTarea } from './compass.controller';
 import { getCapturas, patchCaptura, postCaptura, postProcesarCaptura } from './compass.controller';
 import { getDecision, getDecisiones, getIdea, getIdeas, patchDecision, patchIdea, postConvertirIdea, postDecision, postIdea } from './compass.controller';
-import { getRevisionSemanal, putRevisionSemanal } from './compass.controller';
+import { getRevisionesSemanales, getRevisionSemanal, putRevisionSemanal } from './compass.controller';
 
 const router = Router();
 router.use(requireAuth);
@@ -38,6 +38,7 @@ router.get('/decisiones', optionalEmpresaActiva, getDecisiones);
 router.get('/decisiones/:id', optionalEmpresaActiva, getDecision);
 router.post('/decisiones', optionalEmpresaActiva, postDecision);
 router.patch('/decisiones/:id', optionalEmpresaActiva, patchDecision);
+router.get('/revisiones-semanales', optionalEmpresaActiva, getRevisionesSemanales);
 router.get('/revisiones-semanales/:semana_inicio', optionalEmpresaActiva, getRevisionSemanal);
 router.put('/revisiones-semanales/:semana_inicio', optionalEmpresaActiva, putRevisionSemanal);
 export default router;

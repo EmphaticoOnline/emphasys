@@ -53,6 +53,9 @@ import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
 import PrintIcon from '@mui/icons-material/Print';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CheckIcon from '@mui/icons-material/Check';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { resolveDocumentoFormPath, resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
 import DynamicFieldControl from '../components/DynamicFieldControl';
 import MobileBackIconButton from '../components/MobileBackIconButton';
@@ -63,7 +66,13 @@ import ProductoCaptureDialog from '../components/productos/ProductoCaptureDialog
 import ObservacionesEncabezadoCampo from '../components/ObservacionesEncabezadoCampo';
 import PartidaObservacionesEditor from '../components/documentos/PartidaObservacionesEditor';
 import PartidaEspecificacionesEditor from '../components/documentos/PartidaEspecificacionesEditor';
+import FacturaResumenFlotante, { type FacturaResumenFlotantePosicion } from '../components/documentos/facturas/FacturaResumenFlotante';
 import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
+import {
+  resolveFacturaCapturaVistaInicial,
+  guardarFacturaCapturaVistaPreferencia,
+  type VistaCapturaFactura,
+} from '../modules/documentos/facturaCapturaVistaFlag';
 
 import type {
   CotizacionDetalle,
@@ -232,6 +241,7 @@ type FinancialSummary = {
   descuentoGlobal: number;
   subtotalNeto: number;
   iva: number;
+  retenciones: number;
   total: number;
 };
 
@@ -241,7 +251,20 @@ const EMPTY_FINANCIAL_SUMMARY: FinancialSummary = {
   descuentoGlobal: 0,
   subtotalNeto: 0,
   iva: 0,
+  retenciones: 0,
   total: 0,
+};
+
+const getPartidaTaxSummary = (impuestos: Array<ImpuestoEntrada | ImpuestoPartida> = []) => {
+  return impuestos.reduce((acc, impuesto) => {
+    const monto = Number(impuesto.monto ?? 0);
+    if (String(impuesto.tipo ?? '').toLowerCase() === 'retencion') {
+      acc.retenciones += monto;
+    } else {
+      acc.traslados += monto;
+    }
+    return acc;
+  }, { traslados: 0, retenciones: 0 });
 };
 
 const compactEditableInputFontSize = { xs: 16, md: 13 } as const;
@@ -295,6 +318,13 @@ const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
   { label: 'Operación tasa cero', value: 'tasa_cero' },
   { label: 'Operación exenta', value: 'exento' },
 ];
+
+const TRATAMIENTO_ABREVIATURA: Record<TratamientoImpuestos, string> = {
+  normal: 'EST',
+  sin_iva: 'NV',
+  tasa_cero: 'T0',
+  exento: 'EX',
+};
 
 const TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL = new Set<TipoDocumento>([
   'factura',
@@ -1179,17 +1209,14 @@ export default function DocumentosFormPage({
     const descuentoGlobalDocumento = clampDiscountPercent(descuentoGlobalOverride ?? descuentoGlobalRef.current ?? 0);
     const subtotal = partidasList.reduce((acc, p) => acc + (p.subtotal_partida || 0), 0);
     const descuento = partidasList.reduce((acc, p) => acc + getPartidaTotalDiscountAmount(p, descuentoGlobalDocumento), 0);
-    const impuestosTotales = partidasList.reduce((acc, p) => {
-      const impuestos = p.impuestos ?? [];
-      const totalImpuestos = impuestos.reduce((s, imp: any) => {
-        const monto = Number(imp.monto ?? 0);
-        const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
-        return s + (esRetencion ? -monto : monto);
-      }, 0);
-      return acc + totalImpuestos;
-    }, 0);
-    const total = subtotal + impuestosTotales;
-    setForm((prev) => ({ ...prev, subtotal, descuento, iva: impuestosTotales, total }));
+    const impuestosTotales = partidasList.reduce((acc, partida) => {
+      const resumen = getPartidaTaxSummary(partida.impuestos ?? []);
+      acc.traslados += resumen.traslados;
+      acc.retenciones += resumen.retenciones;
+      return acc;
+    }, { traslados: 0, retenciones: 0 });
+    const total = subtotal + impuestosTotales.traslados - impuestosTotales.retenciones;
+    setForm((prev) => ({ ...prev, subtotal, descuento, iva: impuestosTotales.traslados, total }));
   };
 
   const montoOportunidad = useMemo(
@@ -1210,6 +1237,7 @@ export default function DocumentosFormPage({
         descuentoGlobal: 0,
         subtotalNeto: subtotal,
         iva,
+        retenciones: 0,
         total,
       };
     }
@@ -1222,27 +1250,23 @@ export default function DocumentosFormPage({
         descuentoGlobal: 0,
         subtotalNeto: subtotal,
         iva,
+        retenciones: 0,
         total: Number(form.total ?? (subtotal + iva)),
       };
     }
 
     const descuentoGlobalDocumento = clampDiscountPercent(form.descuento_global ?? 0);
 
-    return partidas.reduce((acc, partida) => {
+    const resumen = partidas.reduce((acc, partida) => {
       const breakdown = getPartidaDiscountBreakdown(partida, descuentoGlobalDocumento);
-      const impuestos = partida.impuestos ?? [];
-      const ivaPartida = impuestos.reduce((sum, imp: any) => {
-        const monto = Number(imp.monto ?? 0);
-        const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
-        return sum + (esRetencion ? -monto : monto);
-      }, 0);
+      const impuestosPartida = getPartidaTaxSummary(partida.impuestos ?? []);
 
       acc.subtotalBruto += breakdown.precioBruto;
       acc.descuentoPartidas += breakdown.descuentoPartida;
       acc.descuentoGlobal += breakdown.descuentoGlobalMonto;
       acc.subtotalNeto += Number(partida.subtotal_partida ?? breakdown.subtotalFinal ?? 0);
-      acc.iva += ivaPartida;
-      acc.total += Number(partida.total_partida ?? 0);
+      acc.iva += impuestosPartida.traslados;
+      acc.retenciones += impuestosPartida.retenciones;
       return acc;
     }, {
       subtotalBruto: 0,
@@ -1250,8 +1274,13 @@ export default function DocumentosFormPage({
       descuentoGlobal: 0,
       subtotalNeto: 0,
       iva: 0,
+      retenciones: 0,
       total: 0,
     });
+    return {
+      ...resumen,
+      total: resumen.subtotalNeto + resumen.iva - resumen.retenciones,
+    };
   }, [form.descuento_global, form.iva, form.subtotal, form.total, isNotaCredito, partidas, usaPartidas]);
 
   const resumenFinanciero = usaGeneracionEspecialNotaCredito ? resumenNotaCreditoEspecial : discountSummary;
@@ -2237,6 +2266,7 @@ export default function DocumentosFormPage({
         descuentoGlobal: acc.descuentoGlobal + item.descuentoGlobal,
         subtotalNeto: acc.subtotalNeto + item.subtotalNeto,
         iva: acc.iva + item.iva,
+        retenciones: acc.retenciones,
         total: acc.total + item.total,
       }), { ...EMPTY_FINANCIAL_SUMMARY });
 
@@ -2246,6 +2276,7 @@ export default function DocumentosFormPage({
         descuentoGlobal: 0,
         subtotalNeto: Number(resumen.subtotalNeto.toFixed(2)),
         iva: Number(resumen.iva.toFixed(2)),
+        retenciones: 0,
         total: Number(resumen.total.toFixed(2)),
       };
 
@@ -3529,6 +3560,1754 @@ export default function DocumentosFormPage({
     setMobilePartidaMenuIndex(null);
   }, []);
 
+  // ── Fase 1: vista nueva de captura de Factura (opt-in, ver facturaCapturaVistaFlag.ts) ──
+  // Reutiliza el mismo estado/handlers que la vista clásica; solo cambia la
+  // composición visual. Limitado a tipoDocumento === 'factura'.
+  const [vistaFacturaCaptura, setVistaFacturaCaptura] = useState<VistaCapturaFactura>('clasica');
+  useEffect(() => {
+    if (tipoDocumento !== 'factura') return;
+    setVistaFacturaCaptura(resolveFacturaCapturaVistaInicial(session.empresaActivaId ?? null, sessionUserId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoDocumento]);
+  const handleCambiarVistaFacturaCaptura = useCallback(
+    (vista: VistaCapturaFactura) => {
+      setVistaFacturaCaptura(vista);
+      guardarFacturaCapturaVistaPreferencia(session.empresaActivaId ?? null, sessionUserId, vista);
+    },
+    [session.empresaActivaId, sessionUserId]
+  );
+  const [railFacturaAbierto, setRailFacturaAbierto] = useState(true);
+  const [floatFacturaPos, setFloatFacturaPos] = useState<FacturaResumenFlotantePosicion | null>(null);
+  const [filaFacturaExpandida, setFilaFacturaExpandida] = useState<number | null>(null);
+  const [encabezadoDetalleAbierto, setEncabezadoDetalleAbierto] = useState(false);
+  const [tratamientoMenuAnchor, setTratamientoMenuAnchor] = useState<HTMLElement | null>(null);
+  const workspaceFacturaRef = useRef<HTMLDivElement | null>(null);
+
+  const renderVistaFacturaToggle = () => (
+    <Box
+      sx={{
+        display: 'inline-flex',
+        border: '1px solid #d9dde6',
+        borderRadius: 999,
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}
+    >
+      {(
+        [
+          { value: 'clasica' as const, label: 'Vista clásica' },
+          { value: 'nueva' as const, label: 'Nueva captura' },
+        ]
+      ).map((opt) => (
+        <ButtonBase
+          key={opt.value}
+          onClick={() => handleCambiarVistaFacturaCaptura(opt.value)}
+          sx={{
+            px: 1.5,
+            py: 0.6,
+            fontSize: 12.5,
+            fontWeight: vistaFacturaCaptura === opt.value ? 700 : 500,
+            color: vistaFacturaCaptura === opt.value ? '#fff' : '#3d4557',
+            bgcolor: vistaFacturaCaptura === opt.value ? '#1d2f68' : '#fff',
+          }}
+        >
+          {opt.label}
+        </ButtonBase>
+      ))}
+    </Box>
+  );
+
+  const renderVistaNueva = () => {
+    const fiscalCampos = [
+      form.rfc_receptor,
+      form.regimen_fiscal_receptor,
+      form.uso_cfdi,
+      form.forma_pago,
+      form.metodo_pago,
+      form.codigo_postal_receptor,
+    ];
+    const fiscalCompletos = fiscalCampos.filter((v) => String(v || '').trim() !== '').length;
+    const fiscalRequerido = ['factura', 'nota_credito'].includes(tipoDocumento) && form.tratamiento_impuestos !== 'sin_iva';
+    const fiscalCompleto = !fiscalRequerido || (fiscalCompletos === fiscalCampos.length && validarRFC(form.rfc_receptor || ''));
+    const fiscalLabel = !fiscalRequerido ? 'Sin requisitos fiscales' : `Datos fiscales ${fiscalCompletos}/${fiscalCampos.length}`;
+
+    const dialogosFactura = (
+      <>
+        <ContactCaptureDialog
+          open={crearClienteOpen}
+          loading={crearClienteLoading}
+          nombre={crearClienteNombre}
+          tipoContacto={crearClienteTipo}
+          tiposPermitidos={contactoTiposPermitidos}
+          captureMode={contactoCaptureMode}
+          detailedFields={crearClienteDetailedFields}
+          title="Crear cliente"
+          infoMessage="Se asignará al documento con el tipo seleccionado."
+          onNombreChange={setCrearClienteNombre}
+          onTipoContactoChange={setCrearClienteTipo}
+          onDetailedFieldChange={(field, value) => {
+            setCrearClienteDetailedFields((prev) => ({ ...prev, [field]: value }));
+          }}
+          onClose={() => {
+            if (!crearClienteLoading) {
+              setCrearClienteOpen(false);
+              setCrearClienteNombre('');
+              setCrearClienteTipo(contactoDefaultTipoContacto);
+              setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
+            }
+          }}
+          onSubmit={() => void handleCrearClienteSubmit()}
+        />
+
+        <ProductoCaptureDialog
+          open={crearProductoOpen}
+          loading={crearProductoLoading}
+          clave={crearProductoClave}
+          claveError={crearProductoClaveError}
+          descripcion={crearProductoDescripcion}
+          tipoProducto={crearProductoTipo}
+          tiposPermitidos={productoTiposPermitidos}
+          captureMode={productoCaptureMode}
+          title="Crear producto rapido"
+          onClaveChange={(value) => {
+            setCrearProductoClave(value);
+            if (crearProductoClaveError) {
+              setCrearProductoClaveError(null);
+            }
+          }}
+          onDescripcionChange={setCrearProductoDescripcion}
+          onTipoProductoChange={setCrearProductoTipo}
+          onClose={() => {
+            if (!crearProductoLoading) {
+              setCrearProductoOpen(false);
+              setCrearProductoClave('');
+              setCrearProductoDescripcion('');
+              setCrearProductoTipo(productoDefaultTipoProducto);
+              setCrearProductoIndex(null);
+              setCrearProductoClaveError(null);
+            }
+          }}
+          onSubmit={() => void handleCrearProductoSubmit()}
+        />
+
+        <Dialog open={partidaImagenDialog.open} onClose={cerrarImagenDialog} fullWidth maxWidth="sm">
+          <DialogTitle fontWeight={700}>Imagen de la partida</DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
+            <input
+              ref={partidaImagenInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                if (partidaImagenDialog.index === null) return;
+                void handleImagenChange(partidaImagenDialog.index, e.target.files);
+              }}
+              style={{ display: 'none' }}
+            />
+
+            {partidaImagenPreviewUrl && (
+              <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, p: 1, bgcolor: '#fafafa' }}>
+                <Box
+                  component="img"
+                  src={partidaImagenPreviewUrl}
+                  alt="Vista previa de la partida"
+                  sx={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block' }}
+                />
+              </Box>
+            )}
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button variant="outlined" color="inherit" onClick={handleImagenSinSeleccion} fullWidth>
+                Sin imagen
+              </Button>
+              <Button variant="outlined" onClick={handleImagenCustomClick} fullWidth>
+                Subir imagen personalizada
+              </Button>
+              <Button variant="outlined" startIcon={<ContentPasteIcon />} onClick={handleImagenPegarClick} fullWidth>
+                Pegar del portapapeles
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => setPartidaImagenDialog((prev) => ({ ...prev, view: 'producto' }))}
+                disabled={!partidaImagenProductoId}
+                fullWidth
+              >
+                Elegir imagen del producto
+              </Button>
+            </Stack>
+
+            {partidaImagenDialog.view === 'pegar' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                  <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                    Pegar imagen desde el portapapeles
+                  </Typography>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setClipboardPasteStatus(null);
+                      setPartidaImagenDialog((prev) => ({ ...prev, view: 'menu' }));
+                    }}
+                  >
+                    Volver
+                  </Button>
+                </Stack>
+
+                {clipboardPasteStatus && <Alert severity={clipboardPasteStatus.tipo}>{clipboardPasteStatus.mensaje}</Alert>}
+
+                <Box
+                  ref={partidaImagenPasteAreaRef}
+                  onPaste={handlePasteAreaPaste}
+                  tabIndex={0}
+                  role="textbox"
+                  aria-label="Área para pegar imagen del portapapeles"
+                  sx={{
+                    border: '2px dashed #9ca3af',
+                    borderRadius: 1.5,
+                    p: 3,
+                    textAlign: 'center',
+                    color: '#6b7280',
+                    outline: 'none',
+                    '&:focus': { borderColor: '#1565c0', color: '#1565c0' },
+                  }}
+                >
+                  {uploadingImagen[partidaImagenDialog.index ?? -1] ? (
+                    <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+                      <CircularProgress size={18} />
+                      <Typography variant="body2">Subiendo imagen…</Typography>
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2">
+                      Haz clic aquí y presiona Ctrl+V (Cmd+V en Mac) para pegar una captura de pantalla o imagen copiada.
+                    </Typography>
+                  )}
+                </Box>
+
+                <Button variant="outlined" size="small" onClick={() => void handleLeerPortapapeles()}>
+                  Leer del portapapeles automáticamente
+                </Button>
+
+                <Typography variant="caption" color="text.secondary">
+                  En algunos navegadores o dispositivos móviles el acceso automático al portapapeles no está disponible; en ese caso usa
+                  Ctrl+V/Cmd+V en el recuadro de arriba, o la opción "Subir imagen personalizada".
+                </Typography>
+              </Box>
+            )}
+
+            {partidaImagenDialog.view === 'producto' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                  <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                    Imágenes del producto
+                  </Typography>
+                  <Button size="small" onClick={() => setPartidaImagenDialog((prev) => ({ ...prev, view: 'menu' }))}>
+                    Volver
+                  </Button>
+                </Stack>
+
+                {!partidaImagenProductoId && <Alert severity="info">Selecciona un producto en la partida antes de elegir una imagen.</Alert>}
+
+                {partidaImagenProductoId && partidaImagenesProductoLoadingId === partidaImagenProductoId && (
+                  <Box display="flex" justifyContent="center" py={2}>
+                    <CircularProgress size={24} />
+                  </Box>
+                )}
+
+                {partidaImagenProductoId && partidaImagenesProductoError && <Alert severity="warning">{partidaImagenesProductoError}</Alert>}
+
+                {partidaImagenProductoId && !partidaImagenesProductoLoadingId && !partidaImagenesProductoError && (
+                  <>
+                    {partidaImagenesProducto.length === 0 ? (
+                      <Alert severity="info">Este producto no tiene imágenes registradas.</Alert>
+                    ) : (
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 1 }}>
+                        {partidaImagenesProducto.map((archivo) => {
+                          const selected = archivo.id === partidaImagenActual?.producto_archivo_id;
+                          return (
+                            <ButtonBase
+                              key={archivo.id}
+                              onClick={() => handleImagenProductoSelect(archivo)}
+                              sx={{
+                                position: 'relative',
+                                borderRadius: 1.5,
+                                overflow: 'hidden',
+                                border: selected ? '2px solid #1565c0' : '1px solid #e5e7eb',
+                                bgcolor: '#fafafa',
+                                aspectRatio: '1 / 1',
+                              }}
+                            >
+                              <Box
+                                component="img"
+                                src={buildAssetUrl(archivo.archivo)}
+                                alt={archivo.descripcion || `Imagen ${archivo.id}`}
+                                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            </ButtonBase>
+                          );
+                        })}
+                      </Box>
+                    )}
+                  </>
+                )}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={cerrarImagenDialog}>Cerrar</Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog open={duplicateDialog.open} onClose={() => setDuplicateDialog({ open: false, message: '' })}>
+          <DialogTitle fontWeight={700}>Documento duplicado</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: '#374151' }}>
+              Ya existe un documento con la misma serie y número. Por favor verifique el consecutivo antes de continuar.
+              {duplicateDialog.message && (
+                <>
+                  <br />
+                  <br />
+                  <strong>Detalle:</strong> {duplicateDialog.message}
+                </>
+              )}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button variant="contained" onClick={() => setDuplicateDialog({ open: false, message: '' })}>
+              Entendido
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog open={trazabilidadDialog.open} onClose={() => setTrazabilidadDialog({ open: false, folioRelacionado: '' })}>
+          <DialogTitle fontWeight={700}>Documento con trazabilidad activa</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: '#374151' }}>
+              Este documento fue generado a partir de otro documento o ya participa en una cadena de trazabilidad.
+              <br />
+              <br />
+              Modificar sus partidas podría afectar la integridad de la información y romper las relaciones entre documentos.
+              <br />
+              <br />
+              Si necesita cambiar cantidades, eliminar partidas o corregir información, elimine este documento (si aún está en borrador) y
+              vuelva a generarlo desde el documento origen.
+              <br />
+              <br />
+              Las partidas de documentos vinculados no pueden modificarse directamente.
+              {trazabilidadDialog.folioRelacionado && (
+                <>
+                  <br />
+                  <br />
+                  <strong>Documento relacionado:</strong> {trazabilidadDialog.folioRelacionado}
+                </>
+              )}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button variant="contained" onClick={() => setTrazabilidadDialog({ open: false, folioRelacionado: '' })}>
+              Entendido
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={3000}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity={snackbar.severity} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+
+        {widgetPagosDrawer && isEdit && documentoActualId && form.contacto_principal_id ? (
+          <FacturaPagosDrawer
+            open={openPagos}
+            onClose={handleClosePagosDrawer}
+            documentoId={Number(documentoActualId)}
+            contactoId={Number(form.contacto_principal_id)}
+            saldo={saldoDocumento}
+            tipoDocumento={tipoDocumento}
+          />
+        ) : null}
+      </>
+    );
+
+    const railContenido = (
+      <>
+        <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+          <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #eef0f4' }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>
+              Totales
+            </Typography>
+          </Box>
+          <Stack spacing={0.75} sx={{ px: 1.75, py: 1.25 }}>
+            {[
+              { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto },
+              { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas },
+              { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal },
+              { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto },
+              ...(ocultarIvaPorTratamiento
+                ? []
+                : [
+                    { label: 'IVA trasladado', value: resumenFinanciero.iva },
+                    { label: 'Retenciones', value: -resumenFinanciero.retenciones },
+                  ]),
+            ].map((item) => (
+              <Box key={item.label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
+                <Typography sx={{ fontSize: 12.5, color: '#5b6479' }}>{item.label}</Typography>
+                <Typography sx={{ fontSize: 13, color: '#3d4557', fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+                  {formatter.format(item.value)}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
+          <Box sx={{ bgcolor: '#1d2f68', px: 1.75, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
+              Total {form.moneda}
+            </Typography>
+            <Typography sx={{ fontSize: 21, color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+              {formatter.format(resumenFinanciero.total)}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+          <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #eef0f4', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>
+              Datos fiscales
+            </Typography>
+            <Box sx={{ flex: 1 }} />
+            <Box
+              sx={{
+                fontSize: 10.5,
+                fontWeight: 600,
+                px: 1,
+                py: 0.3,
+                borderRadius: 999,
+                bgcolor: fiscalCompleto ? '#e8f4ee' : '#fdf3e3',
+                color: fiscalCompleto ? '#1c6b47' : '#9a5b00',
+              }}
+            >
+              {fiscalLabel}
+            </Box>
+          </Box>
+          <Box sx={{ px: 1.75, py: 1.5 }}>
+            <DocumentoDatosFiscalesTab
+              values={fiscalValues}
+              onChange={(changes) => setForm((prev) => ({ ...prev, ...changes }))}
+              disabled={saving || loading || trazabilidadActiva}
+              showCatalogNote={false}
+              compact
+            />
+          </Box>
+        </Paper>
+      </>
+    );
+
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: isMobile ? 10 : 4 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap" useFlexGap>
+          {isMobile && <MobileBackIconButton onClick={() => void handleNavigateBack()} disabled={saving} />}
+          <Typography variant="h5" fontWeight={700} color="#1d2f68" sx={{ flexShrink: 0 }}>
+            {isEdit ? textos.editar : textos.nuevo}
+          </Typography>
+          {renderVistaFacturaToggle()}
+          <Box sx={{ flex: 1 }} />
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+            {/*
+              Aplicar pago / Administrar pagos y Ver / Imprimir PDF se quitan de esta
+              captura a propósito: ya están disponibles en el workspace/lista de
+              Facturas anterior y no deben duplicarse aquí. `FacturaPagosDrawer` sigue
+              montado más abajo (ver dialogosFactura) para el caso en que se navegue
+              a esta pantalla con `?abrirPagos=1` desde ese workspace.
+            */}
+            {embedded && onEmbeddedClose && (
+              <Button variant="outlined" size="small" color="inherit" onClick={onEmbeddedClose} disabled={saving || loading}>
+                Cerrar
+              </Button>
+            )}
+            {!isMobile && (
+              <Button
+                size="small"
+                onClick={() => setRailFacturaAbierto((prev) => !prev)}
+                sx={{ fontSize: 12, color: '#5b6479', textTransform: 'none', flexShrink: 0 }}
+              >
+                {railFacturaAbierto ? 'Colapsar panel ⇥' : 'Expandir panel ⇤'}
+              </Button>
+            )}
+          </Stack>
+        </Stack>
+
+        {error && (
+          <Alert severity="error" onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
+        {isEdit && estadoAutorizacionDoc && estadoAutorizacionDoc !== 'no_requerida' && (() => {
+          const MAP: Record<string, { label: string; severity: 'warning' | 'success' | 'error' }> = {
+            pendiente: { label: 'Este documento tiene una solicitud de autorización pendiente.', severity: 'warning' },
+            aprobada: { label: 'Documento autorizado. No puede modificarse hasta que la autorización sea cancelada.', severity: 'success' },
+            rechazada: { label: 'La solicitud de autorización fue rechazada.', severity: 'error' },
+          };
+          const cfg = MAP[estadoAutorizacionDoc];
+          if (!cfg) return null;
+          return <Alert severity={cfg.severity}>{cfg.label}</Alert>;
+        })()}
+
+        {isEdit && tieneDerivadosActivos && (
+          <Alert severity="warning">
+            Este documento tiene documentos derivados activos y no puede modificarse. Cancele los documentos derivados primero si necesita
+            hacer cambios.
+          </Alert>
+        )}
+
+        {isEdit && trazabilidadActiva && trazabilidadRol === 'destino' && (
+          <Alert severity="warning">
+            <AlertTitle fontWeight={700}>Documento con trazabilidad activa</AlertTitle>
+            Este documento participa en una cadena de trazabilidad y no puede modificarse directamente.
+            {docTrazabilidad?.tipo_documento ? (
+              <>
+                {' '}
+                Documento relacionado:{' '}
+                <strong>
+                  {getDocumentoTypeConfig(docTrazabilidad.tipo_documento as TipoDocumento)?.label ?? docTrazabilidad.tipo_documento}
+                  {docTrazabilidad.folio ? ` ${docTrazabilidad.folio}` : ''}
+                </strong>
+                .
+              </>
+            ) : null}{' '}
+            Solo las observaciones y la imagen de las partidas pueden editarse directamente aquí.
+          </Alert>
+        )}
+
+        <Box ref={workspaceFacturaRef} sx={{ position: 'relative' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'stretch', pr: isMobile ? 0 : 2 }}>
+            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* ── Encabezado ── */}
+              <Paper variant="outlined" sx={{ borderRadius: 2, p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'flex-end' }}>
+                  <Autocomplete<ContactoAutocompleteOption>
+                    sx={{ flex: '1 1 220px', minWidth: 190 }}
+                    options={contactos}
+                    loading={contactos.length === 0}
+                    getOptionLabel={(option) => option.nombre || ''}
+                    filterOptions={(options, state) => {
+                      const filtered = filterContactoOptions(options, state);
+                      const inputValue = state.inputValue.trim();
+                      if (!inputValue) return filtered;
+                      const normalizedInput = inputValue.toLocaleLowerCase();
+                      const hasExactMatch = options.some((option) => {
+                        if ('kind' in option && option.kind === 'create') return false;
+                        return (option.nombre || '').trim().toLocaleLowerCase() === normalizedInput;
+                      });
+                      if (hasExactMatch) return filtered;
+                      return [{ kind: 'create', id: -1, nombre: `➕ Crear cliente "${inputValue}"`, inputValue }, ...filtered];
+                    }}
+                    isOptionEqualToValue={(option, value) => {
+                      const optionIsCreate = 'kind' in option && option.kind === 'create';
+                      const valueIsCreate = !!value && 'kind' in value && value.kind === 'create';
+                      if (optionIsCreate || valueIsCreate) return optionIsCreate && valueIsCreate && option.id === value.id;
+                      return option?.id === value?.id;
+                    }}
+                    value={contactoSeleccionado}
+                    disabled={lockedContacto || trazabilidadActiva}
+                    onChange={(_, value) => {
+                      if (lockedContacto) return;
+                      if (value && 'kind' in value && value.kind === 'create') {
+                        setCrearClienteOpen(true);
+                        setCrearClienteNombre(value.inputValue);
+                        setCrearClienteTipo(contactoDefaultTipoContacto);
+                        setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
+                        return;
+                      }
+                      handleClienteSelect((value as Contacto | null) ?? null);
+                    }}
+                    renderOption={(props, option) => {
+                      const { key, ...rest } = props;
+                      return (
+                        <li {...rest} key={option.id ?? key}>
+                          {option.nombre || ''}
+                        </li>
+                      );
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...(params as any)}
+                        label={contactoLabel}
+                        required
+                        size="small"
+                        disabled={lockedContacto || trazabilidadActiva}
+                        InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
+                        inputProps={{ ...params.inputProps, style: { fontSize: 12.5 } }}
+                      />
+                    )}
+                  />
+                  <TextField
+                    label="Fecha documento"
+                    type="date"
+                    value={form.fecha_documento}
+                    onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
+                    disabled={lockedFechaDocumento || trazabilidadActiva}
+                    InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
+                    inputProps={{ style: { fontSize: 12.5 } }}
+                    size="small"
+                    sx={{ flex: '0 0 138px' }}
+                  />
+                  {TIPOS_CON_VENCIMIENTO.has(tipoDocumento) && (
+                    <TextField
+                      label="Vencimiento"
+                      type="date"
+                      value={form.fecha_vencimiento ?? ''}
+                      onChange={(e) => {
+                        fechaVencimientoManualRef.current = true;
+                        setForm((prev) => ({ ...prev, fecha_vencimiento: e.target.value || null }));
+                      }}
+                      disabled={trazabilidadActiva}
+                      InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
+                      inputProps={{ style: { fontSize: 12.5 } }}
+                      size="small"
+                      sx={{ flex: '0 0 138px' }}
+                    />
+                  )}
+                  {vendedorVisible && (
+                    <Autocomplete
+                      sx={{ flex: '0 0 116px' }}
+                      options={vendedores}
+                      loading={vendedores.length === 0}
+                      getOptionLabel={(option) => option.nombre || ''}
+                      value={vendedores.find((c) => c.id === form.agente_id) || null}
+                      disabled={trazabilidadActiva}
+                      onChange={(_, value) => setForm((prev) => ({ ...prev, agente_id: value?.id ?? null }))}
+                      renderOption={(props, option) => {
+                        const { key, ...rest } = props;
+                        return (
+                          <li {...rest} key={option.id ?? key}>
+                            {option.nombre || ''}
+                          </li>
+                        );
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...(params as any)}
+                          label="Vendedor"
+                          size="small"
+                          InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
+                          inputProps={{ ...params.inputProps, style: { fontSize: 12.5 } }}
+                        />
+                      )}
+                    />
+                  )}
+                  <TextField
+                    label="Desc. %"
+                    type="number"
+                    value={form.descuento_global ?? 0}
+                    onChange={(e) => handleDescuentoGlobalChange(e.target.value)}
+                    disabled={!usaPartidas || permiteCapturaManualSinPartidas || trazabilidadActiva}
+                    size="small"
+                    InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
+                    inputProps={{ min: 0, max: 100, step: 0.0001, style: { textAlign: 'right', fontSize: 12.5 } }}
+                    sx={{ flex: '0 0 78px' }}
+                  />
+                  {widgetTratamientoFiscal && (
+                    <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                      <Typography sx={{ fontSize: 9.5, color: 'rgba(0,0,0,0.6)', pl: 0.25, lineHeight: 1 }}>Tratamiento</Typography>
+                      <Box sx={{ height: 34, display: 'flex', alignItems: 'center' }}>
+                        <Tooltip title={TRATAMIENTO_OPCIONES.find((opt) => opt.value === (form.tratamiento_impuestos || 'normal'))?.label ?? ''}>
+                          <ButtonBase
+                            onClick={(e) => setTratamientoMenuAnchor(e.currentTarget)}
+                            disabled={trazabilidadActiva}
+                            sx={{
+                              height: 26,
+                              gap: 0.4,
+                              pl: 1.1,
+                              pr: 0.6,
+                              borderRadius: 999,
+                              bgcolor: '#eef2ff',
+                              border: '1px solid #c9d2e8',
+                            }}
+                          >
+                            <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#1d2f68', fontFamily: 'monospace' }}>
+                              {TRATAMIENTO_ABREVIATURA[form.tratamiento_impuestos || 'normal']}
+                            </Typography>
+                            <ArrowDropDownIcon sx={{ fontSize: 17, color: '#1d2f68' }} />
+                          </ButtonBase>
+                        </Tooltip>
+                      </Box>
+                      <Menu anchorEl={tratamientoMenuAnchor} open={Boolean(tratamientoMenuAnchor)} onClose={() => setTratamientoMenuAnchor(null)}>
+                        {TRATAMIENTO_OPCIONES.map((opt) => (
+                          <MenuItem
+                            key={opt.value}
+                            selected={(form.tratamiento_impuestos || 'normal') === opt.value}
+                            onClick={() => {
+                              handleTratamientoChange(opt.value);
+                              setTratamientoMenuAnchor(null);
+                            }}
+                            sx={{ gap: 1 }}
+                          >
+                            <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#5b6479', fontFamily: 'monospace', width: 24, flexShrink: 0 }}>
+                              {TRATAMIENTO_ABREVIATURA[opt.value]}
+                            </Typography>
+                            <Typography sx={{ fontSize: 12.5 }}>{opt.label}</Typography>
+                          </MenuItem>
+                        ))}
+                      </Menu>
+                    </Box>
+                  )}
+                  <Tooltip title={encabezadoDetalleAbierto ? 'Ocultar observaciones y campos de empresa' : 'Mostrar observaciones y campos de empresa'}>
+                    <IconButton
+                      size="small"
+                      onClick={() => setEncabezadoDetalleAbierto((prev) => !prev)}
+                      sx={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: encabezadoDetalleAbierto ? '#c9d2e8' : '#d9dde6',
+                        bgcolor: encabezadoDetalleAbierto ? '#eef1f8' : 'transparent',
+                        color: encabezadoDetalleAbierto ? '#1d2f68' : '#5b6479',
+                      }}
+                    >
+                      {encabezadoDetalleAbierto ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+
+                {encabezadoDetalleAbierto && (
+                  <Box sx={{ bgcolor: '#f7f9fc', border: '1px solid #e2e6ee', borderRadius: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#1d2f68' }}>
+                        Detalle del documento
+                      </Typography>
+                      <Box sx={{ flex: 1, height: '1px', bgcolor: '#dde3ee' }} />
+                    </Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'flex-start' }}>
+                      {camposDocumento.campos.map((campo) => {
+                        const parentCatalogId = campo.campo_padre_id
+                          ? valoresCamposDocumento[campo.campo_padre_id]?.catalogo_id ?? null
+                          : null;
+                        const options = camposDocumento.getOptions(campo.id, parentCatalogId ?? null);
+                        const disabled = campo.campo_padre_id ? !parentCatalogId : false;
+                        const valorCampo = valoresCamposDocumento[campo.id];
+                        return (
+                          <Box key={campo.id} sx={{ flex: '0 1 180px', minWidth: 150 }}>
+                            <DynamicFieldControl
+                              campo={campo}
+                              {...(valorCampo ? { value: valorCampo } : {})}
+                              options={options}
+                              loading={Boolean(camposDocumento.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
+                              disabled={disabled}
+                              onChange={(val: CampoValorPayload) => handleValorCampoDocumentoChange({ ...val, campo_id: campo.id })}
+                            />
+                          </Box>
+                        );
+                      })}
+                      <Box sx={{ flex: '1 1 220px', minWidth: 200 }}>
+                        <ObservacionesEncabezadoCampo
+                          label="Observaciones del documento"
+                          value={form.observaciones || ''}
+                          onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
+                        />
+                      </Box>
+                    </Box>
+                  </Box>
+                )}
+              </Paper>
+
+              {/* ── Partidas ── */}
+              {usaPartidas && (
+                <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', flexGrow: 1 }}>
+                  <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #e2e5ec', display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                    <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#1d2f68' }}>Partidas</Typography>
+                    <Box
+                      sx={{
+                        fontSize: 11,
+                        color: '#5b6479',
+                        bgcolor: '#f0f2f6',
+                        px: 1,
+                        borderRadius: 999,
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      {partidas.length}
+                    </Box>
+                    <Box sx={{ flex: 1 }} />
+                    <Tooltip title="Agregar partida">
+                      <span>
+                        <IconButton
+                          onClick={addRow}
+                          disabled={trazabilidadActiva}
+                          size="small"
+                          sx={{
+                            width: 26,
+                            height: 26,
+                            bgcolor: '#1d2f68',
+                            color: '#fff',
+                            boxShadow: '0 1px 3px rgba(29,47,104,0.35)',
+                            '&:hover': { bgcolor: '#162551' },
+                            '&.Mui-disabled': { bgcolor: '#c9d2e8', color: '#fff' },
+                          }}
+                        >
+                          <AddIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Box>
+
+                  {(() => {
+                    const partidasComputadas = partidas.map((partida, index) => {
+                      const productoSeleccionado =
+                        productos.find((p) => p.id === partida.producto_id) ??
+                        (partida.producto_id != null
+                          ? buildProductoDisplayFallback(partida.producto_id, partida.producto_clave, partida.producto_descripcion)
+                          : null);
+                      const impuestosPartida = getPartidaTaxSummary(partida.impuestos ?? []);
+                      const breakdown = getPartidaDiscountBreakdown(partida, form.descuento_global ?? 0);
+                      const expanded = filaFacturaExpandida === index;
+                      return { partida, index, productoSeleccionado, impuestosPartida, breakdown, expanded };
+                    });
+
+                    // Grilla tabular ERP (solo desktop): # · Producto o servicio · Cant. · P. unitario · Desc. · Importe · Impuestos · Total · Acciones
+                    const partidasColsDesktop = '28px minmax(220px,1fr) 84px 104px 96px 104px 112px 108px 92px';
+                    const headerCellSx = {
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase' as const,
+                      color: '#8b93a7',
+                    };
+                    // Celdas editables sin apariencia de TextField: sin borde/label, solo un
+                    // subrayado que aparece en hover y se remarca en foco (accesible vía aria-label).
+                    const cellUnderlineSx = {
+                      '& .MuiInput-underline:before': { borderBottomColor: 'transparent' },
+                      '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#d9dde6' },
+                      '& .MuiInput-underline:after': { borderBottomColor: '#1d2f68' },
+                      width: '100%',
+                    };
+
+                    const renderDetalleExpandido = (
+                      partida: PartidaForm,
+                      index: number,
+                      breakdown: ReturnType<typeof getPartidaDiscountBreakdown>,
+                      impuestosPartida: ReturnType<typeof getPartidaTaxSummary>
+                    ) => (
+                      <Box sx={{ bgcolor: '#fafbfd', borderTop: '1px solid #eef0f4', p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                        <TextField
+                          label="Descripción"
+                          value={partida.descripcion_alterna ?? ''}
+                          onChange={(e) => handleDescripcionChange(index, e.target.value)}
+                          size="small"
+                          fullWidth
+                          InputProps={{ sx: { fontSize: 12.5 } }}
+                          disabled
+                        />
+
+                        {(() => {
+                          // Columnas con ancho máximo (no crecen sin límite): así el
+                          // `justifyContent:'space-between'` de cada fila no deja un
+                          // vacío enorme entre etiqueta y valor al angostar la ventana.
+                          // `justifyContent:'end'` en el grid trata al par como un
+                          // resumen numérico secundario pegado a la derecha del detalle
+                          // (en vez de quedar a la izquierda con un vacío grande a la
+                          // derecha). Solo apilan (1 columna) cuando de verdad no cabe
+                          // una a lado de la otra.
+                          const detalleBoxSx = {
+                            border: '1px solid #eef0f4',
+                            borderRadius: 1,
+                            bgcolor: '#fff',
+                            p: { xs: 0.75, sm: 1 },
+                            display: 'flex' as const,
+                            flexDirection: 'column' as const,
+                            gap: 0.375,
+                          };
+                          const detalleRowSx = { display: 'flex' as const, justifyContent: 'space-between' as const, gap: 0.75 };
+                          return (
+                            <Box
+                              sx={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 280px))',
+                                justifyContent: 'end',
+                                gap: { xs: 0.75, sm: 1 },
+                              }}
+                            >
+                              <Box sx={detalleBoxSx}>
+                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                                  Desglose del subtotal
+                                </Typography>
+                                {[
+                                  { label: 'Precio bruto', value: breakdown.precioBruto },
+                                  { label: 'Desc. partida', value: -breakdown.descuentoPartida },
+                                  { label: 'Subtotal final', value: breakdown.subtotalFinal, strong: true },
+                                ].map((row) => (
+                                  <Box key={row.label} sx={detalleRowSx}>
+                                    <Typography sx={{ fontSize: 12, color: row.strong ? '#0f1626' : '#5b6479', fontWeight: row.strong ? 700 : 400 }}>
+                                      {row.label}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: 12, fontFamily: 'monospace', fontWeight: row.strong ? 700 : 400 }}>
+                                      {formatter.format(row.value)}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+
+                              <Box sx={detalleBoxSx}>
+                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                                  Impuestos de la partida
+                                </Typography>
+                                <Box sx={detalleRowSx}>
+                                  <Typography sx={{ fontSize: 12, color: '#5b6479' }}>IVA trasladado</Typography>
+                                  <Typography sx={{ fontSize: 12, fontFamily: 'monospace' }}>{formatter.format(impuestosPartida.traslados)}</Typography>
+                                </Box>
+                                {impuestosPartida.retenciones > 0 && (
+                                  <Box sx={detalleRowSx}>
+                                    <Typography sx={{ fontSize: 11.5, color: '#9a5b00' }}>Retención</Typography>
+                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: '#9a5b00' }}>
+                                      -{formatter.format(impuestosPartida.retenciones)}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                <Box sx={detalleRowSx}>
+                                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#0f1626' }}>Efecto neto</Typography>
+                                  <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
+                                    {formatter.format(impuestosPartida.traslados - impuestosPartida.retenciones)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Box>
+                          );
+                        })()}
+
+                        {camposPartida.campos.length > 0 && (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                            {camposPartida.campos.map((campo) => {
+                              const parentCatalogId = campo.campo_padre_id
+                                ? valoresCamposPartidas[index]?.[campo.campo_padre_id]?.catalogo_id ?? null
+                                : null;
+                              const options = camposPartida.getOptions(campo.id, parentCatalogId ?? null);
+                              const valorCampo = valoresCamposPartidas[index]?.[campo.id];
+                              const disabled = campo.campo_padre_id ? !parentCatalogId : false;
+                              return (
+                                <Box key={`${campo.id}-${index}`} sx={{ flex: '1 1 200px', minWidth: 160 }}>
+                                  <DynamicFieldControl
+                                    campo={campo}
+                                    {...(valorCampo ? { value: valorCampo } : {})}
+                                    options={options}
+                                    loading={Boolean(camposPartida.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
+                                    disabled={disabled || trazabilidadActiva}
+                                    onChange={(val: CampoValorPayload) => handleValorCampoPartidaChange(index, { ...val, campo_id: campo.id })}
+                                  />
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        )}
+
+                        {/*
+                          Sección de especificaciones: mecanismo NUEVO exclusivamente
+                          (PartidaEspecificacionesEditor + partida.especificaciones[], biblioteca
+                          configurable por empresa vía especificacionesHabilitadas). El propio
+                          componente se auto-oculta cuando la empresa lo tiene deshabilitado y no
+                          hay datos previos; replicamos esa misma condición en el caption para que
+                          nunca quede un título sin contenido debajo.
+                        */}
+                        {(especificacionesHabilitadas || (partida.especificaciones ?? []).length > 0) && (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                              Especificaciones de partida
+                            </Typography>
+                            <PartidaEspecificacionesEditor
+                              productoId={partida.producto_id}
+                              value={partida.especificaciones ?? []}
+                              onChange={(especificaciones) => setPartidaAt(index, (prev) => ({ ...prev, especificaciones }))}
+                              disabled={trazabilidadActiva || !especificacionesHabilitadas}
+                              allowCapture={especificacionesHabilitadas}
+                            />
+                          </Box>
+                        )}
+
+                        {/*
+                          Observaciones de partida: SIEMPRE presente, no configurable. Sin
+                          `producto`: evita el atajo legacy "Usar especificaciones del producto"
+                          (texto libre en Producto.especificaciones, previo al sistema de
+                          biblioteca de especificaciones por partida). La vista clásica conserva
+                          ese atajo; aquí queda como campo simple, sin relación con
+                          especificacionesHabilitadas.
+                        */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                            Observaciones de partida
+                          </Typography>
+                          <PartidaObservacionesEditor
+                            value={partida.observaciones ?? ''}
+                            onChange={(value) => handleObservacionesChange(index, value)}
+                            disabled={trazabilidadActiva}
+                            minHeight={56}
+                            maxHeight={140}
+                            contentFontSize={12.5}
+                            denseToolbar
+                          />
+                        </Box>
+                      </Box>
+                    );
+
+                    return !isMobile ? (
+                      <Box sx={{ overflowX: 'auto' }}>
+                        <Box sx={{ minWidth: 920 }}>
+                          <Box
+                            sx={{
+                              display: 'grid',
+                              gridTemplateColumns: partidasColsDesktop,
+                              columnGap: 1,
+                              alignItems: 'center',
+                              px: 1.5,
+                              py: 0.65,
+                              bgcolor: '#fafbfd',
+                              borderBottom: '1px solid #e2e5ec',
+                            }}
+                          >
+                            <Box />
+                            <Typography sx={headerCellSx}>Producto o servicio</Typography>
+                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Cant.</Typography>
+                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>P. unitario</Typography>
+                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Desc.</Typography>
+                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Importe</Typography>
+                            <Typography sx={{ ...headerCellSx, textAlign: 'right', pr: '14px' }}>Impuestos</Typography>
+                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Total</Typography>
+                            <Box />
+                          </Box>
+
+                          {partidasComputadas.map(({ partida, index, productoSeleccionado, impuestosPartida, breakdown, expanded }) => {
+                            const filaBase = expanded ? '#f7f9fc' : index % 2 === 1 ? '#f4f6f9' : '#fff';
+                            return (
+                            <Box key={index} sx={{ borderBottom: '1px solid #eef0f4' }}>
+                              <Box
+                                sx={{
+                                  display: 'grid',
+                                  gridTemplateColumns: partidasColsDesktop,
+                                  columnGap: 1,
+                                  alignItems: 'center',
+                                  px: 1.5,
+                                  py: 0.4,
+                                  bgcolor: filaBase,
+                                  '&:hover': { bgcolor: expanded ? '#f7f9fc' : '#eef1f4' },
+                                }}
+                              >
+                                <Typography sx={{ fontSize: 11, color: '#a6adbd', fontFamily: 'monospace' }}>
+                                  {String(index + 1).padStart(2, '0')}
+                                </Typography>
+
+                                <Autocomplete<ProductoAutocompleteOption>
+                                  options={productosAutocompleteOptions}
+                                  loading={productos.length === 0}
+                                  getOptionLabel={(option) => option.clave || ''}
+                                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                                  value={productoSeleccionado}
+                                  onChange={(_, value) => {
+                                    if (value && 'kind' in value && value.kind === 'create') {
+                                      setCrearProductoIndex(index);
+                                      setCrearProductoClave('');
+                                      setCrearProductoDescripcion('');
+                                      setCrearProductoTipo(productoDefaultTipoProducto);
+                                      setCrearProductoClaveError(null);
+                                      setCrearProductoOpen(true);
+                                      return;
+                                    }
+                                    handleProductoChange(index, value as Producto | null);
+                                  }}
+                                  filterOptions={(options, state) => {
+                                    const createOption = options.find((option) => 'kind' in option && option.kind === 'create') ?? null;
+                                    const productOptions = options.filter((option): option is Producto => !('kind' in option));
+                                    const filtered = filterProductos(productOptions, state);
+                                    return createOption ? [...filtered, createOption] : filtered;
+                                  }}
+                                  data-product-creation-mode={productoFlowConfig.creationMode}
+                                  data-product-capture-mode={productoFlowConfig.captureMode}
+                                  data-product-default-type={productoFlowConfig.defaultTipoProducto}
+                                  renderOption={(props, option) => (
+                                    <Box
+                                      component="li"
+                                      {...props}
+                                      sx={{
+                                        display: 'grid !important',
+                                        gridTemplateColumns: '140px 1fr',
+                                        columnGap: 2,
+                                        alignItems: 'center',
+                                        fontSize: 12,
+                                        px: 1,
+                                        width: '100%',
+                                      }}
+                                    >
+                                      <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {'kind' in option ? option.clave : option.clave || ''}
+                                      </Typography>
+                                      <Typography component="span" sx={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {'kind' in option ? option.descripcion : option.descripcion || ''}
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                  renderInput={(params) => (
+                                    <TextField
+                                      {...(params as any)}
+                                      variant="standard"
+                                      placeholder="Producto o servicio"
+                                      size="small"
+                                      inputProps={{ ...params.inputProps, style: { fontSize: 12.5 }, 'aria-label': 'Producto o servicio' }}
+                                      sx={cellUnderlineSx}
+                                    />
+                                  )}
+                                  sx={{ width: '100%' }}
+                                  disabled={trazabilidadActiva}
+                                />
+
+                                <TextField
+                                  variant="standard"
+                                  type="text"
+                                  value={
+                                    editingCantidad[index]
+                                      ? cantidadInputs[index] ?? ''
+                                      : Number(partida.cantidad ?? 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })
+                                  }
+                                  onChange={(e) => {
+                                    const raw = e.target.value ?? '';
+                                    setCantidadInputs((prev) => {
+                                      const next = [...prev];
+                                      next[index] = raw;
+                                      return next;
+                                    });
+                                    const numeric = parseFloat(raw);
+                                    handleCantidadPrecioChange(index, 'cantidad', Number.isFinite(numeric) ? String(numeric) : '0');
+                                  }}
+                                  onFocus={() => {
+                                    setEditingCantidad((prev) => {
+                                      const next = [...prev];
+                                      next[index] = true;
+                                      return next;
+                                    });
+                                    setCantidadInputs((prev) => {
+                                      const next = [...prev];
+                                      next[index] = (partida.cantidad ?? '').toString();
+                                      return next;
+                                    });
+                                    requestAnimationFrame(() => {
+                                      cantidadRefs.current[index]?.select();
+                                    });
+                                  }}
+                                  onBlur={() => {
+                                    setEditingCantidad((prev) => {
+                                      const next = [...prev];
+                                      next[index] = false;
+                                      return next;
+                                    });
+                                    setCantidadInputs((prev) => {
+                                      const next = [...prev];
+                                      next[index] = '';
+                                      return next;
+                                    });
+                                  }}
+                                  inputProps={{ style: { textAlign: 'right', fontSize: 12.5 }, 'aria-label': 'Cantidad' }}
+                                  inputRef={(el) => {
+                                    cantidadRefs.current[index] = el;
+                                  }}
+                                  disabled={trazabilidadActiva}
+                                  sx={cellUnderlineSx}
+                                />
+
+                                <TextField
+                                  variant="standard"
+                                  type="text"
+                                  value={editingPrecio[index] ? precioInputs[index] ?? '' : formatter.format(partida.precio_unitario ?? 0)}
+                                  onChange={(e) => {
+                                    const raw = e.target.value ?? '';
+                                    setPrecioInputs((prev) => {
+                                      const next = [...prev];
+                                      next[index] = raw;
+                                      return next;
+                                    });
+                                    const numeric = parseFloat(raw.replace(/[^0-9.,-]/g, '').replace(',', '.'));
+                                    handleCantidadPrecioChange(index, 'precio_unitario', Number.isFinite(numeric) ? String(numeric) : '0');
+                                  }}
+                                  onFocus={() => {
+                                    setEditingPrecio((prev) => {
+                                      const next = [...prev];
+                                      next[index] = true;
+                                      return next;
+                                    });
+                                    setPrecioInputs((prev) => {
+                                      const next = [...prev];
+                                      next[index] = (partida.precio_unitario ?? '').toString();
+                                      return next;
+                                    });
+                                    requestAnimationFrame(() => {
+                                      precioRefs.current[index]?.select();
+                                    });
+                                  }}
+                                  onBlur={() => {
+                                    setEditingPrecio((prev) => {
+                                      const next = [...prev];
+                                      next[index] = false;
+                                      return next;
+                                    });
+                                    setPrecioInputs((prev) => {
+                                      const next = [...prev];
+                                      next[index] = '';
+                                      return next;
+                                    });
+                                  }}
+                                  inputProps={{ style: { textAlign: 'right', fontSize: 12.5 }, 'aria-label': 'Precio unitario' }}
+                                  inputRef={(el) => {
+                                    precioRefs.current[index] = el;
+                                  }}
+                                  disabled={trazabilidadActiva}
+                                  sx={cellUnderlineSx}
+                                />
+
+                                <TextField
+                                  variant="standard"
+                                  type="number"
+                                  value={esDescuentoPartidaPorMonto(partida) ? (partida.descuento_monto ?? 0) : (partida.descuento ?? 0)}
+                                  onChange={(e) =>
+                                    handleCantidadPrecioChange(
+                                      index,
+                                      esDescuentoPartidaPorMonto(partida) ? 'descuento_monto' : 'descuento',
+                                      e.target.value
+                                    )
+                                  }
+                                  InputProps={{
+                                    startAdornment: (
+                                      <InputAdornment position="start" sx={{ mr: 0.25 }}>
+                                        <ButtonBase
+                                          onClick={() =>
+                                            handleDescuentoTipoPartidaChange(index, esDescuentoPartidaPorMonto(partida) ? 'porcentaje' : 'monto')
+                                          }
+                                          disabled={trazabilidadActiva}
+                                          title="Cambiar tipo de descuento"
+                                          sx={{ fontSize: 11, fontWeight: 700, px: 0.5, py: 0.1, borderRadius: 0.5, color: '#1d2f68', bgcolor: '#eef2ff' }}
+                                        >
+                                          {esDescuentoPartidaPorMonto(partida) ? '$' : '%'}
+                                        </ButtonBase>
+                                      </InputAdornment>
+                                    ),
+                                  }}
+                                  inputProps={{
+                                    min: 0,
+                                    max: esDescuentoPartidaPorMonto(partida) ? undefined : 100,
+                                    step: 0.01,
+                                    style: { textAlign: 'right', fontSize: 12.5 },
+                                    'aria-label': 'Descuento',
+                                  }}
+                                  disabled={trazabilidadActiva}
+                                  sx={cellUnderlineSx}
+                                />
+
+                                <Tooltip
+                                  arrow
+                                  placement="top"
+                                  title={
+                                    <Box sx={{ py: 0.25 }}>
+                                      <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.5 }}>Desglose del subtotal</Typography>
+                                      <Typography sx={{ fontSize: 12 }}>Precio bruto: {formatter.format(breakdown.precioBruto)}</Typography>
+                                      <Typography sx={{ fontSize: 12 }}>Desc. partida: -{formatter.format(breakdown.descuentoPartida)}</Typography>
+                                      <Typography sx={{ fontSize: 12 }}>Subtotal intermedio: {formatter.format(breakdown.subtotalIntermedio)}</Typography>
+                                      <Typography sx={{ fontSize: 12 }}>Desc. global: -{formatter.format(breakdown.descuentoGlobalMonto)}</Typography>
+                                      <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Subtotal final: {formatter.format(breakdown.subtotalFinal)}</Typography>
+                                    </Box>
+                                  }
+                                >
+                                  <Typography
+                                    sx={{
+                                      fontSize: 12.5,
+                                      fontFamily: 'monospace',
+                                      fontVariantNumeric: 'tabular-nums',
+                                      textAlign: 'right',
+                                      cursor: 'help',
+                                      textDecoration: 'underline',
+                                      textDecorationStyle: 'dotted',
+                                      textDecorationColor: '#c9d2e8',
+                                      textUnderlineOffset: '3px',
+                                    }}
+                                  >
+                                    {formatter.format(partida.subtotal_partida ?? 0)}
+                                  </Typography>
+                                </Tooltip>
+
+                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 14px', alignItems: 'center' }}>
+                                  <Typography sx={{ fontSize: 12.5, textAlign: 'right', fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+                                    {formatter.format(impuestosPartida.traslados)}
+                                  </Typography>
+                                  {impuestosPartida.retenciones > 0 && (
+                                    <Tooltip title={`Incluye retención de ${formatter.format(impuestosPartida.retenciones)}`}>
+                                      <Typography sx={{ fontSize: 16, lineHeight: 0, textAlign: 'center', color: '#c8a25a' }}>·</Typography>
+                                    </Tooltip>
+                                  )}
+                                </Box>
+
+                                <Typography
+                                  sx={{
+                                    fontSize: 13.5,
+                                    fontWeight: 800,
+                                    color: '#0f1626',
+                                    textAlign: 'right',
+                                    fontFamily: 'monospace',
+                                    fontVariantNumeric: 'tabular-nums',
+                                  }}
+                                >
+                                  {formatter.format(partida.total_partida ?? 0)}
+                                </Typography>
+
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
+                                  {partidasMostrarImagenes && (
+                                    <Tooltip
+                                      title={
+                                        partida.archivo_imagen_1
+                                          ? 'Imagen personalizada'
+                                          : partida.producto_archivo_id
+                                            ? 'Imagen del producto'
+                                            : 'Agregar imagen'
+                                      }
+                                    >
+                                      <span>
+                                        <IconButton
+                                          size="small"
+                                          aria-label="Imagen de partida"
+                                          onClick={() => abrirImagenDialog(index)}
+                                          disabled={Boolean(uploadingImagen[index])}
+                                          sx={{ color: partida.archivo_imagen_1 ? '#2e7d32' : partida.producto_archivo_id ? '#1565c0' : '#6b7280', p: 0.5 }}
+                                        >
+                                          {uploadingImagen[index] ? <CircularProgress size={16} /> : <PhotoCameraOutlinedIcon fontSize="small" />}
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                  )}
+                                  {partidasMostrarImagenes && (
+                                    <Box sx={{ width: '1px', height: 16, bgcolor: '#e2e5ec', mx: 0.25, flexShrink: 0 }} />
+                                  )}
+                                  <Tooltip title={expanded ? 'Ocultar detalles de partida' : 'Ver detalles de partida'}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => setFilaFacturaExpandida(expanded ? null : index)}
+                                      aria-label={expanded ? 'Ocultar detalles de partida' : 'Ver detalles de partida'}
+                                      sx={{
+                                        p: 0.5,
+                                        color: expanded ? '#1d2f68' : '#5b6479',
+                                        bgcolor: expanded ? '#eef1f8' : 'transparent',
+                                        border: '1px solid',
+                                        borderColor: expanded ? '#c9d2e8' : '#d9dde6',
+                                        borderRadius: 1,
+                                        '&:hover': { borderColor: '#1d2f68', color: '#1d2f68', bgcolor: '#f7f9fc' },
+                                      }}
+                                    >
+                                      {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                    </IconButton>
+                                  </Tooltip>
+                                  <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small" disabled={trazabilidadActiva} sx={{ p: 0.5 }}>
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              </Box>
+
+                              {expanded && renderDetalleExpandido(partida, index, breakdown, impuestosPartida)}
+                            </Box>
+                            );
+                          })}
+
+                          <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                            <IconButton
+                              onClick={addRow}
+                              disabled={trazabilidadActiva}
+                              size="small"
+                              sx={{
+                                width: 26,
+                                height: 26,
+                                bgcolor: '#1d2f68',
+                                color: '#fff',
+                                boxShadow: '0 1px 3px rgba(29,47,104,0.35)',
+                                '&:hover': { bgcolor: '#162551' },
+                                '&.Mui-disabled': { bgcolor: '#c9d2e8', color: '#fff' },
+                              }}
+                            >
+                              <AddIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                            <Typography sx={{ fontSize: 12, color: '#8b93a7' }}>Agregar partida</Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                    ) : (
+                      <Stack sx={{ p: 1.25, gap: 1 }}>
+                        {partidasComputadas.map(({ partida, index, productoSeleccionado, impuestosPartida, breakdown, expanded }) => (
+                          <Paper
+                            key={index}
+                            variant="outlined"
+                            sx={{
+                              borderRadius: 1.5,
+                              borderColor: expanded ? '#1d2f68' : '#e2e5ec',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, p: 1.25 }}>
+                              <Typography sx={{ fontSize: 11, color: '#a6adbd', fontFamily: 'monospace', flex: '0 0 20px' }}>
+                                {String(index + 1).padStart(2, '0')}
+                              </Typography>
+
+                              <Autocomplete<ProductoAutocompleteOption>
+                                options={productosAutocompleteOptions}
+                                loading={productos.length === 0}
+                                getOptionLabel={(option) => option.clave || ''}
+                                isOptionEqualToValue={(option, value) => option.id === value.id}
+                                value={productoSeleccionado}
+                                onChange={(_, value) => {
+                                  if (value && 'kind' in value && value.kind === 'create') {
+                                    setCrearProductoIndex(index);
+                                    setCrearProductoClave('');
+                                    setCrearProductoDescripcion('');
+                                    setCrearProductoTipo(productoDefaultTipoProducto);
+                                    setCrearProductoClaveError(null);
+                                    setCrearProductoOpen(true);
+                                    return;
+                                  }
+                                  handleProductoChange(index, value as Producto | null);
+                                }}
+                                filterOptions={(options, state) => {
+                                  const createOption = options.find((option) => 'kind' in option && option.kind === 'create') ?? null;
+                                  const productOptions = options.filter((option): option is Producto => !('kind' in option));
+                                  const filtered = filterProductos(productOptions, state);
+                                  return createOption ? [...filtered, createOption] : filtered;
+                                }}
+                                data-product-creation-mode={productoFlowConfig.creationMode}
+                                data-product-capture-mode={productoFlowConfig.captureMode}
+                                data-product-default-type={productoFlowConfig.defaultTipoProducto}
+                                renderOption={(props, option) => (
+                                  <Box
+                                    component="li"
+                                    {...props}
+                                    sx={{
+                                      display: 'grid !important',
+                                      gridTemplateColumns: '140px 1fr',
+                                      columnGap: 2,
+                                      alignItems: 'center',
+                                      fontSize: 12,
+                                      px: 1,
+                                      width: '100%',
+                                    }}
+                                  >
+                                    <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {'kind' in option ? option.clave : option.clave || ''}
+                                    </Typography>
+                                    <Typography component="span" sx={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {'kind' in option ? option.descripcion : option.descripcion || ''}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                renderInput={(params) => (
+                                  <TextField
+                                    {...(params as any)}
+                                    label="Producto"
+                                    size="small"
+                                    InputLabelProps={{ sx: { fontSize: 12.5 } }}
+                                    inputProps={{ ...params.inputProps, style: { fontSize: 12.5 } }}
+                                  />
+                                )}
+                                sx={{ flex: '1 1 200px', minWidth: 180 }}
+                                disabled={trazabilidadActiva}
+                              />
+
+                              <TextField
+                                label="Cant."
+                                type="text"
+                                value={
+                                  editingCantidad[index]
+                                    ? cantidadInputs[index] ?? ''
+                                    : Number(partida.cantidad ?? 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })
+                                }
+                                onChange={(e) => {
+                                  const raw = e.target.value ?? '';
+                                  setCantidadInputs((prev) => {
+                                    const next = [...prev];
+                                    next[index] = raw;
+                                    return next;
+                                  });
+                                  const numeric = parseFloat(raw);
+                                  handleCantidadPrecioChange(index, 'cantidad', Number.isFinite(numeric) ? String(numeric) : '0');
+                                }}
+                                onFocus={() => {
+                                  setEditingCantidad((prev) => {
+                                    const next = [...prev];
+                                    next[index] = true;
+                                    return next;
+                                  });
+                                  setCantidadInputs((prev) => {
+                                    const next = [...prev];
+                                    next[index] = (partida.cantidad ?? '').toString();
+                                    return next;
+                                  });
+                                  requestAnimationFrame(() => {
+                                    cantidadRefs.current[index]?.select();
+                                  });
+                                }}
+                                onBlur={() => {
+                                  setEditingCantidad((prev) => {
+                                    const next = [...prev];
+                                    next[index] = false;
+                                    return next;
+                                  });
+                                  setCantidadInputs((prev) => {
+                                    const next = [...prev];
+                                    next[index] = '';
+                                    return next;
+                                  });
+                                }}
+                                size="small"
+                                inputProps={{ style: { textAlign: 'right', fontSize: 12.5 } }}
+                                inputRef={(el) => {
+                                  cantidadRefs.current[index] = el;
+                                }}
+                                disabled={trazabilidadActiva}
+                                sx={{ flex: '0 1 80px', minWidth: 72 }}
+                              />
+
+                              <TextField
+                                label="Precio"
+                                type="text"
+                                value={editingPrecio[index] ? precioInputs[index] ?? '' : formatter.format(partida.precio_unitario ?? 0)}
+                                onChange={(e) => {
+                                  const raw = e.target.value ?? '';
+                                  setPrecioInputs((prev) => {
+                                    const next = [...prev];
+                                    next[index] = raw;
+                                    return next;
+                                  });
+                                  const numeric = parseFloat(raw.replace(/[^0-9.,-]/g, '').replace(',', '.'));
+                                  handleCantidadPrecioChange(index, 'precio_unitario', Number.isFinite(numeric) ? String(numeric) : '0');
+                                }}
+                                onFocus={() => {
+                                  setEditingPrecio((prev) => {
+                                    const next = [...prev];
+                                    next[index] = true;
+                                    return next;
+                                  });
+                                  setPrecioInputs((prev) => {
+                                    const next = [...prev];
+                                    next[index] = (partida.precio_unitario ?? '').toString();
+                                    return next;
+                                  });
+                                  requestAnimationFrame(() => {
+                                    precioRefs.current[index]?.select();
+                                  });
+                                }}
+                                onBlur={() => {
+                                  setEditingPrecio((prev) => {
+                                    const next = [...prev];
+                                    next[index] = false;
+                                    return next;
+                                  });
+                                  setPrecioInputs((prev) => {
+                                    const next = [...prev];
+                                    next[index] = '';
+                                    return next;
+                                  });
+                                }}
+                                size="small"
+                                inputProps={{ style: { textAlign: 'right', fontSize: 12.5 } }}
+                                inputRef={(el) => {
+                                  precioRefs.current[index] = el;
+                                }}
+                                disabled={trazabilidadActiva}
+                                sx={{ flex: '0 1 100px', minWidth: 88 }}
+                              />
+
+                              <TextField
+                                label={esDescuentoPartidaPorMonto(partida) ? 'Desc. $' : '% Desc.'}
+                                type="number"
+                                value={esDescuentoPartidaPorMonto(partida) ? (partida.descuento_monto ?? 0) : (partida.descuento ?? 0)}
+                                onChange={(e) =>
+                                  handleCantidadPrecioChange(
+                                    index,
+                                    esDescuentoPartidaPorMonto(partida) ? 'descuento_monto' : 'descuento',
+                                    e.target.value
+                                  )
+                                }
+                                size="small"
+                                InputProps={{
+                                  startAdornment: (
+                                    <InputAdornment position="start" sx={{ mr: 0.25 }}>
+                                      <ButtonBase
+                                        onClick={() =>
+                                          handleDescuentoTipoPartidaChange(index, esDescuentoPartidaPorMonto(partida) ? 'porcentaje' : 'monto')
+                                        }
+                                        disabled={trazabilidadActiva}
+                                        title="Cambiar tipo de descuento"
+                                        sx={{ fontSize: 11.5, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: '#1d2f68', bgcolor: '#eef2ff' }}
+                                      >
+                                        {esDescuentoPartidaPorMonto(partida) ? '$' : '%'}
+                                      </ButtonBase>
+                                    </InputAdornment>
+                                  ),
+                                }}
+                                inputProps={{ min: 0, max: esDescuentoPartidaPorMonto(partida) ? undefined : 100, step: 0.01, style: { textAlign: 'right', fontSize: 12.5 } }}
+                                disabled={trazabilidadActiva}
+                                sx={{ flex: '0 1 96px', minWidth: 88 }}
+                              />
+
+                              <Tooltip
+                                arrow
+                                placement="top"
+                                title={
+                                  <Box sx={{ py: 0.25 }}>
+                                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.5 }}>Desglose del subtotal</Typography>
+                                    <Typography sx={{ fontSize: 12 }}>Precio bruto: {formatter.format(breakdown.precioBruto)}</Typography>
+                                    <Typography sx={{ fontSize: 12 }}>Desc. partida: -{formatter.format(breakdown.descuentoPartida)}</Typography>
+                                    <Typography sx={{ fontSize: 12 }}>Subtotal intermedio: {formatter.format(breakdown.subtotalIntermedio)}</Typography>
+                                    <Typography sx={{ fontSize: 12 }}>Desc. global: -{formatter.format(breakdown.descuentoGlobalMonto)}</Typography>
+                                    <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Subtotal final: {formatter.format(breakdown.subtotalFinal)}</Typography>
+                                  </Box>
+                                }
+                              >
+                                <TextField
+                                  label="Subtotal"
+                                  value={formatter.format(partida.subtotal_partida ?? 0)}
+                                  InputProps={{ readOnly: true, sx: { fontSize: 12.5 }, style: { textAlign: 'right' } }}
+                                  size="small"
+                                  sx={{ flex: '0 1 100px', minWidth: 88 }}
+                                />
+                              </Tooltip>
+
+                              <Box sx={{ flex: '0 1 96px', minWidth: 88, display: 'flex', flexDirection: 'column' }}>
+                                <Typography sx={{ fontSize: 10, color: '#8b93a7' }}>Impuestos</Typography>
+                                <Typography sx={{ fontSize: 12.5, fontFamily: 'monospace', textAlign: 'right' }}>
+                                  {formatter.format(impuestosPartida.traslados)}
+                                </Typography>
+                                {impuestosPartida.retenciones > 0 && (
+                                  <Typography sx={{ fontSize: 10.5, color: '#9a5b00', textAlign: 'right' }}>
+                                    ret -{formatter.format(impuestosPartida.retenciones)}
+                                  </Typography>
+                                )}
+                              </Box>
+
+                              <Typography sx={{ flex: '0 1 100px', minWidth: 88, fontSize: 13.5, fontWeight: 700, textAlign: 'right', fontFamily: 'monospace' }}>
+                                {formatter.format(partida.total_partida ?? 0)}
+                              </Typography>
+
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, ml: 'auto' }}>
+                                {partidasMostrarImagenes && (
+                                  <Tooltip
+                                    title={
+                                      partida.archivo_imagen_1
+                                        ? 'Imagen personalizada'
+                                        : partida.producto_archivo_id
+                                          ? 'Imagen del producto'
+                                          : 'Agregar imagen'
+                                    }
+                                  >
+                                    <span>
+                                      <IconButton
+                                        size="small"
+                                        aria-label="Imagen de partida"
+                                        onClick={() => abrirImagenDialog(index)}
+                                        disabled={Boolean(uploadingImagen[index])}
+                                        sx={{ color: partida.archivo_imagen_1 ? '#2e7d32' : partida.producto_archivo_id ? '#1565c0' : '#6b7280' }}
+                                      >
+                                        {uploadingImagen[index] ? <CircularProgress size={16} /> : <PhotoCameraOutlinedIcon fontSize="small" />}
+                                      </IconButton>
+                                    </span>
+                                  </Tooltip>
+                                )}
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setFilaFacturaExpandida(expanded ? null : index)}
+                                  aria-label="Detalle de partida"
+                                  color={expanded ? 'primary' : 'default'}
+                                >
+                                  {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                </IconButton>
+                                <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small" disabled={trazabilidadActiva}>
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Box>
+                            </Box>
+
+                            {expanded && renderDetalleExpandido(partida, index, breakdown, impuestosPartida)}
+                          </Paper>
+                        ))}
+                      </Stack>
+                    );
+                  })()}
+                </Paper>
+              )}
+            </Box>
+
+            {!isMobile && railFacturaAbierto && (
+              <Box sx={{ width: 340, flexShrink: 0, alignSelf: 'flex-start', position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {railContenido}
+
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                  <Tooltip title="Volver">
+                    <span>
+                      <IconButton
+                        onClick={() => void handleNavigateBack()}
+                        disabled={saving}
+                        aria-label="Volver"
+                        sx={{ border: '1px solid rgba(29,47,104,0.5)', color: '#1d2f68', borderRadius: 1 }}
+                      >
+                        <ArrowBackIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={saving ? 'Guardando...' : 'Guardar factura'}>
+                    <span>
+                      <IconButton
+                        onClick={handleSave}
+                        disabled={saving || loading || tieneDerivadosActivos}
+                        aria-label="Guardar factura"
+                        sx={{ bgcolor: '#1d2f68', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: '#162551' }, '&.Mui-disabled': { bgcolor: '#c9d2e8', color: '#fff' } }}
+                      >
+                        {saving ? <CircularProgress size={18} color="inherit" /> : <CheckIcon fontSize="small" />}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+              </Box>
+            )}
+          </Box>
+
+          {!isMobile && !railFacturaAbierto && (
+            <FacturaResumenFlotante
+              containerRef={workspaceFacturaRef}
+              position={floatFacturaPos}
+              onPositionChange={setFloatFacturaPos}
+              onReset={() => setFloatFacturaPos(null)}
+              onExpandRail={() => setRailFacturaAbierto(true)}
+              subtotal={resumenFinanciero.subtotalNeto}
+              iva={resumenFinanciero.iva}
+              retenciones={resumenFinanciero.retenciones}
+              total={resumenFinanciero.total}
+              ocultarIva={ocultarIvaPorTratamiento}
+              formatCurrency={(value) => formatter.format(value)}
+              fiscalCompleto={fiscalCompleto}
+              fiscalLabel={fiscalLabel}
+              onBack={() => void handleNavigateBack()}
+              onSave={handleSave}
+              saving={saving}
+              saveDisabled={saving || loading || tieneDerivadosActivos}
+            />
+          )}
+
+          {isMobile && (
+            <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {railContenido}
+            </Box>
+          )}
+        </Box>
+
+        {isMobile && <MobileSaveFab loading={saving} disabled={saving || loading || tieneDerivadosActivos} onClick={handleSave} />}
+
+        {dialogosFactura}
+      </Box>
+    );
+  };
+
+  if (tipoDocumento === 'factura' && vistaFacturaCaptura === 'nueva') {
+    return renderVistaNueva();
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: mostrarResumenFinancieroStickyVisible ? { xs: 10, sm: 9 } : { xs: 0, sm: 10 } }}>
       {isMobile ? (
@@ -3537,6 +5316,7 @@ export default function DocumentosFormPage({
             display: 'flex',
             alignItems: 'center',
             gap: 1,
+            flexWrap: 'wrap',
             position: 'sticky',
             top: 72,
             zIndex: 2,
@@ -3558,6 +5338,7 @@ export default function DocumentosFormPage({
               {textos.descripcion}
             </Typography>
           </Box>
+          {tipoDocumento === 'factura' && renderVistaFacturaToggle()}
         </Box>
       ) : null}
 
@@ -3586,6 +5367,7 @@ export default function DocumentosFormPage({
               {textos.descripcion}
             </Typography>
           </Box>
+          {tipoDocumento === 'factura' && renderVistaFacturaToggle()}
         </Stack>
         <Stack
           direction="row"
@@ -5044,11 +6826,7 @@ export default function DocumentosFormPage({
                       (partida.producto_id != null
                         ? buildProductoDisplayFallback(partida.producto_id, partida.producto_clave, partida.producto_descripcion)
                         : null);
-                    const ivaPartida = (partida.impuestos ?? []).reduce((acc, imp: any) => {
-                      const monto = Number(imp.monto ?? 0);
-                      const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
-                      return acc + (esRetencion ? -monto : monto);
-                    }, 0);
+                    const impuestosPartida = getPartidaTaxSummary(partida.impuestos ?? []);
                     const breakdown = getPartidaDiscountBreakdown(partida, form.descuento_global ?? 0);
                     const isExpanded = mobileExpandedPartidas[index] ?? false;
 
@@ -5381,9 +7159,15 @@ export default function DocumentosFormPage({
                                         <Box component="span" fontWeight={700}>{formatter.format(partida.subtotal_partida ?? 0)}</Box>
                                       </Typography>
                                       <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-                                        <Box component="span" color="text.secondary">IVA</Box>
-                                        <Box component="span" fontWeight={700}>{formatter.format(ivaPartida)}</Box>
+                                        <Box component="span" color="text.secondary">IVA trasladado</Box>
+                                        <Box component="span" fontWeight={700}>{formatter.format(impuestosPartida.traslados)}</Box>
                                       </Typography>
+                                      {impuestosPartida.retenciones > 0 && (
+                                        <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                                          <Box component="span" color="text.secondary">Retenciones</Box>
+                                          <Box component="span" fontWeight={700}>-{formatter.format(impuestosPartida.retenciones)}</Box>
+                                        </Typography>
+                                      )}
                                       <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, color: '#111827' }}>
                                         <Box component="span" color="text.secondary">Total</Box>
                                         <Box component="span" fontWeight={800}>{formatter.format(partida.total_partida ?? 0)}</Box>
@@ -5758,12 +7542,22 @@ export default function DocumentosFormPage({
                           </Tooltip>
 
                           <TextField
-                            label="IVA"
-                            value={formatter.format(ivaPartida)}
+                            label="IVA trasladado"
+                            value={formatter.format(impuestosPartida.traslados)}
                             InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
                             size="small"
                             sx={{ flex: '0 1 104px', minWidth: { xs: 'calc(50% - 8px)', sm: 92 } }}
                           />
+
+                          {impuestosPartida.retenciones > 0 && (
+                            <TextField
+                              label="Retenciones"
+                              value={`-${formatter.format(impuestosPartida.retenciones)}`}
+                              InputProps={{ readOnly: true, sx: { fontSize: 13 }, style: { textAlign: 'right' } }}
+                              size="small"
+                              sx={{ flex: '0 1 112px', minWidth: { xs: 'calc(50% - 8px)', sm: 96 } }}
+                            />
+                          )}
 
                           <TextField
                             label="Total"
@@ -6058,7 +7852,10 @@ export default function DocumentosFormPage({
                           { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
                           { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
                           { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
-                          ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
+                          ...(ocultarIvaPorTratamiento ? [] : [
+                            { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
+                            { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+                          ]),
                           { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
                         ].map((item) => (
                           <Paper
@@ -6115,7 +7912,7 @@ export default function DocumentosFormPage({
                   display: 'grid',
                   gridTemplateColumns: {
                     xs: 'repeat(2, minmax(0, 1fr))',
-                    lg: 'repeat(6, minmax(0, 1fr))',
+                    lg: 'repeat(7, minmax(0, 1fr))',
                   },
                   gap: 1,
                 }}
@@ -6125,7 +7922,10 @@ export default function DocumentosFormPage({
                   { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
                   { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
                   { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
-                  ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
+                  ...(ocultarIvaPorTratamiento ? [] : [
+                    { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
+                    { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+                  ]),
                   { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
                 ].map((item) => (
                   <Paper
@@ -6306,7 +8106,10 @@ export default function DocumentosFormPage({
                 ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: '#9a3412' }]
                 : []),
               { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
-              ...(ocultarIvaPorTratamiento ? [] : [{ label: 'IVA', value: resumenFinanciero.iva, tone: '#0f766e' }]),
+              ...(ocultarIvaPorTratamiento ? [] : [
+                { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
+                { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+              ]),
               { label: 'Total', value: resumenFinanciero.total, tone: '#111827', strong: true },
             ].map((item) => (
               <Box

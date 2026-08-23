@@ -1,9 +1,9 @@
 import axios, { AxiosInstance } from 'axios';
-import pool from '../../config/database';
 import type {
   FacturamaConfig,
   FacturamaStampedDocument,
   FacturamaStampResponse,
+  CfdiTimbradoOptions,
 } from './cfdi.types';
 import { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
 import { assertPagoComplementPayload } from './pago-complement.builder';
@@ -18,9 +18,15 @@ import {
   getCfdiStatusPath,
   interpretarEstadoCancelacionFacturama,
 } from './cfdi-cancelacion';
+import {
+  resolveHistoricalPacConfig,
+  resolvePacConfigById,
+  resolvePacConfigForEmpresa,
+  type PacConfigResolved,
+} from './cfdi-pac-config.resolver';
 export { convertXmlCfdiToFacturamaJson } from './convertXmlCfdiToFacturamaJson';
 
-const MISSING_ACTIVE_CONFIG_MESSAGE = 'No existe una configuración PAC activa en core.cfdi_pac_config. Configure Facturama antes de intentar timbrar.';
+const MISSING_ACTIVE_CONFIG_MESSAGE = 'No existe una configuración PAC activa asignada a la empresa.';
 
 function normalizeFacturamaModelState(modelState: any): string[] {
   if (!modelState || typeof modelState !== 'object') return [];
@@ -71,28 +77,10 @@ export class CfdiAcceptedPendingDownloadError extends Error {
   }
 }
 
-async function getActiveDatabaseConfig(): Promise<FacturamaConfig | null> {
-  const { rows } = await pool.query<{
-    base_url: string;
-    username: string;
-    password: string;
-    modo: 'sandbox' | 'produccion';
-    stamp_path: string;
-  }>(
-    `SELECT base_url,
-            username,
-            password,
-            modo,
-            stamp_path
-       FROM core.cfdi_pac_config
-      WHERE activo = TRUE
-      LIMIT 1`
-  );
-
-  const row = rows[0];
-  if (!row) return null;
-
+function toFacturamaConfig(row: PacConfigResolved): FacturamaConfig {
   return {
+    id: Number(row.id),
+    pac: row.pac,
     baseUrl: row.base_url || '',
     username: row.username || '',
     password: row.password || '',
@@ -121,13 +109,29 @@ export class FacturamaClient {
     });
   }
 
-  static async fromDatabaseOrEnv(): Promise<FacturamaClient> {
-    const databaseConfig = await getActiveDatabaseConfig();
-    if (!databaseConfig) {
-      throw new Error(MISSING_ACTIVE_CONFIG_MESSAGE);
-    }
+  static async forEmpresa(empresaId: number): Promise<FacturamaClient> {
+    return new FacturamaClient(toFacturamaConfig(await resolvePacConfigForEmpresa(empresaId)));
+  }
 
-    return new FacturamaClient(databaseConfig);
+  static async forConfigId(configId: number): Promise<FacturamaClient> {
+    return new FacturamaClient(toFacturamaConfig(await resolvePacConfigById(configId)));
+  }
+
+  static async forHistorical(input: {
+    empresaId: number;
+    configId?: number | null;
+    pac?: string | null;
+    modalidad?: string | null;
+  }): Promise<FacturamaClient> {
+    return new FacturamaClient(toFacturamaConfig(await resolveHistoricalPacConfig(input)));
+  }
+
+  get configId(): number {
+    return this.config.id;
+  }
+
+  get pac(): string {
+    return this.config.pac;
   }
 
   private resolveApiLiteBaseUrl(): string {
@@ -203,11 +207,12 @@ export class FacturamaClient {
       documentoId: number;
       serie?: string | null;
       folio?: string | number | null;
-    }
+    },
+    options?: CfdiTimbradoOptions
   ): Promise<FacturamaStampedDocument> {
     let jsonPayload;
     try {
-      jsonPayload = convertXmlCfdiToFacturamaJson(xml);
+      jsonPayload = convertXmlCfdiToFacturamaJson(xml, options);
     } catch (error) {
       const validationError: any = new Error(
         error instanceof Error ? error.message : 'El payload CFDI contiene datos fiscales incompletos.'
@@ -256,6 +261,7 @@ export class FacturamaClient {
               getApiLiteIssuedFilePath('xml', cfdiId),
               this.resolveApiLiteBaseUrl()
             ).toString(),
+            cfdiPacConfigId: this.configId,
           })
         : undefined;
 
@@ -365,6 +371,7 @@ export class FacturamaClient {
             documentoId: context.documentoId,
             proveedorCfdiId: pacId,
             endpoint: getApiLiteIssuedFilePath('xml', pacId),
+            cfdiPacConfigId: this.configId,
           })
         : undefined;
 

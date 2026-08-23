@@ -23,9 +23,12 @@ import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import { useSession } from '../../session/useSession';
 import {
   createCfdiPacConfig,
+  fetchEmpresaCfdiPacAssignment,
   fetchCfdiPacConfigs,
+  updateEmpresaCfdiPacAssignment,
   updateCfdiPacConfig,
   type CfdiPacConfig,
+  type EmpresaCfdiPacAssignment,
 } from '../../services/cfdiPacConfigService';
 
 type CfdiPacCardMode = 'sandbox' | 'produccion';
@@ -62,9 +65,17 @@ function validateConfig(config: CfdiPacConfig): string | null {
 export default function CfdiPacConfigPage() {
   const { session } = useSession();
   const isSuperadmin = Boolean(session.user?.es_superadmin);
+  const empresaActivaId = Number(session.empresaActivaId ?? 0);
+  const empresaActivaNombre = session.empresas.find((empresa) => Number(empresa.id) === empresaActivaId)?.nombre ?? 'Empresa activa';
 
   const [loading, setLoading] = React.useState(true);
   const [pageError, setPageError] = React.useState<string | null>(null);
+  const [configs, setConfigs] = React.useState<CfdiPacConfig[]>([]);
+  const [assignment, setAssignment] = React.useState<EmpresaCfdiPacAssignment | null>(null);
+  const [selectedConfigId, setSelectedConfigId] = React.useState<number | ''>('');
+  const [assignmentSaving, setAssignmentSaving] = React.useState(false);
+  const [assignmentError, setAssignmentError] = React.useState<string | null>(null);
+  const [assignmentSuccess, setAssignmentSuccess] = React.useState<string | null>(null);
   const [form, setForm] = React.useState<FormState>({
     sandbox: buildEmptyConfig('sandbox'),
     produccion: buildEmptyConfig('produccion'),
@@ -78,7 +89,14 @@ export default function CfdiPacConfigPage() {
     setLoading(true);
     setPageError(null);
     try {
-      const data = await fetchCfdiPacConfigs();
+      if (!empresaActivaId) throw new Error('Selecciona una empresa activa para administrar su PAC CFDI.');
+      const [data, currentAssignment] = await Promise.all([
+        fetchCfdiPacConfigs(),
+        fetchEmpresaCfdiPacAssignment(),
+      ]);
+      setConfigs(data);
+      setAssignment(currentAssignment);
+      setSelectedConfigId(currentAssignment?.cfdi_pac_config_id ?? '');
       const sandbox = data.find((item) => item.modo === 'sandbox');
       const produccion = data.find((item) => item.modo === 'produccion');
       const seed = sandbox ?? produccion;
@@ -96,7 +114,7 @@ export default function CfdiPacConfigPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [empresaActivaId]);
 
   React.useEffect(() => {
     if (!isSuperadmin) return;
@@ -186,6 +204,32 @@ export default function CfdiPacConfigPage() {
     }
   };
 
+  const handleSaveAssignment = async () => {
+    if (!selectedConfigId) {
+      setAssignmentError('Selecciona una configuración PAC activa.');
+      return;
+    }
+    setAssignmentSaving(true);
+    setAssignmentError(null);
+    setAssignmentSuccess(null);
+    try {
+      const saved = await updateEmpresaCfdiPacAssignment(Number(selectedConfigId));
+      setAssignment(saved);
+      setSelectedConfigId(saved.cfdi_pac_config_id);
+      setAssignmentSuccess('Configuración PAC asignada a la empresa activa.');
+    } catch (error) {
+      setAssignmentError(error instanceof Error ? error.message : 'No se pudo guardar la asignación PAC.');
+    } finally {
+      setAssignmentSaving(false);
+    }
+  };
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-MX');
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Stack spacing={0.5}>
@@ -193,7 +237,7 @@ export default function CfdiPacConfigPage() {
           Configuración PAC CFDI
         </Typography>
         <Typography variant="body2" color="#4b5563">
-          Administra la configuración global del PAC para sandbox y productivo. Esta pantalla no altera todavía el flujo actual de timbrado.
+          Administra los perfiles PAC reutilizables y asigna el ambiente CFDI correspondiente a cada empresa.
         </Typography>
       </Stack>
 
@@ -204,6 +248,82 @@ export default function CfdiPacConfigPage() {
           <CircularProgress size={30} />
         </Box>
       ) : (
+        <Stack spacing={3}>
+          <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#cbd5e1' }}>
+            <CardContent sx={{ p: 3 }}>
+              <Stack spacing={2.25}>
+                <Stack spacing={0.4}>
+                  <Typography variant="h6" fontWeight={700} color="#1d2f68">
+                    PAC asignado a esta empresa
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {assignment?.empresa_nombre || empresaActivaNombre}
+                  </Typography>
+                </Stack>
+
+                {assignmentError && <Alert severity="error">{assignmentError}</Alert>}
+                {assignmentSuccess && <Alert severity="success">{assignmentSuccess}</Alert>}
+
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(0, 1fr))' }, gap: 2 }}>
+                  {[
+                    ['Proveedor', assignment?.pac || '—'],
+                    ['Ambiente', assignment?.modo === 'produccion' ? 'Producción' : assignment?.modo === 'sandbox' ? 'Sandbox' : '—'],
+                    ['CSD registrado', assignment?.csd_registrado ? 'Sí' : 'No'],
+                    ['Última actualización', formatDate(assignment?.csd_fecha_actualizacion)],
+                  ].map(([label, value]) => (
+                    <Box key={label}>
+                      <Typography variant="caption" color="text.secondary">{label}</Typography>
+                      <Typography variant="body1" fontWeight={700}>{value}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', md: 'flex-start' }}>
+                  <TextField
+                    select
+                    label="Configuración PAC"
+                    value={selectedConfigId}
+                    onChange={(event) => {
+                      setSelectedConfigId(Number(event.target.value));
+                      setAssignmentError(null);
+                      setAssignmentSuccess(null);
+                    }}
+                    size="small"
+                    sx={{ minWidth: { md: 320 } }}
+                  >
+                    {configs.filter((config) => config.activo).map((config) => (
+                      <MenuItem key={config.id} value={config.id}>
+                        {config.pac} — {config.modo === 'produccion' ? 'Producción' : 'Sandbox'}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveRoundedIcon />}
+                    onClick={() => void handleSaveAssignment()}
+                    disabled={assignmentSaving || !selectedConfigId || Number(selectedConfigId) === assignment?.cfdi_pac_config_id}
+                    sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+                  >
+                    {assignmentSaving ? 'Guardando...' : 'Guardar asignación'}
+                  </Button>
+                </Stack>
+
+                <Alert severity="warning">
+                  Cambiar la configuración PAC afectará futuros timbrados, registros de CSD y operaciones fiscales de esta empresa. Los CFDI ya emitidos conservan la configuración con la que fueron procesados.
+                </Alert>
+                {assignment && (
+                  <Alert severity="info">
+                    El CSD se registrará en: <strong>{assignment.pac} — {assignment.modo === 'produccion' ? 'Producción' : 'Sandbox'}</strong>. Cambiar el ambiente no registra el CSD automáticamente.
+                  </Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Stack spacing={0.4}>
+            <Typography variant="h6" fontWeight={700} color="#1d2f68">Perfiles PAC disponibles</Typography>
+            <Typography variant="body2" color="text.secondary">Activo significa que el perfil está disponible para asignarse a una empresa.</Typography>
+          </Stack>
         <Box
           sx={{
             display: 'grid',
@@ -312,7 +432,7 @@ export default function CfdiPacConfigPage() {
                         label="Activo"
                       />
                       <Typography variant="caption" color="#6b7280" sx={{ pl: { xs: 0, sm: 1 } }}>
-                        Al activar esta configuración, cualquier otra configuración PAC activa será desactivada automáticamente.
+                        Activo indica que este perfil está disponible. Sandbox y Producción pueden permanecer activos simultáneamente.
                       </Typography>
                     </Stack>
                     <Button
@@ -330,6 +450,7 @@ export default function CfdiPacConfigPage() {
             );
           })}
         </Box>
+        </Stack>
       )}
     </Box>
   );

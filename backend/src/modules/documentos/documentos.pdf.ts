@@ -61,7 +61,17 @@ type DocumentoCotizacion = {
   total?: number | null;
   subtotal?: number | null;
   iva?: number | null;
+  ieps?: number | null;
+  retencion_iva?: number | null;
+  retencion_isr?: number | null;
   timbre?: TimbreCfdi | null;
+};
+
+type ImpuestoPartidaPdf = {
+  impuesto_id?: string | null;
+  nombre?: string | null;
+  tipo?: string | null;
+  monto?: number | null;
 };
 
 type PartidaCotizacion = {
@@ -77,6 +87,7 @@ type PartidaCotizacion = {
   cantidad?: number | null;
   precio_unitario?: number | null;
   subtotal_partida?: number | null;
+  impuestos?: ImpuestoPartidaPdf[];
 };
 
 type DataCotizacion = {
@@ -607,6 +618,29 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const subtotalBrutoDocumento = partidasConMontos.reduce((acc, partida) => acc + partida.subtotalBruto, 0);
   const subtotalNetoDocumento = Number(documento?.subtotal ?? partidasConMontos.reduce((acc, partida) => acc + partida.subtotalNeto, 0));
   const descuentoTotalDocumento = Math.max(0, subtotalBrutoDocumento - subtotalNetoDocumento);
+  const impuestosDocumento = Array.from((partidas ?? []).reduce((agrupados, partida) => {
+    for (const impuesto of partida.impuestos ?? []) {
+      const tipo = String(impuesto.tipo ?? 'otro').toLowerCase();
+      const id = impuesto.impuesto_id || impuesto.nombre || tipo;
+      const key = `${tipo}:${id}`;
+      const actual = agrupados.get(key);
+      agrupados.set(key, {
+        id,
+        nombre: impuesto.nombre || impuesto.impuesto_id || 'Impuesto',
+        tipo,
+        monto: (actual?.monto ?? 0) + Number(impuesto.monto ?? 0),
+      });
+    }
+    return agrupados;
+  }, new Map<string, { id: string; nombre: string; tipo: string; monto: number }>()).values());
+  const retencionesDocumento = impuestosDocumento
+    .filter((impuesto) => impuesto.tipo === 'retencion')
+    .reduce((total, impuesto) => total + impuesto.monto, 0)
+    || Number(documento?.retencion_iva ?? 0) + Number(documento?.retencion_isr ?? 0);
+  const impuestosAdicionalesDocumento = impuestosDocumento.filter((impuesto) => {
+    const texto = `${impuesto.id} ${impuesto.nombre}`.toLowerCase();
+    return impuesto.tipo !== 'retencion' && !texto.includes('iva');
+  });
   if (estaTimbrado) {
     const qrDatos: DatosQrCfdi = {
       uuid: timbre?.uuid || '',
@@ -1583,7 +1617,13 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         ['Subtotal bruto', subtotalBrutoDocumento],
         ['Descuentos', descuentoTotalDocumento],
         ['Subtotal neto', subtotalNetoDocumento],
-        ...(ocultarIvaPorTratamiento ? [] : [['IVA', documento?.iva] as [string, number | null | undefined]]),
+        ...(ocultarIvaPorTratamiento ? [] : [
+          ['IVA trasladado', documento?.iva] as [string, number | null | undefined],
+          ...(retencionesDocumento > 0
+            ? [['Retenciones', -retencionesDocumento] as [string, number | null | undefined]]
+            : []),
+          ...impuestosAdicionalesDocumento.map((impuesto) => [impuesto.nombre, impuesto.monto] as [string, number]),
+        ]),
         ['Total', documento?.total],
       ];
 
@@ -1606,7 +1646,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
         let hIzq = 0;
         const gapCols = 12;
-        const totalsLabelWidth = 84;
+        const totalsLabelWidth = 96;
         const totalsValueWidth = 90;
         const totalsWidth = totalsLabelWidth + totalsValueWidth;
         const textoWidth = contentWidth - totalsWidth - gapCols;
@@ -1691,7 +1731,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       }
 
       if (esCotizacion || esOrdenServicio) {
-        const totalsLabelWidth = 84;
+        const totalsLabelWidth = 96;
         const totalsValueWidth = 90;
         const rowHeightCompact = 12;
         const totalsPaddingX = 12;
@@ -1904,7 +1944,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       }
 
       const footerY = doc.page.height - footerBottomMargin - footerHeight;
-      doc.y = footerY + 8;
+      if (estaTimbrado) {
+        doc.y = footerY + 8;
+      }
 
       console.log('[PDF DEBUG]', {
         bloque: 'footer:antesRender',
@@ -1915,12 +1957,50 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       });
 
       if (!estaTimbrado) {
-        setFont(true, 11, textColor);
-        doc.text('Estatus: Borrador');
+        const rowHeightCompact = 12;
+        const totalsPaddingX = 12;
+        const totalsPaddingY = 8;
+        const totalsInnerGap = 8;
+        const totalsLabelWidth = 96;
+        const totalsValueWidth = 90;
+        const totalsPanelWidth = totalsPaddingX + totalsLabelWidth + totalsInnerGap + totalsValueWidth;
+        const totalsPanelHeight = totalRows.length * rowHeightCompact + totalsPaddingY * 2;
+        const totalsPanelRightX = startX + columnWidths.reduce((acc, width) => acc + width, 0);
+        const totalsPanelLeftX = totalsPanelRightX - totalsPanelWidth;
+        const requiredHeight = totalsPanelHeight + 28;
+
+        if (doc.y + requiredHeight > pageBottom) {
+          doc.addPage();
+        }
+
+        const panelY = doc.y + 10;
+        doc
+          .roundedRect(totalsPanelLeftX, panelY, totalsPanelWidth, totalsPanelHeight, 5)
+          .fillAndStroke('#f3f4f6', '#e5e7eb');
+
+        let totY = panelY + totalsPaddingY;
+        totalRows.forEach(([label, value]) => {
+          const isTotal = label === 'Total';
+          setFont(isTotal, 9, textColor);
+          const importeX = totalsPanelRightX - totalsValueWidth;
+          const labelRight = importeX - totalsInnerGap;
+          const labelX = labelRight - totalsLabelWidth;
+          doc.text(label.toUpperCase(), labelX, totY, { width: totalsLabelWidth, align: 'right', lineBreak: false });
+          doc.text(formatCurrency(value), importeX, totY, { width: totalsValueWidth, align: 'right', lineBreak: false });
+          totY += rowHeightCompact;
+        });
+
+        setFont(true, 9, mutedText);
+        doc.text('Estatus: Borrador', totalsPanelLeftX, panelY + totalsPanelHeight + 6, {
+          width: totalsPanelWidth,
+          align: 'right',
+          lineBreak: false,
+        });
+        doc.y = panelY + requiredHeight;
       } else {
         const startYTimbrado = doc.y;
         const gapCols = 12;
-        const totalsLabelWidth = 84;
+        const totalsLabelWidth = 96;
         const totalsValueWidth = 90;
         const totalsWidth = totalsLabelWidth + totalsValueWidth;
         const colLeftX = doc.page.margins.left;

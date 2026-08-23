@@ -33,6 +33,7 @@ import type {
 import type { TipoDocumento } from '../../types/documentos.types';
 import { formatearFolioDocumento } from '../../utils/documentos.utils';
 import { getDocumentoTypeConfig, resolveDocumentoTextos } from '../../modules/documentos/documentoTypeConfig';
+import { summarizeDocumentTaxes } from '../../utils/documentTaxSummary';
 
 export const formatDateShort = (value?: string | null) => {
   if (!value) return '—';
@@ -146,6 +147,7 @@ export function useDocumentoDetalleData(
 
 export function ResumenTab({
   documento,
+  partidas,
   formatter,
   tipoDocumento,
   folio,
@@ -154,6 +156,7 @@ export function ResumenTab({
   onReconcile,
 }: {
   documento: any;
+  partidas?: DocumentoDetalleResponse['partidas'];
   formatter: Intl.NumberFormat;
   tipoDocumento: TipoDocumento;
   folio: string;
@@ -163,6 +166,9 @@ export function ResumenTab({
 }) {
   if (!documento) return <EmptyState mensaje="Sin información del documento." />;
 
+  const impuestosResumen = summarizeDocumentTaxes(partidas);
+  const retenciones = impuestosResumen.retenciones || Number(documento.retencion_iva ?? 0) + Number(documento.retencion_isr ?? 0);
+
   const campos: Array<{ label: string; value: React.ReactNode }> = [
     { label: 'Tipo de documento', value: etiquetaTipoDocumento(tipoDocumento) },
     { label: 'Folio', value: folio },
@@ -171,7 +177,17 @@ export function ResumenTab({
     { label: 'Agente', value: documento.agente_nombre || '—' },
     { label: 'Estatus', value: <Chip size="small" label={documento.estatus_documento || '—'} /> },
     { label: 'Subtotal', value: formatter.format(Number(documento.subtotal || 0)) },
-    { label: 'IVA', value: formatter.format(Number(documento.iva || 0)) },
+    { label: 'IVA trasladado', value: formatter.format(Number(documento.iva || 0)) },
+    ...(retenciones > 0 ? [{ label: 'Retenciones', value: `-${formatter.format(retenciones)}` }] : []),
+    ...impuestosResumen.lineas
+      .filter((impuesto) => {
+        const texto = `${impuesto.id} ${impuesto.nombre}`.toLowerCase();
+        return !texto.includes('iva') || !['traslado', 'retencion'].includes(impuesto.tipo);
+      })
+      .map((impuesto) => ({
+        label: impuesto.nombre,
+        value: `${impuesto.tipo === 'retencion' ? '-' : ''}${formatter.format(impuesto.monto)}`,
+      })),
     { label: 'Total', value: formatter.format(Number(documento.total || 0)) },
   ];
 
@@ -282,15 +298,12 @@ export function PartidasTab({ partidas, formatter }: { partidas: DocumentoDetall
             <TableCell sx={headerCellSx}>Unidad</TableCell>
             <TableCell align="right" sx={headerCellSx}>Precio unitario</TableCell>
             <TableCell align="right" sx={headerCellSx}>Descuento</TableCell>
-            <TableCell align="right" sx={headerCellSx}>IVA</TableCell>
+            <TableCell align="right" sx={headerCellSx}>Impuestos</TableCell>
             <TableCell align="right" sx={headerCellSx}>Total</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {partidas.map((partida: any) => {
-            const ivaMonto = Array.isArray(partida.impuestos)
-              ? partida.impuestos.reduce((sum: number, imp: any) => sum + Number(imp.monto || 0), 0)
-              : 0;
             return (
               <TableRow key={partida.id}>
                 <TableCell sx={bodyCellSx}>{partida.producto_clave || '—'}</TableCell>
@@ -315,7 +328,17 @@ export function PartidasTab({ partidas, formatter }: { partidas: DocumentoDetall
                 <TableCell sx={bodyCellSx}>{partida.unidad || '—'}</TableCell>
                 <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(partida.precio_unitario || 0))}</TableCell>
                 <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(partida.descuento || 0))}</TableCell>
-                <TableCell align="right" sx={bodyCellSx}>{formatter.format(ivaMonto)}</TableCell>
+                <TableCell align="right" sx={bodyCellSx}>
+                  {Array.isArray(partida.impuestos) && partida.impuestos.length ? (
+                    <Stack spacing={0.25} alignItems="flex-end">
+                      {partida.impuestos.map((impuesto: any) => (
+                        <Typography key={`${impuesto.tipo}:${impuesto.impuesto_id}`} variant="caption" whiteSpace="nowrap">
+                          {impuesto.nombre || impuesto.impuesto_id}: {String(impuesto.tipo ?? '').toLowerCase() === 'retencion' ? '-' : ''}{formatter.format(Number(impuesto.monto || 0))}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  ) : formatter.format(0)}
+                </TableCell>
                 <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(partida.total_partida || 0))}</TableCell>
               </TableRow>
             );

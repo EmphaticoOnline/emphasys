@@ -69,6 +69,7 @@ import autorizacionesRouter from "./modules/autorizaciones/autorizaciones.routes
 import reportesRouter from "./modules/reportes/reportes.routes";
 import notificacionesRouter from "./modules/notificaciones/notificaciones.routes";
 import compassRouter from "./modules/compass/compass.routes";
+import transporteRouter from "./modules/transporte/transporte.routes";
 import { FRONTEND_BUILD_VERSION } from "./config/version";
 
 const app = express();
@@ -180,6 +181,7 @@ app.use("/api/factura-global", facturaGlobalRouter);
 app.use("/api/reportes", reportesRouter);
 app.use("/api/notificaciones", notificacionesRouter);
 app.use("/api/compass", compassRouter);
+app.use("/api/transporte", transporteRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

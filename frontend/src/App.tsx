@@ -80,8 +80,8 @@ import BalanzaAnaliticaPage from './pages/informes/contabilidad/BalanzaAnalitica
 import EstadoResultadosPage from './pages/informes/contabilidad/EstadoResultadosPage';
 import BalanceGeneralPage from './pages/informes/contabilidad/BalanceGeneralPage';
 import {
-  BandejaView, CalendarioView, CompassLayout, DecisionesView, HoyView, IdeasView,
-  RealFrenteDetailView, RealFrentesView, RevisionSemanalView, TareasView,
+  BandejaView, CalendarioView, CompassLayout, DecisionesView, HistorialRevisionDetalle, HistorialRevisionesView,
+  HoyView, IdeasView, RealFrenteDetailView, RealFrentesView, RevisionSemanalView, TareasView,
 } from './compass/CompassModule';
 import { isCompassHostname } from './routing/appHostname';
 
@@ -105,6 +105,8 @@ export default function App() {
             <Route path="ideas" element={<IdeasView />} />
             <Route path="decisiones" element={<DecisionesView />} />
             <Route path="revision-semanal" element={<RevisionSemanalView />} />
+            <Route path="historial" element={<HistorialRevisionesView />} />
+            <Route path="historial/:semana" element={<HistorialRevisionDetalle />} />
           </Route>
 
           {compassHost ? (

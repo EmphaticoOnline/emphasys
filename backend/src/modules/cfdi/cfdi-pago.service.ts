@@ -622,7 +622,7 @@ export async function timbrarComplementoPago(
         : 'El complemento de pago contiene datos fiscales incompletos y no puede enviarse a Facturama.'
     );
   }
-  const facturama = await FacturamaClient.fromDatabaseOrEnv();
+  const facturama = await FacturamaClient.forEmpresa(empresaId);
 
   let xmlTimbrado: string;
   let response: FacturamaStampResponse;
@@ -664,8 +664,9 @@ export async function timbrarComplementoPago(
           serie_cfdi, folio_cfdi, no_certificado, no_certificado_sat, sello_cfdi, sello_sat,
           cadena_original, xml_timbrado, qr_url,
           estado_sat, rfc_proveedor_certificacion,
-          rfc_emisor, rfc_receptor, total, pac, pac_id, pac_modalidad
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+          rfc_emisor, rfc_receptor, total, pac, pac_id, pac_modalidad,
+          cfdi_pac_config_id
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
         RETURNING *`,
       [
         documentoId,
@@ -686,9 +687,10 @@ export async function timbrarComplementoPago(
         pago.empresa_rfc,
         receptorFiscal.rfc,
         Number(pago.total),
-        'facturama',
+        facturama.pac,
         pacId,
         pacModalidad,
+        facturama.configId,
       ]
     );
     persistido = rows[0];

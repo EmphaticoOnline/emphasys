@@ -10,9 +10,22 @@ interface PartidaObservacionesEditorProps {
   onChange: (html: string) => void;
   producto?: Producto | null;
   disabled?: boolean;
+  minHeight?: number;
+  maxHeight?: number;
+  contentFontSize?: number | string;
+  denseToolbar?: boolean;
 }
 
-export default function PartidaObservacionesEditor({ value, onChange, producto, disabled }: PartidaObservacionesEditorProps) {
+export default function PartidaObservacionesEditor({
+  value,
+  onChange,
+  producto,
+  disabled,
+  minHeight,
+  maxHeight,
+  contentFontSize,
+  denseToolbar,
+}: PartidaObservacionesEditorProps) {
   const editorRef = useRef<RichTextEditorHandle>(null);
 
   const especificaciones = producto?.especificaciones ?? null;
@@ -56,7 +69,10 @@ export default function PartidaObservacionesEditor({ value, onChange, producto, 
         content={value}
         onChange={onChange}
         placeholder="Texto adicional para impresión"
-        minHeight={140}
+        minHeight={minHeight ?? 140}
+        {...(maxHeight !== undefined ? { maxHeight } : {})}
+        {...(contentFontSize !== undefined ? { contentFontSize } : {})}
+        {...(denseToolbar !== undefined ? { denseToolbar } : {})}
       />
     </Stack>
   );

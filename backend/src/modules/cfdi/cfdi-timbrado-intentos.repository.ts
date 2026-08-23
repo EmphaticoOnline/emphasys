@@ -19,15 +19,16 @@ export async function registrarIdAceptado(params: {
   documentoId: number;
   proveedorCfdiId: string;
   endpoint: string;
+  cfdiPacConfigId: number;
 }): Promise<number> {
   const { rows } = await pool.query<{ id: number }>(
     `INSERT INTO public.cfdi_intentos_timbrado
-       (empresa_id, documento_id, proveedor, proveedor_cfdi_id, endpoint, estado)
-     VALUES ($1, $2, 'facturama', $3, $4, 'aceptado_pendiente_descarga')
+       (empresa_id, documento_id, proveedor, proveedor_cfdi_id, endpoint, estado, cfdi_pac_config_id)
+     VALUES ($1, $2, 'facturama', $3, $4, 'aceptado_pendiente_descarga', $5)
      ON CONFLICT (proveedor, proveedor_cfdi_id)
      DO UPDATE SET updated_at = NOW()
      RETURNING id`,
-    [params.empresaId, params.documentoId, params.proveedorCfdiId, params.endpoint]
+    [params.empresaId, params.documentoId, params.proveedorCfdiId, params.endpoint, params.cfdiPacConfigId]
   );
   return rows[0].id;
 }
@@ -63,4 +64,3 @@ export async function actualizarIntentoTimbrado(
     ]
   );
 }
-

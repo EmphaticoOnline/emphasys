@@ -394,7 +394,7 @@ export default function ProductosPage() {
     />
   );
 
-  return <Box sx={{ width: '100%' }}>
+  return <Box sx={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
     {especificacionesHabilitadas && <Box sx={{ px: 3, pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
       <Button variant="outlined" onClick={() => setGlobalSpecsOpen(true)}>Biblioteca global de especificaciones</Button>
     </Box>}

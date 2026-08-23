@@ -98,7 +98,7 @@ import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarComplementoPagoXml, descargarDocumentoPdfEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarComplementoPago, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, getDocumentosPaginados, prevalidarCancelacionDocumento, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento, type PrevalidacionCancelacionDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarComplementoPagoXml, descargarDocumentoPdfEnNavegador, descargarFacturaCfdiEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarComplementoPago, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, getDocumentosPaginados, prevalidarCancelacionDocumento, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento, type PrevalidacionCancelacionDocumento } from '../services/documentosService';
 import { fetchAnticiposDisponiblesDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
@@ -858,6 +858,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     contextMenuRow: contextMenuRow,
     anchorPosition: contextMenuPosition,
     closeContextMenu: closeGridContextMenu,
+    selectRow: selectGridRow,
     openContextMenuForRow,
     rowSlotProps: gridContextMenuRowSlotProps,
   } = useGridContextMenu(rows, {
@@ -2374,6 +2375,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
             <IconButton
               size="small"
               color="primary"
+              aria-label={tipoDocumento === 'factura' ? 'Descargar CFDI' : 'Descargar PDF'}
+              disabled={tipoDocumento === 'factura' && !params.row.cfdi_uuid}
               onClick={(e) => {
                 e.stopPropagation();
                 abrirDocumentoPdfEnNuevaVentana(Number(params.row.id), tipoDocumento)
@@ -2385,15 +2388,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               <PrintIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Descargar PDF">
+          <Tooltip title={tipoDocumento === 'factura' ? 'Descargar CFDI' : 'Descargar PDF'}>
             <IconButton
               size="small"
               color="primary"
               onClick={(e) => {
                 e.stopPropagation();
-                descargarDocumentoPdfEnNavegador(Number(params.row.id), tipoDocumento)
+                (tipoDocumento === 'factura'
+                  ? descargarFacturaCfdiEnNavegador(Number(params.row.id))
+                  : descargarDocumentoPdfEnNavegador(Number(params.row.id), tipoDocumento))
                   .catch((err) => {
-                    setError(err?.message || 'No se pudo descargar el PDF');
+                    setError(err?.message || (tipoDocumento === 'factura' ? 'No se pudo descargar el CFDI' : 'No se pudo descargar el PDF'));
                   });
               }}
             >
@@ -2870,12 +2875,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         },
       },
       {
-        id: 'descargar-pdf',
-        label: 'Descargar PDF',
+        id: tipoDocumento === 'factura' ? 'descargar-cfdi' : 'descargar-pdf',
+        label: tipoDocumento === 'factura' ? 'Descargar CFDI' : 'Descargar PDF',
         icon: <DownloadIcon fontSize="small" />,
+        disabled: tipoDocumento === 'factura' && !contextMenuRow?.cfdi_uuid,
         onClick: () => {
-          descargarDocumentoPdfEnNavegador(rowId, tipoDocumento).catch((err) => {
-            setError(err?.message || 'No se pudo descargar el PDF');
+          const descarga = tipoDocumento === 'factura'
+            ? descargarFacturaCfdiEnNavegador(rowId)
+            : descargarDocumentoPdfEnNavegador(rowId, tipoDocumento);
+          descarga.catch((err) => {
+            setError(err?.message || (tipoDocumento === 'factura' ? 'No se pudo descargar el CFDI' : 'No se pudo descargar el PDF'));
           });
         },
       },
@@ -3727,7 +3736,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         onCreateDocumento={() => navigate(`${basePath}/nuevo`)}
         indicatorsByDocumentId={indicadoresFacturaPorId}
         gridContextMenuActions={gridContextMenuActions}
-        onSelectFactura={openContextMenuForRow}
+        onSelectFactura={selectGridRow}
         formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
         formatDate={formatCivilDate}
         currency={currency}

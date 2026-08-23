@@ -30,7 +30,8 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import ReplayIcon from '@mui/icons-material/Replay';
-import { createEmpresa, deleteEmpresa, fetchEmpresa, fetchEmpresas, registrarEmpresaCsdFacturama, updateEmpresa } from '../../services/empresasService';
+import { createEmpresa, deleteEmpresa, fetchEmpresa, fetchEmpresaCfdiPacAssignmentById, fetchEmpresas, registrarEmpresaCsdFacturama, updateEmpresa } from '../../services/empresasService';
+import type { EmpresaCfdiPacAssignment } from '../../services/cfdiPacConfigService';
 import { buildAssetUrl, fetchEmpresaAsset, uploadEmpresaAsset } from '../../services/empresasAssetsService';
 import type { Empresa, EmpresaPayload } from '../../types/empresa';
 import { apiFetch } from '../../services/apiFetch';
@@ -98,6 +99,8 @@ export default function EmpresasPage() {
   const [csdSubmitting, setCsdSubmitting] = useState(false);
   const [csdError, setCsdError] = useState<string | null>(null);
   const [csdSuccess, setCsdSuccess] = useState<string | null>(null);
+  const [csdAssignment, setCsdAssignment] = useState<EmpresaCfdiPacAssignment | null>(null);
+  const [csdAssignmentLoading, setCsdAssignmentLoading] = useState(false);
 
   const resetLogoState = () => {
     setLogoLoading(false);
@@ -114,6 +117,20 @@ export default function EmpresasPage() {
     setCsdSubmitting(false);
     setCsdError(null);
     setCsdSuccess(null);
+    setCsdAssignment(null);
+    setCsdAssignmentLoading(false);
+  };
+
+  const loadCsdAssignment = async (empresaId: number) => {
+    setCsdAssignmentLoading(true);
+    try {
+      setCsdAssignment(await fetchEmpresaCfdiPacAssignmentById(empresaId));
+    } catch (err) {
+      setCsdAssignment(null);
+      setCsdError(err instanceof Error ? err.message : 'No se pudo consultar el ambiente PAC de la empresa');
+    } finally {
+      setCsdAssignmentLoading(false);
+    }
   };
 
   const tituloDialogo = editId ? 'Editar empresa' : 'Crear empresa';
@@ -162,6 +179,7 @@ export default function EmpresasPage() {
       void loadRegimenesOptions();
     }
     resetCsdState();
+    void loadCsdAssignment(empresa.id);
     setDialogOpen(true);
   };
 
@@ -508,6 +526,7 @@ export default function EmpresasPage() {
       setCsdSuccess('✅ CSD registrado correctamente');
 
       const refreshedEmpresa = await fetchEmpresa(editId);
+      await loadCsdAssignment(editId);
       setForm((prev) => ({ ...prev, ...refreshedEmpresa }));
       loadEmpresas();
 
@@ -767,10 +786,20 @@ export default function EmpresasPage() {
             </Typography>
             <Stack spacing={1} mb={2}>
               <Typography variant="body2" color="text.secondary">
-                Registrado en Facturama: <strong>{form.cfdi_csd_registrado_facturama ? 'Sí' : 'No'}</strong>
+                El CSD se registrará en:{' '}
+                <strong>
+                  {csdAssignmentLoading
+                    ? 'Consultando configuración…'
+                    : csdAssignment
+                      ? `${csdAssignment.pac} — ${csdAssignment.modo === 'produccion' ? 'Producción' : 'Sandbox'}`
+                      : 'Sin configuración PAC asignada'}
+                </strong>
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Fecha última actualización: <strong>{formatFechaCsd(form.cfdi_csd_fecha_actualizacion)}</strong>
+                CSD registrado en este ambiente: <strong>{csdAssignment?.csd_registrado ? 'Sí' : 'No'}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Fecha última actualización: <strong>{formatFechaCsd(csdAssignment?.csd_fecha_actualizacion)}</strong>
               </Typography>
             </Stack>
 
@@ -815,7 +844,7 @@ export default function EmpresasPage() {
               <Button
                 variant="contained"
                 onClick={handleRegistrarCsd}
-                disabled={!editId || csdSubmitting}
+                disabled={!editId || csdSubmitting || !csdAssignment || !csdAssignment.activo}
                 sx={{ textTransform: 'none' }}
               >
                 {csdSubmitting ? 'Registrando...' : 'Registrar CSD en Facturama'}

@@ -238,6 +238,11 @@ export async function descargarDocumentoPdfEnNavegador(id: number, tipo: TipoDoc
   }
 }
 
+export async function descargarFacturaCfdiEnNavegador(id: number): Promise<void> {
+  const { blob, filename } = await apiFetchBlob(`/api/facturas/${id}/cfdi`);
+  triggerBlobDownload(blob, filename || `Factura_${id}.zip`);
+}
+
 export async function abrirDocumentoPdfEnNuevaVentana(id: number, tipo: TipoDocumento): Promise<void> {
   const win = window.open('', '_blank');
 

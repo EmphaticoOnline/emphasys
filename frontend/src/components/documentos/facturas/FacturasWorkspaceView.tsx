@@ -11,7 +11,7 @@
 // DocumentosPage a partir de la fila "activa") y `extraActionsContent`
 // (acciones globales ya armadas). Esta vista sólo decide *dónde* mostrar
 // cada cosa, no *si* está permitida.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -40,8 +40,9 @@ import SwapVertIcon from '@mui/icons-material/SwapVert';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import FolderZipOutlinedIcon from '@mui/icons-material/FolderZipOutlined';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
 import type { DocumentoIndicatorModel } from '../indicadores';
@@ -90,7 +91,7 @@ export interface FacturasWorkspaceViewProps {
 
   indicatorsByDocumentId: Readonly<Record<number, DocumentoIndicatorModel>>;
   gridContextMenuActions: GridContextMenuAction[];
-  onSelectFactura: (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => void;
+  onSelectFactura: (row: CotizacionListado) => void;
 
   formatFolio: (row: CotizacionListado) => string;
   formatDate: (value: unknown) => string;
@@ -159,9 +160,9 @@ export default function FacturasWorkspaceView({
   const [estadoMenuAnchor, setEstadoMenuAnchor] = useState<HTMLElement | null>(null);
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null);
   const [globalMenuAnchor, setGlobalMenuAnchor] = useState<HTMLElement | null>(null);
-  const [documentoMenuAnchor, setDocumentoMenuAnchor] = useState<HTMLElement | null>(null);
   const [enviarMenuAnchor, setEnviarMenuAnchor] = useState<HTMLElement | null>(null);
   const [previewTab, setPreviewTab] = useState(0);
+  const activatedRowIdRef = useRef<number | null>(null);
 
   // Si la fila seleccionada deja de existir (recarga, filtro nuevo), cae a la primera visible.
   useEffect(() => {
@@ -178,12 +179,17 @@ export default function FacturasWorkspaceView({
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
 
   useEffect(() => {
+    if (!selectedRow || activatedRowIdRef.current === selectedRow.id) return;
+    activatedRowIdRef.current = selectedRow.id;
+    onSelectFactura(selectedRow);
+  }, [onSelectFactura, selectedRow]);
+
+  useEffect(() => {
     setPreviewTab(0);
   }, [selectedId]);
 
-  const handleSelect = (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => {
+  const handleSelect = (row: CotizacionListado) => {
     setSelectedId(row.id);
-    onSelectFactura(event, row);
   };
 
   // Se carga siempre (no sólo fuera del tab "Documento"): es un fetch JSON
@@ -334,7 +340,7 @@ export default function FacturasWorkspaceView({
               return (
                 <Box
                   key={row.id}
-                  onClick={(e) => handleSelect(e, row)}
+                  onClick={() => handleSelect(row)}
                   sx={{
                     px: 1.75,
                     py: 0.85,
@@ -417,8 +423,6 @@ export default function FacturasWorkspaceView({
             onPreviewTabChange={setPreviewTab}
             detalle={detalle}
             formatterMXN={formatterMXN}
-            documentoMenuAnchor={documentoMenuAnchor}
-            setDocumentoMenuAnchor={setDocumentoMenuAnchor}
             enviarMenuAnchor={enviarMenuAnchor}
             setEnviarMenuAnchor={setEnviarMenuAnchor}
           />
@@ -445,8 +449,6 @@ function FacturaWorkspacePanel({
   onPreviewTabChange,
   detalle,
   formatterMXN,
-  documentoMenuAnchor,
-  setDocumentoMenuAnchor,
   enviarMenuAnchor,
   setEnviarMenuAnchor,
 }: {
@@ -460,8 +462,6 @@ function FacturaWorkspacePanel({
   onPreviewTabChange: (tab: number) => void;
   detalle: ReturnType<typeof useDocumentoDetalleData>;
   formatterMXN: Intl.NumberFormat;
-  documentoMenuAnchor: HTMLElement | null;
-  setDocumentoMenuAnchor: (el: HTMLElement | null) => void;
   enviarMenuAnchor: HTMLElement | null;
   setEnviarMenuAnchor: (el: HTMLElement | null) => void;
 }) {
@@ -476,7 +476,7 @@ function FacturaWorkspacePanel({
   const cancelarAction = findAction(gridContextMenuActions, 'cancelar-documento');
   const eliminarAction = findAction(gridContextMenuActions, 'eliminar');
   const verPdfAction = findAction(gridContextMenuActions, 'ver-pdf');
-  const descargarPdfAction = findAction(gridContextMenuActions, 'descargar-pdf');
+  const descargarCfdiAction = findAction(gridContextMenuActions, 'descargar-cfdi');
   const enviarCorreoAction = findAction(gridContextMenuActions, 'enviar-correo-factura');
   const enviarWhatsappAction = findAction(gridContextMenuActions, 'enviar-whatsapp');
 
@@ -485,7 +485,7 @@ function FacturaWorkspacePanel({
   // decide cuál mostrar en primer plano.
   let primaryAction: GridContextMenuActionItem | null = null;
   let primaryLabel = '';
-  if (timbrarAction && !timbrarAction.hidden) {
+  if (estatus !== 'timbrado' && timbrarAction && !timbrarAction.hidden) {
     primaryAction = timbrarAction;
     primaryLabel = 'Timbrar CFDI';
   } else if (aplicarPagoAction && !aplicarPagoAction.hidden && saldo > 0) {
@@ -512,12 +512,51 @@ function FacturaWorkspacePanel({
     closeMenu();
     void action?.onClick?.(event);
   };
+  const actionButtonSx = {
+    width: 32,
+    height: 32,
+    color: '#fff',
+    border: '1px solid rgba(255,255,255,0.55)',
+    borderRadius: 1,
+    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
+    '&.Mui-disabled': {
+      color: 'rgba(255,255,255,0.35)',
+      borderColor: 'rgba(255,255,255,0.2)',
+      bgcolor: 'rgba(255,255,255,0.04)',
+    },
+  } as const;
+  const renderActionButton = (
+    action: GridContextMenuActionItem | null,
+    caption: string,
+    options?: { disabled?: boolean; icon?: React.ReactNode }
+  ) => {
+    if (!action || action.hidden) return null;
+    const disabled = Boolean(action.disabled) || Boolean(options?.disabled);
+    return (
+      <Tooltip title={caption} arrow>
+        <span>
+          <IconButton
+            size="small"
+            aria-label={caption}
+            disabled={disabled}
+            onClick={runButtonAction(action)}
+            sx={actionButtonSx}
+          >
+            {options?.icon ?? action.icon}
+          </IconButton>
+        </span>
+      </Tooltip>
+    );
+  };
 
   return (
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, height: 44, flexShrink: 0, bgcolor: 'primary.main', color: '#fff' }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-          <Typography variant="body1" fontWeight={800} noWrap>Factura {row.numero != null ? `${row.serie ?? ''}${row.numero}` : row.id}</Typography>
+          <Typography variant="body1" fontWeight={800} noWrap>
+            Factura {row.numero != null ? `${row.serie ?? ''}${row.numero}` : row.id}{' '}
+            <Box component="span" sx={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>(id interno:{row.id})</Box>
+          </Typography>
           {option ? <Chip label={option.label} size="small" sx={{ height: 20, fontSize: 10.5, ...estatusChipSx(option) }} /> : null}
           {indicators ? (
             <Box sx={{ '& .MuiChip-root, & button': { color: '#fff' } }}>
@@ -538,50 +577,34 @@ function FacturaWorkspacePanel({
         </Stack>
       </Box>
 
-      <Stack
-        direction="row"
-        spacing={0.75}
-        alignItems="center"
-        justifyContent="flex-end"
-        sx={{ px: 2.5, height: 40, flexShrink: 0, bgcolor: 'primary.main', borderBottom: '1px solid rgba(255,255,255,0.16)' }}
-      >
-        {primaryAction ? (
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={Boolean(primaryAction.disabled)}
-            onClick={runButtonAction(primaryAction)}
-            sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.65)', textTransform: 'none', fontWeight: 700, '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' } }}
-          >
-            {primaryLabel}
-          </Button>
-        ) : null}
+      <Box sx={{ display: 'flex', alignItems: 'center', px: 1, minHeight: 40, flexShrink: 0, overflowX: 'auto', bgcolor: 'primary.main', borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 'auto', py: 0.5, minWidth: 'max-content' }}>
+        {primaryAction && primaryAction.id !== 'editar'
+          ? renderActionButton(primaryAction, primaryLabel)
+          : null}
 
-        <Button
-          size="small"
-          variant="outlined"
-          endIcon={<ExpandMoreIcon fontSize="small" />}
-          startIcon={<DescriptionOutlinedIcon fontSize="small" />}
-          onClick={(e) => setDocumentoMenuAnchor(e.currentTarget)}
-          sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.55)', textTransform: 'none' }}
-        >
-          Documento
-        </Button>
-        <Menu anchorEl={documentoMenuAnchor} open={Boolean(documentoMenuAnchor)} onClose={() => setDocumentoMenuAnchor(null)}>
-          {verPdfAction ? <MenuItem onClick={runMenuItemAction(verPdfAction, () => setDocumentoMenuAnchor(null))}>Ver / Imprimir PDF</MenuItem> : null}
-          {descargarPdfAction ? <MenuItem onClick={runMenuItemAction(descargarPdfAction, () => setDocumentoMenuAnchor(null))}>Descargar PDF</MenuItem> : null}
-        </Menu>
+        {renderActionButton(verPdfAction, 'Ver / imprimir PDF', { icon: <PrintOutlinedIcon fontSize="small" /> })}
+        {renderActionButton(descargarCfdiAction, 'Descargar CFDI', {
+          disabled: !row.cfdi_uuid,
+          icon: <FolderZipOutlinedIcon fontSize="small" />,
+        })}
 
-        <Button
-          size="small"
-          variant="outlined"
-          endIcon={<ExpandMoreIcon fontSize="small" />}
-          startIcon={<SendOutlinedIcon fontSize="small" />}
-          onClick={(e) => setEnviarMenuAnchor(e.currentTarget)}
-          sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.55)', textTransform: 'none' }}
-        >
-          Enviar
-        </Button>
+        <Tooltip title="Enviar" arrow>
+          <span>
+            <IconButton
+              size="small"
+              aria-label="Enviar"
+              disabled={
+                (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
+                && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
+              }
+              onClick={(e) => setEnviarMenuAnchor(e.currentTarget)}
+              sx={actionButtonSx}
+            >
+              <SendOutlinedIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
         <Menu anchorEl={enviarMenuAnchor} open={Boolean(enviarMenuAnchor)} onClose={() => setEnviarMenuAnchor(null)}>
           {enviarCorreoAction && !enviarCorreoAction.hidden ? (
             <MenuItem disabled={Boolean(enviarCorreoAction.disabled)} onClick={runMenuItemAction(enviarCorreoAction, () => setEnviarMenuAnchor(null))}>
@@ -595,43 +618,12 @@ function FacturaWorkspacePanel({
           ) : null}
         </Menu>
 
-        {editarAction ? (
-          <Button size="small" variant="outlined" disabled={Boolean(editarAction.disabled)} onClick={runButtonAction(editarAction)}
-            sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.55)', textTransform: 'none' }}>
-            Editar
-          </Button>
-        ) : null}
-
-        {eliminarAction ? (
-          <Tooltip title={facturaEliminable ? '' : 'No disponible: la factura ya está timbrada o tiene pagos aplicados'}>
-            <span>
-              <Button
-                size="small"
-                variant="outlined"
-                disabled={Boolean(eliminarAction.disabled) || !facturaEliminable}
-                onClick={runButtonAction(eliminarAction)}
-                sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.55)', textTransform: 'none', '&.Mui-disabled': { color: 'rgba(255,255,255,0.4)', borderColor: 'rgba(255,255,255,0.25)' } }}
-              >
-                Eliminar
-              </Button>
-            </span>
-          </Tooltip>
-        ) : null}
-
-        {cancelarAction && !cancelarAction.hidden ? (
-          <Button size="small" variant="outlined" disabled={Boolean(cancelarAction.disabled)} onClick={runButtonAction(cancelarAction)}
-            sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.55)', textTransform: 'none' }}>
-            Cancelar
-          </Button>
-        ) : null}
-
-        {contabilizarAction && !contabilizarAction.hidden ? (
-          <Button size="small" variant="outlined" disabled={Boolean(contabilizarAction.disabled)} onClick={runButtonAction(contabilizarAction)}
-            sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.55)', textTransform: 'none' }}>
-            {contabilizarAction.label}
-          </Button>
-        ) : null}
-      </Stack>
+        {renderActionButton(editarAction, 'Editar')}
+        {renderActionButton(eliminarAction, 'Eliminar', { disabled: !facturaEliminable })}
+        {renderActionButton(cancelarAction, 'Cancelar')}
+        {renderActionButton(contabilizarAction, 'Contabilizar factura')}
+        </Stack>
+      </Box>
 
       <Tabs
         value={previewTab}
@@ -660,6 +652,7 @@ function FacturaWorkspacePanel({
         ) : !detalle.data ? null : previewTab === 1 ? (
           <ResumenTab
             documento={detalle.data.documento}
+            partidas={detalle.data.partidas}
             formatter={formatterMXN}
             tipoDocumento={tipoDocumento}
             folio={row.numero != null ? `${row.serie ?? ''}${row.numero}` : String(row.id)}

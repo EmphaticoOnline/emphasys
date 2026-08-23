@@ -675,7 +675,7 @@ export default function SidebarLayout() {
             component="main"
             sx={{
               width: '100%',
-              minHeight: '70vh',
+              minHeight: '100%',
               background: '#fff',
               borderRadius: 2,
               border: '1px solid #e5e7eb',

@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import type { CfdiTimbradoOptions } from './cfdi.types';
 
 export type FacturamaItemTax = {
   Name: string;
@@ -22,6 +23,7 @@ export type FacturamaItem = {
 
 export type FacturamaLiteJson = {
   NameId: string;
+  Complemento?: Record<string, unknown>;
   Folio?: string;
   CfdiType: string;
   ExpeditionPlace: string;
@@ -93,7 +95,10 @@ const mapImpuestoNombre = (impuesto?: string): string => {
  * Convierte un XML CFDI 4.0 (ya generado) al JSON que espera el endpoint Facturama API Lite (POST /api-lite/3/cfdis).
  * Maneja múltiples conceptos y convierte valores numéricos a number.
  */
-export function convertXmlCfdiToFacturamaJson(xml: string): FacturamaLiteJson {
+export function convertXmlCfdiToFacturamaJson(
+  xml: string,
+  options?: CfdiTimbradoOptions
+): FacturamaLiteJson {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '',
@@ -121,21 +126,35 @@ export function convertXmlCfdiToFacturamaJson(xml: string): FacturamaLiteJson {
   const items: FacturamaItem[] = ensureArray(conceptos).map((concepto: any) => {
     const impuestos = concepto['cfdi:Impuestos'] || concepto.Impuestos;
     const traslados = impuestos?.['cfdi:Traslados']?.['cfdi:Traslado'] || impuestos?.Traslados?.Traslado;
+    const retenciones = impuestos?.['cfdi:Retenciones']?.['cfdi:Retencion'] || impuestos?.Retenciones?.Retencion;
     const trasladosArr = ensureArray(traslados);
+    const retencionesArr = ensureArray(retenciones);
 
     const quantity = toNumber(concepto.Cantidad);
     const unitPrice = toNumber(concepto.ValorUnitario);
     const subtotal = quantity * unitPrice;
 
-    const taxes: FacturamaItemTax[] = trasladosArr.map((t: any) => ({
-      Name: mapImpuestoNombre(t.Impuesto),
-      Base: toNumber(t.Base),
-      Rate: toNumber(t.TasaOCuota),
-      Total: toNumber(t.Importe),
-      IsRetention: false,
-    }));
+    const taxes: FacturamaItemTax[] = [
+      ...trasladosArr.map((t: any) => ({
+        Name: mapImpuestoNombre(t.Impuesto),
+        Base: toNumber(t.Base),
+        Rate: toNumber(t.TasaOCuota),
+        Total: toNumber(t.Importe),
+        IsRetention: false,
+      })),
+      ...retencionesArr.map((t: any) => ({
+        Name: mapImpuestoNombre(t.Impuesto),
+        Base: toNumber(t.Base),
+        Rate: toNumber(t.TasaOCuota),
+        Total: toNumber(t.Importe),
+        IsRetention: true,
+      })),
+    ];
 
-    const totalTaxes = taxes.reduce((acc, t) => acc + toNumber(t.Total), 0);
+    const totalTaxes = taxes.reduce(
+      (acc, tax) => acc + (tax.IsRetention ? -toNumber(tax.Total) : toNumber(tax.Total)),
+      0
+    );
     const total = subtotal + totalTaxes;
 
     return {
@@ -152,7 +171,7 @@ export function convertXmlCfdiToFacturamaJson(xml: string): FacturamaLiteJson {
   });
 
   const result: FacturamaLiteJson = {
-    NameId: '1',
+    NameId: options?.nameId ?? '1',
     Folio: comprobante.Folio,
     CfdiType: comprobante.TipoDeComprobante || 'I',
     ExpeditionPlace: requireNonEmptyString(comprobante.LugarExpedicion, 'ExpeditionPlace'),
@@ -172,6 +191,10 @@ export function convertXmlCfdiToFacturamaJson(xml: string): FacturamaLiteJson {
     },
     Items: items,
   };
+
+  if (options?.complemento !== undefined) {
+    result.Complemento = options.complemento;
+  }
 
   if (result.Receiver.Rfc === 'XAXX010101000' && monthStr && yearStr) {
     result.GlobalInformation = {

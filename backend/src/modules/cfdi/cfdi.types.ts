@@ -1,4 +1,5 @@
 import type { AxiosResponse } from 'axios';
+import type { PoolClient } from 'pg';
 
 export type CfdiMoneda = 'MXN' | string;
 
@@ -85,6 +86,16 @@ export interface CfdiBuildOptions {
   globalInformation?: CfdiGlobalInformation;
 }
 
+export interface CfdiTimbradoOptions {
+  nameId?: string;
+  complemento?: Record<string, unknown>;
+}
+
+export interface CfdiTimbradoHooks {
+  validateStampedXml?: (xmlTimbrado: string) => void;
+  persistWithinTransaction?: (client: PoolClient) => Promise<void>;
+}
+
 export interface CfdiBuildResult {
   xml: string;
   subtotal: number;
@@ -108,6 +119,8 @@ export interface TimbreFiscalDigitalData {
 }
 
 export interface FacturamaConfig {
+  id: number;
+  pac: string;
   baseUrl: string;
   username: string;
   password: string;

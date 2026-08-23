@@ -13,6 +13,8 @@ import type {
   CfdiBuildOptions,
   CfdiInvoiceData,
   CfdiPartida,
+  CfdiTimbradoOptions,
+  CfdiTimbradoHooks,
   FacturamaStampResponse,
   TimbradoPersisted,
   TimbrarFacturaResult,
@@ -81,11 +83,21 @@ async function assertDocumentoSinTimbradoPendiente(documentoId: number, empresaI
 export class CfdiService {
   constructor(private readonly builder = new CfdiBuilder()) {}
 
-  async timbrarFactura(documentoId: number, empresaId: number): Promise<TimbrarFacturaResult> {
-    return this.timbrarDocumento(documentoId, empresaId);
+  async timbrarFactura(
+    documentoId: number,
+    empresaId: number,
+    options?: CfdiTimbradoOptions,
+    hooks?: CfdiTimbradoHooks
+  ): Promise<TimbrarFacturaResult> {
+    return this.timbrarDocumento(documentoId, empresaId, options, hooks);
   }
 
-  async timbrarDocumento(documentoId: number, empresaId: number): Promise<TimbrarFacturaResult> {
+  async timbrarDocumento(
+    documentoId: number,
+    empresaId: number,
+    options?: CfdiTimbradoOptions,
+    hooks?: CfdiTimbradoHooks
+  ): Promise<TimbrarFacturaResult> {
     await assertDocumentoSinCancelacionPendiente(documentoId, empresaId);
     await assertDocumentoSinTimbradoPendiente(documentoId, empresaId);
 
@@ -98,19 +110,23 @@ export class CfdiService {
     const buildOptions = await this.resolverBuildOptions(data, empresaId);
     const { xml } = this.builder.build(data, buildOptions);
 
-    const facturama = await FacturamaClient.fromDatabaseOrEnv();
+    const facturama = await FacturamaClient.forEmpresa(empresaId);
 
     let xmlTimbrado: string;
     let response: FacturamaStampResponse;
     let intentoId: number | undefined;
     try {
-      const stamped = await facturama.stampXml(xml, {
-        expectedIssuerRfc: data.empresa.rfc,
-        empresaId,
-        documentoId,
-        serie: data.documento.serie,
-        folio: data.documento.numero,
-      });
+      const stamped = await facturama.stampXml(
+        xml,
+        {
+          expectedIssuerRfc: data.empresa.rfc,
+          empresaId,
+          documentoId,
+          serie: data.documento.serie,
+          folio: data.documento.numero,
+        },
+        options
+      );
       xmlTimbrado = stamped.xmlTimbrado;
       response = stamped.response;
       intentoId = stamped.intentoId;
@@ -123,6 +139,21 @@ export class CfdiService {
 
     if (!xmlTimbrado || !xmlTimbrado.trim()) {
       throw new CfdiValidationError('Facturama no regresó XML timbrado.');
+    }
+
+    if (hooks?.validateStampedXml) {
+      try {
+        hooks.validateStampedXml(xmlTimbrado);
+      } catch (error) {
+        if (intentoId) {
+          await actualizarIntentoTimbrado(intentoId, 'error_validacion', {
+            errorMensaje: error instanceof Error ? error.message : 'XML timbrado inconsistente',
+          });
+        }
+        throw error instanceof CfdiValidationError
+          ? error
+          : new CfdiValidationError(error instanceof Error ? error.message : 'XML timbrado inconsistente.');
+      }
     }
 
     let emisorRecibido;
@@ -191,7 +222,10 @@ export class CfdiService {
       throw new CfdiValidationError('No se encontró UUID del timbre.');
     }
 
-    const persistido = await this.guardarTimbrado(documentoId, empresaId, xmlTimbrado, timbre, response, intentoId);
+    const persistido = await this.guardarTimbrado(
+      documentoId, empresaId, xmlTimbrado, timbre, response,
+      facturama.configId, facturama.pac, intentoId, hooks
+    );
 
     return {
       xmlGenerado: xml,
@@ -487,7 +521,10 @@ export class CfdiService {
     xmlTimbrado: string,
     timbre: TimbreFiscalDigitalData,
     response: FacturamaStampResponse,
-    intentoId?: number
+    cfdiPacConfigId: number,
+    pac: string,
+    intentoId?: number,
+    hooks?: CfdiTimbradoHooks
   ): Promise<TimbradoPersisted> {
     const fechaTimbrado = timbre.fechaTimbrado ? new Date(timbre.fechaTimbrado) : new Date();
 
@@ -537,9 +574,10 @@ export class CfdiService {
       rfcEmisor,
       rfcReceptor,
       totalComprobante,
-      'facturama',
+      pac,
       limpiarPacId((response as any)?.Id),
       limpiarPacId((response as any)?.Id) ? 'lite' : null,
+      cfdiPacConfigId,
     ];
 
     const client = await pool.connect();
@@ -572,8 +610,9 @@ export class CfdiService {
             documento_id, uuid, fecha_timbrado, version_cfdi, serie_cfdi, folio_cfdi,
             no_certificado, no_certificado_sat, sello_cfdi, sello_sat, cadena_original,
             xml_timbrado, qr_url, estado_sat, rfc_proveedor_certificacion,
-            rfc_emisor, rfc_receptor, total, pac, pac_id, pac_modalidad
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+            rfc_emisor, rfc_receptor, total, pac, pac_id, pac_modalidad,
+            cfdi_pac_config_id
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
           RETURNING *`,
         values
       );
@@ -585,6 +624,9 @@ export class CfdiService {
           WHERE id = $1 AND empresa_id = $2`,
         [documentoId, empresaId]
       );
+      if (hooks?.persistWithinTransaction) {
+        await hooks.persistWithinTransaction(client);
+      }
       if (intentoId) {
         await actualizarIntentoTimbrado(intentoId, 'persistido', { uuid: timbre.uuid }, client);
       }

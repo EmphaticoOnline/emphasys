@@ -4,6 +4,8 @@ import {
   crearCfdiPacConfig,
   listarCfdiPacConfigs,
   obtenerCfdiPacConfigPorId,
+  obtenerAsignacionCfdiPacEmpresa,
+  guardarAsignacionCfdiPacEmpresa,
   type CreateCfdiPacConfigPayload,
   type CfdiPacConfigRow,
   type UpdateCfdiPacConfigPayload,
@@ -130,5 +132,34 @@ export async function actualizarCfdiPacConfigController(req: Request, res: Respo
 
     console.error('Error al actualizar configuración PAC CFDI', error);
     return res.status(status).json({ message });
+  }
+}
+
+function activeEmpresaId(req: Request): number {
+  const empresaId = Number(req.context?.empresaId);
+  if (!Number.isInteger(empresaId) || empresaId <= 0) throw new Error('Empresa activa requerida');
+  return empresaId;
+}
+
+export async function obtenerAsignacionCfdiPacEmpresaController(req: Request, res: Response) {
+  try {
+    const assignment = await obtenerAsignacionCfdiPacEmpresa(activeEmpresaId(req));
+    return res.json({ asignacion: assignment });
+  } catch (error) {
+    return res.status(400).json({ message: error instanceof Error ? error.message : 'No se pudo obtener la asignación PAC' });
+  }
+}
+
+export async function guardarAsignacionCfdiPacEmpresaController(req: Request, res: Response) {
+  try {
+    const configId = Number(req.body?.cfdiPacConfigId);
+    if (!Number.isInteger(configId) || configId <= 0) {
+      return res.status(400).json({ message: 'cfdiPacConfigId debe ser un entero positivo' });
+    }
+    const assignment = await guardarAsignacionCfdiPacEmpresa(activeEmpresaId(req), configId);
+    return res.json({ asignacion: assignment });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudo guardar la asignación PAC';
+    return res.status(message.includes('inactiva') || message.includes('no existe') ? 400 : 500).json({ message });
   }
 }

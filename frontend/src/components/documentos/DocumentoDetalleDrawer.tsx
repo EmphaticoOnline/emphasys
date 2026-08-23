@@ -106,6 +106,7 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
             <TabPanel value={tab} index={0}>
               <ResumenTab
                 documento={documento}
+                partidas={data.partidas}
                 formatter={formatter}
                 tipoDocumento={tipoDocumento}
                 folio={folio}

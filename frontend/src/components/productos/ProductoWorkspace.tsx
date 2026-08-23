@@ -308,6 +308,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
       <Box
         sx={{
           flex: 1,
+          height: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -335,6 +336,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
       <Box
         sx={{
           flex: 1,
+          height: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -384,7 +386,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
   ];
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>
+    <Box sx={{ flex: 1, height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', minWidth: 0, border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>
       {/* Header */}
       <Box sx={{ p: 2.5, backgroundColor: '#091D5A', color: '#fff' }}>
         <Stack direction="row" spacing={1.75} alignItems="flex-start" justifyContent="space-between">

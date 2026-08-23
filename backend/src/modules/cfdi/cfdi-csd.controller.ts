@@ -8,6 +8,7 @@ import { FacturamaClient } from './facturama.client';
 import { encryptSecret } from '../../utils/secret-crypto';
 import { obtenerEmpresaPorId } from '../../services/empresasService';
 import { saveEmpresaFile } from '../../services/fileStorage.service';
+import { obtenerAsignacionCfdiPacEmpresa } from '../configuracion/cfdi-pac-config/cfdi-pac-config.repository';
 
 function parseEmpresaId(raw: unknown): number | null {
   const parsed = Number(raw);
@@ -112,14 +113,24 @@ export async function registrarCsdEmpresaFacturamaController(req: Request, res: 
 
     const encryptedPassword = encryptSecret(password);
 
+    const facturama = await FacturamaClient.forEmpresa(empresaId);
+
     await pool.query(
       `UPDATE core.empresas
-          SET cfdi_csd_registrado_facturama = FALSE,
+          SET cfdi_csd_registrado_facturama = false,
+              cfdi_csd_fecha_actualizacion = NULL,
               cfdi_csd_cer_path = $2,
               cfdi_csd_key_path = $3,
               cfdi_csd_password_encrypted = $4
         WHERE id = $1`,
       [empresaId, savedCer.relativePath, savedKey.relativePath, encryptedPassword]
+    );
+
+    await pool.query(
+      `UPDATE core.empresas_cfdi_pac_config
+          SET csd_registrado = false, csd_fecha_actualizacion = NULL, updated_at = now()
+        WHERE empresa_id = $1 AND cfdi_pac_config_id = $2`,
+      [empresaId, facturama.configId]
     );
 
     const cerBuffer = await fs.readFile(savedCer.absolutePath);
@@ -131,8 +142,6 @@ export async function registrarCsdEmpresaFacturamaController(req: Request, res: 
       PrivateKey: keyBuffer.toString('base64'),
       PrivateKeyPassword: password,
     };
-
-    const facturama = await FacturamaClient.fromDatabaseOrEnv();
 
     console.info('[CFDI CSD][Facturama] Request', {
       empresaId,
@@ -150,9 +159,17 @@ export async function registrarCsdEmpresaFacturamaController(req: Request, res: 
     });
 
     await pool.query(
+      `UPDATE core.empresas_cfdi_pac_config
+          SET csd_registrado = true, csd_fecha_actualizacion = now(), updated_at = now()
+        WHERE empresa_id = $1 AND cfdi_pac_config_id = $2`,
+      [empresaId, facturama.configId]
+    );
+
+    // Espejo transitorio para consumidores legados; la relación anterior es la fuente autoritativa.
+    await pool.query(
       `UPDATE core.empresas
-          SET cfdi_csd_registrado_facturama = TRUE,
-              cfdi_csd_fecha_actualizacion = NOW()
+          SET cfdi_csd_registrado_facturama = true,
+              cfdi_csd_fecha_actualizacion = now()
         WHERE id = $1`,
       [empresaId]
     );
@@ -181,5 +198,19 @@ export async function registrarCsdEmpresaFacturamaController(req: Request, res: 
     const message = String(error?.message || 'No se pudo registrar el CSD en Facturama');
 
     return res.status(status).json({ message });
+  }
+}
+
+export async function obtenerAsignacionPacEmpresaController(req: Request, res: Response) {
+  try {
+    const empresaId = parseEmpresaId(req.params.empresaId);
+    if (!empresaId) return res.status(400).json({ message: 'empresaId inválido' });
+    if (!req.auth) return res.status(401).json({ message: 'No autenticado' });
+    if (!(await hasEmpresaAccess(req, empresaId))) {
+      return res.status(403).json({ message: 'No tienes acceso a la empresa indicada' });
+    }
+    return res.json({ asignacion: await obtenerAsignacionCfdiPacEmpresa(empresaId) });
+  } catch (error) {
+    return res.status(500).json({ message: error instanceof Error ? error.message : 'No se pudo obtener la asignación PAC' });
   }
 }

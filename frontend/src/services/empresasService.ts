@@ -1,5 +1,6 @@
 import { apiFetch } from './apiFetch';
 import type { Empresa, EmpresaPayload } from '../types/empresa';
+import type { EmpresaCfdiPacAssignment } from './cfdiPacConfigService';
 
 const BASE_URL = '/api/empresas';
 
@@ -51,4 +52,9 @@ export async function registrarEmpresaCsdFacturama(
     method: 'POST',
     body: formData,
   });
+}
+
+export async function fetchEmpresaCfdiPacAssignmentById(empresaId: number): Promise<EmpresaCfdiPacAssignment | null> {
+  const response = await apiFetch<{ asignacion: EmpresaCfdiPacAssignment | null }>(`/api/cfdi/empresas/${empresaId}/pac-asignacion`);
+  return response.asignacion ?? null;
 }

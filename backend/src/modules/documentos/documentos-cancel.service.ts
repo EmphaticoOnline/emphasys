@@ -15,6 +15,7 @@ import {
   obtenerDependenciasCancelacion,
   type DependenciaCancelacion,
 } from './documentos-dependencias-cancelacion';
+import { markTransportCancelledForDocument } from '../transporte/transporte.repository';
 
 export class DocumentoCancelValidationError extends Error {
   constructor(
@@ -59,6 +60,7 @@ type DocumentoCfdiRow = {
   total: string | number | null;
   folio_cfdi: string | null;
   cancelacion_estado: CfdiCancelacionEstado | null;
+  cfdi_pac_config_id: number | null;
 };
 
 /** Intento de cancelación recuperado de la tabla documentos_cancelacion_intentos */
@@ -130,6 +132,7 @@ async function obtenerDocumentoParaCancelacion(
 async function obtenerCfdiDocumento(client: PoolClient, documentoId: number): Promise<DocumentoCfdiRow | null> {
   const { rows } = await client.query<DocumentoCfdiRow>(
     `SELECT uuid, fecha_cancelacion, xml_timbrado, pac, pac_id, pac_modalidad,
+            cfdi_pac_config_id,
             rfc_emisor, rfc_receptor, total, folio_cfdi, cancelacion_estado
        FROM documentos_cfdi
       WHERE documento_id = $1
@@ -409,14 +412,15 @@ async function insertarIntento(params: {
   modalidad?: CfdiPacModalidad | null;
   rfcEmisor?: string | null;
   endpoint?: string | null;
+  cfdiPacConfigId?: number | null;
 }, client?: PoolClient): Promise<number> {
   const executor = client ?? pool;
   const { rows } = await executor.query<{ id: number }>(
     `INSERT INTO documentos_cancelacion_intentos
        (empresa_id, documento_id, usuario_id, estado,
         motivo_cancelacion, motivo_sat, uuid_sustitucion, cfdi_uuid,
-        proveedor, pac_id, modalidad, rfc_emisor, endpoint)
-     VALUES ($1, $2, $3, 'iniciado', $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        proveedor, pac_id, modalidad, rfc_emisor, endpoint, cfdi_pac_config_id)
+     VALUES ($1, $2, $3, 'iniciado', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      RETURNING id`,
     [
       params.empresaId,
@@ -431,6 +435,7 @@ async function insertarIntento(params: {
       params.modalidad ?? null,
       params.rfcEmisor ?? null,
       params.endpoint ?? null,
+      params.cfdiPacConfigId ?? null,
     ]
   );
   return rows[0].id;
@@ -656,6 +661,7 @@ async function ejecutarCancelacionInterna(params: {
           WHERE documento_id = $1`,
         [documentoId, acuseXml ?? null]
       );
+      await markTransportCancelledForDocument(client, documentoId, empresaId);
     }
 
     // Reversa contable automática de venta. generarReversaCancelacionFacturaVenta
@@ -778,6 +784,7 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
   let requiereCancelacionFacturama = false;
   let cfdi: DocumentoCfdiRow | null = null;
   let identidadPac: ReturnType<typeof validarCfdiParaCancelacion> | null = null;
+  let facturamaCancelacion: FacturamaClient | null = null;
   try {
     const documento = await obtenerDocumentoParaCancelacion(precheckClient, input.documentoId, input.empresaId, false);
     if (!documento) throw new DocumentoCancelValidationError('Documento no encontrado');
@@ -792,6 +799,12 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     requiereCancelacionFacturama = Boolean(cfdiUuid) && !cfdi?.fecha_cancelacion;
     if (requiereCancelacionFacturama && cfdi) {
       identidadPac = validarCfdiParaCancelacion(cfdi, motivoSat ?? '02', uuidSustitucion);
+      facturamaCancelacion = await FacturamaClient.forHistorical({
+        empresaId: input.empresaId,
+        configId: cfdi.cfdi_pac_config_id,
+        pac: cfdi.pac,
+        modalidad: cfdi.pac_modalidad,
+      });
     }
 
     // Una factura en Borrador no es un documento fiscal formal: no se
@@ -829,6 +842,7 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     modalidad: identidadPac?.modalidad ?? null,
     rfcEmisor: identidadPac?.rfcEmisor ?? null,
     endpoint,
+    cfdiPacConfigId: facturamaCancelacion?.configId ?? null,
   });
 
   // 5. Cancelación en Facturama (fuera de la transacción SQL)
@@ -839,8 +853,8 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
       if (!identidadPac) {
         throw new DocumentoCancelValidationError('El CFDI no tiene identidad PAC completa.');
       }
-      const facturama = await FacturamaClient.fromDatabaseOrEnv();
-      const cancelacion = await facturama.cancelCfdi({
+      if (!facturamaCancelacion) throw new DocumentoCancelValidationError('No se resolvió la configuración PAC original.');
+      const cancelacion = await facturamaCancelacion.cancelCfdi({
         pacId: identidadPac.pacId,
         modalidad: identidadPac.modalidad,
         motivoSat: motivoSat ?? '02',
@@ -980,14 +994,21 @@ export async function reconciliarCancelacionDocumentoService(input: {
     uuid_sustitucion: string | null;
     acuse_xml: string | null;
     estatus_documento: string;
+    cfdi_pac_config_id: number | null;
+    documento_cfdi_pac_config_id: number | null;
+    pac: string | null;
+    pac_modalidad: CfdiPacModalidad | null;
   }>(
     `SELECT i.id AS intento_id, i.estado, i.pac_id, i.modalidad, i.cfdi_uuid,
             i.motivo_cancelacion, i.motivo_sat, i.uuid_sustitucion, i.acuse_xml,
-            d.estatus_documento
+            d.estatus_documento, i.cfdi_pac_config_id,
+            dc.cfdi_pac_config_id AS documento_cfdi_pac_config_id,
+            dc.pac, dc.pac_modalidad
        FROM documentos_cancelacion_intentos i
        JOIN documentos d
          ON d.id = i.documento_id
         AND d.empresa_id = i.empresa_id
+       LEFT JOIN documentos_cfdi dc ON dc.documento_id = d.id
       WHERE i.documento_id = $1
         AND i.empresa_id = $2
         AND i.estado IN ('iniciado', 'solicitada', 'pendiente', 'requiere_reconciliacion')
@@ -1013,7 +1034,12 @@ export async function reconciliarCancelacionDocumentoService(input: {
     );
   }
 
-  const facturama = await FacturamaClient.fromDatabaseOrEnv();
+  const facturama = await FacturamaClient.forHistorical({
+    empresaId: input.empresaId,
+    configId: intento.cfdi_pac_config_id ?? intento.documento_cfdi_pac_config_id,
+    pac: intento.pac,
+    modalidad: intento.pac_modalidad ?? intento.modalidad,
+  });
   let consulta;
   try {
     consulta = await consultarEstadoCancelacionPac(facturama, {

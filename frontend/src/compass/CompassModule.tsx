@@ -9,6 +9,8 @@ import { BandejaView } from "@/components/bandeja/bandeja-view"
 import { IdeasView } from "@/components/ideas/ideas-view"
 import { DecisionesView } from "@/components/decisiones/decisiones-view"
 import { RevisionSemanalView } from "@/components/revision/revision-semanal-view"
+import { HistorialRevisionesView } from "@/components/revision/historial-revisiones-view"
+import { HistorialRevisionDetalle } from "@/components/revision/historial-revision-detalle"
 
 export function CompassLayout() {
   useEffect(() => {
@@ -20,4 +22,7 @@ export function CompassLayout() {
   return <AppShell><Outlet /></AppShell>
 }
 
-export { HoyView, RealFrentesView, RealFrenteDetailView, TareasView, CalendarioView, BandejaView, IdeasView, DecisionesView, RevisionSemanalView }
+export {
+  HoyView, RealFrentesView, RealFrenteDetailView, TareasView, CalendarioView, BandejaView, IdeasView, DecisionesView,
+  RevisionSemanalView, HistorialRevisionesView, HistorialRevisionDetalle,
+}

@@ -75,6 +75,8 @@ export type DecisionPatch=Partial<DecisionCreate>;
 export type Congruencia='congruente'|'en_riesgo'|'descuidado'|'sobreatendido';
 export type RevisionFrente={frente_id:number;nombre:string;intencion_semanal_id:number|null;prioridad_snapshot:IntencionPrioridad|null;horas_objetivo_snapshot:number|null;expectativa_atencion_snapshot:ExpectativaAtencion|null;horas_planificadas:number;horas_efectivas:number;horas_reservadas:number;congruencia_sugerida:Congruencia|null;congruencia_confirmada:Congruencia|null;que_ocurrio:string|null;que_bloqueo:string|null;que_aprendi:string|null;que_cambiare:string|null};
 export type RevisionSemanal={revision:null|{id:number;semana_inicio:string;fecha_revision:string;atencion_esperada:string;frentes_descuidados:string;aprendizaje_principal:string;ajuste_general:string};semana_inicio:string;frentes:RevisionFrente[];historica:boolean};
+export type RevisionSemanalHistorica={id:number;semana_inicio:string;fecha_revision:string};
+export type RevisionSemanalListOptions={limit?:number;offset?:number};
 export type RevisionSave={semana_inicio:string;atencion_esperada:string;frentes_descuidados:string;aprendizaje_principal:string;ajuste_general:string;frentes:Array<Pick<RevisionFrente,'frente_id'|'congruencia_confirmada'|'que_ocurrio'|'que_bloqueo'|'que_aprendi'|'que_cambiare'>>;proximas_intenciones:Array<IntencionSemanalUpsert&{frente_id:number}>};
 
 export function listFrentes(estados: FrenteEstado[] = ['activo']) {
@@ -128,5 +130,6 @@ export const listDecisiones=()=>apiFetch<Decision[]>('/api/compass/decisiones');
 export const getDecision=(id:number)=>apiFetch<Decision>(`/api/compass/decisiones/${id}`);
 export const createDecision=(payload:DecisionCreate)=>apiFetch<Decision>('/api/compass/decisiones',{method:'POST',body:payload});
 export const updateDecision=(id:number,payload:DecisionPatch)=>apiFetch<Decision>(`/api/compass/decisiones/${id}`,{method:'PATCH',body:payload});
+export const listRevisionesSemanales=(options:RevisionSemanalListOptions={})=>apiFetch<RevisionSemanalHistorica[]>(`/api/compass/revisiones-semanales${queryString(options)}`);
 export const getRevisionSemanal=(semana:string)=>apiFetch<RevisionSemanal>(`/api/compass/revisiones-semanales/${semana}`);
 export const saveRevisionSemanal=(semana:string,payload:RevisionSave)=>apiFetch<RevisionSemanal>(`/api/compass/revisiones-semanales/${semana}`,{method:'PUT',body:payload});

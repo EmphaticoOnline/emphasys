@@ -16,6 +16,7 @@ type UseGridContextMenuResult<TRow> = {
   contextMenuRow: TRow | null;
   anchorPosition: GridContextMenuPosition | null;
   closeContextMenu: () => void;
+  selectRow: (row: TRow) => void;
   openContextMenuForRow: (event: React.MouseEvent<HTMLElement>, row: TRow) => void;
   rowSlotProps:
     | {
@@ -46,18 +47,26 @@ export function useGridContextMenu<TRow>(
     onClose?.();
   }, [onClose]);
 
+  const selectRow = React.useCallback(
+    (row: TRow) => {
+      setContextMenuRow(row);
+      setAnchorPosition(null);
+      onOpen?.(row);
+    },
+    [onOpen]
+  );
+
   const openContextMenuForRow = React.useCallback(
     (event: React.MouseEvent<HTMLElement>, row: TRow) => {
       event.preventDefault();
       event.stopPropagation();
-      setContextMenuRow(row);
+      selectRow(row);
       setAnchorPosition({
         top: event.clientY - 6,
         left: event.clientX + 2,
       });
-      onOpen?.(row);
     },
-    [onOpen]
+    [selectRow]
   );
 
   const handleRowContextMenu = React.useCallback(
@@ -79,6 +88,7 @@ export function useGridContextMenu<TRow>(
     contextMenuRow,
     anchorPosition,
     closeContextMenu,
+    selectRow,
     openContextMenuForRow,
     rowSlotProps: enabled
       ? {

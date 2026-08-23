@@ -1,12 +1,20 @@
 import type { PoolClient } from 'pg';
 import pool from '../../config/database';
-import type { CompassOwnerScope, Congruencia, ExpectativaAtencion, RevisionSemanalInput } from './compass.types';
+import type { CompassOwnerScope, Congruencia, ExpectativaAtencion, RevisionSemanalInput, RevisionSemanalListOptions } from './compass.types';
 import { upsertIntencionEnTransaccion } from './compass.repository';
 import { CompassNotFoundError } from './compass-work.repository';
 import { calcularAtencionPorFrente, sugerirCongruenciaPorCobertura } from './compass-attention';
 
 export function sugerirCongruencia(objetivo:number|null,expectativa:ExpectativaAtencion|null,reservadas:number,efectivas:number):Congruencia|null {
   return sugerirCongruenciaPorCobertura(objetivo,expectativa,efectivas,reservadas);
+}
+export async function listarRevisiones(s:CompassOwnerScope,options:RevisionSemanalListOptions,db:Pick<typeof pool,'query'>=pool){
+  const {rows}=await db.query(`SELECT id,to_char(semana_inicio,'YYYY-MM-DD') semana_inicio,fecha_revision
+    FROM compass.revisiones_semanales
+    WHERE usuario_id=$1
+    ORDER BY semana_inicio DESC,fecha_revision DESC,id DESC
+    LIMIT $2 OFFSET $3`,[s.usuarioId,options.limit,options.offset]);
+  return rows;
 }
 async function calculated(s:CompassOwnerScope,week:string,db:PoolClient|typeof pool=pool){
   const actividades=(await db.query(`SELECT frente_id,inicio_programado,fin_programado,estado,minutos_efectivos

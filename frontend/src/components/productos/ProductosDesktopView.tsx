@@ -51,8 +51,22 @@ export default function ProductosDesktopView({
   onRefresh,
 }: ProductosDesktopViewProps) {
   return (
-    <Box sx={{ width: '100%', px: 3, pt: 2, pb: 0, display: 'flex', justifyContent: 'center' }}>
-      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+    <Box
+      sx={{
+        width: '100%',
+        px: 3,
+        pt: 2,
+        pb: 0,
+        display: 'flex',
+        justifyContent: 'center',
+        ...(viewMode === 'lista' ? {
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+        } : {}),
+      }}
+    >
+      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, ...(viewMode === 'lista' ? { flex: 1 } : {}) }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <TextField
             size="small"
@@ -176,7 +190,7 @@ export default function ProductosDesktopView({
             />
           </Box>
         ) : (
-          <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+          <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'stretch', flex: 1, minHeight: 0, overflow: 'hidden' }}>
             <ProductosListaCompacta
               productos={productos}
               rowCount={rowCount}

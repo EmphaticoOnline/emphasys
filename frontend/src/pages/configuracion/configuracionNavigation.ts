@@ -83,7 +83,7 @@ export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
 	},
 	{
 		titulo: 'PAC CFDI',
-		descripcion: 'Administra la configuración global del PAC CFDI para sandbox y productivo.',
+		descripcion: 'Administra perfiles PAC y asigna el ambiente CFDI correspondiente a cada empresa.',
 		path: '/configuracion/cfdi-pac',
 		soloSuperadmin: true,
 	},

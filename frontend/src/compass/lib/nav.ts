@@ -1,4 +1,4 @@
-import { CalendarDays, Compass, Gavel, Inbox, LayoutGrid, Lightbulb, ListChecks, ScrollText } from "lucide-react"
+import { CalendarDays, Compass, Gavel, History, Inbox, LayoutGrid, Lightbulb, ListChecks, ScrollText } from "lucide-react"
 
 export const navPrincipal = [
   { href: "/compass", label: "Hoy", icon: Compass },
@@ -12,6 +12,7 @@ export const navSecundaria = [
   { href: "/compass/ideas", label: "Ideas", icon: Lightbulb },
   { href: "/compass/decisiones", label: "Decisiones", icon: Gavel },
   { href: "/compass/revision-semanal", label: "Revisión semanal", icon: ScrollText },
+  { href: "/compass/historial", label: "Historial", icon: History },
 ]
 
 export const navTodo = [...navPrincipal, ...navSecundaria]

@@ -26,6 +26,7 @@ import React, { useMemo } from 'react';
 import { Alert, Box, Chip, CircularProgress, Stack, Typography } from '@mui/material';
 import type { CotizacionDocumento, CotizacionListado, CotizacionPartida } from '../../../types/cotizacion';
 import { useSession } from '../../../session/useSession';
+import { summarizeDocumentTaxes } from '../../../utils/documentTaxSummary';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 
@@ -73,6 +74,12 @@ export default function FacturaDocumentoResumenView({
   const subtotal = documento?.subtotal ?? null;
   const descuento = (documento?.descuento_global ?? documento?.descuento ?? null);
   const iva = documento?.iva ?? null;
+  const impuestosResumen = useMemo(() => summarizeDocumentTaxes(partidas), [partidas]);
+  const retenciones = impuestosResumen.retenciones || Number(documento?.retencion_iva ?? 0) + Number(documento?.retencion_isr ?? 0);
+  const impuestosAdicionales = impuestosResumen.lineas.filter((impuesto) => {
+    const texto = `${impuesto.id} ${impuesto.nombre}`.toLowerCase();
+    return !texto.includes('iva') || !['traslado', 'retencion'].includes(impuesto.tipo);
+  });
   const total = documento?.total ?? row.total ?? 0;
   const saldo = Number(row.saldo ?? 0);
 
@@ -189,8 +196,17 @@ export default function FacturaDocumentoResumenView({
               <Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">Descuento</Typography><Typography variant="caption">{currency.format(descuento)}</Typography></Stack>
             ) : null}
             {iva != null ? (
-              <Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">IVA</Typography><Typography variant="caption">{currency.format(iva)}</Typography></Stack>
+              <Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">IVA trasladado</Typography><Typography variant="caption">{currency.format(iva)}</Typography></Stack>
             ) : null}
+            {retenciones > 0 ? (
+              <Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">Retenciones</Typography><Typography variant="caption">-{currency.format(retenciones)}</Typography></Stack>
+            ) : null}
+            {impuestosAdicionales.map((impuesto) => (
+              <Stack key={`${impuesto.tipo}:${impuesto.id}`} direction="row" justifyContent="space-between">
+                <Typography variant="caption" color="text.secondary">{impuesto.nombre}</Typography>
+                <Typography variant="caption">{impuesto.tipo === 'retencion' ? '-' : ''}{currency.format(impuesto.monto)}</Typography>
+              </Stack>
+            ))}
             <Stack direction="row" justifyContent="space-between" sx={{ pt: 0.25, mt: 0.25, borderTop: '2px solid #e3e5ec' }}>
               <Typography sx={{ fontSize: 13.5, fontWeight: 800 }} color="primary">Total</Typography>
               <Typography sx={{ fontSize: 13.5, fontWeight: 800 }} color="primary">{currency.format(total)}</Typography>

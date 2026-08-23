@@ -7,8 +7,8 @@ import { actualizarEstadoCaptura, crearCaptura, listarCapturas, procesarCaptura 
 import { parseCapturaCreate, parseCapturaEstado, parseCapturaPatch, parseProcesarCaptura } from './compass.validation';
 import { actualizarDecision, actualizarIdea, convertirIdea, crearDecision, crearIdea, listarDecisiones, listarIdeas, obtenerDecision, obtenerIdea } from './compass-knowledge.repository';
 import { parseConvertirIdea, parseDecisionCreate, parseDecisionPatch, parseIdeaCreate, parseIdeaPatch } from './compass.validation';
-import { guardarRevision, obtenerRevision } from './compass-review.repository';
-import { parseRevisionSemanal, parseSemanaInicio } from './compass.validation';
+import { guardarRevision, listarRevisiones, obtenerRevision } from './compass-review.repository';
+import { parseRevisionSemanal, parseRevisionSemanalListOptions, parseSemanaInicio } from './compass.validation';
 
 function ownerScope(req: Request) {
   return { empresaId: req.context?.empresaId ?? null, usuarioId: Number(req.auth?.userId ?? 0) };
@@ -47,6 +47,7 @@ export async function getDecisiones(req:Request,res:Response){try{return res.jso
 export async function getDecision(req:Request,res:Response){try{const x=await obtenerDecision(ownerScope(req),parsePositiveId(req.params.id));return x?res.json(x):res.status(404).json({message:'Decisión no encontrada'});}catch(error){return handleError(res,error,'consultar la Decisión');}}
 export async function postDecision(req:Request,res:Response){try{return res.status(201).json(await crearDecision(ownerScope(req),parseDecisionCreate(req.body)));}catch(error){return handleError(res,error,'crear la Decisión');}}
 export async function patchDecision(req:Request,res:Response){try{return res.json(await actualizarDecision(ownerScope(req),parsePositiveId(req.params.id),parseDecisionPatch(req.body)));}catch(error){return handleError(res,error,'actualizar la Decisión');}}
+export async function getRevisionesSemanales(req:Request,res:Response){try{return res.json(await listarRevisiones(ownerScope(req),parseRevisionSemanalListOptions(req.query as Record<string,unknown>)));}catch(error){return handleError(res,error,'listar las Revisiones semanales');}}
 export async function getRevisionSemanal(req:Request,res:Response){try{return res.json(await obtenerRevision(ownerScope(req),parseSemanaInicio(req.params.semana_inicio)));}catch(error){return handleError(res,error,'consultar la Revisión semanal');}}
 export async function putRevisionSemanal(req:Request,res:Response){try{return res.json(await guardarRevision(ownerScope(req),parseRevisionSemanal(req.body)));}catch(error){return handleError(res,error,'guardar la Revisión semanal');}}
 

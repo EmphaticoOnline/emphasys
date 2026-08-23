@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../auth/auth.middleware';
-import { registrarCsdEmpresaFacturamaController } from './cfdi-csd.controller';
+import { obtenerAsignacionPacEmpresaController, registrarCsdEmpresaFacturamaController } from './cfdi-csd.controller';
 
 const router = Router();
 
@@ -36,5 +36,6 @@ const manejarUploadCsd = (req: Request, res: Response, next: NextFunction) => {
 };
 
 router.post('/empresas/:empresaId/csd', requireAuth, manejarUploadCsd, registrarCsdEmpresaFacturamaController);
+router.get('/empresas/:empresaId/pac-asignacion', requireAuth, obtenerAsignacionPacEmpresaController);
 
 export default router;

@@ -277,3 +277,11 @@ export function parseRevisionSemanal(body:unknown):RevisionSemanalInput {
   return {semana_inicio:date,atencion_esperada:requiredText(input.atencion_esperada,'atencion_esperada'),frentes_descuidados:requiredText(input.frentes_descuidados,'frentes_descuidados'),aprendizaje_principal:requiredText(input.aprendizaje_principal,'aprendizaje_principal'),ajuste_general:requiredText(input.ajuste_general,'ajuste_general'),frentes,proximas_intenciones};
 }
 export function parseSemanaInicio(value:unknown){const week=dateOnly(value,'semana_inicio');if(!week||new Date(`${week}T00:00:00Z`).getUTCDay()!==1)throw new CompassValidationError('semana_inicio debe ser lunes');return week;}
+
+export function parseRevisionSemanalListOptions(query:Record<string,unknown>) {
+  const limit=query.limit==null||query.limit===''?20:Number(query.limit);
+  const offset=query.offset==null||query.offset===''?0:Number(query.offset);
+  if(!Number.isInteger(limit)||limit<1||limit>100)throw new CompassValidationError('limit debe ser un entero entre 1 y 100');
+  if(!Number.isInteger(offset)||offset<0)throw new CompassValidationError('offset debe ser un entero mayor o igual a cero');
+  return {limit,offset};
+}

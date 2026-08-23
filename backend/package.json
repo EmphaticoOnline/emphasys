@@ -13,7 +13,12 @@
     "seed:contabilidad": "ts-node src/scripts/seedContabilidadDemoEmpresa8.ts",
     "diagnosticar-sat": "ts-node src/scripts/diagnosticarSatDescarga.ts",
     "test:cfdi-cancelacion": "ts-node src/scripts/testCfdiCancelacion.ts",
-    "test:cfdi-email": "ts-node src/scripts/testCfdiEmail.ts"
+    "test:cfdi-email": "ts-node src/scripts/testCfdiEmail.ts",
+    "test:cfdi-pac-empresa": "ts-node src/scripts/testCfdiPacPorEmpresa.ts",
+    "test:transporte-viaje": "ts-node src/scripts/testTransporteViaje.ts",
+    "test:carta-porte-31": "ts-node src/scripts/testCartaPorte31.ts",
+    "test:carta-porte-consistency": "ts-node src/scripts/testCartaPorteConsistency.ts",
+    "test:carta-porte-timbrado": "ts-node src/scripts/testCartaPorteTimbradoIntegration.ts"
   },
   "keywords": [],
   "author": "",

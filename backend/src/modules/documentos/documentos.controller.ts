@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
+import JSZip from 'jszip';
 import { generarExcelBuffer } from '../../utils/exportar';
 import type { ExportColumna } from '../../utils/exportar';
 import {
@@ -36,6 +37,7 @@ import { evaluarScopeVentas, resolverContextoScopeComercial } from '../auth/scop
 import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
 import { resolverTipoPlantillaWhatsapp, type WhatsappTemplateType } from '../../whatsapp/whatsapp-template-type.service';
 import { CfdiEmailError } from '../../services/cfdi-email.service';
+import { timbrarFacturaConTransporte } from '../transporte/carta-porte-timbrado.service';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -118,6 +120,15 @@ function construirNombreXml(documento: any, fallbackId: number): string {
     : `factura-${fallbackId}`;
 
   return `${sanitizarNombreDescarga(folio)}.xml`;
+}
+
+function construirBaseNombreCfdi(documento: any, fallbackId: number): string {
+  const numero = Number(documento?.numero);
+  const folio = Number.isFinite(numero)
+    ? formatearFolioDocumento(documento?.serie ?? '', numero)
+    : `factura-${fallbackId}`;
+
+  return `Factura_${sanitizarNombreDescarga(folio)}`;
 }
 
 function resolverBaseUrlPublica(req: Request): string {
@@ -1013,6 +1024,38 @@ export async function obtenerFacturaXML(req: Request, res: Response) {
   }
 }
 
+export async function descargarFacturaCfdi(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    if (!Number.isFinite(documentoId) || !empresaId) {
+      return res.status(400).json({ message: 'ID o empresaId inválido' });
+    }
+
+    const [pdfData, xmlData] = await Promise.all([
+      obtenerDocumentoPdfData(documentoId, Number(empresaId), 'factura'),
+      obtenerFacturaXmlData(documentoId, Number(empresaId)),
+    ]);
+    const baseNombre = construirBaseNombreCfdi(pdfData.documento, documentoId);
+    const zip = new JSZip();
+    zip.file(`${baseNombre}.pdf`, pdfData.buffer);
+    zip.file(`${baseNombre}.xml`, xmlData.xml);
+    const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    const filename = `${baseNombre}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    return res.send(buffer);
+  } catch (error) {
+    const status = (error as any)?.status;
+    if (status) {
+      return res.status(status).json({ message: (error as Error).message });
+    }
+    console.error('Error al generar paquete CFDI', error);
+    return res.status(500).json({ message: 'Error al generar el paquete CFDI' });
+  }
+}
+
 export async function obtenerDocumentoXML(req: Request, res: Response) {
   try {
     const documentoId = Number(req.params.id);
@@ -1388,7 +1431,7 @@ export async function timbrarFacturaCfdi(req: Request, res: Response) {
   }
 
   try {
-    const resultado = await cfdiService.timbrarFactura(documentoId, Number(empresaId));
+    const resultado = await timbrarFacturaConTransporte(documentoId, Number(empresaId), cfdiService);
     res.json(resultado);
   } catch (error) {
     if (error instanceof CfdiAcceptedPendingDownloadError) {
@@ -1415,7 +1458,7 @@ export async function timbrarDocumentoCfdi(req: Request, res: Response) {
   }
 
   try {
-    const resultado = await cfdiService.timbrarDocumento(documentoId, Number(empresaId));
+    const resultado = await timbrarFacturaConTransporte(documentoId, Number(empresaId), cfdiService);
     res.json(resultado);
   } catch (error) {
     if (error instanceof CfdiAcceptedPendingDownloadError) {

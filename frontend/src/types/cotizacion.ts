@@ -31,6 +31,9 @@ export interface CotizacionListado {
   descuento_global?: number;
   descuento?: number;
   iva: number;
+  retencion_iva?: number | null;
+  retencion_isr?: number | null;
+  ieps?: number | null;
   total: number;
   moneda?: string | null;
   tratamiento_impuestos?: TratamientoImpuestos | null;
@@ -84,6 +87,9 @@ export interface CotizacionDocumento {
   descuento_global?: number;
   descuento?: number;
   iva: number;
+  retencion_iva?: number | null;
+  retencion_isr?: number | null;
+  ieps?: number | null;
   total: number;
   estatus_documento: string;
   usuario_creacion_id?: number | null;

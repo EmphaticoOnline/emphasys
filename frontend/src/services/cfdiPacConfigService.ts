@@ -20,6 +20,17 @@ export type CfdiPacConfigListResponse = {
   configuraciones: CfdiPacConfig[];
 };
 
+export type EmpresaCfdiPacAssignment = {
+  empresa_id: number;
+  empresa_nombre: string;
+  cfdi_pac_config_id: number;
+  pac: string;
+  modo: CfdiPacModo;
+  activo: boolean;
+  csd_registrado: boolean;
+  csd_fecha_actualizacion: string | null;
+};
+
 const BASE_URL = '/api/configuracion/cfdi-pac';
 
 export async function fetchCfdiPacConfigs(): Promise<CfdiPacConfig[]> {
@@ -39,4 +50,17 @@ export async function createCfdiPacConfig(payload: Partial<CfdiPacConfig>) {
     method: 'POST',
     body: payload as any,
   });
+}
+
+export async function fetchEmpresaCfdiPacAssignment(): Promise<EmpresaCfdiPacAssignment | null> {
+  const response = await apiFetch<{ asignacion: EmpresaCfdiPacAssignment | null }>(`${BASE_URL}/asignacion`);
+  return response.asignacion ?? null;
+}
+
+export async function updateEmpresaCfdiPacAssignment(cfdiPacConfigId: number): Promise<EmpresaCfdiPacAssignment> {
+  const response = await apiFetch<{ asignacion: EmpresaCfdiPacAssignment }>(`${BASE_URL}/asignacion`, {
+    method: 'PUT',
+    body: { cfdiPacConfigId },
+  });
+  return response.asignacion;
 }

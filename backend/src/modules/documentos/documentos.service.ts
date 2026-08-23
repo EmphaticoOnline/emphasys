@@ -863,24 +863,31 @@ export async function actualizarTotales(documentoId: number, client?: PoolClient
       await executor.query('BEGIN');
     }
 
-    const { rows: totalesRows } = await executor.query(
+    const { rows: partidasTotalesRows } = await executor.query(
       `SELECT
-          COALESCE(SUM(COALESCE(dp.cantidad, 0) * COALESCE(dp.precio_unitario, 0)), 0) AS subtotal_bruto,
-          COALESCE(SUM(dp.subtotal_partida), 0) AS subtotal,
+          COALESCE(SUM(COALESCE(cantidad, 0) * COALESCE(precio_unitario, 0)), 0) AS subtotal_bruto,
+          COALESCE(SUM(subtotal_partida), 0) AS subtotal
+       FROM documentos_partidas
+       WHERE documento_id = $1`,
+      [documentoId]
+    );
+
+    const { rows: impuestosTotalesRows } = await executor.query(
+      `SELECT
           COALESCE(SUM(CASE WHEN LOWER(i.tipo) = 'traslado' THEN dpi.monto ELSE 0 END), 0) AS traslados,
           COALESCE(SUM(CASE WHEN LOWER(i.tipo) = 'retencion' THEN dpi.monto ELSE 0 END), 0) AS retenciones
-       FROM documentos_partidas dp
-       LEFT JOIN documentos_partidas_impuestos dpi ON dpi.partida_id = dp.id
-       LEFT JOIN impuestos i ON i.id::text = dpi.impuesto_id
+       FROM documentos_partidas_impuestos dpi
+       JOIN documentos_partidas dp ON dp.id = dpi.partida_id
+       JOIN impuestos i ON i.id::text = dpi.impuesto_id
        WHERE dp.documento_id = $1`,
       [documentoId]
     );
 
-    const subtotalBruto = Number(totalesRows[0]?.subtotal_bruto ?? 0);
-    const subtotal = Number(totalesRows[0]?.subtotal ?? 0);
+    const subtotalBruto = Number(partidasTotalesRows[0]?.subtotal_bruto ?? 0);
+    const subtotal = Number(partidasTotalesRows[0]?.subtotal ?? 0);
     const descuento = Number((subtotalBruto - subtotal).toFixed(2));
-    const traslados = Number(totalesRows[0]?.traslados ?? 0);
-    const retenciones = Number(totalesRows[0]?.retenciones ?? 0);
+    const traslados = Number(impuestosTotalesRows[0]?.traslados ?? 0);
+    const retenciones = Number(impuestosTotalesRows[0]?.retenciones ?? 0);
     const iva = traslados;
     const total = subtotal + traslados - retenciones;
 
@@ -889,9 +896,10 @@ export async function actualizarTotales(documentoId: number, client?: PoolClient
           SET subtotal = $1,
               descuento = $2,
               iva = $3,
-              total = $4
-        WHERE id = $5`,
-      [subtotal, descuento, iva, total, documentoId]
+              retencion_iva = $4,
+              total = $5
+        WHERE id = $6`,
+      [subtotal, descuento, iva, retenciones, total, documentoId]
     );
 
     if (ownedClient) {

@@ -72,3 +72,4 @@ export type Congruencia = 'congruente'|'en_riesgo'|'descuidado'|'sobreatendido';
 export type RevisionFrenteInput = { frente_id:number; congruencia_confirmada:Congruencia|null; que_ocurrio:string|null; que_bloqueo:string|null; que_aprendi:string|null; que_cambiare:string|null };
 export type ProximaIntencionInput = IntencionSemanalInput & { frente_id:number };
 export type RevisionSemanalInput = { semana_inicio:string; atencion_esperada:string; frentes_descuidados:string; aprendizaje_principal:string; ajuste_general:string; frentes:RevisionFrenteInput[]; proximas_intenciones:ProximaIntencionInput[] };
+export type RevisionSemanalListOptions = { limit:number; offset:number };
