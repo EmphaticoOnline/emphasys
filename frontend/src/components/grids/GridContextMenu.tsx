@@ -60,7 +60,10 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
 
   return (
     <Menu
-      open={open}
+      // MUI necesita una posición completa cuando usa `anchorPosition`.
+      // La fila y la posición se actualizan en estados distintos, por lo que
+      // puede existir un render intermedio con la fila abierta y posición null.
+      open={open && Boolean(anchorPosition)}
       onClose={onClose}
       anchorReference="anchorPosition"
       {...(anchorPosition ? { anchorPosition } : {})}
