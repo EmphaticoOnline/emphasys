@@ -2,8 +2,9 @@ import { sumarDias } from "./calendario-fechas"
 import { fechaYHoraLocalAISOString } from "./format"
 import type { Actividad } from "../../services/compassService"
 
-export const HORA_INICIO_JORNADA = 10
-export const HORA_FIN_JORNADA = 21
+export const HORA_INICIO_JORNADA = 7
+/** Límite exclusivo: 24 representa las 00:00 del día siguiente. */
+export const HORA_FIN_JORNADA = 24
 export const DIAS_LABORALES = 5
 
 export type DisponibilidadDia = {
@@ -44,7 +45,7 @@ export function calcularDisponibilidadSemanal(
   const dias = Array.from({ length: DIAS_LABORALES }, (_, indice) => {
     const fecha = sumarDias(semanaInicio, indice)
     const inicioJornada = Date.parse(fechaYHoraLocalAISOString(fecha, `${String(HORA_INICIO_JORNADA).padStart(2, "0")}:00`))
-    const finJornada = Date.parse(fechaYHoraLocalAISOString(fecha, `${String(HORA_FIN_JORNADA).padStart(2, "0")}:00`))
+    const finJornada = Date.parse(fechaYHoraLocalAISOString(sumarDias(fecha, 1), "00:00"))
     const inicioUtilizable = Math.max(inicioJornada, ahora.getTime())
     if (inicioUtilizable >= finJornada) {
       return { fecha, minutosOcupados: 0, minutosDisponibles: 0 }

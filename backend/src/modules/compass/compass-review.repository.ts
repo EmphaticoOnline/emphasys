@@ -18,11 +18,15 @@ export async function listarRevisiones(s:CompassOwnerScope,options:RevisionSeman
 }
 async function calculated(s:CompassOwnerScope,week:string,db:PoolClient|typeof pool=pool){
   const actividades=(await db.query(`SELECT frente_id,inicio_programado,fin_programado,estado,minutos_efectivos
-    FROM compass.actividades WHERE usuario_id=$1 AND inicio_programado >= $2::date AND inicio_programado < $2::date+interval '7 days'`,[s.usuarioId,week])).rows;
+    FROM compass.actividades WHERE usuario_id=$1
+      AND inicio_programado >= (($2::date AT TIME ZONE 'America/Mexico_City'))
+      AND inicio_programado < (($2::date AT TIME ZONE 'America/Mexico_City') + interval '7 days')`,[s.usuarioId,week])).rows;
   const metricas=calcularAtencionPorFrente(actividades);
   const {rows}=await db.query(`WITH actividad_frentes AS (
     SELECT DISTINCT frente_id FROM compass.actividades
-    WHERE usuario_id=$1 AND inicio_programado >= $2::date AND inicio_programado < $2::date+interval '7 days')
+    WHERE usuario_id=$1
+      AND inicio_programado >= (($2::date AT TIME ZONE 'America/Mexico_City'))
+      AND inicio_programado < (($2::date AT TIME ZONE 'America/Mexico_City') + interval '7 days'))
     SELECT f.id frente_id,f.nombre,i.id intencion_semanal_id,i.prioridad prioridad_snapshot,i.horas_objetivo::float8 horas_objetivo_snapshot,
       i.expectativa_atencion expectativa_atencion_snapshot
     FROM compass.frentes f LEFT JOIN compass.intenciones_semanales i ON i.usuario_id=f.usuario_id AND i.frente_id=f.id AND i.semana_inicio=$2::date
@@ -33,6 +37,14 @@ export async function obtenerRevision(s:CompassOwnerScope,week:string){
   const {rows}=await pool.query(`SELECT id,to_char(semana_inicio,'YYYY-MM-DD') semana_inicio,fecha_revision,resumen_general,aprendizaje_principal,ajuste_general,created_at,updated_at FROM compass.revisiones_semanales WHERE usuario_id=$1 AND semana_inicio=$2::date LIMIT 1`,[s.usuarioId,week]);
   if(!rows[0])return {revision:null,semana_inicio:week,frentes:await calculated(s,week),historica:false};
   const review=rows[0];let resumen:any={};try{resumen=JSON.parse(review.resumen_general||'{}')}catch{resumen={atencion_esperada:review.resumen_general,frentes_descuidados:''}}
+  const currentWeek = await pool.query<{semana_inicio:string}>(`SELECT to_char(date_trunc('week', (now() AT TIME ZONE 'America/Mexico_City')::date), 'YYYY-MM-DD') semana_inicio`);
+  if (currentWeek.rows[0]?.semana_inicio === week) {
+    const calculatedFrentes = await calculated(s, week);
+    const confirmed = new Map<number, { congruencia_confirmada: Congruencia|null; que_ocurrio:string|null; que_bloqueo:string|null; que_aprendi:string|null; que_cambiare:string|null }>();
+    const { rows: saved } = await pool.query(`SELECT frente_id,congruencia_confirmada,que_ocurrio,que_bloqueo,que_aprendi,que_cambiare FROM compass.revisiones_frente WHERE usuario_id=$1 AND revision_semanal_id=$2`, [s.usuarioId, review.id]);
+    for (const row of saved) confirmed.set(row.frente_id, row);
+    return {revision:{...review,atencion_esperada:resumen.atencion_esperada??'',frentes_descuidados:resumen.frentes_descuidados??''},semana_inicio:week,frentes:calculatedFrentes.map((frente) => ({...frente,...(confirmed.get(frente.frente_id) ?? {})})),historica:false};
+  }
   const details=(await pool.query(`SELECT rf.frente_id,f.nombre,rf.intencion_semanal_id,rf.prioridad_snapshot,rf.horas_objetivo_snapshot::float8,rf.expectativa_atencion_snapshot,rf.horas_planificadas::float8,rf.horas_efectivas::float8,0::float8 horas_reservadas,rf.congruencia_sugerida,rf.congruencia_confirmada,rf.que_ocurrio,rf.que_bloqueo,rf.que_aprendi,rf.que_cambiare FROM compass.revisiones_frente rf JOIN compass.frentes f ON f.usuario_id=rf.usuario_id AND f.id=rf.frente_id WHERE rf.usuario_id=$1 AND rf.revision_semanal_id=$2 ORDER BY f.nombre`,[s.usuarioId,review.id])).rows;
   return {revision:{...review,atencion_esperada:resumen.atencion_esperada??'',frentes_descuidados:resumen.frentes_descuidados??''},semana_inicio:week,frentes:details,historica:true};
 }

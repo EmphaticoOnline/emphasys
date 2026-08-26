@@ -5,6 +5,7 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { esFechaHoraPasada, fechaYHoraLocalAISOString } from "@/lib/format"
 import type { Captura, FrenteCategoria } from "../../../services/compassService"
 import type { Destino } from "./use-procesar-captura"
 
@@ -86,6 +87,8 @@ export function ProcesarCapturaCampos({
           </Field>
         </div>
       )}
+
+      {destino === "actividad" && fecha && hora && esFechaHoraPasada(fechaYHoraLocalAISOString(fecha, hora)) && <p className="rounded-xl bg-[var(--surface-sunken)] px-3.5 py-3 text-[13px] leading-relaxed text-muted-foreground">La actividad corresponde a una fecha pasada y se conservará como registro histórico.</p>}
 
       {destino === "frente" && (
         <div className="flex flex-col gap-4">

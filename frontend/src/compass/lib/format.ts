@@ -82,6 +82,12 @@ export function hoyLocal() {
   return soloFecha(new Date().toISOString())
 }
 
+/** Indica si un instante capturado ya quedó en el pasado. Sólo sirve para UX;
+ * nunca debe usarse para impedir guardar una actividad histórica. */
+export function esFechaHoraPasada(iso: string) {
+  return fechaValida(iso).getTime() < Date.now()
+}
+
 export function formatHorasCompacto(horas: number) {
   const h = Math.floor(horas)
   const m = Math.round((horas - h) * 60)

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { fechaYHoraLocalAISOString } from "@/lib/format"
+import { esFechaHoraPasada, fechaYHoraLocalAISOString } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { convertIdea, type ConvertirIdea, type Idea } from "../../../services/compassService"
 
@@ -93,6 +93,8 @@ export function ConvertirIdeaDialog({ idea, onClose, onConverted }: { idea: Idea
             </Field>
           </div>
         )}
+
+        {destino === "actividad" && fecha && hora && esFechaHoraPasada(fechaYHoraLocalAISOString(fecha, hora)) && <p className="rounded-xl bg-[var(--surface-sunken)] px-3.5 py-3 text-[13px] leading-relaxed text-muted-foreground">La actividad corresponde a una fecha pasada y se conservará como registro histórico.</p>}
 
         {destino === "frente" && (
           <Field>

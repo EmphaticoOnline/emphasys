@@ -14,6 +14,7 @@ const HORAS = Array.from({ length: HORA_FIN - HORA_INICIO + 1 }, (_, i) => HORA_
 const ROW_H = 48
 
 function etiquetaHora(hora: number) {
+  if (hora === 24) return "12 am"
   if (hora === 12) return "12 pm"
   if (hora === 0) return "12 am"
   return hora > 12 ? `${hora - 12} pm` : `${hora} am`
@@ -90,7 +91,7 @@ export function SemanaGrid({
                 className={cn("relative border-l border-border", dia === seleccionada && "bg-accent/20")}
                 style={{ gridRow: `1 / span ${HORAS.length}`, gridColumn: di + 2 }}
               >
-                {HORAS.map((h, i) => (
+                {HORAS.filter((h) => h < HORA_FIN).map((h, i) => (
                   <button
                     key={h}
                     type="button"

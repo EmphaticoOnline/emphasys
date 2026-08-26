@@ -22,9 +22,15 @@ import {
 } from "@/components/ui/select"
 import { useCompass } from "@/lib/store"
 import { capitalizarPrimera, formatFechaLarga } from "@/lib/format"
+import { sumarDias } from "@/lib/calendario-fechas"
 
 function horaMin(hora: number) {
-  return `${String(hora).padStart(2, "0")}:00`
+  return hora === 24 ? "00:00" : `${String(hora).padStart(2, "0")}:00`
+}
+
+function minutos(hora: string) {
+  const [h, m] = hora.split(":").map(Number)
+  return h === 0 ? 24 * 60 + m : h * 60 + m
 }
 
 export function CrearActividadDialog({
@@ -47,7 +53,7 @@ export function CrearActividadDialog({
   useEffect(() => {
     if (open && hora !== null) {
       setHoraInicio(horaMin(hora))
-      setHoraFin(horaMin(Math.min(hora + 1, 23)))
+      setHoraFin(horaMin(Math.min(hora + 1, 24)))
       setTitulo("")
       setFrenteId(undefined)
     }
@@ -61,7 +67,7 @@ export function CrearActividadDialog({
       titulo: titulo.trim(),
       frenteId,
       inicio: `${fecha}T${horaInicio}:00`,
-      fin: `${fecha}T${horaFin}:00`,
+      fin: `${horaFin === "00:00" ? sumarDias(fecha, 1) : fecha}T${horaFin}:00`,
     })
     onOpenChange(false)
   }
@@ -121,7 +127,7 @@ export function CrearActividadDialog({
 
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
-          <Button onClick={crear} disabled={!titulo.trim() || horaFin <= horaInicio}>
+          <Button onClick={crear} disabled={!titulo.trim() || !/^\d{2}:\d{2}$/.test(horaInicio) || !/^\d{2}:\d{2}$/.test(horaFin) || minutos(horaFin) <= minutos(horaInicio)}>
             Agendar
           </Button>
         </DialogFooter>

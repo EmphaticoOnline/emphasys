@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
@@ -11,7 +11,7 @@ import { diasDeSemana, nombreDiaCorto, sumarDias } from "@/lib/calendario-fechas
 import { HORA_FIN_JORNADA, HORA_INICIO_JORNADA } from "@/lib/disponibilidad-semanal"
 import { useRealWork } from "@/lib/real-work-store"
 import { colorVarDeFrente } from "@/lib/frente-color"
-import { fechaYHoraLocalAISOString, formatDuracionMin, formatHora24, hoyLocal, horaYMinuto, soloFecha } from "@/lib/format"
+import { esFechaHoraPasada, fechaYHoraLocalAISOString, formatDuracionMin, formatHora24, hoyLocal, horaYMinuto, soloFecha } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Actividad, ActividadEstado, Frente } from "../../../services/compassService"
 import { ActividadBloque } from "./actividad-bloque"
@@ -27,6 +27,64 @@ const ALTURA_HORA = 56
 function horaFraccional(iso: string) {
   const { hora, minuto } = horaYMinuto(iso)
   return hora + minuto / 60
+}
+
+function minutosHora(hora: string) {
+  if (!/^\d{2}:\d{2}$/.test(hora)) return NaN
+  const [h, m] = hora.split(":").map(Number)
+  return h === 0 ? 24 * 60 + m : h * 60 + m
+}
+
+function horaCalendarioAISOString(dia: string, hora: string, fin = false) {
+  return fechaYHoraLocalAISOString(fin && hora === "00:00" ? sumarDias(dia, 1) : dia, hora)
+}
+
+function normalizarHoraCapturada(valor: string) {
+  return valor.replace(/[^\d:]/g, "").slice(0, 5)
+}
+
+function Hora24Input({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
+  const selectorRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <div className="relative flex items-center">
+      <Input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="HH:mm"
+        maxLength={5}
+        pattern="[0-2][0-9]:[0-5][0-9]"
+        value={value}
+        onChange={(event) => onChange(normalizarHoraCapturada(event.target.value))}
+        aria-label={`${id} en formato de 24 horas`}
+        className="pr-9 font-mono-compass"
+      />
+      <button
+        type="button"
+        aria-label={`Elegir ${id}`}
+        className="absolute right-2 text-muted-foreground hover:text-foreground"
+        onClick={() => selectorRef.current?.showPicker?.() ?? selectorRef.current?.click()}
+      >
+        <span aria-hidden>◷</span>
+      </button>
+      <input
+        ref={selectorRef}
+        type="time"
+        step={900}
+        value={/^\d{2}:\d{2}$/.test(value) ? value : ""}
+        onChange={(event) => onChange(event.target.value)}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="pointer-events-none absolute h-0 w-0 opacity-0"
+      />
+    </div>
+  )
+}
+
+function etiquetaLimiteHora() {
+  return "00:00"
 }
 
 function diaLabel(ymd: string) {
@@ -124,6 +182,20 @@ export function CalendarioView() {
   const [fin, setFin] = useState("10:00")
   const [frenteId, setFrenteId] = useState("")
   const [tareaId, setTareaId] = useState("")
+  const [guardandoCreacion, setGuardandoCreacion] = useState(false)
+  const fechaCreacionPasada = !editando && creando != null && esFechaHoraPasada(fechaYHoraLocalAISOString(dias[diaForm] ?? creando, inicio))
+  const horaInicioMinutos = minutosHora(inicio)
+  const horaFinMinutos = minutosHora(fin)
+  // La jornada sólo define la ventana visual habitual. La creación debe
+  // admitir registros reales fuera de ella (incluidos los históricos).
+  const horarioValido = Number.isFinite(horaInicioMinutos) && Number.isFinite(horaFinMinutos)
+    && horaInicioMinutos >= HORA_INICIO_JORNADA * 60
+    && horaInicioMinutos < HORA_FIN_JORNADA * 60
+    && horaFinMinutos > horaInicioMinutos
+    && horaFinMinutos <= HORA_FIN_JORNADA * 60
+  const horarioEdicionValido = horarioValido
+    && horaInicioMinutos >= HORA_INICIO_JORNADA * 60
+    && horaFinMinutos <= HORA_FIN_JORNADA * 60
 
   const load = useCallback(() => loadActividades({
     fecha_inicio: fechaYHoraLocalAISOString(dias[0]!),
@@ -158,7 +230,7 @@ export function CalendarioView() {
 
   const horas = useMemo(() => {
     const lista: string[] = []
-    for (let h = horaMin; h <= horaMax; h++) lista.push(`${h < 10 ? "0" : ""}${h}:00`)
+    for (let h = horaMin; h <= horaMax; h++) lista.push(h === 24 ? "00:00" : `${h < 10 ? "0" : ""}${h}:00`)
     return lista
   }, [horaMin, horaMax])
 
@@ -209,8 +281,9 @@ export function CalendarioView() {
     if (nuevoFin <= nuevoInicio) { setActionError("La actividad debe durar al menos 15 minutos."); return }
     const inicioIso = new Date(nuevoInicio).toISOString()
     const finIso = new Date(nuevoFin).toISOString()
-    if (horaFraccional(inicioIso) < HORA_INICIO_JORNADA || horaFraccional(finIso) > HORA_FIN_JORNADA) {
-      setActionError(`La jornada del calendario va de ${HORA_INICIO_JORNADA}:00 a ${HORA_FIN_JORNADA}:00.`)
+    const limiteDia = Date.parse(horaCalendarioAISOString(soloFecha(actividad.inicio_programado), "00:00", true))
+    if (newInicio < Date.parse(horaCalendarioAISOString(soloFecha(actividad.inicio_programado), `${String(HORA_INICIO_JORNADA).padStart(2, "0")}:00`)) || newFin > limiteDia) {
+      setActionError(`La jornada del calendario va de ${HORA_INICIO_JORNADA}:00 a ${etiquetaLimiteHora()}.`)
       return
     }
     void persistirHorario(actividad, inicioIso, finIso)
@@ -247,17 +320,22 @@ export function CalendarioView() {
   }
 
   async function guardarCreacion() {
-    if (!creando || !titulo.trim()) return
+    if (!creando || !titulo.trim() || !horarioValido || guardandoCreacion) return
     const diaElegido = dias[diaForm] ?? creando
-    await crearActividad({
-      titulo: titulo.trim(),
-      frente_id: frenteId ? Number(frenteId) : null,
-      tarea_id: tareaId ? Number(tareaId) : null,
-      inicio_programado: fechaYHoraLocalAISOString(diaElegido, inicio),
-      fin_programado: fechaYHoraLocalAISOString(diaElegido, fin),
-    })
-    setCreando(null)
-    await load()
+    setGuardandoCreacion(true)
+    try {
+      await crearActividad({
+        titulo: titulo.trim(),
+        frente_id: frenteId ? Number(frenteId) : null,
+        tarea_id: tareaId ? Number(tareaId) : null,
+        inicio_programado: horaCalendarioAISOString(diaElegido, inicio),
+        fin_programado: horaCalendarioAISOString(diaElegido, fin, true),
+      })
+      setCreando(null)
+      await load()
+    } finally {
+      setGuardandoCreacion(false)
+    }
   }
 
   async function guardarEdicion() {
@@ -269,8 +347,8 @@ export function CalendarioView() {
         titulo: titulo.trim(),
         frente_id: frenteId ? Number(frenteId) : null,
         tarea_id: tareaId ? Number(tareaId) : null,
-        inicio_programado: fechaYHoraLocalAISOString(diaElegido, inicio),
-        fin_programado: fechaYHoraLocalAISOString(diaElegido, fin),
+        inicio_programado: horaCalendarioAISOString(diaElegido, inicio),
+        fin_programado: horaCalendarioAISOString(diaElegido, fin, true),
       })
       setEditando(null)
       await load()
@@ -384,7 +462,7 @@ export function CalendarioView() {
               })}
             </div>
 
-            <div className="flex max-h-[620px] overflow-y-auto">
+            <div className="flex max-h-[620px] overflow-y-auto pt-2">
               <div className="w-14 shrink-0 border-r border-border bg-[var(--surface-sunken)]">
                 {horas.map((h) => (
                   <div key={h} className="flex justify-end pr-2" style={{ height: ALTURA_HORA }}>
@@ -428,7 +506,7 @@ export function CalendarioView() {
                     {actsDia.map((act) => {
                       const lane = carriles.get(act.id) ?? { carril: 0, carriles: 1 }
                       const top = (horaFraccional(act.inicio_programado) - horaMin) * ALTURA_HORA
-                      const alto = Math.max(34, (horaFraccional(act.fin_programado) - horaFraccional(act.inicio_programado)) * ALTURA_HORA)
+                      const alto = Math.max(34, ((new Date(act.fin_programado).getTime() - new Date(act.inicio_programado).getTime()) / 3_600_000) * ALTURA_HORA)
                       return (
                         <ActividadBloque
                           key={act.id}
@@ -535,11 +613,11 @@ export function CalendarioView() {
               </Field>
               <Field className="w-28">
                 <FieldLabel htmlFor="act-inicio">Inicio</FieldLabel>
-                <Input id="act-inicio" type="time" min={`${String(HORA_INICIO_JORNADA).padStart(2, "0")}:00`} max={`${String(HORA_FIN_JORNADA).padStart(2, "0")}:00`} value={inicio} onChange={(e) => setInicio(e.target.value)} />
+                <Hora24Input id="act-inicio" value={inicio} onChange={setInicio} />
               </Field>
               <Field className="w-28">
                 <FieldLabel htmlFor="act-fin">Fin</FieldLabel>
-                <Input id="act-fin" type="time" min={`${String(HORA_INICIO_JORNADA).padStart(2, "0")}:00`} max={`${String(HORA_FIN_JORNADA).padStart(2, "0")}:00`} value={fin} onChange={(e) => setFin(e.target.value)} />
+                <Hora24Input id="act-fin" value={fin} onChange={setFin} />
               </Field>
             </div>
 
@@ -559,9 +637,11 @@ export function CalendarioView() {
               </select>
             </Field>
 
+            {fechaCreacionPasada && <p className="rounded-xl bg-[var(--surface-sunken)] px-3.5 py-3 text-[13px] leading-relaxed text-muted-foreground">La actividad corresponde a una fecha pasada. Se guardará como registro con la fecha y hora capturadas.</p>}
+
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="ghost" onClick={() => { setCreando(null); setEditando(null) }}>Cancelar</Button>
-              <Button onClick={() => void (editando ? guardarEdicion() : guardarCreacion())} disabled={!titulo.trim() || fin <= inicio || inicio < `${String(HORA_INICIO_JORNADA).padStart(2, "0")}:00` || fin > `${String(HORA_FIN_JORNADA).padStart(2, "0")}:00` || loading}>{editando ? "Guardar cambios" : "Agendar"}</Button>
+              <Button onClick={() => void (editando ? guardarEdicion() : guardarCreacion())} disabled={editando ? (!titulo.trim() || !horarioEdicionValido || loading) : (!titulo.trim() || !horarioValido || guardandoCreacion)}>{editando ? "Guardar cambios" : "Agendar"}</Button>
             </div>
           </div>
         </div>

@@ -66,10 +66,10 @@ export function CongruenciaSemana({ dia, frentes, frenteIdsHoy }: { dia: string;
                     <span className="min-w-0 break-words text-[13px] leading-tight font-semibold text-foreground">{f.nombre}</span>
                   </div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-editorial text-xl leading-none text-foreground">{formatHorasCompacto(tieneObjetivo ? horasCubiertas : f.horas_efectivas)}</span>
+                    <span className="font-editorial text-xl leading-none text-foreground">{formatHorasCompacto(horasCubiertas)}</span>
                     {tieneObjetivo && <span className="font-mono-compass text-[11px] text-muted-foreground">/ {formatHorasCompacto(f.horas_objetivo_snapshot!)}</span>}
                   </div>
-                  {tieneObjetivo && (
+                  {(tieneObjetivo || f.horas_efectivas > 0 || f.horas_reservadas > 0) && (
                     <span className="text-[10.5px] leading-tight text-muted-foreground">
                       {formatHorasCompacto(f.horas_efectivas)} ejecutadas · {formatHorasCompacto(f.horas_reservadas)} reservadas
                     </span>

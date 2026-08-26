@@ -24,7 +24,7 @@ function unirMinutos(intervalos: Intervalo[]) {
 /** Separa cobertura ejecutada y futura, uniendo solapamientos por Frente. */
 export function calcularAtencionPorFrente(actividades: ActividadAtencion[], ahora = new Date()) {
   const porFrente = new Map<number, { ejecutados: Intervalo[]; reservados: Intervalo[]; planificados: Intervalo[] }>();
-  const ahoraMs = ahora.getTime();
+  void ahora;
 
   for (const actividad of actividades) {
     if (actividad.frente_id == null || actividad.estado === 'cancelada') continue;
@@ -36,8 +36,11 @@ export function calcularAtencionPorFrente(actividades: ActividadAtencion[], ahor
 
     if ((actividad.estado === 'realizada' || actividad.estado === 'parcial') && actividad.minutos_efectivos != null && actividad.minutos_efectivos > 0) {
       grupo.ejecutados.push({ inicio, fin: inicio + actividad.minutos_efectivos * 60_000 });
-    } else if (actividad.estado === 'programada' && fin > ahoraMs) {
-      grupo.reservados.push({ inicio: Math.max(inicio, ahoraMs), fin });
+    } else if (actividad.estado === 'programada') {
+      // Una actividad programada dentro de la semana sigue siendo tiempo
+      // reservado aunque su fecha ya haya pasado: la revisión también es un
+      // registro de lo que se planeó, no sólo de lo que aún está por ocurrir.
+      grupo.reservados.push({ inicio, fin });
     }
     porFrente.set(actividad.frente_id, grupo);
   }
@@ -63,6 +66,7 @@ export function sugerirCongruenciaPorCobertura(
     return 'descuidado';
   }
   if (expectativa === 'sin_compromiso') return 'congruente';
-  if (expectativa === 'atender' || expectativa === 'prioritario') return ejecutadas > 0 ? 'congruente' : 'descuidado';
+  if (expectativa === 'atender' || expectativa === 'prioritario') return ejecutadas > 0 || reservadas > 0 ? 'congruente' : 'descuidado';
+  if (ejecutadas > 0 || reservadas > 0) return 'congruente';
   return null;
 }
