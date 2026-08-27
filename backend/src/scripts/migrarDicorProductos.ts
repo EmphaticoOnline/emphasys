@@ -6,6 +6,7 @@ const TIPO_ENTIDAD = 'producto';
 const IVA_ID = 'iva_16';
 const SAT_UNIDAD_CLAVE = 'LTR';
 const UNIDAD_EMPRESA_CLAVE = 'LITRO';
+const APPLY = process.argv.includes('--apply');
 
 type ProductoOrigen = {
   id: number;
@@ -42,6 +43,7 @@ function targetClient(): Client {
     database: requiredEnv('EMPHASYS_PG_DATABASE'),
     user: requiredEnv('EMPHASYS_PG_USER'),
     password: requiredEnv('EMPHASYS_PG_PASSWORD'),
+    options: APPLY ? undefined : '-c default_transaction_read_only=on',
   });
 }
 
@@ -119,10 +121,6 @@ async function main() {
          FROM public.productos
         ORDER BY id`,
     );
-    if (origin.rowCount !== 3) {
-      throw new Error(`Se esperaban exactamente 3 productos DICOR; se encontraron ${origin.rowCount}.`);
-    }
-
     await target.query('BEGIN');
     await target.query(`SET LOCAL lock_timeout = '10s'`);
     await target.query(`SET LOCAL statement_timeout = '60s'`);
@@ -181,6 +179,13 @@ async function main() {
         if (existing.rowCount !== 1) {
           throw new Error(`Correspondencia inconsistente para producto DICOR ${idOrigen}.`);
         }
+        if (APPLY) await target.query(
+          `UPDATE productos SET descripcion=$1, activo=$2, clasificacion=$3, familia=$4,
+             linea=$5, clave_producto_sat=$6, observaciones=$7
+           WHERE id=$8 AND empresa_id=$9`,
+          [description, row.activo !== false, clean(row.clasificacion), clean(row.familia),
+           clean(row.linea), satProductKey, clean(row.observaciones), productId, EMPRESA_DICOR_ID],
+        );
       } else {
         const collision = await target.query(
           `SELECT id FROM productos WHERE empresa_id = $1 AND clave = $2`,
@@ -190,6 +195,7 @@ async function main() {
           throw new Error(`La clave normalizada ${key} ya existe sin correspondencia.`);
         }
 
+        if (!APPLY) continue;
         const inserted = await target.query<{ id: number }>(
           `INSERT INTO productos (
              empresa_id, clave, descripcion, activo, clasificacion, tipo_producto,
@@ -213,7 +219,7 @@ async function main() {
         );
       }
 
-      await target.query(
+      if (APPLY) await target.query(
         `INSERT INTO productos_impuestos (producto_id, impuesto_id)
          VALUES ($1::integer, $2::varchar)
          ON CONFLICT (producto_id, impuesto_id) DO NOTHING`,
@@ -221,7 +227,7 @@ async function main() {
       );
     }
 
-    await target.query('COMMIT');
+    await target.query(APPLY ? 'COMMIT' : 'ROLLBACK');
     await source.query('ROLLBACK');
     console.log(JSON.stringify({ ok: true, productos_origen: origin.rowCount }, null, 2));
   } catch (error) {

@@ -41,6 +41,7 @@ import WarehouseIcon from '@mui/icons-material/Warehouse';
 import logo from '../../assets/emphasys-w.png';
 import colibri from '../../assets/emphasys-colibri-w.png';
 import EmpresaSelector from '../EmpresaSelector';
+import RuntimeEnvironmentIndicator from '../RuntimeEnvironmentIndicator';
 import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '../layoutConstants';
 import { useSession } from '../../session/useSession';
 import ChangePasswordDialog from '../ChangePasswordDialog';
@@ -664,6 +665,7 @@ export default function SidebarLayout() {
               </React.Fragment>
             ))}
           </Box>
+          <RuntimeEnvironmentIndicator email={session.user?.email} />
           <EmpresaSelector />
         </Box>
 

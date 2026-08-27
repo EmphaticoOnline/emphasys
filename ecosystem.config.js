@@ -12,6 +12,8 @@ module.exports = {
       kill_timeout: 15000,
       env: {
         NODE_ENV: "production",
+        APP_ENV: "production",
+        DB_TARGET: "production",
         DB_HOST: "127.0.0.1",
         PGHOST: "127.0.0.1",
         APP_BASE_URL: "https://erp.emphasys.cloud",

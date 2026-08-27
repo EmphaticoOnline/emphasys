@@ -5,18 +5,16 @@ const SISTEMA_ORIGEN = 'DICOR';
 const TIPO_CONTACTO = 'contacto';
 const TIPO_DOMICILIO = 'contacto_domicilio';
 const TIPO_DOMICILIO_BASE = 'contacto_domicilio_base';
-// Corte aprobado al iniciar esta etapa. DICOR sigue operativo y puede recibir altas posteriores.
-const MAX_CONTACTO_ORIGEN_ID = 627;
-const MAX_DOMICILIO_ORIGEN_ID = 50;
+const APPLY = process.argv.includes('--apply');
 
 const TIPOS_ESPERADOS: Record<string, number> = {
-  Cliente: 330,
-  Proveedor: 76,
-  Operador: 42,
+  Cliente: 329,
+  Proveedor: 80,
+  Operador: 43,
   'Socio Comercial': 29,
   Vendedor: 26,
-  Fletera: 21,
-  Varios: 9,
+  Fletera: 22,
+  Varios: 11,
   'Uso Interno': 6,
   Facturador: 5,
 };
@@ -110,7 +108,7 @@ function makeClient(prefix: 'DICOR' | 'EMPHASYS'): Client {
     database: requiredEnv(`${prefix}_PG_DATABASE`),
     user: requiredEnv(`${prefix}_PG_USER`),
     password: requiredEnv(`${prefix}_PG_PASSWORD`),
-    options: prefix === 'DICOR' ? '-c default_transaction_read_only=on' : undefined,
+    options: prefix === 'DICOR' || !APPLY ? '-c default_transaction_read_only=on' : undefined,
   });
 }
 
@@ -187,32 +185,26 @@ async function main(): Promise<void> {
               enviar_cfd_agente,observaciones,forma_pago_id,metodo_pago_id,uso_cfdi_id,
               regimen_fiscal_id,cp_id,pais_id,porcentaje_participacion_utilidad
          FROM public.contactos
-        WHERE id <= $1
         ORDER BY id`,
-      [MAX_CONTACTO_ORIGEN_ID],
+      [],
     );
     const addresses = await source.query<DomicilioOrigen>(
       `SELECT id,contacto_id,identificador,responsable,domicilio,colonia,ciudad,estado,cp,
               pais,telefono,fax,cruces,recibe,telefono_recibe,coto_o_fraccionamiento,
               interior,observaciones
          FROM public.contactos_domicilios
-        WHERE id <= $1 AND contacto_id <= $2
         ORDER BY id`,
-      [MAX_DOMICILIO_ORIGEN_ID, MAX_CONTACTO_ORIGEN_ID],
+      [],
     );
     const baseAddresses = await source.query<DomicilioBaseOrigen>(
       `SELECT id,calle,numero_exterior,numero_interior,colonia_id,ciudad_id,estado_id,cp_id,pais_id
          FROM public.contactos
-        WHERE id <= $1
-          AND (NULLIF(btrim(COALESCE(calle,'')),'') IS NOT NULL
+        WHERE (NULLIF(btrim(COALESCE(calle,'')),'') IS NOT NULL
            OR NULLIF(btrim(COALESCE(cp_id,'')),'') IS NOT NULL)
         ORDER BY id`,
-      [MAX_CONTACTO_ORIGEN_ID],
+      [],
     );
 
-    if (contacts.rowCount !== 544) throw new Error(`Se esperaban 544 contactos; se encontraron ${contacts.rowCount}.`);
-    if (addresses.rowCount !== 45) throw new Error(`Se esperaban 45 domicilios; se encontraron ${addresses.rowCount}.`);
-    if (baseAddresses.rowCount !== 7) throw new Error(`Se esperaban 7 domicilios base; se encontraron ${baseAddresses.rowCount}.`);
 
     const typeCounts: Record<string, number> = {};
     for (const row of contacts.rows) typeCounts[row.tipo_contacto] = (typeCounts[row.tipo_contacto] ?? 0) + 1;
@@ -267,6 +259,7 @@ async function main(): Promise<void> {
       let contactId = await getMapping(target, TIPO_CONTACTO, sourceId);
 
       if (contactId == null) {
+        if (!APPLY) continue;
         const inserted = await target.query<{ id: number }>(
           `INSERT INTO contactos (
              empresa_id,tipo_contacto,nombre,rfc,email,telefono,telefono_secundario,
@@ -295,10 +288,21 @@ async function main(): Promise<void> {
           [contactId, EMPRESA_DICOR_ID, name, config.tipoCompatible, row.diascredito],
         );
         if (existing.rowCount !== 1) throw new Error(`Correspondencia de contacto DICOR ${row.id} incompatible.`);
+        if (APPLY) await target.query(
+          `UPDATE contactos SET nombre=$1, tipo_contacto=$2::tipo_contacto_enum, rfc=$3,
+             email=$4, telefono=$5, telefono_secundario=$6, activo=$7, bloqueado=$8,
+             dias_credito=$9, observaciones=$10, motivo_bloqueo=$11, zona=$12,
+             nombre_contacto=$13, updated_at=now()
+           WHERE id=$14 AND empresa_id=$15`,
+          [name, config.tipoCompatible, rfc, clean(row.email), clean(row.telefono_movil),
+           clean(row.telefono_trabajo) ?? clean(row.telefono_casa), row.activo, row.bloqueado,
+           row.diascredito, clean(row.observaciones), clean(row.motivo_bloqueo), clean(row.zona),
+           clean(row.contacto), contactId, EMPRESA_DICOR_ID],
+        );
       }
 
       if (config.rol) {
-        await target.query(
+        if (APPLY) await target.query(
           `INSERT INTO contactos_roles (contacto_id,rol,activo,origen,metadata)
            VALUES ($1,$2,true,$3,$4)
            ON CONFLICT (contacto_id,rol) DO NOTHING`,
@@ -319,7 +323,7 @@ async function main(): Promise<void> {
       );
       if (rfc) {
         if (!fiscal.rowCount) {
-          await target.query(
+          if (APPLY) await target.query(
             `INSERT INTO contactos_datos_fiscales (
                contacto_id,rfc,razon_social_fiscal,codigo_postal_fiscal,curp,regimen_fiscal,
                uso_cfdi,forma_pago,metodo_pago,enviar_cfd,enviar_cfd_agente,es_publico_general
@@ -347,6 +351,7 @@ async function main(): Promise<void> {
       const original = originalField ?? normalizeName(row.identificador);
       let addressId = await getMapping(target, TIPO_DOMICILIO, sourceId);
       if (addressId == null) {
+        if (!APPLY) continue;
         const inserted = await target.query<{ id: number }>(
           `INSERT INTO contactos_domicilios (
              contacto_id,identificador,es_principal,responsable,calle,numero_exterior,
@@ -368,7 +373,7 @@ async function main(): Promise<void> {
         });
       } else {
         if (originalField == null) {
-          await target.query(
+          if (APPLY) await target.query(
             `UPDATE contactos_domicilios
                 SET texto_original=$2
               WHERE id=$1 AND texto_original IS NULL`,
@@ -392,6 +397,7 @@ async function main(): Promise<void> {
       const original = [clean(row.calle), clean(row.numero_exterior), clean(row.numero_interior)].filter(Boolean).join(' ') || null;
       let addressId = await getMapping(target, TIPO_DOMICILIO_BASE, sourceId);
       if (addressId == null) {
+        if (!APPLY) continue;
         const inserted = await target.query<{ id: number }>(
           `INSERT INTO contactos_domicilios (
              contacto_id,identificador,es_principal,calle,numero_exterior,numero_interior,
@@ -420,15 +426,14 @@ async function main(): Promise<void> {
       }
     }
 
-    await target.query('COMMIT');
+    await target.query(APPLY ? 'COMMIT' : 'ROLLBACK');
     await source.query('ROLLBACK');
     console.log(JSON.stringify({
       ok: true,
       contactos_origen: contacts.rowCount,
       domicilios_relacionados_origen: addresses.rowCount,
       domicilios_base_origen: baseAddresses.rowCount,
-      corte_contacto_id_maximo: MAX_CONTACTO_ORIGEN_ID,
-      corte_domicilio_id_maximo: MAX_DOMICILIO_ORIGEN_ID,
+      modo: APPLY ? 'apply' : 'dry-run',
     }, null, 2));
   } catch (error) {
     await target.query('ROLLBACK').catch(() => undefined);

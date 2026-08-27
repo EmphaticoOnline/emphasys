@@ -1,11 +1,12 @@
 import { Pool } from 'pg';
+import { runtimeConfig } from './runtime';
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  host: runtimeConfig.db.host,
+  port: runtimeConfig.db.port,
+  database: runtimeConfig.db.name,
+  user: runtimeConfig.db.user,
+  password: runtimeConfig.db.password,
 });
 
 export default pool;

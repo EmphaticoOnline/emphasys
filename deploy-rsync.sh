@@ -103,10 +103,7 @@ ssh "${SSH_OPTS[@]}" "$SERVER" "ln -sfn frontend-erp-dist '$RELEASE_PATH/fronten
 log "Sincronizando package.json y lock..."
 rsync -az -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/package.json" "$BACKEND_DIR/package-lock.json" "$SERVER:$RELEASE_PATH/"
 
-if [[ -f "$BACKEND_DIR/.env" ]]; then
-  log "Sincronizando .env..."
-  rsync -az -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/.env" "$SERVER:$REMOTE_PATH/.env"
-fi
+log "Conservando el .env administrado exclusivamente en el servidor remoto."
 
 log "Sincronizando ecosystem.config.js..."
 rsync -az -e "${RSYNC_SSH[*]}" "$PM2_CONFIG" "$SERVER:$REMOTE_PATH/"

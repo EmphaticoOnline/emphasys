@@ -17,6 +17,9 @@
     "deploy:test": "bash ./deploy-test.sh",
     "backend:build": "cd backend && npm run build",
     "backend:start": "cd backend && npm start",
+    "dev:local": "APP_ENV=development DB_TARGET=local bash ./scripts/dev-local.sh",
+    "dev:server": "APP_ENV=development DB_TARGET=server bash ./scripts/dev-server.sh",
+    "start:prod": "APP_ENV=production DB_TARGET=production npm run backend:start",
     "frontend:build": "cd frontend && npm run build",
     "frontend:dev": "cd frontend && npm run dev",
     "dev": "concurrently -k -n backend,frontend -c blue,green \"npm run backend:build && npm run backend:start\" \"wait-on tcp:7001 && npm run frontend:dev\""

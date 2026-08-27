@@ -41,6 +41,7 @@ import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoServic
 import { fetchParametrosSistema } from '../services/parametrosService';
 import { apiFetch } from '../services/apiFetch';
 import { useResponsiveMainMenuMode } from '../hooks/useResponsiveMainMenuMode.js';
+import RuntimeEnvironmentIndicator from './RuntimeEnvironmentIndicator';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -454,6 +455,7 @@ export default function Layout({ children }: LayoutProps) {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: '0 0 auto' }}>
+          <RuntimeEnvironmentIndicator email={session.user?.email} />
           <Box
             sx={{
               minWidth: 220,

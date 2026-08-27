@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS public.uq_finanzas_borrador_empresa_cuenta_fecha;
+DROP TABLE IF EXISTS public.finanzas_conciliaciones_borradores_operaciones;
+DROP TABLE IF EXISTS public.finanzas_conciliaciones_borradores;

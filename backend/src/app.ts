@@ -1,21 +1,10 @@
 
-import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
+import { logRuntimeConfig } from "./config/runtime";
+import runtimeRouter from "./routes/runtime.routes";
 
-// Carga variables de entorno (.env.local tiene prioridad en desarrollo)
-const envLocalPath = path.resolve(process.cwd(), ".env.local");
-const envPath = path.resolve(process.cwd(), ".env");
-
-if (fs.existsSync(envLocalPath)) {
-  dotenv.config({ path: envLocalPath });
-}
-
-if (fs.existsSync(envPath)) {
-  dotenv.config({ path: envPath });
-}
-
-console.log("SMTP_HOST runtime:", process.env.SMTP_HOST);
+logRuntimeConfig();
 console.log("CWD runtime:", process.cwd());
 
 import express from "express";
@@ -70,6 +59,8 @@ import reportesRouter from "./modules/reportes/reportes.routes";
 import notificacionesRouter from "./modules/notificaciones/notificaciones.routes";
 import compassRouter from "./modules/compass/compass.routes";
 import transporteRouter from "./modules/transporte/transporte.routes";
+import operacionesFullRouter from "./modules/operaciones-full/operaciones-full.routes";
+import preciosBaseComercialesRouter from "./modules/precios-base-comerciales/precios-base-comerciales.routes";
 import { FRONTEND_BUILD_VERSION } from "./config/version";
 
 const app = express();
@@ -174,10 +165,13 @@ app.use("/api/almacenes", almacenesRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/crm", crmOportunidadesRouter);
 app.use("/api/version", versionRouter);
+app.use("/api", runtimeRouter);
 app.use("/api/cfdi", cfdiCsdRouter);
 app.use("/api/configuracion/cfdi-sat", cfdiSatRouter);
 app.use("/api/autorizaciones", autorizacionesRouter);
 app.use("/api/factura-global", facturaGlobalRouter);
+app.use("/api/operaciones-full", operacionesFullRouter);
+app.use("/api/precios-base-comerciales", preciosBaseComercialesRouter);
 app.use("/api/reportes", reportesRouter);
 app.use("/api/notificaciones", notificacionesRouter);
 app.use("/api/compass", compassRouter);
