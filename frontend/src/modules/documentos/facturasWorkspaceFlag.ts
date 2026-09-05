@@ -50,10 +50,18 @@ const leerOverrideQueryParam = (): 'workspace' | 'clasica' | null => {
 
 // Resuelve si el workspace de Facturas debe mostrarse. El query param manda
 // (permite forzar cualquiera de los dos estados sin depender de lo guardado);
-// si no hay override en la URL, el workspace es la vista predeterminada.
+// si no hay override en la URL, se respeta la preferencia guardada y, si no
+// existe, el workspace es la vista predeterminada.
 export const resolveFacturasWorkspaceEnabled = (empresaId: number | null, usuarioId: number | null): boolean => {
   const override = leerOverrideQueryParam();
   if (override === 'workspace') return true;
   if (override === 'clasica') return false;
-  return true;
+  const llave = obtenerLlaveFacturasWorkspacePreferencia(empresaId, usuarioId);
+  if (!llave) return true;
+  try {
+    const valor = window.localStorage.getItem(llave);
+    return valor == null ? true : valor === '1';
+  } catch {
+    return true;
+  }
 };

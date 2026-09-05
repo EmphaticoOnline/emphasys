@@ -7,7 +7,10 @@ import {
   buscarFormasPago,
   buscarMetodosPago,
   buscarProductosServicios,
+  buscarPaises,
   buscarCodigosPostales,
+  buscarBienesTransportados, buscarMaterialesPeligrosos, buscarTiposEmbalaje, buscarUnidadesSat,
+  buscarConfiguracionesAutotransporte, buscarTiposPermiso, buscarSubtiposRemolque,
   RegimenFiscal,
 } from "./sat.repository";
 
@@ -119,6 +122,33 @@ export async function getProductosServicios(req: Request, res: Response) {
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 }
+
+export async function getPaises(req: Request, res: Response) {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : null;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+    const items = await buscarPaises(q, limit);
+    res.json({ items });
+  } catch (error) {
+    console.error('Error al consultar países SAT:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+}
+
+async function getCartaPorteCatalogo(req: Request, res: Response, buscar: (q: string | null, limit?: number) => Promise<unknown[]>) {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : null;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+    res.json({ items: await buscar(q, limit) });
+  } catch (error) { console.error('Error al consultar catálogo Carta Porte:', error); res.status(500).json({ message: 'Error interno del servidor' }); }
+}
+export const getBienesTransportados = (req: Request, res: Response) => getCartaPorteCatalogo(req, res, buscarBienesTransportados);
+export const getMaterialesPeligrosos = (req: Request, res: Response) => getCartaPorteCatalogo(req, res, buscarMaterialesPeligrosos);
+export const getTiposEmbalaje = (req: Request, res: Response) => getCartaPorteCatalogo(req, res, buscarTiposEmbalaje);
+export const getUnidadesSat = (req: Request, res: Response) => getCartaPorteCatalogo(req, res, buscarUnidadesSat);
+export const getConfiguracionesAutotransporte = (req: Request, res: Response) => getCartaPorteCatalogo(req, res, buscarConfiguracionesAutotransporte);
+export const getTiposPermiso = (req: Request, res: Response) => getCartaPorteCatalogo(req, res, buscarTiposPermiso);
+export const getSubtiposRemolque = (req: Request, res: Response) => getCartaPorteCatalogo(req, res, buscarSubtiposRemolque);
 
 export async function buscarCodigosPostalesHandler(req: Request, res: Response) {
   try {

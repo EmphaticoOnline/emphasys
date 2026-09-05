@@ -63,18 +63,8 @@ async function corregirMaestros(): Promise<void> {
   try {
     await client.query('BEGIN');
     for (const domicilio of domicilios) {
-      const updated = await client.query(
-        `UPDATE transporte.ubicaciones
-            SET pais=$3, estado=$4, municipio=$5, localidad=$6,
-                codigo_postal=$7, colonia=$8, updated_at=now()
-          WHERE empresa_id=$1 AND tipo_referencia=$2`,
-        [EMPRESA_ID, domicilio.referencia, domicilio.pais, domicilio.estado,
-          domicilio.municipio, domicilio.localidad, domicilio.codigoPostal, domicilio.colonia]
-      );
-      if (updated.rowCount !== 1) {
-        throw new Error(`Se esperaba una ubicación ${domicilio.referencia}; encontradas: ${updated.rowCount}.`);
-      }
-
+      // El maestro operativo de ubicaciones es public.contactos_domicilios
+      // (transporte.ubicaciones fue retirado en la consolidación 20260901).
       await client.query(
         `UPDATE public.contactos_domicilios d
             SET colonia=$3, colonia_sat=$4, ciudad=$5, estado=$6,
@@ -124,7 +114,7 @@ async function refrescarViajeYMaterializar() {
     referenciaCliente: viaje.referencia_cliente,
     observaciones: viaje.observaciones,
     ubicaciones: aggregate.ubicaciones.map((item: any) => ({
-      ubicacionId: item.ubicacion_id,
+      domicilioId: item.domicilio_id,
       tipo: item.tipo,
       secuencia: item.secuencia,
       fechaHoraProgramada: isoDate(item.fecha_hora_programada),
@@ -132,7 +122,7 @@ async function refrescarViajeYMaterializar() {
       distanciaRecorrida: item.distancia_recorrida,
     })),
     mercancias: aggregate.mercancias.map((item: any) => ({
-      mercanciaId: item.mercancia_id,
+      productoId: item.producto_id,
       cantidad: item.cantidad,
       pesoKg: item.peso_kg,
       valorMercancia: item.valor_mercancia,

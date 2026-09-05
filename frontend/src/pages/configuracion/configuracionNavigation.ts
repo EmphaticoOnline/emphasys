@@ -6,10 +6,21 @@ export type ConfiguracionNavigationOption = {
 };
 
 export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
+	{ titulo: 'Unidades', descripcion: 'Administra unidades operativas y su asociación con el catálogo SAT.', path: '/configuracion/unidades' },
 	{
 		titulo: 'Empresas',
 		descripcion: 'Configura empresas y sus parámetros generales.',
 		path: '/configuracion/empresas',
+	},
+	{
+		titulo: 'Vehículos',
+		descripcion: 'Administra las unidades de transporte y su información de Carta Porte.',
+		path: '/vehiculos',
+	},
+	{
+		titulo: 'Remolques',
+		descripcion: 'Administra remolques y subtipos SAT para Carta Porte.',
+		path: '/remolques',
 	},
 	{
 		titulo: 'Usuarios',

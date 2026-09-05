@@ -1,0 +1,1 @@
+import {Router} from 'express';import {requireAuth,requireEmpresaActiva} from '../auth/auth.middleware';import * as c from './remolques.controller';const r=Router(),g=[requireAuth,requireEmpresaActiva];r.get('/',...g,c.listar);r.get('/:id',...g,c.obtener);r.post('/',...g,c.crear);r.put('/:id',...g,c.actualizar);r.patch('/:id/desactivar',...g,c.desactivar);export default r;

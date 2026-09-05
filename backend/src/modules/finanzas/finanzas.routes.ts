@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth, requireEmpresaActiva, requireSuperadmin } from '../auth/auth.middleware';
 import {
   deleteAplicacion,
+  deleteAplicacionDocumental,
   deleteCuenta,
   deleteOperacion,
   deleteTransferencia,
@@ -76,6 +77,7 @@ router.post('/conciliaciones', postConciliacion);
 
 router.post('/aplicaciones', postAplicacion);
 router.post('/aplicaciones/:id/desaplicar', deleteAplicacion);
+router.post('/aplicaciones/:id/desaplicar-documental', deleteAplicacionDocumental);
 
 // Endpoints de diagnóstico (solo lectura, no modifican datos)
 router.get('/diagnostico/saldos', getVerificacionSaldos);

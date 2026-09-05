@@ -5,6 +5,70 @@ import { removeFileIfExists } from '../../services/fileStorage.service';
 import { eliminarPdfPreviewSiExiste } from '../../services/pdfPreviewImage.service';
 import { resolveUploadsDir } from '../uploads/uploads.multer';
 
+export type ProductoImpuestoCatalogo = {
+  id: string;
+  nombre: string;
+  tipo: string;
+  tasa: number;
+};
+
+export async function listarImpuestosProductoRepository(productoId: number, empresaId: number) {
+  const { rows } = await pool.query<ProductoImpuestoCatalogo>(
+    `SELECT i.id, i.nombre, i.tipo, i.tasa
+       FROM productos_impuestos pi
+       JOIN impuestos i ON i.id = pi.impuesto_id
+       JOIN productos p ON p.id = pi.producto_id
+      WHERE pi.producto_id = $1 AND p.empresa_id = $2 AND i.activo = true
+      ORDER BY CASE WHEN i.tipo = 'traslado' THEN 0 ELSE 1 END, i.nombre`,
+    [productoId, empresaId]
+  );
+  return rows;
+}
+
+export async function reemplazarImpuestosProductoRepository(
+  productoId: number,
+  empresaId: number,
+  impuestoIds: string[]
+) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const producto = await client.query(
+      'SELECT id FROM productos WHERE id = $1 AND empresa_id = $2 FOR UPDATE',
+      [productoId, empresaId]
+    );
+    if (!producto.rowCount) return null;
+
+    const ids = [...new Set(impuestoIds.map(String).map((id) => id.trim()).filter(Boolean))];
+    if (ids.length) {
+      const validos = await client.query(
+        'SELECT id FROM impuestos WHERE id = ANY($1::varchar[]) AND activo = true',
+        [ids]
+      );
+      if (validos.rowCount !== ids.length) {
+        throw new Error('Uno o más impuestos no existen o están inactivos');
+      }
+    }
+
+    await client.query('DELETE FROM productos_impuestos WHERE producto_id = $1', [productoId]);
+    if (ids.length) {
+      await client.query(
+        `INSERT INTO productos_impuestos (producto_id, impuesto_id)
+         SELECT $1, x.impuesto_id
+           FROM unnest($2::varchar[]) AS x(impuesto_id)`,
+        [productoId, ids]
+      );
+    }
+    await client.query('COMMIT');
+    return listarImpuestosProductoRepository(productoId, empresaId);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export type ProductoArchivoRecord = {
   id: number;
   producto_id: number;
@@ -246,7 +310,8 @@ const CAMPOS = [
   'unidad_venta_id', 'unidad_compra', 'unidad_inventario_id', 'factor_conversion', 'existencia_actual',
   'minimo_inventario', 'costo_estandar', 'costo_promedio', 'ultimo_costo', 'precio_publico', 'precio_mayoreo',
   'precio_menudeo', 'precio_distribuidor', 'iva_porcentaje', 'ieps_porcentaje', 'retiene_iva', 'retiene_isr',
-  'clave_producto_sat', 'unidad_sat', 'fraccion_arancelaria', 'largo', 'ancho', 'alto', 'espesor', 'diametro',
+  'clave_producto_sat', 'clave_unidad_sat', 'fraccion_arancelaria', 'largo', 'ancho', 'alto', 'espesor', 'diametro',
+  'clave_bienes_transportados_sat', 'es_material_peligroso', 'clave_material_peligroso_sat', 'clave_embalaje_sat', 'descripcion_embalaje',
   'peso_unitario', 'equivalente_m2', 'piezas_por_empaque', 'peso_por_empaque', 'unidad_peso_empaque',
   'ubicacion_almacen', 'proveedor_principal_id', 'proveedor_alternativo_1_id', 'proveedor_alternativo_2_id',
   'archivo_fotografia_1', 'archivo_fotografia_2', 'archivo_ficha_tecnica', 'archivo_certificado', 'es_estacional',

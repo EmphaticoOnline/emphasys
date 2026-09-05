@@ -81,6 +81,8 @@ Toda comunicación con el backend va a través del proxy Vite (`/api`, `/auth`, 
 
 PostgreSQL sin ORM. Las migraciones están en `database/migrations/` con timestamp como prefijo. No hay seed scripts; la base de datos se inicializa con las migraciones en orden.
 
+Todas las migraciones nuevas deben crearse exclusivamente en `database/migrations/`; no deben crearse en `backend/database/scripts` ni en ninguna otra carpeta histórica o alternativa.
+
 ### Integraciones externas clave
 
 - **Facturama** — generación de CFDI (facturación electrónica mexicana)

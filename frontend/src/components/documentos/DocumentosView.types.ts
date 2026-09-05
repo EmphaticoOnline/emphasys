@@ -30,6 +30,7 @@ export interface DocumentosViewCommonProps {
   summaryContent?: React.ReactNode;
   selectionContent?: React.ReactNode;
   extraActionsContent?: React.ReactNode;
+  viewToggleContent?: React.ReactNode;
 }
 
 export interface DocumentosDesktopViewProps extends DocumentosViewCommonProps {

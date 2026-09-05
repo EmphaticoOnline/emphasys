@@ -1,4 +1,4 @@
-import type { Contacto, ContactoDetalle } from '../types/contactos.types';
+import type { Contacto, ContactoDetalle, ContactoDomicilio } from '../types/contactos.types';
 import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 
 export type CatalogoConfigurablesRespuesta = {
@@ -59,6 +59,11 @@ export async function guardarCatalogosConfigurablesContacto(contactoId: number, 
     body: { catalogoIds } as any,
   });
 }
+
+export const listarDomiciliosContacto = (id: number) => apiFetch<ContactoDomicilio[]>(`${BASE_URL}/${id}/domicilios`);
+export const crearDomicilioContacto = (id: number, data: Partial<ContactoDomicilio>) => apiFetch<ContactoDomicilio>(`${BASE_URL}/${id}/domicilios`, { method: 'POST', body: data as any });
+export const actualizarDomicilioContacto = (id: number, domicilioId: number, data: Partial<ContactoDomicilio>) => apiFetch<ContactoDomicilio>(`${BASE_URL}/${id}/domicilios/${domicilioId}`, { method: 'PUT', body: data as any });
+export const eliminarDomicilioContacto = (id: number, domicilioId: number) => apiFetch<void>(`${BASE_URL}/${id}/domicilios/${domicilioId}`, { method: 'DELETE' });
 
 export type ExportContactoColumna = { field: string; headerName: string };
 

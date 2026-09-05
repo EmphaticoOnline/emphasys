@@ -20,11 +20,14 @@ import {
   TagRounded,
   VerifiedUserRounded,
   PaymentsRounded,
+  DirectionsCarRounded,
 } from '@mui/icons-material';
 import { CONFIGURACION_OPTIONS } from './configuracion/configuracionNavigation';
 
 const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
   Empresas: BusinessRounded,
+  Vehículos: DirectionsCarRounded,
+  Remolques: DirectionsCarRounded,
   Usuarios: GroupRounded,
   Roles: ShieldRounded,
   'Catálogos configurables': CategoryRounded,
@@ -45,6 +48,7 @@ const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
   'Campos obligatorios': TuneRounded,
   'Métodos de pago': PaymentsRounded,
   'Políticas de autorización': VerifiedUserRounded,
+  Unidades: CategoryRounded,
 };
 
 export default function ConfiguracionPage() {

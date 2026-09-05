@@ -16,6 +16,7 @@ import {
   eliminarProductoArchivoRepository,
   marcarProductoArchivoPrincipalRepository,
 } from './productos.repository';
+import { listarImpuestosProductoRepository, reemplazarImpuestosProductoRepository } from './productos.repository';
 import { generarPdfPreviewSiFalta } from '../../services/pdfPreviewImage.service';
 import { resolverContextoScopeComercial } from '../auth/scope-comercial';
 import {
@@ -119,6 +120,36 @@ export async function getProducto(req: Request, res: Response) {
     res.json(omitirCamposEconomicos(producto, esAdmin));
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener producto' });
+  }
+}
+
+export async function getImpuestosProducto(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const productoId = Number(req.params.id);
+    if (!empresaId || !Number.isInteger(productoId)) return res.status(400).json({ message: 'Producto o empresa inválidos' });
+    res.json(await listarImpuestosProductoRepository(productoId, Number(empresaId)));
+  } catch (error) {
+    console.error('Error al obtener impuestos del producto', error);
+    res.status(500).json({ message: 'Error al obtener impuestos del producto' });
+  }
+}
+
+export async function putImpuestosProducto(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId;
+    const productoId = Number(req.params.id);
+    const impuestoIds = req.body?.impuesto_ids;
+    if (!empresaId || !Number.isInteger(productoId) || !Array.isArray(impuestoIds)) {
+      return res.status(400).json({ message: 'Producto, empresa e impuesto_ids son obligatorios' });
+    }
+    const result = await reemplazarImpuestosProductoRepository(productoId, Number(empresaId), impuestoIds);
+    if (!result) return res.status(404).json({ message: 'Producto no encontrado para la empresa activa' });
+    res.json(result);
+  } catch (error) {
+    console.error('Error al guardar impuestos del producto', error);
+    const message = error instanceof Error ? error.message : 'Error al guardar impuestos del producto';
+    res.status(400).json({ message });
   }
 }
 

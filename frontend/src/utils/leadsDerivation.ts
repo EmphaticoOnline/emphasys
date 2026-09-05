@@ -316,7 +316,15 @@ export const getLastWhatsappPreview = (conversation: ConversationView[]): { text
   if (!last) return null;
 
   return {
-    text: last.text || '',
+    text: last.text || (last.tipoContenido === 'image'
+      ? 'Imagen'
+      : last.tipoContenido === 'audio'
+        ? 'Audio'
+        : last.tipoContenido === 'document'
+          ? (last.caption || 'Documento')
+          : last.tipoContenido === 'video'
+            ? (last.isGif ? 'GIF' : (last.caption || 'Video'))
+            : ''),
     sentAt: last.sentAt ?? null,
   };
 };

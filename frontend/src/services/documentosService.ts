@@ -22,6 +22,22 @@ type PdfDescarga = {
   filename: string;
 };
 
+// Un PDF abierto en el visor nativo de Chrome puede necesitar su blob URL
+// mucho después de que terminó el fetch (por ejemplo, al descargarlo minutos
+// después). Se revocan todos al abandonar la página de Emphasys.
+const pdfViewerObjectUrls = new Set<string>();
+let pdfViewerCleanupRegistered = false;
+
+function conservarPdfViewerObjectUrl(url: string): void {
+  pdfViewerObjectUrls.add(url);
+  if (pdfViewerCleanupRegistered) return;
+  pdfViewerCleanupRegistered = true;
+  window.addEventListener('beforeunload', () => {
+    pdfViewerObjectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+    pdfViewerObjectUrls.clear();
+  });
+}
+
 function obtenerFilenameDesdeContentDisposition(contentDisposition: string | null, fallback: string): string {
   if (!contentDisposition) {
     return fallback;
@@ -254,7 +270,7 @@ export async function abrirDocumentoPdfEnNuevaVentana(id: number, tipo: TipoDocu
     const { blob, filename } = await fetchDocumentoPdf(id, tipo);
     const url = URL.createObjectURL(blob);
     win.location.href = url;
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    conservarPdfViewerObjectUrl(url);
   } catch (error) {
     win.close();
     throw error;

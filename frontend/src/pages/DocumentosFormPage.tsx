@@ -505,7 +505,10 @@ const buildCreateConceptoOption = (inputValue: string): ConceptoAutocompleteOpti
 });
 
 const filterContactoOptions = createFilterOptions<ContactoAutocompleteOption>({
-  stringify: (option) => ('kind' in option && option.kind === 'create' ? option.inputValue : option.nombre || ''),
+  stringify: (option) => {
+    if ('kind' in option && option.kind === 'create') return option.inputValue;
+    return [option.nombre, option.nombre_contacto].filter(Boolean).join(' ');
+  },
 });
 
 const filterConceptoOptions = createFilterOptions<ConceptoAutocompleteOption>({
@@ -708,7 +711,9 @@ export default function DocumentosFormPage({
   );
   const [estadoAutorizacionDoc, setEstadoAutorizacionDoc] = useState<string | null>(null);
   const [tieneDerivadosActivos, setTieneDerivadosActivos] = useState(false);
-  const [trazabilidadActiva, setTrazabilidadActiva] = useState(false);
+  const [trazabilidadDetectada, setTrazabilidadDetectada] = useState(false);
+  const trazabilidadActiva = trazabilidadDetectada
+    && !(tipoDocumento === 'factura' && String(form.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador');
   const [trazabilidadRol, setTrazabilidadRol] = useState<'origen' | 'destino' | null>(null);
   const [docTrazabilidad, setDocTrazabilidad] = useState<{ tipo_documento: string; folio: string } | null>(null);
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
@@ -1748,7 +1753,7 @@ export default function DocumentosFormPage({
       const doc = data.documento;
       setEstadoAutorizacionDoc((doc as any).estado_autorizacion ?? null);
       setTieneDerivadosActivos(Boolean((doc as any).tiene_derivados_activos));
-      setTrazabilidadActiva(Boolean((doc as any).trazabilidad_activa));
+      setTrazabilidadDetectada(Boolean((doc as any).trazabilidad_activa));
       setTrazabilidadRol((doc as any).trazabilidad_rol ?? null);
       setDocTrazabilidad((doc as any).documento_trazabilidad ?? null);
       setDocumentoPersistidoId(Number((doc as any).id ?? documentoActualId));
@@ -3102,7 +3107,7 @@ export default function DocumentosFormPage({
   // Sube el archivo al mismo endpoint que ya usa "Subir imagen personalizada"
   // y aplica el mismo cambio de estado. La comparten el input de archivo y el
   // flujo de pegado desde el portapapeles: una sola ruta de subida/validación.
-  const subirImagenPartida = async (index: number, file: File) => {
+  const subirImagenPartida = async (index: number, file: File, mantenerDialogoAbierto = false) => {
     setUploadingImagen((prev) => {
       const next = [...prev];
       next[index] = true;
@@ -3113,7 +3118,7 @@ export default function DocumentosFormPage({
       const resp = await uploadArchivo(file);
       setPartidaAt(index, (prev) => ({ ...prev, archivo_imagen_1: resp.url, producto_archivo_id: null }));
       setSnackbar({ open: true, message: 'Imagen cargada', severity: 'success' });
-      if (partidaImagenDialog.open && partidaImagenDialog.index === index) {
+      if (!mantenerDialogoAbierto && partidaImagenDialog.open && partidaImagenDialog.index === index) {
         cerrarImagenDialog();
       }
     } catch (error) {
@@ -3162,7 +3167,7 @@ export default function DocumentosFormPage({
       setSnackbar({ open: true, message: 'Se detectaron varias imágenes en el portapapeles; se usó la primera.', severity: 'info' });
     }
     setClipboardPasteStatus(null);
-    await subirImagenPartida(index, file);
+    await subirImagenPartida(index, file, true);
   };
 
   const handleLeerPortapapeles = async () => {
@@ -4062,10 +4067,10 @@ export default function DocumentosFormPage({
           </Alert>
         )}
 
-        {isEdit && trazabilidadActiva && trazabilidadRol === 'destino' && (
+        {isEdit && trazabilidadDetectada && trazabilidadRol === 'destino' && (
           <Alert severity="warning">
             <AlertTitle fontWeight={700}>Documento con trazabilidad activa</AlertTitle>
-            Este documento participa en una cadena de trazabilidad y no puede modificarse directamente.
+            Los datos comerciales heredados del documento origen no pueden modificarse directamente. Mientras este documento permanezca en borrador, sí pueden editarse sus datos propios, como fechas, información fiscal, condiciones de pago y observaciones.
             {docTrazabilidad?.tipo_documento ? (
               <>
                 {' '}
@@ -4076,8 +4081,7 @@ export default function DocumentosFormPage({
                 </strong>
                 .
               </>
-            ) : null}{' '}
-            Solo las observaciones y la imagen de las partidas pueden editarse directamente aquí.
+            ) : null}
           </Alert>
         )}
 
@@ -4099,7 +4103,9 @@ export default function DocumentosFormPage({
                       const normalizedInput = inputValue.toLocaleLowerCase();
                       const hasExactMatch = options.some((option) => {
                         if ('kind' in option && option.kind === 'create') return false;
-                        return (option.nombre || '').trim().toLocaleLowerCase() === normalizedInput;
+                        return [option.nombre, option.nombre_contacto]
+                          .filter(Boolean)
+                          .some((value) => value!.trim().toLocaleLowerCase() === normalizedInput);
                       });
                       if (hasExactMatch) return filtered;
                       return [{ kind: 'create', id: -1, nombre: `➕ Crear cliente "${inputValue}"`, inputValue }, ...filtered];
@@ -5551,10 +5557,10 @@ export default function DocumentosFormPage({
         </Alert>
       )}
 
-      {isEdit && trazabilidadActiva && trazabilidadRol === 'destino' && (
+      {isEdit && trazabilidadDetectada && trazabilidadRol === 'destino' && (
         <Alert severity="warning" sx={{ mb: 1 }}>
           <AlertTitle fontWeight={700}>Documento con trazabilidad activa</AlertTitle>
-          Este documento participa en una cadena de trazabilidad y no puede modificarse directamente.
+          Los datos comerciales heredados del documento origen no pueden modificarse directamente. Mientras este documento permanezca en borrador, sí pueden editarse sus datos propios, como fechas, información fiscal, condiciones de pago y observaciones.
           {docTrazabilidad?.tipo_documento ? (
             <>
               {' '}Documento relacionado:{' '}
@@ -5564,7 +5570,7 @@ export default function DocumentosFormPage({
               </strong>.
             </>
           ) : null}
-          {' '}Si necesita realizar cambios en cantidades, precios, partidas u otros datos heredados, elimine este documento (si continúa en borrador) y vuelva a generarlo desde el documento origen. Solo las observaciones y la imagen de las partidas pueden editarse directamente aquí.
+          {' '}Si necesita cambiar cantidades, precios, partidas u otros datos heredados, genere un nuevo documento desde el origen.
         </Alert>
       )}
 

@@ -52,6 +52,11 @@ const initialForm: ProductoBasico = {
   tipo_producto: 'Inventariable',
   activo: true,
   clave_producto_sat: null,
+  clave_bienes_transportados_sat: null,
+  es_material_peligroso: false,
+  clave_material_peligroso_sat: null,
+  clave_embalaje_sat: null,
+  descripcion_embalaje: null,
   unidad_venta_id: null,
   unidad_inventario_id: null,
   factor_conversion: null,
@@ -246,6 +251,11 @@ export default function ProductoFormPage() {
           tipo_producto: (producto.tipo_producto as ProductoBasico['tipo_producto']) ?? 'Inventariable',
           activo: producto.activo,
           clave_producto_sat: producto.clave_producto_sat ?? null,
+          clave_bienes_transportados_sat: producto.clave_bienes_transportados_sat ?? null,
+          es_material_peligroso: producto.es_material_peligroso ?? false,
+          clave_material_peligroso_sat: producto.clave_material_peligroso_sat ?? null,
+          clave_embalaje_sat: producto.clave_embalaje_sat ?? null,
+          descripcion_embalaje: producto.descripcion_embalaje ?? null,
           unidad_venta_id: producto.unidad_venta_id ?? null,
           unidad_inventario_id: producto.unidad_inventario_id ?? null,
           factor_conversion: producto.factor_conversion ?? null,
@@ -757,6 +767,12 @@ export default function ProductoFormPage() {
               erroresActivos={erroresActivos}
               camposObligatorios={camposObligatorios}
               existenciaActual={productoLoaded?.existencia_actual}
+              claveBienesTransportadosSat={form.clave_bienes_transportados_sat ?? null}
+              esMaterialPeligroso={Boolean(form.es_material_peligroso)}
+              claveMaterialPeligrosoSat={form.clave_material_peligroso_sat ?? null}
+              claveEmbalajeSat={form.clave_embalaje_sat ?? null}
+              descripcionEmbalaje={form.descripcion_embalaje ?? null}
+              onCartaPorteChange={(field, value) => handleChange(field as keyof ProductoBasico, value as never)}
             />
 
             <SeccionCard

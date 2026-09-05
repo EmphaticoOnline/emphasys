@@ -6,6 +6,7 @@ import {
   type CartaPorte31,
   type CartaPorteBuildSource,
   type CartaPorteDomicilio31,
+  type CartaPorteIssue,
 } from './carta-porte.types';
 import { TransporteError } from './transporte.types';
 
@@ -220,4 +221,126 @@ export function buildCartaPorte31(source: CartaPorteBuildSource, idCcp = generat
     },
     FiguraTransporte,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Recolector de faltantes para la UX de "Validar Carta Porte".
+//
+// Reproduce, en forma de lista y agrupada por sección, los MISMOS requisitos
+// que impone buildCartaPorte31. buildCartaPorte31 sigue siendo la autoridad:
+// materializeCartaPorte lo ejecuta después, así que ninguna regla puede
+// saltarse aunque este recolector omitiera algo. No introduce reglas nuevas.
+// ---------------------------------------------------------------------------
+
+const RFC_RE = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+const vacio = (v: unknown): boolean => String(v ?? '').trim() === '';
+const noPositivo = (v: unknown): boolean => {
+  const n = Number(v);
+  return !Number.isFinite(n) || n <= 0;
+};
+const rfcInvalido = (v: unknown): boolean => !RFC_RE.test(String(v ?? '').trim().toUpperCase());
+const fechaInvalida = (v: unknown): boolean => {
+  const t = v instanceof Date ? v.toISOString() : String(v ?? '').trim();
+  return !t || Number.isNaN(Date.parse(t));
+};
+const domicilioIncompleto = (raw: unknown): boolean => {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const estado = String(s.estado ?? s.Estado ?? '').trim().toUpperCase();
+  const pais = String(s.pais ?? s.Pais ?? '').trim().toUpperCase();
+  const cp = String(s.codigoPostal ?? s.CodigoPostal ?? '').trim();
+  return !/^[A-Z]{3}$/.test(estado) || pais !== 'MEX' || !/^\d{5}$/.test(cp);
+};
+
+export function collectCartaPorteIssues(source: CartaPorteBuildSource): CartaPorteIssue[] {
+  const issues: CartaPorteIssue[] = [];
+  const add = (section: CartaPorteIssue['section'], message: string, index?: number) =>
+    issues.push(index === undefined ? { section, message } : { section, message, index });
+
+  // Datos generales
+  if (!source.viaje?.cliente_contacto_id) add('generales', 'El viaje no tiene cliente asociado.');
+
+  // Ruta
+  const origenes = source.ubicaciones.filter((u) => u.tipo === 'origen');
+  const destinos = source.ubicaciones.filter((u) => u.tipo === 'destino');
+  if (origenes.length !== 1) add('ruta', 'El viaje debe tener exactamente un origen.');
+  if (destinos.length === 0) add('ruta', 'El viaje debe tener al menos un destino.');
+  for (const u of [...origenes, ...destinos]) {
+    const etiqueta = u.tipo === 'origen' ? 'origen' : 'destino';
+    const sec = Number(u.secuencia);
+    if (rfcInvalido(u.remitente_destinatario_rfc)) add('ruta', `Falta el RFC del ${etiqueta} (o no tiene formato válido).`, sec);
+    if (vacio(u.remitente_destinatario_nombre)) add('ruta', `Falta el nombre / razón social del ${etiqueta}.`, sec);
+    if (fechaInvalida(u.fecha_hora_real ?? u.fecha_hora_programada)) add('ruta', `Falta la fecha y hora programada del ${etiqueta}.`, sec);
+    if (domicilioIncompleto(u.domicilio_snapshot)) add('ruta', `El domicilio del ${etiqueta} necesita estado, país (MEX) y código postal de 5 dígitos.`, sec);
+    if (u.tipo === 'destino' && noPositivo(u.distancia_recorrida)) add('ruta', 'El destino necesita distancia recorrida mayor a cero.', sec);
+  }
+
+  // Mercancías
+  const origenIds = new Set(origenes.map((u) => Number(u.id)));
+  const destinoIds = new Set(destinos.map((u) => Number(u.id)));
+  if (source.mercancias.length === 0) {
+    add('mercancias', 'Agrega al menos una mercancía.');
+  }
+  source.mercancias.forEach((m, i) => {
+    const n = i + 1;
+    if (!origenIds.has(Number(m.origen_viaje_ubicacion_id)) || !destinoIds.has(Number(m.destino_viaje_ubicacion_id))) {
+      add('mercancias', `La mercancía ${n} no tiene origen y destino del viaje asignados.`, n);
+    }
+    if (vacio(m.clave_bienes_transportados_sat)) add('mercancias', `La mercancía ${n} necesita la clave SAT de bienes/servicios transportados.`, n);
+    if (vacio(m.descripcion_snapshot)) add('mercancias', `La mercancía ${n} necesita descripción.`, n);
+    if (noPositivo(m.cantidad)) add('mercancias', `La mercancía ${n} necesita cantidad mayor a cero.`, n);
+    if (vacio(m.clave_unidad_sat)) add('mercancias', `La mercancía ${n} necesita la clave SAT de unidad.`, n);
+    if (vacio(m.unidad_descripcion)) add('mercancias', `La mercancía ${n} necesita la unidad.`, n);
+    if (noPositivo(m.peso_kg)) add('mercancias', `La mercancía ${n} necesita peso (kg) mayor a cero.`, n);
+    if (m.material_peligroso && (vacio(m.clave_material_peligroso) || vacio(m.embalaje) || vacio(m.descripcion_embalaje))) {
+      add('mercancias', `La mercancía ${n} es material peligroso: necesita clave de material peligroso, embalaje y descripción del embalaje.`, n);
+    }
+  });
+
+  // Unidad / Remolques
+  const v = source.vehiculo;
+  if (!v) {
+    add('unidad', 'El viaje no tiene vehículo asignado.');
+  } else {
+    if (vacio(v.aseguradora_responsabilidad_civil) || vacio(v.poliza_responsabilidad_civil)) {
+      add('unidad', 'El vehículo necesita aseguradora y póliza de responsabilidad civil.');
+    }
+    if (vacio(v.aseguradora_medio_ambiente) !== vacio(v.poliza_medio_ambiente)) {
+      add('unidad', 'La aseguradora y la póliza de medio ambiente del vehículo deben capturarse juntas.');
+    }
+    if (vacio(v.aseguradora_carga) !== vacio(v.poliza_carga)) {
+      add('unidad', 'La aseguradora y la póliza de carga del vehículo deben capturarse juntas.');
+    }
+    const hayPeligrosa = source.mercancias.some((m) => Boolean(m.material_peligroso));
+    if (hayPeligrosa && (vacio(v.aseguradora_medio_ambiente) || vacio(v.poliza_medio_ambiente))) {
+      add('unidad', 'Hay mercancía peligrosa: el seguro de medio ambiente del vehículo es obligatorio.');
+    }
+    if (vacio(v.tipo_permiso_sict)) add('unidad', 'El vehículo necesita el tipo de permiso SICT (PermSCT).');
+    if (vacio(v.numero_permiso_sict)) add('unidad', 'El vehículo necesita el número de permiso SICT.');
+    if (vacio(v.configuracion_vehicular_sat)) add('unidad', 'El vehículo necesita la configuración vehicular SAT.');
+    if (vacio(v.placas)) add('unidad', 'El vehículo necesita placas.');
+    if (noPositivo(v.modelo_anio)) add('unidad', 'El vehículo necesita el año modelo.');
+    if (noPositivo(v.peso_bruto_vehicular)) add('unidad', 'El vehículo necesita el peso bruto vehicular.');
+  }
+  source.remolques.forEach((r, i) => {
+    const snap = (r.datos_snapshot ?? {}) as Record<string, unknown>;
+    if (vacio(snap.subtipoRemolqueSat) || vacio(snap.placas)) {
+      add('unidad', `El remolque ${i + 1} necesita subtipo SAT y placas.`, i + 1);
+    }
+  });
+
+  // Operador
+  const operadores = source.figuras.filter((f) => f.tipo_figura === 'operador');
+  if (operadores.length === 0) {
+    add('operador', 'Asigna al menos un operador.');
+  }
+  operadores.forEach((f, i) => {
+    const n = i + 1;
+    const snap = (f.datos_snapshot ?? {}) as Record<string, unknown>;
+    if (rfcInvalido(snap.rfc)) add('operador', `El operador ${n} necesita un RFC válido.`, n);
+    if (vacio(snap.numeroLicencia)) add('operador', `El operador ${n} necesita número de licencia.`, n);
+    if (vacio(snap.nombre)) add('operador', `El operador ${n} necesita nombre.`, n);
+    if (domicilioIncompleto(snap.domicilio)) add('operador', `El domicilio del operador ${n} necesita estado, país (MEX) y código postal de 5 dígitos.`, n);
+  });
+
+  return issues;
 }

@@ -206,6 +206,29 @@ if ! curl --fail --silent --show-error --max-time 10 http://127.0.0.1:7001/healt
   exit 1
 fi
 pm2 save
+
+echo "==> Limpiando releases antiguos..."
+active_release=\$(readlink -f "$REMOTE_PATH/current" 2>/dev/null || true)
+release_count=0
+
+# Solo considera directorios hijos directos de releases, ordenados del más
+# reciente al más antiguo. La salida NUL-safe tolera espacios en los nombres.
+while IFS= read -r -d '' release_entry; do
+  release_path=\${release_entry#*	}
+  if [ "\$release_count" -lt 5 ]; then
+    release_count=\$((release_count + 1))
+    continue
+  fi
+
+  # current se compara con readlink -f y nunca se elimina, aunque sea antiguo.
+  if [ -n "\$active_release" ] && [ "\$release_path" = "\$active_release" ]; then
+    continue
+  fi
+
+  # release_path proviene de find con maxdepth 1; -- y las comillas evitan
+  # expansiones inseguras y mantienen la operación dentro de releases.
+  rm -rf -- "\$release_path"
+done < <(find "$RELEASES_PATH" -mindepth 1 -maxdepth 1 -type d -printf '%T@\t%p\0' | sort -z -rn)
 REMOTE
 
 log "Deploy rsync finalizado correctamente."

@@ -13,11 +13,14 @@ import {
   Drawer,
   IconButton,
   List,
+  ListItem,
+  ListItemButton,
   Menu,
   MenuItem,
   Paper,
   Popover,
   Select,
+  Slider,
   Skeleton,
   Snackbar,
   Stack,
@@ -32,6 +35,7 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
+import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import DoneIcon from '@mui/icons-material/Done';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
@@ -39,11 +43,15 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ForwardIcon from '@mui/icons-material/Forward';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardDoubleArrowLeftIcon from '@mui/icons-material/KeyboardDoubleArrowLeft';
 import KeyboardDoubleArrowRightIcon from '@mui/icons-material/KeyboardDoubleArrowRight';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ReplayIcon from '@mui/icons-material/Replay';
 import ReplyIcon from '@mui/icons-material/Reply';
+import SearchIcon from '@mui/icons-material/Search';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import SendIcon from '@mui/icons-material/Send';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -74,6 +82,8 @@ import type {
   Lead,
   LeadConPrioridad,
   LeadScope,
+  ConversationViewMode,
+  WhatsappWindowFilter,
   MotivoFinalizacion,
   OpportunityFilter,
   OportunidadVenta,
@@ -138,6 +148,9 @@ export interface LeadsDesktopViewProps {
 
   // Columna izquierda: filtros y lista de leads
   leadsFiltradosOrdenados: LeadConPrioridad[];
+  leadsRecientes: LeadConPrioridad[];
+  conversationViewMode: ConversationViewMode;
+  onConversationViewModeChange: (mode: ConversationViewMode) => void;
   leadsRiesgo: LeadConPrioridad[];
   leadsSeguimiento: LeadConPrioridad[];
   leadsActividad: LeadConPrioridad[];
@@ -169,10 +182,13 @@ export interface LeadsDesktopViewProps {
   setLeadFilter: React.Dispatch<React.SetStateAction<QuickFilter>>;
   opportunityFilter: OpportunityFilter;
   setOpportunityFilter: React.Dispatch<React.SetStateAction<OpportunityFilter>>;
+  whatsappWindowFilter: WhatsappWindowFilter;
+  setWhatsappWindowFilter: React.Dispatch<React.SetStateAction<WhatsappWindowFilter>>;
   vistaFinalizadas: boolean;
   setVistaFinalizadas: React.Dispatch<React.SetStateAction<boolean>>;
   vendorOptions: Contacto[];
   renderLeadCard: (lead: LeadConPrioridad) => React.ReactNode;
+  onSelectLead: (id: string) => void;
 
   // Columna derecha: detalle del lead seleccionado
   selectedLead: LeadConPrioridad | undefined;
@@ -228,6 +244,9 @@ export interface LeadsDesktopViewProps {
   selectedTone: NotificationTone;
   onChangeTone: (tone: NotificationTone) => void;
   onPreviewTone: () => void;
+  onResendAttachment: (message: ForwardableMessage) => void;
+  notificationVolume: number;
+  onChangeNotificationVolume: (volume: number) => void;
 
   // Composer / adjuntos / audio
   uploadInputRef: React.RefObject<HTMLInputElement | null>;
@@ -240,7 +259,7 @@ export interface LeadsDesktopViewProps {
   quickReplyRef: React.RefObject<HTMLInputElement | null>;
   handleQuickReplyPaste: (event: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   isUploadingImage: boolean;
-  uploadFileType: 'image' | 'document' | 'audio' | null;
+  uploadFileType: 'image' | 'document' | 'audio' | 'video' | null;
   uploadError: string | null;
   pendingAttachmentFile: File | null;
   uploadFileName: string | null;
@@ -506,6 +525,9 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
     followUpLeads,
     newLeads,
     leadsFiltradosOrdenados,
+    leadsRecientes,
+    conversationViewMode,
+    onConversationViewModeChange,
     leadsRiesgo,
     leadsSeguimiento,
     leadsActividad,
@@ -533,10 +555,13 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
     setLeadFilter,
     opportunityFilter,
     setOpportunityFilter,
+    whatsappWindowFilter,
+    setWhatsappWindowFilter,
     vistaFinalizadas,
     setVistaFinalizadas,
     vendorOptions,
     renderLeadCard,
+    onSelectLead,
     selectedLead,
     selectedLeadPriority,
     selectedContactoId,
@@ -582,6 +607,9 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
     selectedTone,
     onChangeTone,
     onPreviewTone,
+    onResendAttachment,
+    notificationVolume,
+    onChangeNotificationVolume,
     uploadInputRef,
     handleUploadFile,
     handleSelectUpload,
@@ -638,6 +666,98 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
   // Popover compacto de preferencias de sonido (activado/desactivado + tono
   // + probar), anclado al ícono de volumen del header de la conversación.
   const [soundSettingsAnchor, setSoundSettingsAnchor] = React.useState<HTMLElement | null>(null);
+  const [conversationSearchOpen, setConversationSearchOpen] = React.useState(false);
+  const [conversationSearchMode, setConversationSearchMode] = React.useState<'messages' | 'files'>('messages');
+  const [attachmentMenu, setAttachmentMenu] = React.useState<{ anchor: HTMLElement; message: ForwardableMessage } | null>(null);
+  const [conversationSearchQuery, setConversationSearchQuery] = React.useState('');
+  const [conversationSearchIndex, setConversationSearchIndex] = React.useState(0);
+  const conversationSearchInputRef = React.useRef<HTMLInputElement | null>(null);
+  const conversationMatchRefs = React.useRef<Record<string, HTMLSpanElement | null>>({});
+
+  const conversationSearchMatches = React.useMemo(() => {
+    const query = conversationSearchQuery.trim().toLocaleLowerCase();
+    if (!query || !selectedLead) return [];
+    const result: Array<{ key: string; messageId: string; field: 'text' | 'caption'; start: number; end: number }> = [];
+    selectedLead.conversation.forEach((message) => {
+      (['text', 'caption'] as const).forEach((field) => {
+        const value = message[field] || '';
+        const lowerValue = value.toLocaleLowerCase();
+        let start = lowerValue.indexOf(query);
+        while (start >= 0) {
+          result.push({ key: `${message.id}:${field}:${start}`, messageId: message.id, field, start, end: start + query.length });
+          start = lowerValue.indexOf(query, start + query.length);
+        }
+      });
+    });
+    return result;
+  }, [conversationSearchQuery, selectedLead]);
+
+  const closeConversationSearch = React.useCallback(() => {
+    setConversationSearchOpen(false);
+    setConversationSearchQuery('');
+    setConversationSearchIndex(0);
+    conversationMatchRefs.current = {};
+  }, []);
+
+  React.useEffect(() => {
+    closeConversationSearch();
+    setConversationSearchMode('messages');
+  }, [selectedLead?.id, closeConversationSearch]);
+
+  const conversationAttachments = React.useMemo(() => (selectedLead?.conversation ?? [])
+    .filter((message) => ['image', 'video', 'document'].includes(message.tipoContenido ?? ''))
+    .map((message) => ({
+      message,
+      filename: message.caption || (message.mediaUrl ? message.mediaUrl.split('/').pop()?.split('?')[0] : '') || 'Documento',
+      searchable: [message.caption, message.text, message.mediaUrl].filter(Boolean).join(' ').toLocaleLowerCase(),
+    }))
+    .filter((item) => !conversationSearchQuery.trim() || item.searchable.includes(conversationSearchQuery.trim().toLocaleLowerCase())),
+  [conversationSearchQuery, selectedLead]);
+
+  React.useEffect(() => {
+    setConversationSearchIndex((current) => conversationSearchMatches.length
+      ? Math.min(current, conversationSearchMatches.length - 1)
+      : 0);
+  }, [conversationSearchMatches.length]);
+
+  React.useEffect(() => {
+    const match = conversationSearchMatches[conversationSearchIndex];
+    if (!match) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      conversationMatchRefs.current[match.key]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [conversationSearchIndex, conversationSearchMatches]);
+
+  const moveConversationMatch = React.useCallback((delta: number) => {
+    if (!conversationSearchMatches.length) return;
+    setConversationSearchIndex((current) => (
+      (current + delta + conversationSearchMatches.length) % conversationSearchMatches.length
+    ));
+  }, [conversationSearchMatches.length]);
+
+  const renderSearchableText = React.useCallback((value: string, messageId: string, field: 'text' | 'caption') => {
+    const matches = conversationSearchMatches.filter((match) => match.messageId === messageId && match.field === field);
+    if (!matches.length) return linkifyMessageText(value);
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+    matches.forEach((match) => {
+      if (match.start > cursor) nodes.push(linkifyMessageText(value.slice(cursor, match.start)));
+      nodes.push(
+        <Box
+          component="span"
+          key={match.key}
+          ref={(element: HTMLSpanElement | null) => { conversationMatchRefs.current[match.key] = element; }}
+          sx={{ bgcolor: conversationSearchMatches[conversationSearchIndex]?.key === match.key ? '#facc15' : '#fef08a', borderRadius: 0.25 }}
+        >
+          {value.slice(match.start, match.end)}
+        </Box>,
+      );
+      cursor = match.end;
+    });
+    if (cursor < value.length) nodes.push(linkifyMessageText(value.slice(cursor)));
+    return nodes;
+  }, [conversationSearchIndex, conversationSearchMatches]);
 
   // Ancla la altura del layout al espacio real disponible del viewport, y
   // mide el ancho real del contenedor de Leads (ya descontados el sidebar
@@ -965,7 +1085,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
             </>
           )}
           {(() => {
-            const filtrosActivos = Boolean(vendedorFilterId) || selectedTagIds.length > 0 || opportunityFilter !== 'todos' || vistaFinalizadas;
+            const filtrosActivos = Boolean(vendedorFilterId) || selectedTagIds.length > 0 || opportunityFilter !== 'todos' || whatsappWindowFilter !== 'todos' || vistaFinalizadas;
             return (
               <Chip
                 icon={<FilterListIcon fontSize="small" />}
@@ -1214,6 +1334,34 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
 
               <Stack spacing={1}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                  Ventana de WhatsApp
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {([
+                    { key: 'todos', label: 'Todos' },
+                    { key: 'por-expirar', label: 'Por expirar' },
+                    { key: 'expirada', label: 'Expirada' },
+                  ] as const).map((opt) => (
+                    <Chip
+                      key={opt.key}
+                      label={opt.label}
+                      variant={whatsappWindowFilter === opt.key ? 'filled' : 'outlined'}
+                      onClick={() => setWhatsappWindowFilter(opt.key)}
+                      sx={{
+                        fontWeight: 700,
+                        color: whatsappWindowFilter === opt.key ? '#ffffff' : '#0f766e',
+                        backgroundColor: whatsappWindowFilter === opt.key ? '#0f766e' : '#f0fdfa',
+                        borderColor: '#99f6e4',
+                      }}
+                    />
+                  ))}
+                </Stack>
+              </Stack>
+
+              <Divider />
+
+              <Stack spacing={1}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600}>
                   Oportunidad
                 </Typography>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -1273,6 +1421,22 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
               el header del chat y el panel derecho — sin línea de texto
               exclusiva encima de la lista. */}
 
+          <Stack direction="row" sx={{ minHeight: 28, alignItems: 'center', justifyContent: 'center' }}>
+            <Stack direction="row" spacing={0.25} sx={{ p: 0.25, borderRadius: 1, bgcolor: 'action.hover' }}>
+              {([['priority', 'Prioridad'], ['recent', 'Recientes']] as const).map(([mode, label]) => (
+                <Button
+                  key={mode}
+                  size="small"
+                  onClick={() => onConversationViewModeChange(mode)}
+                  variant={conversationViewMode === mode ? 'contained' : 'text'}
+                  sx={{ minHeight: 24, py: 0, px: 1.25, fontSize: 11, textTransform: 'none', boxShadow: 'none' }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </Stack>
+          </Stack>
+
           {/* Columna central: lista de leads */}
           <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, flex: 1 }}>
             <Stack spacing={1.5} sx={{ overflow: 'auto', pr: 0.5, flex: 1, minHeight: 0 }}>
@@ -1280,6 +1444,34 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                 <Typography variant="body2" color="text.secondary" sx={{ px: 1 }}>
                   {vistaFinalizadas ? 'No hay conversaciones finalizadas.' : 'No hay más leads en cola.'}
                 </Typography>
+              ) : conversationViewMode === 'recent' ? (
+                <List disablePadding>
+                  {leadsRecientes.map((conversationLead) => {
+                    const stamp = conversationLead.ultimoMensajeEn ? new Date(conversationLead.ultimoMensajeEn) : null;
+                    const validStamp = stamp && !Number.isNaN(stamp.getTime());
+                    const sameDay = validStamp && stamp!.toDateString() === new Date().toDateString();
+                    const timeLabel = validStamp ? (sameDay ? stamp!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : stamp!.toLocaleDateString([], { day: '2-digit', month: '2-digit' })) : '';
+                    return (
+                      <ListItem disablePadding key={conversationLead.id}>
+                        <ListItemButton selected={conversationLead.id === selectedLead?.id} onClick={() => onSelectLead(conversationLead.id)} sx={{ alignItems: 'flex-start', gap: 1, px: 1.25 }}>
+                          <Avatar sx={{ width: 32, height: 32, fontSize: 12, bgcolor: getLeadAvatarColor(conversationLead.id) }}>{getLeadInitials(conversationLead.name)}</Avatar>
+                          <Stack minWidth={0} flex={1} spacing={0.25}>
+                            <Stack direction="row" justifyContent="space-between" spacing={1}>
+                              <Typography variant="body2" fontWeight={700} noWrap>{conversationLead.name?.trim() || conversationLead.phone || 'Sin nombre'}</Typography>
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <Typography variant="caption" color="text.secondary" noWrap>{timeLabel}</Typography>
+                                {conversationLead.unreadCount && conversationLead.unreadCount > 0 ? (
+                                  <Box sx={{ minWidth: 20, height: 20, px: 0.5, borderRadius: '50%', bgcolor: '#25D366', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>
+                                ) : null}
+                              </Stack>
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary" noWrap>{conversationLead.lastMessage || 'Sin mensajes'}</Typography>
+                          </Stack>
+                        </ListItemButton>
+                      </ListItem>
+                    );
+                  })}
+                </List>
               ) : vistaFinalizadas ? (
                 <List disablePadding>
                   {leadsFiltradosOrdenados.map(renderLeadCard)}
@@ -1505,6 +1697,21 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                 Selecciona un lead para ver la conversación.
               </Typography>
             )}
+            {selectedLead && (
+              <Tooltip title="Buscar en conversación">
+                <IconButton
+                  size="small"
+                  color={conversationSearchOpen ? 'primary' : 'default'}
+                  onClick={() => {
+                    setConversationSearchOpen(true);
+                    window.requestAnimationFrame(() => conversationSearchInputRef.current?.focus());
+                  }}
+                  aria-label="Buscar en conversación"
+                >
+                  <SearchIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title="Preferencias de sonido">
               <IconButton
                 size="small"
@@ -1551,6 +1758,10 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     </IconButton>
                   </Tooltip>
                 </Stack>
+                <Stack spacing={0.25}>
+                  <Stack direction="row" justifyContent="space-between"><Typography variant="body2">Volumen de alerta</Typography><Typography variant="caption">{Math.round(notificationVolume * 100)}%</Typography></Stack>
+                  <Slider size="small" value={notificationVolume * 100} min={0} max={500} onChange={(_, value) => onChangeNotificationVolume(Number(value) / 100)} aria-label="Volumen de alerta de nuevos mensajes" />
+                </Stack>
               </Stack>
             </Popover>
             <Tooltip title={detailOpen ? 'Ocultar panel de detalle' : 'Mostrar panel de detalle'}>
@@ -1566,13 +1777,80 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
 
           {selectedLead ? (
             <>
+              {conversationSearchOpen && (
+                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ flexShrink: 0 }}>
+                  <Select size="small" value={conversationSearchMode} onChange={(event) => setConversationSearchMode(event.target.value as 'messages' | 'files')} aria-label="Modo de búsqueda" sx={{ minWidth: 112 }}>
+                    <MenuItem value="messages">Mensajes</MenuItem>
+                    <MenuItem value="files">Archivos</MenuItem>
+                  </Select>
+                  <TextField
+                    inputRef={conversationSearchInputRef}
+                    autoFocus
+                    size="small"
+                    fullWidth
+                    placeholder="Buscar en conversación…"
+                    value={conversationSearchQuery}
+                    onChange={(event) => setConversationSearchQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        closeConversationSearch();
+                      } else if (event.key === 'Enter') {
+                        event.preventDefault();
+                        moveConversationMatch(event.shiftKey ? -1 : 1);
+                      }
+                    }}
+                    inputProps={{ 'aria-label': 'Buscar en conversación' }}
+                  />
+                  <Typography variant="caption" sx={{ minWidth: 42, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    {conversationSearchMatches.length ? `${conversationSearchIndex + 1}/${conversationSearchMatches.length}` : '0/0'}
+                  </Typography>
+                  <IconButton size="small" disabled={!conversationSearchMatches.length} onClick={() => moveConversationMatch(-1)} aria-label="Resultado anterior">
+                    <KeyboardArrowUpIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" disabled={!conversationSearchMatches.length} onClick={() => moveConversationMatch(1)} aria-label="Siguiente resultado">
+                    <KeyboardArrowDownIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" onClick={closeConversationSearch} aria-label="Cerrar búsqueda">
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+              )}
               <Stack spacing={1} sx={{ flex: 1, minHeight: 0 }}>
                 <Paper
                   variant="outlined"
                   ref={conversationScrollRef}
                   sx={{ p: 1.25, flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}
                 >
-                  {selectedLead.conversation.map((msg, index) => {
+                  {conversationSearchMode === 'files' ? (
+                    <Stack spacing={1} sx={{ p: 0.5 }}>
+                      <Typography variant="subtitle2">Imágenes y videos</Typography>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                        {conversationAttachments.filter(({ message }) => message.tipoContenido === 'image' || message.tipoContenido === 'video').map(({ message, filename }) => (
+                          <Box key={message.id} component="a" href={message.mediaUrl ?? undefined} target="_blank" rel="noopener noreferrer" sx={{ position: 'relative', width: 120, height: 100, bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>
+                            {message.tipoContenido === 'image' && message.mediaUrl ? <Box component="img" src={message.mediaUrl} alt={filename} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : message.tipoContenido === 'video' && message.mediaUrl ? <Box component="video" src={message.mediaUrl} muted sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Typography variant="caption">{filename}</Typography>}
+                            {message.tipoContenido === 'video' && <VideoLibraryIcon sx={{ position: 'absolute', right: 4, bottom: 4, color: 'white', filter: 'drop-shadow(0 1px 2px black)' }} />}
+                            <IconButton size="small" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: 'white', bgcolor: 'rgba(0,0,0,.45)', '&:hover': { bgcolor: 'rgba(0,0,0,.7)' } }} aria-label="Acciones del archivo"><MoreVertIcon fontSize="small" /></IconButton>
+                          </Box>
+                        ))}
+                      </Stack>
+                      <Typography variant="subtitle2">Documentos</Typography>
+                      <Stack spacing={0.5}>
+                        {conversationAttachments.filter(({ message }) => message.tipoContenido === 'document').map(({ message, filename }) => (
+                          <Stack key={message.id} component="a" href={message.mediaUrl ?? undefined} target="_blank" rel="noopener noreferrer" direction="row" spacing={1} alignItems="center" sx={{ color: 'inherit', textDecoration: 'none', p: 0.75, borderRadius: 1, '&:hover': { bgcolor: 'action.hover' } }}>
+                            <DescriptionIcon fontSize="small" /><Typography variant="body2" noWrap>{filename}</Typography><Typography variant="caption" color="text.secondary">{message.mimeType || ''}</Typography><Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', flexShrink: 0 }}>{message.sentAt ? new Date(message.sentAt).toLocaleDateString([], { day: '2-digit', month: '2-digit' }) : ''}</Typography><IconButton size="small" onClick={(event) => { event.preventDefault(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} aria-label="Acciones del archivo"><MoreVertIcon fontSize="small" /></IconButton>
+                          </Stack>
+                        ))}
+                      </Stack>
+                      {conversationAttachments.length === 0 && <Typography variant="body2" color="text.secondary">No se encontraron archivos.</Typography>}
+                      <Menu anchorEl={attachmentMenu?.anchor} open={Boolean(attachmentMenu)} onClose={() => setAttachmentMenu(null)}>
+                        <MenuItem onClick={() => { if (attachmentMenu) { setReplyingTo({ id: attachmentMenu.message.id, from: 'lead', preview: attachmentMenu.message.caption || attachmentMenu.message.text || buildReplyPreviewText(attachmentMenu.message.tipoContenido, '', attachmentMenu.message.caption) }); setConversationSearchMode('messages'); setConversationSearchQuery(''); setAttachmentMenu(null); focusReplyInput(); } }}>Responder</MenuItem>
+                        <MenuItem onClick={() => { if (attachmentMenu) { onResendAttachment(attachmentMenu.message); setAttachmentMenu(null); } }}>Enviar nuevamente</MenuItem>
+                        <MenuItem onClick={() => { if (attachmentMenu) { setForwardMessage(attachmentMenu.message); setAttachmentMenu(null); } }}>Reenviar</MenuItem>
+                        <MenuItem component="a" href={attachmentMenu?.message.mediaUrl || undefined} target="_blank" rel="noopener noreferrer" onClick={() => setAttachmentMenu(null)}>Descargar</MenuItem>
+                      </Menu>
+                    </Stack>
+                  ) : selectedLead.conversation.map((msg, index) => {
                     // Separador de día (Hoy/Ayer/fecha) y agrupación visual de
                     // mensajes consecutivos del mismo remitente: ambos
                     // derivados puramente de datos ya presentes en cada
@@ -1801,7 +2079,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         )}
                         {(msg.tipoContenido === 'image' || msg.tipoContenido === 'audio' || msg.tipoContenido === 'document' || msg.tipoContenido === 'video') && !msg.mediaUrl && (
                           <Typography variant="body2" sx={{ fontStyle: 'italic', opacity: 0.85 }}>
-                            {msg.caption || 'Archivo recibido'}
+                            {msg.caption ? renderSearchableText(msg.caption, msg.id, 'caption') : 'Archivo recibido'}
                           </Typography>
                         )}
                         {msg.tipoContenido === 'document' && msg.mediaUrl && (
@@ -1815,7 +2093,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                               rel="noopener noreferrer"
                               sx={{ color: 'inherit', textDecoration: 'none' }}
                             >
-                              {msg.caption || 'Documento adjunto'}
+                              {msg.caption ? renderSearchableText(msg.caption, msg.id, 'caption') : 'Documento adjunto'}
                             </Typography>
                           </Stack>
                         )}
@@ -1828,11 +2106,11 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                           />
                         )}
                         {(msg.tipoContenido === 'image' || msg.tipoContenido === 'video') && msg.caption && (
-                          <Typography variant="body2">{msg.caption}</Typography>
+                          <Typography variant="body2">{renderSearchableText(msg.caption, msg.id, 'caption')}</Typography>
                         )}
                         {msg.text && (
                           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {linkifyMessageText(msg.text)}
+                            {renderSearchableText(msg.text, msg.id, 'text')}
                           </Typography>
                         )}
                         <Box
@@ -2035,6 +2313,9 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                           {uploadFileType === 'audio' && recordedAudioUrl && (
                             <Box component="audio" controls src={recordedAudioUrl} />
                           )}
+                          {uploadFileType === 'video' && pendingAttachmentPreviewUrl && (
+                            <Box component="video" controls src={pendingAttachmentPreviewUrl} sx={{ maxWidth: 250, maxHeight: 250 }} />
+                          )}
                         </Box>
                         <Tooltip title="Quitar archivo adjunto">
                           <IconButton
@@ -2055,7 +2336,6 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     <input
                       ref={uploadInputRef}
                       type="file"
-                      accept="image/*,application/pdf"
                       hidden
                       onChange={handleUploadFile}
                     />

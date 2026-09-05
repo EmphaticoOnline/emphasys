@@ -522,6 +522,17 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
   );
 };
 
+export const registrarMensajeVideoSalienteWhatsapp = async (
+  empresaId: number, conversacionId: number, telefono: string, mediaUrl: string,
+  caption: string | null, externalId: string | null, mensajeRespuestaId?: number | null
+) => {
+  await pool.query(
+    `INSERT INTO crm.mensajes (empresa_id, conversacion_id, telefono, tipo_mensaje, canal, tipo_contenido, caption, contenido, fecha_envio, id_externo, status, mensaje_respuesta_id, creado_en)
+     VALUES ($1,$2,$3,'saliente','whatsapp','video',$4,$5,NOW(),$6,'sent',$7,NOW())`,
+    [empresaId, conversacionId, telefono, caption, mediaUrl, externalId, mensajeRespuestaId ?? null]
+  );
+};
+
 export const registrarMensajeDocumentoSalienteWhatsapp = async (
   empresaId: number,
   conversacionId: number,

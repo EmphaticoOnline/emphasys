@@ -26,6 +26,11 @@ export interface Producto {
   retiene_iva: boolean;
   retiene_isr: boolean;
   clave_producto_sat: string | null;
+  clave_bienes_transportados_sat: string | null;
+  es_material_peligroso: boolean;
+  clave_material_peligroso_sat: string | null;
+  clave_embalaje_sat: string | null;
+  descripcion_embalaje: string | null;
   unidad_sat: string | null;
   fraccion_arancelaria: string | null;
   largo: number | null;
@@ -67,6 +72,11 @@ export interface ProductoBasico {
   tipo_producto?: string | null;
   activo: boolean;
   clave_producto_sat?: string | null;
+  clave_bienes_transportados_sat?: string | null;
+  es_material_peligroso?: boolean;
+  clave_material_peligroso_sat?: string | null;
+  clave_embalaje_sat?: string | null;
+  descripcion_embalaje?: string | null;
   unidad_venta_id?: number | null;
   unidad_inventario_id?: number | null;
   factor_conversion?: number | null;

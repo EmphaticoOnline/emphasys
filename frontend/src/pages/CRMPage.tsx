@@ -21,10 +21,11 @@ const CRM_TAB_STYLE = {
 };
 
 function getActiveTab(pathname: string): CrmTabKey {
-  if (pathname === '/crm' || pathname === '/crm/actividades') return 'actividades';
+  if (pathname === '/crm') return 'conversaciones';
+  if (pathname === '/crm/actividades') return 'actividades';
   if (pathname.startsWith('/crm/oportunidades')) return 'oportunidades';
   if (pathname.startsWith('/crm/conversaciones')) return 'conversaciones';
-  return 'actividades';
+  return 'conversaciones';
 }
 
 export default function CRMPage() {

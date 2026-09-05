@@ -6,6 +6,7 @@ import {
   sendAudioMessage,
   sendDocumentMessage,
   sendImageMessage,
+  sendVideoMessage,
   sendReactionMessage,
   sendTemplateMessage,
   sendTemplateMensajeDirecta,
@@ -910,6 +911,12 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
       return res.status(200).json(respuesta);
     }
 
+    if (tipoMensaje === "video") {
+      if (!media_url) return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ARCHIVO_NO_PERMITIDO", "media_url es requerido"));
+      const respuesta = await sendVideoMessage(Number(empresaId), String(telefono), String(media_url), mensaje ? String(mensaje) : null, mensajeRespuestaId);
+      return res.status(200).json(respuesta);
+    }
+
     return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ERROR_DESCONOCIDO", `tipo de mensaje no soportado: ${tipoMensaje}`));
   } catch (error) {
     const info = classifyWhatsappError(error);
@@ -1335,6 +1342,11 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
       )`);
     }
 
+    const unreadUserParam = params.length + 1;
+    params.push(Number(authUserId));
+    const unreadVendorParam = params.length + 1;
+    params.push(vendedorContactoId);
+
     const result = await pool.query(
       `
       SELECT
@@ -1356,13 +1368,26 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
           WHERE o.empresa_id = c.empresa_id
             AND o.conversacion_id = c.id
         ) AS "tiene_oportunidad",
-        lm.contenido AS "ultimoMensaje",
+        CASE WHEN COALESCE(lm.tipo_contenido, 'text') = 'text' THEN lm.contenido ELSE NULL END AS "ultimoMensaje",
         lm.tipo_mensaje AS "ultimoMensajeTipo",
-        lm.fecha_envio AS "ultimoMensajeEn"
+        lm.fecha_envio AS "ultimoMensajeEn",
+        lm.tipo_contenido AS "ultimoMensajeTipoContenido",
+        lm.caption AS "ultimoMensajeCaption",
+        (lm.respuesta_json->>'es_gif') = 'true' AS "ultimoMensajeEsGif",
+        CASE WHEN ct.vendedor_id = $${unreadVendorParam} THEN (
+          SELECT COUNT(*)::integer FROM crm.mensajes um
+          LEFT JOIN crm.conversaciones_lecturas ul ON ul.empresa_id = c.empresa_id AND ul.usuario_id = $${unreadUserParam} AND ul.conversacion_id = c.id
+          WHERE um.empresa_id = c.empresa_id AND um.conversacion_id = c.id AND um.tipo_mensaje = 'entrante'
+            AND COALESCE(um.fecha_envio, um.creado_en) > COALESCE(
+              ul.ultima_lectura_en,
+              (SELECT MAX(otra.ultima_lectura_en) FROM crm.conversaciones_lecturas otra WHERE otra.empresa_id = c.empresa_id AND otra.conversacion_id = c.id),
+              (SELECT inicio_no_leidos_en FROM crm.conversaciones_lecturas_config WHERE id = true)
+            )
+        ) ELSE 0 END AS "unreadCount"
       FROM crm.conversaciones c
       LEFT JOIN public.contactos ct ON ct.id = c.contacto_id
       LEFT JOIN LATERAL (
-        SELECT m.telefono, m.contenido, m.fecha_envio, m.tipo_mensaje
+        SELECT m.telefono, m.contenido, m.fecha_envio, m.tipo_mensaje, m.tipo_contenido, m.caption, m.respuesta_json
         FROM crm.mensajes m
         WHERE m.conversacion_id = c.id
         ORDER BY m.fecha_envio DESC NULLS LAST, m.creado_en DESC NULLS LAST
@@ -1379,6 +1404,29 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
     console.error("Error listando conversaciones de WhatsApp:", error);
     return res.status(500).json({ message: "No se pudieron obtener las conversaciones" });
   }
+};
+
+export const marcarConversacionLeidaWhatsapp = async (req: Request, res: Response) => {
+  const empresaId = Number(req.context?.empresaId);
+  const usuarioId = Number(req.auth?.userId);
+  const conversacionId = Number(req.params.id);
+  if (!Number.isFinite(conversacionId)) return res.status(400).json({ message: "Conversación inválida" });
+  const { esAdmin, vendedorContactoId } = await resolverContextoScopeComercial(
+    empresaId,
+    usuarioId,
+    req.auth?.esSuperadmin
+  );
+  const result = await pool.query(
+    `INSERT INTO crm.conversaciones_lecturas (empresa_id, usuario_id, conversacion_id, ultima_lectura_en)
+     SELECT $1, $2, c.id, now() FROM crm.conversaciones c
+     JOIN public.contactos ct ON ct.id = c.contacto_id
+     WHERE c.id = $3 AND c.empresa_id = $1
+       AND $4 = false AND ct.vendedor_id = $5
+     ON CONFLICT (empresa_id, usuario_id, conversacion_id)
+     DO UPDATE SET ultima_lectura_en = EXCLUDED.ultima_lectura_en, actualizado_en = now()
+     RETURNING conversacion_id`, [empresaId, usuarioId, conversacionId, esAdmin, vendedorContactoId]
+  );
+  return res.json({ marked: (result.rowCount ?? 0) > 0 });
 };
 
 export const obtenerReglasSeguimientoWhatsapp = async (req: Request, res: Response) => {

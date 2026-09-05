@@ -8,11 +8,11 @@ const input = parseViajeInput({
   estatus: 'borrador',
   vehiculoId: 1,
   ubicaciones: [
-    { ubicacionId: 10, tipo: 'origen', secuencia: 1, fechaHoraProgramada: '2026-08-20T08:00:00-06:00' },
-    { ubicacionId: 20, tipo: 'destino', secuencia: 2, fechaHoraProgramada: '2026-08-20T12:00:00-06:00' },
+    { domicilioId: 10, tipo: 'origen', secuencia: 1, fechaHoraProgramada: '2026-08-20T08:00:00-06:00' },
+    { domicilioId: 20, tipo: 'destino', secuencia: 2, fechaHoraProgramada: '2026-08-20T12:00:00-06:00' },
   ],
   mercancias: [
-    { mercanciaId: 30, cantidad: 31_000, pesoKg: 25_000, valorMercancia: 500_000, origenSecuencia: 1, destinoSecuencia: 2 },
+    { productoId: 6177, cantidad: 31_000, pesoKg: 25_000, valorMercancia: 500_000, origenSecuencia: 1, destinoSecuencia: 2 },
   ],
   figuras: [{ tipoFigura: 'operador', operadorId: 1, secuencia: 1 }],
   remolques: [{ remolqueId: 1, orden: 1 }],

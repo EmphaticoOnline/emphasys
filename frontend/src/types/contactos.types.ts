@@ -42,6 +42,36 @@ export interface ContactoDomicilioPrincipal {
   colonia_sat?: string | null;
 }
 
+export interface ContactoDomicilio {
+  id: number;
+  contacto_id: number;
+  identificador: string;
+  es_principal: boolean;
+  responsable?: string | null;
+  domicilio?: string | null;
+  calle?: string | null;
+  numero_exterior?: string | null;
+  numero_interior?: string | null;
+  colonia?: string | null;
+  ciudad?: string | null;
+  estado?: string | null;
+  cp?: string | null;
+  pais?: string | null;
+  cruces?: string | null;
+  recibe?: string | null;
+  telefono_recibe?: string | null;
+  coto_o_fraccionamiento?: string | null;
+  telefono?: string | null;
+  fax?: string | null;
+  observaciones?: string | null;
+  cp_sat?: string | null;
+  colonia_sat?: string | null;
+  tipo_referencia?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  activo: boolean;
+}
+
 export interface ContactoDatosFiscales {
   rfc?: string | null;
   regimen_fiscal?: string | null;

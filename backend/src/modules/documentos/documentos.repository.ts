@@ -309,6 +309,16 @@ function valorDeCampoDocumentoDifiere(actual: unknown, incoming: unknown, tipo: 
 // (abajo) solo permite la transición borrador→emitido; cualquier otro valor (revertir a
 // borrador, cancelar, o cualquier otro estatus) se rechaza explícitamente.
 const CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD: readonly string[] = ['observaciones', 'estatus_documento'];
+const CAMPOS_FACTURA_BORRADOR_EDITABLES_CON_TRAZABILIDAD: readonly string[] = [
+  'fecha_documento', 'fecha_vencimiento', 'rfc_receptor', 'nombre_receptor',
+  'regimen_fiscal_receptor', 'uso_cfdi', 'forma_pago', 'metodo_pago',
+  'codigo_postal_receptor', 'observaciones',
+];
+
+function esFacturaBorrador(current: Record<string, any>): boolean {
+  return String(current.tipo_documento ?? '').trim().toLowerCase() === 'factura'
+    && String(current.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador';
+}
 
 const normalizarEstatusDocumentoParaTransicion = (value: unknown): string => {
   const normalizado = String(value ?? 'borrador').trim().toLowerCase();
@@ -358,7 +368,7 @@ function assertSoloObservacionesModificadas(
   folioRelacionado: string | null
 ): void {
   for (const campo of CAMPOS_DOCUMENTO) {
-    if (campo === 'observaciones') continue;
+    if (CAMPOS_FACTURA_BORRADOR_EDITABLES_CON_TRAZABILIDAD.includes(campo) && esFacturaBorrador(current)) continue;
 
     if (campo === 'estatus_documento') {
       const incomingEstatus = (dataToUpdate as any).estatus_documento;
@@ -374,7 +384,7 @@ function assertSoloObservacionesModificadas(
     if (valorDeCampoDocumentoDifiere(current[campo], incoming, tipo)) {
       const folio = folioRelacionado ? ` (vinculado a ${folioRelacionado})` : '';
       throw new Error(
-        `VALIDATION_ERROR: No se puede modificar "${campo}" porque el documento tiene trazabilidad activa${folio}. Solo pueden editarse las observaciones o el estatus (únicamente de borrador a emitido).`
+        `VALIDATION_ERROR: No se puede modificar "${campo}" porque el documento tiene trazabilidad activa${folio}. Solo pueden editarse los datos propios de una factura en borrador, además de observaciones y el estatus permitido.`
       );
     }
   }
@@ -957,8 +967,10 @@ export async function listarDocumentosRepository(
       d.numero_externo,
       d.fecha_documento,
       d.contacto_principal_id,
+      d.contacto_entrega_id,
       d.agente_id,
       c.nombre AS nombre_cliente,
+      ce.nombre AS contacto_entrega_nombre,
       c.email AS contacto_email,
       c.telefono AS cliente_telefono,
       ${selectSeguimiento}
@@ -968,11 +980,25 @@ export async function listarDocumentosRepository(
       d.tratamiento_impuestos,
       ${selectDeleteWarning}
       d.estatus_documento,
+      (SELECT dc.valor_texto FROM documentos_campos dc JOIN core.campos_configuracion cc ON cc.id = dc.campo_id
+        WHERE dc.empresa_id = d.empresa_id AND dc.documento_id = d.id AND cc.clave = 'folio_externo'
+          AND (cc.tipo_documento IS NULL OR LOWER(cc.tipo_documento) = LOWER($2)) LIMIT 1) AS folio_externo,
+      (SELECT dp.producto_id FROM documentos_partidas dp WHERE dp.documento_id = d.id ORDER BY dp.numero_partida LIMIT 1) AS producto_id,
+      (SELECT dp.cantidad FROM documentos_partidas dp WHERE dp.documento_id = d.id ORDER BY dp.numero_partida LIMIT 1) AS cantidad,
+      (SELECT dp.unidad FROM documentos_partidas dp WHERE dp.documento_id = d.id ORDER BY dp.numero_partida LIMIT 1) AS unidad,
+      (SELECT dp.precio_unitario FROM documentos_partidas dp WHERE dp.documento_id = d.id ORDER BY dp.numero_partida LIMIT 1) AS precio_unitario,
+      (SELECT COALESCE(SUM(dp.cantidad), 0) FROM documentos_relaciones dr JOIN documentos_partidas dp ON dp.documento_id = dr.documento_destino_id WHERE dr.documento_origen_id = d.id AND dr.tipo_relacion = 'derivacion_operativa' AND dr.activa) AS litros_vendidos_reales,
+      (SELECT COALESCE(SUM(ep.cantidad), 0) FROM operaciones_entregas e JOIN operaciones_entregas_partidas ep ON ep.entrega_id = e.id WHERE e.full_documento_id = d.id) AS litros_entregados_confirmados,
+      (SELECT dpc.valor_numero FROM documentos_partidas dp JOIN documentos_partidas_campos dpc ON dpc.partida_id = dp.id
+        JOIN core.campos_configuracion cc ON cc.id = dpc.campo_id
+        WHERE dp.documento_id = d.id AND dpc.empresa_id = d.empresa_id AND cc.clave = 'precio_dani'
+          AND (cc.tipo_documento IS NULL OR LOWER(cc.tipo_documento) = LOWER($2)) ORDER BY dp.numero_partida LIMIT 1) AS precio_dani,
       ${selectSaldo}
     FROM documentos d
     ${joinSaldo}
     ${joinDeleteWarning}
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
+    LEFT JOIN contactos ce ON d.contacto_entrega_id = ce.id
     LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
     LEFT JOIN conceptos con ON con.id = d.concepto_id AND con.empresa_id = d.empresa_id
     WHERE ${whereClauses.join(' AND ')}
@@ -1270,9 +1296,11 @@ export async function listarDocumentosRepositoryPaginado(
       d.fecha_documento,
       d.fecha_vencimiento,
       d.contacto_principal_id,
+      d.contacto_entrega_id,
       d.agente_id,
       d.oportunidad_id,
       c.nombre AS nombre_cliente,
+      ce.nombre AS contacto_entrega_nombre,
       c.email AS contacto_email,
       c.telefono AS cliente_telefono,
       ${selectSeguimiento}
@@ -1282,6 +1310,19 @@ export async function listarDocumentosRepositoryPaginado(
       d.tratamiento_impuestos,
       false AS eliminara_oportunidad,
       d.estatus_documento,
+      (SELECT dc.valor_texto FROM documentos_campos dc JOIN core.campos_configuracion cc ON cc.id = dc.campo_id
+        WHERE dc.empresa_id = d.empresa_id AND dc.documento_id = d.id AND cc.clave = 'folio_externo'
+          AND (cc.tipo_documento IS NULL OR LOWER(cc.tipo_documento) = LOWER($2)) LIMIT 1) AS folio_externo,
+      (SELECT dp.producto_id FROM documentos_partidas dp WHERE dp.documento_id = d.id ORDER BY dp.numero_partida LIMIT 1) AS producto_id,
+      (SELECT dp.cantidad FROM documentos_partidas dp WHERE dp.documento_id = d.id ORDER BY dp.numero_partida LIMIT 1) AS cantidad,
+      (SELECT dp.unidad FROM documentos_partidas dp WHERE dp.documento_id = d.id ORDER BY dp.numero_partida LIMIT 1) AS unidad,
+      (SELECT dp.precio_unitario FROM documentos_partidas dp WHERE dp.documento_id = d.id ORDER BY dp.numero_partida LIMIT 1) AS precio_unitario,
+      (SELECT COALESCE(SUM(dp.cantidad), 0) FROM documentos_relaciones dr JOIN documentos_partidas dp ON dp.documento_id = dr.documento_destino_id WHERE dr.documento_origen_id = d.id AND dr.tipo_relacion = 'derivacion_operativa' AND dr.activa) AS litros_vendidos_reales,
+      (SELECT COALESCE(SUM(ep.cantidad), 0) FROM operaciones_entregas e JOIN operaciones_entregas_partidas ep ON ep.entrega_id = e.id WHERE e.full_documento_id = d.id) AS litros_entregados_confirmados,
+      (SELECT dpc.valor_numero FROM documentos_partidas dp JOIN documentos_partidas_campos dpc ON dpc.partida_id = dp.id
+        JOIN core.campos_configuracion cc ON cc.id = dpc.campo_id
+        WHERE dp.documento_id = d.id AND dpc.empresa_id = d.empresa_id AND cc.clave = 'precio_dani'
+          AND (cc.tipo_documento IS NULL OR LOWER(cc.tipo_documento) = LOWER($2)) ORDER BY dp.numero_partida LIMIT 1) AS precio_dani,
       ${selectCfdi}
       ${selectInventario}
       COALESCE(d.estado_autorizacion, 'no_requerida') AS estado_autorizacion,
@@ -1293,6 +1334,7 @@ export async function listarDocumentosRepositoryPaginado(
     ${joinCfdi}
     ${joinInventario}
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
+    LEFT JOIN contactos ce ON d.contacto_entrega_id = ce.id
     LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
     LEFT JOIN conceptos con ON con.id = d.concepto_id AND con.empresa_id = d.empresa_id
     WHERE ${whereClauses.join(' AND ')}
@@ -1332,6 +1374,7 @@ export async function obtenerDocumentoRepository(
       d.*,
       fo.cuenta_id AS cuenta_financiera_id,
       c.nombre AS cliente_nombre,
+      ce.nombre AS contacto_entrega_nombre,
       c.nombre_contacto AS cliente_nombre_contacto,
       c.email AS cliente_email,
       c.telefono AS cliente_telefono,
@@ -1374,6 +1417,7 @@ export async function obtenerDocumentoRepository(
     ) cancelacion_intento ON TRUE
     LEFT JOIN finanzas_operaciones fo ON fo.id = d.finanzas_operacion_id AND fo.empresa_id = d.empresa_id
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
+    LEFT JOIN contactos ce ON d.contacto_entrega_id = ce.id
     LEFT JOIN contactos_domicilios cd ON cd.contacto_id = c.id AND cd.es_principal = true
     LEFT JOIN contactos ag ON ag.id = d.agente_id
     WHERE d.empresa_id = $1 AND d.id = $2
@@ -1604,7 +1648,22 @@ export async function obtenerDocumentosRelacionadosRepository(
       total: Number(doc.total),
       relacion: visitados.get(doc.id) ?? 'destino',
     }))
-    .sort((a, b) => a.fecha_documento.localeCompare(b.fecha_documento));
+    .sort((a, b) => {
+      const timestamp = (value: unknown): number => {
+        if (value instanceof Date) {
+          const time = value.getTime();
+          return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+        }
+        if (typeof value === 'string' || typeof value === 'number') {
+          const time = new Date(value).getTime();
+          return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+        }
+        return Number.POSITIVE_INFINITY;
+      };
+
+      const byDate = timestamp(a.fecha_documento) - timestamp(b.fecha_documento);
+      return byDate || Number(a.id) - Number(b.id);
+    });
 }
 
 export async function crearDocumentoRepository(
@@ -1859,7 +1918,12 @@ export async function actualizarDocumentoRepository(
   // realmente cambió), para no aceptar modificaciones indirectas sobre datos heredados,
   // comerciales, fiscales o de importes.
   const entries = CAMPOS_DOCUMENTO.filter((campo) => {
-    if (trazabilidadHeader.activa && !CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD.includes(campo)) return false;
+    if (trazabilidadHeader.activa) {
+      const editables = esFacturaBorrador(current)
+        ? [...CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD, ...CAMPOS_FACTURA_BORRADOR_EDITABLES_CON_TRAZABILIDAD]
+        : CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD;
+      if (!editables.includes(campo)) return false;
+    }
     if (!hasSeguimiento && (SEGUIMIENTO_CAMPOS as readonly string[]).includes(campo)) return false;
     return dataToUpdate[campo] !== undefined;
   });
@@ -2014,11 +2078,10 @@ export async function agregarPartidaRepository(documentoId: number, data: Partid
       SELECT COALESCE(MAX(numero_partida), 0) + 1 FROM documentos_partidas WHERE documento_id = $1
     )`;
     campos.push('numero_partida');
-    valores.push(null); // placeholder para mantener índices; lo sustituimos en query
 
     const params = valores.map((_, idx) => `$${idx + 1}`).join(', ');
     const query = `INSERT INTO documentos_partidas (${campos.join(', ')})
-      VALUES (${params.substring(0, params.lastIndexOf(','))}, ${nextNumeroSql})
+      VALUES (${params}, ${nextNumeroSql})
       RETURNING *`;
     const { rows } = await executor.query(query, valores);
     if (rows[0]?.id) await guardarEspecificacionesPartida(Number(rows[0].id), data.especificaciones, empresaId, executor);

@@ -4,6 +4,13 @@ const EMPRESA = 9;
 const VERSION = 'dicor-finanzas-v1';
 type Row = Record<string, any>;
 
+// Regla histórica de DICOR: todo retiro ligado directamente a un FULL es
+// gasto adicional para conservar la semántica de main. No depende del concepto.
+const naturalezaOperacion = (row: Row) =>
+  row.tipo_movimiento === 'Retiro' && row.full_compra_id != null
+    ? 'gasto_adicional_full'
+    : row.es_anticipo === true ? 'anticipo' : 'movimiento_general';
+
 function client(prefix: 'DICOR' | 'EMPHASYS', readOnly: boolean) {
   const get = (name: string) => {
     const value = process.env[`${prefix}_PG_${name}`];
@@ -34,7 +41,7 @@ async function ensureConcept(t: Client, concept: Row, apply: boolean) {
   const old = await correspondence(t, 'concepto', String(concept.id));
   if (old) return old;
   if (!apply) return -Number(concept.id);
-  const inserted = await t.query<Row>(`INSERT INTO conceptos(empresa_id,nombre_concepto,es_gasto,activo,observaciones) VALUES($1,$2,$3,$4,$5) RETURNING id`, [EMPRESA, concept.nombre_concepto, concept.es_gasto, concept.activo, `Concepto DICOR ${concept.id}; conserva semántica histórica de origen.`]);
+  const inserted = await t.query<Row>(`INSERT INTO conceptos(empresa_id,nombre_concepto,es_gasto,activo,observaciones) VALUES($1,$2,$3,$4,$5) RETURNING id`, [EMPRESA, concept.nombre_concepto, concept.es_gasto, concept.activo, concept.observaciones || null]);
   const id = Number(inserted.rows[0].id);
   await t.query(`INSERT INTO migrate.entidades_correspondencias(sistema_origen,tipo_entidad,id_origen,empresa_destino_id,id_destino,metadata,hash_origen,snapshot_origen,fecha_ultima_sincronizacion,version_transformacion,estado_sincronizacion) VALUES('DICOR','concepto',$1,$2,$3,$4,$5,$6,now(),$7,'sin_cambios')`, [String(concept.id), EMPRESA, id, { activo: concept.activo, historico: !concept.activo }, sourceHash(concept), sourceSnapshot(concept), VERSION]);
   return id;
@@ -55,7 +62,7 @@ async function main() {
     const conceptMap = new Map<number, number>();
     for (const concept of conceptRows.rows) { const mapped = await ensureConcept(t, concept, apply); if (mapped) conceptMap.set(Number(concept.id), mapped); }
     const where = id ? 'WHERE o.id=$1' : '';
-    const operations = await s.query<Row>(`SELECT o.* FROM operaciones_dinero o ${where} ORDER BY o.id`, id ? [id] : []);
+    const operations = await s.query<Row>(`SELECT o.*, f.id AS full_compra_id FROM operaciones_dinero o LEFT JOIN facturas f ON f.id = o.full_id AND f.tipo_factura = 'Compra' ${where} ORDER BY o.id`, id ? [id] : []);
     for (const row of operations.rows) {
       const hash = sourceHash(row), old = await t.query<Row>(`SELECT id_destino,hash_origen FROM migrate.entidades_correspondencias WHERE sistema_origen='DICOR' AND tipo_entidad='operacion_dinero' AND id_origen=$1 AND empresa_destino_id=$2`, [String(row.id), EMPRESA]);
       if (old.rows[0]) { old.rows[0].hash_origen === hash ? report.operaciones_sin_cambios++ : report.operaciones_modificadas++; continue; }
@@ -69,7 +76,7 @@ async function main() {
       try {
         const doc = row.factura_id == null ? null : await correspondence(t, 'documento', String(row.factura_id));
         const full = row.full_id == null ? null : await correspondence(t, 'documento', String(row.full_id));
-        const inserted = await t.query<Row>(`INSERT INTO finanzas_operaciones(empresa_id,fecha,tipo_movimiento,monto,referencia,observaciones,cuenta_id,contacto_id,factura_id,es_transferencia,transferencia_id,estado_conciliacion,saldo,concepto_id,naturaleza_operacion,documento_origen_id,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,$14,$15,$16) RETURNING id`, [EMPRESA,row.fecha,row.tipo_movimiento === 'Depósito' ? 'Deposito' : row.tipo_movimiento,row.monto,row.referencia,JSON.stringify({ dicor_id: row.id, snapshot: sourceSnapshot(row) }),account,contact,doc,row.es_transferencia === true,row.transferencia_id,row.estado_conciliacion || 'pendiente',concept, row.es_anticipo === true ? 'anticipo' : 'movimiento_general',full,row.usuario_id]);
+        const inserted = await t.query<Row>(`INSERT INTO finanzas_operaciones(empresa_id,fecha,tipo_movimiento,monto,referencia,observaciones,cuenta_id,contacto_id,factura_id,es_transferencia,transferencia_id,estado_conciliacion,saldo,concepto_id,naturaleza_operacion,documento_origen_id,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,$13,$14,$15,$16) RETURNING id`, [EMPRESA,row.fecha,row.tipo_movimiento === 'Depósito' ? 'Deposito' : row.tipo_movimiento,row.monto,row.referencia,JSON.stringify({ dicor_id: row.id, snapshot: sourceSnapshot(row) }),account,contact,doc,row.es_transferencia === true,row.transferencia_id,row.estado_conciliacion || 'pendiente',concept, naturalezaOperacion({ ...row, full_id: full }),full,row.usuario_id]);
         const destination = Number(inserted.rows[0].id);
         await t.query(`INSERT INTO migrate.entidades_correspondencias(sistema_origen,tipo_entidad,id_origen,empresa_destino_id,id_destino,metadata,hash_origen,snapshot_origen,fecha_ultima_sincronizacion,version_transformacion,estado_sincronizacion) VALUES('DICOR','operacion_dinero',$1,$2,$3,$4,$5,$6,now(),$7,'sin_cambios')`, [String(row.id),EMPRESA,destination,{ cuenta_dinero_id: row.cuenta_dinero_id, factura_id: doc, full_id: full, es_anticipo: row.es_anticipo === true },hash,sourceSnapshot(row),VERSION]);
         await t.query('COMMIT');
@@ -88,13 +95,40 @@ async function main() {
     if (apply) {
       const creditMap = new Map<number, number>();
       for (const credit of credits.rows.filter((row) => row.tipo_operacion === 'Nota de Crédito')) {
+        const existingDocument = await t.query<Row>(`SELECT id_destino FROM migrate.entidades_correspondencias WHERE sistema_origen='DICOR' AND tipo_entidad='nota_credito_documento' AND id_origen=$1 AND empresa_destino_id=$2`, [String(credit.id), EMPRESA]);
+        if (existingDocument.rows[0]) { creditMap.set(Number(credit.id), Number(existingDocument.rows[0].id_destino)); continue; }
         const old = await t.query<Row>(`SELECT id_destino FROM migrate.entidades_correspondencias WHERE sistema_origen='DICOR' AND tipo_entidad='operacion_credito' AND id_origen=$1 AND empresa_destino_id=$2`, [String(credit.id), EMPRESA]);
-        if (old.rows[0]) { creditMap.set(Number(credit.id), Number(old.rows[0].id_destino)); continue; }
         const contact = await correspondence(t, 'contacto', String(credit.contacto_id));
         if (!contact) { report.excepciones++; report.problemas.push({ tipo: 'operacion_credito', id: credit.id, codigo: 'CONTACTO_NO_RESUELTO' }); continue; }
-        const inserted = await t.query<Row>(`INSERT INTO credito_operaciones(empresa_id,contacto_id,tipo_operacion,fecha,monto,referencia,observaciones,usuario_id) VALUES($1,$2,'ajuste',$3,$4,$5,$6,$7) RETURNING id`, [EMPRESA,contact,credit.fecha,credit.total,credit.folio,JSON.stringify({ dicor_id: credit.id, snapshot: sourceSnapshot(credit) }),credit.usuario_id]);
-        const destination = Number(inserted.rows[0].id); creditMap.set(Number(credit.id), destination);
-        await t.query(`INSERT INTO migrate.entidades_correspondencias(sistema_origen,tipo_entidad,id_origen,empresa_destino_id,id_destino,metadata,hash_origen,snapshot_origen,fecha_ultima_sincronizacion,version_transformacion,estado_sincronizacion) VALUES('DICOR','operacion_credito',$1,$2,$3,$4,$5,$6,now(),$7,'sin_cambios')`, [String(credit.id),EMPRESA,destination,{ tipo: 'Nota de Crédito' },sourceHash(credit),sourceSnapshot(credit),VERSION]);
+        const item = await s.query<Row>('SELECT * FROM operaciones_credito_items WHERE operacion_credito_id=$1 ORDER BY id LIMIT 1', [credit.id]);
+        const historicItem = item.rows[0];
+        const product = historicItem?.producto_id == null ? null : await correspondence(t, 'producto', String(historicItem.producto_id));
+        const user = 1;
+        const documentoOrigen = historicItem?.factura_id == null ? null : await correspondence(t, 'documento', String(historicItem.factura_id));
+        const observaciones = [credit.referencia, credit.observaciones].filter(Boolean).join(' — ') || null;
+        const existingByNumber = await t.query<Row>(`SELECT id FROM documentos WHERE empresa_id=$1 AND tipo_documento='nota_credito_compra' AND serie=$2 AND numero=$3`, [EMPRESA,credit.serie,credit.numero]);
+        let destination: number;
+        const createdDocument = existingByNumber.rowCount === 0;
+        if (createdDocument) {
+          const inserted = await t.query<Row>(`INSERT INTO documentos(empresa_id,tipo_documento,estatus_documento,serie,numero,contacto_principal_id,fecha_documento,moneda,tipo_cambio,subtotal,descuento_global,descuento,iva,total,saldo,observaciones,documento_origen_id,motivo_nc,usuario_creacion_id,tratamiento_impuestos) VALUES($1,'nota_credito_compra','emitido',$2,$3,$4,$5,$6,$7,$8,0,0,$9,$10,$10,$11,$12,'otro',$13,'sin_iva') RETURNING id`, [EMPRESA,credit.serie,credit.numero,contact,credit.fecha,credit.moneda || 'MXN',Number(credit.cotizacion || 1),Number(credit.total)-Number(credit.monto_iva || 0),Number(credit.monto_iva || 0),Number(credit.total),observaciones,documentoOrigen,user]);
+          destination = Number(inserted.rows[0].id);
+        } else destination = Number(existingByNumber.rows[0].id);
+        creditMap.set(Number(credit.id), destination);
+        if (historicItem && createdDocument) {
+          const part = await t.query<Row>(`INSERT INTO documentos_partidas(documento_id,numero_partida,producto_id,descripcion_alterna,cantidad,precio_unitario,descuento,descuento_tipo,descuento_monto,subtotal_partida,total_partida) VALUES($1,1,$2,$3,$4,$5,0,'porcentaje',0,$6,$6) RETURNING id`, [destination,product,credit.referencia || credit.observaciones || null,Number(historicItem.cantidad || 1),Number(historicItem.precio_unitario || 0),Number(historicItem.subtotal || credit.total)]);
+          const sourcePart = historicItem.partida_factura ? await correspondence(t, 'partida', String(historicItem.partida_factura)) : null;
+          if (sourcePart) await t.query(`INSERT INTO documentos_partidas_vinculos(empresa_id,documento_origen_id,documento_destino_id,partida_origen_id,partida_destino_id,cantidad,usuario_creacion_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`, [EMPRESA, await correspondence(t,'documento',String(historicItem.factura_id)), destination, sourcePart, part.rows[0].id, Number(historicItem.cantidad || 1), user]);
+        }
+        await t.query(`INSERT INTO migrate.entidades_correspondencias(sistema_origen,tipo_entidad,id_origen,empresa_destino_id,id_destino,metadata,hash_origen,snapshot_origen,fecha_ultima_sincronizacion,version_transformacion,estado_sincronizacion) VALUES('DICOR','nota_credito_documento',$1,$2,$3,$4,$5,$6,now(),$7,'sin_cambios')`, [String(credit.id),EMPRESA,destination,{ tipo: 'nota_credito_compra', origen: 'operacion_credito' },sourceHash(credit),sourceSnapshot(credit),VERSION]);
+        if (!old.rows[0]) await t.query(`INSERT INTO migrate.entidades_correspondencias(sistema_origen,tipo_entidad,id_origen,empresa_destino_id,id_destino,metadata,hash_origen,snapshot_origen,fecha_ultima_sincronizacion,version_transformacion,estado_sincronizacion) VALUES('DICOR','operacion_credito',$1,$2,$3,$4,$5,$6,now(),$7,'sin_cambios')`, [String(credit.id),EMPRESA,destination,{ tipo: 'Nota de Crédito' },sourceHash(credit),sourceSnapshot(credit),VERSION]);
+      }
+      for (const credit of credits.rows.filter((row) => row.tipo_operacion === 'Nota de Crédito')) {
+        const old = await correspondence(t, 'operacion_credito', String(credit.id));
+        if (!old) continue;
+        await t.query(`DELETE FROM migrate.entidades_correspondencias WHERE sistema_origen='DICOR' AND tipo_entidad='operacion_credito_aplicacion' AND id_destino IN (SELECT id FROM aplicaciones_saldo WHERE empresa_id=$1 AND credito_operacion_id=$2)`, [EMPRESA, old]);
+        await t.query(`DELETE FROM aplicaciones_saldo WHERE empresa_id=$1 AND credito_operacion_id=$2`, [EMPRESA, old]);
+        await t.query(`DELETE FROM credito_operaciones WHERE id=$1 AND empresa_id=$2`, [old, EMPRESA]);
+        await t.query(`DELETE FROM migrate.entidades_correspondencias WHERE sistema_origen='DICOR' AND tipo_entidad='operacion_credito' AND id_origen=$1 AND empresa_destino_id=$2`, [String(credit.id), EMPRESA]);
       }
       for (const app of applications.rows) {
         const credit = credits.rows.find((row) => Number(row.id) === Number(app.operacion_credito_id));
@@ -103,14 +137,16 @@ async function main() {
         if (!document) { report.excepciones++; report.problemas.push({ tipo: 'aplicacion_credito', id: app.id, codigo: 'DOCUMENTO_NO_RESUELTO' }); continue; }
         const operation = credit.tipo_operacion === 'Pago' ? await correspondence(t, 'operacion_dinero', String(credit.operacion_dinero_id)) : creditMap.get(Number(credit.id));
         if (!operation) { report.excepciones++; report.problemas.push({ tipo: 'aplicacion_credito', id: app.id, codigo: 'ORIGEN_CANONICO_NO_RESUELTO' }); continue; }
-        const tipoOrigen = credit.es_anticipo || credit.tipo_operacion === 'Pago' ? 'finanzas_operacion' : 'credito_operacion';
+        const tipoOrigen = credit.es_anticipo || credit.tipo_operacion === 'Pago' ? 'finanzas_operacion' : 'documento';
         const existing = await t.query<Row>(`SELECT id_destino FROM migrate.entidades_correspondencias WHERE sistema_origen='DICOR' AND tipo_entidad='operacion_credito_aplicacion' AND id_origen=$1 AND empresa_destino_id=$2`, [String(app.id), EMPRESA]);
         if (existing.rows[0]) continue;
         const inserted = tipoOrigen === 'finanzas_operacion'
           ? await t.query<Row>(`INSERT INTO aplicaciones_saldo(empresa_id,finanzas_operacion_id,documento_destino_id,monto,monto_moneda_documento,fecha_aplicacion) VALUES($1,$2,$3,$4,$4,$5) RETURNING id`, [EMPRESA,operation,document,app.monto,app.fecha])
-          : await t.query<Row>(`INSERT INTO aplicaciones_saldo(empresa_id,credito_operacion_id,documento_destino_id,monto,monto_moneda_documento,fecha_aplicacion) VALUES($1,$2,$3,$4,$4,$5) RETURNING id`, [EMPRESA,operation,document,app.monto,app.fecha]);
+          : await t.query<Row>(`INSERT INTO aplicaciones_saldo(empresa_id,documento_origen_id,documento_destino_id,monto,monto_moneda_documento,fecha_aplicacion) VALUES($1,$2,$3,$4,$4,$5) RETURNING id`, [EMPRESA,operation,document,app.monto,app.fecha]);
         await t.query(`INSERT INTO migrate.entidades_correspondencias(sistema_origen,tipo_entidad,id_origen,empresa_destino_id,id_destino,metadata,hash_origen,snapshot_origen,fecha_ultima_sincronizacion,version_transformacion,estado_sincronizacion) VALUES('DICOR','operacion_credito_aplicacion',$1,$2,$3,$4,$5,$6,now(),$7,'sin_cambios')`, [String(app.id),EMPRESA,Number(inserted.rows[0].id),{ origen: tipoOrigen },sourceHash(app),sourceSnapshot(app),VERSION]);
       }
+      const ncrDocuments = [...creditMap.values()];
+      if (ncrDocuments.length) await t.query(`UPDATE documentos d SET saldo=GREATEST(d.total-COALESCE((SELECT SUM(a.monto) FROM aplicaciones_saldo a WHERE a.empresa_id=$1 AND a.documento_origen_id=d.id),0),0) WHERE d.empresa_id=$1 AND d.id=ANY($2::bigint[])`, [EMPRESA, ncrDocuments]);
     }
     await s.query('ROLLBACK');
     console.log(JSON.stringify(report, null, 2));

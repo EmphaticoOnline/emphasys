@@ -11,6 +11,7 @@ import {
   crearTransferencia,
   diagnosticarDuplicadosAplicaciones,
   desaplicarPagoCliente,
+  desaplicarAplicacionDocumental,
   eliminarCuenta,
   eliminarOperacion,
   eliminarTransferencia,
@@ -202,7 +203,9 @@ export async function getOperaciones(req: Request, res: Response) {
     const empresaId = req.context?.empresaId as number;
     if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
     const cuentaId = req.query.cuenta_id ? Number(req.query.cuenta_id) : undefined;
-    const ops = await listarOperaciones(empresaId, cuentaId);
+    const documentoOrigenId = req.query.documento_origen_id ? Number(req.query.documento_origen_id) : undefined;
+    const naturaleza = typeof req.query.naturaleza_operacion === 'string' ? req.query.naturaleza_operacion : undefined;
+    const ops = await listarOperaciones(empresaId, cuentaId, documentoOrigenId, naturaleza);
     res.json(ops);
   } catch (err: any) {
     res.status(500).json({ message: err.message || 'Error al obtener operaciones' });
@@ -306,6 +309,20 @@ export async function postAplicacion(req: Request, res: Response) {
       ...(err?.code ? { code: err.code } : {}),
       message: err.message || 'No se pudo registrar la aplicación',
     });
+  }
+}
+
+export async function deleteAplicacionDocumental(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ message: 'ID de aplicación inválido' });
+    const result = await desaplicarAplicacionDocumental(id, empresaId, req.auth?.userId ?? null);
+    res.json(result);
+  } catch (err: any) {
+    const status = Number(err?.status) || 500;
+    res.status(status).json({ message: err.message || 'No se pudo desaplicar la aplicación documental' });
   }
 }
 

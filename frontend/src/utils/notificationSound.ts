@@ -39,7 +39,7 @@ type ToneSegment = {
 // Primitiva compartida por todos los tonos: un oscilador con envolvente corta
 // (ataque rápido, decaimiento suave) para que siempre suene como una
 // notificación breve, nunca como un pitido sostenido.
-function playSegment(ctx: AudioContext, startAt: number, durationSeconds: number, segment: ToneSegment) {
+function playSegment(ctx: AudioContext, startAt: number, durationSeconds: number, segment: ToneSegment, volume = 1) {
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
 
@@ -49,7 +49,11 @@ function playSegment(ctx: AudioContext, startAt: number, durationSeconds: number
     oscillator.frequency.exponentialRampToValueAtTime(segment.endFrequency, startAt + durationSeconds);
   }
 
-  const peakGain = segment.peakGain ?? 0.12;
+  // La alerta se sintetiza directamente contra la salida del navegador. El
+  // valor anterior (~0.1) hacía que resultara casi imperceptible aun con el
+  // volumen del sistema alto; este nivel deja margen contra clipping, pero
+  // sube claramente la percepción de volumen.
+  const peakGain = Math.min(5, (segment.peakGain ?? 0.9) * volume);
   gain.gain.setValueAtTime(0, startAt);
   gain.gain.linearRampToValueAtTime(peakGain, startAt + 0.01);
   gain.gain.exponentialRampToValueAtTime(0.0001, startAt + durationSeconds);
@@ -64,47 +68,47 @@ function playSegment(ctx: AudioContext, startAt: number, durationSeconds: number
 // "Discreto": el sonido original de esta feature (dos notas ascendentes en
 // seno), sin cambios, para no alterar el comportamiento por defecto de
 // usuarios que ya lo conocían.
-function playDiscreto(ctx: AudioContext) {
+function playDiscreto(ctx: AudioContext, volume: number) {
   const now = ctx.currentTime;
-  playSegment(ctx, now, 0.12, { frequency: 880 });
-  playSegment(ctx, now + 0.09, 0.14, { frequency: 1175 });
+  playSegment(ctx, now, 0.12, { frequency: 880 }, volume);
+  playSegment(ctx, now + 0.09, 0.14, { frequency: 1175 }, volume);
 }
 
 // "Clásico": dos notas descendentes (estilo timbre de puerta), más cálido y
 // ligeramente más largo que el discreto, pero igual de corto en general.
-function playClasico(ctx: AudioContext) {
+function playClasico(ctx: AudioContext, volume: number) {
   const now = ctx.currentTime;
-  playSegment(ctx, now, 0.16, { frequency: 1046.5 }); // C6
-  playSegment(ctx, now + 0.13, 0.22, { frequency: 784 }); // G5
+  playSegment(ctx, now, 0.16, { frequency: 1046.5 }, volume); // C6
+  playSegment(ctx, now + 0.13, 0.22, { frequency: 784 }, volume); // G5
 }
 
 // "Campana": fundamental + un sobretono más agudo y tenue sonando a la vez,
 // con una cola de decaimiento un poco más larga — simula el timbre de una
 // campana sin necesitar una muestra de audio real.
-function playCampana(ctx: AudioContext) {
+function playCampana(ctx: AudioContext, volume: number) {
   const now = ctx.currentTime;
-  playSegment(ctx, now, 0.38, { frequency: 659.25, peakGain: 0.11 }); // E5
-  playSegment(ctx, now, 0.22, { frequency: 1583, peakGain: 0.045 }); // sobretono
+  playSegment(ctx, now, 0.38, { frequency: 659.25, peakGain: 0.8 }, volume); // E5
+  playSegment(ctx, now, 0.22, { frequency: 1583, peakGain: 0.4 }, volume); // sobretono
 }
 
 // "Pop": un único blip percusivo con barrido de frecuencia descendente muy
 // corto — el más breve de los cinco, pensado para llamar la atención sin
 // sostenerse en el tiempo.
-function playPop(ctx: AudioContext) {
+function playPop(ctx: AudioContext, volume: number) {
   const now = ctx.currentTime;
-  playSegment(ctx, now, 0.1, { frequency: 650, endFrequency: 180, peakGain: 0.14 });
+  playSegment(ctx, now, 0.1, { frequency: 650, endFrequency: 180, peakGain: 0.9 }, volume);
 }
 
 // "Alerta": doble beep corto en la misma nota (onda triangular, un poco más
 // presente que el seno) — el único patrón repetido, pero breve y sin
 // llegar a ser estridente ni molesto para un entorno de trabajo.
-function playAlerta(ctx: AudioContext) {
+function playAlerta(ctx: AudioContext, volume: number) {
   const now = ctx.currentTime;
-  playSegment(ctx, now, 0.08, { type: 'triangle', frequency: 987.77, peakGain: 0.13 }); // B5
-  playSegment(ctx, now + 0.14, 0.08, { type: 'triangle', frequency: 987.77, peakGain: 0.13 });
+  playSegment(ctx, now, 0.08, { type: 'triangle', frequency: 987.77, peakGain: 0.9 }, volume); // B5
+  playSegment(ctx, now + 0.14, 0.08, { type: 'triangle', frequency: 987.77, peakGain: 0.9 }, volume);
 }
 
-const TONE_PLAYERS: Record<NotificationTone, (ctx: AudioContext) => void> = {
+const TONE_PLAYERS: Record<NotificationTone, (ctx: AudioContext, volume: number) => void> = {
   discreto: playDiscreto,
   clasico: playClasico,
   campana: playCampana,
@@ -130,7 +134,7 @@ export function unlockAudioContext(): void {
   }
 }
 
-export async function playNotificationSound(tone: NotificationTone = DEFAULT_NOTIFICATION_TONE): Promise<void> {
+export async function playNotificationSound(tone: NotificationTone = DEFAULT_NOTIFICATION_TONE, volume = 1): Promise<void> {
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -155,7 +159,8 @@ export async function playNotificationSound(tone: NotificationTone = DEFAULT_NOT
     }
 
     const player = TONE_PLAYERS[tone] ?? TONE_PLAYERS[DEFAULT_NOTIFICATION_TONE];
-    player(ctx);
+    const clampedVolume = Math.max(0, Math.min(1, volume));
+    if (clampedVolume > 0) player(ctx, clampedVolume);
   } catch (error) {
     console.warn('No se pudo reproducir el sonido de notificación', error);
   }

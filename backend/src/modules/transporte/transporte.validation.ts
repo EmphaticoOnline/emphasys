@@ -118,7 +118,12 @@ export function parseViajeInput(value: unknown): ViajeInput {
         throw new TransporteError(`ubicaciones[${index}].tipo no es válido.`);
       }
       return {
-        ubicacionId: optionalPositiveInteger(item.ubicacionId, `ubicaciones[${index}].ubicacionId`),
+        // Contrato nuevo: domicilioId (public.contactos_domicilios.id).
+        // `ubicacionId` se mantiene sólo como alias de compatibilidad interna.
+        domicilioId: optionalPositiveInteger(
+          item.domicilioId ?? item.ubicacionId,
+          `ubicaciones[${index}].domicilioId`
+        ),
         tipo,
         secuencia: positiveInteger(item.secuencia, `ubicaciones[${index}].secuencia`),
         fechaHoraProgramada: dateText(item.fechaHoraProgramada, `ubicaciones[${index}].fechaHoraProgramada`, true)!,
@@ -134,11 +139,23 @@ export function parseViajeInput(value: unknown): ViajeInput {
       if (pesoKg === null || pesoKg <= 0) throw new TransporteError(`mercancias[${index}].pesoKg debe ser mayor a cero.`);
       const valorMercancia = optionalNumber(item.valorMercancia, `mercancias[${index}].valorMercancia`);
       if (valorMercancia !== null && valorMercancia < 0) throw new TransporteError(`mercancias[${index}].valorMercancia no puede ser negativo.`);
+      const productoId = optionalPositiveInteger(item.productoId, `mercancias[${index}].productoId`);
+      if (!productoId && !optionalText(item.descripcion)) {
+        throw new TransporteError(`mercancias[${index}] requiere productoId o descripcion para mercancía libre.`);
+      }
       return {
-        mercanciaId: positiveInteger(item.mercanciaId, `mercancias[${index}].mercanciaId`),
+        productoId,
         cantidad,
         pesoKg,
         valorMercancia,
+        descripcion: optionalText(item.descripcion),
+        claveBienesTransportadosSat: optionalText(item.claveBienesTransportadosSat),
+        claveUnidadSat: optionalText(item.claveUnidadSat),
+        unidadDescripcion: optionalText(item.unidadDescripcion),
+        materialPeligroso: item.materialPeligroso == null ? undefined : Boolean(item.materialPeligroso),
+        claveMaterialPeligroso: optionalText(item.claveMaterialPeligroso),
+        embalaje: optionalText(item.embalaje),
+        descripcionEmbalaje: optionalText(item.descripcionEmbalaje),
         origenSecuencia: optionalPositiveInteger(item.origenSecuencia, `mercancias[${index}].origenSecuencia`),
         destinoSecuencia: optionalPositiveInteger(item.destinoSecuencia, `mercancias[${index}].destinoSecuencia`),
       };
@@ -147,6 +164,7 @@ export function parseViajeInput(value: unknown): ViajeInput {
       const item = object(raw);
       const tipoFigura = String(item.tipoFigura ?? '').trim();
       if (!tipoFigura) throw new TransporteError(`figuras[${index}].tipoFigura es requerido.`);
+      if (tipoFigura !== 'operador') throw new TransporteError('Por ahora sólo se admite la figura Operador (SAT 01).');
       return {
         tipoFigura,
         operadorId: optionalPositiveInteger(item.operadorId, `figuras[${index}].operadorId`),

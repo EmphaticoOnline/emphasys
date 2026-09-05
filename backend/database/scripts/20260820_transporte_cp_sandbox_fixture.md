@@ -37,13 +37,13 @@ Content-Type: application/json
   "observaciones": "Prueba controlada Carta Porte 3.1",
   "ubicaciones": [
     {
-      "ubicacionId": <origen_id>,
+      "domicilioId": <origen_domicilio_id>,
       "tipo": "origen",
       "secuencia": 1,
       "fechaHoraProgramada": "2026-08-25T08:00:00-06:00"
     },
     {
-      "ubicacionId": <destino_id>,
+      "domicilioId": <destino_domicilio_id>,
       "tipo": "destino",
       "secuencia": 2,
       "fechaHoraProgramada": "2026-08-25T11:00:00-06:00",
@@ -52,7 +52,7 @@ Content-Type: application/json
   ],
   "mercancias": [
     {
-      "mercanciaId": <mercancia_id>,
+      "productoId": <producto_id>,
       "cantidad": 31000,
       "pesoKg": 25000,
       "valorMercancia": 750000,

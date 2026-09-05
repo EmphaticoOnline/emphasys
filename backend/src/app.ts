@@ -9,6 +9,7 @@ console.log("CWD runtime:", process.cwd());
 
 import express from "express";
 import contactosRouter from "./modules/contactos/contactos.routes";
+import empresaDomiciliosRouter from "./modules/contactos/empresa-domicilios.routes";
 import leadsRouter from "./modules/leads/leads.routes";
 import productosRouter from "./modules/productos/productos.routes";
 import unidadesRouter from "./modules/unidades/unidades.routes";
@@ -56,10 +57,16 @@ import cfdiSatRouter from "./modules/configuracion/cfdi-sat/cfdi-sat.routes";
 import facturaGlobalRouter from "./modules/documentos/factura-global.routes";
 import autorizacionesRouter from "./modules/autorizaciones/autorizaciones.routes";
 import reportesRouter from "./modules/reportes/reportes.routes";
+import auditLogRouter from "./modules/audit-log/audit-log.routes";
+import documentosEmpresaArchivosRouter from "./modules/documentacion/documentos-empresa.routes";
 import notificacionesRouter from "./modules/notificaciones/notificaciones.routes";
 import compassRouter from "./modules/compass/compass.routes";
 import transporteRouter from "./modules/transporte/transporte.routes";
+import vehiculosRouter from "./modules/transporte/vehiculos.routes";
+import remolquesRouter from "./modules/transporte/remolques.routes";
+import operadoresRouter from "./modules/transporte/operadores.routes";
 import operacionesFullRouter from "./modules/operaciones-full/operaciones-full.routes";
+import entregasRouter from "./modules/entregas/entregas.routes";
 import preciosBaseComercialesRouter from "./modules/precios-base-comerciales/precios-base-comerciales.routes";
 import { FRONTEND_BUILD_VERSION } from "./config/version";
 
@@ -92,6 +99,7 @@ console.log(
 
 // monta el módulo contactos
 app.use("/api/contactos", contactosRouter);
+app.use("/api/empresa/domicilios", empresaDomiciliosRouter);
 app.use("/api/leads", leadsRouter);
 
 // autenticación
@@ -171,11 +179,17 @@ app.use("/api/configuracion/cfdi-sat", cfdiSatRouter);
 app.use("/api/autorizaciones", autorizacionesRouter);
 app.use("/api/factura-global", facturaGlobalRouter);
 app.use("/api/operaciones-full", operacionesFullRouter);
+app.use("/api/entregas", entregasRouter);
 app.use("/api/precios-base-comerciales", preciosBaseComercialesRouter);
 app.use("/api/reportes", reportesRouter);
+app.use("/api/audit-log", auditLogRouter);
+app.use("/api/documentos-empresa", documentosEmpresaArchivosRouter);
 app.use("/api/notificaciones", notificacionesRouter);
 app.use("/api/compass", compassRouter);
 app.use("/api/transporte", transporteRouter);
+app.use("/api/transporte/vehiculos", vehiculosRouter);
+app.use("/api/transporte/remolques", remolquesRouter);
+app.use("/api/transporte/operadores", operadoresRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "emphasys-api" });

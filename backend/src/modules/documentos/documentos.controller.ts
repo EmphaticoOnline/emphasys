@@ -13,7 +13,7 @@ import {
   eliminarDocumentoRepository,
   obtenerRecepcionResumenRepository,
 } from './documentos.repository';
-import { generarDocumentoPDF, obtenerLogoEmpresaPath } from './documentos.pdf';
+import { generarDocumentoPDF, normalizarColorHex, obtenerLogoEmpresaPath } from './documentos.pdf';
 import { generarComplementoPagoPdfDesdeXml } from './complemento-pago.pdf';
 import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
@@ -38,6 +38,9 @@ import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
 import { resolverTipoPlantillaWhatsapp, type WhatsappTemplateType } from '../../whatsapp/whatsapp-template-type.service';
 import { CfdiEmailError } from '../../services/cfdi-email.service';
 import { timbrarFacturaConTransporte } from '../transporte/carta-porte-timbrado.service';
+import { mapCartaPortePrintModel } from '../transporte/carta-porte-print.mapper';
+import { generarCartaPortePDF } from '../transporte/carta-porte-print.pdf';
+import { combinarPDFs } from '../transporte/pdf-composer';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -266,7 +269,7 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
 
   try {
     const { rows } = await pool.query(
-      `SELECT uuid, fecha_timbrado, rfc_proveedor_certificacion, no_certificado_sat, sello_cfdi, sello_sat, cadena_original, rfc_emisor, rfc_receptor, total
+      `SELECT uuid, fecha_timbrado, rfc_proveedor_certificacion, no_certificado_sat, sello_cfdi, sello_sat, cadena_original, rfc_emisor, rfc_receptor, total, estado_sat, cancelacion_estado
          FROM documentos_cfdi
         WHERE documento_id = $1
         LIMIT 1`,
@@ -287,21 +290,66 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
         rfc_emisor: timbre.rfc_emisor,
         rfc_receptor: timbre.rfc_receptor,
         total: timbre.total,
+        cancelado: String(timbre.estado_sat ?? '').toLowerCase() === 'cancelado'
+          || String(timbre.cancelacion_estado ?? '').toLowerCase() === 'cancelada',
       };
-      (result.documento as any).estatus_documento = 'Timbrado';
+      if (!(result.documento as any).timbre.cancelado) (result.documento as any).estatus_documento = 'Timbrado';
     }
   } catch (err) {
     console.error('Error al consultar timbre CFDI para PDF', err);
   }
 
-  const pdfBuffer = await generarDocumentoPDF(result, empresaId);
-  const filename = construirNombrePdf(result.documento, documentoId);
+  let colorTablaHeaderFactura: string | undefined;
+  let logoPathFactura = '';
+  const pdfFactura = await generarDocumentoPDF(result, empresaId, {
+    onLayoutResolved: (layout) => {
+      colorTablaHeaderFactura = normalizarColorHex(layout.colorTablaHeader);
+    },
+    onLogoResolved: (logoPath) => {
+      logoPathFactura = logoPath;
+    },
+  });
+  if (tipo !== 'factura') {
+    return { buffer: pdfFactura, filename: construirNombrePdf(result.documento, documentoId), documento: result.documento };
+  }
 
-  return {
-    buffer: pdfBuffer,
-    filename,
-    documento: result.documento,
-  };
+  const { rows: cartaRows } = await pool.query(
+    `SELECT dc.xml_timbrado, dc.uuid, dc.fecha_timbrado, dc.sello_cfdi, dc.total,
+            dc.estado_sat, dc.cancelacion_estado,
+            dc.rfc_emisor, dc.rfc_receptor,
+            e.nombre, e.razon_social, e.rfc AS empresa_rfc, e.regimen_fiscal_id
+       FROM public.documentos_cfdi dc
+       JOIN public.documentos d ON d.id = dc.documento_id
+       LEFT JOIN core.empresas e ON e.id = d.empresa_id
+      WHERE dc.documento_id = $1 AND d.empresa_id = $2
+      LIMIT 1`,
+    [documentoId, empresaId]
+  );
+  const cartaRow = cartaRows[0];
+  if (!cartaRow?.xml_timbrado || !String(cartaRow.xml_timbrado).includes('CartaPorte')) {
+    return { buffer: pdfFactura, filename: construirNombrePdf(result.documento, documentoId), documento: result.documento };
+  }
+
+  try {
+    const cartaModel = mapCartaPortePrintModel({
+      documentoId, serie: result.documento?.serie, folio: result.documento?.numero,
+      fecha: result.documento?.fecha_documento,
+      uuid: cartaRow.uuid ?? (result.documento as any)?.timbre?.uuid,
+      fechaTimbrado: cartaRow.fecha_timbrado?.toISOString?.() ?? cartaRow.fecha_timbrado,
+      rfcEmisor: cartaRow.rfc_emisor ?? (result.documento as any)?.timbre?.rfc_emisor,
+      rfcReceptor: cartaRow.rfc_receptor ?? (result.documento as any)?.timbre?.rfc_receptor,
+      selloCfdi: cartaRow.sello_cfdi, total: cartaRow.total,
+            branding: { logoPath: logoPathFactura || undefined, nombre: cartaRow.nombre, razonSocial: cartaRow.razon_social, rfc: cartaRow.empresa_rfc, regimenFiscal: cartaRow.regimen_fiscal_id },
+            cancelado: String(cartaRow.estado_sat ?? '').toLowerCase() === 'cancelado'
+              || String(cartaRow.cancelacion_estado ?? '').toLowerCase() === 'cancelada',
+            colorTablaHeader: colorTablaHeaderFactura,
+    }, String(cartaRow.xml_timbrado));
+    const pdfCarta = await generarCartaPortePDF(cartaModel);
+    return { buffer: await combinarPDFs(pdfFactura, pdfCarta), filename: construirNombrePdf(result.documento, documentoId), documento: result.documento };
+  } catch (error) {
+    console.error('[pdf] XML Carta Porte detectado pero no se pudo anexar la representación', { documentoId, empresaId, error });
+    throw buildHttpError(422, 'La factura contiene Carta Porte, pero no fue posible generar su representación impresa.');
+  }
 }
 
 async function obtenerFacturaXmlData(documentoId: number, empresaId: number) {

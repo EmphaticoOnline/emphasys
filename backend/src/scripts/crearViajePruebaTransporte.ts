@@ -20,13 +20,13 @@ const payload = {
   observaciones: 'Caso de prueba interno; no timbrar.',
   ubicaciones: [
     {
-      ubicacionId: 1,
+      domicilioId: 3168,
       tipo: 'origen',
       secuencia: 1,
       fechaHoraProgramada: '2026-08-25T08:00:00-06:00',
     },
     {
-      ubicacionId: 2,
+      domicilioId: 3169,
       tipo: 'destino',
       secuencia: 2,
       fechaHoraProgramada: '2026-08-25T11:00:00-06:00',
@@ -35,7 +35,7 @@ const payload = {
   ],
   mercancias: [
     {
-      mercanciaId: 1,
+      productoId: 6177,
       cantidad: 31_000,
       pesoKg: 25_000,
       valorMercancia: 100_000,
@@ -62,7 +62,7 @@ async function preflight(): Promise<void> {
          SELECT 1 FROM public.documentos
          WHERE id=$3 AND empresa_id=$1 AND LOWER(tipo_documento)='factura'
        ) AS factura_ok,
-       (SELECT descripcion FROM transporte.mercancias WHERE id=1 AND empresa_id=$1) AS mercancia,
+       (SELECT descripcion FROM public.productos WHERE id=6177 AND empresa_id=$1) AS mercancia,
        (SELECT contacto_id FROM transporte.operadores WHERE id=1 AND empresa_id=$1) AS operador_contacto_id,
        (SELECT id FROM transporte.viajes WHERE empresa_id=$1 AND folio_interno=$4 LIMIT 1) AS viaje_existente`,
     [EMPRESA_ID, USUARIO_ID, DOCUMENTO_ID, FOLIO_INTERNO]

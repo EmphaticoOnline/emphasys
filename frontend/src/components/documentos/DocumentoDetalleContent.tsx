@@ -91,14 +91,15 @@ export function EmptyState({ mensaje }: { mensaje: string }) {
 export function useDocumentoDetalleData(
   documentoId: number | null,
   tipoDocumento: TipoDocumento,
-  enabled: boolean
+  enabled: boolean,
+  refreshKey = 0
 ) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DocumentoDetalleResponse | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [reconciliationMessage, setReconciliationMessage] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [reconciliationRefreshKey, setReconciliationRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!enabled || !documentoId) {
@@ -123,7 +124,7 @@ export function useDocumentoDetalleData(
     return () => {
       cancelado = true;
     };
-  }, [enabled, documentoId, tipoDocumento, refreshKey]);
+  }, [enabled, documentoId, tipoDocumento, refreshKey, reconciliationRefreshKey]);
 
   const handleReconcile = async () => {
     if (!documentoId || reconciling) return;
@@ -132,7 +133,7 @@ export function useDocumentoDetalleData(
     try {
       const result = await reconciliarCancelacionDocumento(documentoId);
       setReconciliationMessage(result.message);
-      setRefreshKey((value) => value + 1);
+      setReconciliationRefreshKey((value) => value + 1);
       return result;
     } catch (err: any) {
       setReconciliationMessage(err?.message || 'No se pudo reconciliar el estado de cancelación.');

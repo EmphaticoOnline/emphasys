@@ -5,6 +5,7 @@ import {
 	reenviarMensajeWhatsapp,
 	whatsappWebhook,
 	listarConversacionesWhatsapp,
+	marcarConversacionLeidaWhatsapp,
 	obtenerReglasSeguimientoWhatsapp,
 	obtenerConversacionWhatsapp,
 	actualizarEtapaConversacion,
@@ -33,6 +34,7 @@ router.post("/reenviar-mensaje", requireAuth, requireEmpresaActiva, reenviarMens
 router.post("/mensaje/:id/reaccion", requireAuth, requireEmpresaActiva, reaccionarMensajeWhatsapp);
 router.post("/enviar-plantilla", requireAuth, requireEmpresaActiva, enviarWhatsappPlantilla);
 router.get("/conversaciones", requireAuth, requireEmpresaActiva, listarConversacionesWhatsapp);
+router.post("/conversaciones/:id/leer", requireAuth, requireEmpresaActiva, marcarConversacionLeidaWhatsapp);
 router.get("/reglas-seguimiento", requireAuth, requireEmpresaActiva, obtenerReglasSeguimientoWhatsapp);
 router.get("/conversacion/:id", requireAuth, requireEmpresaActiva, obtenerConversacionWhatsapp);
 router.patch("/conversaciones/:id/etapa", requireAuth, requireEmpresaActiva, actualizarEtapaConversacion);

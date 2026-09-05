@@ -27,6 +27,7 @@ export default function DocumentosDesktopView({
   summaryContent,
   selectionContent,
   extraActionsContent,
+  viewToggleContent,
   rows,
   columns,
   canBulkDuplicate,
@@ -97,6 +98,7 @@ export default function DocumentosDesktopView({
             />
           ) : null}
           <Stack direction="row" spacing={1}>
+            {viewToggleContent}
             {extraActionsContent}
             {isTablet ? (
               <Button

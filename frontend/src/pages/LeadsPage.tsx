@@ -114,7 +114,11 @@ type ConversationSummary = {
   telefono: string | null;
   ultimoMensaje: string | null;
   ultimoMensajeTipo?: 'entrante' | 'saliente' | null;
+  ultimoMensajeTipoContenido?: 'text' | 'image' | 'audio' | 'document' | 'video' | null;
+  ultimoMensajeCaption?: string | null;
+  ultimoMensajeEsGif?: boolean | null;
   ultimoMensajeEn: string | null;
+  unreadCount?: number;
   nombre?: string | null;
   vendedor_id?: number | null;
   etapa_oportunidad?: EtapaOportunidad | null;
@@ -251,7 +255,9 @@ export type Lead = {
 export type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
 export type QuickFilter = 'todos' | 'seguimiento' | 'alta' | 'activos';
 export type OpportunityFilter = 'todos' | 'con' | 'sin';
+export type WhatsappWindowFilter = 'todos' | 'por-expirar' | 'expirada';
 export type LeadScope = 'mis' | 'todos';
+export type ConversationViewMode = 'priority' | 'recent';
 type UserRole = { id: number; nombre: string; descripcion?: string | null };
 const AUDIO_MIME_PREFERENCES = [
   'audio/ogg;codecs=opus',
@@ -329,6 +335,10 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const [isLoadingConversations, setIsLoadingConversations] = React.useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [quickReply, setQuickReply] = React.useState('');
+  // Los borradores pertenecen a la conversación (selectedLeadId es el
+  // conversationId estable en este módulo), no al contacto ni al componente
+  // visual. Así desktop y mobile comparten una única fuente de verdad.
+  const [draftsByConversation, setDraftsByConversation] = React.useState<Record<string, string>>({});
   const [replyingTo, setReplyingTo] = React.useState<ReplyPreview | null>(null);
   // Sonido de mensaje nuevo: activado por defecto hasta que se cargue la
   // preferencia guardada (fetchChatSoundPreferences también devuelve `true`
@@ -339,6 +349,20 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // sin preferencia guardada — es, además, el sonido original de esta
   // feature, así que no cambia el comportamiento por defecto de nadie.
   const [selectedTone, setSelectedTone] = React.useState<NotificationTone>(DEFAULT_NOTIFICATION_TONE);
+  const notificationVolumeKey = `crm.notifications.volume.${session.user?.id ?? 'unknown'}`;
+  const [notificationVolume, setNotificationVolume] = React.useState(() => {
+    const storedValue = window.localStorage.getItem(notificationVolumeKey);
+    if (storedValue === null) return 1;
+    const stored = Number(storedValue);
+    return Number.isFinite(stored) && stored >= 0 && stored <= 5 ? stored : 1;
+  });
+  const notificationVolumeRef = React.useRef(notificationVolume);
+  React.useEffect(() => { notificationVolumeRef.current = notificationVolume; }, [notificationVolume]);
+  const handleChangeNotificationVolume = React.useCallback((volume: number) => {
+    const next = Math.max(0, Math.min(5, volume));
+    setNotificationVolume(next);
+    window.localStorage.setItem(notificationVolumeKey, String(next));
+  }, [notificationVolumeKey]);
   // Refs espejo de soundEnabled/selectedTone: loadConversations (callback de
   // larga vida, reutilizado por el intervalo de polling de 5s) necesita leer
   // el valor más reciente de ambos sin tener que reconstruirse cada vez que
@@ -358,7 +382,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // únicamente para previsualizar imágenes (nunca una URL remota).
   const [pendingAttachmentFile, setPendingAttachmentFile] = React.useState<File | null>(null);
   const [pendingAttachmentPreviewUrl, setPendingAttachmentPreviewUrl] = React.useState<string | null>(null);
-  const [uploadFileType, setUploadFileType] = React.useState<'image' | 'document' | 'audio' | null>(null);
+  const [uploadFileType, setUploadFileType] = React.useState<'image' | 'document' | 'audio' | 'video' | null>(null);
   const [uploadFileName, setUploadFileName] = React.useState<string | null>(null);
   const [isRecording, setIsRecording] = React.useState(false);
   // URL blob: local del audio grabado, para reproducir la vista previa antes de subirlo.
@@ -409,9 +433,19 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const [tagDeactivatingId, setTagDeactivatingId] = React.useState<number | null>(null);
   const [leadFilter, setLeadFilter] = React.useState<QuickFilter>('todos');
   const [opportunityFilter, setOpportunityFilter] = React.useState<OpportunityFilter>('todos');
+  const [whatsappWindowFilter, setWhatsappWindowFilter] = React.useState<WhatsappWindowFilter>('todos');
   const [searchTerm, setSearchTerm] = React.useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = React.useState('');
   const [vistaFinalizadas, setVistaFinalizadas] = React.useState(false);
+  const conversationViewStorageKey = `crm.conversations.viewMode.${session.user?.id ?? 'unknown'}`;
+  const [conversationViewMode, setConversationViewMode] = React.useState<ConversationViewMode>(() => {
+    if (typeof window === 'undefined') return 'priority';
+    return window.localStorage.getItem(`crm.conversations.viewMode.${session.user?.id ?? 'unknown'}`) === 'recent' ? 'recent' : 'priority';
+  });
+  const handleConversationViewModeChange = React.useCallback((mode: ConversationViewMode) => {
+    setConversationViewMode(mode);
+    window.localStorage.setItem(conversationViewStorageKey, mode);
+  }, [conversationViewStorageKey]);
   const [finalizarDialogOpen, setFinalizarDialogOpen] = React.useState(false);
   const [finalizarTargetLeadId, setFinalizarTargetLeadId] = React.useState<string | null>(null);
   const [finalizarMotivo, setFinalizarMotivo] = React.useState<MotivoFinalizacion | ''>('');
@@ -601,7 +635,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // genera ningún evento de mensaje — es una llamada directa a
   // playNotificationSound, igual que la que dispara un mensaje entrante real.
   const handlePreviewTone = React.useCallback(() => {
-    void playNotificationSound(selectedTone);
+    void playNotificationSound(selectedTone, notificationVolumeRef.current);
   }, [selectedTone]);
 
   // Desbloquea el AudioContext del sonido de notificaciones en la primera
@@ -818,6 +852,10 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     });
 
     const filtered = filteredByQuickFilter.filter((lead) => {
+      const matchesWindow = whatsappWindowFilter === 'todos'
+        || (whatsappWindowFilter === 'por-expirar' && lead.within24hWindow === true && lead.windowExpiresInMinutes > 0 && lead.windowExpiresInMinutes <= 60)
+        || (whatsappWindowFilter === 'expirada' && (!lead.within24hWindow || lead.windowExpiresInMinutes <= 0));
+      if (!matchesWindow) return false;
       switch (opportunityFilter) {
         case 'con':
           return lead.tiene_oportunidad;
@@ -842,7 +880,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       ids: sorted.map((l) => l.id),
     });
     return sorted;
-  }, [debouncedSearchTerm, leadFilter, leadsConPrioridad, opportunityFilter]);
+  }, [debouncedSearchTerm, leadFilter, leadsConPrioridad, opportunityFilter, whatsappWindowFilter]);
 
   React.useEffect(() => {
     console.log('[LeadsPage] leadsConPrioridad updated', {
@@ -865,7 +903,25 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     });
   }, [leadsFiltradosOrdenados]);
 
-  const selectedLead = leadsConPrioridad.find((l) => l.id === selectedLeadId) ?? leadsConPrioridad[0];
+  // La selección siempre debe pertenecer al mismo conjunto que alimenta la
+  // lista visible. Antes se resolvía contra leadsConPrioridad (sin filtros),
+  // dejando el detalle abierto sobre una conversación ya excluida.
+  const selectedLead = leadsFiltradosOrdenados.find((l) => l.id === selectedLeadId) ?? leadsFiltradosOrdenados[0];
+  React.useEffect(() => {
+    const nextSelectedId = leadsFiltradosOrdenados[0]?.id ?? '';
+    if (selectedLeadId !== nextSelectedId && !leadsFiltradosOrdenados.some((lead) => lead.id === selectedLeadId)) {
+      setSelectedLeadId(nextSelectedId);
+      persistSelectedLeadId(nextSelectedId);
+      setReplyingTo(null);
+      clearPendingAttachment();
+      setUploadError(null);
+    }
+  }, [leadsFiltradosOrdenados, persistSelectedLeadId, selectedLeadId]);
+  const leadsRecientes = React.useMemo(() => [...leadsFiltradosOrdenados].sort((a, b) => {
+    const aTime = a.ultimoMensajeEn ? Date.parse(a.ultimoMensajeEn) : 0;
+    const bTime = b.ultimoMensajeEn ? Date.parse(b.ultimoMensajeEn) : 0;
+    return bTime - aTime;
+  }), [leadsFiltradosOrdenados]);
   const selectedLeadPriority = selectedLead?.computedPriority ?? 'Media';
   const finalizarTargetLead = leadsConPrioridad.find((l) => l.id === finalizarTargetLeadId) ?? null;
   const selectedContactoId = selectedLead?.contactoId ? Number(selectedLead.contactoId) : null;
@@ -893,11 +949,21 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       : conv.ultimoMensajeTipo === 'entrante'
         ? true
         : true;
+    const ultimoMensajeTexto = conv.ultimoMensaje?.trim() || conv.ultimoMensajeCaption?.trim() || '';
+    const lastMessage = ultimoMensajeTexto || (conv.ultimoMensajeTipoContenido === 'image'
+      ? '📷 Imagen'
+      : conv.ultimoMensajeTipoContenido === 'video'
+        ? (conv.ultimoMensajeEsGif ? 'GIF' : '🎥 Video')
+        : conv.ultimoMensajeTipoContenido === 'audio'
+          ? '🎤 Audio'
+          : conv.ultimoMensajeTipoContenido === 'document'
+            ? '📄 Documento'
+            : '');
     const baseLead: Lead = {
       id: conv.id,
       name: conv.nombre?.trim() || conv.telefono || 'WhatsApp',
       phone: conv.telefono || '',
-      lastMessage: '',
+      lastMessage,
       lastMessageTimeMinutesAgo: idle,
       idleMinutes: idle,
       awaitingResponse,
@@ -918,6 +984,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       etapa_oportunidad: normalizeEtapaOportunidad(conv.etapa_oportunidad),
       tiene_oportunidad: Boolean(conv.tiene_oportunidad),
       tags: conv.tags ?? [],
+      unreadCount: conv.unreadCount ?? 0,
       estado: conv.estado ?? null,
       finalizada_en: conv.finalizada_en ?? null,
       motivo_finalizacion: conv.motivo_finalizacion ?? null,
@@ -1040,7 +1107,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
             const previoTs = previo ? new Date(previo).getTime() : NaN;
             const esMasNuevo = !Number.isFinite(previoTs) || nuevoTs > previoTs;
             if (esMasNuevo) {
-              void playNotificationSound(selectedToneRef.current);
+              void playNotificationSound(selectedToneRef.current, notificationVolumeRef.current);
             }
           });
         }
@@ -1071,12 +1138,10 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
             // los valores frescos de baseLead — la misma fuente que usan
             // TODOS los leads, se haya cargado su historial o no — para que
             // abrir una conversación no la reordene sin actividad real.
-            const whatsappPreview = getLastWhatsappPreview(existing.conversation);
-
             return applyDerivedLeadState({
               ...existing,
               ...baseLead,
-              lastMessage: whatsappPreview?.text ?? '',
+              lastMessage: baseLead.lastMessage,
               conversation: existing.conversation,
             }, reglasSeguimiento);
           });
@@ -1120,12 +1185,11 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
             // los leads — no desde el historial cacheado del lead
             // seleccionado, que lo desincronizaba del resto apenas se abría.
             const baseLead = buildLeadFromConversation(conv);
-            const whatsappPreview = getLastWhatsappPreview(existing.conversation);
             const updatedLead = {
               ...existing,
               name: conv.nombre?.trim() || conv.telefono || existing.name,
               phone: conv.telefono || existing.phone,
-              lastMessage: whatsappPreview?.text ?? '',
+              lastMessage: baseLead.lastMessage,
               lastMessageTimeMinutesAgo: baseLead.lastMessageTimeMinutesAgo,
               idleMinutes: baseLead.idleMinutes,
               awaitingResponse: baseLead.awaitingResponse,
@@ -1135,6 +1199,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
               etapa_oportunidad: conv.etapa_oportunidad ? normalizeEtapaOportunidad(conv.etapa_oportunidad) : existing.etapa_oportunidad,
               tiene_oportunidad: conv.tiene_oportunidad ?? existing.tiene_oportunidad,
               tags: conv.tags ?? existing.tags ?? [],
+              unreadCount: conv.unreadCount ?? 0,
               estado: conv.estado ?? existing.estado,
               finalizada_en: conv.finalizada_en ?? existing.finalizada_en,
               motivo_finalizacion: conv.motivo_finalizacion ?? existing.motivo_finalizacion,
@@ -1283,9 +1348,69 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const handleReplyAction = (leadId: string) => {
     setSelectedLeadId(leadId);
     persistSelectedLeadId(leadId);
+    setQuickReply(draftsByConversation[leadId] ?? '');
     setReplyingTo(null);
+    clearPendingAttachment();
+    setUploadError(null);
     focusReplyInput();
   };
+
+  const handleQuickReplyChange = React.useCallback((value: React.SetStateAction<string>) => {
+    setQuickReply((previous) => {
+      const next = typeof value === 'function' ? value(previous) : value;
+      if (selectedLeadId) {
+        setDraftsByConversation((drafts) => {
+          if (!next) {
+            if (!(selectedLeadId in drafts)) return drafts;
+            const { [selectedLeadId]: _removed, ...rest } = drafts;
+            return rest;
+          }
+          return { ...drafts, [selectedLeadId]: next };
+        });
+      }
+      return next;
+    });
+  }, [selectedLeadId]);
+
+  const handleSelectLead = React.useCallback((id: string) => {
+    setSelectedLeadId(id);
+    persistSelectedLeadId(id);
+    setQuickReply(draftsByConversation[id] ?? '');
+    setReplyingTo(null);
+    // Los adjuntos son objetos File locales y no deben cruzar de chat. Se
+    // descartan al navegar; el texto sí se conserva en draftsByConversation.
+    clearPendingAttachment();
+    setUploadError(null);
+  }, [draftsByConversation, persistSelectedLeadId]);
+
+  React.useEffect(() => {
+    if (!selectedLeadId) return;
+
+    const conversationId = selectedLeadId;
+    const timeoutId = window.setTimeout(async () => {
+      // El cleanup cancela el timeout al cambiar de chat; esta guarda cubre
+      // además cualquier callback que ya estuviera encolado.
+      if (selectedLeadId !== conversationId) return;
+
+      try {
+        const response = await apiFetch(`/api/whatsapp/conversaciones/${encodeURIComponent(conversationId)}/leer`, { method: 'POST' });
+        if (!response.ok || selectedLeadId !== conversationId) return;
+        const result = await response.json() as { marked?: boolean };
+        // El backend es la autoridad: un usuario no responsable no limpia
+        // el contador que corresponde al responsable.
+        if (!result.marked || selectedLeadId !== conversationId) return;
+
+        setLeads((prev) => prev.map((lead) => lead.id === conversationId ? { ...lead, unreadCount: 0 } : lead));
+        setConversations((prev) => prev.map((conversation) => conversation.id === conversationId
+          ? { ...conversation, unreadCount: 0 }
+          : conversation));
+      } catch (error) {
+        console.error('Error marcando conversación como leída:', error);
+      }
+    }, 2000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [selectedLeadId]);
 
   const handleGenerarCotizacion = () => {
     if (!selectedContactoId || !selectedLead) return;
@@ -1978,7 +2103,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         throw new Error('Respuesta inválida');
       }
 
-      setQuickReply(data.mensaje);
+      handleQuickReplyChange(data.mensaje);
       focusReplyInput();
     } catch (error) {
       console.error('Error al sugerir mensaje:', error);
@@ -2115,6 +2240,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     const isImageMessage = fileType === 'image';
     const isDocumentMessage = fileType === 'document';
     const isAudioMessage = fileType === 'audio';
+    const isVideoMessage = fileType === 'video';
     const nowIso = new Date().toISOString();
 
     const requestBody: Record<string, unknown> = {
@@ -2133,6 +2259,8 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
               media_url: fileUrl,
               contenido: trimmedMessage || '',
             }
+            : fileUrl && isVideoMessage
+              ? { tipo: 'video', media_url: fileUrl, mensaje: trimmedMessage || null }
             : { mensaje: trimmedMessage }),
       ...(replyingTo ? { mensaje_respuesta_id: replyingTo.id } : {}),
     };
@@ -2150,13 +2278,15 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
           ? ('document' as const)
           : isAudioMessage
             ? ('audio' as const)
+            : isVideoMessage
+              ? ('video' as const)
             : ('text' as const),
       mediaUrl: fileUrl,
       caption: isImageMessage
         ? (trimmedMessage || null)
         : isDocumentMessage
           ? (uploadFileName || null)
-          : null,
+          : isVideoMessage ? (trimmedMessage || null) : null,
       status: 'sending' as const,
       replyTo: replyingTo,
       telefonoEnvio: selectedLead.phone,
@@ -2172,6 +2302,8 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
             ? 'Documento enviado'
             : isAudioMessage
               ? 'Audio enviado'
+              : isVideoMessage
+                ? 'Video enviado'
               : ''),
       ultimoMensajeEn: nowIso,
       lastMessageTimeMinutesAgo: 0,
@@ -2404,12 +2536,15 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     setRecordingElapsedSeconds(0);
   };
 
+  const MAX_VIDEO_SIZE_BYTES = 16 * 1024 * 1024;
   const ALLOWED_ATTACHMENT_MIME_TYPES = [
     'image/jpeg',
     'image/jpg',
     'image/png',
     'image/webp',
     'application/pdf',
+    'video/mp4',
+    'video/3gpp',
   ];
 
   // Limpia únicamente el estado local del adjunto pendiente (archivo, sus
@@ -2436,17 +2571,21 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // previa. No sube nada al servidor.
   const preparePendingAttachment = (file: File) => {
     if (!ALLOWED_ATTACHMENT_MIME_TYPES.includes(file.type)) {
-      setUploadError('Solo se permiten imágenes o PDF.');
+      setUploadError('Formato no compatible. Puedes adjuntar imágenes, PDF o videos MP4/3GP.');
+      return;
+    }
+    if (file.type.startsWith('video/') && file.size > MAX_VIDEO_SIZE_BYTES) {
+      setUploadError('El video no puede superar 16 MB.');
       return;
     }
 
     clearPendingAttachment();
     setUploadError(null);
-    const nextType = file.type.startsWith('image/') ? 'image' : 'document';
+    const nextType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
     setPendingAttachmentFile(file);
     setUploadFileType(nextType);
     setUploadFileName(file.name || null);
-    setPendingAttachmentPreviewUrl(nextType === 'image' ? URL.createObjectURL(file) : null);
+    setPendingAttachmentPreviewUrl(nextType === 'image' || nextType === 'video' ? URL.createObjectURL(file) : null);
   };
 
   // Única función que efectivamente sube al backend: se invoca exclusivamente
@@ -2605,9 +2744,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         <ListItemButton
           selected={lead.id === selectedLead?.id}
           onClick={() => {
-            setSelectedLeadId(lead.id);
-            persistSelectedLeadId(lead.id);
-            setReplyingTo(null);
+            void handleSelectLead(lead.id);
           }}
           sx={{
             alignItems: 'flex-start',
@@ -2791,11 +2928,15 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // Mismo comportamiento que ya ejecuta renderLeadCard al tocar un lead en
   // escritorio (seleccionar + limpiar una respuesta en curso); no es lógica
   // nueva, solo se reutiliza para la tarjeta de la bandeja móvil.
-  const handleSelectLeadMobile = (id: string) => {
-    setSelectedLeadId(id);
-    persistSelectedLeadId(id);
-    setReplyingTo(null);
-  };
+  const handleSelectLeadMobile = handleSelectLead;
+
+  const handleResendAttachment = React.useCallback((message: ForwardableMessage) => {
+    if (!selectedLead || !message.mediaUrl) return;
+    void apiFetch('/api/whatsapp/enviar', {
+      method: 'POST',
+      body: JSON.stringify({ telefono: selectedLead.phone, tipo: message.tipoContenido, media_url: message.mediaUrl, mensaje: message.caption || null }),
+    }).then(() => loadMessages(selectedLead.id)).then(() => loadConversations({ incremental: true }));
+  }, [selectedLead, loadConversations, loadMessages]);
 
   if (isMobile) {
     return (
@@ -2820,7 +2961,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         conversationScrollRef={conversationScrollRef}
         conversationEndRef={conversationEndRef}
         quickReply={quickReply}
-        setQuickReply={setQuickReply}
+        setQuickReply={handleQuickReplyChange}
         quickReplyRef={quickReplyRef}
         handleSendWhatsapp={handleSendWhatsapp}
         isSending={isSending}
@@ -2832,7 +2973,10 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         onToggleSound={handleToggleSound}
         selectedTone={selectedTone}
         onChangeTone={handleChangeTone}
-        onPreviewTone={handlePreviewTone}
+      onPreviewTone={handlePreviewTone}
+      onResendAttachment={handleResendAttachment}
+        notificationVolume={notificationVolume}
+        onChangeNotificationVolume={handleChangeNotificationVolume}
         ventanaCerradaDialogOpen={ventanaCerradaDialogOpen}
         setVentanaCerradaDialogOpen={setVentanaCerradaDialogOpen}
         pendingAttachmentFile={pendingAttachmentFile}
@@ -2872,6 +3016,8 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         selectedTags={selectedTags}
         opportunityFilter={opportunityFilter}
         setOpportunityFilter={setOpportunityFilter}
+        whatsappWindowFilter={whatsappWindowFilter}
+        setWhatsappWindowFilter={setWhatsappWindowFilter}
         vistaFinalizadas={vistaFinalizadas}
         setVistaFinalizadas={setVistaFinalizadas}
         selectedContactoId={selectedContactoId}
@@ -2980,6 +3126,9 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       followUpLeads={followUpLeads}
       newLeads={newLeads}
       leadsFiltradosOrdenados={leadsFiltradosOrdenados}
+      leadsRecientes={leadsRecientes}
+      conversationViewMode={conversationViewMode}
+      onConversationViewModeChange={handleConversationViewModeChange}
       leadsRiesgo={leadsRiesgo}
       leadsSeguimiento={leadsSeguimiento}
       leadsActividad={leadsActividad}
@@ -3007,10 +3156,13 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       setLeadFilter={setLeadFilter}
       opportunityFilter={opportunityFilter}
       setOpportunityFilter={setOpportunityFilter}
+      whatsappWindowFilter={whatsappWindowFilter}
+      setWhatsappWindowFilter={setWhatsappWindowFilter}
       vistaFinalizadas={vistaFinalizadas}
       setVistaFinalizadas={setVistaFinalizadas}
       vendorOptions={vendorOptions}
       renderLeadCard={renderLeadCard}
+      onSelectLead={handleSelectLeadMobile}
       selectedLead={selectedLead}
       selectedLeadPriority={selectedLeadPriority}
       selectedContactoId={selectedContactoId}
@@ -3055,14 +3207,17 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       onToggleSound={handleToggleSound}
       selectedTone={selectedTone}
       onChangeTone={handleChangeTone}
-      onPreviewTone={handlePreviewTone}
+        onPreviewTone={handlePreviewTone}
+        onResendAttachment={handleResendAttachment}
+        notificationVolume={notificationVolume}
+        onChangeNotificationVolume={handleChangeNotificationVolume}
       uploadInputRef={uploadInputRef}
       handleUploadFile={handleUploadFile}
       handleSelectUpload={handleSelectUpload}
       isRecording={isRecording}
       handleToggleRecording={handleToggleRecording}
       quickReply={quickReply}
-      setQuickReply={setQuickReply}
+      setQuickReply={handleQuickReplyChange}
       quickReplyRef={quickReplyRef}
       handleQuickReplyPaste={handleQuickReplyPaste}
       isUploadingImage={isUploadingImage}

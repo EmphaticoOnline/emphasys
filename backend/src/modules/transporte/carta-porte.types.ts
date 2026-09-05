@@ -90,6 +90,20 @@ export interface CartaPorte31 {
   FiguraTransporte: CartaPorteFigura31[];
 }
 
+export type CartaPorteIssueSection =
+  | 'ruta'
+  | 'unidad'
+  | 'operador'
+  | 'mercancias'
+  | 'generales';
+
+export interface CartaPorteIssue {
+  section: CartaPorteIssueSection;
+  message: string;
+  /** Índice 1-based del elemento (ubicación / mercancía / remolque / operador) cuando aplica. */
+  index?: number;
+}
+
 export interface CartaPorteBuildSource {
   viaje: Record<string, any>;
   ubicaciones: Array<Record<string, any>>;

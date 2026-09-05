@@ -197,6 +197,7 @@ export default function EmpresasPage() {
     }
     resetLogoState();
     resetCsdState();
+    void loadCsdAssignment(empresa.id);
     void loadLogoAsset(empresa.id);
     setDialogOpen(true);
   };

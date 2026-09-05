@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import type { PoolClient } from 'pg';
 
 export type ContactoTelefonoMatch = {
   contacto_id: number;
@@ -64,6 +65,25 @@ type DomicilioData = {
   cp_sat?: string | null;
   colonia_sat?: string | null;
 };
+
+export function domicilioPrincipalDesdeContacto(data: any): DomicilioData | undefined {
+  if (data?.domicilio_principal && typeof data.domicilio_principal === 'object') {
+    return data.domicilio_principal;
+  }
+  if (!data) return undefined;
+  return {
+    calle: data.calle,
+    numero_exterior: data.numero_exterior,
+    numero_interior: data.numero_interior,
+    colonia: data.colonia,
+    colonia_sat: data.colonia_sat,
+    ciudad: data.ciudad,
+    estado: data.estado,
+    cp: data.cp,
+    cp_sat: data.cp_sat,
+    pais: data.pais,
+  };
+}
 
 type DatosFiscalesData = {
   rfc?: string | null;
@@ -171,7 +191,7 @@ async function buscarTelefonosDuplicados(
   return matches;
 }
 
-async function upsertDomicilioPrincipal(
+export async function upsertDomicilioPrincipal(
   client: any,
   contactoId: number,
   domicilio: DomicilioData | undefined
@@ -238,7 +258,7 @@ async function upsertDomicilioPrincipal(
   return insertResult.rows[0];
 }
 
-async function upsertDatosFiscales(
+export async function upsertDatosFiscales(
   client: any,
   contactoId: number,
   datos: DatosFiscalesData | undefined
@@ -527,12 +547,13 @@ export async function insertarContacto(
     telefono?: string;
   },
   empresaId: number,
-  options: { catalogoIds?: number[]; permitirTelefonosDuplicados?: boolean } = {}
+  options: { catalogoIds?: number[]; permitirTelefonosDuplicados?: boolean; client?: PoolClient } = {}
 ) {
-  const client = await pool.connect();
+  const client = options.client ?? await pool.connect();
+  const ownTransaction = !options.client;
 
   try {
-    await client.query('BEGIN');
+    if (ownTransaction) await client.query('BEGIN');
 
     const matches = await buscarTelefonosDuplicados(client, empresaId, data);
     if (matches.length && !options.permitirTelefonosDuplicados) {
@@ -555,19 +576,19 @@ export async function insertarContacto(
     const { rows } = await client.query(insertQuery, values);
     const contacto = rows[0];
 
-    await upsertDomicilioPrincipal(client, contacto.id, data as any);
+    await upsertDomicilioPrincipal(client, contacto.id, domicilioPrincipalDesdeContacto(data));
     await upsertDatosFiscales(client, contacto.id, data as any);
     if (options.catalogoIds !== undefined) {
       await guardarCatalogosConCliente(client, empresaId, contacto.id, options.catalogoIds);
     }
 
-    await client.query('COMMIT');
+    if (ownTransaction) await client.query('COMMIT');
     return contacto;
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (ownTransaction) await client.query('ROLLBACK');
     throw error;
   } finally {
-    client.release();
+    if (ownTransaction) client.release();
   }
 }
 
@@ -776,7 +797,7 @@ export async function actualizarContacto(
       return null;
     }
 
-    await upsertDomicilioPrincipal(client, id, data as any);
+    await upsertDomicilioPrincipal(client, id, domicilioPrincipalDesdeContacto(data));
     await upsertDatosFiscales(client, id, data as any);
     if (options.catalogoIds !== undefined) {
       await guardarCatalogosConCliente(client, empresa_id, id, options.catalogoIds);

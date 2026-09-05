@@ -95,6 +95,8 @@ type DomicilioBaseOrigen = {
   pais_id: string | null;
 };
 
+type ColoniaCatalogo = { colonia: string; codigo_postal: string; texto: string };
+
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Falta la variable de entorno ${name}`);
@@ -204,6 +206,25 @@ async function main(): Promise<void> {
         ORDER BY id`,
       [],
     );
+    const coloniasCatalogo = await source.query<ColoniaCatalogo>(
+      `SELECT colonia,codigo_postal,texto FROM public.cfdi_40_colonias`,
+      [],
+    );
+    const resolverColonia = (coloniaId: string | null, cp: string | null) => {
+      const value = clean(coloniaId);
+      if (!value) return { colonia: null, colonia_sat: null };
+      if (!/^\d+$/.test(value)) return { colonia: value, colonia_sat: null };
+      const postal = validPostalCode(cp);
+      if (!postal) throw new Error(`Colonia DICOR ${value} sin código postal válido.`);
+      const matches = coloniasCatalogo.rows.filter((row) => row.colonia === value && row.codigo_postal === postal);
+      const names = Array.from(new Set(matches.map((row) => clean(row.texto)).filter((name): name is string => Boolean(name))));
+      if (names.length !== 1) {
+        throw new Error(names.length === 0
+          ? `Colonia DICOR ${value} sin coincidencia para CP ${postal}.`
+          : `Colonia DICOR ${value} ambigua para CP ${postal}: ${names.join(', ')}.`);
+      }
+      return { colonia: names[0], colonia_sat: value };
+    };
 
 
     const typeCounts: Record<string, number> = {};
@@ -395,17 +416,18 @@ async function main(): Promise<void> {
       if (parentId == null) throw new Error(`Dirección base del contacto DICOR ${row.id} no tiene padre mapeado.`);
       const sourceId = String(row.id);
       const original = [clean(row.calle), clean(row.numero_exterior), clean(row.numero_interior)].filter(Boolean).join(' ') || null;
+      const colonia = resolverColonia(row.colonia_id, row.cp_id);
       let addressId = await getMapping(target, TIPO_DOMICILIO_BASE, sourceId);
       if (addressId == null) {
         if (!APPLY) continue;
         const inserted = await target.query<{ id: number }>(
           `INSERT INTO contactos_domicilios (
              contacto_id,identificador,es_principal,calle,numero_exterior,numero_interior,
-             cp,pais,texto_original
-           ) VALUES ($1,'DIRECCION BASE DICOR',false,$2,$3,$4,$5,$6,$7)
+             colonia,colonia_sat,cp,pais,texto_original
+           ) VALUES ($1,'DIRECCION BASE DICOR',false,$2,$3,$4,$5,$6,$7,$8,$9)
            RETURNING id`,
           [parentId, clean(row.calle), clean(row.numero_exterior), clean(row.numero_interior),
-           validPostalCode(row.cp_id), sourceCountry(row.pais_id), original],
+           colonia.colonia, colonia.colonia_sat, validPostalCode(row.cp_id), sourceCountry(row.pais_id), original],
         );
         addressId = inserted.rows[0].id;
         await insertMapping(target, TIPO_DOMICILIO_BASE, sourceId, addressId, {
@@ -416,13 +438,17 @@ async function main(): Promise<void> {
           pais_id_origen: row.pais_id,
         });
       } else {
-        const existing = await target.query(
-          `SELECT 1 FROM contactos_domicilios
+        const existing = await target.query<{ colonia: string | null; colonia_sat: string | null }>(
+          `SELECT colonia,colonia_sat FROM contactos_domicilios
             WHERE id=$1 AND contacto_id=$2 AND identificador='DIRECCION BASE DICOR'
               AND es_principal=false AND texto_original IS NOT DISTINCT FROM $3`,
           [addressId, parentId, original],
         );
         if (existing.rowCount !== 1) throw new Error(`Dirección base DICOR ${row.id} incompatible.`);
+        if (APPLY) await target.query(
+          `UPDATE contactos_domicilios SET colonia=$1,colonia_sat=$2 WHERE id=$3 AND contacto_id=$4 AND es_principal=false`,
+          [colonia.colonia, colonia.colonia_sat, addressId, parentId],
+        );
       }
     }
 

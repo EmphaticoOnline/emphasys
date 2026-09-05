@@ -10,6 +10,7 @@ import {
   enviarWhatsappPlantilla as enviarWhatsappPlantillaHandler,
   finalizarConversacionWhatsapp as finalizarConversacionWhatsappHandler,
   listarConversacionesWhatsapp as listarConversacionesWhatsappHandler,
+  marcarConversacionLeidaWhatsapp as marcarConversacionLeidaWhatsappHandler,
   obtenerReglasSeguimientoWhatsapp as obtenerReglasSeguimientoWhatsappHandler,
   listarEtiquetasConversacionWhatsapp as listarEtiquetasConversacionWhatsappHandler,
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappHandler,
@@ -61,6 +62,7 @@ export const reenviarMensajeWhatsapp = async (req: Request, res: Response) => re
 export const reaccionarMensajeWhatsapp = async (req: Request, res: Response) => reaccionarMensajeWhatsappHandler(req, res);
 
 export const listarConversacionesWhatsapp = async (req: Request, res: Response) => listarConversacionesWhatsappHandler(req, res);
+export const marcarConversacionLeidaWhatsapp = async (req: Request, res: Response) => marcarConversacionLeidaWhatsappHandler(req, res);
 
 export const obtenerReglasSeguimientoWhatsapp = async (req: Request, res: Response) => obtenerReglasSeguimientoWhatsappHandler(req, res);
 

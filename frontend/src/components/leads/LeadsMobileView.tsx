@@ -19,6 +19,7 @@ import {
   MenuItem,
   Popover,
   Select,
+  Slider,
   Skeleton,
   Snackbar,
   Stack,
@@ -66,6 +67,7 @@ import { TOPBAR_HEIGHT } from '../layoutConstants';
 import type { Contacto } from '../../types/contactos.types';
 import type {
   EtapaOportunidad,
+  WhatsappWindowFilter,
   Lead,
   LeadConPrioridad,
   LeadScope,
@@ -155,13 +157,16 @@ export interface LeadsMobileViewProps {
   selectedTone: NotificationTone;
   onChangeTone: (tone: NotificationTone) => void;
   onPreviewTone: () => void;
+  onResendAttachment?: (message: ForwardableMessage) => void;
+  notificationVolume: number;
+  onChangeNotificationVolume: (volume: number) => void;
   ventanaCerradaDialogOpen: boolean;
   setVentanaCerradaDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
   // Adjuntos (imagen/documento): mismos estados, ref y funciones que ya usa
   // LeadsDesktopView, sin ninguna lógica nueva de subida ni validación.
   pendingAttachmentFile: File | null;
   pendingAttachmentPreviewUrl: string | null;
-  uploadFileType: 'image' | 'document' | 'audio' | null;
+  uploadFileType: 'image' | 'document' | 'audio' | 'video' | null;
   uploadFileName: string | null;
   uploadError: string | null;
   isUploadingImage: boolean;
@@ -218,6 +223,8 @@ export interface LeadsMobileViewProps {
   selectedTags: WhatsappEtiqueta[];
   opportunityFilter: OpportunityFilter;
   setOpportunityFilter: React.Dispatch<React.SetStateAction<OpportunityFilter>>;
+  whatsappWindowFilter: WhatsappWindowFilter;
+  setWhatsappWindowFilter: React.Dispatch<React.SetStateAction<WhatsappWindowFilter>>;
   vistaFinalizadas: boolean;
   setVistaFinalizadas: React.Dispatch<React.SetStateAction<boolean>>;
 
@@ -865,6 +872,8 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     selectedTone,
     onChangeTone,
     onPreviewTone,
+    notificationVolume,
+    onChangeNotificationVolume,
     ventanaCerradaDialogOpen,
     setVentanaCerradaDialogOpen,
     pendingAttachmentFile,
@@ -904,6 +913,8 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     selectedTags,
     opportunityFilter,
     setOpportunityFilter,
+    whatsappWindowFilter,
+    setWhatsappWindowFilter,
     vistaFinalizadas,
     setVistaFinalizadas,
     selectedContactoId,
@@ -1215,7 +1226,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                   inputProps={{ 'aria-label': 'Alternar sonido de mensajes' }}
                 />
               </Stack>
-              <Stack direction="row" alignItems="center" spacing={1}>
+                <Stack direction="row" alignItems="center" spacing={1}>
                 <Typography variant="body2" sx={{ flexShrink: 0 }}>Tono</Typography>
                 <Select
                   size="small"
@@ -1232,6 +1243,10 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                 <IconButton size="small" onClick={onPreviewTone} aria-label="Probar sonido">
                   <PlayArrowIcon fontSize="small" />
                 </IconButton>
+              </Stack>
+              <Stack spacing={0.25}>
+                <Stack direction="row" justifyContent="space-between"><Typography variant="body2">Volumen de alerta</Typography><Typography variant="caption">{Math.round(notificationVolume * 100)}%</Typography></Stack>
+                <Slider size="small" value={notificationVolume * 100} min={0} max={500} onChange={(_, value) => onChangeNotificationVolume(Number(value) / 100)} aria-label="Volumen de alerta de nuevos mensajes" />
               </Stack>
             </Stack>
           </Popover>
@@ -1458,7 +1473,6 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                 <input
                   ref={uploadInputRef}
                   type="file"
-                  accept="image/*,application/pdf"
                   hidden
                   onChange={handleUploadFile}
                 />
@@ -1590,7 +1604,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
           </>
         )}
         {(() => {
-          const filtrosActivos = Boolean(vendedorFilterId) || selectedTagIds.length > 0 || opportunityFilter !== 'todos' || vistaFinalizadas;
+          const filtrosActivos = Boolean(vendedorFilterId) || selectedTagIds.length > 0 || opportunityFilter !== 'todos' || whatsappWindowFilter !== 'todos' || vistaFinalizadas;
           return (
             <Chip
               icon={<FilterListIcon fontSize="small" />}
@@ -1704,6 +1718,34 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                 Cambia a “Todos” para filtrar por vendedor.
               </Typography>
             )}
+          </Stack>
+
+          <Divider />
+
+          <Stack spacing={1}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              Ventana de WhatsApp
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {([
+                { key: 'todos', label: 'Todos' },
+                { key: 'por-expirar', label: 'Por expirar' },
+                { key: 'expirada', label: 'Expirada' },
+              ] as const).map((opt) => (
+                <Chip
+                  key={opt.key}
+                  label={opt.label}
+                  variant={whatsappWindowFilter === opt.key ? 'filled' : 'outlined'}
+                  onClick={() => setWhatsappWindowFilter(opt.key)}
+                  sx={{
+                    fontWeight: 700,
+                    color: whatsappWindowFilter === opt.key ? '#ffffff' : '#0f766e',
+                    backgroundColor: whatsappWindowFilter === opt.key ? '#0f766e' : '#f0fdfa',
+                    borderColor: '#99f6e4',
+                  }}
+                />
+              ))}
+            </Stack>
           </Stack>
 
           <Divider />

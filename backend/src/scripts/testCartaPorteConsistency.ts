@@ -32,10 +32,10 @@ async function main() {
   const editedInput = resetViajeInputToDraft(parseViajeInput({
     folioInterno: 'V-1', clienteContactoId: 10, estatus: 'validado', vehiculoId: 1,
     ubicaciones: [
-      { ubicacionId: 1, tipo: 'origen', secuencia: 1, fechaHoraProgramada: '2026-08-20T08:00:00-06:00' },
-      { ubicacionId: 2, tipo: 'destino', secuencia: 2, fechaHoraProgramada: '2026-08-20T12:00:00-06:00' },
+      { domicilioId: 1, tipo: 'origen', secuencia: 1, fechaHoraProgramada: '2026-08-20T08:00:00-06:00' },
+      { domicilioId: 2, tipo: 'destino', secuencia: 2, fechaHoraProgramada: '2026-08-20T12:00:00-06:00' },
     ],
-    mercancias: [{ mercanciaId: 1, cantidad: 31_000, pesoKg: 25_000, origenSecuencia: 1, destinoSecuencia: 2 }],
+  mercancias: [{ productoId: 6177, cantidad: 31_000, pesoKg: 25_000, origenSecuencia: 1, destinoSecuencia: 2 }],
     figuras: [{ tipoFigura: 'operador', operadorId: 1, secuencia: 1 }], remolques: [],
   }));
   assert.equal(editedInput.estatus, 'borrador');

@@ -2,6 +2,9 @@ export type ViajeEditableStatus = 'borrador' | 'listo_para_validar' | 'validado'
 export type ViajeStatus = ViajeEditableStatus | 'timbrado' | 'cancelado';
 
 export interface ViajeUbicacionInput {
+  /** public.contactos_domicilios.id — contrato nuevo. */
+  domicilioId?: number | null;
+  /** @deprecated alias de compatibilidad interna; usar domicilioId. */
   ubicacionId?: number | null;
   tipo: 'origen' | 'destino';
   secuencia: number;
@@ -11,10 +14,18 @@ export interface ViajeUbicacionInput {
 }
 
 export interface ViajeMercanciaInput {
-  mercanciaId: number;
+  productoId?: number | null;
   cantidad: number;
   pesoKg: number;
   valorMercancia?: number | null;
+  descripcion?: string | null;
+  claveBienesTransportadosSat?: string | null;
+  claveUnidadSat?: string | null;
+  unidadDescripcion?: string | null;
+  materialPeligroso?: boolean;
+  claveMaterialPeligroso?: string | null;
+  embalaje?: string | null;
+  descripcionEmbalaje?: string | null;
   origenSecuencia?: number | null;
   destinoSecuencia?: number | null;
 }
@@ -51,7 +62,9 @@ export class TransporteError extends Error {
   constructor(
     message: string,
     readonly statusCode = 400,
-    readonly code = 'TRANSPORTE_VALIDATION'
+    readonly code = 'TRANSPORTE_VALIDATION',
+    /** Detalle estructurado opcional (ej. faltantes de Carta Porte por sección). */
+    readonly issues?: unknown[]
   ) {
     super(message);
   }
@@ -75,7 +88,7 @@ export type UbicacionMaster = {
   longitud: string | number | null;
 };
 
-export type MercanciaMaster = {
+export type ProductoMercanciaMaster = {
   id: number;
   descripcion: string;
   clave_bienes_transportados_sat: string | null;

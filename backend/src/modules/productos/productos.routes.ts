@@ -7,6 +7,8 @@ import {
 	deleteProducto,
 	crearProducto,
 	getProducto,
+	getImpuestosProducto,
+	putImpuestosProducto,
 	listarCatalogosConfigurablesDeProducto,
 	guardarCatalogosConfigurablesProducto,
 	listarProductoArchivos,
@@ -54,6 +56,8 @@ const manejarUploadProductoArchivo = (req: any, res: any, next: any) => {
 
 // GET /api/productos
 router.get('/', requireAuth, requireEmpresaActiva, getProductos);
+router.get('/:id/impuestos', requireAuth, requireEmpresaActiva, getImpuestosProducto);
+router.put('/:id/impuestos', requireAuth, requireEmpresaActiva, putImpuestosProducto);
 
 router.get('/especificaciones-biblioteca', requireAuth, requireEmpresaActiva, listarEspecificaciones);
 router.get('/especificaciones-configuracion', requireAuth, requireEmpresaActiva, obtenerConfiguracionEspecificaciones);

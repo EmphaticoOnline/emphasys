@@ -17,6 +17,7 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Divider,
@@ -88,10 +89,16 @@ export interface FacturasWorkspaceViewProps {
 
   extraActionsContent: React.ReactNode;
   onCreateDocumento: () => void;
+  selectionContent?: React.ReactNode;
+  selectedDocumentIds: number[];
+  onSelectedDocumentIdsChange: (ids: number[]) => void;
+  onChangeView: (workspace: boolean) => void;
 
   indicatorsByDocumentId: Readonly<Record<number, DocumentoIndicatorModel>>;
   gridContextMenuActions: GridContextMenuAction[];
   onSelectFactura: (row: CotizacionListado) => void;
+  onCartaPorte: (row: CotizacionListado) => void;
+  documentoDetalleRefreshKey?: number;
 
   formatFolio: (row: CotizacionListado) => string;
   formatDate: (value: unknown) => string;
@@ -146,9 +153,15 @@ export default function FacturasWorkspaceView({
   onSortModelChange,
   extraActionsContent,
   onCreateDocumento,
+  selectionContent,
+  selectedDocumentIds,
+  onSelectedDocumentIdsChange,
+  onChangeView,
   indicatorsByDocumentId,
   gridContextMenuActions,
   onSelectFactura,
+  onCartaPorte,
+  documentoDetalleRefreshKey = 0,
   formatFolio,
   formatDate,
   currency,
@@ -197,7 +210,7 @@ export default function FacturasWorkspaceView({
   // generación de PDF. El tab "Documento" también lo consume (para
   // partidas/receptor/fiscales), pero pinta el encabezado de inmediato con
   // los datos síncronos de `row` mientras tanto.
-  const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, tipoDocumento, Boolean(selectedRow));
+  const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, tipoDocumento, Boolean(selectedRow), documentoDetalleRefreshKey);
   const formatterMXN = useMemo(
     () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }),
     []
@@ -215,6 +228,9 @@ export default function FacturasWorkspaceView({
             {resumenTotales ? <> &middot; <b>{currency.format(resumenTotales.general)}</b></> : null}
           </Typography>
           <Stack direction="row" spacing={0.5} alignItems="center">
+            <Button size="small" variant="outlined" onClick={() => onChangeView(false)} sx={{ textTransform: 'none', fontSize: 11 }}>
+              Vista clásica
+            </Button>
             <Tooltip title="Acciones de la colección">
               <IconButton
                 size="small"
@@ -324,6 +340,7 @@ export default function FacturasWorkspaceView({
 
         <Divider />
 
+        {selectionContent}
         <Box sx={{ flex: 1, overflowY: 'auto' }}>
           {isLoading && rows.length === 0 ? (
             <Stack alignItems="center" py={4}><CircularProgress size={24} /></Stack>
@@ -337,6 +354,7 @@ export default function FacturasWorkspaceView({
               const option = statusOptions.find((o) => o.value === estatus);
               const saldo = Number(row.saldo ?? 0);
               const selected = row.id === selectedId;
+              const checked = selectedDocumentIds.includes(row.id);
               return (
                 <Box
                   key={row.id}
@@ -353,6 +371,18 @@ export default function FacturasWorkspaceView({
                   }}
                 >
                   <Stack direction="row" spacing={0.75} alignItems="baseline">
+                    <Checkbox
+                      size="small"
+                      checked={checked}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => {
+                        const next = event.target.checked
+                          ? [...selectedDocumentIds, row.id]
+                          : selectedDocumentIds.filter((id) => id !== row.id);
+                        onSelectedDocumentIdsChange(next);
+                      }}
+                      sx={{ p: 0.25 }}
+                    />
                     <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: option?.color || '#9ca3af', flexShrink: 0 }} />
                     <Typography variant="body2" fontWeight={700} noWrap>{formatFolio(row)}</Typography>
                     <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1, minWidth: 0 }}>
@@ -425,6 +455,7 @@ export default function FacturasWorkspaceView({
             formatterMXN={formatterMXN}
             enviarMenuAnchor={enviarMenuAnchor}
             setEnviarMenuAnchor={setEnviarMenuAnchor}
+            onCartaPorte={onCartaPorte}
           />
         ) : (
           <Stack alignItems="center" justifyContent="center" sx={{ flex: 1 }}>
@@ -451,6 +482,7 @@ function FacturaWorkspacePanel({
   formatterMXN,
   enviarMenuAnchor,
   setEnviarMenuAnchor,
+  onCartaPorte,
 }: {
   row: CotizacionListado;
   tipoDocumento: TipoDocumento;
@@ -464,6 +496,7 @@ function FacturaWorkspacePanel({
   formatterMXN: Intl.NumberFormat;
   enviarMenuAnchor: HTMLElement | null;
   setEnviarMenuAnchor: (el: HTMLElement | null) => void;
+  onCartaPorte: (row: CotizacionListado) => void;
 }) {
   const estatus = normalizeEstatus(row.estatus_documento);
   const option = statusOptions.find((o) => o.value === estatus);
@@ -579,6 +612,7 @@ function FacturaWorkspacePanel({
 
       <Box sx={{ display: 'flex', alignItems: 'center', px: 1, minHeight: 40, flexShrink: 0, overflowX: 'auto', bgcolor: 'primary.main', borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 'auto', py: 0.5, minWidth: 'max-content' }}>
+        <Tooltip title="Carta Porte / Viaje" arrow><Button size="small" onClick={() => row && onCartaPorte(row)} sx={{ color: '#fff', borderColor: 'rgba(255,255,255,.6)', textTransform: 'none' }} variant="outlined" disabled={!row}>Carta Porte / Viaje</Button></Tooltip>
         {primaryAction && primaryAction.id !== 'editar'
           ? renderActionButton(primaryAction, primaryLabel)
           : null}

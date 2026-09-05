@@ -1,4 +1,4 @@
-import { buildCartaPorte31, generateIdCcp } from './carta-porte.builder';
+import { buildCartaPorte31, collectCartaPorteIssues, generateIdCcp } from './carta-porte.builder';
 import {
   findPrincipalTripDocument,
   getCartaPorteBuildSource,
@@ -26,6 +26,19 @@ export async function materializeCartaPorte(viajeId: number, empresaId: number) 
 
     const source = await getCartaPorteBuildSource(client, empresaId, viajeId);
     if (!source) throw new TransporteError('Viaje no encontrado.', 404, 'TRANSPORTE_NOT_FOUND');
+
+    // Reporte agrupado de faltantes para la UX. buildCartaPorte31 sigue siendo
+    // la validación autoritativa (se ejecuta justo después).
+    const issues = collectCartaPorteIssues(source);
+    if (issues.length > 0) {
+      throw new TransporteError(
+        'La Carta Porte tiene datos pendientes por completar.',
+        422,
+        'CARTA_PORTE_VALIDATION',
+        issues
+      );
+    }
+
     const snapshot = buildCartaPorte31(source, generateIdCcp());
     const documentoId = await findPrincipalTripDocument(client, empresaId, viajeId);
     const materialization = await saveCartaPorteMaterialization(client, {

@@ -5,6 +5,8 @@ import ContactosPage from './pages/ContactosPage';
 import ContactoFormPage from './pages/ContactoFormPage';
 import ProductosPage from './pages/ProductosPage';
 import ProductoFormPage from './pages/ProductoFormPage';
+import VehiculosPage from './pages/VehiculosPage';
+import RemolquesPage from './pages/RemolquesPage';
 import DocumentosPage from './pages/DocumentosPage';
 import DocumentosFormPage from './pages/DocumentosFormPage';
 import LoginPage from './pages/LoginPage';
@@ -12,6 +14,7 @@ import SeleccionEmpresaPage from './pages/SeleccionEmpresaPage';
 import RequireAuth from './auth/RequireAuth';
 import RequireEmpresa from './auth/RequireEmpresa';
 import ConfiguracionPage from './pages/ConfiguracionPage';
+import UnidadesPage from './pages/configuracion/UnidadesPage';
 import CatalogosConfigurablesPage from './pages/CatalogosConfigurablesPage';
 import CatalogoTipoDetallePage from './pages/CatalogoTipoDetallePage';
 import CamposConfiguracionPage from './pages/CamposConfiguracionPage';
@@ -124,6 +127,8 @@ export default function App() {
               <Route path="/productos" element={<ProductosPage />} />
               <Route path="/productos/nuevo" element={<ProductoFormPage />} />
               <Route path="/productos/:id" element={<ProductoFormPage />} />
+              <Route path="/vehiculos" element={<VehiculosPage />} />
+              <Route path="/remolques" element={<RemolquesPage />} />
 
               {/* Ventas */}
               <Route path="/ventas/produccion" element={<ProduccionPage />} />
@@ -138,7 +143,7 @@ export default function App() {
               <Route path="/compras/:codigo/:id" element={<DocumentosFormPage />} />
 
               {/* CRM */}
-              <Route path="/crm" element={<CRMPage />} />
+              <Route path="/crm" element={<Navigate to="/crm/conversaciones" replace />} />
               <Route path="/crm/actividades" element={<CRMPage />} />
               <Route path="/crm/actividades/nueva" element={<ActividadFormPage />} />
               <Route path="/crm/actividades/:id" element={<ActividadFormPage />} />
@@ -194,6 +199,7 @@ export default function App() {
 
               {/* Configuración */}
               <Route path="/configuracion" element={<ConfiguracionPage />} />
+              <Route path="/configuracion/unidades" element={<UnidadesPage />} />
               <Route path="/configuracion/empresas" element={<EmpresasPage />} />
               <Route path="/configuracion/usuarios" element={<UsuariosPage />} />
               <Route path="/configuracion/roles" element={<RolesPage />} />

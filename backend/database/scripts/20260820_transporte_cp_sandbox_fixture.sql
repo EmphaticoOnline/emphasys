@@ -64,7 +64,7 @@ $fixture_preflight$;
 
 -- Impuesto reservado para este fixture. Nunca modifica un impuesto preexistente.
 INSERT INTO public.impuestos (id, nombre, tipo, tasa, activo)
-VALUES ('ret_iva_4', 'Retención IVA 4% CP TEST', 'retencion', 4, true)
+VALUES ('ret_iva_4', 'Retención IVA 4%', 'retencion', 4, true)
 ON CONFLICT (id) DO NOTHING;
 
 DO $fixture_tax_preflight$
@@ -215,67 +215,28 @@ WHERE c.codigo_legacy = values_.codigo_legacy
 ON CONFLICT (contacto_id, rol) DO UPDATE
 SET activo = true, origen = 'CP_TEST';
 
--- Maestros de Transporte.
-INSERT INTO transporte.mercancias
-  (empresa_id, clave_interna, descripcion, clave_bienes_transportados_sat,
-   clave_unidad_sat, unidad_descripcion, material_peligroso,
-   clave_material_peligroso, embalaje, descripcion_embalaje, activo)
-SELECT ctx.empresa_id, 'CP_TEST_DIESEL', 'DIESEL AUTOMOTRIZ', '15101505',
-       'LTR', 'Litro', true, '1203', 'Z01', 'No aplica', true
+-- Producto maestro de la mercancía de prueba (el servicio de transporte
+-- CP_TEST_SERV_TRANSP sigue siendo un concepto distinto).
+INSERT INTO public.productos
+  (empresa_id, clave, descripcion, tipo_producto, activo, clave_bienes_transportados_sat,
+   es_material_peligroso, clave_material_peligroso_sat, clave_embalaje_sat, descripcion_embalaje)
+SELECT ctx.empresa_id, 'CP_TEST_DIESEL', 'DIESEL AUTOMOTRIZ', 'Inventariable', true, '15101505',
+       true, '1203', 'Z01', 'No aplica'
 FROM cp_test_context ctx
-ON CONFLICT (empresa_id, clave_interna) DO UPDATE
+ON CONFLICT (empresa_id, clave) DO UPDATE
 SET descripcion = EXCLUDED.descripcion,
     clave_bienes_transportados_sat = EXCLUDED.clave_bienes_transportados_sat,
-    clave_unidad_sat = EXCLUDED.clave_unidad_sat,
-    unidad_descripcion = EXCLUDED.unidad_descripcion,
-    material_peligroso = EXCLUDED.material_peligroso,
-    clave_material_peligroso = EXCLUDED.clave_material_peligroso,
-    embalaje = EXCLUDED.embalaje,
+    es_material_peligroso = EXCLUDED.es_material_peligroso,
+    clave_material_peligroso_sat = EXCLUDED.clave_material_peligroso_sat,
+    clave_embalaje_sat = EXCLUDED.clave_embalaje_sat,
     descripcion_embalaje = EXCLUDED.descripcion_embalaje,
-    activo = true,
-    updated_at = now();
+    activo = true;
 
-UPDATE transporte.ubicaciones u
-SET nombre = values_.nombre,
-    contacto_id = c.id,
-    calle = values_.calle,
-    numero_exterior = values_.numero_exterior,
-    colonia = values_.colonia,
-    localidad = values_.localidad,
-    municipio = values_.municipio,
-    estado = 'JAL',
-    pais = 'MEX',
-    codigo_postal = values_.cp,
-    referencia = 'Fixture controlado Carta Porte Facturama Sandbox',
-    activo = true,
-    updated_at = now()
-FROM cp_test_context ctx
-CROSS JOIN (VALUES
-  ('CP_TEST_ORIGEN',  'TAD ZAPOPAN PRUEBA',            'Avenida Vallarta',    '6503', '0555', '10', '120', '45010'),
-  ('CP_TEST_DESTINO', 'SAN JUAN DE LOS LAGOS PRUEBA', 'Calle Independencia', '101',  '1732', '07', '073', '47000')
-) AS values_(tipo_referencia, nombre, calle, numero_exterior, colonia, localidad, municipio, cp)
-JOIN public.contactos c
-  ON c.empresa_id = ctx.empresa_id AND c.codigo_legacy = values_.tipo_referencia
-WHERE u.empresa_id = ctx.empresa_id
-  AND u.tipo_referencia = values_.tipo_referencia;
-
-INSERT INTO transporte.ubicaciones
-  (empresa_id, nombre, tipo_referencia, contacto_id, calle, numero_exterior,
-   colonia, localidad, municipio, estado, pais, codigo_postal, referencia, activo)
-SELECT ctx.empresa_id, values_.nombre, values_.tipo_referencia, c.id, values_.calle,
-       values_.numero_exterior, values_.colonia, values_.localidad, values_.municipio,
-       'JAL', 'MEX', values_.cp, 'Fixture controlado Carta Porte Facturama Sandbox', true
-FROM cp_test_context ctx
-CROSS JOIN (VALUES
-  ('CP_TEST_ORIGEN',  'TAD ZAPOPAN PRUEBA',            'Avenida Vallarta',    '6503', '0555', '10', '120', '45010'),
-  ('CP_TEST_DESTINO', 'SAN JUAN DE LOS LAGOS PRUEBA', 'Calle Independencia', '101',  '1732', '07', '073', '47000')
-) AS values_(tipo_referencia, nombre, calle, numero_exterior, colonia, localidad, municipio, cp)
-JOIN public.contactos c
-  ON c.empresa_id = ctx.empresa_id AND c.codigo_legacy = values_.tipo_referencia
-WHERE NOT EXISTS (
-  SELECT 1 FROM transporte.ubicaciones u
-  WHERE u.empresa_id = ctx.empresa_id AND u.tipo_referencia = values_.tipo_referencia
-);
+-- Ubicaciones de origen/destino: el maestro operativo es
+-- public.contactos_domicilios (transporte.ubicaciones fue retirado en la
+-- consolidación 20260901). Los domicilios CP_TEST_FISCAL de los contactos
+-- CP_TEST_ORIGEN / CP_TEST_DESTINO ya se crean/actualizan más arriba y son
+-- exactamente los que consume el Viaje mediante viaje_ubicaciones.domicilio_id.
 
 INSERT INTO transporte.vehiculos
   (empresa_id, clave_interna, placas, configuracion_vehicular_sat,
@@ -387,9 +348,11 @@ SELECT
   e.id AS empresa_id,
   e.nombre AS empresa_nombre,
   (SELECT c.id FROM public.contactos c WHERE c.empresa_id=e.id AND c.codigo_legacy='CP_TEST_CLIENTE' ORDER BY c.id LIMIT 1) AS cliente_contacto_id,
-  (SELECT m.id FROM transporte.mercancias m WHERE m.empresa_id=e.id AND m.clave_interna='CP_TEST_DIESEL') AS mercancia_id,
-  (SELECT u.id FROM transporte.ubicaciones u WHERE u.empresa_id=e.id AND u.tipo_referencia='CP_TEST_ORIGEN' ORDER BY u.id LIMIT 1) AS origen_id,
-  (SELECT u.id FROM transporte.ubicaciones u WHERE u.empresa_id=e.id AND u.tipo_referencia='CP_TEST_DESTINO' ORDER BY u.id LIMIT 1) AS destino_id,
+  (SELECT p.id FROM public.productos p WHERE p.empresa_id=e.id AND p.clave='CP_TEST_DIESEL') AS producto_id,
+  (SELECT d.id FROM public.contactos_domicilios d JOIN public.contactos c ON c.id=d.contacto_id
+     WHERE c.empresa_id=e.id AND c.codigo_legacy='CP_TEST_ORIGEN' AND d.identificador='CP_TEST_FISCAL' ORDER BY d.id LIMIT 1) AS origen_domicilio_id,
+  (SELECT d.id FROM public.contactos_domicilios d JOIN public.contactos c ON c.id=d.contacto_id
+     WHERE c.empresa_id=e.id AND c.codigo_legacy='CP_TEST_DESTINO' AND d.identificador='CP_TEST_FISCAL' ORDER BY d.id LIMIT 1) AS destino_domicilio_id,
   (SELECT v.id FROM transporte.vehiculos v WHERE v.empresa_id=e.id AND v.clave_interna='CP_TEST_T3S2') AS vehiculo_id,
   (SELECT r.id FROM transporte.remolques r WHERE r.empresa_id=e.id AND r.clave_interna='CP_TEST_CTR028') AS remolque_id,
   (SELECT o.id FROM transporte.operadores o JOIN public.contactos c ON c.id=o.contacto_id WHERE o.empresa_id=e.id AND c.codigo_legacy='CP_TEST_OPERADOR') AS operador_id,

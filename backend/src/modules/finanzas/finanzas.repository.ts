@@ -304,8 +304,10 @@ export async function listarPagosAplicadosPorDocumento(documentoId: number, empr
            a.imp_saldo_insoluto,
            a.num_parcialidad,
            fo.id AS finanzas_operacion_id,
+           fo.concepto_id,
            fo.fecha AS fecha_pago,
            fo.referencia,
+           conceptos.nombre_concepto AS concepto,
            fc.identificador AS cuenta_identificador,
            mp.nombre AS metodo_pago_nombre,
            doc_pago.id AS documento_pago_id,
@@ -318,6 +320,7 @@ export async function listarPagosAplicadosPorDocumento(documentoId: number, empr
     LEFT JOIN documentos doc_pago ON doc_pago.id = fo.documento_origen_id AND doc_pago.empresa_id = fo.empresa_id
     LEFT JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
     LEFT JOIN finanzas_metodos_pago mp ON mp.id = fo.metodo_pago_id AND mp.empresa_id = fo.empresa_id
+    LEFT JOIN conceptos ON conceptos.id = fo.concepto_id AND conceptos.empresa_id = fo.empresa_id
     WHERE a.empresa_id = $2
       AND a.documento_destino_id = $1
       AND a.finanzas_operacion_id IS NOT NULL
@@ -665,7 +668,7 @@ export async function obtenerCuentaConLock(
   return rows[0] ?? null;
 }
 
-export async function listarOperaciones(empresaId: number, cuentaId?: number): Promise<Operacion[]> {
+export async function listarOperaciones(empresaId: number, cuentaId?: number, documentoOrigenId?: number, naturaleza?: string): Promise<Operacion[]> {
   const params: any[] = [empresaId];
   // IMPORTANTE: este WHERE sólo debe llevar condiciones de PERTENENCIA real al universo
   // contable de la cuenta (empresa_id, cuenta_id). Se evalúa DENTRO del CTE, es decir
@@ -681,12 +684,15 @@ export async function listarOperaciones(empresaId: number, cuentaId?: number): P
     params.push(cuentaId);
     filtrosPertenencia.push(`fo.cuenta_id = $${params.length}`);
   }
+  if (documentoOrigenId) { params.push(documentoOrigenId); filtrosPertenencia.push(`fo.documento_origen_id = $${params.length}`); }
+  if (naturaleza) { params.push(naturaleza); filtrosPertenencia.push(`fo.naturaleza_operacion = $${params.length}`); }
   const wherePertenencia = filtrosPertenencia.join(' AND ');
   const { rows } = await pool.query<Operacion>(
     `WITH operaciones_con_saldo AS (
        SELECT fo.*,
               c.nombre AS contacto_nombre,
               co.nombre_concepto AS concepto_nombre,
+              fc.identificador AS cuenta_nombre,
               d.tipo_documento AS documento_origen_tipo_documento,
               d.serie AS documento_origen_serie,
               d.numero AS documento_origen_numero,
@@ -1149,6 +1155,52 @@ export async function crearAplicacionEnTransaccion(
   empresaId: number
 ) {
   return crearAplicacionTx(client, data, empresaId);
+}
+
+export async function desaplicarAplicacionDocumental(
+  aplicacionId: number,
+  empresaId: number,
+  usuarioId: number | null
+) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT a.*, o.tipo_documento AS origen_tipo, d.tipo_documento AS destino_tipo,
+              o.total AS origen_total, d.total AS destino_total
+         FROM aplicaciones_saldo a
+         JOIN documentos o ON o.id = a.documento_origen_id AND o.empresa_id = a.empresa_id
+         JOIN documentos d ON d.id = a.documento_destino_id AND d.empresa_id = a.empresa_id
+        WHERE a.id = $1 AND a.empresa_id = $2
+        FOR UPDATE`,
+      [aplicacionId, empresaId]
+    );
+    const app = rows[0];
+    if (!app) { const e = new Error('Aplicación no encontrada'); (e as any).status = 404; throw e; }
+    const compatible = (app.origen_tipo === 'nota_credito_compra' && app.destino_tipo === 'factura_compra')
+      || (app.origen_tipo === 'nota_credito' && app.destino_tipo === 'factura');
+    if (!compatible) { const e = new Error('La aplicación no es documental compatible'); (e as any).status = 409; throw e; }
+    const deleted = await client.query(
+      'DELETE FROM aplicaciones_saldo WHERE id = $1 AND empresa_id = $2 RETURNING id',
+      [aplicacionId, empresaId]
+    );
+    if (deleted.rowCount !== 1) { const e = new Error('La aplicación ya no existe'); (e as any).status = 409; throw e; }
+    const saldos = await client.query(
+      `SELECT id, saldo_operativo FROM documentos_saldo_operativo
+        WHERE empresa_id = $1 AND id = ANY($2::int[])`,
+      [empresaId, [app.documento_origen_id, app.documento_destino_id]]
+    );
+    await client.query('COMMIT');
+    return {
+      aplicacion_id: aplicacionId,
+      documento_origen_id: app.documento_origen_id,
+      documento_destino_id: app.documento_destino_id,
+      monto_desaplicado: Number(app.monto_moneda_documento),
+      saldos: saldos.rows,
+      usuario_id: usuarioId,
+    };
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
 }
 
 export async function crearOperacion(data: OperacionInput, empresaId: number): Promise<Operacion> {

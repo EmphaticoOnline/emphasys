@@ -17,6 +17,8 @@ export const DEFAULT_UPLOAD_MIME_TYPES = [
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "video/mp4",
+  "video/3gpp",
   "audio/webm",
   "audio/mpeg",
   "audio/ogg",

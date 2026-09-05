@@ -7,7 +7,7 @@ const router = Router();
 
 const upload = createDiskUploader({
   allowedMimeTypes: DEFAULT_UPLOAD_MIME_TYPES,
-  maxFileSizeBytes: 5 * 1024 * 1024,
+  maxFileSizeBytes: 16 * 1024 * 1024,
   destinationDir: resolveUploadsDir(),
 });
 

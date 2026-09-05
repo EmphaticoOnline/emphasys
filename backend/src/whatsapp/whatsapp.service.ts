@@ -10,6 +10,7 @@ import {
   registrarMensajeAudioSalienteWhatsapp,
   registrarMensajeDocumentoSalienteWhatsapp,
   registrarMensajeImagenSalienteWhatsapp,
+  registrarMensajeVideoSalienteWhatsapp,
   registrarMensajePlantillaSalienteWhatsapp,
   registrarMensajeTextoSalienteWhatsapp,
   type MensajeSalienteMetadata,
@@ -413,6 +414,23 @@ export const sendImageMessage = async (
     logWhatsappSendError("image", error);
     throw error;
   }
+};
+
+export const sendVideoMessage = async (
+  empresaId: number, to: string, mediaUrl: string, caption?: string | null, mensajeRespuestaId?: number | null
+) => {
+  const config = await getWhatsappConfig(empresaId);
+  const destino = normalizarTelefono(to);
+  if (!destino) throw new Error("telefono inválido o vacío para WhatsApp");
+  const contactoId = await getOrCreateWhatsappContacto(empresaId, destino);
+  const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
+  await validateWhatsapp24hWindow(empresaId, conversacionId);
+  const replyContext = await resolveReplyContext(empresaId, mensajeRespuestaId);
+  const message = { type: "video", url: mediaUrl, caption: caption ?? undefined, ...(replyContext ? { context: replyContext } : {}) };
+  const response = await axios.post(GUPSHUP_API_URL, qs.stringify({ channel: "whatsapp", source: config.phone_number, destination: destino, message: JSON.stringify(message) }), { headers: { apikey: config.api_key, "Content-Type": "application/x-www-form-urlencoded" } });
+  await registrarMensajeVideoSalienteWhatsapp(empresaId, conversacionId, destino, mediaUrl, caption ?? null, response.data?.messageId || null, mensajeRespuestaId);
+  await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
+  return response.data;
 };
 
 export const sendDocumentMessage = async (

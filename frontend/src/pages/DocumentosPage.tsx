@@ -138,7 +138,8 @@ import {
 import DocumentosDesktopView from '../components/documentos/DocumentosDesktopView';
 import DocumentosMobileView from '../components/documentos/DocumentosMobileView';
 import FacturasWorkspaceView from '../components/documentos/facturas/FacturasWorkspaceView';
-import { resolveFacturasWorkspaceEnabled } from '../modules/documentos/facturasWorkspaceFlag';
+import CartaPorteViajeDrawer from '../components/documentos/facturas/CartaPorteViajeDrawer';
+import { guardarFacturasWorkspacePreferencia, resolveFacturasWorkspaceEnabled } from '../modules/documentos/facturasWorkspaceFlag';
 import FacturaGlobalDialog from '../modules/documentos/FacturaGlobalDialog';
 import { StatusAction, StatusIndicator, type StatusIconComponent, type StatusTone } from '../components/status';
 import {
@@ -655,6 +656,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([]);
+  const [facturasWorkspaceEnabled, setFacturasWorkspaceEnabled] = useState(() =>
+    resolveFacturasWorkspaceEnabled(empresaId, session.user?.id ?? null)
+  );
   const [bulkDuplicating, setBulkDuplicating] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
@@ -665,6 +669,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [cancelandoId, setCancelandoId] = useState<number | null>(null);
   const [cancelacionPreflight, setCancelacionPreflight] = useState<PrevalidacionCancelacionDocumento | null>(null);
   const [cancelacionPreflightLoading, setCancelacionPreflightLoading] = useState(false);
+  const [documentoDetalleRefreshKey, setDocumentoDetalleRefreshKey] = useState(0);
   type SnackbarSeverity = 'success' | 'error' | 'info' | 'warning';
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: SnackbarSeverity }>(
     { open: false, message: '', severity: 'success' }
@@ -779,6 +784,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     open: false,
     documentoId: null,
   });
+  const [cartaPorteDrawer, setCartaPorteDrawer] = useState<{ open: boolean; documentoId: number | null; folio: string }>({ open: false, documentoId: null, folio: '' });
+
+  const abrirCartaPorte = useCallback((row: CotizacionListado) => {
+    const documentoId = Number(row.id);
+    setCartaPorteDrawer({ open: true, documentoId, folio: resolverFolioVisual(row, tipoDocumento) || String(documentoId) });
+  }, [tipoDocumento]);
   const [contabilizarVentaDrawer, setContabilizarVentaDrawer] = useState<{
     open: boolean;
     documentoId: number | null;
@@ -1540,7 +1551,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     }
   };
 
-  const formatFecha = (value: any) => formatCivilDate(value);
+const formatFecha = (value: any) => formatCivilDate(value);
+
+const compareNumericGridValues = (value1: unknown, value2: unknown) => {
+  const numericValue1 = Number(value1 ?? 0);
+  const numericValue2 = Number(value2 ?? 0);
+
+  if (Number.isNaN(numericValue1) && Number.isNaN(numericValue2)) return 0;
+  if (Number.isNaN(numericValue1)) return -1;
+  if (Number.isNaN(numericValue2)) return 1;
+  return numericValue1 - numericValue2;
+};
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1708,6 +1729,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       cerrarDialogoCancelar();
       const cancelacionConfirmada = resultado?.cancelacion_estado === 'cancelada'
         || resultado?.estatus_documento === 'Cancelado';
+      if (cancelacionConfirmada) setDocumentoDetalleRefreshKey((value) => value + 1);
       setSnackbar({
         open: true,
         message: cancelacionConfirmada
@@ -1917,6 +1939,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         field: 'subtotal',
         headerName: 'Subtotal',
         width: 140,
+        type: 'number',
+        sortComparator: compareNumericGridValues,
         align: 'right',
         headerAlign: 'right',
         headerClassName: 'finanzas-header',
@@ -1926,6 +1950,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         field: 'iva',
         headerName: 'IVA',
         width: 120,
+        type: 'number',
+        sortComparator: compareNumericGridValues,
         align: 'right',
         headerAlign: 'right',
         headerClassName: 'finanzas-header',
@@ -1935,6 +1961,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         field: 'total',
         headerName: 'Total',
         width: 140,
+        type: 'number',
+        sortComparator: compareNumericGridValues,
         align: 'right',
         headerAlign: 'right',
         headerClassName: 'finanzas-header',
@@ -2003,6 +2031,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
               field: 'saldo',
               headerName: 'Saldo',
               width: 140,
+              type: 'number',
+              sortComparator: compareNumericGridValues,
               align: 'right',
               headerAlign: 'right',
               headerClassName: 'finanzas-header',
@@ -3615,6 +3645,18 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       filtersContent={filtersContent}
       summaryContent={summaryContent}
       selectionContent={selectionContent}
+      viewToggleContent={tipoDocumento === 'factura' && modulo === 'ventas' ? (
+        <Button
+          variant="outlined"
+          onClick={() => {
+            setFacturasWorkspaceEnabled(true);
+            guardarFacturasWorkspacePreferencia(empresaId, session.user?.id ?? null, true);
+          }}
+          sx={{ textTransform: 'none', fontWeight: 700 }}
+        >
+          Vista workspace
+        </Button>
+      ) : null}
       extraActionsContent={extraActionsContent}
       rows={filteredRows}
       columns={orderedColumns}
@@ -3709,10 +3751,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   // documento (cotización, nota de crédito, pedido, orden de servicio, etc.)
   // siguen exactamente igual, sobre `desktopView`/`mobileView`. Reutiliza
   // los mismos datos/handlers ya calculados arriba — no duplica lógica.
-  const facturasWorkspaceEnabled =
-    tipoDocumento === 'factura' && modulo === 'ventas' && resolveFacturasWorkspaceEnabled(empresaId, session.user?.id ?? null);
+  const facturasWorkspaceVisible =
+    tipoDocumento === 'factura' && modulo === 'ventas' && facturasWorkspaceEnabled;
 
-  const facturasWorkspaceView = facturasWorkspaceEnabled ? (
+  const facturasWorkspaceView = facturasWorkspaceVisible ? (
     <Container maxWidth={false} sx={{ py: 2 }}>
       <FacturasWorkspaceView
         rows={filteredRows}
@@ -3734,9 +3776,18 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         onSortModelChange={setSortModel}
         extraActionsContent={extraActionsContent}
         onCreateDocumento={() => navigate(`${basePath}/nuevo`)}
+        selectionContent={selectionContent}
+        selectedDocumentIds={selectedDocumentIds}
+        onSelectedDocumentIdsChange={setSelectedDocumentIds}
+        onChangeView={(workspace) => {
+          setFacturasWorkspaceEnabled(workspace);
+          guardarFacturasWorkspacePreferencia(empresaId, session.user?.id ?? null, workspace);
+        }}
         indicatorsByDocumentId={indicadoresFacturaPorId}
         gridContextMenuActions={gridContextMenuActions}
         onSelectFactura={selectGridRow}
+        onCartaPorte={abrirCartaPorte}
+        documentoDetalleRefreshKey={documentoDetalleRefreshKey}
         formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
         formatDate={formatCivilDate}
         currency={currency}
@@ -3949,6 +4000,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           tipoDocumento={aplicarSaldoNcDrawer.tipoDocumento}
         />
       ) : null}
+      <CartaPorteViajeDrawer
+        open={cartaPorteDrawer.open}
+        documentoId={cartaPorteDrawer.documentoId}
+        folio={cartaPorteDrawer.folio}
+        onClose={() => setCartaPorteDrawer((p) => ({ ...p, open: false }))}
+      />
 
       <DocumentoDetalleDrawer
         open={detalleDrawer.open}

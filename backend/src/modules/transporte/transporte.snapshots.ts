@@ -1,4 +1,4 @@
-import { TransporteError, type MercanciaMaster, type OperadorMaster, type RemolqueMaster, type UbicacionMaster } from './transporte.types';
+import { TransporteError, type ProductoMercanciaMaster, type OperadorMaster, type RemolqueMaster, type UbicacionMaster } from './transporte.types';
 
 export function buildLocationSnapshot(master: UbicacionMaster) {
   return {
@@ -22,7 +22,7 @@ export function buildLocationSnapshot(master: UbicacionMaster) {
   };
 }
 
-export function buildMerchandiseSnapshot(master: MercanciaMaster) {
+export function buildMerchandiseSnapshot(master: ProductoMercanciaMaster) {
   return {
     descripcion: master.descripcion,
     claveBienesTransportadosSat: master.clave_bienes_transportados_sat,

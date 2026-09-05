@@ -35,6 +35,8 @@ import { getEmpresaActivaId } from '../utils/empresaUtils';
 import { formatearTelefonoParaMostrar, normalizarTelefonoMx } from '../utils/telefono';
 import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
 import { CONTACTOS_CAMPOS } from '../definitions/contactos.fields';
+import ContactoDomiciliosSection from '../components/contactos/ContactoDomiciliosSection';
+import ContactoOperadorSection from '../components/contactos/ContactoOperadorSection';
 
 type FormState = {
   nombre: string;
@@ -711,6 +713,8 @@ function validarRFC(rfc: string) {
               <Tab label="Domicilio" />
               <Tab label="Datos fiscales" />
               <Tab label="Comercial" />
+              {id && <Tab label="Ubicaciones adicionales" />}
+              {id && <Tab label="Operador / Carta Porte" />}
             </Tabs>
 
             {activeTab === 0 && (
@@ -1301,6 +1305,8 @@ function validarRFC(rfc: string) {
                 )}
               </Stack>
             )}
+            {activeTab === 4 && id && <ContactoDomiciliosSection contactoId={Number(id)} />}
+            {activeTab === 5 && id && <ContactoOperadorSection contactoId={Number(id)} />}
           </Stack>
 
           {isMobile ? (

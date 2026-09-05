@@ -30,6 +30,7 @@ type TimbreCfdi = {
   sello_sat?: string | null;
   rfc_proveedor_certificacion?: string | null;
   no_certificado_sat?: string | null;
+  cancelado?: boolean;
 };
 
 type DocumentoCotizacion = {
@@ -95,8 +96,23 @@ type DataCotizacion = {
   partidas: PartidaCotizacion[];
 };
 
+export type GenerarDocumentoPdfOptions = {
+  onLayoutResolved?: (layout: DocumentLayout) => void;
+  onLogoResolved?: (logoPath: string) => void;
+};
+
+function dibujarMarcaCancelado(doc: PDFKit.PDFDocument): void {
+  const width = 92;
+  const x = doc.page.width - doc.page.margins.right - width;
+  doc.save();
+  doc.roundedRect(x, 12, width, 18, 3).lineWidth(0.8).stroke('#555555');
+  doc.font('Trebuchet-Bold').fontSize(9).fillColor('#333333').text('CANCELADO', x, 17, { width, align: 'center' });
+  doc.restore();
+}
+
 type EmpresaPdfInfo = {
   nombre: string | null;
+  razonSocial: string | null;
   rfc: string | null;
   regimenFiscal: string | null;
   direccion: string | null;
@@ -212,7 +228,7 @@ const mapUsoCfdi = (code: string | null | undefined) => {
   return code ? map[code] || code : 'N/D';
 };
 
-const normalizarColorHex = (color?: string | null): string | undefined => {
+export const normalizarColorHex = (color?: string | null): string | undefined => {
   if (!color) return undefined;
   const value = color.trim();
   const match = value.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
@@ -396,6 +412,7 @@ async function obtenerEmpresaPdfInfo(empresaId?: number): Promise<EmpresaPdfInfo
 
     return {
       nombre: row.nombre ?? row.razon_social ?? null,
+      razonSocial: row.razon_social ?? null,
       rfc: row.rfc ?? null,
       regimenFiscal: row.regimen_fiscal_id ?? null,
       direccion: direccion || null,
@@ -523,7 +540,7 @@ async function generarPDFFromHTML(html: string): Promise<Buffer> {
   }
 }
 
-export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: number): Promise<Buffer> {
+export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: number, options?: GenerarDocumentoPdfOptions): Promise<Buffer> {
   const { documento, partidas } = data;
   const timbre = documento?.timbre;
   const usarPlantillas = false;
@@ -683,6 +700,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
     : null;
   const logoPath = empresaLogoPath && fs.existsSync(empresaLogoPath) ? empresaLogoPath : defaultLogoPath;
   const hasLogo = fs.existsSync(logoPath);
+  options?.onLogoResolved?.(hasLogo ? logoPath : '');
   console.info('[pdf] Logo resuelto', {
     empresaId: empresaId ?? (documento as any)?.empresa_id,
     empresaLogoPath,
@@ -692,11 +710,12 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const assetsFontsPath = path.resolve(__dirname, '..', '..', '..', 'assets', 'fonts');
   const repoFontsPath = path.resolve(__dirname, '..', '..', '..', '..', 'fonts');
 
-  const fontRegularPath = path.join(assetsFontsPath, 'Trebuchet.ttf');
-  const fontBoldPath = path.join(assetsFontsPath, 'Trebuchet-Bold.ttf');
-  const fontItalicPath = path.join(assetsFontsPath, 'Trebuchet-Italic.ttf');
+  const fontRegularPath = path.join(assetsFontsPath, 'TREBUC.TTF');
+  const fontBoldPath = path.join(assetsFontsPath, 'TREBUCBD.TTF');
+  const fontItalicPath = path.join(assetsFontsPath, 'TREBUCIT.TTF');
 
   const layout = await getDocumentLayout(documento, empresaId);
+  options?.onLayoutResolved?.(layout);
   console.info('[pdf] Layout resuelto para observaciones de partida', {
     documentoId: documento?.id,
     empresaId: empresaId ?? (documento as any)?.empresa_id,
@@ -855,6 +874,11 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       hasTrebuchetItalic = hasTrebuchetItalic || registerFontIfExists('Trebuchet-Italic', fallbackItalic);
     }
     doc.font(hasTrebuchet ? 'Trebuchet' : 'Helvetica');
+
+    if (timbre?.cancelado) {
+      doc.on('pageAdded', () => dibujarMarcaCancelado(doc));
+      dibujarMarcaCancelado(doc);
+    }
 
     const setFont = (bold = false, size = 10, color = '#111827') => {
       const fontName = bold ? (hasTrebuchetBold ? 'Trebuchet-Bold' : 'Helvetica-Bold') : hasTrebuchet ? 'Trebuchet' : 'Helvetica';
@@ -1235,8 +1259,10 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       doc.text('Receptor', doc.page.margins.left + colWidth + 12, bloqueY, { width: colWidth });
 
       let emisorY = bloqueY + 14;
-      emisorY += drawLabelValue('Nombre', 'Emphasys', doc.page.margins.left, emisorY);
-      emisorY += drawLabelValue('RFC', empresaInfo?.rfc || timbre?.rfc_emisor || 'N/D', doc.page.margins.left, emisorY);
+      const nombreFiscalEmisor = empresaInfo?.razonSocial || 'N/D';
+      const rfcFiscalEmisor = (estaTimbrado ? timbre?.rfc_emisor : null) || empresaInfo?.rfc || 'N/D';
+      emisorY += drawLabelValue('Nombre', nombreFiscalEmisor, doc.page.margins.left, emisorY);
+      emisorY += drawLabelValue('RFC', rfcFiscalEmisor, doc.page.margins.left, emisorY);
       emisorY += drawLabelValue('Régimen Fiscal', mapRegimen(empresaInfo?.regimenFiscal), doc.page.margins.left, emisorY);
 
       let receptorY = bloqueY + 14;

@@ -161,17 +161,41 @@ async function obtenerSerieDefault(
 
 async function reservarSiguienteNumeroSerieDocumento(serieDocumentoId: number, client?: QueryExecutor): Promise<number> {
   const executor = client ?? pool;
-  const { rows } = await executor.query<{ ultimo_numero: number }>(
-    `UPDATE public.series_documento
-        SET ultimo_numero = COALESCE(ultimo_numero, 0) + 1,
-            updated_at = NOW()
+  // La creación de documentos llama a esta función dentro de una transacción.
+  // Bloquear primero la serie hace que la lectura del máximo real y la reserva
+  // sean una sola sección crítica, también cuando dos usuarios crean a la vez.
+  const serieResult = await executor.query<Pick<SerieDocumentoRow, 'empresa_id' | 'tipo_documento' | 'serie' | 'ultimo_numero'>>(
+    `SELECT empresa_id, tipo_documento, serie, COALESCE(ultimo_numero, 0) AS ultimo_numero
+       FROM public.series_documento
       WHERE id = $1
         AND activa = true
-    RETURNING ultimo_numero`,
+      FOR UPDATE`,
     [serieDocumentoId]
   );
+  const serie = serieResult.rows[0];
+  if (!serie) throw new Error('La serie no existe o está inactiva.');
 
-  const numero = Number(rows[0]?.ultimo_numero ?? 0);
+  const maxResult = await executor.query<{ max_numero: number | null }>(
+    `SELECT MAX(numero)::bigint AS max_numero
+       FROM public.documentos
+      WHERE empresa_id = $1
+        AND LOWER(tipo_documento) = LOWER($2)
+        AND COALESCE(serie, '') = COALESCE($3, '')`,
+    [serie.empresa_id, serie.tipo_documento, serie.serie]
+  );
+  const configurado = Number(serie.ultimo_numero ?? 0);
+  const maxExistente = Number(maxResult.rows[0]?.max_numero ?? 0);
+  const numero = Math.max(configurado, maxExistente) + 1;
+
+  await executor.query(
+    `UPDATE public.series_documento
+        SET ultimo_numero = $2,
+            updated_at = NOW()
+      WHERE id = $1
+        AND activa = true`,
+    [serieDocumentoId, numero]
+  );
+
   if (!Number.isFinite(numero) || numero <= 0) {
     throw new Error('No se pudo reservar el consecutivo de la serie.');
   }
