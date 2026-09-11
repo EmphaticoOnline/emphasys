@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import type { PoolClient } from 'pg';
 import { CfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import type { CfdiTimbradoHooks, CfdiTimbradoOptions } from '../cfdi/cfdi.types';
+import { cartaPortePlate } from './carta-porte.builder';
 import { FACTURAMA_NAME_ID_CARTA_PORTE_31, type CartaPorte31 } from './carta-porte.types';
 import { findCartaPorteStampContext, inTransaction, linkPrincipalDocument } from './transporte.repository';
 import { TransporteError } from './transporte.types';
@@ -14,6 +15,35 @@ export type CartaPorteStampPlan = {
   options: CfdiTimbradoOptions;
 };
 
+function snapshotParaTimbrado(snapshot: CartaPorte31): CartaPorte31 {
+  const autotransporte = snapshot.Mercancias?.Autotransporte;
+  if (!autotransporte) return snapshot;
+  return {
+    ...snapshot,
+    Mercancias: {
+      ...snapshot.Mercancias,
+      Autotransporte: {
+        ...autotransporte,
+        IdentificacionVehicular: {
+          ...autotransporte.IdentificacionVehicular,
+          PlacaVM: cartaPortePlate(
+            autotransporte.IdentificacionVehicular.PlacaVM,
+            'placa de vehículo'
+          ),
+        },
+        ...(autotransporte.Remolques
+          ? {
+              Remolques: autotransporte.Remolques.map((remolque, index) => ({
+                ...remolque,
+                Placa: cartaPortePlate(remolque.Placa, `placa de remolque ${index + 1}`),
+              })),
+            }
+          : {}),
+      },
+    },
+  };
+}
+
 export function buildCartaPorteStampPlan(row: any, documentoId: number): CartaPorteStampPlan | null {
   if (!row) return null;
   if (!row.carta_porte_id) throw new CfdiValidationError('La factura está vinculada a un viaje sin Carta Porte validada.');
@@ -24,10 +54,11 @@ export function buildCartaPorteStampPlan(row: any, documentoId: number): CartaPo
   const idCcp = String(row.id_ccp ?? '').trim();
   if (!idCcp) throw new CfdiValidationError('La Carta Porte no contiene IdCCP.');
   if (String(row.snapshot_json.IdCCP ?? '') !== idCcp) throw new CfdiValidationError('El IdCCP no coincide con el snapshot fiscal.');
+  const snapshotTimbrado = snapshotParaTimbrado(row.snapshot_json as CartaPorte31);
   return {
     viajeId: Number(row.viaje_id), cartaPorteId: Number(row.carta_porte_id), idCcp,
-    snapshot: row.snapshot_json,
-    options: { nameId: FACTURAMA_NAME_ID_CARTA_PORTE_31, complemento: { CartaPorte31: row.snapshot_json } },
+    snapshot: snapshotTimbrado,
+    options: { nameId: FACTURAMA_NAME_ID_CARTA_PORTE_31, complemento: { CartaPorte31: snapshotTimbrado } },
   };
 }
 

@@ -1,13 +1,13 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-08-18T18:43:24.869Z
+-- Generated at: 2026-09-10T01:50:39.922Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict SrEdWFDAeS73Z72979yUdduZ4NfgasCZOEpIpuG19QRFLRhMuS2cxBfnhTDWvB0
+\restrict p6UiKCe6Z1l5TaRxmUON5WhfHRIZlPWrydsXV61p9AKexbhpXTsPqmGJHJuT8Xz
 
--- Dumped from database version 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1)
+-- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
 
 SET statement_timeout = 0;
@@ -58,6 +58,13 @@ CREATE SCHEMA crm;
 
 
 --
+-- Name: documentacion; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA documentacion;
+
+
+--
 -- Name: inventario; Type: SCHEMA; Schema: -; Owner: -
 --
 
@@ -104,6 +111,20 @@ CREATE SCHEMA produccion;
 --
 
 CREATE SCHEMA sat;
+
+
+--
+-- Name: transporte; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA transporte;
+
+
+--
+-- Name: SCHEMA transporte; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON SCHEMA transporte IS 'Operación logística y materialización fiscal de servicios de transporte.';
 
 
 --
@@ -199,31 +220,65 @@ CREATE FUNCTION compass.validar_actividad_tarea_frente() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    v_frente_id INTEGER;
+  v_frente_id integer;
 BEGIN
-    IF NEW.tarea_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    SELECT frente_id
-      INTO v_frente_id
-      FROM compass.tareas
-     WHERE empresa_id = NEW.empresa_id
-       AND usuario_id = NEW.usuario_id
-       AND id = NEW.tarea_id;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION
-            'La tarea % no existe para la empresa/usuario indicados',
-            NEW.tarea_id;
-    END IF;
-
-    IF NEW.frente_id IS DISTINCT FROM v_frente_id THEN
-        RAISE EXCEPTION
-            'El Frente de la Actividad debe coincidir con el Frente de la Tarea';
-    END IF;
-
+  IF NEW.tarea_id IS NULL THEN
     RETURN NEW;
+  END IF;
+
+  SELECT frente_id INTO v_frente_id
+    FROM compass.tareas
+   WHERE usuario_id = NEW.usuario_id AND id = NEW.tarea_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'La tarea % no existe para el usuario indicado', NEW.tarea_id;
+  END IF;
+
+  IF NEW.frente_id IS DISTINCT FROM v_frente_id THEN
+    RAISE EXCEPTION 'El Frente de la Actividad debe coincidir con el Frente de la Tarea';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: validar_referencia_usuario(); Type: FUNCTION; Schema: compass; Owner: -
+--
+
+CREATE FUNCTION compass.validar_referencia_usuario() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_tipo text;
+  v_id integer;
+  v_existe boolean;
+BEGIN
+  IF TG_TABLE_NAME = 'capturas' THEN
+    v_tipo := NEW.tipo_destino;
+    v_id := NEW.destino_id;
+  ELSE
+    v_tipo := NEW.tipo_conversion;
+    v_id := NEW.conversion_id;
+  END IF;
+
+  IF v_tipo IS NULL OR v_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  CASE v_tipo
+    WHEN 'frente' THEN SELECT EXISTS (SELECT 1 FROM compass.frentes WHERE usuario_id = NEW.usuario_id AND id = v_id) INTO v_existe;
+    WHEN 'tarea' THEN SELECT EXISTS (SELECT 1 FROM compass.tareas WHERE usuario_id = NEW.usuario_id AND id = v_id) INTO v_existe;
+    WHEN 'actividad' THEN SELECT EXISTS (SELECT 1 FROM compass.actividades WHERE usuario_id = NEW.usuario_id AND id = v_id) INTO v_existe;
+    WHEN 'idea' THEN SELECT EXISTS (SELECT 1 FROM compass.ideas WHERE usuario_id = NEW.usuario_id AND id = v_id) INTO v_existe;
+    WHEN 'decision' THEN SELECT EXISTS (SELECT 1 FROM compass.decisiones WHERE usuario_id = NEW.usuario_id AND id = v_id) INTO v_existe;
+    ELSE RAISE EXCEPTION 'Tipo de referencia Compass no soportado: %', v_tipo;
+  END CASE;
+
+  IF NOT v_existe THEN
+    RAISE EXCEPTION 'La referencia Compass %:% no pertenece al usuario indicado', v_tipo, v_id;
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -1066,7 +1121,7 @@ SET default_table_access_method = heap;
 
 CREATE TABLE compass.actividades (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     frente_id integer,
     tarea_id integer,
@@ -1116,7 +1171,7 @@ ALTER SEQUENCE compass.actividades_id_seq OWNED BY compass.actividades.id;
 
 CREATE TABLE compass.capturas (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     texto text NOT NULL,
     estado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
@@ -1158,7 +1213,7 @@ ALTER SEQUENCE compass.capturas_id_seq OWNED BY compass.capturas.id;
 
 CREATE TABLE compass.decisiones (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     frente_id integer,
     titulo character varying(300) NOT NULL,
@@ -1196,7 +1251,7 @@ ALTER SEQUENCE compass.decisiones_id_seq OWNED BY compass.decisiones.id;
 
 CREATE TABLE compass.frentes (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     nombre character varying(200) NOT NULL,
     proposito text NOT NULL,
@@ -1236,7 +1291,7 @@ ALTER SEQUENCE compass.frentes_id_seq OWNED BY compass.frentes.id;
 
 CREATE TABLE compass.ideas (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     frente_id integer,
     titulo character varying(300) NOT NULL,
@@ -1279,7 +1334,7 @@ ALTER SEQUENCE compass.ideas_id_seq OWNED BY compass.ideas.id;
 
 CREATE TABLE compass.intenciones_semanales (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     frente_id integer NOT NULL,
     semana_inicio date NOT NULL,
@@ -1323,7 +1378,7 @@ ALTER SEQUENCE compass.intenciones_semanales_id_seq OWNED BY compass.intenciones
 
 CREATE TABLE compass.revisiones_frente (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     revision_semanal_id integer NOT NULL,
     frente_id integer NOT NULL,
@@ -1338,10 +1393,16 @@ CREATE TABLE compass.revisiones_frente (
     que_cambiare text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    prioridad_snapshot character varying(20),
+    horas_objetivo_snapshot numeric(6,2),
+    expectativa_atencion_snapshot character varying(20),
     CONSTRAINT ck_revision_congruencia_confirmada CHECK (((congruencia_confirmada IS NULL) OR ((congruencia_confirmada)::text = ANY ((ARRAY['congruente'::character varying, 'en_riesgo'::character varying, 'descuidado'::character varying, 'sobreatendido'::character varying])::text[])))),
     CONSTRAINT ck_revision_congruencia_sugerida CHECK (((congruencia_sugerida IS NULL) OR ((congruencia_sugerida)::text = ANY ((ARRAY['congruente'::character varying, 'en_riesgo'::character varying, 'descuidado'::character varying, 'sobreatendido'::character varying])::text[])))),
+    CONSTRAINT ck_revision_expectativa_snapshot CHECK (((expectativa_atencion_snapshot IS NULL) OR ((expectativa_atencion_snapshot)::text = ANY ((ARRAY['sin_compromiso'::character varying, 'atender'::character varying, 'prioritario'::character varying])::text[])))),
     CONSTRAINT ck_revision_horas_efectivas CHECK (((horas_efectivas IS NULL) OR (horas_efectivas >= (0)::numeric))),
-    CONSTRAINT ck_revision_horas_planificadas CHECK (((horas_planificadas IS NULL) OR (horas_planificadas >= (0)::numeric)))
+    CONSTRAINT ck_revision_horas_planificadas CHECK (((horas_planificadas IS NULL) OR (horas_planificadas >= (0)::numeric))),
+    CONSTRAINT ck_revision_objetivo_snapshot CHECK ((NOT ((horas_objetivo_snapshot IS NOT NULL) AND (expectativa_atencion_snapshot IS NOT NULL)))),
+    CONSTRAINT ck_revision_prioridad_snapshot CHECK (((prioridad_snapshot IS NULL) OR ((prioridad_snapshot)::text = ANY ((ARRAY['alta'::character varying, 'media'::character varying, 'baja'::character varying])::text[]))))
 );
 
 
@@ -1371,7 +1432,7 @@ ALTER SEQUENCE compass.revisiones_frente_id_seq OWNED BY compass.revisiones_fren
 
 CREATE TABLE compass.revisiones_semanales (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     semana_inicio date NOT NULL,
     fecha_revision timestamp with time zone DEFAULT now() NOT NULL,
@@ -1410,7 +1471,7 @@ ALTER SEQUENCE compass.revisiones_semanales_id_seq OWNED BY compass.revisiones_s
 
 CREATE TABLE compass.tareas (
     id integer NOT NULL,
-    empresa_id integer NOT NULL,
+    empresa_id integer,
     usuario_id integer NOT NULL,
     frente_id integer,
     titulo character varying(300) NOT NULL,
@@ -4624,6 +4685,20 @@ ALTER SEQUENCE core.empresas_assets_id_seq OWNED BY core.empresas_assets.id;
 
 
 --
+-- Name: empresas_cfdi_pac_config; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.empresas_cfdi_pac_config (
+    empresa_id integer NOT NULL,
+    cfdi_pac_config_id integer NOT NULL,
+    csd_registrado boolean DEFAULT false NOT NULL,
+    csd_fecha_actualizacion timestamp without time zone,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: empresas_id_seq; Type: SEQUENCE; Schema: core; Owner: -
 --
 
@@ -6184,6 +6259,30 @@ ALTER TABLE crm.conversaciones ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY 
 
 
 --
+-- Name: conversaciones_lecturas; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.conversaciones_lecturas (
+    empresa_id integer NOT NULL,
+    usuario_id integer NOT NULL,
+    conversacion_id bigint NOT NULL,
+    ultima_lectura_en timestamp with time zone NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: conversaciones_lecturas_config; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.conversaciones_lecturas_config (
+    id boolean DEFAULT true NOT NULL,
+    inicio_no_leidos_en timestamp with time zone NOT NULL,
+    CONSTRAINT conversaciones_lecturas_config_id_check CHECK (id)
+);
+
+
+--
 -- Name: email_plantillas; Type: TABLE; Schema: crm; Owner: -
 --
 
@@ -6718,6 +6817,79 @@ COMMENT ON COLUMN crm.reglas_seguimiento.tiempo_maximo_sin_respuesta_despues_de_
 
 
 --
+-- Name: adjuntos; Type: TABLE; Schema: documentacion; Owner: -
+--
+
+CREATE TABLE documentacion.adjuntos (
+    id integer NOT NULL,
+    empresa_id integer NOT NULL,
+    tipo_id integer NOT NULL,
+    archivo_url text NOT NULL,
+    nombre_original character varying(255) NOT NULL,
+    fecha_subida timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_vencimiento date,
+    vigente boolean DEFAULT true NOT NULL,
+    comentarios text,
+    usuario_subio_id integer,
+    documento_id integer
+);
+
+
+--
+-- Name: adjuntos_id_seq; Type: SEQUENCE; Schema: documentacion; Owner: -
+--
+
+CREATE SEQUENCE documentacion.adjuntos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: adjuntos_id_seq; Type: SEQUENCE OWNED BY; Schema: documentacion; Owner: -
+--
+
+ALTER SEQUENCE documentacion.adjuntos_id_seq OWNED BY documentacion.adjuntos.id;
+
+
+--
+-- Name: documentos_empresa_tipos; Type: TABLE; Schema: documentacion; Owner: -
+--
+
+CREATE TABLE documentacion.documentos_empresa_tipos (
+    id integer NOT NULL,
+    nombre character varying(100) NOT NULL,
+    descripcion text,
+    requiere_vigencia boolean DEFAULT false NOT NULL,
+    dias_vigencia integer,
+    activo boolean DEFAULT true NOT NULL
+);
+
+
+--
+-- Name: documentos_empresa_tipos_id_seq; Type: SEQUENCE; Schema: documentacion; Owner: -
+--
+
+CREATE SEQUENCE documentacion.documentos_empresa_tipos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: documentos_empresa_tipos_id_seq; Type: SEQUENCE OWNED BY; Schema: documentacion; Owner: -
+--
+
+ALTER SEQUENCE documentacion.documentos_empresa_tipos_id_seq OWNED BY documentacion.documentos_empresa_tipos.id;
+
+
+--
 -- Name: almacenes; Type: TABLE; Schema: inventario; Owner: -
 --
 
@@ -7248,6 +7420,38 @@ ALTER SEQUENCE migrate.clientes_legacy_supplier_json_id_seq OWNED BY migrate.cli
 
 
 --
+-- Name: entidades_correspondencias; Type: TABLE; Schema: migrate; Owner: -
+--
+
+CREATE TABLE migrate.entidades_correspondencias (
+    sistema_origen text NOT NULL,
+    tipo_entidad text NOT NULL,
+    id_origen text NOT NULL,
+    empresa_destino_id integer NOT NULL,
+    id_destino bigint NOT NULL,
+    fecha_migracion timestamp with time zone DEFAULT now() NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT ck_entidades_correspondencias_origen CHECK ((btrim(id_origen) <> ''::text)),
+    CONSTRAINT ck_entidades_correspondencias_sistema CHECK ((btrim(sistema_origen) <> ''::text)),
+    CONSTRAINT ck_entidades_correspondencias_tipo CHECK ((btrim(tipo_entidad) <> ''::text))
+);
+
+
+--
+-- Name: TABLE entidades_correspondencias; Type: COMMENT; Schema: migrate; Owner: -
+--
+
+COMMENT ON TABLE migrate.entidades_correspondencias IS 'Correspondencias idempotentes entre entidades de sistemas origen y registros canónicos de Emphasys.';
+
+
+--
+-- Name: COLUMN entidades_correspondencias.id_destino; Type: COMMENT; Schema: migrate; Owner: -
+--
+
+COMMENT ON COLUMN migrate.entidades_correspondencias.id_destino IS 'ID polimórfico del registro destino; su tabla se determina mediante tipo_entidad.';
+
+
+--
 -- Name: productos_legacy_supplier; Type: TABLE; Schema: migrate; Owner: -
 --
 
@@ -7640,7 +7844,11 @@ CREATE TABLE public.audit_log (
     ip_address inet,
     user_agent text,
     origen character varying(50) NOT NULL,
-    created_at timestamp without time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    usuario_nombre character varying(200),
+    empresa_nombre character varying(200),
+    motivo character varying(500),
+    metadata jsonb
 );
 
 
@@ -7998,6 +8206,7 @@ CREATE TABLE public.cfdi_intentos_timbrado (
     metadata_sanitizada jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    cfdi_pac_config_id integer,
     CONSTRAINT cfdi_intentos_timbrado_estado_check CHECK (((estado)::text = ANY ((ARRAY['aceptado_pendiente_descarga'::character varying, 'xml_recuperado'::character varying, 'persistido'::character varying, 'error_descarga'::character varying, 'error_validacion'::character varying, 'reconciliado'::character varying])::text[])))
 );
 
@@ -8144,8 +8353,25 @@ CREATE TABLE public.contactos_datos_fiscales (
     enviar_cfd boolean DEFAULT true NOT NULL,
     enviar_cfd_agente boolean DEFAULT false NOT NULL,
     es_publico_general boolean DEFAULT false NOT NULL,
-    fecha_actualizacion timestamp with time zone DEFAULT now() NOT NULL
+    fecha_actualizacion timestamp with time zone DEFAULT now() NOT NULL,
+    razon_social_fiscal character varying(200),
+    codigo_postal_fiscal character varying(5),
+    CONSTRAINT ck_contactos_datos_fiscales_cp CHECK (((codigo_postal_fiscal IS NULL) OR ((codigo_postal_fiscal)::text ~ '^[0-9]{5}$'::text)))
 );
+
+
+--
+-- Name: COLUMN contactos_datos_fiscales.razon_social_fiscal; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contactos_datos_fiscales.razon_social_fiscal IS 'Razón social fiscal explícita; no debe inferirse automáticamente del nombre comercial.';
+
+
+--
+-- Name: COLUMN contactos_datos_fiscales.codigo_postal_fiscal; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contactos_datos_fiscales.codigo_postal_fiscal IS 'Código postal del domicilio fiscal del receptor.';
 
 
 --
@@ -8169,12 +8395,75 @@ ALTER SEQUENCE public.contactos_datos_fiscales_id_seq OWNED BY public.contactos_
 
 
 --
+-- Name: contactos_documentacion; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contactos_documentacion (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    contacto_id integer NOT NULL,
+    tipo_id integer NOT NULL,
+    nombre_original character varying(255) NOT NULL,
+    mime_type character varying(120) NOT NULL,
+    tamano bigint NOT NULL,
+    storage_key text NOT NULL,
+    fecha_vencimiento date,
+    comentarios text,
+    creado_por integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: contactos_documentacion_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.contactos_documentacion ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.contactos_documentacion_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: contactos_documentacion_tipos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contactos_documentacion_tipos (
+    id integer NOT NULL,
+    nombre character varying(120) NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    orden integer DEFAULT 100 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: contactos_documentacion_tipos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.contactos_documentacion_tipos ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.contactos_documentacion_tipos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: contactos_domicilios; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.contactos_domicilios (
     id integer NOT NULL,
-    contacto_id integer NOT NULL,
+    contacto_id integer,
     identificador character varying(60) NOT NULL,
     es_principal boolean DEFAULT false NOT NULL,
     responsable character varying(100),
@@ -8193,8 +8482,28 @@ CREATE TABLE public.contactos_domicilios (
     fax character varying(20),
     observaciones text,
     cp_sat text,
-    colonia_sat text
+    colonia_sat text,
+    texto_original text,
+    domicilio character varying,
+    coto_o_fraccionamiento character varying(255),
+    empresa_id integer,
+    tipo_referencia character varying(50),
+    latitud numeric(10,7),
+    longitud numeric(10,7),
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_cd_exactly_one_owner CHECK (((contacto_id IS NOT NULL) <> (empresa_id IS NOT NULL))),
+    CONSTRAINT ck_cd_latitud CHECK (((latitud IS NULL) OR ((latitud >= ('-90'::integer)::numeric) AND (latitud <= (90)::numeric)))),
+    CONSTRAINT ck_cd_longitud CHECK (((longitud IS NULL) OR ((longitud >= ('-180'::integer)::numeric) AND (longitud <= (180)::numeric))))
 );
+
+
+--
+-- Name: COLUMN contactos_domicilios.texto_original; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contactos_domicilios.texto_original IS 'Texto histórico completo del domicilio antes de cualquier normalización.';
 
 
 --
@@ -8235,6 +8544,55 @@ CREATE SEQUENCE public.contactos_id_seq
 --
 
 ALTER SEQUENCE public.contactos_id_seq OWNED BY public.contactos.id;
+
+
+--
+-- Name: contactos_roles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contactos_roles (
+    contacto_id integer NOT NULL,
+    rol character varying(50) NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    origen character varying(50),
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_contactos_roles_origen CHECK (((origen IS NULL) OR (btrim((origen)::text) <> ''::text)))
+);
+
+
+--
+-- Name: TABLE contactos_roles; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.contactos_roles IS 'Roles múltiples de contactos; tipo_contacto se conserva temporalmente por compatibilidad.';
+
+
+--
+-- Name: COLUMN contactos_roles.origen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contactos_roles.origen IS 'Procedencia de la asignación del rol, por ejemplo DICOR o MANUAL.';
+
+
+--
+-- Name: contactos_roles_catalogo; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.contactos_roles_catalogo (
+    rol character varying(50) NOT NULL,
+    descripcion character varying(150) NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_contactos_roles_catalogo_rol CHECK ((btrim((rol)::text) <> ''::text))
+);
+
+
+--
+-- Name: TABLE contactos_roles_catalogo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.contactos_roles_catalogo IS 'Catálogo extensible de capacidades que puede desempeñar un contacto.';
 
 
 --
@@ -8691,6 +9049,7 @@ CREATE TABLE public.documentos_cancelacion_intentos (
     error_codigo character varying(100),
     mensaje_sanitizado text,
     acuse_xml text,
+    cfdi_pac_config_id integer,
     CONSTRAINT documentos_cancelacion_intentos_estado_check CHECK (((estado)::text = ANY ((ARRAY['iniciado'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'cancelada'::character varying, 'rechazada'::character varying, 'error'::character varying, 'requiere_reconciliacion'::character varying, 'completado'::character varying, 'externo_ok'::character varying, 'externo_ok_interno_pendiente'::character varying, 'error_externo'::character varying, 'error_interno'::character varying])::text[]))),
     CONSTRAINT documentos_cancelacion_intentos_modalidad_check CHECK (((modalidad IS NULL) OR ((modalidad)::text = ANY ((ARRAY['web'::character varying, 'lite'::character varying])::text[]))))
 );
@@ -8789,6 +9148,7 @@ CREATE TABLE public.documentos_cfdi (
     cancelacion_estado character varying(30) DEFAULT 'no_solicitada'::character varying NOT NULL,
     cancelacion_proveedor_status character varying(40),
     cancelacion_ultima_consulta_at timestamp with time zone,
+    cfdi_pac_config_id integer,
     CONSTRAINT documentos_cfdi_cancelacion_estado_check CHECK (((cancelacion_estado)::text = ANY ((ARRAY['no_solicitada'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'cancelada'::character varying, 'rechazada'::character varying, 'error'::character varying, 'requiere_reconciliacion'::character varying])::text[]))),
     CONSTRAINT documentos_cfdi_pac_modalidad_check CHECK (((pac_modalidad IS NULL) OR ((pac_modalidad)::text = ANY ((ARRAY['web'::character varying, 'lite'::character varying])::text[]))))
 );
@@ -10242,6 +10602,95 @@ ALTER SEQUENCE public.operaciones_credito_items_id_seq OWNED BY public.credito_o
 
 
 --
+-- Name: operaciones_entregas; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.operaciones_entregas (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    fecha date NOT NULL,
+    cantidad numeric(15,6) NOT NULL,
+    estado character varying(20) NOT NULL,
+    full_documento_id integer,
+    contacto_id integer,
+    fletera_contacto_id integer,
+    operador_id bigint,
+    vehiculo_id bigint,
+    domicilio_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    carta_porte_referencia text,
+    observaciones text,
+    datos_logisticos_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    usuario_creacion_id integer NOT NULL,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT operaciones_entregas_cantidad_check CHECK ((cantidad >= (0)::numeric)),
+    CONSTRAINT operaciones_entregas_estado_check CHECK (((estado)::text = ANY ((ARRAY['programada'::character varying, 'entregada'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE operaciones_entregas; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.operaciones_entregas IS 'Eventos físicos de entrega; separados del documento comercial y del transporte formal.';
+
+
+--
+-- Name: COLUMN operaciones_entregas.datos_logisticos_snapshot; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.operaciones_entregas.datos_logisticos_snapshot IS 'Texto histórico acotado cuando fletera/operador/vehículo no pueden normalizarse.';
+
+
+--
+-- Name: operaciones_entregas_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.operaciones_entregas ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.operaciones_entregas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: operaciones_entregas_partidas; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.operaciones_entregas_partidas (
+    id bigint NOT NULL,
+    entrega_id bigint NOT NULL,
+    documento_id integer NOT NULL,
+    partida_id integer NOT NULL,
+    cantidad numeric(15,6) NOT NULL,
+    CONSTRAINT operaciones_entregas_partidas_cantidad_check CHECK ((cantidad > (0)::numeric))
+);
+
+
+--
+-- Name: TABLE operaciones_entregas_partidas; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.operaciones_entregas_partidas IS 'Cantidades entregadas físicamente por partida comercial.';
+
+
+--
+-- Name: operaciones_entregas_partidas_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.operaciones_entregas_partidas ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.operaciones_entregas_partidas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: plantillas_documento; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10517,7 +10966,13 @@ CREATE TABLE public.productos (
     proveedor_preferido_id integer,
     pais_origen_id text,
     cantidad_minima_venta numeric(15,4),
-    especificaciones text
+    especificaciones text,
+    clave_bienes_transportados_sat character varying(20),
+    es_material_peligroso boolean DEFAULT false NOT NULL,
+    clave_material_peligroso_sat character varying(20),
+    clave_embalaje_sat character varying(20),
+    descripcion_embalaje character varying(100),
+    CONSTRAINT ck_productos_carta_porte_claves_no_vacias CHECK ((((clave_bienes_transportados_sat IS NULL) OR (btrim((clave_bienes_transportados_sat)::text) <> ''::text)) AND ((clave_material_peligroso_sat IS NULL) OR (btrim((clave_material_peligroso_sat)::text) <> ''::text)) AND ((clave_embalaje_sat IS NULL) OR (btrim((clave_embalaje_sat)::text) <> ''::text))))
 );
 
 
@@ -10943,6 +11398,20 @@ CREATE TABLE sat.aduanas (
 
 
 --
+-- Name: bienes_transportados; Type: TABLE; Schema: sat; Owner: -
+--
+
+CREATE TABLE sat.bienes_transportados (
+    clave_prod_serv_cp character varying(20) NOT NULL,
+    descripcion text NOT NULL,
+    palabras_similares text,
+    material_peligroso character varying(3),
+    fecha_inicio_vigencia date,
+    fecha_fin_vigencia date
+);
+
+
+--
 -- Name: claves_unidades; Type: TABLE; Schema: sat; Owner: -
 --
 
@@ -11109,6 +11578,21 @@ CREATE TABLE sat.colonias (
 
 
 --
+-- Name: configuraciones_autotransporte; Type: TABLE; Schema: sat; Owner: -
+--
+
+CREATE TABLE sat.configuraciones_autotransporte (
+    clave_config_autotransporte_sat character varying(20) NOT NULL,
+    descripcion text NOT NULL,
+    numero_ejes integer,
+    numero_llantas character varying(20),
+    remolque character varying(5),
+    fecha_inicio_vigencia date,
+    fecha_fin_vigencia date
+);
+
+
+--
 -- Name: estados; Type: TABLE; Schema: sat; Owner: -
 --
 
@@ -11130,6 +11614,18 @@ CREATE TABLE sat.exportaciones (
     texto text NOT NULL,
     vigencia_desde text NOT NULL,
     vigencia_hasta text NOT NULL
+);
+
+
+--
+-- Name: figuras_transporte; Type: TABLE; Schema: sat; Owner: -
+--
+
+CREATE TABLE sat.figuras_transporte (
+    clave_figura_transporte_sat character varying(10) NOT NULL,
+    descripcion text NOT NULL,
+    fecha_inicio_vigencia date,
+    fecha_fin_vigencia date
 );
 
 
@@ -11181,6 +11677,36 @@ CREATE TABLE sat.localidades (
     vigencia_desde text NOT NULL,
     vigencia_hasta text NOT NULL,
     search_vector tsvector
+);
+
+
+--
+-- Name: materiales_peligrosos; Type: TABLE; Schema: sat; Owner: -
+--
+
+CREATE TABLE sat.materiales_peligrosos (
+    id bigint NOT NULL,
+    clave_material_peligroso_sat character varying(20) NOT NULL,
+    descripcion text NOT NULL,
+    clase_division character varying(50),
+    peligro_secundario text,
+    nombre_tecnico text,
+    fecha_inicio_vigencia date,
+    fecha_fin_vigencia date
+);
+
+
+--
+-- Name: materiales_peligrosos_id_seq; Type: SEQUENCE; Schema: sat; Owner: -
+--
+
+ALTER TABLE sat.materiales_peligrosos ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME sat.materiales_peligrosos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 
@@ -11349,6 +11875,18 @@ CREATE TABLE sat.reglas_tasa_cuota (
 
 
 --
+-- Name: subtipos_remolque; Type: TABLE; Schema: sat; Owner: -
+--
+
+CREATE TABLE sat.subtipos_remolque (
+    clave_subtipo_remolque_sat character varying(20) NOT NULL,
+    descripcion text NOT NULL,
+    fecha_inicio_vigencia date,
+    fecha_fin_vigencia date
+);
+
+
+--
 -- Name: tipos_comprobantes; Type: TABLE; Schema: sat; Owner: -
 --
 
@@ -11362,6 +11900,18 @@ CREATE TABLE sat.tipos_comprobantes (
 
 
 --
+-- Name: tipos_embalaje; Type: TABLE; Schema: sat; Owner: -
+--
+
+CREATE TABLE sat.tipos_embalaje (
+    clave_tipo_embalaje_sat character varying(20) NOT NULL,
+    descripcion text NOT NULL,
+    fecha_inicio_vigencia date,
+    fecha_fin_vigencia date
+);
+
+
+--
 -- Name: tipos_factores; Type: TABLE; Schema: sat; Owner: -
 --
 
@@ -11369,6 +11919,19 @@ CREATE TABLE sat.tipos_factores (
     id text NOT NULL,
     vigencia_desde text NOT NULL,
     vigencia_hasta text NOT NULL
+);
+
+
+--
+-- Name: tipos_permiso; Type: TABLE; Schema: sat; Owner: -
+--
+
+CREATE TABLE sat.tipos_permiso (
+    clave_tipo_permiso_sat character varying(20) NOT NULL,
+    descripcion text NOT NULL,
+    clave_transporte character varying(20),
+    fecha_inicio_vigencia date,
+    fecha_fin_vigencia date
 );
 
 
@@ -11428,6 +11991,409 @@ CREATE TABLE sat.usos_cfdi (
     vigencia_desde text NOT NULL,
     vigencia_hasta text NOT NULL,
     regimenes_fiscales_receptores text NOT NULL
+);
+
+
+--
+-- Name: cartas_porte; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.cartas_porte (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    viaje_id bigint NOT NULL,
+    documento_id integer,
+    version character varying(10) DEFAULT '3.1'::character varying NOT NULL,
+    id_ccp character varying(36),
+    estatus character varying(30) DEFAULT 'borrador'::character varying NOT NULL,
+    snapshot_json jsonb NOT NULL,
+    validado_at timestamp with time zone,
+    timbrado_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_transporte_cartas_porte_snapshot CHECK ((jsonb_typeof(snapshot_json) = 'object'::text)),
+    CONSTRAINT ck_transporte_cartas_porte_version CHECK (((version)::text = '3.1'::text))
+);
+
+
+--
+-- Name: TABLE cartas_porte; Type: COMMENT; Schema: transporte; Owner: -
+--
+
+COMMENT ON TABLE transporte.cartas_porte IS 'Materialización fiscal inmutable preparada para Carta Porte; el XML timbrado permanece en public.documentos_cfdi.';
+
+
+--
+-- Name: COLUMN cartas_porte.snapshot_json; Type: COMMENT; Schema: transporte; Owner: -
+--
+
+COMMENT ON COLUMN transporte.cartas_porte.snapshot_json IS 'Objeto fiscal exacto que posteriormente se enviará como complemento a Facturama.';
+
+
+--
+-- Name: cartas_porte_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.cartas_porte ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.cartas_porte_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: operadores; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.operadores (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    contacto_id integer NOT NULL,
+    numero_licencia character varying(50) NOT NULL,
+    tipo_licencia character varying(30),
+    vigencia_licencia date,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_transporte_operadores_licencia CHECK ((btrim((numero_licencia)::text) <> ''::text))
+);
+
+
+--
+-- Name: operadores_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.operadores ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.operadores_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: remolques; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.remolques (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    clave_interna character varying(50) NOT NULL,
+    subtipo_remolque_sat character varying(20),
+    placas character varying(20) NOT NULL,
+    propietario_contacto_id integer,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_transporte_remolques_clave CHECK ((btrim((clave_interna)::text) <> ''::text)),
+    CONSTRAINT ck_transporte_remolques_placas CHECK ((btrim((placas)::text) <> ''::text))
+);
+
+
+--
+-- Name: remolques_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.remolques ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.remolques_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: vehiculos; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.vehiculos (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    clave_interna character varying(50) NOT NULL,
+    placas character varying(20) NOT NULL,
+    configuracion_vehicular_sat character varying(20),
+    peso_bruto_vehicular numeric(14,3),
+    tipo_permiso_sict character varying(20),
+    numero_permiso_sict character varying(50),
+    aseguradora_responsabilidad_civil character varying(200),
+    poliza_responsabilidad_civil character varying(100),
+    aseguradora_medio_ambiente character varying(200),
+    poliza_medio_ambiente character varying(100),
+    aseguradora_carga character varying(200),
+    poliza_carga character varying(100),
+    modelo_anio smallint,
+    propietario_contacto_id integer,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    remolque_predeterminado_id bigint,
+    CONSTRAINT ck_transporte_vehiculos_clave CHECK ((btrim((clave_interna)::text) <> ''::text)),
+    CONSTRAINT ck_transporte_vehiculos_modelo CHECK (((modelo_anio IS NULL) OR ((modelo_anio >= 1900) AND (modelo_anio <= 2200)))),
+    CONSTRAINT ck_transporte_vehiculos_peso CHECK (((peso_bruto_vehicular IS NULL) OR (peso_bruto_vehicular > (0)::numeric))),
+    CONSTRAINT ck_transporte_vehiculos_placas CHECK ((btrim((placas)::text) <> ''::text))
+);
+
+
+--
+-- Name: vehiculos_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.vehiculos ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.vehiculos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: viaje_documentos; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.viaje_documentos (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    viaje_id bigint NOT NULL,
+    documento_id integer NOT NULL,
+    tipo_relacion character varying(30) DEFAULT 'factura_servicio'::character varying NOT NULL,
+    principal boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_transporte_viaje_documentos_tipo CHECK (((tipo_relacion)::text = 'factura_servicio'::text))
+);
+
+
+--
+-- Name: viaje_documentos_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.viaje_documentos ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.viaje_documentos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: viaje_figuras; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.viaje_figuras (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    viaje_id bigint NOT NULL,
+    tipo_figura character varying(30) DEFAULT 'operador'::character varying NOT NULL,
+    operador_id bigint,
+    contacto_id integer,
+    secuencia integer NOT NULL,
+    datos_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_transporte_viaje_figuras_secuencia CHECK ((secuencia > 0)),
+    CONSTRAINT ck_transporte_viaje_figuras_snapshot CHECK ((jsonb_typeof(datos_snapshot) = 'object'::text))
+);
+
+
+--
+-- Name: viaje_figuras_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.viaje_figuras ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.viaje_figuras_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: viaje_mercancias; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.viaje_mercancias (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    viaje_id bigint NOT NULL,
+    descripcion_snapshot character varying(250) NOT NULL,
+    clave_bienes_transportados_sat character varying(20),
+    clave_unidad_sat character varying(10),
+    unidad_descripcion character varying(100),
+    cantidad numeric(18,6) NOT NULL,
+    peso_kg numeric(18,3) NOT NULL,
+    valor_mercancia numeric(18,2),
+    material_peligroso boolean DEFAULT false NOT NULL,
+    clave_material_peligroso character varying(20),
+    embalaje character varying(20),
+    descripcion_embalaje character varying(100),
+    origen_viaje_ubicacion_id bigint,
+    destino_viaje_ubicacion_id bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    producto_id integer,
+    CONSTRAINT ck_transporte_viaje_mercancias_cantidad CHECK ((cantidad > (0)::numeric)),
+    CONSTRAINT ck_transporte_viaje_mercancias_descripcion CHECK ((btrim((descripcion_snapshot)::text) <> ''::text)),
+    CONSTRAINT ck_transporte_viaje_mercancias_peso CHECK ((peso_kg > (0)::numeric)),
+    CONSTRAINT ck_transporte_viaje_mercancias_valor CHECK (((valor_mercancia IS NULL) OR (valor_mercancia >= (0)::numeric)))
+);
+
+
+--
+-- Name: TABLE viaje_mercancias; Type: COMMENT; Schema: transporte; Owner: -
+--
+
+COMMENT ON TABLE transporte.viaje_mercancias IS 'Mercancías transportadas con datos fiscales y operativos congelados por viaje.';
+
+
+--
+-- Name: COLUMN viaje_mercancias.producto_id; Type: COMMENT; Schema: transporte; Owner: -
+--
+
+COMMENT ON COLUMN transporte.viaje_mercancias.producto_id IS 'Producto maestro de la mercancía; NULL permite mercancía libre excepcional.';
+
+
+--
+-- Name: viaje_mercancias_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.viaje_mercancias ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.viaje_mercancias_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: viaje_remolques; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.viaje_remolques (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    viaje_id bigint NOT NULL,
+    remolque_id bigint NOT NULL,
+    orden integer NOT NULL,
+    datos_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_transporte_viaje_remolques_orden CHECK ((orden > 0)),
+    CONSTRAINT ck_transporte_viaje_remolques_snapshot CHECK ((jsonb_typeof(datos_snapshot) = 'object'::text))
+);
+
+
+--
+-- Name: viaje_remolques_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.viaje_remolques ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.viaje_remolques_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: viaje_ubicaciones; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.viaje_ubicaciones (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    viaje_id bigint NOT NULL,
+    tipo character varying(20) NOT NULL,
+    secuencia integer NOT NULL,
+    remitente_destinatario_nombre character varying(200) NOT NULL,
+    remitente_destinatario_rfc character varying(13),
+    fecha_hora_programada timestamp with time zone NOT NULL,
+    fecha_hora_real timestamp with time zone,
+    distancia_recorrida numeric(14,3),
+    domicilio_snapshot jsonb NOT NULL,
+    coordenadas_snapshot jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    domicilio_id integer,
+    CONSTRAINT ck_transporte_viaje_ubicaciones_coordenadas CHECK (((coordenadas_snapshot IS NULL) OR (jsonb_typeof(coordenadas_snapshot) = 'object'::text))),
+    CONSTRAINT ck_transporte_viaje_ubicaciones_distancia CHECK (((distancia_recorrida IS NULL) OR (distancia_recorrida >= (0)::numeric))),
+    CONSTRAINT ck_transporte_viaje_ubicaciones_domicilio CHECK ((jsonb_typeof(domicilio_snapshot) = 'object'::text)),
+    CONSTRAINT ck_transporte_viaje_ubicaciones_nombre CHECK ((btrim((remitente_destinatario_nombre)::text) <> ''::text)),
+    CONSTRAINT ck_transporte_viaje_ubicaciones_secuencia CHECK ((secuencia > 0)),
+    CONSTRAINT ck_transporte_viaje_ubicaciones_tipo CHECK (((tipo)::text = ANY ((ARRAY['origen'::character varying, 'destino'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE viaje_ubicaciones; Type: COMMENT; Schema: transporte; Owner: -
+--
+
+COMMENT ON TABLE transporte.viaje_ubicaciones IS 'Paradas de un viaje con snapshot histórico del domicilio utilizado.';
+
+
+--
+-- Name: viaje_ubicaciones_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.viaje_ubicaciones ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.viaje_ubicaciones_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: viajes; Type: TABLE; Schema: transporte; Owner: -
+--
+
+CREATE TABLE transporte.viajes (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    folio_interno character varying(50) NOT NULL,
+    cliente_contacto_id integer NOT NULL,
+    estatus character varying(30) DEFAULT 'borrador'::character varying NOT NULL,
+    fecha_programada timestamp with time zone,
+    fecha_inicio timestamp with time zone,
+    fecha_fin timestamp with time zone,
+    vehiculo_id bigint,
+    referencia_cliente character varying(100),
+    observaciones text,
+    creado_por integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_transporte_viajes_estatus CHECK (((estatus)::text = ANY ((ARRAY['borrador'::character varying, 'listo_para_validar'::character varying, 'validado'::character varying, 'timbrado'::character varying, 'cancelado'::character varying])::text[]))),
+    CONSTRAINT ck_transporte_viajes_fechas CHECK (((fecha_inicio IS NULL) OR (fecha_fin IS NULL) OR (fecha_fin >= fecha_inicio))),
+    CONSTRAINT ck_transporte_viajes_folio CHECK ((btrim((folio_interno)::text) <> ''::text))
+);
+
+
+--
+-- Name: viajes_id_seq; Type: SEQUENCE; Schema: transporte; Owner: -
+--
+
+ALTER TABLE transporte.viajes ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME transporte.viajes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 
@@ -12288,6 +13254,20 @@ ALTER TABLE ONLY crm.oportunidades_venta ALTER COLUMN id SET DEFAULT nextval('cr
 
 
 --
+-- Name: adjuntos id; Type: DEFAULT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos ALTER COLUMN id SET DEFAULT nextval('documentacion.adjuntos_id_seq'::regclass);
+
+
+--
+-- Name: documentos_empresa_tipos id; Type: DEFAULT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.documentos_empresa_tipos ALTER COLUMN id SET DEFAULT nextval('documentacion.documentos_empresa_tipos_id_seq'::regclass);
+
+
+--
 -- Name: existencias id; Type: DEFAULT; Schema: inventario; Owner: -
 --
 
@@ -12738,19 +13718,19 @@ ALTER TABLE ONLY compass.tareas
 
 
 --
--- Name: actividades uq_actividades_empresa_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+-- Name: actividades uq_actividades_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
 --
 
 ALTER TABLE ONLY compass.actividades
-    ADD CONSTRAINT uq_actividades_empresa_usuario_id UNIQUE (empresa_id, usuario_id, id);
+    ADD CONSTRAINT uq_actividades_usuario_id UNIQUE (usuario_id, id);
 
 
 --
--- Name: frentes uq_frentes_empresa_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+-- Name: frentes uq_frentes_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
 --
 
 ALTER TABLE ONLY compass.frentes
-    ADD CONSTRAINT uq_frentes_empresa_usuario_id UNIQUE (empresa_id, usuario_id, id);
+    ADD CONSTRAINT uq_frentes_usuario_id UNIQUE (usuario_id, id);
 
 
 --
@@ -12758,7 +13738,15 @@ ALTER TABLE ONLY compass.frentes
 --
 
 ALTER TABLE ONLY compass.intenciones_semanales
-    ADD CONSTRAINT uq_intencion_frente_semana UNIQUE (empresa_id, usuario_id, frente_id, semana_inicio);
+    ADD CONSTRAINT uq_intencion_frente_semana UNIQUE (usuario_id, frente_id, semana_inicio);
+
+
+--
+-- Name: intenciones_semanales uq_intenciones_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.intenciones_semanales
+    ADD CONSTRAINT uq_intenciones_usuario_id UNIQUE (usuario_id, id);
 
 
 --
@@ -12766,7 +13754,7 @@ ALTER TABLE ONLY compass.intenciones_semanales
 --
 
 ALTER TABLE ONLY compass.revisiones_frente
-    ADD CONSTRAINT uq_revision_frente UNIQUE (empresa_id, usuario_id, revision_semanal_id, frente_id);
+    ADD CONSTRAINT uq_revision_frente UNIQUE (usuario_id, revision_semanal_id, frente_id);
 
 
 --
@@ -12774,23 +13762,23 @@ ALTER TABLE ONLY compass.revisiones_frente
 --
 
 ALTER TABLE ONLY compass.revisiones_semanales
-    ADD CONSTRAINT uq_revision_semana UNIQUE (empresa_id, usuario_id, semana_inicio);
+    ADD CONSTRAINT uq_revision_semana UNIQUE (usuario_id, semana_inicio);
 
 
 --
--- Name: revisiones_semanales uq_revisiones_empresa_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+-- Name: revisiones_semanales uq_revisiones_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
 --
 
 ALTER TABLE ONLY compass.revisiones_semanales
-    ADD CONSTRAINT uq_revisiones_empresa_usuario_id UNIQUE (empresa_id, usuario_id, id);
+    ADD CONSTRAINT uq_revisiones_usuario_id UNIQUE (usuario_id, id);
 
 
 --
--- Name: tareas uq_tareas_empresa_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
+-- Name: tareas uq_tareas_usuario_id; Type: CONSTRAINT; Schema: compass; Owner: -
 --
 
 ALTER TABLE ONLY compass.tareas
-    ADD CONSTRAINT uq_tareas_empresa_usuario_id UNIQUE (empresa_id, usuario_id, id);
+    ADD CONSTRAINT uq_tareas_usuario_id UNIQUE (usuario_id, id);
 
 
 --
@@ -13160,6 +14148,14 @@ ALTER TABLE ONLY core.empresas_assets
 
 
 --
+-- Name: empresas_cfdi_pac_config empresas_cfdi_pac_config_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_cfdi_pac_config
+    ADD CONSTRAINT empresas_cfdi_pac_config_pkey PRIMARY KEY (empresa_id);
+
+
+--
 -- Name: empresas_impuestos_default empresas_impuestos_default_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -13471,6 +14467,22 @@ ALTER TABLE ONLY crm.conversacion_etiquetas
 
 
 --
+-- Name: conversaciones_lecturas_config conversaciones_lecturas_config_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversaciones_lecturas_config
+    ADD CONSTRAINT conversaciones_lecturas_config_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: conversaciones_lecturas conversaciones_lecturas_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversaciones_lecturas
+    ADD CONSTRAINT conversaciones_lecturas_pkey PRIMARY KEY (empresa_id, usuario_id, conversacion_id);
+
+
+--
 -- Name: conversaciones conversaciones_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
 --
 
@@ -13551,6 +14563,30 @@ ALTER TABLE ONLY crm.conversacion_etiquetas
 
 
 --
+-- Name: adjuntos adjuntos_pkey; Type: CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos
+    ADD CONSTRAINT adjuntos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: documentos_empresa_tipos documentos_empresa_tipos_nombre_key; Type: CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.documentos_empresa_tipos
+    ADD CONSTRAINT documentos_empresa_tipos_nombre_key UNIQUE (nombre);
+
+
+--
+-- Name: documentos_empresa_tipos documentos_empresa_tipos_pkey; Type: CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.documentos_empresa_tipos
+    ADD CONSTRAINT documentos_empresa_tipos_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: existencias existencias_pkey; Type: CONSTRAINT; Schema: inventario; Owner: -
 --
 
@@ -13607,6 +14643,14 @@ ALTER TABLE ONLY migrate.clientes_legacy_supplier
 
 
 --
+-- Name: entidades_correspondencias pk_entidades_correspondencias; Type: CONSTRAINT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.entidades_correspondencias
+    ADD CONSTRAINT pk_entidades_correspondencias PRIMARY KEY (sistema_origen, tipo_entidad, id_origen, empresa_destino_id);
+
+
+--
 -- Name: productos_legacy_supplier pk_productos_legacy_supplier; Type: CONSTRAINT; Schema: migrate; Owner: -
 --
 
@@ -13620,6 +14664,14 @@ ALTER TABLE ONLY migrate.productos_legacy_supplier
 
 ALTER TABLE ONLY migrate.productos_legacy_supplier_json
     ADD CONSTRAINT productos_legacy_supplier_json_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: entidades_correspondencias uq_entidades_correspondencias_destino; Type: CONSTRAINT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.entidades_correspondencias
+    ADD CONSTRAINT uq_entidades_correspondencias_destino UNIQUE (sistema_origen, tipo_entidad, empresa_destino_id, id_destino);
 
 
 --
@@ -13711,6 +14763,38 @@ ALTER TABLE ONLY public.contactos_datos_fiscales
 
 
 --
+-- Name: contactos_documentacion contactos_documentacion_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_documentacion
+    ADD CONSTRAINT contactos_documentacion_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contactos_documentacion contactos_documentacion_storage_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_documentacion
+    ADD CONSTRAINT contactos_documentacion_storage_key_key UNIQUE (storage_key);
+
+
+--
+-- Name: contactos_documentacion_tipos contactos_documentacion_tipos_nombre_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_documentacion_tipos
+    ADD CONSTRAINT contactos_documentacion_tipos_nombre_key UNIQUE (nombre);
+
+
+--
+-- Name: contactos_documentacion_tipos contactos_documentacion_tipos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_documentacion_tipos
+    ADD CONSTRAINT contactos_documentacion_tipos_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: contactos_domicilios contactos_domicilios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13724,6 +14808,14 @@ ALTER TABLE ONLY public.contactos_domicilios
 
 ALTER TABLE ONLY public.contactos
     ADD CONSTRAINT contactos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contactos_roles_catalogo contactos_roles_catalogo_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_roles_catalogo
+    ADD CONSTRAINT contactos_roles_catalogo_pkey PRIMARY KEY (rol);
 
 
 --
@@ -13951,6 +15043,38 @@ ALTER TABLE ONLY public.credito_operaciones_items
 
 
 --
+-- Name: operaciones_entregas_partidas operaciones_entregas_partidas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas_partidas
+    ADD CONSTRAINT operaciones_entregas_partidas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: operaciones_entregas_partidas operaciones_entregas_partidas_uq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas_partidas
+    ADD CONSTRAINT operaciones_entregas_partidas_uq UNIQUE (entrega_id, partida_id);
+
+
+--
+-- Name: operaciones_entregas operaciones_entregas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas
+    ADD CONSTRAINT operaciones_entregas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contactos_roles pk_contactos_roles; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_roles
+    ADD CONSTRAINT pk_contactos_roles PRIMARY KEY (contacto_id, rol);
+
+
+--
 -- Name: plantillas_documento plantillas_documento_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14031,6 +15155,14 @@ ALTER TABLE ONLY public.unidades
 
 
 --
+-- Name: contactos uq_contactos_empresa_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos
+    ADD CONSTRAINT uq_contactos_empresa_id UNIQUE (empresa_id, id);
+
+
+--
 -- Name: crm_ruteo_leads uq_crl_empresa_origen; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14084,6 +15216,14 @@ ALTER TABLE ONLY public.finanzas_metodos_pago
 
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT uq_productos_empresa_clave UNIQUE (empresa_id, clave);
+
+
+--
+-- Name: productos_impuestos uq_productos_impuestos_producto_impuesto; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos_impuestos
+    ADD CONSTRAINT uq_productos_impuestos_producto_impuesto UNIQUE (producto_id, impuesto_id);
 
 
 --
@@ -14159,6 +15299,14 @@ ALTER TABLE ONLY sat.aduanas
 
 
 --
+-- Name: bienes_transportados bienes_transportados_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.bienes_transportados
+    ADD CONSTRAINT bienes_transportados_pkey PRIMARY KEY (clave_prod_serv_cp);
+
+
+--
 -- Name: claves_unidades claves_unidades_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
 --
 
@@ -14199,6 +15347,14 @@ ALTER TABLE ONLY sat.colonias
 
 
 --
+-- Name: configuraciones_autotransporte configuraciones_autotransporte_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.configuraciones_autotransporte
+    ADD CONSTRAINT configuraciones_autotransporte_pkey PRIMARY KEY (clave_config_autotransporte_sat);
+
+
+--
 -- Name: estados estados_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
 --
 
@@ -14212,6 +15368,14 @@ ALTER TABLE ONLY sat.estados
 
 ALTER TABLE ONLY sat.exportaciones
     ADD CONSTRAINT exportaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: figuras_transporte figuras_transporte_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.figuras_transporte
+    ADD CONSTRAINT figuras_transporte_pkey PRIMARY KEY (clave_figura_transporte_sat);
 
 
 --
@@ -14236,6 +15400,14 @@ ALTER TABLE ONLY sat.impuestos
 
 ALTER TABLE ONLY sat.localidades
     ADD CONSTRAINT localidades_pkey PRIMARY KEY (estado, localidad);
+
+
+--
+-- Name: materiales_peligrosos materiales_peligrosos_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.materiales_peligrosos
+    ADD CONSTRAINT materiales_peligrosos_pkey PRIMARY KEY (id);
 
 
 --
@@ -14335,6 +15507,14 @@ ALTER TABLE ONLY sat.reglas_tasa_cuota
 
 
 --
+-- Name: subtipos_remolque subtipos_remolque_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.subtipos_remolque
+    ADD CONSTRAINT subtipos_remolque_pkey PRIMARY KEY (clave_subtipo_remolque_sat);
+
+
+--
 -- Name: tipos_comprobantes tipos_comprobantes_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
 --
 
@@ -14343,11 +15523,27 @@ ALTER TABLE ONLY sat.tipos_comprobantes
 
 
 --
+-- Name: tipos_embalaje tipos_embalaje_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.tipos_embalaje
+    ADD CONSTRAINT tipos_embalaje_pkey PRIMARY KEY (clave_tipo_embalaje_sat);
+
+
+--
 -- Name: tipos_factores tipos_factores_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
 --
 
 ALTER TABLE ONLY sat.tipos_factores
     ADD CONSTRAINT tipos_factores_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tipos_permiso tipos_permiso_pkey; Type: CONSTRAINT; Schema: sat; Owner: -
+--
+
+ALTER TABLE ONLY sat.tipos_permiso
+    ADD CONSTRAINT tipos_permiso_pkey PRIMARY KEY (clave_tipo_permiso_sat);
 
 
 --
@@ -14395,6 +15591,238 @@ COMMENT ON CONSTRAINT uq_codigos_agrupadores_codigo ON sat.codigos_agrupadores I
 
 ALTER TABLE ONLY sat.usos_cfdi
     ADD CONSTRAINT usos_cfdi_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cartas_porte cartas_porte_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.cartas_porte
+    ADD CONSTRAINT cartas_porte_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: operadores operadores_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.operadores
+    ADD CONSTRAINT operadores_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: remolques remolques_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.remolques
+    ADD CONSTRAINT remolques_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cartas_porte uq_transporte_cartas_porte_viaje_documento; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.cartas_porte
+    ADD CONSTRAINT uq_transporte_cartas_porte_viaje_documento UNIQUE (viaje_id, documento_id);
+
+
+--
+-- Name: operadores uq_transporte_operadores_empresa_contacto; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.operadores
+    ADD CONSTRAINT uq_transporte_operadores_empresa_contacto UNIQUE (empresa_id, contacto_id);
+
+
+--
+-- Name: operadores uq_transporte_operadores_empresa_id; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.operadores
+    ADD CONSTRAINT uq_transporte_operadores_empresa_id UNIQUE (empresa_id, id);
+
+
+--
+-- Name: remolques uq_transporte_remolques_empresa_clave; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.remolques
+    ADD CONSTRAINT uq_transporte_remolques_empresa_clave UNIQUE (empresa_id, clave_interna);
+
+
+--
+-- Name: remolques uq_transporte_remolques_empresa_id; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.remolques
+    ADD CONSTRAINT uq_transporte_remolques_empresa_id UNIQUE (empresa_id, id);
+
+
+--
+-- Name: remolques uq_transporte_remolques_empresa_placas; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.remolques
+    ADD CONSTRAINT uq_transporte_remolques_empresa_placas UNIQUE (empresa_id, placas);
+
+
+--
+-- Name: vehiculos uq_transporte_vehiculos_empresa_clave; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.vehiculos
+    ADD CONSTRAINT uq_transporte_vehiculos_empresa_clave UNIQUE (empresa_id, clave_interna);
+
+
+--
+-- Name: vehiculos uq_transporte_vehiculos_empresa_id; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.vehiculos
+    ADD CONSTRAINT uq_transporte_vehiculos_empresa_id UNIQUE (empresa_id, id);
+
+
+--
+-- Name: vehiculos uq_transporte_vehiculos_empresa_placas; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.vehiculos
+    ADD CONSTRAINT uq_transporte_vehiculos_empresa_placas UNIQUE (empresa_id, placas);
+
+
+--
+-- Name: viaje_documentos uq_transporte_viaje_documentos_relacion; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_documentos
+    ADD CONSTRAINT uq_transporte_viaje_documentos_relacion UNIQUE (viaje_id, documento_id, tipo_relacion);
+
+
+--
+-- Name: viaje_figuras uq_transporte_viaje_figuras_secuencia; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_figuras
+    ADD CONSTRAINT uq_transporte_viaje_figuras_secuencia UNIQUE (viaje_id, tipo_figura, secuencia);
+
+
+--
+-- Name: viaje_remolques uq_transporte_viaje_remolques_orden; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_remolques
+    ADD CONSTRAINT uq_transporte_viaje_remolques_orden UNIQUE (viaje_id, orden);
+
+
+--
+-- Name: viaje_remolques uq_transporte_viaje_remolques_remolque; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_remolques
+    ADD CONSTRAINT uq_transporte_viaje_remolques_remolque UNIQUE (viaje_id, remolque_id);
+
+
+--
+-- Name: viaje_ubicaciones uq_transporte_viaje_ubicaciones_empresa_viaje_id; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_ubicaciones
+    ADD CONSTRAINT uq_transporte_viaje_ubicaciones_empresa_viaje_id UNIQUE (empresa_id, viaje_id, id);
+
+
+--
+-- Name: viaje_ubicaciones uq_transporte_viaje_ubicaciones_secuencia; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_ubicaciones
+    ADD CONSTRAINT uq_transporte_viaje_ubicaciones_secuencia UNIQUE (viaje_id, secuencia);
+
+
+--
+-- Name: viaje_ubicaciones uq_transporte_viaje_ubicaciones_viaje_id; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_ubicaciones
+    ADD CONSTRAINT uq_transporte_viaje_ubicaciones_viaje_id UNIQUE (viaje_id, id);
+
+
+--
+-- Name: viajes uq_transporte_viajes_empresa_folio; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viajes
+    ADD CONSTRAINT uq_transporte_viajes_empresa_folio UNIQUE (empresa_id, folio_interno);
+
+
+--
+-- Name: viajes uq_transporte_viajes_empresa_id; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viajes
+    ADD CONSTRAINT uq_transporte_viajes_empresa_id UNIQUE (empresa_id, id);
+
+
+--
+-- Name: viaje_figuras uq_viaje_figuras_viaje_contacto; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_figuras
+    ADD CONSTRAINT uq_viaje_figuras_viaje_contacto UNIQUE (empresa_id, viaje_id, contacto_id);
+
+
+--
+-- Name: vehiculos vehiculos_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.vehiculos
+    ADD CONSTRAINT vehiculos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: viaje_documentos viaje_documentos_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_documentos
+    ADD CONSTRAINT viaje_documentos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: viaje_figuras viaje_figuras_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_figuras
+    ADD CONSTRAINT viaje_figuras_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: viaje_mercancias viaje_mercancias_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_mercancias
+    ADD CONSTRAINT viaje_mercancias_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: viaje_remolques viaje_remolques_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_remolques
+    ADD CONSTRAINT viaje_remolques_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: viaje_ubicaciones viaje_ubicaciones_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_ubicaciones
+    ADD CONSTRAINT viaje_ubicaciones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: viajes viajes_pkey; Type: CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viajes
+    ADD CONSTRAINT viajes_pkey PRIMARY KEY (id);
 
 
 --
@@ -14454,87 +15882,150 @@ ALTER TABLE ONLY whatsapp.plantillas
 
 
 --
+-- Name: ix_actividades_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_actividades_empresa ON compass.actividades USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
+
+
+--
 -- Name: ix_actividades_frente_inicio; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_actividades_frente_inicio ON compass.actividades USING btree (empresa_id, usuario_id, frente_id, inicio_programado);
+CREATE INDEX ix_actividades_frente_inicio ON compass.actividades USING btree (usuario_id, frente_id, inicio_programado);
 
 
 --
 -- Name: ix_actividades_inicio; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_actividades_inicio ON compass.actividades USING btree (empresa_id, usuario_id, inicio_programado);
+CREATE INDEX ix_actividades_inicio ON compass.actividades USING btree (usuario_id, inicio_programado);
 
 
 --
 -- Name: ix_actividades_tarea; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_actividades_tarea ON compass.actividades USING btree (empresa_id, usuario_id, tarea_id) WHERE (tarea_id IS NOT NULL);
+CREATE INDEX ix_actividades_tarea ON compass.actividades USING btree (usuario_id, tarea_id) WHERE (tarea_id IS NOT NULL);
+
+
+--
+-- Name: ix_capturas_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_capturas_empresa ON compass.capturas USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
 
 
 --
 -- Name: ix_capturas_pendientes; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_capturas_pendientes ON compass.capturas USING btree (empresa_id, usuario_id, captured_at) WHERE ((estado)::text = 'pendiente'::text);
+CREATE INDEX ix_capturas_pendientes ON compass.capturas USING btree (usuario_id, captured_at) WHERE ((estado)::text = 'pendiente'::text);
+
+
+--
+-- Name: ix_decisiones_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_decisiones_empresa ON compass.decisiones USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
 
 
 --
 -- Name: ix_decisiones_frente_fecha; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_decisiones_frente_fecha ON compass.decisiones USING btree (empresa_id, usuario_id, frente_id, fecha_decision);
+CREATE INDEX ix_decisiones_frente_fecha ON compass.decisiones USING btree (usuario_id, frente_id, fecha_decision);
+
+
+--
+-- Name: ix_frentes_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_frentes_empresa ON compass.frentes USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
 
 
 --
 -- Name: ix_frentes_usuario_estado; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_frentes_usuario_estado ON compass.frentes USING btree (empresa_id, usuario_id, estado);
+CREATE INDEX ix_frentes_usuario_estado ON compass.frentes USING btree (usuario_id, estado);
 
 
 --
 -- Name: ix_ideas_activas; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_ideas_activas ON compass.ideas USING btree (empresa_id, usuario_id, created_at) WHERE ((estado)::text = 'activa'::text);
+CREATE INDEX ix_ideas_activas ON compass.ideas USING btree (usuario_id, created_at) WHERE ((estado)::text = 'activa'::text);
+
+
+--
+-- Name: ix_ideas_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_ideas_empresa ON compass.ideas USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
+
+
+--
+-- Name: ix_intenciones_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_intenciones_empresa ON compass.intenciones_semanales USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
 
 
 --
 -- Name: ix_intenciones_semana; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_intenciones_semana ON compass.intenciones_semanales USING btree (empresa_id, usuario_id, semana_inicio);
+CREATE INDEX ix_intenciones_semana ON compass.intenciones_semanales USING btree (usuario_id, semana_inicio);
+
+
+--
+-- Name: ix_revisiones_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_revisiones_empresa ON compass.revisiones_semanales USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
+
+
+--
+-- Name: ix_revisiones_frente_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_revisiones_frente_empresa ON compass.revisiones_frente USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
 
 
 --
 -- Name: ix_revisiones_semana; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_revisiones_semana ON compass.revisiones_semanales USING btree (empresa_id, usuario_id, semana_inicio);
+CREATE INDEX ix_revisiones_semana ON compass.revisiones_semanales USING btree (usuario_id, semana_inicio);
+
+
+--
+-- Name: ix_tareas_empresa; Type: INDEX; Schema: compass; Owner: -
+--
+
+CREATE INDEX ix_tareas_empresa ON compass.tareas USING btree (empresa_id) WHERE (empresa_id IS NOT NULL);
 
 
 --
 -- Name: ix_tareas_fecha_limite; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_tareas_fecha_limite ON compass.tareas USING btree (empresa_id, usuario_id, fecha_limite) WHERE (fecha_limite IS NOT NULL);
+CREATE INDEX ix_tareas_fecha_limite ON compass.tareas USING btree (usuario_id, fecha_limite) WHERE (fecha_limite IS NOT NULL);
 
 
 --
 -- Name: ix_tareas_frente_estado; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE INDEX ix_tareas_frente_estado ON compass.tareas USING btree (empresa_id, usuario_id, frente_id, estado);
+CREATE INDEX ix_tareas_frente_estado ON compass.tareas USING btree (usuario_id, frente_id, estado);
 
 
 --
 -- Name: uq_tareas_siguiente_accion_frente; Type: INDEX; Schema: compass; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_tareas_siguiente_accion_frente ON compass.tareas USING btree (empresa_id, usuario_id, frente_id) WHERE (es_siguiente_accion = true);
+CREATE UNIQUE INDEX uq_tareas_siguiente_accion_frente ON compass.tareas USING btree (usuario_id, frente_id) WHERE (es_siguiente_accion = true);
 
 
 --
@@ -15329,6 +16820,13 @@ CREATE INDEX ix_cfdi_sat_solicitudes_empresa ON core.cfdi_sat_solicitudes USING 
 
 
 --
+-- Name: ix_empresas_cfdi_pac_config_id; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_empresas_cfdi_pac_config_id ON core.empresas_cfdi_pac_config USING btree (cfdi_pac_config_id, empresa_id);
+
+
+--
 -- Name: ux_campos_configuracion_empresa_proposito_sistema; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -15357,10 +16855,10 @@ COMMENT ON INDEX core.ux_catalogos_tipos_empresa_nombre IS 'Evita duplicar nombr
 
 
 --
--- Name: ux_cfdi_pac_config_activo_modo; Type: INDEX; Schema: core; Owner: -
+-- Name: ux_cfdi_pac_config_activo_pac_modo; Type: INDEX; Schema: core; Owner: -
 --
 
-CREATE UNIQUE INDEX ux_cfdi_pac_config_activo_modo ON core.cfdi_pac_config USING btree (modo) WHERE (activo = true);
+CREATE UNIQUE INDEX ux_cfdi_pac_config_activo_pac_modo ON core.cfdi_pac_config USING btree (pac, modo) WHERE (activo = true);
 
 
 --
@@ -15441,6 +16939,13 @@ CREATE INDEX ix_conv_empresa_estado ON crm.conversaciones USING btree (empresa_i
 
 
 --
+-- Name: ix_conv_lecturas_usuario_conv; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_conv_lecturas_usuario_conv ON crm.conversaciones_lecturas USING btree (empresa_id, usuario_id, conversacion_id);
+
+
+--
 -- Name: ix_mensaje_reacciones_mensaje_id; Type: INDEX; Schema: crm; Owner: -
 --
 
@@ -15469,6 +16974,13 @@ CREATE INDEX ix_mensajes_respuesta_id ON crm.mensajes USING btree (mensaje_respu
 
 
 --
+-- Name: ix_mensajes_unread_lookup; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_mensajes_unread_lookup ON crm.mensajes USING btree (empresa_id, conversacion_id, tipo_mensaje, fecha_envio);
+
+
+--
 -- Name: ux_crm_reglas_seguimiento_empresa_id; Type: INDEX; Schema: crm; Owner: -
 --
 
@@ -15494,6 +17006,34 @@ CREATE UNIQUE INDEX ux_whatsapp_etiquetas_empresa_nombre ON crm.etiquetas USING 
 --
 
 COMMENT ON INDEX crm.ux_whatsapp_etiquetas_empresa_nombre IS 'Evita duplicados de nombre de etiqueta por empresa (case-insensitive)';
+
+
+--
+-- Name: adjuntos_empresa_documento_idx; Type: INDEX; Schema: documentacion; Owner: -
+--
+
+CREATE INDEX adjuntos_empresa_documento_idx ON documentacion.adjuntos USING btree (empresa_id, documento_id);
+
+
+--
+-- Name: adjuntos_empresa_fecha_idx; Type: INDEX; Schema: documentacion; Owner: -
+--
+
+CREATE INDEX adjuntos_empresa_fecha_idx ON documentacion.adjuntos USING btree (empresa_id, fecha_subida DESC);
+
+
+--
+-- Name: adjuntos_empresa_tipo_idx; Type: INDEX; Schema: documentacion; Owner: -
+--
+
+CREATE INDEX adjuntos_empresa_tipo_idx ON documentacion.adjuntos USING btree (empresa_id, tipo_id);
+
+
+--
+-- Name: adjuntos_empresa_vigente_idx; Type: INDEX; Schema: documentacion; Owner: -
+--
+
+CREATE INDEX adjuntos_empresa_vigente_idx ON documentacion.adjuntos USING btree (empresa_id, vigente);
 
 
 --
@@ -15879,6 +17419,27 @@ CREATE INDEX idx_conceptos_orden ON public.conceptos USING btree (empresa_id, or
 --
 
 CREATE INDEX idx_conceptos_rubro_presupuesto ON public.conceptos USING btree (empresa_id, rubro_presupuesto_id);
+
+
+--
+-- Name: idx_contactos_documentacion_empresa_contacto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contactos_documentacion_empresa_contacto ON public.contactos_documentacion USING btree (empresa_id, contacto_id);
+
+
+--
+-- Name: idx_contactos_documentacion_tipo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contactos_documentacion_tipo ON public.contactos_documentacion USING btree (tipo_id);
+
+
+--
+-- Name: idx_contactos_documentacion_tipos_orden; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_contactos_documentacion_tipos_orden ON public.contactos_documentacion_tipos USING btree (activo, orden, nombre);
 
 
 --
@@ -16330,6 +17891,20 @@ CREATE INDEX idx_fo_concepto ON public.finanzas_operaciones USING btree (concept
 
 
 --
+-- Name: idx_operaciones_entregas_empresa_estado; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_operaciones_entregas_empresa_estado ON public.operaciones_entregas USING btree (empresa_id, estado);
+
+
+--
+-- Name: idx_operaciones_entregas_partidas_partida; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_operaciones_entregas_partidas_partida ON public.operaciones_entregas_partidas USING btree (partida_id);
+
+
+--
 -- Name: idx_partida_impuestos_partida; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16526,6 +18101,20 @@ CREATE INDEX idx_usuarios_series_documento_usuario ON public.usuarios_series_doc
 
 
 --
+-- Name: ix_cancelacion_intentos_pac_config; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_cancelacion_intentos_pac_config ON public.documentos_cancelacion_intentos USING btree (cfdi_pac_config_id) WHERE (cfdi_pac_config_id IS NOT NULL);
+
+
+--
+-- Name: ix_cfdi_intentos_pac_config; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_cfdi_intentos_pac_config ON public.cfdi_intentos_timbrado USING btree (cfdi_pac_config_id) WHERE (cfdi_pac_config_id IS NOT NULL);
+
+
+--
 -- Name: ix_contactos_codigo_legacy; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -16596,10 +18185,24 @@ CREATE INDEX ix_contactos_nombre ON public.contactos USING btree (nombre);
 
 
 --
+-- Name: ix_contactos_roles_rol_activo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contactos_roles_rol_activo ON public.contactos_roles USING btree (rol, contacto_id) WHERE (activo = true);
+
+
+--
 -- Name: ix_contactos_tipo; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ix_contactos_tipo ON public.contactos USING btree (tipo_contacto);
+
+
+--
+-- Name: ix_documentos_cfdi_pac_config; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_documentos_cfdi_pac_config ON public.documentos_cfdi USING btree (cfdi_pac_config_id) WHERE (cfdi_pac_config_id IS NOT NULL);
 
 
 --
@@ -16621,6 +18224,13 @@ CREATE INDEX ix_productos_pais_origen ON public.productos USING btree (pais_orig
 --
 
 CREATE INDEX ix_productos_proveedor_preferido ON public.productos USING btree (proveedor_preferido_id);
+
+
+--
+-- Name: ux_cd_empresa_identificador; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_cd_empresa_identificador ON public.contactos_domicilios USING btree (empresa_id, identificador) WHERE (empresa_id IS NOT NULL);
 
 
 --
@@ -16656,6 +18266,13 @@ CREATE UNIQUE INDEX ux_dci_solicitud_activa ON public.documentos_cancelacion_int
 --
 
 CREATE UNIQUE INDEX ux_documentos_empresa_uuid_cfdi_origen ON public.documentos USING btree (empresa_id, uuid_cfdi_origen) WHERE (uuid_cfdi_origen IS NOT NULL);
+
+
+--
+-- Name: ux_empresas_domicilios_principal; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_empresas_domicilios_principal ON public.contactos_domicilios USING btree (empresa_id) WHERE ((empresa_id IS NOT NULL) AND (es_principal = true));
 
 
 --
@@ -16712,6 +18329,27 @@ CREATE UNIQUE INDEX ux_precios_listas_empresa_tipo_nombre ON public.precios_list
 --
 
 CREATE UNIQUE INDEX ux_roles_nombre ON public.roles USING btree (nombre);
+
+
+--
+-- Name: bienes_transportados_descripcion_idx; Type: INDEX; Schema: sat; Owner: -
+--
+
+CREATE INDEX bienes_transportados_descripcion_idx ON sat.bienes_transportados USING btree (lower(descripcion));
+
+
+--
+-- Name: configuraciones_autotransporte_descripcion_idx; Type: INDEX; Schema: sat; Owner: -
+--
+
+CREATE INDEX configuraciones_autotransporte_descripcion_idx ON sat.configuraciones_autotransporte USING btree (lower(descripcion));
+
+
+--
+-- Name: figuras_transporte_descripcion_idx; Type: INDEX; Schema: sat; Owner: -
+--
+
+CREATE INDEX figuras_transporte_descripcion_idx ON sat.figuras_transporte USING btree (lower(descripcion));
 
 
 --
@@ -16841,6 +18479,146 @@ CREATE INDEX idx_usos_cfdi_texto ON sat.usos_cfdi USING btree (texto);
 
 
 --
+-- Name: materiales_peligrosos_clave_idx; Type: INDEX; Schema: sat; Owner: -
+--
+
+CREATE INDEX materiales_peligrosos_clave_idx ON sat.materiales_peligrosos USING btree (clave_material_peligroso_sat);
+
+
+--
+-- Name: materiales_peligrosos_descripcion_idx; Type: INDEX; Schema: sat; Owner: -
+--
+
+CREATE INDEX materiales_peligrosos_descripcion_idx ON sat.materiales_peligrosos USING btree (lower(descripcion));
+
+
+--
+-- Name: subtipos_remolque_descripcion_idx; Type: INDEX; Schema: sat; Owner: -
+--
+
+CREATE INDEX subtipos_remolque_descripcion_idx ON sat.subtipos_remolque USING btree (lower(descripcion));
+
+
+--
+-- Name: tipos_embalaje_descripcion_idx; Type: INDEX; Schema: sat; Owner: -
+--
+
+CREATE INDEX tipos_embalaje_descripcion_idx ON sat.tipos_embalaje USING btree (lower(descripcion));
+
+
+--
+-- Name: tipos_permiso_descripcion_idx; Type: INDEX; Schema: sat; Owner: -
+--
+
+CREATE INDEX tipos_permiso_descripcion_idx ON sat.tipos_permiso USING btree (lower(descripcion));
+
+
+--
+-- Name: ix_transporte_cartas_porte_documento; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_cartas_porte_documento ON transporte.cartas_porte USING btree (documento_id);
+
+
+--
+-- Name: ix_transporte_cartas_porte_empresa_estatus; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_cartas_porte_empresa_estatus ON transporte.cartas_porte USING btree (empresa_id, estatus);
+
+
+--
+-- Name: ix_transporte_operadores_empresa_activo; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_operadores_empresa_activo ON transporte.operadores USING btree (empresa_id, activo);
+
+
+--
+-- Name: ix_transporte_remolques_empresa_activo; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_remolques_empresa_activo ON transporte.remolques USING btree (empresa_id, activo);
+
+
+--
+-- Name: ix_transporte_vehiculos_empresa_activo; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_vehiculos_empresa_activo ON transporte.vehiculos USING btree (empresa_id, activo);
+
+
+--
+-- Name: ix_transporte_viaje_documentos_documento; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_viaje_documentos_documento ON transporte.viaje_documentos USING btree (documento_id);
+
+
+--
+-- Name: ix_transporte_viaje_figuras_operador; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_viaje_figuras_operador ON transporte.viaje_figuras USING btree (empresa_id, operador_id) WHERE (operador_id IS NOT NULL);
+
+
+--
+-- Name: ix_transporte_viaje_mercancias_producto; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_viaje_mercancias_producto ON transporte.viaje_mercancias USING btree (empresa_id, producto_id) WHERE (producto_id IS NOT NULL);
+
+
+--
+-- Name: ix_transporte_viaje_mercancias_viaje; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_viaje_mercancias_viaje ON transporte.viaje_mercancias USING btree (viaje_id);
+
+
+--
+-- Name: ix_transporte_viaje_ubicaciones_domicilio; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_viaje_ubicaciones_domicilio ON transporte.viaje_ubicaciones USING btree (empresa_id, domicilio_id) WHERE (domicilio_id IS NOT NULL);
+
+
+--
+-- Name: ix_transporte_viajes_empresa_estatus; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE INDEX ix_transporte_viajes_empresa_estatus ON transporte.viajes USING btree (empresa_id, estatus, fecha_programada);
+
+
+--
+-- Name: ux_transporte_cartas_porte_id_ccp; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_transporte_cartas_porte_id_ccp ON transporte.cartas_porte USING btree (id_ccp) WHERE (id_ccp IS NOT NULL);
+
+
+--
+-- Name: ux_transporte_cartas_porte_viaje_sin_documento; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_transporte_cartas_porte_viaje_sin_documento ON transporte.cartas_porte USING btree (viaje_id) WHERE (documento_id IS NULL);
+
+
+--
+-- Name: ux_transporte_viaje_documentos_principal; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_transporte_viaje_documentos_principal ON transporte.viaje_documentos USING btree (viaje_id, tipo_relacion) WHERE (principal = true);
+
+
+--
+-- Name: ux_transporte_viaje_ubicaciones_origen; Type: INDEX; Schema: transporte; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_transporte_viaje_ubicaciones_origen ON transporte.viaje_ubicaciones USING btree (viaje_id) WHERE ((tipo)::text = 'origen'::text);
+
+
+--
 -- Name: config_empresa_id_idx; Type: INDEX; Schema: whatsapp; Owner: -
 --
 
@@ -16897,6 +18675,13 @@ CREATE TRIGGER trg_capturas_updated_at BEFORE UPDATE ON compass.capturas FOR EAC
 
 
 --
+-- Name: capturas trg_capturas_validar_destino; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_capturas_validar_destino BEFORE INSERT OR UPDATE OF usuario_id, tipo_destino, destino_id ON compass.capturas FOR EACH ROW EXECUTE FUNCTION compass.validar_referencia_usuario();
+
+
+--
 -- Name: decisiones trg_decisiones_updated_at; Type: TRIGGER; Schema: compass; Owner: -
 --
 
@@ -16915,6 +18700,13 @@ CREATE TRIGGER trg_frentes_updated_at BEFORE UPDATE ON compass.frentes FOR EACH 
 --
 
 CREATE TRIGGER trg_ideas_updated_at BEFORE UPDATE ON compass.ideas FOR EACH ROW EXECUTE FUNCTION compass.set_updated_at();
+
+
+--
+-- Name: ideas trg_ideas_validar_conversion; Type: TRIGGER; Schema: compass; Owner: -
+--
+
+CREATE TRIGGER trg_ideas_validar_conversion BEFORE INSERT OR UPDATE OF usuario_id, tipo_conversion, conversion_id ON compass.ideas FOR EACH ROW EXECUTE FUNCTION compass.validar_referencia_usuario();
 
 
 --
@@ -17021,7 +18813,7 @@ ALTER TABLE ONLY compass.actividades
 --
 
 ALTER TABLE ONLY compass.actividades
-    ADD CONSTRAINT fk_actividades_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+    ADD CONSTRAINT fk_actividades_frente FOREIGN KEY (usuario_id, frente_id) REFERENCES compass.frentes(usuario_id, id);
 
 
 --
@@ -17029,7 +18821,7 @@ ALTER TABLE ONLY compass.actividades
 --
 
 ALTER TABLE ONLY compass.actividades
-    ADD CONSTRAINT fk_actividades_origen FOREIGN KEY (empresa_id, usuario_id, actividad_origen_id) REFERENCES compass.actividades(empresa_id, usuario_id, id);
+    ADD CONSTRAINT fk_actividades_origen FOREIGN KEY (usuario_id, actividad_origen_id) REFERENCES compass.actividades(usuario_id, id);
 
 
 --
@@ -17037,7 +18829,7 @@ ALTER TABLE ONLY compass.actividades
 --
 
 ALTER TABLE ONLY compass.actividades
-    ADD CONSTRAINT fk_actividades_tarea FOREIGN KEY (empresa_id, usuario_id, tarea_id) REFERENCES compass.tareas(empresa_id, usuario_id, id);
+    ADD CONSTRAINT fk_actividades_tarea FOREIGN KEY (usuario_id, tarea_id) REFERENCES compass.tareas(usuario_id, id);
 
 
 --
@@ -17077,7 +18869,7 @@ ALTER TABLE ONLY compass.decisiones
 --
 
 ALTER TABLE ONLY compass.decisiones
-    ADD CONSTRAINT fk_decisiones_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+    ADD CONSTRAINT fk_decisiones_frente FOREIGN KEY (usuario_id, frente_id) REFERENCES compass.frentes(usuario_id, id);
 
 
 --
@@ -17117,7 +18909,7 @@ ALTER TABLE ONLY compass.ideas
 --
 
 ALTER TABLE ONLY compass.ideas
-    ADD CONSTRAINT fk_ideas_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+    ADD CONSTRAINT fk_ideas_frente FOREIGN KEY (usuario_id, frente_id) REFERENCES compass.frentes(usuario_id, id);
 
 
 --
@@ -17129,11 +18921,35 @@ ALTER TABLE ONLY compass.ideas
 
 
 --
+-- Name: intenciones_semanales fk_intenciones_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.intenciones_semanales
+    ADD CONSTRAINT fk_intenciones_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
 -- Name: intenciones_semanales fk_intenciones_frente; Type: FK CONSTRAINT; Schema: compass; Owner: -
 --
 
 ALTER TABLE ONLY compass.intenciones_semanales
-    ADD CONSTRAINT fk_intenciones_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+    ADD CONSTRAINT fk_intenciones_frente FOREIGN KEY (usuario_id, frente_id) REFERENCES compass.frentes(usuario_id, id);
+
+
+--
+-- Name: intenciones_semanales fk_intenciones_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.intenciones_semanales
+    ADD CONSTRAINT fk_intenciones_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: revisiones_frente fk_revision_frente_empresa; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_frente
+    ADD CONSTRAINT fk_revision_frente_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
 
 
 --
@@ -17141,7 +18957,7 @@ ALTER TABLE ONLY compass.intenciones_semanales
 --
 
 ALTER TABLE ONLY compass.revisiones_frente
-    ADD CONSTRAINT fk_revision_frente_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+    ADD CONSTRAINT fk_revision_frente_frente FOREIGN KEY (usuario_id, frente_id) REFERENCES compass.frentes(usuario_id, id);
 
 
 --
@@ -17149,7 +18965,7 @@ ALTER TABLE ONLY compass.revisiones_frente
 --
 
 ALTER TABLE ONLY compass.revisiones_frente
-    ADD CONSTRAINT fk_revision_frente_intencion FOREIGN KEY (intencion_semanal_id) REFERENCES compass.intenciones_semanales(id);
+    ADD CONSTRAINT fk_revision_frente_intencion FOREIGN KEY (usuario_id, intencion_semanal_id) REFERENCES compass.intenciones_semanales(usuario_id, id);
 
 
 --
@@ -17157,7 +18973,15 @@ ALTER TABLE ONLY compass.revisiones_frente
 --
 
 ALTER TABLE ONLY compass.revisiones_frente
-    ADD CONSTRAINT fk_revision_frente_revision FOREIGN KEY (empresa_id, usuario_id, revision_semanal_id) REFERENCES compass.revisiones_semanales(empresa_id, usuario_id, id) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_revision_frente_revision FOREIGN KEY (usuario_id, revision_semanal_id) REFERENCES compass.revisiones_semanales(usuario_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: revisiones_frente fk_revision_frente_usuario; Type: FK CONSTRAINT; Schema: compass; Owner: -
+--
+
+ALTER TABLE ONLY compass.revisiones_frente
+    ADD CONSTRAINT fk_revision_frente_usuario FOREIGN KEY (usuario_id) REFERENCES core.usuarios(id);
 
 
 --
@@ -17189,7 +19013,7 @@ ALTER TABLE ONLY compass.tareas
 --
 
 ALTER TABLE ONLY compass.tareas
-    ADD CONSTRAINT fk_tareas_frente FOREIGN KEY (empresa_id, usuario_id, frente_id) REFERENCES compass.frentes(empresa_id, usuario_id, id);
+    ADD CONSTRAINT fk_tareas_frente FOREIGN KEY (usuario_id, frente_id) REFERENCES compass.frentes(usuario_id, id);
 
 
 --
@@ -17876,6 +19700,22 @@ ALTER TABLE ONLY core.empresas_assets
 
 
 --
+-- Name: empresas_cfdi_pac_config fk_empresas_cfdi_pac_config; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_cfdi_pac_config
+    ADD CONSTRAINT fk_empresas_cfdi_pac_config FOREIGN KEY (cfdi_pac_config_id) REFERENCES core.cfdi_pac_config(id);
+
+
+--
+-- Name: empresas_cfdi_pac_config fk_empresas_cfdi_pac_empresa; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_cfdi_pac_config
+    ADD CONSTRAINT fk_empresas_cfdi_pac_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
 -- Name: empresas fk_empresas_colonia; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -18131,6 +19971,14 @@ ALTER TABLE ONLY crm.configuracion_email_usuario
 
 
 --
+-- Name: conversaciones_lecturas conversaciones_lecturas_conversacion_fk; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversaciones_lecturas
+    ADD CONSTRAINT conversaciones_lecturas_conversacion_fk FOREIGN KEY (conversacion_id) REFERENCES crm.conversaciones(id) ON DELETE CASCADE;
+
+
+--
 -- Name: email_plantillas email_plantillas_empresa_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
 --
 
@@ -18243,6 +20091,38 @@ ALTER TABLE ONLY crm.mensajes
 
 
 --
+-- Name: adjuntos adjuntos_documento_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos
+    ADD CONSTRAINT adjuntos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: adjuntos adjuntos_empresa_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos
+    ADD CONSTRAINT adjuntos_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: adjuntos adjuntos_tipo_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos
+    ADD CONSTRAINT adjuntos_tipo_id_fkey FOREIGN KEY (tipo_id) REFERENCES documentacion.documentos_empresa_tipos(id);
+
+
+--
+-- Name: adjuntos adjuntos_usuario_subio_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos
+    ADD CONSTRAINT adjuntos_usuario_subio_id_fkey FOREIGN KEY (usuario_subio_id) REFERENCES core.usuarios(id);
+
+
+--
 -- Name: existencias fk_inv_exist_empresa; Type: FK CONSTRAINT; Schema: inventario; Owner: -
 --
 
@@ -18320,6 +20200,14 @@ ALTER TABLE ONLY inventario.movimientos_partidas
 
 ALTER TABLE ONLY inventario.almacenes
     ADD CONSTRAINT fk_inventario_almacenes_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: entidades_correspondencias fk_entidades_correspondencias_empresa; Type: FK CONSTRAINT; Schema: migrate; Owner: -
+--
+
+ALTER TABLE ONLY migrate.entidades_correspondencias
+    ADD CONSTRAINT fk_entidades_correspondencias_empresa FOREIGN KEY (empresa_destino_id) REFERENCES core.empresas(id);
 
 
 --
@@ -18408,6 +20296,30 @@ ALTER TABLE ONLY public.cfdi_intentos_timbrado
 
 ALTER TABLE ONLY public.cfdi_intentos_timbrado
     ADD CONSTRAINT cfdi_intentos_timbrado_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: contactos_documentacion contactos_documentacion_creado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_documentacion
+    ADD CONSTRAINT contactos_documentacion_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: contactos_documentacion contactos_documentacion_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_documentacion
+    ADD CONSTRAINT contactos_documentacion_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: contactos_documentacion contactos_documentacion_tipo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_documentacion
+    ADD CONSTRAINT contactos_documentacion_tipo_id_fkey FOREIGN KEY (tipo_id) REFERENCES public.contactos_documentacion_tipos(id);
 
 
 --
@@ -18643,6 +20555,14 @@ ALTER TABLE ONLY public.aplicaciones_saldo
 
 
 --
+-- Name: documentos_cancelacion_intentos fk_cancelacion_intentos_pac_config; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_cancelacion_intentos
+    ADD CONSTRAINT fk_cancelacion_intentos_pac_config FOREIGN KEY (cfdi_pac_config_id) REFERENCES core.cfdi_pac_config(id);
+
+
+--
 -- Name: contactos_domicilios fk_cd_contacto; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18659,6 +20579,14 @@ ALTER TABLE ONLY public.contactos_domicilios
 
 
 --
+-- Name: contactos_domicilios fk_cd_empresa; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_domicilios
+    ADD CONSTRAINT fk_cd_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
 -- Name: contactos_datos_fiscales fk_cdf_contacto; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -18667,11 +20595,43 @@ ALTER TABLE ONLY public.contactos_datos_fiscales
 
 
 --
+-- Name: cfdi_intentos_timbrado fk_cfdi_intentos_pac_config; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cfdi_intentos_timbrado
+    ADD CONSTRAINT fk_cfdi_intentos_pac_config FOREIGN KEY (cfdi_pac_config_id) REFERENCES core.cfdi_pac_config(id);
+
+
+--
+-- Name: contactos_documentacion fk_contactos_documentacion_contacto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_documentacion
+    ADD CONSTRAINT fk_contactos_documentacion_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE CASCADE;
+
+
+--
 -- Name: contactos fk_contactos_precio_lista; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.contactos
     ADD CONSTRAINT fk_contactos_precio_lista FOREIGN KEY (precio_lista_id) REFERENCES public.precios_listas(id);
+
+
+--
+-- Name: contactos_roles fk_contactos_roles_catalogo; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_roles
+    ADD CONSTRAINT fk_contactos_roles_catalogo FOREIGN KEY (rol) REFERENCES public.contactos_roles_catalogo(rol);
+
+
+--
+-- Name: contactos_roles fk_contactos_roles_contacto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contactos_roles
+    ADD CONSTRAINT fk_contactos_roles_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE CASCADE;
 
 
 --
@@ -18784,6 +20744,14 @@ ALTER TABLE ONLY public.documentos
 
 ALTER TABLE ONLY public.documentos_cfdi
     ADD CONSTRAINT fk_documentos_cfdi_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: documentos_cfdi fk_documentos_cfdi_pac_config; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.documentos_cfdi
+    ADD CONSTRAINT fk_documentos_cfdi_pac_config FOREIGN KEY (cfdi_pac_config_id) REFERENCES core.cfdi_pac_config(id);
 
 
 --
@@ -19147,6 +21115,14 @@ ALTER TABLE ONLY public.productos_impuestos
 
 
 --
+-- Name: productos_impuestos fk_productos_impuestos_producto; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.productos_impuestos
+    ADD CONSTRAINT fk_productos_impuestos_producto FOREIGN KEY (producto_id) REFERENCES public.productos(id) ON DELETE CASCADE;
+
+
+--
 -- Name: productos fk_productos_pais_origen; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -19211,6 +21187,302 @@ ALTER TABLE ONLY public.usuarios_series_documento
 
 
 --
+-- Name: operaciones_entregas operaciones_entregas_contacto_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas
+    ADD CONSTRAINT operaciones_entregas_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: operaciones_entregas operaciones_entregas_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas
+    ADD CONSTRAINT operaciones_entregas_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: operaciones_entregas operaciones_entregas_fletera_contacto_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas
+    ADD CONSTRAINT operaciones_entregas_fletera_contacto_id_fkey FOREIGN KEY (fletera_contacto_id) REFERENCES public.contactos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: operaciones_entregas operaciones_entregas_full_documento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas
+    ADD CONSTRAINT operaciones_entregas_full_documento_id_fkey FOREIGN KEY (full_documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: operaciones_entregas operaciones_entregas_operador_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas
+    ADD CONSTRAINT operaciones_entregas_operador_id_fkey FOREIGN KEY (operador_id) REFERENCES transporte.operadores(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: operaciones_entregas_partidas operaciones_entregas_partidas_documento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas_partidas
+    ADD CONSTRAINT operaciones_entregas_partidas_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: operaciones_entregas_partidas operaciones_entregas_partidas_entrega_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas_partidas
+    ADD CONSTRAINT operaciones_entregas_partidas_entrega_id_fkey FOREIGN KEY (entrega_id) REFERENCES public.operaciones_entregas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: operaciones_entregas_partidas operaciones_entregas_partidas_partida_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas_partidas
+    ADD CONSTRAINT operaciones_entregas_partidas_partida_id_fkey FOREIGN KEY (partida_id) REFERENCES public.documentos_partidas(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: operaciones_entregas operaciones_entregas_usuario_creacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas
+    ADD CONSTRAINT operaciones_entregas_usuario_creacion_id_fkey FOREIGN KEY (usuario_creacion_id) REFERENCES core.usuarios(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: operaciones_entregas operaciones_entregas_vehiculo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.operaciones_entregas
+    ADD CONSTRAINT operaciones_entregas_vehiculo_id_fkey FOREIGN KEY (vehiculo_id) REFERENCES transporte.vehiculos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: cartas_porte cartas_porte_documento_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.cartas_porte
+    ADD CONSTRAINT cartas_porte_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: cartas_porte cartas_porte_empresa_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.cartas_porte
+    ADD CONSTRAINT cartas_porte_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: operadores fk_operadores_contacto_empresa; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.operadores
+    ADD CONSTRAINT fk_operadores_contacto_empresa FOREIGN KEY (empresa_id, contacto_id) REFERENCES public.contactos(empresa_id, id);
+
+
+--
+-- Name: cartas_porte fk_transporte_cartas_porte_viaje; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.cartas_porte
+    ADD CONSTRAINT fk_transporte_cartas_porte_viaje FOREIGN KEY (empresa_id, viaje_id) REFERENCES transporte.viajes(empresa_id, id);
+
+
+--
+-- Name: vehiculos fk_transporte_vehiculos_remolque_predeterminado; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.vehiculos
+    ADD CONSTRAINT fk_transporte_vehiculos_remolque_predeterminado FOREIGN KEY (empresa_id, remolque_predeterminado_id) REFERENCES transporte.remolques(empresa_id, id);
+
+
+--
+-- Name: viaje_documentos fk_transporte_viaje_documentos_viaje; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_documentos
+    ADD CONSTRAINT fk_transporte_viaje_documentos_viaje FOREIGN KEY (empresa_id, viaje_id) REFERENCES transporte.viajes(empresa_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: viaje_figuras fk_transporte_viaje_figuras_operador; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_figuras
+    ADD CONSTRAINT fk_transporte_viaje_figuras_operador FOREIGN KEY (empresa_id, operador_id) REFERENCES transporte.operadores(empresa_id, id);
+
+
+--
+-- Name: viaje_figuras fk_transporte_viaje_figuras_viaje; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_figuras
+    ADD CONSTRAINT fk_transporte_viaje_figuras_viaje FOREIGN KEY (empresa_id, viaje_id) REFERENCES transporte.viajes(empresa_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: viaje_mercancias fk_transporte_viaje_mercancias_destino; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_mercancias
+    ADD CONSTRAINT fk_transporte_viaje_mercancias_destino FOREIGN KEY (empresa_id, viaje_id, destino_viaje_ubicacion_id) REFERENCES transporte.viaje_ubicaciones(empresa_id, viaje_id, id);
+
+
+--
+-- Name: viaje_mercancias fk_transporte_viaje_mercancias_origen; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_mercancias
+    ADD CONSTRAINT fk_transporte_viaje_mercancias_origen FOREIGN KEY (empresa_id, viaje_id, origen_viaje_ubicacion_id) REFERENCES transporte.viaje_ubicaciones(empresa_id, viaje_id, id);
+
+
+--
+-- Name: viaje_mercancias fk_transporte_viaje_mercancias_producto; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_mercancias
+    ADD CONSTRAINT fk_transporte_viaje_mercancias_producto FOREIGN KEY (producto_id) REFERENCES public.productos(id);
+
+
+--
+-- Name: viaje_mercancias fk_transporte_viaje_mercancias_viaje; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_mercancias
+    ADD CONSTRAINT fk_transporte_viaje_mercancias_viaje FOREIGN KEY (empresa_id, viaje_id) REFERENCES transporte.viajes(empresa_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: viaje_remolques fk_transporte_viaje_remolques_remolque; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_remolques
+    ADD CONSTRAINT fk_transporte_viaje_remolques_remolque FOREIGN KEY (empresa_id, remolque_id) REFERENCES transporte.remolques(empresa_id, id);
+
+
+--
+-- Name: viaje_remolques fk_transporte_viaje_remolques_viaje; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_remolques
+    ADD CONSTRAINT fk_transporte_viaje_remolques_viaje FOREIGN KEY (empresa_id, viaje_id) REFERENCES transporte.viajes(empresa_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: viaje_ubicaciones fk_transporte_viaje_ubicaciones_domicilio; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_ubicaciones
+    ADD CONSTRAINT fk_transporte_viaje_ubicaciones_domicilio FOREIGN KEY (domicilio_id) REFERENCES public.contactos_domicilios(id);
+
+
+--
+-- Name: viaje_ubicaciones fk_transporte_viaje_ubicaciones_viaje; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_ubicaciones
+    ADD CONSTRAINT fk_transporte_viaje_ubicaciones_viaje FOREIGN KEY (empresa_id, viaje_id) REFERENCES transporte.viajes(empresa_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: viajes fk_transporte_viajes_vehiculo; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viajes
+    ADD CONSTRAINT fk_transporte_viajes_vehiculo FOREIGN KEY (empresa_id, vehiculo_id) REFERENCES transporte.vehiculos(empresa_id, id);
+
+
+--
+-- Name: viaje_figuras fk_viaje_figuras_contacto_empresa; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_figuras
+    ADD CONSTRAINT fk_viaje_figuras_contacto_empresa FOREIGN KEY (empresa_id, contacto_id) REFERENCES public.contactos(empresa_id, id);
+
+
+--
+-- Name: operadores operadores_empresa_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.operadores
+    ADD CONSTRAINT operadores_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: remolques remolques_empresa_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.remolques
+    ADD CONSTRAINT remolques_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: remolques remolques_propietario_contacto_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.remolques
+    ADD CONSTRAINT remolques_propietario_contacto_id_fkey FOREIGN KEY (propietario_contacto_id) REFERENCES public.contactos(id);
+
+
+--
+-- Name: vehiculos vehiculos_empresa_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.vehiculos
+    ADD CONSTRAINT vehiculos_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: vehiculos vehiculos_propietario_contacto_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.vehiculos
+    ADD CONSTRAINT vehiculos_propietario_contacto_id_fkey FOREIGN KEY (propietario_contacto_id) REFERENCES public.contactos(id);
+
+
+--
+-- Name: viaje_documentos viaje_documentos_documento_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viaje_documentos
+    ADD CONSTRAINT viaje_documentos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+
+
+--
+-- Name: viajes viajes_cliente_contacto_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viajes
+    ADD CONSTRAINT viajes_cliente_contacto_id_fkey FOREIGN KEY (cliente_contacto_id) REFERENCES public.contactos(id);
+
+
+--
+-- Name: viajes viajes_creado_por_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viajes
+    ADD CONSTRAINT viajes_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: viajes viajes_empresa_id_fkey; Type: FK CONSTRAINT; Schema: transporte; Owner: -
+--
+
+ALTER TABLE ONLY transporte.viajes
+    ADD CONSTRAINT viajes_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
 -- Name: config config_empresa_id_fkey; Type: FK CONSTRAINT; Schema: whatsapp; Owner: -
 --
 
@@ -19246,5 +21518,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict SrEdWFDAeS73Z72979yUdduZ4NfgasCZOEpIpuG19QRFLRhMuS2cxBfnhTDWvB0
+\unrestrict p6UiKCe6Z1l5TaRxmUON5WhfHRIZlPWrydsXV61p9AKexbhpXTsPqmGJHJuT8Xz
 

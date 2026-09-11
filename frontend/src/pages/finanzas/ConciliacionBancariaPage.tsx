@@ -99,6 +99,8 @@ export default function ConciliacionBancariaPage() {
   const [totalRetirosCotejados, setTotalRetirosCotejados] = useState(0);
   const [saldoConciliadoCalculado, setSaldoConciliadoCalculado] = useState(0);
   const [moneda, setMoneda] = useState('MXN');
+  const [conciliacionExistente, setConciliacionExistente] = useState(false);
+  const [conciliacionExistenteId, setConciliacionExistenteId] = useState<number | null>(null);
   const [seleccionados, setSeleccionados] = useState<GridRowSelectionModel>([]);
 
   const [cargando, setCargando] = useState(false);
@@ -138,6 +140,8 @@ export default function ConciliacionBancariaPage() {
       setTotalRetirosCotejados(res.total_retiros_cotejados);
       setSaldoConciliadoCalculado(res.saldo_conciliado_calculado);
       setMoneda(res.moneda);
+      setConciliacionExistente(res.conciliacion_existente);
+      setConciliacionExistenteId(res.conciliacion_id);
       setSeleccionados([]);
     } catch (err: any) {
       setSnackbar({ open: true, msg: err.message || 'Error al cargar movimientos', sev: 'error' });
@@ -203,7 +207,7 @@ export default function ConciliacionBancariaPage() {
   const cuentaSeleccionada = cuentas.find((c) => c.id === Number(cuentaId));
 
   const handleCotejar = async (estado: 'pendiente' | 'cotejado') => {
-    if (seleccionados.length === 0) return;
+    if (seleccionados.length === 0 || conciliacionExistente) return;
     setGuardando(true);
     try {
       const res = await cotejarMovimientosSvc(seleccionados.map(Number), estado);
@@ -221,6 +225,7 @@ export default function ConciliacionBancariaPage() {
   };
 
   const handleToggleFila = useCallback(async (row: MovimientoConciliacion) => {
+    if (conciliacionExistente) return;
     const nuevoEstado: 'pendiente' | 'cotejado' =
       row.estado_conciliacion === 'cotejado' ? 'pendiente' : 'cotejado';
     setProcesandoFila((prev) => new Set(prev).add(row.id));
@@ -236,7 +241,7 @@ export default function ConciliacionBancariaPage() {
         return next;
       });
     }
-  }, [cargar]);
+  }, [cargar, conciliacionExistente]);
 
   const handleCerrar = async () => {
     setConfirmarCerrar(false);
@@ -532,6 +537,12 @@ export default function ConciliacionBancariaPage() {
 
       {/* Instrucción + barra de acciones */}
       <Stack spacing={0.75}>
+        {conciliacionExistente && (
+          <Alert severity="warning" sx={{ py: 0.5 }}>
+            Ya existe una conciliación vigente para esta cuenta y fecha
+            {conciliacionExistenteId ? ` (#${conciliacionExistenteId})` : ''}. Cambia la fecha para iniciar una nueva conciliación.
+          </Alert>
+        )}
         <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
           Selecciona los movimientos que aparecen en tu estado de cuenta del banco y márcalos como{' '}
           <strong>Encontrado en banco</strong>. Al cerrar, todos los movimientos en ese estado quedarán{' '}
@@ -552,7 +563,7 @@ export default function ConciliacionBancariaPage() {
                 variant="outlined"
                 startIcon={<CheckCircleOutlineIcon />}
                 onClick={() => void handleCotejar('cotejado')}
-                disabled={kpis.count === 0 || guardando}
+                disabled={kpis.count === 0 || guardando || conciliacionExistente}
                 size="small"
                 sx={{ textTransform: 'none', borderRadius: 999 }}
               >
@@ -567,7 +578,7 @@ export default function ConciliacionBancariaPage() {
                 variant="outlined"
                 startIcon={<RadioButtonUncheckedIcon />}
                 onClick={() => void handleCotejar('pendiente')}
-                disabled={kpis.count === 0 || guardando}
+                disabled={kpis.count === 0 || guardando || conciliacionExistente}
                 size="small"
                 sx={{ textTransform: 'none', borderRadius: 999 }}
               >
@@ -588,7 +599,7 @@ export default function ConciliacionBancariaPage() {
                 variant="contained"
                 startIcon={guardando ? undefined : <LockIcon />}
                 onClick={() => setConfirmarCerrar(true)}
-                disabled={!cuentaId || !fechaCorte || guardando}
+                disabled={!cuentaId || !fechaCorte || guardando || conciliacionExistente}
                 size="small"
                 sx={{
                   textTransform: 'none',
@@ -622,7 +633,10 @@ export default function ConciliacionBancariaPage() {
             columns={columns}
             checkboxSelection
             rowSelectionModel={seleccionados}
-            onRowSelectionModelChange={setSeleccionados}
+            onRowSelectionModelChange={(selection) => {
+              if (!conciliacionExistente) setSeleccionados(selection);
+            }}
+            isRowSelectable={() => !conciliacionExistente}
             getRowId={(r) => r.id}
             rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
             columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}

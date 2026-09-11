@@ -1843,6 +1843,13 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     try {
       setLoading(true);
       const duplicated = await duplicateDocumento(rowId, 'cotizacion');
+      if (duplicated.nuevaOportunidadCreada) {
+        setSnackbar({
+          open: true,
+          message: `Cotización duplicada correctamente. Se creó una nueva oportunidad porque la oportunidad original estaba ${duplicated.oportunidadEstatusOriginal ?? 'cerrada'}.`,
+          severity: 'success',
+        });
+      }
       navigate(`/ventas/cotizacion/${duplicated.id}`);
     } catch (err: any) {
       setError(err?.message || 'No se pudo duplicar la cotización');

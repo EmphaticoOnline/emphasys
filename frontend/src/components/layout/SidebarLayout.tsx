@@ -338,7 +338,7 @@ function SidebarNav({
 }
 
 // Rutas bajo /ventas/ que no son pestañas de tipo de documento y no deben redirigirse
-const SPECIAL_VENTAS_PATHS = new Set(['cotizaciones-grid', 'produccion']);
+const SPECIAL_VENTAS_PATHS = new Set(['produccion']);
 
 export default function SidebarLayout() {
   const theme = useTheme();

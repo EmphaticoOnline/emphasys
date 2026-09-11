@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import { eliminarArchivosAdjuntos } from '../documentacion/adjuntos.files';
 import type { PoolClient } from 'pg';
 import type { TipoDocumento } from '../../types/documentos';
 import type { TratamientoImpuestos } from '../impuestos/impuestos.types';
@@ -980,6 +981,9 @@ export async function listarDocumentosRepository(
       d.tratamiento_impuestos,
       ${selectDeleteWarning}
       d.estatus_documento,
+      dcf.estado_sat AS cfdi_estado_sat,
+      dcf.cancelacion_estado AS cfdi_cancelacion_estado,
+      dcf.cancelacion_proveedor_status AS cfdi_cancelacion_proveedor_status,
       (SELECT dc.valor_texto FROM documentos_campos dc JOIN core.campos_configuracion cc ON cc.id = dc.campo_id
         WHERE dc.empresa_id = d.empresa_id AND dc.documento_id = d.id AND cc.clave = 'folio_externo'
           AND (cc.tipo_documento IS NULL OR LOWER(cc.tipo_documento) = LOWER($2)) LIMIT 1) AS folio_externo,
@@ -997,6 +1001,7 @@ export async function listarDocumentosRepository(
     FROM documentos d
     ${joinSaldo}
     ${joinDeleteWarning}
+    LEFT JOIN documentos_cfdi dcf ON dcf.documento_id = d.id
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     LEFT JOIN contactos ce ON d.contacto_entrega_id = ce.id
     LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
@@ -2336,8 +2341,17 @@ export async function reemplazarPartidasRepository(
 
 export async function eliminarDocumentoRepository(id: number, empresaId: number, tipoDocumento?: TipoDocumento) {
   const client = await pool.connect();
+  let transactionCommitted = false;
   try {
     await client.query('BEGIN');
+
+    const { rows: adjuntosDocumento } = await client.query<{ id: number; documento_id: number; empresa_id: number; archivo_url: string }>(
+      `SELECT id, documento_id, empresa_id, archivo_url
+         FROM documentacion.adjuntos
+        WHERE documento_id = $1
+          AND empresa_id = $2`,
+      [id, empresaId]
+    );
 
     const { rows: documentoRows } = await client.query<{
       tipo_documento: string | null;
@@ -2450,9 +2464,14 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
     }
 
     await client.query('COMMIT');
+    transactionCommitted = true;
+    if ((result.rowCount ?? 0) > 0 && adjuntosDocumento.length > 0) {
+      const failures = await eliminarArchivosAdjuntos(adjuntosDocumento.map((adjunto) => ({ adjuntoId: adjunto.id, documentoId: adjunto.documento_id, empresaId: adjunto.empresa_id, archivoUrl: adjunto.archivo_url })));
+      if (failures > 0) throw new Error('Documento eliminado, pero la limpieza física de adjuntos quedó pendiente y fue registrada');
+    }
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!transactionCommitted) await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();

@@ -8,8 +8,10 @@ import { eliminarContacto } from './contactos.controller';
 import { listarCatalogosConfigurablesDeContacto, guardarCatalogosConfigurables } from './contactos.controller';
 import { getDomicilios, postDomicilio, putDomicilio, deleteDomicilio } from './contactos-domicilios.controller';
 import { getOperador, putOperador, patchOperador } from './contactos-operador.controller';
+import contactosDocumentacionRouter from './contactos-documentacion.routes';
 
 const router = Router();
+router.use('/', contactosDocumentacionRouter);
 
 // Endpoint base: /api/contactos
 // GET /

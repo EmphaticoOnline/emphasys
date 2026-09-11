@@ -56,6 +56,8 @@ type AplicacionDocumentoPayload = {
 
 type DuplicarCotizacionResult = {
   id: number;
+  nuevaOportunidadCreada?: boolean;
+  oportunidadEstatusOriginal?: string;
 };
 
 type DuplicarCotizacionesMasivoResult = {
@@ -637,21 +639,34 @@ export async function duplicarCotizacionService(documentoId: number, empresaId: 
     );
 
     const oportunidadEstatus = String(oportunidadRows[0]?.estatus ?? '').trim().toLowerCase();
-    if (OPORTUNIDAD_ESTADOS_CERRADOS.includes(oportunidadEstatus)) {
-      throw new Error(
-        `VALIDATION_ERROR: No se puede duplicar la cotización porque la oportunidad asociada está ${oportunidadEstatus}.`
-      );
-    }
+    const oportunidadCerrada = OPORTUNIDAD_ESTADOS_CERRADOS.includes(oportunidadEstatus);
 
     const nuevoDocumento = await crearDocumentoRepository(
       {
         ...construirPayloadDocumentoDuplicado(documentoOrigen, 'cotizacion'),
-        oportunidad_id: oportunidadId,
+        oportunidad_id: oportunidadCerrada ? null : oportunidadId,
       },
       empresaId,
       'cotizacion',
       client
     );
+
+    if (oportunidadCerrada) {
+      await crearOportunidadParaCotizacion(
+        {
+          id: nuevoDocumento.id,
+          tipo_documento: 'cotizacion',
+          agente_id: nuevoDocumento.agente_id ?? documentoOrigen.agente_id ?? null,
+        },
+        {
+          contacto_principal_id: nuevoDocumento.contacto_principal_id ?? documentoOrigen.contacto_principal_id ?? null,
+          agente_id: nuevoDocumento.agente_id ?? documentoOrigen.agente_id ?? null,
+          conversacion_id: documentoOrigen.conversacion_id ?? null,
+        },
+        empresaId,
+        client
+      );
+    }
 
     await duplicarPartidasYTotales(
       nuevoDocumento.id,
@@ -670,7 +685,11 @@ export async function duplicarCotizacionService(documentoId: number, empresaId: 
     });
 
     await client.query('COMMIT');
-    return { id: nuevoDocumento.id };
+    return {
+      id: nuevoDocumento.id,
+      nuevaOportunidadCreada: oportunidadCerrada,
+      ...(oportunidadCerrada ? { oportunidadEstatusOriginal: oportunidadEstatus } : {}),
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

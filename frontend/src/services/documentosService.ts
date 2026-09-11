@@ -155,7 +155,13 @@ export function updateDocumento(id: number, tipo: TipoDocumento, data: Partial<C
   });
 }
 
-export function duplicateDocumento(id: number, tipo: TipoDocumento): Promise<{ id: number }> {
+export type DuplicarCotizacionResponse = {
+  id: number;
+  nuevaOportunidadCreada?: boolean;
+  oportunidadEstatusOriginal?: string;
+};
+
+export function duplicateDocumento(id: number, tipo: TipoDocumento): Promise<DuplicarCotizacionResponse> {
   const base = getBasePath(tipo);
   return apiFetch(`${base}/${id}/duplicar`, {
     method: 'POST',

@@ -65,10 +65,13 @@ log "Escribiendo marca de build..."
 printf '%s\n' "$BUILD_ID" > "$BACKEND_DIR/dist/.build-id"
 
 log "Preparando release remoto aislado..."
-ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$RELEASE_PATH/dist' '$RELEASE_PATH/frontend-erp-dist' '$RELEASE_PATH/frontend-compass-dist'"
+ssh "${SSH_OPTS[@]}" "$SERVER" "mkdir -p '$RELEASE_PATH/dist' '$RELEASE_PATH/assets' '$RELEASE_PATH/frontend-erp-dist' '$RELEASE_PATH/frontend-compass-dist'"
 
 log "Sincronizando backend dist al release inactivo..."
 rsync -az --delete -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/dist/" "$SERVER:$RELEASE_PATH/dist/"
+
+log "Sincronizando assets del backend al release inactivo..."
+rsync -az --delete -e "${RSYNC_SSH[*]}" "$BACKEND_DIR/assets/" "$SERVER:$RELEASE_PATH/assets/"
 
 log "Verificando build desplegado en remoto..."
 remote_build_id=$(ssh "${SSH_OPTS[@]}" "$SERVER" "cat '$RELEASE_PATH/dist/.build-id' 2>/dev/null" || true)

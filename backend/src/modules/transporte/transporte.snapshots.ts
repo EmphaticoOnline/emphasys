@@ -36,6 +36,12 @@ export function buildMerchandiseSnapshot(master: ProductoMercanciaMaster) {
 }
 
 export function buildOperatorSnapshot(master: OperadorMaster) {
+  const domicilio = master.domicilio;
+  const pais = typeof domicilio?.pais === 'string' ? domicilio.pais.trim().toUpperCase() : '';
+  if (domicilio && ['MEX', 'MEXICO', 'MÉXICO', 'MX'].includes(pais) && !domicilio.colonia) {
+    throw new TransporteError('El domicilio fiscal del operador requiere una clave SAT de colonia.');
+  }
+
   return {
     nombre: master.nombre,
     rfc: master.rfc,
@@ -43,7 +49,7 @@ export function buildOperatorSnapshot(master: OperadorMaster) {
     numeroLicencia: master.numero_licencia,
     tipoLicencia: master.tipo_licencia,
     vigenciaLicencia: master.vigencia_licencia,
-    domicilio: master.domicilio,
+    domicilio,
   };
 }
 

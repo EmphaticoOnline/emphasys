@@ -146,7 +146,7 @@ export async function findOperator(client: DbClient, empresaId: number, id: numb
             c.nombre, COALESCE(cdf.rfc, c.rfc) AS rfc, cdf.curp,
             CASE WHEN cd.id IS NULL THEN NULL ELSE jsonb_build_object(
               'calle', cd.calle, 'numeroExterior', cd.numero_exterior,
-              'numeroInterior', cd.numero_interior, 'colonia', COALESCE(cd.colonia_sat, cd.colonia),
+              'numeroInterior', cd.numero_interior, 'colonia', cd.colonia_sat,
               'localidad', COALESCE(cp.localidad, cd.ciudad), 'municipio', cp.municipio,
               'estado', COALESCE(cp.estado, cd.estado), 'pais', COALESCE(estado.pais, cd.pais),
               'codigoPostal', COALESCE(cd.cp_sat, cd.cp), 'referencia', cd.cruces
@@ -218,14 +218,11 @@ export async function clearTripChildren(client: DbClient, empresaId: number, via
 export async function insertLocation(client: DbClient, values: unknown[]): Promise<number> {
   const { rows } = await client.query<{ id: string | number }>(
     `INSERT INTO transporte.viaje_ubicaciones (
-       empresa_id, viaje_id, tipo, secuencia,
+       empresa_id, viaje_id, domicilio_id, tipo, secuencia,
        remitente_destinatario_nombre, remitente_destinatario_rfc,
        fecha_hora_programada, fecha_hora_real, distancia_recorrida,
        domicilio_snapshot, coordenadas_snapshot
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, [
-      values[0], values[1], values[3], values[4], values[5], values[6], values[7], values[8],
-      values[9], values[10], values[11],
-    ]
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, values
   );
   return Number(rows[0].id);
 }
@@ -358,7 +355,19 @@ export async function getTripAggregate(client: DbClient, empresaId: number, id: 
   if (!tripRows[0]) return null;
 
   const [locations, merchandise, figures, trailers, documents, cartaRows] = await Promise.all([
-    rows(client, `SELECT vu.*,
+    rows(client, `SELECT vu.id,
+            vu.empresa_id,
+            vu.viaje_id,
+            vu.domicilio_id,
+            vu.tipo,
+            vu.secuencia,
+            vu.remitente_destinatario_nombre,
+            vu.remitente_destinatario_rfc,
+            vu.fecha_hora_programada,
+            vu.fecha_hora_real,
+            vu.distancia_recorrida,
+            vu.domicilio_snapshot,
+            vu.coordenadas_snapshot,
             vu.domicilio_snapshot AS domicilio
        FROM transporte.viaje_ubicaciones vu
       WHERE vu.viaje_id=$1 AND vu.empresa_id=$2 ORDER BY vu.secuencia, vu.id`, [id, empresaId]),

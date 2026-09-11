@@ -350,6 +350,8 @@ export interface ConciliacionMovimientosResult {
   total_retiros_cotejados: number;
   saldo_conciliado_calculado: number;
   moneda: string;
+  conciliacion_existente: boolean;
+  conciliacion_id: number | null;
 }
 
 export interface CierrePayload {

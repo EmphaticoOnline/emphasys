@@ -13,12 +13,12 @@ export type OperadorInput = {
 const selectOperador = `SELECT o.id, o.empresa_id, o.contacto_id,
     o.numero_licencia, o.tipo_licencia, o.vigencia_licencia, o.activo,
     c.nombre, COALESCE(cdf.rfc, c.rfc) AS rfc,
-    c.telefono,
+    c.telefono, c.email,
     CASE WHEN cd.id IS NULL THEN NULL ELSE jsonb_build_object(
       'calle', cd.calle, 'numeroExterior', cd.numero_exterior,
-      'numeroInterior', cd.numero_interior, 'colonia', COALESCE(cd.colonia_sat, cd.colonia),
-      'localidad', cd.ciudad, 'estado', cd.estado, 'pais', cd.pais,
-      'codigoPostal', COALESCE(cd.cp_sat, cd.cp), 'referencia', cd.cruces
+      'numeroInterior', cd.numero_interior, 'colonia', cd.colonia,
+      'colonia_sat', cd.colonia_sat, 'localidad', cd.ciudad, 'estado', cd.estado, 'pais', cd.pais,
+      'codigoPostal', COALESCE(cd.cp_sat, cd.cp), 'cp_sat', cd.cp_sat, 'referencia', cd.cruces
     ) END AS domicilio_principal,
     (cd.id IS NOT NULL) AS tiene_domicilio_principal
   FROM transporte.operadores o

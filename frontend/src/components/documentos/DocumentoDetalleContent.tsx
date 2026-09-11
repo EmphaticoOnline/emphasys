@@ -203,9 +203,11 @@ export function ResumenTab({
     documento.cfdi_cancelacion_intento_id
     || ['solicitada', 'pendiente', 'requiere_reconciliacion', 'cancelada', 'rechazada', 'error'].includes(cancelacionEstado)
   );
-  const puedeReconciliar = ['solicitada', 'pendiente', 'requiere_reconciliacion'].includes(cancelacionEstado);
-  const labelEstadoCancelacion = cancelacionEstado
-    ? cancelacionEstado.replaceAll('_', ' ').replace(/^./, (value: string) => value.toUpperCase())
+  const puedeReconciliar = ['solicitada', 'pendiente', 'error', 'requiere_reconciliacion'].includes(cancelacionEstado);
+  const labelEstadoCancelacion = cancelacionEstado === 'error'
+    ? 'Requiere reconciliación'
+    : cancelacionEstado
+      ? cancelacionEstado.replaceAll('_', ' ').replace(/^./, (value: string) => value.toUpperCase())
     : '—';
   const proveedor = String(documento.cfdi_cancelacion_proveedor ?? '').trim();
 
@@ -245,7 +247,7 @@ export function ResumenTab({
             <Typography variant="body2"><strong>Última consulta:</strong> {formatDateShort(documento.cfdi_cancelacion_fecha_ultima_consulta)}</Typography>
             <Typography variant="body2"><strong>Intento:</strong> {documento.cfdi_cancelacion_intento_id || '—'}</Typography>
           </Box>
-          {puedeReconciliar ? (
+          {['solicitada', 'pendiente'].includes(cancelacionEstado) ? (
             <>
               <Alert severity="warning" sx={{ mt: 1.5 }}>
                 Saldo suspendido por cancelación pendiente. Saldo previo: {formatter.format(Number(documento.saldo_registrado || 0))}.
@@ -255,6 +257,10 @@ export function ResumenTab({
                 La factura permanece timbrada hasta que el PAC o el SAT confirmen la cancelación.
               </Typography>
             </>
+          ) : cancelacionEstado === 'error' ? (
+            <Typography variant="body2" sx={{ mt: 1.5 }}>
+              El estado de la cancelación necesita volver a consultarse.
+            </Typography>
           ) : null}
           {reconciliationMessage ? <Alert severity="info" sx={{ mt: 1.5 }}>{reconciliationMessage}</Alert> : null}
           {puedeReconciliar ? (

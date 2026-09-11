@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import type { CartaPortePrintModel } from './carta-porte-print.types';
 import { generarImagenQRCartaPorte } from './carta-porte-qr';
@@ -110,9 +111,16 @@ function drawHeader(ctx: RenderContext, qrBuffer: Buffer | null) {
 export async function generarCartaPortePDF(model: CartaPortePrintModel): Promise<Buffer> {
   const chunks: Buffer[] = [];
   const doc = new PDFDocument({ size: 'LETTER', margin: 42, bufferPages: true });
-  doc.registerFont('Trebuchet', require.resolve('../../../assets/fonts/TREBUC.TTF'));
-  doc.registerFont('Trebuchet-Bold', require.resolve('../../../assets/fonts/TREBUCBD.TTF'));
-  doc.registerFont('Trebuchet-Italic', require.resolve('../../../assets/fonts/TREBUCIT.TTF'));
+  const fontsPath = path.resolve(__dirname, '..', '..', '..', 'assets', 'fonts');
+  const fontFiles = {
+    Trebuchet: path.join(fontsPath, 'TREBUC.TTF'),
+    'Trebuchet-Bold': path.join(fontsPath, 'TREBUCBD.TTF'),
+    'Trebuchet-Italic': path.join(fontsPath, 'TREBUCIT.TTF'),
+  };
+  for (const [fontName, fontPath] of Object.entries(fontFiles)) {
+    if (!fs.existsSync(fontPath)) throw new Error(`Fuente Carta Porte no encontrada: ${fontPath}`);
+    doc.registerFont(fontName, fontPath);
+  }
   if (model.cancelado) {
     doc.on('pageAdded', () => dibujarMarcaCancelado(doc));
     dibujarMarcaCancelado(doc);

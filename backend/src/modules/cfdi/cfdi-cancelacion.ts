@@ -9,6 +9,7 @@ export type CfdiCancelacionEstado =
   | 'rechazada'
   | 'error'
   | 'requiere_reconciliacion';
+export type CfdiSatEstado = 'vigente' | 'cancelado' | 'no_encontrado' | 'desconocido';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -71,6 +72,26 @@ export function interpretarEstadoCancelacionFacturama(value: unknown): CfdiCance
   if (status === 'pending' || status === 'requested' || status === 'solicitada') return 'pendiente';
   if (status === 'rejected' || status === 'rechazada') return 'rechazada';
   if (status === 'active' || status === 'vigente') return 'error';
+  return 'requiere_reconciliacion';
+}
+
+export function interpretarEstadoSatCfdi(value: unknown): CfdiSatEstado {
+  const status = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (status === 'cancelado' || status === 'cancelada') return 'cancelado';
+  if (status === 'vigente') return 'vigente';
+  if (status === 'no encontrado' || status === 'no_encontrado') return 'no_encontrado';
+  return 'desconocido';
+}
+
+export function interpretarResultadoReconciliacionSat(value: unknown): CfdiCancelacionEstado {
+  const status = String(value ?? '').trim().toLowerCase();
+  if (status === 'cancelado' || status === 'cancelada') return 'cancelada';
+  if (status === 'vigente') return 'pendiente';
+  if (status === 'rejected' || status === 'rechazada') return 'rechazada';
   return 'requiere_reconciliacion';
 }
 

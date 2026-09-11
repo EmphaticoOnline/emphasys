@@ -293,7 +293,7 @@ export async function postConciliacion(req: Request, res: Response) {
     const result = await crearConciliacion(req.body, empresaId);
     res.status(201).json(result);
   } catch (err: any) {
-    res.status(400).json({ message: err.message || 'No se pudo registrar la conciliación' });
+    res.status(err?.status ?? 400).json({ message: err.message || 'No se pudo registrar la conciliación' });
   }
 }
 

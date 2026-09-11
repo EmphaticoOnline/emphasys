@@ -171,13 +171,9 @@ export default function Layout({ children }: LayoutProps) {
         const mostrarModuloProduccion = modulos
           .flatMap((modulo) => modulo.parametros)
           .some((parametro) => parametro.clave === 'mostrar_modulo_produccion' && toBoolean(parametro.valor_resuelto));
-        const mostrarVistaExcelCotizaciones = false;
         const extras = [
           ...(mostrarModuloProduccion
             ? [{ label: 'Producción', value: 'produccion', icon: 'PlaylistAddCheck' as string | null }]
-            : []),
-          ...(mostrarVistaExcelCotizaciones
-            ? [{ label: 'Vista Excel cotizaciones', value: 'cotizaciones-grid', icon: 'Description' as string | null }]
             : []),
         ];
         const combinadas = [...ventasOrdenadas];

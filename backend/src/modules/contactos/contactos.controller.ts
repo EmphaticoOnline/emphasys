@@ -11,6 +11,7 @@ import {
   guardarCatalogosConfigurablesDeContacto,
   precioListaPerteneceAEmpresa,
   ContactoTelefonoDuplicadoError,
+  ContactoEnUsoError,
 } from "./contactos.repository";
 import { generarExcelBuffer } from "../../utils/exportar";
 import type { ExportColumna } from "../../utils/exportar";
@@ -327,9 +328,15 @@ export async function eliminarContacto(req: Request, res: Response) {
       return res.status(404).json({ message: "Contacto no encontrado" });
     }
 
-    res.json(eliminado);
+    return res.status(204).send();
   } catch (error) {
     console.error("Error al eliminar contacto:", error);
+    if (error instanceof ContactoEnUsoError) {
+      return res.status(409).json({ code: error.code, message: error.message });
+    }
+    if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === '23503') {
+      return res.status(409).json({ code: 'CONTACTO_EN_USO', message: 'No se puede eliminar este contacto porque está asociado a viajes, documentos u otros registros históricos. Puedes desactivarlo.' });
+    }
     res.status(500).json({ message: "Error interno del servidor" });
   }
 }

@@ -23,7 +23,7 @@
 // generales, totales, fiscales) es de altura fija y compacta; solo la lista
 // de Partidas es flexible y con scroll interno propio cuando hay muchas.
 import React, { useMemo } from 'react';
-import { Alert, Box, Chip, CircularProgress, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material';
 import type { CotizacionDocumento, CotizacionListado, CotizacionPartida } from '../../../types/cotizacion';
 import { useSession } from '../../../session/useSession';
 import { summarizeDocumentTaxes } from '../../../utils/documentTaxSummary';
@@ -37,6 +37,8 @@ interface FacturaDocumentoResumenViewProps {
   partidasLoading: boolean;
   currency: Intl.NumberFormat;
   statusOption?: StatusOption | undefined;
+  onReconcile?: () => Promise<void>;
+  reconciling?: boolean;
 }
 
 const field = (label: string, value: React.ReactNode) => (
@@ -60,6 +62,8 @@ export default function FacturaDocumentoResumenView({
   partidasLoading,
   currency,
   statusOption,
+  onReconcile,
+  reconciling = false,
 }: FacturaDocumentoResumenViewProps) {
   const { session } = useSession();
   const emisorNombre = useMemo(
@@ -82,6 +86,17 @@ export default function FacturaDocumentoResumenView({
   });
   const total = documento?.total ?? row.total ?? 0;
   const saldo = Number(row.saldo ?? 0);
+  const cancelacionEstado = String(documento?.cfdi_cancelacion_estado ?? row.cfdi_cancelacion_estado ?? '').trim().toLowerCase();
+  const cancelacionRelevante = ['solicitada', 'pendiente', 'error', 'requiere_reconciliacion', 'cancelada', 'rechazada'].includes(cancelacionEstado);
+  const puedeReconciliar = ['solicitada', 'pendiente', 'error', 'requiere_reconciliacion'].includes(cancelacionEstado);
+  const cancelacionError = cancelacionEstado === 'error' || cancelacionEstado === 'requiere_reconciliacion';
+  const cancelacionLabel = cancelacionEstado === 'error' || cancelacionEstado === 'requiere_reconciliacion'
+    ? 'Requiere reconciliación'
+    : cancelacionEstado === 'pendiente' || cancelacionEstado === 'solicitada'
+      ? 'Pendiente'
+      : cancelacionEstado === 'cancelada'
+        ? 'Cancelada'
+        : cancelacionEstado === 'rechazada' ? 'Rechazada' : '';
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -186,9 +201,28 @@ export default function FacturaDocumentoResumenView({
           )}
         </Box>
 
-        {/* Totales */}
-        <Stack alignItems="flex-end" sx={{ pt: 1, mt: 1, borderTop: '1px solid #eef0f3', flexShrink: 0 }}>
-          <Box sx={{ minWidth: 200 }}>
+        {/* Cancelación y totales: ambas columnas permanecen ancladas en la franja inferior. */}
+        <Stack direction="row" alignItems="flex-end" justifyContent="space-between" spacing={2} sx={{ pt: 1, mt: 1, borderTop: '1px solid #eef0f3', flexShrink: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            {cancelacionRelevante ? (
+              <Box sx={{ maxWidth: 360, pr: 1 }}>
+                <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: '#92400e', textTransform: 'uppercase' }}>CANCELACIÓN CFDI</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 800, color: '#92400e' }}>Estado: {cancelacionLabel}</Typography>
+                {cancelacionError ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>El estado de la cancelación necesita volver a consultarse.</Typography>
+                ) : cancelacionEstado === 'cancelada' || cancelacionEstado === 'rechazada' ? null : (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>La cancelación aún no ha sido confirmada por el SAT.</Typography>
+                )}
+                {documento?.cfdi_cancelacion_proveedor_status ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Estado proveedor: {documento.cfdi_cancelacion_proveedor_status}</Typography> : null}
+                {puedeReconciliar && onReconcile ? (
+                  <Button size="small" variant="outlined" onClick={() => { void onReconcile(); }} disabled={reconciling} startIcon={reconciling ? <CircularProgress size={14} /> : undefined} sx={{ mt: 0.75, color: '#92400e', borderColor: '#d97706' }}>
+                    {reconciling ? 'Reconciliando…' : 'Reconciliar estado'}
+                  </Button>
+                ) : null}
+              </Box>
+            ) : null}
+          </Box>
+          <Box sx={{ minWidth: 200, flexShrink: 0 }}>
             {subtotal != null ? (
               <Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">Subtotal</Typography><Typography variant="caption">{currency.format(subtotal)}</Typography></Stack>
             ) : null}

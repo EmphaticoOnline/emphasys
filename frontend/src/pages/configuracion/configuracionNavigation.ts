@@ -23,6 +23,16 @@ export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
 		path: '/remolques',
 	},
 	{
+		titulo: 'Operadores',
+		descripcion: 'Administra operadores, licencias y datos necesarios para Carta Porte.',
+		path: '/operadores',
+	},
+	{
+		titulo: 'Domicilios propios',
+		descripcion: 'Administra domicilios de la empresa disponibles para Carta Porte.',
+		path: '/domicilios-propios',
+	},
+	{
 		titulo: 'Usuarios',
 		descripcion: 'Gestiona cuentas de acceso y credenciales.',
 		path: '/configuracion/usuarios',

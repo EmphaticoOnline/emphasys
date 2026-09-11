@@ -16,6 +16,15 @@ const requiredText = (value: unknown, field: string): string => {
   return text;
 };
 
+/** Formato fiscal Carta Porte 3.1; no modifica el valor persistido. */
+export const cartaPortePlate = (value: unknown, field: string): string => {
+  const normalized = String(value ?? '').trim().replace(/[\s-]/g, '').toUpperCase();
+  if (!/^[A-Z0-9]{5,7}$/.test(normalized)) {
+    throw new TransporteError(`Carta Porte: ${field} debe contener de 5 a 7 caracteres alfanuméricos, sin espacios ni guiones.`);
+  }
+  return normalized;
+};
+
 const positiveNumber = (value: unknown, field: string): number => {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) {
@@ -178,7 +187,7 @@ export function buildCartaPorte31(source: CartaPorteBuildSource, idCcp = generat
     const snapshot = item.datos_snapshot ?? {};
     return {
       SubTipoRem: requiredText(snapshot.subtipoRemolqueSat, `SubTipoRem del remolque ${index + 1}`),
-      Placa: requiredText(snapshot.placas, `placas del remolque ${index + 1}`),
+      Placa: cartaPortePlate(snapshot.placas, `placas del remolque ${index + 1}`),
     };
   });
 
@@ -211,7 +220,7 @@ export function buildCartaPorte31(source: CartaPorteBuildSource, idCcp = generat
         NumPermisoSCT: requiredText(vehicle.numero_permiso_sict, 'NumPermisoSCT'),
         IdentificacionVehicular: {
           ConfigVehicular: requiredText(vehicle.configuracion_vehicular_sat, 'ConfigVehicular'),
-          PlacaVM: requiredText(vehicle.placas, 'PlacaVM'),
+          PlacaVM: cartaPortePlate(vehicle.placas, 'PlacaVM del vehículo'),
           AnioModeloVM: positiveNumber(vehicle.modelo_anio, 'AnioModeloVM'),
           PesoBrutoVehicular: positiveNumber(vehicle.peso_bruto_vehicular, 'PesoBrutoVehicular'),
         },

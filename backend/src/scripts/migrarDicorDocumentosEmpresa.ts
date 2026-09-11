@@ -77,7 +77,7 @@ async function main() {
       const existing = await target.query<Row>(`SELECT id_destino,hash_origen FROM migrate.entidades_correspondencias WHERE sistema_origen='DICOR' AND tipo_entidad='documentos_empresa' AND id_origen=$1 AND empresa_destino_id=$2`, [String(doc.id), EMPRESA]);
       if (existing.rowCount && existing.rowCount > 1) throw new Error(`Correspondencia ambigua para documento ${doc.id}`);
       if (existing.rows[0]) {
-        const destination = await target.query<Row>('SELECT id,archivo_url FROM documentacion.documentos_empresa WHERE id=$1 AND empresa_id=$2', [existing.rows[0].id_destino, EMPRESA]);
+        const destination = await target.query<Row>('SELECT id,archivo_url FROM documentacion.adjuntos WHERE id=$1 AND empresa_id=$2', [existing.rows[0].id_destino, EMPRESA]);
         if (!destination.rowCount) throw new Error(`Correspondencia huérfana para documento ${doc.id}`);
         report.documentos.push({ dicor_id: doc.id, emphasy_id: existing.rows[0].id_destino, tipo_id: typeMap.get(Number(doc.tipo_id)), estado: 'sin_cambios', archivo_url: destination.rows[0].archivo_url });
         continue;
@@ -95,8 +95,8 @@ async function main() {
       if (!apply) continue;
       await target.query('BEGIN');
       try {
-        if (physical) { const dir = path.resolve(process.cwd(), 'private-storage', 'documentacion', 'documentos_empresa', '9'); await fs.mkdir(dir, { recursive: true }); await fs.copyFile(physical, path.join(dir, path.basename(targetUrl))); }
-        const inserted = await target.query<Row>(`INSERT INTO documentacion.documentos_empresa(empresa_id,tipo_id,archivo_url,nombre_original,fecha_subida,fecha_vencimiento,vigente,comentarios,usuario_subio_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [EMPRESA, tipo, targetUrl, doc.nombre_original, doc.fecha_subida, doc.fecha_vencimiento, doc.vigente, doc.comentarios, usuario]);
+        if (physical) { const dir = path.resolve(process.cwd(), 'private-storage', 'documentacion', 'adjuntos', '9'); await fs.mkdir(dir, { recursive: true }); await fs.copyFile(physical, path.join(dir, path.basename(targetUrl))); }
+        const inserted = await target.query<Row>(`INSERT INTO documentacion.adjuntos(empresa_id,tipo_id,documento_id,archivo_url,nombre_original,fecha_subida,fecha_vencimiento,vigente,comentarios,usuario_subio_id) VALUES($1,$2,NULL,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [EMPRESA, tipo, targetUrl, doc.nombre_original, doc.fecha_subida, doc.fecha_vencimiento, doc.vigente, doc.comentarios, usuario]);
         const id = Number(inserted.rows[0].id);
         await target.query(`INSERT INTO migrate.entidades_correspondencias(sistema_origen,tipo_entidad,id_origen,empresa_destino_id,id_destino,metadata,hash_origen,snapshot_origen,fecha_ultima_sincronizacion,version_transformacion,estado_sincronizacion) VALUES('DICOR','documentos_empresa',$1,$2,$3,$4,$5,$6,now(),$7,'sin_cambios')`, [String(doc.id), EMPRESA, id, { tipo_id: tipo, archivo: physical ? 'copiado' : 'pendiente' }, hash(doc), snapshot(doc), VERSION]);
         await target.query('COMMIT'); report.correspondencias_documentos++;

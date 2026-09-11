@@ -18,6 +18,13 @@ export class ContactoTelefonoDuplicadoError extends Error {
   }
 }
 
+export class ContactoEnUsoError extends Error {
+  code = 'CONTACTO_EN_USO' as const;
+  constructor() {
+    super('No se puede eliminar este contacto porque está asociado a viajes, documentos u otros registros históricos. Puedes desactivarlo.');
+  }
+}
+
 type CatalogoTipo = {
   id: number;
   nombre: string | null;
@@ -68,7 +75,13 @@ type DomicilioData = {
 
 export function domicilioPrincipalDesdeContacto(data: any): DomicilioData | undefined {
   if (data?.domicilio_principal && typeof data.domicilio_principal === 'object') {
-    return data.domicilio_principal;
+    const domicilio = data.domicilio_principal;
+    const result = {
+      ...domicilio,
+      colonia_sat: domicilio.colonia_sat || data.colonia_sat || null,
+      cp_sat: domicilio.cp_sat || data.cp_sat || null,
+    };
+    return result;
   }
   if (!data) return undefined;
   return {
@@ -797,7 +810,8 @@ export async function actualizarContacto(
       return null;
     }
 
-    await upsertDomicilioPrincipal(client, id, domicilioPrincipalDesdeContacto(data));
+    const domicilioPrincipal = domicilioPrincipalDesdeContacto(data);
+    await upsertDomicilioPrincipal(client, id, domicilioPrincipal);
     await upsertDatosFiscales(client, id, data as any);
     if (options.catalogoIds !== undefined) {
       await guardarCatalogosConCliente(client, empresa_id, id, options.catalogoIds);
@@ -1003,10 +1017,47 @@ export async function obtenerContactosParaExportar(
 }
 
 export async function eliminarContacto(id: number, empresa_id: number) {
-  const { rows } = await pool.query(
-    'DELETE FROM contactos WHERE id = $1 AND empresa_id = $2 RETURNING *',
-    [id, empresa_id]
-  );
-
-  return rows[0] ?? null;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const contacto = await client.query(
+      'SELECT id FROM public.contactos WHERE id = $1 AND empresa_id = $2 FOR UPDATE',
+      [id, empresa_id]
+    );
+    if (contacto.rowCount !== 1) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    const dependencias = await client.query<{ en_uso: boolean }>(
+      `SELECT (
+        EXISTS (SELECT 1 FROM crm.actividades WHERE contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM crm.conversaciones WHERE contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM crm.mensajes WHERE contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM public.credito_operaciones WHERE contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM public.precios WHERE contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM public.operaciones_entregas WHERE contacto_id = $2 OR fletera_contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM transporte.viajes WHERE empresa_id = $1 AND cliente_contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM transporte.viaje_figuras WHERE empresa_id = $1 AND contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM transporte.viaje_figuras vf JOIN transporte.operadores o ON o.empresa_id = vf.empresa_id AND o.id = vf.operador_id WHERE o.empresa_id = $1 AND o.contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM transporte.remolques WHERE propietario_contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM transporte.vehiculos WHERE propietario_contacto_id = $2) OR
+        EXISTS (SELECT 1 FROM whatsapp.contacto_mapeo WHERE contacto_id = $2)
+      ) AS en_uso`, [empresa_id, id]
+    );
+    if (dependencias.rows[0]?.en_uso) {
+      await client.query('ROLLBACK');
+      throw new ContactoEnUsoError();
+    }
+    await client.query('DELETE FROM transporte.operadores WHERE empresa_id = $1 AND contacto_id = $2', [empresa_id, id]);
+    const eliminado = await client.query(
+      'DELETE FROM public.contactos WHERE id = $1 AND empresa_id = $2 RETURNING *', [id, empresa_id]
+    );
+    await client.query('COMMIT');
+    return eliminado.rows[0] ?? null;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }

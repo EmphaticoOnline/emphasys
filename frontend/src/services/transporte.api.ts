@@ -10,6 +10,11 @@ export const obtenerUbicacionesDisponibles = (params = '') => apiFetch<Ubicacion
 
 export type OperadorDisponible = { operador_id:number; contacto_id:number; nombre:string; rfc:string|null; curp:string|null; numero_licencia:string; tipo_licencia:string|null; vigencia_licencia:string|null };
 export const obtenerOperadoresDisponibles = () => apiFetch<OperadorDisponible[]>('/api/transporte/operadores-disponibles');
+export type OperadorTransporte = { id:number; empresa_id:number; contacto_id:number; nombre:string; rfc:string|null; telefono:string|null; email:string|null; numero_licencia:string; tipo_licencia:string|null; vigencia_licencia:string|null; activo:boolean; domicilio_principal:Record<string, unknown>|null; tiene_domicilio_principal:boolean };
+export const obtenerOperadores = (params = '') => apiFetch<OperadorTransporte[]>(`/api/transporte/operadores${params ? `?${params}` : ''}`);
+export const crearOperador = (body: unknown) => apiFetch<OperadorTransporte>('/api/transporte/operadores', { method: 'POST', body });
+export const actualizarOperador = (id: number, body: unknown) => apiFetch<OperadorTransporte>(`/api/transporte/operadores/${id}`, { method: 'PUT', body });
+export const cambiarEstadoOperador = (id: number, activo: boolean) => apiFetch<OperadorTransporte>(`/api/transporte/operadores/${id}/activo`, { method: 'PATCH', body: { activo } });
 
 export type VehiculoTransporte = { id:number; clave_interna:string; placas:string; configuracion_vehicular_sat:string|null; peso_bruto_vehicular:number|null; modelo_anio:number|null; activo:boolean; remolque_predeterminado_id:number|null; remolque_predeterminado_clave:string|null; remolque_predeterminado_placas:string|null; remolque_predeterminado_subtipo:string|null };
 export const obtenerVehiculos = () => apiFetch<VehiculoTransporte[]>('/api/transporte/vehiculos?activo=activos');

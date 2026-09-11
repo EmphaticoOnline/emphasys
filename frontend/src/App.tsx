@@ -7,6 +7,8 @@ import ProductosPage from './pages/ProductosPage';
 import ProductoFormPage from './pages/ProductoFormPage';
 import VehiculosPage from './pages/VehiculosPage';
 import RemolquesPage from './pages/RemolquesPage';
+import OperadoresPage from './pages/OperadoresPage';
+import DomiciliosPropiosPage from './pages/DomiciliosPropiosPage';
 import DocumentosPage from './pages/DocumentosPage';
 import DocumentosFormPage from './pages/DocumentosFormPage';
 import LoginPage from './pages/LoginPage';
@@ -41,7 +43,6 @@ import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 import CRMPage from './pages/CRMPage';
 import ActividadFormPage from './pages/ActividadFormPage';
 import OportunidadDetallePage from './pages/OportunidadDetallePage';
-import CotizacionesGridPage from './pages/CotizacionesGridPage';
 import AIReportesPage from './pages/AIReportesPage';
 import InformesPage from './pages/informes/InformesPage';
 import EstadoCuentaProveedorPage from './pages/informes/compras/EstadoCuentaProveedorPage';
@@ -129,10 +130,11 @@ export default function App() {
               <Route path="/productos/:id" element={<ProductoFormPage />} />
               <Route path="/vehiculos" element={<VehiculosPage />} />
               <Route path="/remolques" element={<RemolquesPage />} />
+              <Route path="/operadores" element={<OperadoresPage />} />
+              <Route path="/domicilios-propios" element={<DomiciliosPropiosPage />} />
 
               {/* Ventas */}
               <Route path="/ventas/produccion" element={<ProduccionPage />} />
-              <Route path="/ventas/cotizaciones-grid" element={<CotizacionesGridPage />} />
               <Route path="/ventas/:codigo" element={<DocumentosPage />} />
               <Route path="/ventas/:codigo/nuevo" element={<DocumentosFormPage />} />
               <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />

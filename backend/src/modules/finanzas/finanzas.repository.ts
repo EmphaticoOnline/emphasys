@@ -1539,6 +1539,11 @@ export async function crearConciliacion(
     const cuenta = await obtenerCuentaConLock(client, data.cuenta_id, empresaId);
     if (!cuenta) throw new Error('Cuenta no encontrada');
 
+    const existente = await obtenerConciliacionVigentePorFecha(client, data.cuenta_id, empresaId, data.fecha_corte);
+    if (existente) {
+      throw Object.assign(new Error('Ya existe una conciliación vigente para esta cuenta y fecha.'), { status: 409 });
+    }
+
     const insert = `
       INSERT INTO finanzas_conciliaciones (empresa_id, cuenta_id, fecha_corte, saldo_banco, observaciones)
       VALUES ($1,$2,$3,$4,$5)
@@ -1560,6 +1565,26 @@ export async function crearConciliacion(
   } finally {
     client.release();
   }
+}
+
+async function obtenerConciliacionVigentePorFecha(
+  client: Pick<PoolClient, 'query'>,
+  cuentaId: number,
+  empresaId: number,
+  fechaCorte: string
+): Promise<number | null> {
+  const { rows } = await client.query<{ id: number }>(
+    `SELECT id
+     FROM finanzas_conciliaciones
+     WHERE cuenta_id = $1
+       AND empresa_id = $2
+       AND fecha_corte = $3::date
+       AND COALESCE(estatus, 'cerrada') = 'cerrada'
+     ORDER BY id DESC
+     LIMIT 1`,
+    [cuentaId, empresaId, fechaCorte]
+  );
+  return rows[0]?.id ?? null;
 }
 
 export async function crearAplicacion(
@@ -3373,6 +3398,8 @@ export type ConciliacionMovimientosResult = {
   total_retiros_cotejados: number;
   saldo_conciliado_calculado: number;
   moneda: string;
+  conciliacion_existente: boolean;
+  conciliacion_id: number | null;
 };
 
 export async function obtenerMovimientosConciliacion(
@@ -3380,7 +3407,7 @@ export async function obtenerMovimientosConciliacion(
   fechaCorte: string,
   empresaId: number
 ): Promise<ConciliacionMovimientosResult> {
-  const [movRes, saldoRes] = await Promise.all([
+  const [movRes, saldoRes, conciliacionRes] = await Promise.all([
     pool.query<MovimientoConciliacion>(`
       SELECT
         fo.id, fo.fecha, fo.tipo_movimiento, fo.naturaleza_operacion, fo.monto,
@@ -3451,6 +3478,7 @@ export async function obtenerMovimientosConciliacion(
         AND NOT COALESCE(fc.cuenta_cerrada, false)
       GROUP BY fc.saldo_inicial, fc.saldo_conciliado, fc.moneda
     `, [empresaId, fechaCorte, cuentaId]),
+    obtenerConciliacionVigentePorFecha(pool, cuentaId, empresaId, fechaCorte)
   ]);
 
   const saldoRow = saldoRes.rows[0];
@@ -3462,6 +3490,8 @@ export async function obtenerMovimientosConciliacion(
     total_retiros_cotejados: saldoRow ? Number(saldoRow.total_retiros_cotejados) : 0,
     saldo_conciliado_calculado: saldoRow ? Number(saldoRow.saldo_conciliado_calculado) : 0,
     moneda: saldoRow?.moneda ?? 'MXN',
+    conciliacion_existente: conciliacionRes !== null,
+    conciliacion_id: conciliacionRes,
   };
 }
 

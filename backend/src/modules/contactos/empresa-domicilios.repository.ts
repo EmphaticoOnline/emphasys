@@ -46,3 +46,20 @@ export async function actualizarActivoDomicilioEmpresa(empresaId: number, domici
   const { rows } = await pool.query('UPDATE public.contactos_domicilios SET activo=$1, updated_at=now() WHERE id=$2 AND empresa_id=$3 AND contacto_id IS NULL RETURNING *', [activo, domicilioId, empresaId]);
   return rows[0] ?? null;
 }
+
+export async function eliminarDomicilioEmpresa(empresaId: number, domicilioId: number) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const exists = await client.query('SELECT 1 FROM public.contactos_domicilios WHERE id=$1 AND empresa_id=$2 AND contacto_id IS NULL FOR UPDATE', [domicilioId, empresaId]);
+    if (exists.rowCount !== 1) { await client.query('ROLLBACK'); return null; }
+    const used = await client.query('SELECT 1 FROM transporte.viaje_ubicaciones WHERE domicilio_id=$1 LIMIT 1', [domicilioId]);
+    if (used.rowCount) {
+      await client.query('ROLLBACK');
+      throw Object.assign(new Error('Domicilio propio con historial de uso'), { statusCode: 409 });
+    }
+    await client.query('DELETE FROM public.contactos_domicilios WHERE id=$1 AND empresa_id=$2 AND contacto_id IS NULL', [domicilioId, empresaId]);
+    await client.query('COMMIT');
+    return true;
+  } catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; } finally { client.release(); }
+}

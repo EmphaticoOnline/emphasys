@@ -523,4 +523,30 @@ export class FacturamaClient {
       estado: interpretarEstadoCancelacionFacturama(proveedorStatus),
     };
   }
+
+  async getSatCfdiStatus(payload: {
+    uuid: string;
+    issuerRfc: string;
+    receiverRfc: string;
+    total: string | number;
+  }): Promise<{
+    data: any;
+    endpoint: string;
+    httpStatus: number;
+    status: string;
+  }> {
+    const endpoint = '/cfdi/status';
+    const response = await this.http.get(endpoint, {
+      params: {
+        uuid: payload.uuid,
+        issuerRfc: payload.issuerRfc,
+        receiverRfc: payload.receiverRfc,
+        total: payload.total,
+      },
+      headers: { Accept: 'application/json' },
+    });
+    const status = String(response.data?.Status ?? response.data?.status ?? '').trim();
+    if (!status) throw new Error('Facturama no devolvió el estado SAT del CFDI.');
+    return { data: response.data, endpoint, httpStatus: response.status, status };
+  }
 }

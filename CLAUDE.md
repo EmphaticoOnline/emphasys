@@ -11,6 +11,15 @@ Responde siempre en español.
 ### Desarrollo
 ```bash
 npm run dev          # Inicia backend y frontend concurrentemente
+
+# Diagnóstico READ ONLY
+npm run db:query -- "SELECT ..."
+
+# Exportar esquema
+npm run schema:full
+
+# Aplicar una migración SQL explícita (MODIFICA LA BD)
+npm run db:migrate:file -- database/migrations/<archivo>.sql
 ```
 
 ### Backend (Node.js/Express)

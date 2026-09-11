@@ -7,11 +7,13 @@ import {
   getApiWebCancelPath,
   getCfdiStatusPath,
   interpretarEstadoCancelacionFacturama,
+  interpretarEstadoSatCfdi,
+  interpretarResultadoReconciliacionSat,
   validarIdentidadCfdiOriginal,
 } from '../modules/cfdi/cfdi-cancelacion';
 import {
   clasificarFalloCancelacionPac,
-  consultarEstadoCancelacionPac,
+  consultarEstadoSatPac,
 } from '../modules/documentos/documentos-cancel.service';
 
 const PAC_ID = 'abc_DEF-123';
@@ -45,6 +47,14 @@ assert.equal(interpretarEstadoCancelacionFacturama('pending'), 'pendiente');
 assert.equal(interpretarEstadoCancelacionFacturama('requested'), 'pendiente');
 assert.equal(interpretarEstadoCancelacionFacturama('rejected'), 'rechazada');
 assert.equal(interpretarEstadoCancelacionFacturama('unexpected'), 'requiere_reconciliacion');
+assert.equal(interpretarEstadoSatCfdi('Vigente'), 'vigente');
+assert.equal(interpretarEstadoSatCfdi('Cancelado'), 'cancelado');
+assert.equal(interpretarEstadoSatCfdi('No Encontrado'), 'no_encontrado');
+assert.equal(interpretarEstadoSatCfdi('unexpected'), 'desconocido');
+assert.equal(interpretarResultadoReconciliacionSat('Vigente'), 'pendiente');
+assert.equal(interpretarResultadoReconciliacionSat('Cancelado'), 'cancelada');
+assert.equal(interpretarResultadoReconciliacionSat('rejected'), 'rechazada');
+assert.equal(interpretarResultadoReconciliacionSat('No Encontrado'), 'requiere_reconciliacion');
 assert.equal(esSolicitudCancelacionActiva('pendiente'), true);
 assert.equal(esSolicitudCancelacionActiva('requiere_reconciliacion'), true);
 assert.equal(esSolicitudCancelacionActiva('rechazada'), false);
@@ -94,19 +104,23 @@ assert.throws(
 );
 
 const reconciliationCalls: string[] = [];
-consultarEstadoCancelacionPac({
-  async getCfdiStatus(payload) {
-    reconciliationCalls.push(`GET:${payload.modalidad}:${payload.pacId}`);
+consultarEstadoSatPac({
+  async getSatCfdiStatus(payload) {
+    reconciliationCalls.push(`GET:${payload.uuid}:${payload.issuerRfc}:${payload.receiverRfc}:${payload.total}`);
     return {
-      data: { Status: 'pending' },
-      endpoint: getCfdiStatusPath(payload.modalidad, payload.pacId),
+      data: { Status: 'Vigente' },
+      endpoint: '/cfdi/status',
       httpStatus: 200,
-      proveedorStatus: 'pending',
-      estado: 'pendiente',
+      status: 'Vigente',
     };
   },
-}, { pacId: PAC_ID, modalidad: 'web' }).then(() => {
-  assert.deepEqual(reconciliationCalls, [`GET:web:${PAC_ID}`]);
+}, {
+  uuid: UUID,
+  issuerRfc: 'AAA010101AAA',
+  receiverRfc: 'BBB010101BBB',
+  total: 10440,
+}).then(() => {
+  assert.deepEqual(reconciliationCalls, [`GET:${UUID}:AAA010101AAA:BBB010101BBB:10440`]);
   console.log(JSON.stringify({
     rutas: 'ok',
     pac_id_requerido: 'ok',

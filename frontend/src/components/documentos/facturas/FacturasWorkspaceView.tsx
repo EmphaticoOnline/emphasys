@@ -31,6 +31,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  Snackbar,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -133,6 +134,19 @@ function estatusChipSx(option: StatusOption | undefined) {
   };
 }
 
+function estadoVisualFactura(row: CotizacionListado): { color: string; label: string } {
+  const estatus = normalizeEstatus(row.estatus_documento);
+  const cancelacion = normalizeEstatus(row.cfdi_cancelacion_estado);
+  const cancelada = estatus === 'cancelado' || estatus === 'cancelada' || cancelacion === 'cancelada';
+  if (cancelada) return { color: '#D32F2F', label: 'Cancelada' };
+  if (['solicitada', 'pendiente', 'requiere_reconciliacion'].includes(cancelacion)) {
+    return { color: '#F59E0B', label: 'Cancelación pendiente' };
+  }
+  const emitida = estatus === 'emitido' || estatus === 'timbrado' || Boolean(row.cfdi_uuid);
+  if (emitida) return { color: '#2E7D32', label: 'Emitida / Timbrada' };
+  return { color: '#FFD600', label: 'Borrador' };
+}
+
 export default function FacturasWorkspaceView({
   rows,
   isLoading,
@@ -175,6 +189,12 @@ export default function FacturasWorkspaceView({
   const [globalMenuAnchor, setGlobalMenuAnchor] = useState<HTMLElement | null>(null);
   const [enviarMenuAnchor, setEnviarMenuAnchor] = useState<HTMLElement | null>(null);
   const [previewTab, setPreviewTab] = useState(0);
+  const [reconcileSnackbar, setReconcileSnackbar] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    severity: 'success' | 'warning' | 'error';
+  }>({ open: false, title: '', message: '', severity: 'success' });
   const activatedRowIdRef = useRef<number | null>(null);
 
   // Si la fila seleccionada deja de existir (recarga, filtro nuevo), cae a la primera visible.
@@ -211,6 +231,18 @@ export default function FacturasWorkspaceView({
   // partidas/receptor/fiscales), pero pinta el encabezado de inmediato con
   // los datos síncronos de `row` mientras tanto.
   const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, tipoDocumento, Boolean(selectedRow), documentoDetalleRefreshKey);
+  const handleReconcile = async () => {
+    const result = await detalle.handleReconcile();
+    const estado = normalizeEstatus(result?.cancelacion_estado);
+    const toast = estado === 'cancelada'
+      ? { title: 'Cancelación confirmada', message: 'El SAT reporta el CFDI como cancelado.', severity: 'success' as const }
+      : estado === 'pendiente'
+        ? { title: 'Estado consultado', message: 'El SAT continúa reportando el CFDI como vigente.', severity: 'warning' as const }
+        : estado === 'requiere_reconciliacion'
+          ? { title: 'Estado no concluyente', message: 'No fue posible confirmar todavía el estado de la cancelación.', severity: 'warning' as const }
+          : { title: 'No se pudo consultar el estado', message: 'Intenta nuevamente.', severity: 'error' as const };
+    setReconcileSnackbar({ open: true, ...toast });
+  };
   const formatterMXN = useMemo(
     () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 }),
     []
@@ -355,6 +387,7 @@ export default function FacturasWorkspaceView({
               const saldo = Number(row.saldo ?? 0);
               const selected = row.id === selectedId;
               const checked = selectedDocumentIds.includes(row.id);
+              const estadoVisual = estadoVisualFactura(row);
               return (
                 <Box
                   key={row.id}
@@ -383,7 +416,6 @@ export default function FacturasWorkspaceView({
                       }}
                       sx={{ p: 0.25 }}
                     />
-                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: option?.color || '#9ca3af', flexShrink: 0 }} />
                     <Typography variant="body2" fontWeight={700} noWrap>{formatFolio(row)}</Typography>
                     <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1, minWidth: 0 }}>
                       {row.nombre_cliente || '—'}
@@ -393,7 +425,10 @@ export default function FacturasWorkspaceView({
                   <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="space-between" sx={{ pl: 1.75, mt: 0.25 }}>
                     <Stack direction="row" spacing={0.75} alignItems="center">
                       <Typography variant="caption" color="text.disabled">{formatDate(row.fecha_documento)}</Typography>
-                      {option ? <Chip label={option.label} size="small" sx={{ height: 18, fontSize: 10, ...estatusChipSx(option) }} /> : null}
+                      {option ? <Chip label={option.label} size="small" sx={{ height: 18, fontSize: 10, flexShrink: 0, ...estatusChipSx(option) }} /> : null}
+                      <Tooltip title={estadoVisual.label} arrow>
+                        <Box component="span" sx={{ width: 10, height: 10, flex: '0 0 10px', borderRadius: '50%', bgcolor: estadoVisual.color, display: 'inline-block' }} />
+                      </Tooltip>
                     </Stack>
                     <Typography variant="caption" fontWeight={700} color={saldo > 0 ? 'error.main' : 'success.main'}>
                       Saldo: {currency.format(saldo)}
@@ -452,6 +487,7 @@ export default function FacturasWorkspaceView({
             previewTab={previewTab}
             onPreviewTabChange={setPreviewTab}
             detalle={detalle}
+            onReconcile={handleReconcile}
             formatterMXN={formatterMXN}
             enviarMenuAnchor={enviarMenuAnchor}
             setEnviarMenuAnchor={setEnviarMenuAnchor}
@@ -463,6 +499,26 @@ export default function FacturasWorkspaceView({
           </Stack>
         )}
       </Box>
+      <Snackbar
+        open={reconcileSnackbar.open}
+        autoHideDuration={5000}
+        onClose={() => setReconcileSnackbar((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setReconcileSnackbar((prev) => ({ ...prev, open: false }))}
+          severity={reconcileSnackbar.severity}
+          variant="filled"
+          sx={{
+            bgcolor: '#111',
+            color: '#fff',
+            borderLeft: `4px solid ${reconcileSnackbar.severity === 'error' ? '#D32F2F' : reconcileSnackbar.severity === 'warning' ? '#F59E0B' : '#2E7D32'}`,
+          }}
+        >
+          <Typography sx={{ fontWeight: 800, fontSize: 12.5 }}>{reconcileSnackbar.title}</Typography>
+          <Typography sx={{ fontSize: 12 }}>{reconcileSnackbar.message}</Typography>
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
@@ -479,6 +535,7 @@ function FacturaWorkspacePanel({
   previewTab,
   onPreviewTabChange,
   detalle,
+  onReconcile,
   formatterMXN,
   enviarMenuAnchor,
   setEnviarMenuAnchor,
@@ -493,6 +550,7 @@ function FacturaWorkspacePanel({
   previewTab: number;
   onPreviewTabChange: (tab: number) => void;
   detalle: ReturnType<typeof useDocumentoDetalleData>;
+  onReconcile: () => Promise<void>;
   formatterMXN: Intl.NumberFormat;
   enviarMenuAnchor: HTMLElement | null;
   setEnviarMenuAnchor: (el: HTMLElement | null) => void;
@@ -628,11 +686,11 @@ function FacturaWorkspacePanel({
             <IconButton
               size="small"
               aria-label="Enviar"
-              disabled={
+              disabled={Boolean(
                 (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
                 && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
-              }
-              onClick={(e) => setEnviarMenuAnchor(e.currentTarget)}
+              )}
+              onClick={(e: React.MouseEvent<HTMLElement>) => setEnviarMenuAnchor(e.currentTarget)}
               sx={actionButtonSx}
             >
               <SendOutlinedIcon fontSize="small" />
@@ -678,6 +736,8 @@ function FacturaWorkspacePanel({
             partidasLoading={detalle.loading}
             currency={currency}
             statusOption={option}
+            onReconcile={onReconcile}
+            reconciling={detalle.reconciling}
           />
         ) : detalle.loading ? (
           <Stack alignItems="center" py={6}><CircularProgress size={26} /></Stack>
@@ -691,8 +751,8 @@ function FacturaWorkspacePanel({
             tipoDocumento={tipoDocumento}
             folio={row.numero != null ? `${row.serie ?? ''}${row.numero}` : String(row.id)}
             reconciling={detalle.reconciling}
-            reconciliationMessage={detalle.reconciliationMessage}
-            onReconcile={async () => { await detalle.handleReconcile(); }}
+            reconciliationMessage={null}
+            onReconcile={onReconcile}
           />
         ) : previewTab === 2 ? (
           <PartidasTab partidas={detalle.data.partidas} formatter={formatterMXN} />

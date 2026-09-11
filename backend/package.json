@@ -9,6 +9,8 @@
     "start": "node dist/server.js",
     "schema:export": "ts-node src/scripts/exportSchema.ts",
     "schema:export:single": "ts-node src/scripts/exportSchemaSingle.ts",
+    "db:query": "ts-node src/scripts/dbQuery.ts",
+    "db:migrate:file": "ts-node src/scripts/dbMigrateFile.ts",
     "migrar:dicor-documentos": "ts-node src/scripts/migrarDicorDocumentos.ts",
     "migrar:dicor-documentos-empresa": "ts-node src/scripts/migrarDicorDocumentosEmpresa.ts",
     "migrar:dicor-entregas": "ts-node src/scripts/migrarDicorEntregas.ts",
