@@ -2174,6 +2174,10 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
 
       updateMessageStatus(leadId, tempId, 'sent');
       setQuickReply('');
+      setDraftsByConversation((drafts) => {
+        const { [leadId]: _removed, ...rest } = drafts;
+        return rest;
+      });
       setReplyingTo(null);
       clearPendingAttachment();
       setUploadError(null);
