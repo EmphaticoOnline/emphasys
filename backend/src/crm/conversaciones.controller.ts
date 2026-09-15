@@ -1365,6 +1365,55 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
     const unreadVendorParam = params.length + 1;
     params.push(vendedorContactoId);
 
+    const temperatureTable = await pool.query<{ exists: boolean }>(`SELECT to_regclass('crm.conversacion_temperaturas') IS NOT NULL AS exists`);
+    const hasTemperatureTable = Boolean(temperatureTable.rows[0]?.exists);
+    const eligibilitySelect = `
+        EXISTS (
+          SELECT 1 FROM crm.mensajes outgoing
+          WHERE outgoing.empresa_id = c.empresa_id AND outgoing.conversacion_id = c.id AND outgoing.tipo_mensaje = 'saliente'
+            AND EXISTS (
+              SELECT 1 FROM crm.mensajes incoming
+              WHERE incoming.empresa_id = c.empresa_id AND incoming.conversacion_id = c.id AND incoming.tipo_mensaje = 'entrante'
+                AND (
+                  COALESCE(incoming.fecha_envio, incoming.creado_en) > COALESCE(outgoing.fecha_envio, outgoing.creado_en)
+                  OR (COALESCE(incoming.fecha_envio, incoming.creado_en) IS NOT DISTINCT FROM COALESCE(outgoing.fecha_envio, outgoing.creado_en) AND incoming.id > outgoing.id)
+                )
+            )
+        ) AS "elegibleParaAnalisis",
+        CASE WHEN EXISTS (
+          SELECT 1 FROM crm.mensajes outgoing
+          WHERE outgoing.empresa_id = c.empresa_id AND outgoing.conversacion_id = c.id AND outgoing.tipo_mensaje = 'saliente'
+            AND EXISTS (
+              SELECT 1 FROM crm.mensajes incoming
+              WHERE incoming.empresa_id = c.empresa_id AND incoming.conversacion_id = c.id AND incoming.tipo_mensaje = 'entrante'
+                AND (
+                  COALESCE(incoming.fecha_envio, incoming.creado_en) > COALESCE(outgoing.fecha_envio, outgoing.creado_en)
+                  OR (COALESCE(incoming.fecha_envio, incoming.creado_en) IS NOT DISTINCT FROM COALESCE(outgoing.fecha_envio, outgoing.creado_en) AND incoming.id > outgoing.id)
+                )
+            )
+        ) THEN NULL ELSE 'sin_interaccion_suficiente' END AS "motivoNoElegible",`;
+    const temperatureSelect = hasTemperatureTable ? `
+        temp.puntuacion AS "temperaturaPuntuacion", temp.nivel AS "temperaturaNivel",
+        temp.confianza AS "temperaturaConfianza", temp.creado_en AS "temperaturaCreadoEn",
+        (temp.snapshot_hash IS NOT NULL AND (
+          (temp.ultimo_mensaje_id_considerado IS NOT NULL AND lm.id IS NOT NULL AND lm.id > temp.ultimo_mensaje_id_considerado)
+          OR (lm.id IS NULL AND temp.ultimo_mensaje_id_considerado IS NOT NULL)
+          OR (lm.id IS NOT NULL AND temp.ultimo_mensaje_id_considerado IS NOT NULL AND lm.id < temp.ultimo_mensaje_id_considerado)
+          OR temp.prompt_version <> 'v4'
+          OR temp.modelo <> 'gpt-4.1-mini'
+        )) AS "temperaturaDesactualizada",
+        CASE WHEN temp.snapshot_hash IS NULL THEN ARRAY[]::text[] ELSE ARRAY_REMOVE(ARRAY[
+          CASE WHEN temp.ultimo_mensaje_id_considerado IS NOT NULL AND lm.id IS NOT NULL AND lm.id > temp.ultimo_mensaje_id_considerado THEN 'mensajes_nuevos' END,
+          CASE WHEN (lm.id IS NULL AND temp.ultimo_mensaje_id_considerado IS NOT NULL) OR (lm.id IS NOT NULL AND temp.ultimo_mensaje_id_considerado IS NOT NULL AND lm.id < temp.ultimo_mensaje_id_considerado) THEN 'historial_modificado' END,
+          CASE WHEN temp.prompt_version <> 'v4' THEN 'metodologia_actualizada' END,
+          CASE WHEN temp.modelo <> 'gpt-4.1-mini' THEN 'modelo_actualizado' END
+        ], NULL) END AS "temperaturaMotivosDesactualizacion",` : '';
+    const temperatureJoin = hasTemperatureTable ? `LEFT JOIN LATERAL (
+        SELECT t.puntuacion, t.nivel, t.confianza, t.creado_en, t.snapshot_hash, t.ultimo_mensaje_id_considerado, t.prompt_version, t.modelo
+        FROM crm.conversacion_temperaturas t
+        WHERE t.empresa_id = c.empresa_id AND t.conversacion_id = c.id
+        ORDER BY t.creado_en DESC LIMIT 1
+      ) temp ON TRUE` : '';
     const result = await pool.query(
       `
       SELECT
@@ -1392,6 +1441,8 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
         lm.tipo_contenido AS "ultimoMensajeTipoContenido",
         lm.caption AS "ultimoMensajeCaption",
         (lm.respuesta_json->>'es_gif') = 'true' AS "ultimoMensajeEsGif",
+        ${eligibilitySelect}
+        ${temperatureSelect}
         CASE WHEN ct.vendedor_id = $${unreadVendorParam} THEN (
           SELECT COUNT(*)::integer FROM crm.mensajes um
           LEFT JOIN crm.conversaciones_lecturas ul ON ul.empresa_id = c.empresa_id AND ul.usuario_id = $${unreadUserParam} AND ul.conversacion_id = c.id
@@ -1405,12 +1456,13 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
       FROM crm.conversaciones c
       LEFT JOIN public.contactos ct ON ct.id = c.contacto_id
       LEFT JOIN LATERAL (
-        SELECT m.telefono, m.contenido, m.fecha_envio, m.tipo_mensaje, m.tipo_contenido, m.caption, m.respuesta_json
+        SELECT m.id, m.telefono, m.contenido, m.fecha_envio, m.tipo_mensaje, m.tipo_contenido, m.caption, m.respuesta_json
         FROM crm.mensajes m
         WHERE m.conversacion_id = c.id
         ORDER BY m.fecha_envio DESC NULLS LAST, m.creado_en DESC NULLS LAST
         LIMIT 1
       ) lm ON TRUE
+      ${temperatureJoin}
       WHERE ${filters.join(" AND ")}
       ORDER BY lm.fecha_envio DESC NULLS LAST, c.ultimo_mensaje_en DESC NULLS LAST, c.creada_en DESC
       `,

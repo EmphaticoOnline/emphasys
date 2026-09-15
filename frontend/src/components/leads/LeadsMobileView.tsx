@@ -51,6 +51,7 @@ import { SendWhatsappTemplateDialog } from '../SendWhatsappTemplateDialog';
 import { MessageActionsSheet, type ActionableMessage } from './MessageActionsSheet';
 import { LeadDetailPanel, leadSelectMenuProps } from './LeadDetailPanel';
 import { LeadTagsManager } from './LeadTagsManager';
+import TemperaturaScoreButton from './TemperaturaScoreButton';
 import {
   buildLeadOwnerLabel,
   buildReplyPreviewText,
@@ -71,6 +72,7 @@ import type {
   Lead,
   LeadConPrioridad,
   LeadScope,
+  ConversationViewMode,
   MotivoFinalizacion,
   OportunidadVenta,
   OpportunityFilter,
@@ -110,6 +112,7 @@ const MOBILE_CHAT_HEIGHT_SX = {
 // mensajes citados.
 export interface LeadsMobileViewProps {
   leadsFiltradosOrdenados: LeadConPrioridad[];
+  leadsRecientes: LeadConPrioridad[];
   selectedLeadId: string;
   selectedLead: LeadConPrioridad | undefined;
   onSelectLead: (id: string) => void;
@@ -122,6 +125,8 @@ export interface LeadsMobileViewProps {
   // de actualizar el estado, persiste la preferencia en 'leads-chat' (ver
   // handleLeadScopeChange en LeadsPage.tsx).
   onLeadScopeChange: (scope: LeadScope) => void;
+  conversationViewMode: ConversationViewMode;
+  onConversationViewModeChange: (mode: ConversationViewMode) => void;
   canToggleScope: boolean;
   showMisChip: boolean;
   showTodosChip: boolean;
@@ -877,6 +882,7 @@ function MessageBubble({
 export default function LeadsMobileView(props: LeadsMobileViewProps) {
   const {
     leadsFiltradosOrdenados,
+    leadsRecientes,
     selectedLeadId,
     selectedLead,
     onSelectLead,
@@ -886,6 +892,8 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     setSearchTerm,
     leadScope,
     onLeadScopeChange,
+    conversationViewMode,
+    onConversationViewModeChange,
     canToggleScope,
     showMisChip,
     showTodosChip,
@@ -1746,6 +1754,20 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
         })()}
       </Stack>
 
+      <Stack direction="row" spacing={0.25} sx={{ mx: 2, mb: 1, p: 0.25, borderRadius: 1, bgcolor: 'action.hover', alignSelf: 'flex-start' }}>
+        {([['priority', 'Prioridad'], ['recent', 'Recientes']] as const).map(([mode, label]) => (
+          <Button
+            key={mode}
+            size="small"
+            onClick={() => onConversationViewModeChange(mode)}
+            variant={conversationViewMode === mode ? 'contained' : 'text'}
+            sx={{ minHeight: 26, py: 0, px: 1.25, fontSize: 11, textTransform: 'none', boxShadow: 'none' }}
+          >
+            {label}
+          </Button>
+        ))}
+      </Stack>
+
       {/* Popover de filtros secundarios: mismo contenido y misma lógica de
           cada filtro (vendedor/etiquetas/oportunidad/finalizadas) que ya usa
           LeadsDesktopView, solo se agrega el control en mobile. */}
@@ -1931,7 +1953,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
           </Box>
         ) : (
           <List disablePadding>
-            {leadsFiltradosOrdenados.map((lead) => {
+            {(conversationViewMode === 'recent' ? leadsRecientes : leadsFiltradosOrdenados).map((lead) => {
               const ownerLabel = buildLeadOwnerLabel(lead, vendedoresById, vendedorContactoId);
               const requiresAttention = lead.statusType === 'attention';
               const displayName = lead.name?.trim() || `WhatsApp ${lead.phone}`;
@@ -1971,14 +1993,20 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                         <Typography variant="body2" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0 }}>
                           {displayName}
                         </Typography>
+                        {lead.temperatura && <TemperaturaScoreButton lead={lead} updateLead={updateLead} />}
                         <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                           {formatMinutesAgo(lead.lastMessageTimeMinutesAgo)}
                         </Typography>
                       </Stack>
                       {/* Línea 2: último mensaje */}
-                      <Typography variant="body2" color="text.secondary" noWrap>
-                        {lead.lastMessage || 'Sin mensajes'}
-                      </Typography>
+                      <Stack direction="row" spacing={0.75} alignItems="center" minWidth={0}>
+                        <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
+                          {lead.lastMessage || 'Sin mensajes'}
+                        </Typography>
+                        {lead.unreadCount && lead.unreadCount > 0 ? (
+                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: '#25D366', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
+                        ) : null}
+                      </Stack>
                       {/* Línea 3 (secundaria, compacta): señal de atención
                           primero, etapa/vendedor al final. */}
                       <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ color: 'text.secondary', rowGap: 0.25 }}>

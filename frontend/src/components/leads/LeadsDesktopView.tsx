@@ -92,6 +92,7 @@ import type {
   ReplyPreview,
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
+import TemperaturaScoreButton from './TemperaturaScoreButton';
 
 // Vista de escritorio del módulo de Leads/conversaciones de WhatsApp.
 // LeadsPage.tsx sigue siendo dueño de todo el estado y la lógica de negocio
@@ -1453,19 +1454,22 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     const timeLabel = validStamp ? (sameDay ? stamp!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : stamp!.toLocaleDateString([], { day: '2-digit', month: '2-digit' })) : '';
                     return (
                       <ListItem disablePadding key={conversationLead.id}>
-                        <ListItemButton selected={conversationLead.id === selectedLead?.id} onClick={() => onSelectLead(conversationLead.id)} sx={{ alignItems: 'flex-start', gap: 1, px: 1.25 }}>
+                        <ListItemButton className="temperature-conversation-row" selected={conversationLead.id === selectedLead?.id} onClick={() => onSelectLead(conversationLead.id)} sx={{ alignItems: 'flex-start', gap: 1, px: 1.25, '&:hover .temperature-score-button, &:focus-within .temperature-score-button': { opacity: 1, pointerEvents: 'auto' } }}>
                           <Avatar sx={{ width: 32, height: 32, fontSize: 12, bgcolor: getLeadAvatarColor(conversationLead.id) }}>{getLeadInitials(conversationLead.name)}</Avatar>
                           <Stack minWidth={0} flex={1} spacing={0.25}>
                             <Stack direction="row" justifyContent="space-between" spacing={1}>
                               <Typography variant="body2" fontWeight={700} noWrap>{conversationLead.name?.trim() || conversationLead.phone || 'Sin nombre'}</Typography>
                               <Stack direction="row" spacing={0.5} alignItems="center">
+                                <TemperaturaScoreButton lead={conversationLead} updateLead={props.updateLead} desktop />
                                 <Typography variant="caption" color="text.secondary" noWrap>{timeLabel}</Typography>
-                                {conversationLead.unreadCount && conversationLead.unreadCount > 0 ? (
-                                  <Box sx={{ minWidth: 20, height: 20, px: 0.5, borderRadius: '50%', bgcolor: '#25D366', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>
-                                ) : null}
                               </Stack>
                             </Stack>
-                            <Typography variant="body2" color="text.secondary" noWrap>{conversationLead.lastMessage || 'Sin mensajes'}</Typography>
+                            <Stack direction="row" spacing={0.75} alignItems="center" minWidth={0}>
+                              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>{conversationLead.lastMessage || 'Sin mensajes'}</Typography>
+                              {conversationLead.unreadCount && conversationLead.unreadCount > 0 ? (
+                                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: '#25D366', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>
+                              ) : null}
+                            </Stack>
                           </Stack>
                         </ListItemButton>
                       </ListItem>

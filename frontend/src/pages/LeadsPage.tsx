@@ -56,6 +56,7 @@ import { SendWhatsappTemplateDialog } from '../components/SendWhatsappTemplateDi
 import { ForwardMessageDialog, type ForwardableMessage } from '../components/ForwardMessageDialog';
 import LeadsDesktopView from '../components/leads/LeadsDesktopView';
 import LeadsMobileView from '../components/leads/LeadsMobileView';
+import TemperaturaScoreButton from '../components/leads/TemperaturaScoreButton';
 import { fetchContactos } from '../services/contactosService';
 import type { Contacto } from '../types/contactos.types';
 import { actualizarContacto } from '../services/contactos.api';
@@ -130,6 +131,14 @@ type ConversationSummary = {
   reactivada_en?: string | null;
   tiene_oportunidad?: boolean;
   tags?: WhatsappEtiqueta[];
+  temperaturaPuntuacion?: number | null;
+  temperaturaNivel?: 'frio' | 'tibio' | 'caliente' | 'muy_caliente' | null;
+  temperaturaConfianza?: number | null;
+  temperaturaCreadoEn?: string | null;
+  temperaturaDesactualizada?: boolean;
+  temperaturaMotivosDesactualizacion?: Array<'mensajes_nuevos' | 'historial_modificado' | 'metodologia_actualizada' | 'modelo_actualizado'>;
+  elegibleParaAnalisis?: boolean;
+  motivoNoElegible?: 'sin_interaccion_suficiente' | null;
 };
 
 export type MessageReaction = {
@@ -250,6 +259,23 @@ export type Lead = {
   motivo_finalizacion: MotivoFinalizacion | null;
   observaciones_finalizacion: string | null;
   reactivada_en: string | null;
+  temperatura?: TemperaturaResumen | null;
+  elegibleParaAnalisis?: boolean;
+  motivoNoElegible?: 'sin_interaccion_suficiente' | null;
+};
+
+export type TemperaturaResumen = {
+  id?: string;
+  puntuacion: number;
+  nivel: 'frio' | 'tibio' | 'caliente' | 'muy_caliente';
+  confianza: number;
+  explicacion: string;
+  principales_razones: string[];
+  riesgo_informacion_faltante: string[];
+  siguiente_accion_recomendada: string;
+  creado_en: string;
+  desactualizado?: boolean;
+  motivos_desactualizacion?: Array<'mensajes_nuevos' | 'historial_modificado' | 'metodologia_actualizada' | 'modelo_actualizado'>;
 };
 
 export type LeadConPrioridad = Lead & { computedPriority: Priority; seguimientoPendiente: boolean };
@@ -1008,6 +1034,17 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       motivo_finalizacion: conv.motivo_finalizacion ?? null,
       observaciones_finalizacion: conv.observaciones_finalizacion ?? null,
       reactivada_en: conv.reactivada_en ?? null,
+      elegibleParaAnalisis: Boolean(conv.elegibleParaAnalisis),
+      motivoNoElegible: conv.motivoNoElegible ?? (conv.elegibleParaAnalisis ? null : 'sin_interaccion_suficiente'),
+      temperatura: !conv.elegibleParaAnalisis || conv.temperaturaPuntuacion == null ? null : {
+        puntuacion: Number(conv.temperaturaPuntuacion),
+        nivel: conv.temperaturaNivel ?? 'frio',
+        confianza: Number(conv.temperaturaConfianza ?? 0),
+        explicacion: '', principales_razones: [], riesgo_informacion_faltante: [],
+        siguiente_accion_recomendada: '', creado_en: conv.temperaturaCreadoEn ?? '',
+        desactualizado: Boolean(conv.temperaturaDesactualizada),
+        motivos_desactualizacion: conv.temperaturaMotivosDesactualizacion ?? [],
+      },
     };
     return applyDerivedLeadState(baseLead, reglasSeguimiento);
   }, [reglasSeguimiento]);
@@ -2831,6 +2868,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     return (
       <ListItem disablePadding key={lead.id}>
         <ListItemButton
+          className="temperature-conversation-row"
           selected={lead.id === selectedLead?.id}
           onClick={() => {
             void handleSelectLead(lead.id);
@@ -2864,6 +2902,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
                 : 'action.hover',
             },
             '&:hover .lead-row-hover-btn': { opacity: 1 },
+            '&:hover .temperature-score-button, &:focus-within .temperature-score-button': { opacity: 1, pointerEvents: 'auto' },
           }}
         >
           {/* Avatar puramente visual: iniciales + color determinístico a
@@ -2893,6 +2932,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
               <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
                 {formatMinutesAgo(lead.lastMessageTimeMinutesAgo)}
               </Typography>
+              <TemperaturaScoreButton lead={lead} updateLead={updateLead} desktop />
               {lead.estado !== 'finalizada' && (
                 <Tooltip title="Marcar como finalizada" arrow>
                   <IconButton
@@ -2919,9 +2959,14 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
             </Stack>
 
             {/* Línea 2: último mensaje */}
-            <Typography variant="body2" color="text.secondary" noWrap>
-              {lead.lastMessage}
-            </Typography>
+            <Stack direction="row" spacing={0.75} alignItems="center" minWidth={0}>
+              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
+                {lead.lastMessage}
+              </Typography>
+              {lead.unreadCount && lead.unreadCount > 0 ? (
+                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: '#25D366', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
+              ) : null}
+            </Stack>
 
             {/* Línea 3 (secundaria, compacta): señales de atención primero
                 (punto + prioridad), etapa/vendedor al final como
@@ -3031,6 +3076,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     return (
       <LeadsMobileView
         leadsFiltradosOrdenados={leadsFiltradosOrdenados}
+        leadsRecientes={leadsRecientes}
         selectedLeadId={selectedLeadId}
         selectedLead={selectedLead}
         onSelectLead={handleSelectLeadMobile}
@@ -3040,6 +3086,8 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         setSearchTerm={setSearchTerm}
         leadScope={leadScope}
         onLeadScopeChange={handleLeadScopeChange}
+        conversationViewMode={conversationViewMode}
+        onConversationViewModeChange={handleConversationViewModeChange}
         canToggleScope={canToggleScope}
         showMisChip={showMisChip}
         showTodosChip={showTodosChip}
