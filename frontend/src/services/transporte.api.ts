@@ -111,6 +111,7 @@ export type ViajePutPayload = {
   folioInterno:string;
   clienteContactoId:number;
   estatus:'borrador';
+  observaciones?:string|null;
   vehiculoId:number|null;
   ubicaciones:ViajeUbicacionInput[];
   /**

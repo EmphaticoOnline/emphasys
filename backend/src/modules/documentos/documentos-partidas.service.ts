@@ -2,6 +2,20 @@ import pool from '../../config/database';
 import { agregarPartidaRepository, obtenerTrazabilidadPartidas, reemplazarPartidasRepository, type PartidaInput } from './documentos.repository';
 import { calcularImpuestosPartida } from '../impuestos/impuestos.service';
 import { actualizarTotales } from './documentos.service';
+import { esFacturaTimbrada } from './factura-timbrada-edicion';
+import { assertNotaVentaEditable } from './nota-venta-editabilidad';
+
+async function assertPartidasFacturaTimbrada(documentoId: number, empresaId: number, client: Pick<import('pg').PoolClient, 'query'>): Promise<void> {
+  const { rows } = await client.query(
+    `SELECT d.tipo_documento, d.estatus_documento,
+            EXISTS (SELECT 1 FROM documentos_cfdi dc WHERE dc.documento_id = d.id) AS esta_timbrado
+       FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2 LIMIT 1`,
+    [documentoId, empresaId]
+  );
+  if (esFacturaTimbrada(rows[0] ?? {})) {
+    throw new Error('VALIDATION_ERROR: Las partidas de una factura timbrada no pueden modificarse.');
+  }
+}
 
 /**
  * Orquesta el flujo de creación de partidas asegurando cálculo de impuestos después de cada cambio.
@@ -10,6 +24,8 @@ export async function agregarPartidaService(documentoId: number, data: PartidaIn
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await assertNotaVentaEditable(documentoId, empresaId, client);
+    await assertPartidasFacturaTimbrada(documentoId, empresaId, client);
     const partida = await agregarPartidaRepository(documentoId, data, empresaId, client);
     console.log('[BACK IVA DEBUG] agregarPartidaService partida creada', partida ? { id: partida.id, producto_id: partida.producto_id, subtotal: partida.subtotal_partida, total: partida.total_partida } : null);
     if (partida?.id) {
@@ -37,6 +53,8 @@ export async function reemplazarPartidasService(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await assertNotaVentaEditable(documentoId, empresaId, client);
+    await assertPartidasFacturaTimbrada(documentoId, empresaId, client);
   const inserted = await reemplazarPartidasRepository(documentoId, partidas, empresaId, client);
   console.log('[BACK IVA DEBUG] reemplazarPartidasService inserted', inserted?.map((p) => ({ id: p?.id, producto_id: p?.producto_id, subtotal: p?.subtotal_partida, total: p?.total_partida })));
 

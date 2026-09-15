@@ -26,6 +26,8 @@ import {
   listActiveSubscriptions,
   resolvePushState,
   subscribeToPush,
+  sendPushTest,
+  updatePushPreferences,
   type PushSubscriptionRecord,
   type PushUiState,
 } from '../services/pushNotificationsService';
@@ -58,6 +60,7 @@ export default function NotificationsSettingsDialog({ open, onClose }: Props) {
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [devices, setDevices] = React.useState<PushSubscriptionRecord[]>([]);
   const [currentDeviceId, setCurrentDeviceId] = React.useState<string | null>(null);
+  const [testMessage, setTestMessage] = React.useState<string | null>(null);
 
   // No se pide permiso aquí: este efecto solo LEE el estado actual del
   // navegador/Service Worker (resolvePushState, getCurrentDeviceRecord) y
@@ -135,6 +138,22 @@ export default function NotificationsSettingsDialog({ open, onClose }: Props) {
     }
   };
 
+  const handleTest = async () => {
+    setBusy(true); setErrorMessage(null); setTestMessage(null);
+    try { const result = await sendPushTest(); setTestMessage(`Enviada a ${result.successful} dispositivo${result.successful === 1 ? '' : 's'}.`); }
+    catch (error: any) { setErrorMessage(error?.message || 'No se pudo enviar la notificación de prueba.'); }
+    finally { setBusy(false); }
+  };
+
+  const handlePreferenceChange = async (device: PushSubscriptionRecord, key: 'chat_activado' | 'vista_previa' | 'sonido' | 'contador_no_leidos') => {
+    setBusy(true); setErrorMessage(null);
+    try {
+      const updated = await updatePushPreferences(device.id, { [key]: !device[key] });
+      setDevices((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (error: any) { setErrorMessage(error?.message || 'No se pudieron guardar las preferencias.'); }
+    finally { setBusy(false); }
+  };
+
   const mostrarSugerenciaIphone = isIos() && !isStandalone();
 
   return (
@@ -148,6 +167,7 @@ export default function NotificationsSettingsDialog({ open, onClose }: Props) {
       <DialogContent dividers>
         <Stack spacing={2}>
           {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+          {testMessage && <Alert severity="success">{testMessage}</Alert>}
 
           <Alert severity={state === 'subscribed' ? 'success' : state === 'blocked' || state === 'error' ? 'warning' : 'info'}>
             {ESTADO_TEXTO[state]}
@@ -178,6 +198,7 @@ export default function NotificationsSettingsDialog({ open, onClose }: Props) {
           )}
 
           {state === 'subscribed' && (
+            <Stack spacing={1}>
             <Button
               variant="outlined"
               color="inherit"
@@ -187,6 +208,8 @@ export default function NotificationsSettingsDialog({ open, onClose }: Props) {
             >
               Desactivar en este dispositivo
             </Button>
+            <Button size="small" onClick={handleTest} disabled={busy || !currentDeviceId}>Enviar notificación de prueba</Button>
+            </Stack>
           )}
 
           {devices.length > 0 && (
@@ -214,6 +237,13 @@ export default function NotificationsSettingsDialog({ open, onClose }: Props) {
                       primary={device.nombre_dispositivo || device.plataforma || 'Dispositivo'}
                       secondary={`Registrado el ${formatFecha(device.creada_en)}`}
                     />
+                    <Stack direction="row" spacing={0.5} sx={{ mr: device.id !== currentDeviceId ? 10 : 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {([
+                        ['chat_activado', 'Chat'], ['vista_previa', 'Vista previa'], ['sonido', 'Sonido'], ['contador_no_leidos', 'No leídos'],
+                      ] as const).map(([key, label]) => (
+                        <Button key={key} size="small" variant={device[key] ? 'contained' : 'outlined'} onClick={() => void handlePreferenceChange(device, key)} disabled={busy}>{label}</Button>
+                      ))}
+                    </Stack>
                   </ListItem>
                 ))}
               </List>

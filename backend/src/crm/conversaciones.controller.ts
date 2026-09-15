@@ -59,6 +59,7 @@ import {
   type MensajeSalienteMetadata,
 } from "./conversaciones.service";
 import { descargarYPersistirAdjuntoEntrante, redactUrlForLog } from "../whatsapp/whatsapp-media-download.service";
+import { notificarNuevoMensajeChat } from "./notificaciones-chat.service";
 
 type EtapaOportunidad =
   | "nuevo"
@@ -113,6 +114,7 @@ async function resolverVendedorRoundRobin(
       WHERE empresa_id = $1
         AND tipo_contacto = 'Vendedor'
         AND activo = true
+        AND participa_en_round_robin = true
       ORDER BY id ASC`,
     [empresaId]
   );
@@ -760,6 +762,22 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
     }
 
     console.log("[WhatsApp Webhook] Mensaje insertado", { conversacionId, mensajeInsertadoId });
+
+    // Se dispara solo tras una inserción real. Un fallo de Push nunca afecta
+    // el procesamiento ni la respuesta del webhook.
+    void notificarNuevoMensajeChat({
+      empresaId,
+      contactoId,
+      conversacionId,
+      mensajeId: mensajeInsertadoId,
+      texto: normalized.text,
+      tipoContenido: normalized.tipoContenido,
+      tieneAdjunto: Boolean(normalized.mediaUrl),
+    }).catch((error) => {
+      console.error("[WhatsApp Webhook][Push] Error notificando mensaje entrante", {
+        empresaId, conversacionId, mensajeId: mensajeInsertadoId, error: (error as Error)?.message,
+      });
+    });
 
     // Persistencia local del adjunto: deliberadamente NO se espera (no hay
     // `await`) para que nunca retrase ni arriesgue la respuesta al webhook.

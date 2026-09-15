@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { CfdiTimbradoOptions } from './cfdi.types';
+import { truncateFiscal } from './fiscal-precision';
 
 export type FacturamaItemTax = {
   Name: string;
@@ -132,21 +133,21 @@ export function convertXmlCfdiToFacturamaJson(
 
     const quantity = toNumber(concepto.Cantidad);
     const unitPrice = toNumber(concepto.ValorUnitario);
-    const subtotal = quantity * unitPrice;
+    const subtotal = truncateFiscal(quantity * unitPrice);
 
     const taxes: FacturamaItemTax[] = [
       ...trasladosArr.map((t: any) => ({
         Name: mapImpuestoNombre(t.Impuesto),
-        Base: toNumber(t.Base),
+        Base: truncateFiscal(toNumber(t.Base)),
         Rate: toNumber(t.TasaOCuota),
-        Total: toNumber(t.Importe),
+        Total: truncateFiscal(toNumber(t.Importe)),
         IsRetention: false,
       })),
       ...retencionesArr.map((t: any) => ({
         Name: mapImpuestoNombre(t.Impuesto),
-        Base: toNumber(t.Base),
+        Base: truncateFiscal(toNumber(t.Base)),
         Rate: toNumber(t.TasaOCuota),
-        Total: toNumber(t.Importe),
+        Total: truncateFiscal(toNumber(t.Importe)),
         IsRetention: true,
       })),
     ];
@@ -155,7 +156,7 @@ export function convertXmlCfdiToFacturamaJson(
       (acc, tax) => acc + (tax.IsRetention ? -toNumber(tax.Total) : toNumber(tax.Total)),
       0
     );
-    const total = subtotal + totalTaxes;
+    const total = truncateFiscal(subtotal + totalTaxes);
 
     return {
       ProductCode: concepto.ClaveProdServ,

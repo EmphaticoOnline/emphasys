@@ -12,6 +12,7 @@ export type CartaPortePrintDomicilio = {
 
 export type CartaPortePrintModel = {
   branding?: { logoPath?: string; razonSocial?: string; nombre?: string; rfc?: string; regimenFiscal?: string; domicilio?: string };
+  viaje?: { observaciones?: string | null };
   cancelado?: boolean;
   colorTablaHeader?: string;
   documento: { documentoId: number; serie?: string; folio?: string; fecha?: string };

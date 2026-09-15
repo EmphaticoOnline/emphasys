@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth/auth.middleware';
-import { deleteSuscripcion, getPublicKey, getSuscripciones, postSuscripcion } from './notificaciones.controller';
+import { deleteSuscripcion, getPublicKey, getSuscripciones, postSuscripcion, postPushTest, patchSuscripcionPreferences } from './notificaciones.controller';
 
 const router = Router();
 
@@ -13,5 +13,7 @@ router.get('/push/public-key', requireAuth, getPublicKey);
 router.get('/push/subscriptions', requireAuth, getSuscripciones);
 router.post('/push/subscriptions', requireAuth, postSuscripcion);
 router.delete('/push/subscriptions/:id', requireAuth, deleteSuscripcion);
+router.patch('/push/subscriptions/:id/preferences', requireAuth, patchSuscripcionPreferences);
+router.post('/push/test', requireAuth, postPushTest);
 
 export default router;

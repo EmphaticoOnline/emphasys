@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { apiFetch } from '../services/apiFetch';
 import {
   Alert,
   AlertTitle,
@@ -635,6 +636,7 @@ export default function DocumentosFormPage({
   // Aislado de `form` (tipado estrictamente como CotizacionCrearPayload) porque
   // uuid_cfdi_origen es de solo lectura aquí: nunca se envía de vuelta al guardar.
   const [uuidCfdiOrigen, setUuidCfdiOrigen] = useState<string | null>(null);
+  const [notaVentaEditabilidad, setNotaVentaEditabilidad] = useState<{ esNotaVenta: boolean; editable: boolean; motivos: string[] } | null>(null);
 
   const syncDocumentoMonetarioTotals = useCallback((value: string | number | null | undefined) => {
     const amount = typeof value === 'number'
@@ -712,8 +714,14 @@ export default function DocumentosFormPage({
   const [estadoAutorizacionDoc, setEstadoAutorizacionDoc] = useState<string | null>(null);
   const [tieneDerivadosActivos, setTieneDerivadosActivos] = useState(false);
   const [trazabilidadDetectada, setTrazabilidadDetectada] = useState(false);
-  const trazabilidadActiva = trazabilidadDetectada
-    && !(tipoDocumento === 'factura' && String(form.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador');
+  const facturaTimbrada = tipoDocumento === 'factura'
+    && (String(form.estatus_documento ?? '').trim().toLowerCase() === 'timbrado' || Boolean(uuidCfdiOrigen));
+  const edicionFacturaTimbradaRestringida = isEdit && facturaTimbrada;
+  const notaVentaBloqueada = tipoDocumento === 'factura' && notaVentaEditabilidad?.esNotaVenta === true && notaVentaEditabilidad.editable === false;
+  const trazabilidadActiva = (trazabilidadDetectada
+    && !(tipoDocumento === 'factura' && String(form.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador'))
+    || edicionFacturaTimbradaRestringida
+    || Boolean(notaVentaBloqueada);
   const [trazabilidadRol, setTrazabilidadRol] = useState<'origen' | 'destino' | null>(null);
   const [docTrazabilidad, setDocTrazabilidad] = useState<{ tipo_documento: string; folio: string } | null>(null);
   const [duplicateDialog, setDuplicateDialog] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
@@ -1751,6 +1759,12 @@ export default function DocumentosFormPage({
       }
       const [data, saldoData] = await Promise.all(requests);
       const doc = data.documento;
+      if (tipoDocumento === 'factura') {
+        const editabilidad = await apiFetch<{ esNotaVenta: boolean; editable: boolean; motivos: string[] }>(`/api/facturas/${Number(documentoActualId)}/editabilidad-nota-venta`);
+        setNotaVentaEditabilidad(editabilidad);
+      } else {
+        setNotaVentaEditabilidad(null);
+      }
       setEstadoAutorizacionDoc((doc as any).estado_autorizacion ?? null);
       setTieneDerivadosActivos(Boolean((doc as any).tiene_derivados_activos));
       setTrazabilidadDetectada(Boolean((doc as any).trazabilidad_activa));
@@ -1760,6 +1774,7 @@ export default function DocumentosFormPage({
       setSaldoDocumento(Number((saldoData as any)?.saldo ?? doc.saldo ?? 0));
       setForm({
         tipo_documento: doc.tipo_documento ?? tipoDocumento,
+        estatus_documento: doc.estatus_documento ?? 'Borrador',
         motivo_nc: (doc as any).motivo_nc ?? (isNotaCredito ? 'otro' : null),
         concepto_id: (doc as any).concepto_id ?? null,
   serie: (doc as any).serie || null,
@@ -1793,7 +1808,7 @@ export default function DocumentosFormPage({
         serie_externa: (doc as any).serie_externa ?? null,
         numero_externo: (doc as any).numero_externo ?? null,
       });
-      setUuidCfdiOrigen((doc as any).uuid_cfdi_origen ?? null);
+      setUuidCfdiOrigen((doc as any).uuid_cfdi_origen ?? (doc as any).cfdi_uuid ?? null);
       setContactoFallback(
         doc.contacto_principal_id
           ? buildContactoDisplayFallback(
@@ -2581,7 +2596,7 @@ export default function DocumentosFormPage({
             })
             .filter(Boolean) as NonNullable<CotizacionCrearPayload['aplicaciones_documento']>
         : [];
-      const payload: CotizacionCrearPayload & { conversacion_id: number | null } = {
+      const payloadCompleto: CotizacionCrearPayload & { conversacion_id: number | null } = {
         ...form,
         tipo_documento: tipoDocumento,
         producto_resumen: form.producto_resumen ?? null,
@@ -2609,6 +2624,9 @@ export default function DocumentosFormPage({
         codigo_postal_receptor: form.codigo_postal_receptor?.trim() || null,
         fecha_vencimiento: TIPOS_CON_VENCIMIENTO.has(tipoDocumento) ? (form.fecha_vencimiento || null) : null,
       };
+      const payload = edicionFacturaTimbradaRestringida
+        ? ({ observaciones: form.observaciones || '', fecha_vencimiento: form.fecha_vencimiento || null } as Partial<CotizacionCrearPayload>)
+        : payloadCompleto;
 
       if (isNotaCreditoDevolucion || isNotaCreditoBonificacion) {
         if (!session.token || !session.empresaActivaId || !preparacionNotaCredito) {
@@ -2718,9 +2736,13 @@ export default function DocumentosFormPage({
           monto: Number(imp.monto ?? 0),
         })),
       }));
-      const partidasGuardadas = usaPartidas ? await replacePartidas(docId, tipoDocumento, partidasPayload) : [];
+      const partidasGuardadas = usaPartidas && !edicionFacturaTimbradaRestringida
+        ? await replacePartidas(docId, tipoDocumento, partidasPayload)
+        : [];
 
-      const valoresDocumento = Object.values(valoresCamposDocumento).filter(tieneValorCapturado);
+      const valoresDocumento = edicionFacturaTimbradaRestringida
+        ? []
+        : Object.values(valoresCamposDocumento).filter(tieneValorCapturado);
       if (valoresDocumento.length) {
         await guardarCamposDocumento({ documento_id: docId, valores: valoresDocumento });
       }
@@ -4011,6 +4033,25 @@ export default function DocumentosFormPage({
 
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: isMobile ? 10 : 4 }}>
+        {edicionFacturaTimbradaRestringida && (
+          <Alert severity="info" sx={{ py: 0.25 }}>
+            Factura timbrada. Sólo pueden modificarse observaciones y fecha de vencimiento.
+          </Alert>
+        )}
+        {notaVentaBloqueada && (
+          <Alert severity="warning" sx={{ py: 0.25 }}>
+            Esta nota de venta no puede modificarse porque {notaVentaEditabilidad?.motivos.map((motivo) => ({
+              documento_cancelado: 'está cancelada',
+              autorizacion_aprobada: 'tiene una autorización aprobada',
+              movimiento_inventario: 'ya afectó inventario',
+              aplicacion_saldo: 'tiene cobros o aplicaciones de saldo',
+              operacion_financiera: 'tiene una operación financiera vinculada',
+              documento_derivado: 'tiene un documento derivado activo',
+              vinculos_partidas: 'tiene vínculos de partidas activos',
+              poliza_contable: 'tiene una póliza contable vinculada',
+            } as Record<string, string>)[motivo] ?? motivo.replace(/_/g, ' ')).join(' y ')}.
+          </Alert>
+        )}
         <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap" useFlexGap>
           {isMobile && <MobileBackIconButton onClick={() => void handleNavigateBack()} disabled={saving} />}
           <Typography variant="h5" fontWeight={700} color="#1d2f68" sx={{ flexShrink: 0 }}>
@@ -4169,7 +4210,7 @@ export default function DocumentosFormPage({
                         fechaVencimientoManualRef.current = true;
                         setForm((prev) => ({ ...prev, fecha_vencimiento: e.target.value || null }));
                       }}
-                      disabled={trazabilidadActiva}
+                      disabled={trazabilidadActiva && !edicionFacturaTimbradaRestringida}
                       InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
                       inputProps={{ style: { fontSize: 12.5 } }}
                       size="small"
@@ -4302,17 +4343,18 @@ export default function DocumentosFormPage({
                               {...(valorCampo ? { value: valorCampo } : {})}
                               options={options}
                               loading={Boolean(camposDocumento.optionsLoading[`${campo.id}::${parentCatalogId ?? 'root'}`])}
-                              disabled={disabled}
+                              disabled={disabled || edicionFacturaTimbradaRestringida || notaVentaBloqueada}
                               onChange={(val: CampoValorPayload) => handleValorCampoDocumentoChange({ ...val, campo_id: campo.id })}
                             />
                           </Box>
                         );
                       })}
                       <Box sx={{ flex: '1 1 220px', minWidth: 200 }}>
-                        <ObservacionesEncabezadoCampo
+                          <ObservacionesEncabezadoCampo
                           label="Observaciones del documento"
                           value={form.observaciones || ''}
                           onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
+                          disabled={trazabilidadActiva && !edicionFacturaTimbradaRestringida}
                         />
                       </Box>
                     </Box>
@@ -4525,7 +4567,7 @@ export default function DocumentosFormPage({
                               productoId={partida.producto_id}
                               value={partida.especificaciones ?? []}
                               onChange={(especificaciones) => setPartidaAt(index, (prev) => ({ ...prev, especificaciones }))}
-                              disabled={trazabilidadActiva || !especificacionesHabilitadas}
+                              disabled={trazabilidadActiva || edicionFacturaTimbradaRestringida || !especificacionesHabilitadas}
                               allowCapture={especificacionesHabilitadas}
                             />
                           </Box>
@@ -5261,7 +5303,7 @@ export default function DocumentosFormPage({
                     <span>
                       <IconButton
                         onClick={handleSave}
-                        disabled={saving || loading || tieneDerivadosActivos}
+                        disabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
                         aria-label="Guardar factura"
                         sx={{ bgcolor: '#1d2f68', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: '#162551' }, '&.Mui-disabled': { bgcolor: '#c9d2e8', color: '#fff' } }}
                       >
@@ -5292,7 +5334,7 @@ export default function DocumentosFormPage({
               onBack={() => void handleNavigateBack()}
               onSave={handleSave}
               saving={saving}
-              saveDisabled={saving || loading || tieneDerivadosActivos}
+              saveDisabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
             />
           )}
 
@@ -5303,7 +5345,7 @@ export default function DocumentosFormPage({
           )}
         </Box>
 
-        {isMobile && <MobileSaveFab loading={saving} disabled={saving || loading || tieneDerivadosActivos} onClick={handleSave} />}
+        {isMobile && <MobileSaveFab loading={saving} disabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada} onClick={handleSave} />}
 
         {dialogosFactura}
       </Box>
@@ -5487,7 +5529,7 @@ export default function DocumentosFormPage({
       {isMobile ? (
         <MobileSaveFab
           loading={saving}
-          disabled={saving || loading || tieneDerivadosActivos}
+          disabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
           onClick={handleSave}
         />
       ) : (
@@ -5495,7 +5537,7 @@ export default function DocumentosFormPage({
           onBack={() => void handleNavigateBack()}
           onSave={handleSave}
           saving={saving}
-          saveDisabled={saving || loading || tieneDerivadosActivos}
+          saveDisabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
           bottomOffset={mostrarResumenFinancieroStickyVisible ? 96 : 24}
         />
       )}
@@ -5802,6 +5844,7 @@ export default function DocumentosFormPage({
                         label="Referencia / observaciones"
                         value={form.observaciones || ''}
                         onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
+                        disabled={trazabilidadActiva && !edicionFacturaTimbradaRestringida}
                         sx={campoEncabezadoSx}
                       />
                     </Grid>
@@ -6219,6 +6262,7 @@ export default function DocumentosFormPage({
                       label="Observaciones"
                       value={form.observaciones || ''}
                       onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
+                      disabled={trazabilidadActiva && !edicionFacturaTimbradaRestringida}
                     />
                   </Grid>
                 )}

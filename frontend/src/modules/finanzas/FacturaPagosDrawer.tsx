@@ -114,7 +114,6 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
   const [desaplicarItem, setDesaplicarItem] = useState<AplicacionOperacion | null>(null);
   const [desaplicarError, setDesaplicarError] = useState<string | null>(null);
   const [autoApplying, setAutoApplying] = useState(false);
-  const [openNuevoPago, setOpenNuevoPago] = useState(false);
   const [openNuevoAjuste, setOpenNuevoAjuste] = useState(false);
   const [documentoMeta, setDocumentoMeta] = useState<DocumentoDrawerMeta | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
@@ -128,10 +127,6 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
 
   const tipoDocumentoNormalizado = String(tipoDocumento ?? '').toLowerCase();
   const esNotaCredito = tipoDocumentoNormalizado === 'nota_credito' || tipoDocumentoNormalizado === 'nota_credito_compra';
-  const tipoNuevoPago = useMemo<TipoDocumento | null>(() => {
-    if (esNotaCredito) return null;
-    return tipoDocumentoNormalizado === 'factura_compra' ? 'pago_proveedor' : 'pago_cliente';
-  }, [esNotaCredito, tipoDocumentoNormalizado]);
   const tipoNuevoAjuste = useMemo<TipoDocumento | null>(() => {
     if (esNotaCredito) return null;
     return tipoDocumentoNormalizado === 'factura_compra' ? 'ajuste_proveedor' : 'ajuste_cliente';
@@ -232,7 +227,6 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
       setMontosDocumento({});
       setDocumentosDisponibles([]);
       setDocumentoMeta(null);
-      setOpenNuevoPago(false);
       setOpenNuevoAjuste(false);
       return;
     }
@@ -349,21 +343,6 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
       setDesaplicarError(err?.message || 'No se pudo desaplicar el pago. No se realizaron cambios.');
     } finally {
       setDeletingAplicacionId(null);
-    }
-  };
-
-  const handleNuevoPagoGuardado = async (nuevoDocumentoId: number) => {
-    try {
-      setOpenNuevoPago(false);
-      const saldoData = await refreshDocumentoFinanzas();
-      await loadDocumentosDisponibles(
-        Number(saldoData?.saldo ?? saldo ?? 0),
-        saldoData?.moneda ?? documentoMeta?.moneda ?? saldoDocumento?.moneda ?? 'MXN',
-        { focusDocumentoId: nuevoDocumentoId }
-      );
-      setSnackbar({ open: true, message: 'Pago creado. Ya puedes aplicarlo desde esta misma ventana.', severity: 'success' });
-    } catch (err: any) {
-      setSnackbar({ open: true, message: err?.message || 'El pago se guardo, pero no se pudo refrescar la lista.', severity: 'info' });
     }
   };
 
@@ -570,17 +549,6 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                       Nuevo ajuste
                     </Button>
                   )}
-                  {!esNotaCredito && tipoNuevoPago && (
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={() => setOpenNuevoPago(true)}
-                      sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
-                    >
-                      Nuevo pago
-                    </Button>
-                  )}
                   {esNotaCredito && documentosDisponibles.length > 0 && effectiveSaldo > 0 && (
                     <Button
                       variant="contained"
@@ -615,9 +583,9 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                               <Typography variant="body1" fontWeight={600} color="#1f2937">
                                 {emptyPendientes}
                               </Typography>
-                              {!esNotaCredito && (tipoNuevoPago || tipoNuevoAjuste) && (
+                              {!esNotaCredito && tipoNuevoAjuste && (
                                 <Typography variant="body2" color="text.secondary">
-                                  Usa los botones de arriba para crear un pago o ajuste de saldo.
+                                  Usa el botón de arriba para crear un ajuste de saldo.
                                 </Typography>
                               )}
                             </Stack>
@@ -707,37 +675,6 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             {snackbar.message}
           </Alert>
         </Snackbar>
-
-        {!esNotaCredito && tipoNuevoPago && openNuevoPago ? (
-          <Dialog
-            open={openNuevoPago}
-            onClose={() => setOpenNuevoPago(false)}
-            maxWidth="lg"
-            fullWidth
-            fullScreen={false}
-          >
-            <DialogTitle sx={{ pb: 0 }}>
-              {tipoNuevoPago === 'pago_proveedor' ? 'Nuevo pago a proveedor' : 'Nuevo pago de cliente'}
-            </DialogTitle>
-            <DialogContent sx={{ p: 0 }}>
-              <DocumentosFormPage
-                tipoDocumento={tipoNuevoPago}
-                embedded
-                initialValues={{
-                  ...(documentoMeta?.empresaId != null ? { empresa_id: documentoMeta.empresaId } : {}),
-                  contacto_principal_id: contactoId,
-                  fecha_documento: toCivilDate(),
-                  moneda: documentoMeta?.moneda || saldoDocumento?.moneda || 'MXN',
-                }}
-                lockedFields={{ contacto_principal_id: true }}
-                onEmbeddedClose={() => setOpenNuevoPago(false)}
-                onEmbeddedSaved={(savedDocumentoId) => {
-                  void handleNuevoPagoGuardado(savedDocumentoId);
-                }}
-              />
-            </DialogContent>
-          </Dialog>
-        ) : null}
 
         {!esNotaCredito && tipoNuevoAjuste && openNuevoAjuste ? (
           <Dialog

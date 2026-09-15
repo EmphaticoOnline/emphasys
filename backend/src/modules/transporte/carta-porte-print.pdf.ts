@@ -59,6 +59,19 @@ function rowAt(ctx: RenderContext, label: string, value: unknown, x: number, wid
   ctx.y += 16;
 }
 
+function multiline(ctx: RenderContext, label: string, value: unknown) {
+  const v = fmt(value);
+  if (!v) return;
+  const width = ctx.doc.page.width - 84 - 8;
+  ctx.doc.font('Trebuchet').fontSize(9);
+  const height = ctx.doc.heightOfString(v, { width });
+  ensureSpace(ctx, height + 22);
+  ctx.doc.font('Trebuchet-Bold').fontSize(8).fillColor(MUTED).text(label, 50, ctx.y);
+  ctx.y += 13;
+  ctx.doc.font('Trebuchet').fontSize(9).fillColor(INK).text(v, 50, ctx.y, { width });
+  ctx.y += height + 8;
+}
+
 function cell(ctx: RenderContext, value: unknown, x: number, width: number, y: number, bold = false) {
   ctx.doc.font(bold ? 'Trebuchet-Bold' : 'Trebuchet').fontSize(7.5).fillColor(INK).text(fmt(value), x + 4, y + 5, { width: width - 8, ellipsis: false });
 }
@@ -133,6 +146,10 @@ export async function generarCartaPortePDF(model: CartaPortePrintModel): Promise
   const qrBuffer = qrSource ? Buffer.from(qrSource.split(',')[1], 'base64') : null;
   const ctx: RenderContext = { doc, model, y: 0 };
   drawHeader(ctx, qrBuffer);
+  if (model.viaje?.observaciones?.trim()) {
+    section(ctx, 'OBSERVACIONES');
+    multiline(ctx, 'Observaciones', model.viaje.observaciones);
+  }
   section(ctx, 'UBICACIONES');
   model.ubicaciones.forEach((u) => { ensureSpace(ctx, 92); ctx.doc.font('Trebuchet-Bold').fontSize(9).fillColor(colorHeader(ctx)).text(`${fmt(u.tipoUbicacion).toUpperCase()}  ${fmt(u.idUbicacion)}`, 50, ctx.y); ctx.y += 15; row(ctx, 'RFC / Nombre', `${fmt(u.rfc)}  ${fmt(u.nombre)}`, 390); row(ctx, 'Fecha / Distancia', `${fmt(u.fechaHora)}${u.distanciaRecorrida == null ? '' : `  |  ${u.distanciaRecorrida} km`}`, 390); if (u.numRegIdTrib || u.residenciaFiscal) row(ctx, 'Fiscal extranjero', `${u.numRegIdTrib ? `Num. registro: ${u.numRegIdTrib}` : ''}${u.numRegIdTrib && u.residenciaFiscal ? '  |  ' : ''}${u.residenciaFiscal ? `Residencia: ${u.residenciaFiscal}` : ''}`, 390); const d = u.domicilio; row(ctx, 'Domicilio', d ? [d.calle, d.numeroExterior, d.numeroInterior, d.colonia, d.localidad, d.municipio, d.estado, d.pais, d.codigoPostal].filter(Boolean).join(', ') : '', 390); ctx.y += 4; });
   section(ctx, 'MERCANCÍAS');

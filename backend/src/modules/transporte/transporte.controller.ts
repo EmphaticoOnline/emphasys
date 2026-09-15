@@ -132,6 +132,11 @@ export async function getCartaPortePDF(req: Request, res: Response) {
     const { rows } = await pool.query(`
       SELECT d.id AS documento_id, d.empresa_id, d.tipo_documento, d.serie, d.numero, d.fecha_documento,
              dc.uuid, dc.fecha_timbrado, dc.rfc_emisor, dc.rfc_receptor, dc.sello_cfdi, dc.total, dc.xml_timbrado,
+             (SELECT v.observaciones
+                FROM transporte.viaje_documentos vd
+                JOIN transporte.viajes v ON v.id = vd.viaje_id AND v.empresa_id = vd.empresa_id
+               WHERE vd.documento_id = d.id AND vd.empresa_id = d.empresa_id AND vd.principal = true
+               LIMIT 1) AS viaje_observaciones,
              e.nombre, e.razon_social, e.rfc AS empresa_rfc, e.regimen_fiscal_id,
              concat_ws(', ', e.calle, e.numero_exterior, e.numero_interior, e.colonia, e.localidad, e.estado, e.codigo_postal, e.pais) AS domicilio
         FROM public.documentos d
@@ -142,10 +147,11 @@ export async function getCartaPortePDF(req: Request, res: Response) {
     const row = rows[0];
     if (!row) throw new TransporteError('Factura timbrada no encontrada.', 404, 'CARTA_PORTE_DOCUMENT_NOT_FOUND');
     if (!row.xml_timbrado) throw new TransporteError('La factura no tiene XML timbrado.', 409, 'CARTA_PORTE_XML_MISSING');
-    const model = mapCartaPortePrintModel({
+    const model = await mapCartaPortePrintModel({
       documentoId, serie: row.serie, folio: row.numero, fecha: row.fecha_documento,
       uuid: row.uuid, fechaTimbrado: row.fecha_timbrado, rfcEmisor: row.rfc_emisor, rfcReceptor: row.rfc_receptor,
       selloCfdi: row.sello_cfdi, total: row.total,
+      viajeObservaciones: row.viaje_observaciones,
       branding: { logoPath: (await obtenerLogoEmpresaPath(empresaId)) ?? undefined, nombre: row.nombre, razonSocial: row.razon_social, rfc: row.empresa_rfc, regimenFiscal: row.regimen_fiscal_id, domicilio: row.domicilio },
     }, String(row.xml_timbrado));
     const buffer = await generarCartaPortePDF(model);

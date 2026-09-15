@@ -20,11 +20,16 @@ export interface PushSubscriptionRow {
   creada_en: Date;
   ultima_actividad_en: Date;
   desactivada_en: Date | null;
+  chat_activado: boolean;
+  vista_previa: boolean;
+  sonido: boolean;
+  contador_no_leidos: boolean;
 }
 
 const COLUMNAS = `
   id, usuario_id, endpoint, p256dh, auth, user_agent, plataforma, nombre_dispositivo,
   creada_en, ultima_actividad_en, desactivada_en
+  , chat_activado, vista_previa, sonido, contador_no_leidos
 `;
 
 // Suscripciones activas de un usuario, sin importar la empresa activa: una
@@ -106,4 +111,38 @@ export async function desactivarSuscripcion(id: string, usuarioId: number): Prom
     [id, usuarioId]
   );
   return (rowCount ?? 0) > 0;
+}
+
+export async function marcarActividadSuscripcion(id: string): Promise<void> {
+  await pool.query(
+    `UPDATE core.push_subscriptions SET ultima_actividad_en = NOW()
+      WHERE id = $1 AND desactivada_en IS NULL`,
+    [id]
+  );
+}
+
+export interface PushPreferences {
+  chat_activado: boolean;
+  vista_previa: boolean;
+  sonido: boolean;
+  contador_no_leidos: boolean;
+}
+
+export async function actualizarPreferenciasSuscripcion(
+  id: string,
+  usuarioId: number,
+  preferences: Partial<PushPreferences>,
+): Promise<PushSubscriptionRow | null> {
+  const allowed: Array<keyof PushPreferences> = ['chat_activado', 'vista_previa', 'sonido', 'contador_no_leidos'];
+  const entries = Object.entries(preferences).filter(([key]) => allowed.includes(key as keyof PushPreferences));
+  if (!entries.length) return null;
+  const sets = entries.map(([key], index) => `${key} = $${index + 3}`);
+  const values = entries.map(([, value]) => value);
+  const { rows } = await pool.query<PushSubscriptionRow>(
+    `UPDATE core.push_subscriptions SET ${sets.join(', ')}
+      WHERE id = $1 AND usuario_id = $2 AND desactivada_en IS NULL
+      RETURNING ${COLUMNAS}`,
+    [id, usuarioId, ...values]
+  );
+  return rows[0] ?? null;
 }

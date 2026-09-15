@@ -12,6 +12,8 @@ import { reservarNumeroParaSerieExistente, resolverSerieDocumento, resolverYRese
 import { DocumentoDeleteValidationError } from './documentos-delete.service';
 import { sanitizarRichTextBasico } from '../../utils/richTextSanitize';
 import { obtenerConfiguracionEspecificaciones } from '../productos/especificaciones-configuracion.service';
+import { esFacturaTimbrada, validarCamposFacturaTimbrada } from './factura-timbrada-edicion';
+import { assertNotaVentaEditable } from './nota-venta-editabilidad';
 
 function sanitizarObservacionesPartida(observaciones: unknown): string | null {
   return typeof observaciones === 'string' && observaciones
@@ -1823,6 +1825,12 @@ export async function actualizarDocumentoRepository(
   );
   const current = currentRows[0];
   if (!current) return null;
+
+  await assertNotaVentaEditable(id, empresaId, executor);
+
+  if (esFacturaTimbrada(current)) {
+    validarCamposFacturaTimbrada(data as Record<string, unknown>);
+  }
 
   if (estatusDocumentoEsInactivo(current.estatus_documento)) {
     throw new Error('VALIDATION_ERROR: El documento está cancelado y es de solo lectura');

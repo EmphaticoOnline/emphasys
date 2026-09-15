@@ -27,6 +27,10 @@ export interface PushSubscriptionRecord {
   endpoint_enmascarado: string;
   creada_en: string;
   ultima_actividad_en: string;
+  chat_activado: boolean;
+  vista_previa: boolean;
+  sonido: boolean;
+  contador_no_leidos: boolean;
 }
 
 export class PushNotificationsError extends Error {}
@@ -250,4 +254,16 @@ export async function deactivateCurrentDevice(): Promise<void> {
 // ningún objeto PushSubscription para un dispositivo distinto al propio.
 export async function deactivateOtherDevice(id: string): Promise<void> {
   await apiFetch<void>(`/api/notificaciones/push/subscriptions/${id}`, { method: 'DELETE' });
+}
+
+export interface PushTestSummary { subscriptionsFound: number; successful: number; failed: number; deactivated: number; }
+
+export async function sendPushTest(): Promise<PushTestSummary> {
+  return apiFetch<PushTestSummary>('/api/notificaciones/push/test', { method: 'POST' });
+}
+
+export type PushPreferenceKey = 'chat_activado' | 'vista_previa' | 'sonido' | 'contador_no_leidos';
+
+export async function updatePushPreferences(id: string, preferences: Partial<Record<PushPreferenceKey, boolean>>): Promise<PushSubscriptionRecord> {
+  return apiFetch<PushSubscriptionRecord>(`/api/notificaciones/push/subscriptions/${id}/preferences`, { method: 'PATCH', body: preferences });
 }

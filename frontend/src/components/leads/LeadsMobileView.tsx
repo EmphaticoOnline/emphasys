@@ -131,6 +131,7 @@ export interface LeadsMobileViewProps {
   contactosById: Record<number, Contacto>;
   conversationScrollRef: React.RefObject<HTMLDivElement | null>;
   conversationEndRef: React.RefObject<HTMLDivElement | null>;
+  initialMessagesLoad: { conversationId: string | null; phase: 'idle' | 'loading' | 'loaded'; token: number };
   quickReply: string;
   setQuickReply: React.Dispatch<React.SetStateAction<string>>;
   quickReplyRef: React.RefObject<HTMLInputElement | null>;
@@ -353,6 +354,7 @@ type ChatImageProps = {
   // usa borde y objectFit distintos a la burbuja del mensaje enviado.
   border?: boolean;
   objectFit?: 'cover' | 'contain';
+  onReady?: () => void;
 };
 
 // Causa confirmada del "barrido" en el mensaje recién enviado: cuando el
@@ -368,13 +370,36 @@ type ChatImageProps = {
 // de LeadsPage.tsx (sin tocar) ni introduce lógica de negocio nueva.
 const decodedChatImageUrls = new Set<string>();
 
+function getRelevantInitialMediaIds(messages: MobileMessage[], viewportHeight: number): Set<string> {
+  const targetHeight = Math.max(viewportHeight, 1);
+  let accumulatedHeight = 0;
+  let firstRelevantIndex = messages.length;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const textLength = (message.text?.length ?? 0) + (message.caption?.length ?? 0);
+    const estimatedTextLines = Math.max(1, Math.ceil(textLength / 42));
+    const mediaHeight = message.mediaUrl && ['image', 'video', 'audio'].includes(message.tipoContenido ?? '') ? 280 : 0;
+    accumulatedHeight += 56 + estimatedTextLines * 20 + mediaHeight;
+    firstRelevantIndex = index;
+    if (accumulatedHeight >= targetHeight) break;
+  }
+
+  return new Set(
+    messages
+      .slice(firstRelevantIndex)
+      .filter((message) => Boolean(message.mediaUrl) && ['image', 'video', 'audio'].includes(message.tipoContenido ?? ''))
+      .map((message) => message.id),
+  );
+}
+
 // Duplicado deliberadamente pequeño de LeadsDesktopView (mismo criterio de
 // no compartir todavía infraestructura nueva entre vistas). Precarga la
 // imagen fuera del DOM (Image().decode(), con fallback a onload) y solo la
 // revela cuando ya está completamente decodificada, para que la burbuja
 // nunca muestre la imagen pintándose progresivamente ("barrido") mientras se
 // descarga. Mientras tanto se muestra un Skeleton del mismo tamaño máximo.
-function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, objectFit }: ChatImageProps) {
+function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, objectFit, onReady }: ChatImageProps) {
   // Si esta URL ya se decodificó con éxito antes en esta sesión (p. ej. el
   // mismo mensaje visto un momento antes como optimista), arranca ya listo:
   // evita el remount-tras-cambio-de-key (ver decodedChatImageUrls arriba).
@@ -383,6 +408,7 @@ function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, object
   React.useEffect(() => {
     if (decodedChatImageUrls.has(src)) {
       setReady(true);
+      onReady?.();
       return undefined;
     }
 
@@ -400,6 +426,7 @@ function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, object
         decodedChatImageUrls.add(src);
       }
       setReady(true);
+      onReady?.();
     };
 
     if (typeof preloader.decode === 'function') {
@@ -412,7 +439,7 @@ function ChatImage({ src, alt, maxWidth, maxHeight, marginBottom, border, object
     return () => {
       cancelled = true;
     };
-  }, [src]);
+  }, [onReady, src]);
 
   if (!ready) {
     return <Skeleton variant="rounded" width={maxWidth} height={maxHeight} sx={{ mb: marginBottom }} />;
@@ -612,6 +639,7 @@ type MessageBubbleProps = {
   highlightedMessageId: string | null;
   scrollToMessage: (messageId: string) => void;
   onRemoveOwnReaction: (messageId: string) => void;
+  onInitialMediaReady: (messageId: string) => void;
 };
 
 function MessageBubble({
@@ -621,8 +649,12 @@ function MessageBubble({
   highlightedMessageId,
   scrollToMessage,
   onRemoveOwnReaction,
+  onInitialMediaReady,
 }: MessageBubbleProps) {
   const isMine = msg.from === 'me';
+  const handleMediaReady = React.useCallback(() => {
+    onInitialMediaReady(msg.id);
+  }, [msg.id, onInitialMediaReady]);
   const longPress = useLongPress(React.useCallback(() => onLongPressMessage(msg), [msg, onLongPressMessage]));
   const isHighlighted = highlightedMessageId === msg.id;
 
@@ -709,6 +741,7 @@ function MessageBubble({
               maxWidth="100%"
               maxHeight={280}
               marginBottom={msg.text ? 0.5 : 0}
+              onReady={handleMediaReady}
             />
           </Box>
         )}
@@ -725,6 +758,8 @@ function MessageBubble({
                 loop
                 muted
                 playsInline
+                onLoadedMetadata={handleMediaReady}
+                onError={handleMediaReady}
                 sx={{
                   display: 'block',
                   maxWidth: '100%',
@@ -742,6 +777,8 @@ function MessageBubble({
               src={msg.mediaUrl}
               controls
               playsInline
+              onLoadedMetadata={handleMediaReady}
+              onError={handleMediaReady}
               sx={{
                 display: 'block',
                 maxWidth: '100%',
@@ -773,7 +810,7 @@ function MessageBubble({
           </Stack>
         )}
         {msg.tipoContenido === 'audio' && msg.mediaUrl && (
-          <Box component="audio" controls src={msg.mediaUrl} sx={{ maxWidth: '100%' }} />
+          <Box component="audio" controls src={msg.mediaUrl} onLoadedMetadata={handleMediaReady} onError={handleMediaReady} sx={{ maxWidth: '100%' }} />
         )}
         {(msg.tipoContenido === 'image' || msg.tipoContenido === 'video') && msg.caption && (
           <Typography variant="body2">{msg.caption}</Typography>
@@ -858,6 +895,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     contactosById,
     conversationScrollRef,
     conversationEndRef,
+    initialMessagesLoad,
     quickReply,
     setQuickReply,
     quickReplyRef,
@@ -1058,6 +1096,93 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
 
   const showChat = Boolean(selectedLeadId) && Boolean(selectedLead) && !manuallyBackToInbox;
 
+  // La vista móvil es dueña del nodo que realmente tiene overflow. La
+  // intención se arma únicamente cuando cambia la conversación o se vuelve
+  // de la bandeja; el cambio de cantidad de mensajes sólo permite completar
+  // esa misma apertura cuando terminó su carga inicial.
+  const mobileInitialScrollLeadRef = React.useRef<string | null>(null);
+  const mobileInitialScrollPendingRef = React.useRef<string | null>(null);
+  const initialMediaLeadRef = React.useRef<string | null>(null);
+  const initialMediaPendingRef = React.useRef<Set<string>>(new Set());
+  const [initialMediaVersion, setInitialMediaVersion] = React.useState(0);
+  const [initialScrollStabilizing, setInitialScrollStabilizing] = React.useState(false);
+  const [initialStickToBottom, setInitialStickToBottom] = React.useState(false);
+  const lastStickScrollHeightRef = React.useRef<number | null>(null);
+  const handleInitialMediaReady = React.useCallback((messageId: string) => {
+    if (!initialMediaPendingRef.current.delete(messageId)) return;
+    setInitialMediaVersion((version) => version + 1);
+  }, []);
+  const cancelInitialMobileScroll = React.useCallback(() => {
+    mobileInitialScrollPendingRef.current = null;
+    initialMediaPendingRef.current.clear();
+    setInitialScrollStabilizing(false);
+    setInitialStickToBottom(false);
+  }, []);
+  React.useLayoutEffect(() => {
+    if (!showChat || !selectedLeadId) {
+      mobileInitialScrollLeadRef.current = null;
+      mobileInitialScrollPendingRef.current = null;
+      initialMediaLeadRef.current = null;
+      initialMediaPendingRef.current.clear();
+      setInitialScrollStabilizing(false);
+      setInitialStickToBottom(false);
+      return;
+    }
+
+    if (mobileInitialScrollLeadRef.current !== selectedLeadId) {
+      mobileInitialScrollLeadRef.current = selectedLeadId;
+      mobileInitialScrollPendingRef.current = selectedLeadId;
+    }
+
+    if (
+      mobileInitialScrollPendingRef.current !== selectedLeadId
+      || initialMessagesLoad.conversationId !== selectedLeadId
+      || initialMessagesLoad.phase !== 'loaded'
+    ) return;
+
+    if (initialMediaLeadRef.current !== selectedLeadId) {
+      initialMediaLeadRef.current = selectedLeadId;
+      initialMediaPendingRef.current = new Set(
+        getRelevantInitialMediaIds(selectedLead?.conversation ?? [], conversationScrollRef.current?.clientHeight ?? window.innerHeight),
+      );
+      setInitialScrollStabilizing(true);
+    }
+
+    const element = conversationScrollRef.current;
+    if (!element) return;
+    if (initialMediaPendingRef.current.size > 0) return;
+    element.scrollTop = element.scrollHeight;
+    lastStickScrollHeightRef.current = element.scrollHeight;
+    mobileInitialScrollPendingRef.current = null;
+    setInitialScrollStabilizing(false);
+    setInitialStickToBottom(true);
+  }, [conversationScrollRef, initialMediaVersion, initialMessagesLoad, isLoadingMessages, selectedLead?.conversation.length, selectedLeadId, showChat]);
+
+  React.useEffect(() => {
+    if (!initialStickToBottom) return undefined;
+    const element = conversationScrollRef.current;
+    if (!element) return undefined;
+    const handleGrowth = () => {
+      const currentHeight = element.scrollHeight;
+      if (lastStickScrollHeightRef.current === currentHeight) return;
+      lastStickScrollHeightRef.current = currentHeight;
+      if (!initialStickToBottom) return;
+      element.scrollTop = currentHeight;
+    };
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(handleGrowth);
+    observer?.observe(element);
+    element.querySelectorAll<HTMLElement>('*').forEach((child) => observer?.observe(child));
+    element.addEventListener('pointerdown', cancelInitialMobileScroll, { passive: true });
+    element.addEventListener('wheel', cancelInitialMobileScroll, { passive: true });
+    element.addEventListener('touchstart', cancelInitialMobileScroll, { passive: true });
+    return () => {
+      element.removeEventListener('pointerdown', cancelInitialMobileScroll);
+      element.removeEventListener('wheel', cancelInitialMobileScroll);
+      element.removeEventListener('touchstart', cancelInitialMobileScroll);
+      observer?.disconnect();
+    };
+  }, [cancelInitialMobileScroll, conversationScrollRef, initialStickToBottom]);
+
   // CRMPage necesita saber si el chat está abierto para dejar de ocupar
   // espacio con su encabezado/pestañas (ver LeadsPage.tsx y CRMPage.tsx). No
   // decide nada aquí: solo informa hacia arriba el mismo valor ya calculado.
@@ -1145,7 +1270,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     const windowInfo = getWindowDisplayState(selectedLead);
 
     screen = (
-      <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', ...MOBILE_CHAT_HEIGHT_SX }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', overflowAnchor: initialScrollStabilizing ? 'none' : 'auto', ...MOBILE_CHAT_HEIGHT_SX }}>
         {/* Header compacto: mismo concepto aprobado en desktop (regresar +
             avatar + nombre + teléfono + vendedor + ventana 24h + sonido +
             acceso a detalle), sin meter prioridad/etiquetas/info comercial
@@ -1259,6 +1384,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
             minHeight: 0,
             overflowY: 'auto',
             overflowX: 'hidden',
+            overflowAnchor: 'none',
             p: 1.5,
             display: 'flex',
             flexDirection: 'column',
@@ -1302,6 +1428,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                     highlightedMessageId={highlightedMessageId}
                     scrollToMessage={scrollToMessage}
                     onRemoveOwnReaction={handleRemoveOwnReaction}
+                    onInitialMediaReady={handleInitialMediaReady}
                   />
                 </React.Fragment>
               );

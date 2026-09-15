@@ -209,6 +209,7 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
   const [destinoId, setDestinoId] = useState<number | null>(null);
   const [destinoFecha, setDestinoFecha] = useState('');
   const [destinoDistancia, setDestinoDistancia] = useState(''); // km recorridos (requerido por Carta Porte en el destino)
+  const [observaciones, setObservaciones] = useState('');
   const [vehiculoId, setVehiculoId] = useState<number | null>(null);
   const [remolqueIds, setRemolqueIds] = useState<number[]>([]);
   const [operadorId, setOperadorId] = useState<number | null>(null);
@@ -246,6 +247,7 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
     setDestinoId(destino?.domicilio_id ?? null);
     setDestinoFecha(toLocalInput(destino?.fecha_hora_programada));
     setDestinoDistancia(numStr(destino?.distancia_recorrida));
+    setObservaciones(agg.viaje.observaciones ?? '');
     setVehiculoId(agg.viaje.vehiculo_id ?? null);
     setRemolqueIds([...agg.remolques].sort((a, b) => a.orden - b.orden).map((r) => r.remolque_id));
     const operador = agg.figuras.find((f) => f.tipo_figura === 'operador' && f.operador_id);
@@ -506,6 +508,7 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
       folioInterno: aggregate.viaje.folio_interno,
       clienteContactoId: aggregate.viaje.cliente_contacto_id,
       estatus: 'borrador',
+      observaciones: observaciones.trim() || null,
       vehiculoId,
       ubicaciones: ubicacionesPayload,
       mercancias: mercPayload,
@@ -524,7 +527,7 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
     } finally {
       setSaving(false);
     }
-  }, [viajeId, aggregate, origenId, origenFecha, destinoId, destinoFecha, destinoDistancia, vehiculoId, remolqueIds, operadorId, mercancias, cargarViaje]);
+  }, [viajeId, aggregate, origenId, origenFecha, destinoId, destinoFecha, destinoDistancia, observaciones, vehiculoId, remolqueIds, operadorId, mercancias, cargarViaje]);
 
   const irASeccion = useCallback((section: CartaPorteIssueSection) => {
     const id = SECCION_ANCLA[section];
@@ -812,6 +815,19 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
                 )}
               </>
             ), { anchorId: 'cp-sec-operador', section: 'operador' })}
+
+            {seccion(<Typography variant="body2" color="text.secondary">▤</Typography>, 'Datos generales', (
+              <TextField
+                label="Observaciones"
+                value={observaciones}
+                onChange={(e) => { touch(); setObservaciones(e.target.value); }}
+                disabled={readOnly}
+                multiline
+                minRows={4}
+                fullWidth
+                placeholder="Notas operativas del viaje"
+              />
+            ), { section: 'generales' })}
 
             {seccion(
               <Inventory2OutlinedIcon fontSize="small" htmlColor={AZUL} />, 'Mercancías',

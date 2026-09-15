@@ -65,6 +65,7 @@ import HistorialPreciosCompraPage from './pages/informes/compras/HistorialPrecio
 import ComprasPorPeriodoPage from './pages/informes/compras/ComprasPorPeriodoPage';
 import HistorialPreciosVentaPage from './pages/informes/ventas/HistorialPreciosVentaPage';
 import VentasPorPeriodoPage from './pages/informes/ventas/VentasPorPeriodoPage';
+import ConversionCotizacionesPage from './pages/informes/ventas/ConversionCotizacionesPage';
 import PedidosPendientesFacturarPage from './pages/informes/ventas/PedidosPendientesFacturarPage';
 import RemisionesPendientesFacturarPage from './pages/informes/ventas/RemisionesPendientesFacturarPage';
 import ProduccionPage from './pages/ProduccionPage';
@@ -88,6 +89,7 @@ import {
   HoyView, IdeasView, RealFrenteDetailView, RealFrentesView, RevisionSemanalView, TareasView,
 } from './compass/CompassModule';
 import { isCompassHostname } from './routing/appHostname';
+import LiquidacionFacturaOrigenMockupPage from './dev-mockups/LiquidacionFacturaOrigenMockupPage';
 
 export default function App() {
   const compassHost = isCompassHostname(window.location.hostname);
@@ -96,6 +98,7 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/dev/mockups/liquidacion-factura-origen" element={<LiquidacionFacturaOrigenMockupPage />} />
 
         <Route element={<RequireAuth />}>
           <Route path="/compass" element={<CompassLayout />}>
@@ -181,6 +184,7 @@ export default function App() {
               <Route path="/informes/compras/compras-por-periodo"               element={<ComprasPorPeriodoPage />} />
               <Route path="/informes/ventas/historial-precios"                  element={<HistorialPreciosVentaPage />} />
               <Route path="/informes/ventas/ventas-por-periodo"                 element={<VentasPorPeriodoPage />} />
+              <Route path="/informes/ventas/conversion-cotizaciones"         element={<ConversionCotizacionesPage />} />
               <Route path="/informes/ventas/pedidos-pendientes-facturar"        element={<PedidosPendientesFacturarPage />} />
               <Route path="/informes/ventas/remisiones-pendientes-facturar"     element={<RemisionesPendientesFacturarPage />} />
               <Route path="/informes/finanzas/vencimientos-proveedores"        element={<VencimientosProveedoresPage />} />

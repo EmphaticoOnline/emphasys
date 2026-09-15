@@ -44,13 +44,16 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import FolderZipOutlinedIcon from '@mui/icons-material/FolderZipOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
 import type { DocumentoIndicatorModel } from '../indicadores';
-import { DocumentoStatusIndicators } from '../indicadores';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
 import FacturaDocumentoResumenView from './FacturaDocumentoResumenView';
+import FacturaWorkspaceContabilidadTab from './FacturaWorkspaceContabilidadTab';
 import {
   useDocumentoDetalleData,
   ResumenTab,
@@ -99,6 +102,9 @@ export interface FacturasWorkspaceViewProps {
   gridContextMenuActions: GridContextMenuAction[];
   onSelectFactura: (row: CotizacionListado) => void;
   onCartaPorte: (row: CotizacionListado) => void;
+  onRegistrarMovimiento?: (row: CotizacionListado) => void;
+  onAplicarSaldoExistente?: (row: CotizacionListado) => void;
+  initialSelectedId?: number | null;
   documentoDetalleRefreshKey?: number;
 
   formatFolio: (row: CotizacionListado) => string;
@@ -175,6 +181,8 @@ export default function FacturasWorkspaceView({
   gridContextMenuActions,
   onSelectFactura,
   onCartaPorte,
+  onRegistrarMovimiento,
+  initialSelectedId = null,
   documentoDetalleRefreshKey = 0,
   formatFolio,
   formatDate,
@@ -183,7 +191,12 @@ export default function FacturasWorkspaceView({
   paginationModel,
   onPaginationModelChange,
 }: FacturasWorkspaceViewProps) {
-  const [selectedId, setSelectedId] = useState<number | null>(rows[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    if (initialSelectedId && rows.some((row) => row.id === initialSelectedId)) {
+      return initialSelectedId;
+    }
+    return rows[0]?.id ?? null;
+  });
   const [estadoMenuAnchor, setEstadoMenuAnchor] = useState<HTMLElement | null>(null);
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null);
   const [globalMenuAnchor, setGlobalMenuAnchor] = useState<HTMLElement | null>(null);
@@ -492,6 +505,7 @@ export default function FacturasWorkspaceView({
             enviarMenuAnchor={enviarMenuAnchor}
             setEnviarMenuAnchor={setEnviarMenuAnchor}
             onCartaPorte={onCartaPorte}
+            onRegistrarMovimiento={onRegistrarMovimiento}
           />
         ) : (
           <Stack alignItems="center" justifyContent="center" sx={{ flex: 1 }}>
@@ -523,7 +537,7 @@ export default function FacturasWorkspaceView({
   );
 }
 
-const PREVIEW_TAB_LABELS = ['Documento', 'Resumen', 'Partidas', 'Pagos', 'Notas de crédito', 'Relacionados', 'Inventario'];
+const PREVIEW_TAB_LABELS = ['Documento', 'Resumen', 'Partidas', 'Pagos', 'Contabilidad', 'Notas de crédito', 'Relacionados', 'Inventario'];
 
 function FacturaWorkspacePanel({
   row,
@@ -540,6 +554,7 @@ function FacturaWorkspacePanel({
   enviarMenuAnchor,
   setEnviarMenuAnchor,
   onCartaPorte,
+  onRegistrarMovimiento,
 }: {
   row: CotizacionListado;
   tipoDocumento: TipoDocumento;
@@ -555,6 +570,7 @@ function FacturaWorkspacePanel({
   enviarMenuAnchor: HTMLElement | null;
   setEnviarMenuAnchor: (el: HTMLElement | null) => void;
   onCartaPorte: (row: CotizacionListado) => void;
+  onRegistrarMovimiento?: (row: CotizacionListado) => void;
 }) {
   const estatus = normalizeEstatus(row.estatus_documento);
   const option = statusOptions.find((o) => o.value === estatus);
@@ -562,7 +578,7 @@ function FacturaWorkspacePanel({
 
   const editarAction = findAction(gridContextMenuActions, 'editar');
   const timbrarAction = findAction(gridContextMenuActions, 'timbrar');
-  const aplicarPagoAction = findAction(gridContextMenuActions, 'aplicar-pago');
+  const registrarMovimientoAction = findAction(gridContextMenuActions, 'registrar-movimiento');
   const contabilizarAction = findAction(gridContextMenuActions, 'contabilizar-factura-venta');
   const cancelarAction = findAction(gridContextMenuActions, 'cancelar-documento');
   const eliminarAction = findAction(gridContextMenuActions, 'eliminar');
@@ -571,21 +587,27 @@ function FacturaWorkspacePanel({
   const enviarCorreoAction = findAction(gridContextMenuActions, 'enviar-correo-factura');
   const enviarWhatsappAction = findAction(gridContextMenuActions, 'enviar-whatsapp');
 
-  // Acción primaria contextual: la más urgente para el estado real de la
-  // factura. Reutiliza el mismo `onClick`/`disabled` de la acción real — sólo
-  // decide cuál mostrar en primer plano.
-  let primaryAction: GridContextMenuActionItem | null = null;
-  let primaryLabel = '';
-  if (estatus !== 'timbrado' && timbrarAction && !timbrarAction.hidden) {
-    primaryAction = timbrarAction;
-    primaryLabel = 'Timbrar CFDI';
-  } else if (aplicarPagoAction && !aplicarPagoAction.hidden && saldo > 0) {
-    primaryAction = aplicarPagoAction;
-    primaryLabel = 'Registrar pago';
-  } else if (estatus === 'borrador' && editarAction) {
-    primaryAction = editarAction;
-    primaryLabel = 'Editar factura';
-  }
+  const saldoPendiente = Number(row.saldo ?? 0) > 0;
+  const registrarMovimientoLabel = registrarMovimientoAction?.label
+    || (tipoDocumento === 'factura_compra' ? 'Registrar pago' : 'Registrar cobro');
+  const registrarMovimientoDisabled = !saldoPendiente
+    || Boolean(registrarMovimientoAction?.disabled)
+    || Boolean(row.cobro_bloqueado)
+    || Number(row.contacto_principal_id ?? 0) <= 0;
+  const registrarMovimientoTooltip = !saldoPendiente
+    ? 'La factura ya está liquidada.'
+    : row.cobro_bloqueado
+      ? 'Saldo suspendido por cancelación pendiente. No admite nuevas aplicaciones.'
+      : Number(row.contacto_principal_id ?? 0) <= 0
+        ? 'Documento sin contacto principal.'
+        : registrarMovimientoLabel;
+  const facturaYaTimbrada = estatus === 'timbrado' || Boolean(row.cfdi_uuid);
+  // Las facturas con tratamiento sin_iva son notas de venta: no son CFDI
+  // fiscales timbrables y tampoco pueden iniciar Carta Porte / Viaje.
+  const esNotaDeVenta = String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
+  const cartaPorteDisabled = facturaYaTimbrada || esNotaDeVenta;
+  const timbrarDisabled = facturaYaTimbrada || Boolean(timbrarAction?.hidden) || Boolean(timbrarAction?.disabled);
+
 
   // "Eliminar" siempre visible (requisito del mockup aprobado). La acción
   // real no calcula de antemano si es eliminable para facturas (hoy sólo
@@ -642,78 +664,109 @@ function FacturaWorkspacePanel({
 
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2.5, height: 44, flexShrink: 0, bgcolor: 'primary.main', color: '#fff' }}>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', px: 2.5, height: 44, flexShrink: 0, bgcolor: 'primary.main', color: '#fff', minWidth: 0 }}>
+        <Stack direction="row" spacing={0} alignItems="baseline" sx={{ minWidth: 0, flexWrap: 'nowrap' }}>
           <Typography variant="body1" fontWeight={800} noWrap>
             Factura {row.numero != null ? `${row.serie ?? ''}${row.numero}` : row.id}{' '}
             <Box component="span" sx={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>(id interno:{row.id})</Box>
           </Typography>
-          {option ? <Chip label={option.label} size="small" sx={{ height: 20, fontSize: 10.5, ...estatusChipSx(option) }} /> : null}
-          {indicators ? (
-            <Box sx={{ '& .MuiChip-root, & button': { color: '#fff' } }}>
-              <DocumentoStatusIndicators
-                {...(indicators.financial ? { financial: indicators.financial } : {})}
-                {...(indicators.cfdi ? { cfdi: indicators.cfdi } : {})}
-                {...(indicators.accounting ? { accounting: indicators.accounting } : {})}
-                maxVisible={2}
-              />
-            </Box>
-          ) : null}
-        </Stack>
-        <Stack direction="row" spacing={0.75} alignItems="baseline">
-          <Typography variant="caption" sx={{ opacity: 0.75, textTransform: 'uppercase', fontWeight: 700 }}>Saldo</Typography>
-          <Typography variant="body2" fontWeight={800} sx={{ color: saldo > 0 ? '#ff9a95' : '#7fe6a3' }}>
+          <Typography variant="body1" fontWeight={800} sx={{ mx: 0.75, flexShrink: 0 }}>-</Typography>
+          <Typography variant="caption" sx={{ opacity: 0.75, textTransform: 'uppercase', fontWeight: 700, flexShrink: 0 }}>Saldo</Typography>
+          <Typography variant="body2" fontWeight={800} sx={{ ml: 0.75, color: saldo > 0 ? '#ff9a95' : '#7fe6a3', flexShrink: 0 }}>
             {currency.format(saldo)}
           </Typography>
         </Stack>
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', px: 1, minHeight: 40, flexShrink: 0, overflowX: 'auto', bgcolor: 'primary.main', borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 'auto', py: 0.5, minWidth: 'max-content' }}>
-        <Tooltip title="Carta Porte / Viaje" arrow><Button size="small" onClick={() => row && onCartaPorte(row)} sx={{ color: '#fff', borderColor: 'rgba(255,255,255,.6)', textTransform: 'none' }} variant="outlined" disabled={!row}>Carta Porte / Viaje</Button></Tooltip>
-        {primaryAction && primaryAction.id !== 'editar'
-          ? renderActionButton(primaryAction, primaryLabel)
-          : null}
-
-        {renderActionButton(verPdfAction, 'Ver / imprimir PDF', { icon: <PrintOutlinedIcon fontSize="small" /> })}
-        {renderActionButton(descargarCfdiAction, 'Descargar CFDI', {
-          disabled: !row.cfdi_uuid,
-          icon: <FolderZipOutlinedIcon fontSize="small" />,
-        })}
-
-        <Tooltip title="Enviar" arrow>
-          <span>
-            <IconButton
-              size="small"
-              aria-label="Enviar"
-              disabled={Boolean(
-                (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
-                && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
-              )}
-              onClick={(e: React.MouseEvent<HTMLElement>) => setEnviarMenuAnchor(e.currentTarget)}
-              sx={actionButtonSx}
+      <Box sx={{ display: 'flex', alignItems: 'center', px: 1, minHeight: 40, flexShrink: 0, gap: 0.5, overflowX: 'auto', bgcolor: 'primary.main', borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ py: 0.5, flexShrink: 0 }}>
+          <Tooltip title={cartaPorteDisabled && facturaYaTimbrada ? 'Carta Porte / Viaje no disponible: factura timbrada' : cartaPorteDisabled ? 'Carta Porte / Viaje no disponible: nota de venta' : 'Carta Porte / Viaje'} arrow>
+            <span>
+              <IconButton
+                size="small"
+                aria-label="Carta Porte / Viaje"
+                onClick={() => row && onCartaPorte(row)}
+                disabled={!row || cartaPorteDisabled}
+                sx={actionButtonSx}
+              >
+                <LocalShippingOutlinedIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          {renderActionButton(verPdfAction, 'Imprimir', { icon: <PrintOutlinedIcon fontSize="small" /> })}
+          {renderActionButton(descargarCfdiAction, 'Descargar CFDI', {
+            disabled: !row.cfdi_uuid,
+            icon: <FileDownloadOutlinedIcon fontSize="small" />,
+          })}
+          <Tooltip title={timbrarDisabled ? 'CFDI ya timbrado' : 'Timbrar CFDI'} arrow>
+            <span>
+              <IconButton
+                size="small"
+                aria-label="Timbrar CFDI"
+                disabled={timbrarDisabled}
+                onClick={facturaYaTimbrada ? undefined : runButtonAction(timbrarAction)}
+                sx={actionButtonSx}
+              >
+                {timbrarAction?.icon ?? <NotificationsActiveIcon fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
+          {onRegistrarMovimiento ? (
+            <Tooltip
+              title={registrarMovimientoTooltip}
+              arrow
             >
-              <SendOutlinedIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
-        <Menu anchorEl={enviarMenuAnchor} open={Boolean(enviarMenuAnchor)} onClose={() => setEnviarMenuAnchor(null)}>
-          {enviarCorreoAction && !enviarCorreoAction.hidden ? (
-            <MenuItem disabled={Boolean(enviarCorreoAction.disabled)} onClick={runMenuItemAction(enviarCorreoAction, () => setEnviarMenuAnchor(null))}>
-              Enviar por correo
-            </MenuItem>
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label={registrarMovimientoLabel}
+                  disabled={registrarMovimientoDisabled}
+                  onClick={() => onRegistrarMovimiento(row)}
+                  sx={actionButtonSx}
+                >
+                  <AccountBalanceWalletIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
           ) : null}
-          {enviarWhatsappAction && !enviarWhatsappAction.hidden ? (
-            <MenuItem disabled={Boolean(enviarWhatsappAction.disabled)} onClick={runMenuItemAction(enviarWhatsappAction, () => setEnviarMenuAnchor(null))}>
-              Enviar por WhatsApp
-            </MenuItem>
-          ) : null}
-        </Menu>
 
-        {renderActionButton(editarAction, 'Editar')}
-        {renderActionButton(eliminarAction, 'Eliminar', { disabled: !facturaEliminable })}
-        {renderActionButton(cancelarAction, 'Cancelar')}
-        {renderActionButton(contabilizarAction, 'Contabilizar factura')}
+          <Tooltip title="Enviar" arrow>
+            <span>
+              <IconButton
+                size="small"
+                aria-label="Enviar"
+                disabled={Boolean(
+                  (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
+                  && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
+                )}
+                onClick={(e: React.MouseEvent<HTMLElement>) => setEnviarMenuAnchor(e.currentTarget)}
+                sx={actionButtonSx}
+              >
+                <SendOutlinedIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Menu anchorEl={enviarMenuAnchor} open={Boolean(enviarMenuAnchor)} onClose={() => setEnviarMenuAnchor(null)}>
+            {enviarCorreoAction && !enviarCorreoAction.hidden ? (
+              <MenuItem disabled={Boolean(enviarCorreoAction.disabled)} onClick={runMenuItemAction(enviarCorreoAction, () => setEnviarMenuAnchor(null))}>
+                Enviar por correo
+              </MenuItem>
+            ) : null}
+            {enviarWhatsappAction && !enviarWhatsappAction.hidden ? (
+              <MenuItem disabled={Boolean(enviarWhatsappAction.disabled)} onClick={runMenuItemAction(enviarWhatsappAction, () => setEnviarMenuAnchor(null))}>
+                Enviar por WhatsApp
+              </MenuItem>
+            ) : null}
+          </Menu>
+          {renderActionButton(contabilizarAction, 'Contabilizar factura')}
+        </Stack>
+
+        <Box sx={{ flex: 1, minWidth: 12 }} />
+
+        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ py: 0.5, flexShrink: 0, ml: 'auto' }}>
+          {renderActionButton(cancelarAction, 'Cancelar')}
+          {renderActionButton(editarAction, 'Editar')}
+          {renderActionButton(eliminarAction, 'Eliminar', { disabled: !facturaEliminable })}
         </Stack>
       </Box>
 
@@ -739,6 +792,8 @@ function FacturaWorkspacePanel({
             onReconcile={onReconcile}
             reconciling={detalle.reconciling}
           />
+        ) : previewTab === 4 ? (
+          <FacturaWorkspaceContabilidadTab accounting={indicators?.accounting} />
         ) : detalle.loading ? (
           <Stack alignItems="center" py={6}><CircularProgress size={26} /></Stack>
         ) : detalle.error ? (
@@ -758,9 +813,9 @@ function FacturaWorkspacePanel({
           <PartidasTab partidas={detalle.data.partidas} formatter={formatterMXN} />
         ) : previewTab === 3 ? (
           <PagosTab pagos={detalle.data.pagos} formatter={formatterMXN} />
-        ) : previewTab === 4 ? (
-          <NotasCreditoTab notasCredito={detalle.data.notasCredito} formatter={formatterMXN} />
         ) : previewTab === 5 ? (
+          <NotasCreditoTab notasCredito={detalle.data.notasCredito} formatter={formatterMXN} />
+        ) : previewTab === 6 ? (
           <RelacionadosTab documentosRelacionados={detalle.data.documentosRelacionados} formatter={formatterMXN} />
         ) : (
           <InventarioTab movimientos={detalle.data.movimientosInventario} />

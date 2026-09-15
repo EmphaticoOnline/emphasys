@@ -28,3 +28,24 @@ self.addEventListener('activate', (event) => {
   // "listo" de inmediato tras activar/actualizar.
   event.waitUntil(self.clients.claim());
 });
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (_) { payload = { body: event.data?.text?.() || '' }; }
+  event.waitUntil(self.registration.showNotification(payload.title || 'Emphasys', {
+    body: payload.body || 'Tienes una nueva notificación en Emphasys.',
+    icon: payload.icon || '/emphazul_192.png', badge: payload.badge || '/emphazul_192.png',
+    tag: payload.tag || 'emphasys-notification', data: { ...(payload.data || {}), url: payload.url || '/' },
+    silent: payload.sound === false,
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    const client = clients[0];
+    if (client) return client.navigate(targetUrl).then(() => client.focus());
+    return self.clients.openWindow(targetUrl);
+  }));
+});

@@ -83,6 +83,8 @@ export type UbicacionMaster = {
   estado: string | null;
   pais: string | null;
   codigo_postal: string | null;
+  cp_sat: string | null;
+  colonia_sat: string | null;
   referencia: string | null;
   latitud: string | number | null;
   longitud: string | number | null;

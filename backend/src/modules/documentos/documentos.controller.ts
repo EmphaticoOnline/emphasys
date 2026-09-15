@@ -33,6 +33,7 @@ import {
 } from './documentos-cancel.service';
 import { formatearFolioDocumento } from '../../utils/documentos';
 import { obtenerJwtSecret } from '../auth/auth.service';
+import { evaluarEditabilidadNotaVenta } from './nota-venta-editabilidad';
 import { evaluarScopeVentas, resolverContextoScopeComercial } from '../auth/scope-comercial';
 import { sendTemplateDocumentMessage } from '../../whatsapp/whatsapp.service';
 import { resolverTipoPlantillaWhatsapp, type WhatsappTemplateType } from '../../whatsapp/whatsapp-template-type.service';
@@ -317,6 +318,11 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
     `SELECT dc.xml_timbrado, dc.uuid, dc.fecha_timbrado, dc.sello_cfdi, dc.total,
             dc.estado_sat, dc.cancelacion_estado,
             dc.rfc_emisor, dc.rfc_receptor,
+            (SELECT v.observaciones
+               FROM transporte.viaje_documentos vd
+               JOIN transporte.viajes v ON v.id = vd.viaje_id AND v.empresa_id = vd.empresa_id
+              WHERE vd.documento_id = dc.documento_id AND vd.empresa_id = d.empresa_id AND vd.principal = true
+              LIMIT 1) AS viaje_observaciones,
             e.nombre, e.razon_social, e.rfc AS empresa_rfc, e.regimen_fiscal_id
        FROM public.documentos_cfdi dc
        JOIN public.documentos d ON d.id = dc.documento_id
@@ -331,7 +337,7 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
   }
 
   try {
-    const cartaModel = mapCartaPortePrintModel({
+    const cartaModel = await mapCartaPortePrintModel({
       documentoId, serie: result.documento?.serie, folio: result.documento?.numero,
       fecha: result.documento?.fecha_documento,
       uuid: cartaRow.uuid ?? (result.documento as any)?.timbre?.uuid,
@@ -339,6 +345,7 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
       rfcEmisor: cartaRow.rfc_emisor ?? (result.documento as any)?.timbre?.rfc_emisor,
       rfcReceptor: cartaRow.rfc_receptor ?? (result.documento as any)?.timbre?.rfc_receptor,
       selloCfdi: cartaRow.sello_cfdi, total: cartaRow.total,
+      viajeObservaciones: cartaRow.viaje_observaciones,
             branding: { logoPath: logoPathFactura || undefined, nombre: cartaRow.nombre, razonSocial: cartaRow.razon_social, rfc: cartaRow.empresa_rfc, regimenFiscal: cartaRow.regimen_fiscal_id },
             cancelado: String(cartaRow.estado_sat ?? '').toLowerCase() === 'cancelado'
               || String(cartaRow.cancelacion_estado ?? '').toLowerCase() === 'cancelada',
@@ -801,6 +808,17 @@ export const obtenerFactura = buildObtenerHandler('factura', true);
 export const crearFactura = buildCrearHandler('factura', true);
 export const actualizarFactura = buildActualizarHandler('factura', true);
 export const eliminarFactura = buildEliminarHandler('factura', true);
+export async function obtenerEditabilidadNotaVenta(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId;
+  const documentoId = Number(req.params.id);
+  if (!empresaId || !Number.isFinite(documentoId)) return res.status(400).json({ message: 'ID o empresaId inválido' });
+  try {
+    return res.json(await evaluarEditabilidadNotaVenta(documentoId, Number(empresaId)));
+  } catch (error) {
+    console.error('Error al evaluar editabilidad de nota de venta', error);
+    return res.status(500).json({ message: 'No se pudo evaluar la editabilidad de la nota de venta' });
+  }
+}
 export const calcularImpuestosPreviewHandler = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId;

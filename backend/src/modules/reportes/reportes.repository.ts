@@ -1391,6 +1391,107 @@ export async function obtenerVentasPorPeriodo(params: {
   return _obtenerMovimientosPorPeriodo('factura', params);
 }
 
+export type ConversionCotizacionesRow = {
+  vendedor_id: number | null;
+  vendedor: string;
+  cotizaciones: number;
+  convertidas: number;
+  no_convertidas: number;
+  porcentaje_conversion: number;
+};
+
+export type ConversionCotizacionesResult = {
+  fecha_desde: string;
+  fecha_hasta: string;
+  vendedor_id: number | null;
+  cotizaciones: number;
+  convertidas: number;
+  no_convertidas: number;
+  porcentaje_conversion: number;
+  vendedores: ConversionCotizacionesRow[];
+};
+
+export async function obtenerConversionCotizaciones(params: {
+  empresaId: number;
+  fechaDesde: string;
+  fechaHasta: string;
+  vendedorId?: number | null;
+}): Promise<ConversionCotizacionesResult> {
+  const { empresaId, fechaDesde, fechaHasta, vendedorId } = params;
+  const args: unknown[] = [empresaId, fechaDesde, fechaHasta];
+  const vendedorFilter = vendedorId != null
+    ? (() => { args.push(vendedorId); return `AND c.agente_id = $${args.length}`; })()
+    : '';
+
+  const { rows } = await pool.query<{
+    vendedor_id: number | null;
+    vendedor: string | null;
+    cotizaciones: string;
+    convertidas: string;
+  }>(
+    `WITH base AS (
+       SELECT c.id,
+              c.agente_id,
+              v.nombre AS vendedor,
+              EXISTS (
+                SELECT 1
+                  FROM public.documentos f
+                 WHERE f.empresa_id = c.empresa_id
+                   AND f.documento_origen_id = c.id
+                   AND LOWER(f.tipo_documento) = 'factura'
+                   AND LOWER(COALESCE(f.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')
+              ) AS convertida
+         FROM public.documentos c
+         LEFT JOIN public.contactos v
+           ON v.id = c.agente_id
+          AND v.empresa_id = c.empresa_id
+          AND LOWER(v.tipo_contacto::text) = 'vendedor'
+        WHERE c.empresa_id = $1
+          AND LOWER(c.tipo_documento) = 'cotizacion'
+          AND c.fecha_documento >= $2::date
+          AND c.fecha_documento <= $3::date
+          ${vendedorFilter}
+     )
+     SELECT agente_id AS vendedor_id,
+            COALESCE(vendedor, 'Sin vendedor') AS vendedor,
+            COUNT(DISTINCT id)::int AS cotizaciones,
+            COUNT(DISTINCT id) FILTER (WHERE convertida)::int AS convertidas
+       FROM base
+      GROUP BY agente_id, vendedor
+      ORDER BY CASE WHEN COUNT(DISTINCT id) = 0 THEN 0
+                    ELSE COUNT(DISTINCT id) FILTER (WHERE convertida)::numeric / COUNT(DISTINCT id)
+               END DESC,
+               COALESCE(vendedor, 'Sin vendedor') ASC`,
+    args
+  );
+
+  const vendedores = rows.map((row) => {
+    const cotizaciones = Number(row.cotizaciones ?? 0);
+    const convertidas = Number(row.convertidas ?? 0);
+    return {
+      vendedor_id: row.vendedor_id == null ? null : Number(row.vendedor_id),
+      vendedor: String(row.vendedor ?? 'Sin vendedor'),
+      cotizaciones,
+      convertidas,
+      no_convertidas: cotizaciones - convertidas,
+      porcentaje_conversion: cotizaciones > 0 ? (convertidas / cotizaciones) * 100 : 0,
+    };
+  });
+
+  const cotizaciones = vendedores.reduce((sum, row) => sum + row.cotizaciones, 0);
+  const convertidas = vendedores.reduce((sum, row) => sum + row.convertidas, 0);
+  return {
+    fecha_desde: fechaDesde,
+    fecha_hasta: fechaHasta,
+    vendedor_id: vendedorId ?? null,
+    cotizaciones,
+    convertidas,
+    no_convertidas: cotizaciones - convertidas,
+    porcentaje_conversion: cotizaciones > 0 ? (convertidas / cotizaciones) * 100 : 0,
+    vendedores,
+  };
+}
+
 // ── Historial de Precios de Venta ─────────────────────────────────────────────
 
 export async function obtenerHistorialPreciosVenta(params: {

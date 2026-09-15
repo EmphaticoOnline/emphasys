@@ -13,6 +13,7 @@ import {
   obtenerHistorialPreciosVenta,
   obtenerComprasPorPeriodo,
   obtenerVentasPorPeriodo,
+  obtenerConversionCotizaciones,
   obtenerPedidosPendientesFacturar,
   obtenerRemisionesPendientesFacturar,
   obtenerVencimientosClientes,
@@ -757,6 +758,28 @@ export async function getVentasPorPeriodo(req: Request, res: Response) {
     return sendMovimientosPorPeriodo(res, resultado, formato, 'Ventas por Período', 'Cliente', 'ventas-por-periodo', !!productoId);
   } catch (err: unknown) {
     return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
+  }
+}
+
+export async function getConversionCotizaciones(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number | undefined;
+  const fechaDesde = String(req.query.fecha_desde ?? '').trim();
+  const fechaHasta = String(req.query.fecha_hasta ?? '').trim();
+  const vendedorRaw = String(req.query.vendedor_id ?? '').trim();
+  const vendedorId = vendedorRaw ? Number(vendedorRaw) : null;
+
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaDesde || !fechaHasta) return res.status(400).json({ message: 'fecha_desde y fecha_hasta son requeridos' });
+  if (vendedorRaw && (vendedorId == null || !Number.isInteger(vendedorId) || vendedorId <= 0)) {
+    return res.status(400).json({ message: 'vendedor_id inválido' });
+  }
+  if (fechaDesde > fechaHasta) return res.status(400).json({ message: 'El rango de fechas es inválido' });
+
+  try {
+    const resultado = await obtenerConversionCotizaciones({ empresaId, fechaDesde, fechaHasta, vendedorId });
+    return res.json(resultado);
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error al obtener reporte' });
   }
 }
 

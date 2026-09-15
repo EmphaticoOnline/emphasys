@@ -48,7 +48,7 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SettingsIcon from '@mui/icons-material/Settings';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ForwardIcon from '@mui/icons-material/Forward';
 import { apiFetch, buildAuthHeaders } from '../api/apiClient';
 import { useSession } from '../session/useSession';
@@ -321,8 +321,15 @@ export type LeadsPageProps = {
   onMobileConversationOpenChange?: (open: boolean) => void;
 };
 
+type InitialMessagesLoadState = {
+  conversationId: string | null;
+  phase: 'idle' | 'loading' | 'loaded';
+  token: number;
+};
+
 export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageProps = {}) {
   const { session } = useSession();
+  const location = useLocation();
   const navigate = useNavigate();
   // Mismo patrón de detección responsiva usado en el resto del proyecto
   // (DocumentosPage, ContactosPage, ProductosPage): breakpoint md de MUI,
@@ -334,6 +341,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const [selectedLeadId, setSelectedLeadId] = React.useState<string>('');
   const [isLoadingConversations, setIsLoadingConversations] = React.useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
+  const [initialMessagesLoad, setInitialMessagesLoad] = React.useState<InitialMessagesLoadState>({ conversationId: null, phase: 'idle', token: 0 });
   const [quickReply, setQuickReply] = React.useState('');
   // Los borradores pertenecen a la conversación (selectedLeadId es el
   // conversationId estable en este módulo), no al contacto ni al componente
@@ -482,6 +490,13 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // se dispara loadMessages para un id todavía sin confirmar, y nunca hay un
   // render intermedio con el primer lead antes de saltar al restaurado.
   const persistedSelectedLeadIdRef = React.useRef<string | null>(null);
+  const deepLinkedConversationIdRef = React.useRef<string | null>(null);
+  const deepLinkInitializedRef = React.useRef(false);
+  if (!deepLinkInitializedRef.current) {
+    const requested = new URLSearchParams(location.search).get('conversation');
+    deepLinkedConversationIdRef.current = requested?.trim() || null;
+    deepLinkInitializedRef.current = true;
+  }
   const [isAdmin, setIsAdmin] = React.useState(Boolean(session.user?.es_superadmin));
   const [vendedorContactoId, setVendedorContactoId] = React.useState<number | null>(
     session.user?.vendedor_contacto_id ?? null
@@ -522,9 +537,12 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // cambiando leadScope de 'todos' a 'mis' un render después) y esta
   // respuesta, más vieja, se descarta en vez de sobrescribir el estado.
   const loadConversationsRequestIdRef = React.useRef(0);
+  const initialMessagesLoadTokenRef = React.useRef(0);
   const lastConversationLengthRef = React.useRef(0);
   const lastSelectedLeadIdRef = React.useRef<string | null>(null);
   const lastWasLoadingMessagesRef = React.useRef(false);
+  const initialScrollPendingRef = React.useRef(false);
+  const initialScrollFrameRef = React.useRef<number | null>(null);
   const [isAtBottom, setIsAtBottom] = React.useState(true);
   const renderCountRef = React.useRef(0);
 
@@ -1161,6 +1179,11 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
           const persisted = persistedSelectedLeadIdRef.current;
           persistedSelectedLeadIdRef.current = null;
           setSelectedLeadId((current) => {
+            if (deepLinkedConversationIdRef.current && initialLeads.some((lead) => lead.id === deepLinkedConversationIdRef.current)) {
+              const requested = deepLinkedConversationIdRef.current;
+              deepLinkedConversationIdRef.current = null;
+              return requested;
+            }
             if (current) return current;
             if (persisted && initialLeads.some((lead) => lead.id === persisted)) {
               return persisted;
@@ -1250,6 +1273,12 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     const append = opts?.append ?? false;
     const silent = opts?.silent ?? false;
     const since = opts?.since;
+    const isInitialLoad = !append && !silent;
+    const loadToken = isInitialLoad ? initialMessagesLoadTokenRef.current + 1 : initialMessagesLoadTokenRef.current;
+    if (isInitialLoad) {
+      initialMessagesLoadTokenRef.current = loadToken;
+      setInitialMessagesLoad({ conversationId, phase: 'loading', token: loadToken });
+    }
 
     if (!silent) {
       setIsLoadingMessages(true);
@@ -1337,6 +1366,9 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     } finally {
       if (!silent) {
         setIsLoadingMessages(false);
+      }
+      if (isInitialLoad && initialMessagesLoadTokenRef.current === loadToken) {
+        setInitialMessagesLoad({ conversationId, phase: 'loaded', token: loadToken });
       }
     }
   }, [reglasSeguimiento]);
@@ -1634,6 +1666,28 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     }
   }, []);
 
+  // El layout móvil puede cambiar después del primer render (CRMPage oculta
+  // su encabezado cuando se abre el chat y iOS ajusta el viewport de la PWA).
+  // Para la carga inicial esperamos dos frames y escribimos directamente en
+  // el contenedor que hace scroll; así el ajuste ocurre después del layout
+  // final y no produce un recorrido visible.
+  const scheduleInitialScroll = React.useCallback(() => {
+    if (initialScrollFrameRef.current !== null) {
+      cancelAnimationFrame(initialScrollFrameRef.current);
+    }
+    const firstFrame = requestAnimationFrame(() => {
+      initialScrollFrameRef.current = requestAnimationFrame(() => {
+        initialScrollFrameRef.current = null;
+        if (!initialScrollPendingRef.current) return;
+        const el = conversationScrollRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+        initialScrollPendingRef.current = false;
+      });
+    });
+    initialScrollFrameRef.current = firstFrame;
+  }, []);
+
   React.useEffect(() => {
     const el = conversationScrollRef.current;
     if (!el) return undefined;
@@ -1645,8 +1699,24 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
 
     handleScroll();
     el.addEventListener('scroll', handleScroll);
-    return () => el.removeEventListener('scroll', handleScroll);
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+    };
   }, [selectedLeadId]);
+
+  // Reprograma el asentamiento si el contenedor cambia de tamaño mientras
+  // termina de estabilizarse el layout móvil. Solo está activo durante la
+  // apertura/carga inicial; no puede arrastrar al usuario durante polling ni
+  // durante carga histórica.
+  React.useEffect(() => {
+    const el = conversationScrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      if (initialScrollPendingRef.current) scheduleInitialScroll();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scheduleInitialScroll, selectedLeadId]);
 
   React.useEffect(() => {
     const currentLeadId = selectedLeadId || null;
@@ -1669,12 +1739,12 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     // Al abrir/cambiar de conversación siempre se posiciona al final (mensajes más
     // recientes), sin importar en qué punto se había quedado el scroll anterior.
     if (leadChanged) {
+      initialScrollPendingRef.current = true;
       setIsAtBottom(true);
-      scrollToBottom('auto');
+      scheduleInitialScroll();
       return;
     }
 
-    if (!isAtBottom) return;
     if (!hasNewMessage) return;
 
     // Si el historial creció mientras la carga inicial de esta conversación
@@ -1682,8 +1752,23 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     // completo de mensajes aún no resolvía), es esa misma carga asentándose:
     // posicionamiento instantáneo, sin animación visible. Solo un mensaje
     // nuevo llegando con la conversación ya asentada anima el scroll.
-    scrollToBottom(wasLoadingInitialHistory ? 'auto' : 'smooth');
-  }, [isAtBottom, isLoadingMessages, scrollToBottom, selectedLeadId, selectedLead?.conversation.length]);
+    if (wasLoadingInitialHistory) {
+      // El contenedor puede haber medido el estado vacío (o haber heredado
+      // el scroll de la conversación anterior) antes de que React pintara el
+      // lote inicial. En ese caso el usuario aún no está "leyendo arriba":
+      // la carga inicial tiene prioridad y debe asentarse al final.
+      initialScrollPendingRef.current = true;
+      scheduleInitialScroll();
+      return;
+    }
+
+    if (!isAtBottom) return;
+    scrollToBottom('smooth');
+  }, [isAtBottom, isLoadingMessages, scheduleInitialScroll, scrollToBottom, selectedLeadId, selectedLead?.conversation.length]);
+
+  React.useEffect(() => () => {
+    if (initialScrollFrameRef.current !== null) cancelAnimationFrame(initialScrollFrameRef.current);
+  }, []);
 
   const updateLead = (id: string, updates: Partial<Lead>) => {
     console.log('[LeadsPage] updateLead', { id, updates });
@@ -2964,6 +3049,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         contactosById={contactosById}
         conversationScrollRef={conversationScrollRef}
         conversationEndRef={conversationEndRef}
+        initialMessagesLoad={initialMessagesLoad}
         quickReply={quickReply}
         setQuickReply={handleQuickReplyChange}
         quickReplyRef={quickReplyRef}
@@ -3202,6 +3288,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       loadConversations={loadConversations}
       conversationScrollRef={conversationScrollRef}
       conversationEndRef={conversationEndRef}
+      initialMessagesLoad={initialMessagesLoad}
       replyingTo={replyingTo}
       setReplyingTo={setReplyingTo}
       focusReplyInput={focusReplyInput}

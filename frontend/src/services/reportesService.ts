@@ -2,6 +2,43 @@ import { apiFetch } from '../api/apiClient';
 
 const BASE = '/api/reportes';
 
+export type ConversionCotizacionesParams = {
+  fecha_desde: string;
+  fecha_hasta: string;
+  vendedor_id?: number | null;
+};
+
+export type ConversionCotizacionesRow = {
+  vendedor_id: number | null;
+  vendedor: string;
+  cotizaciones: number;
+  convertidas: number;
+  no_convertidas: number;
+  porcentaje_conversion: number;
+};
+
+export type ConversionCotizacionesResult = {
+  fecha_desde: string;
+  fecha_hasta: string;
+  vendedor_id: number | null;
+  cotizaciones: number;
+  convertidas: number;
+  no_convertidas: number;
+  porcentaje_conversion: number;
+  vendedores: ConversionCotizacionesRow[];
+};
+
+export async function fetchConversionCotizaciones(params: ConversionCotizacionesParams): Promise<ConversionCotizacionesResult> {
+  const qs = new URLSearchParams({ fecha_desde: params.fecha_desde, fecha_hasta: params.fecha_hasta });
+  if (params.vendedor_id != null) qs.set('vendedor_id', String(params.vendedor_id));
+  const res = await apiFetch(`${BASE}/ventas/conversion-cotizaciones?${qs.toString()}`);
+  if (!res.ok) {
+    const data = await res.json() as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener conversión de cotizaciones');
+  }
+  return res.json() as Promise<ConversionCotizacionesResult>;
+}
+
 export type AplicacionDetalle = {
   id: number;
   fecha: string;

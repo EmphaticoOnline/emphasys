@@ -16,6 +16,7 @@ import {
   timbrarFacturaCfdi,
   enviarFacturaPorCorreo,
   enviarFacturaPorWhatsappCfdi,
+  obtenerEditabilidadNotaVenta,
 } from './documentos.controller';
 
 const router = Router();
@@ -25,6 +26,7 @@ router.get('/', requireAuth, requireEmpresaActiva, listarFacturas);
 
 // GET /api/facturas/:id
 router.get('/:id', requireAuth, requireEmpresaActiva, obtenerFactura);
+router.get('/:id/editabilidad-nota-venta', requireAuth, requireEmpresaActiva, obtenerEditabilidadNotaVenta);
 
 // GET /api/facturas/:id/pdf
 router.get('/:id/pdf', requireAuth, requireEmpresaActiva, obtenerFacturaPDF);

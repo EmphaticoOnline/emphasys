@@ -116,6 +116,7 @@ import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfi
 import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
 import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicacionDialog';
 import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
+import { LiquidacionDocumentoView, resolveLiquidacionConfig } from '../modules/finanzas/liquidacion-documento';
 import DocumentoDetalleDrawer from '../components/documentos/DocumentoDetalleDrawer';
 import { DocumentoWhatsappDialog } from '../modules/documentos/DocumentoWhatsappDialog';
 import { GridContextMenu } from '../components/grids/GridContextMenu';
@@ -780,6 +781,26 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     saldo: number;
     tipoDocumento: TipoDocumento | null;
   }>({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
+  const [liquidacion, setLiquidacion] = useState<{
+    open: boolean;
+    documentoId: number | null;
+    contactoId: number | null;
+    saldo: number;
+    tipoDocumento: TipoDocumento | null;
+    folio: string;
+    contactoNombre: string;
+    moneda: string;
+  }>({
+    open: false,
+    documentoId: null,
+    contactoId: null,
+    saldo: 0,
+    tipoDocumento: null,
+    folio: '',
+    contactoNombre: '',
+    moneda: 'MXN',
+  });
+  const liquidacionConfig = useMemo(() => resolveLiquidacionConfig(tipoDocumento), [tipoDocumento]);
   const [detalleDrawer, setDetalleDrawer] = useState<{ open: boolean; documentoId: number | null }>({
     open: false,
     documentoId: null,
@@ -789,6 +810,33 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const abrirCartaPorte = useCallback((row: CotizacionListado) => {
     const documentoId = Number(row.id);
     setCartaPorteDrawer({ open: true, documentoId, folio: resolverFolioVisual(row, tipoDocumento) || String(documentoId) });
+  }, [tipoDocumento]);
+
+  const abrirLiquidacionDesdeFila = useCallback((row: CotizacionListado) => {
+    setAplicarSaldoNcDrawer({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
+    setFocusedDocumentId(Number(row.id));
+    setHighlightedDocumentId(null);
+    setLiquidacion({
+      open: true,
+      documentoId: Number(row.id) || null,
+      contactoId: Number(row.contacto_principal_id ?? 0) || null,
+      saldo: Number(row.saldo ?? 0),
+      tipoDocumento,
+      folio: resolverFolioVisual(row, tipoDocumento) || String(row.id),
+      contactoNombre: String(row.nombre_cliente || '').trim(),
+      moneda: String(row.moneda || 'MXN').toUpperCase(),
+    });
+  }, [tipoDocumento]);
+
+  const abrirAplicarSaldoExistente = useCallback((row: CotizacionListado) => {
+    setLiquidacion((prev) => ({ ...prev, open: false }));
+    setAplicarSaldoNcDrawer({
+      open: true,
+      documentoId: Number(row.id) || null,
+      contactoId: Number(row.contacto_principal_id ?? 0) || null,
+      saldo: Number(row.saldo ?? 0),
+      tipoDocumento,
+    });
   }, [tipoDocumento]);
   const [contabilizarVentaDrawer, setContabilizarVentaDrawer] = useState<{
     open: boolean;
@@ -2459,15 +2507,40 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               </span>
             </Tooltip>
           )}
+          {liquidacionConfig && hasAction('aplicar_pago') && Number(params.row?.saldo ?? 0) > 0 && (
+            <Tooltip
+              title={
+                params.row?.cobro_bloqueado
+                  ? 'Saldo suspendido por cancelación pendiente. No admite nuevas aplicaciones.'
+                  : Number(params.row?.contacto_principal_id ?? 0) <= 0
+                    ? `Documento sin ${liquidacionConfig.textos.contraparte.toLowerCase()}`
+                    : liquidacionConfig.textos.accionRegistrar
+              }
+            >
+              <span>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  disabled={loading || Boolean(params.row?.cobro_bloqueado) || Number(params.row?.contacto_principal_id ?? 0) <= 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    abrirLiquidacionDesdeFila(params.row as CotizacionListado);
+                  }}
+                >
+                  <PaidOutlinedIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
           {hasAction('aplicar_pago') && (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra') && (
             <Tooltip
               title={
                 params.row?.cobro_bloqueado
                   ? 'Saldo suspendido por cancelación pendiente. No admite nuevas aplicaciones.'
                 : Number(params.row?.saldo ?? 0) > 0
-                  ? 'Aplicar pago'
+                  ? (liquidacionConfig?.textos.accionAplicarExistente ?? 'Aplicar saldo existente')
                   : params.row?.tiene_aplicaciones_saldo_activas
-                    ? 'Administrar pagos'
+                    ? (liquidacionConfig?.textos.accionAdministrar ?? 'Administrar aplicaciones')
                     : 'Documento sin saldo pendiente ni pagos aplicados'
               }
             >
@@ -2485,13 +2558,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   }
                   onClick={(e) => {
                     e.stopPropagation();
-                    setAplicarSaldoNcDrawer({
-                      open: true,
-                      documentoId: Number(params.row?.id ?? 0) || null,
-                      contactoId: Number(params.row?.contacto_principal_id ?? 0) || null,
-                      saldo: Number(params.row?.saldo ?? 0),
-                      tipoDocumento,
-                    });
+                    abrirAplicarSaldoExistente(params.row as CotizacionListado);
                   }}
                 >
                   <AccountBalanceWalletIcon fontSize="small" />
@@ -2733,6 +2800,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     openActividadSeguimientoDrawer,
     esFacturaVentas,
     estadoContableVentas,
+    liquidacionConfig,
+    abrirLiquidacionDesdeFila,
+    abrirAplicarSaldoExistente,
   ]);
 
   const columns: GridColDef[] = useMemo(
@@ -2842,10 +2912,31 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         },
       },
       {
+        id: 'registrar-movimiento',
+        label: liquidacionConfig?.textos.accionRegistrar
+          ?? (tipoDocumento === 'factura_compra' ? 'Registrar pago' : 'Registrar cobro'),
+        icon: <PaidOutlinedIcon fontSize="small" />,
+        hidden: !(
+          Boolean(liquidacionConfig)
+          && hasAction('aplicar_pago')
+          && (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra')
+          && Number(contextMenuRow?.saldo ?? 0) > 0
+        ),
+        disabled:
+          loading
+          || Boolean(contextMenuRow?.cobro_bloqueado)
+          || Number(contextMenuRow?.contacto_principal_id ?? 0) <= 0,
+        onClick: () => {
+          abrirLiquidacionDesdeFila(contextMenuRow);
+        },
+      },
+      {
         id: 'aplicar-pago',
         label: contextMenuRow?.cobro_bloqueado
           ? 'Saldo suspendido por cancelación'
-          : Number(contextMenuRow?.saldo ?? 0) > 0 ? 'Aplicar pago' : 'Administrar pagos',
+          : Number(contextMenuRow?.saldo ?? 0) > 0
+            ? (liquidacionConfig?.textos.accionAplicarExistente ?? 'Aplicar saldo existente')
+            : (liquidacionConfig?.textos.accionAdministrar ?? 'Administrar aplicaciones'),
         icon: <AccountBalanceWalletIcon fontSize="small" />,
         hidden: !(hasAction('aplicar_pago') && (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra')),
         disabled:
@@ -2856,13 +2947,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             && !contextMenuRow?.tiene_aplicaciones_saldo_activas
           ),
         onClick: () => {
-          setAplicarSaldoNcDrawer({
-            open: true,
-            documentoId: rowId,
-            contactoId: Number(contextMenuRow?.contacto_principal_id ?? 0) || null,
-            saldo: Number(contextMenuRow?.saldo ?? 0),
-            tipoDocumento,
-          });
+          abrirAplicarSaldoExistente(contextMenuRow);
         },
       },
       {
@@ -3051,6 +3136,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     esFacturaVentas,
     estadoContableVentas,
     setContabilizarVentaDrawer,
+    liquidacionConfig,
+    abrirLiquidacionDesdeFila,
+    abrirAplicarSaldoExistente,
   ]);
 
   const resumenTotales = useMemo(() => {
@@ -3794,6 +3882,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         gridContextMenuActions={gridContextMenuActions}
         onSelectFactura={selectGridRow}
         onCartaPorte={abrirCartaPorte}
+        onRegistrarMovimiento={abrirLiquidacionDesdeFila}
+        onAplicarSaldoExistente={abrirAplicarSaldoExistente}
+        initialSelectedId={focusedDocumentId}
         documentoDetalleRefreshKey={documentoDetalleRefreshKey}
         formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
         formatDate={formatCivilDate}
@@ -3861,6 +3952,37 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           </Box>
         </Container>
       ) : desktopView}
+
+      {liquidacion.open && liquidacion.documentoId && liquidacion.contactoId && liquidacion.tipoDocumento ? (
+        <LiquidacionDocumentoView
+          documentoId={liquidacion.documentoId}
+          contactoId={liquidacion.contactoId}
+          tipoDocumento={liquidacion.tipoDocumento}
+          saldoInicial={liquidacion.saldo}
+          folioInicial={liquidacion.folio}
+          contactoNombreInicial={liquidacion.contactoNombre}
+          monedaInicial={liquidacion.moneda}
+          empresaId={empresaId}
+          usuarioId={session.user?.id ?? null}
+          onCancel={() => setLiquidacion((prev) => ({ ...prev, open: false }))}
+          onSaved={() => {
+            const mensaje = resolveLiquidacionConfig(liquidacion.tipoDocumento)?.textos.guardadoOk
+              ?? 'Movimiento registrado';
+            setLiquidacion({
+              open: false,
+              documentoId: null,
+              contactoId: null,
+              saldo: 0,
+              tipoDocumento: null,
+              folio: '',
+              contactoNombre: '',
+              moneda: 'MXN',
+            });
+            setSnackbar({ open: true, message: mensaje, severity: 'success' });
+            void load();
+          }}
+        />
+      ) : null}
 
       <Dialog open={Boolean(error)} onClose={() => setError(null)} fullWidth maxWidth="xs">
         <DialogTitle>Error</DialogTitle>

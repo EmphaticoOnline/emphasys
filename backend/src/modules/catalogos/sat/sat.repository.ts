@@ -211,6 +211,25 @@ export async function listarColoniasPorCp(cp: string, q?: string | null, limit =
   return rows.map((row: any) => ({ clave: row.colonia, nombre: row.texto }));
 }
 
+export async function resolverDomicilioParaImpresion(cp: string, colonia?: string | null) {
+  const { rows } = await pool.query(`
+    SELECT cp.id AS codigo_postal,
+           e.texto AS estado_nombre,
+           m.texto AS municipio_nombre,
+           COALESCE(l.texto, cp.localidad) AS localidad_nombre,
+           p.texto AS pais_nombre,
+           col.texto AS colonia_nombre
+      FROM sat.codigos_postales cp
+      JOIN sat.estados e ON e.estado = cp.estado
+      JOIN sat.municipios m ON m.estado = cp.estado AND m.municipio = cp.municipio
+      LEFT JOIN sat.localidades l ON l.estado = cp.estado AND l.localidad = cp.localidad
+      JOIN sat.paises p ON p.id = e.pais
+      LEFT JOIN sat.colonias col ON col.codigo_postal = cp.id AND col.colonia = $2
+     WHERE cp.id = $1
+     LIMIT 1`, [cp, colonia ?? null]);
+  return rows[0] ?? null;
+}
+
 export async function buscarRegimenesFiscales(q: string | null, limit?: number): Promise<RegimenFiscal[]> {
   const safeLimit = sanitizeLimit(limit);
   const query = q !== null || limit !== undefined ? `${QUERY_REGIMENES} LIMIT $2` : QUERY_REGIMENES;

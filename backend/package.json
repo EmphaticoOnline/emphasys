@@ -34,6 +34,7 @@
     "@nodecfdi/credentials": "^3.2.0",
     "@nodecfdi/sat-ws-descarga-masiva": "^2.0.0",
     "@types/nodemailer": "^7.0.11",
+    "@types/web-push": "^3.6.4",
     "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
@@ -58,6 +59,7 @@
     "qs": "^6.15.0",
     "sanitize-html": "^2.17.5",
     "sharp": "^0.35.3",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5",
     "xmlbuilder2": "^4.0.2"
   },

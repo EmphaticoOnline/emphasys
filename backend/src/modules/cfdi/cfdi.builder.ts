@@ -1,5 +1,6 @@
 import { create } from 'xmlbuilder2';
 import type { CfdiBuildOptions, CfdiBuildResult, CfdiInvoiceData, CfdiPartida } from './cfdi.types';
+import { truncateFiscal } from './fiscal-precision';
 
 const CFDI_NAMESPACE = 'http://www.sat.gob.mx/cfd/4';
 const CFDI_XSI = 'http://www.w3.org/2001/XMLSchema-instance';
@@ -7,6 +8,7 @@ const CFDI_SCHEMA_LOCATION = `${CFDI_NAMESPACE} http://www.sat.gob.mx/sitio_inte
 
 const IVA_IMPUESTO = '002';
 const formatMoney = (value: number, decimals = 2) => value.toFixed(decimals);
+const formatFiscal = (value: number) => truncateFiscal(value).toFixed(6);
 const formatRate = (value: number) => value.toFixed(6);
 const formatFecha = (value: string) => new Date(value).toISOString().slice(0, 19);
 
@@ -50,11 +52,7 @@ function resolveImporte(partida: CfdiPartida): { base: number; importeIva: numbe
 
   const tasa = ivaTraslado ? normalizeRate(Number(ivaTraslado.tasa)) : 0;
   const importeIva = ivaTraslado
-    ? Number(
-        (Number.isFinite(Number(ivaTraslado.monto))
-          ? Number(ivaTraslado.monto)
-          : Number(base) * normalizeRate(Number(ivaTraslado.tasa))).toFixed(2)
-      )
+    ? truncateFiscal(Number(base) * normalizeRate(Number(ivaTraslado.tasa)))
     : 0;
 
   return { base, importeIva, tasa };
@@ -77,7 +75,7 @@ export class CfdiBuilder {
             .map((imp) => {
               const tasaNorm = normalizeRate(Number(imp.tasa));
               const baseImp = Number.isFinite(Number(imp.base)) ? Number(imp.base) : base;
-              const importeImp = Number.isFinite(Number(imp.monto)) ? Number(imp.monto) : baseImp * tasaNorm;
+              const importeImp = truncateFiscal(baseImp * tasaNorm);
               return {
                 tipo: (imp.tipo || '').toLowerCase() === 'retencion' ? 'retencion' : 'traslado',
                 impuestoClave: mapImpuestoClave(imp.impuesto),
@@ -212,7 +210,7 @@ export class CfdiBuilder {
             Impuesto: imp.impuestoClave,
             TipoFactor: 'Tasa',
             TasaOCuota: formatRate(imp.tasa),
-            Importe: formatMoney(imp.importe),
+            Importe: formatFiscal(imp.importe),
           }));
         });
         traslados.up();
@@ -226,7 +224,7 @@ export class CfdiBuilder {
             Impuesto: imp.impuestoClave,
             TipoFactor: 'Tasa',
             TasaOCuota: formatRate(imp.tasa),
-            Importe: formatMoney(imp.importe),
+            Importe: formatFiscal(imp.importe),
           }));
         });
         retenciones.up();

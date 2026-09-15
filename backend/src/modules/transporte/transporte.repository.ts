@@ -109,6 +109,7 @@ export async function findLocation(client: DbClient, empresaId: number, domicili
                  THEN 'MEX' ELSE d.pais
             END AS pais,
             COALESCE(d.cp_sat, d.cp) AS codigo_postal,
+            d.cp_sat, d.colonia_sat,
             d.cruces AS referencia,
             d.latitud, d.longitud
        FROM public.contactos_domicilios d

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import {
   desactivarSuscripcion,
   listarSuscripcionesActivas,
+  actualizarPreferenciasSuscripcion,
   upsertSuscripcion,
   type PushSubscriptionRow,
 } from './notificaciones.repository';
@@ -10,6 +11,7 @@ import {
   obtenerVapidPublicKey,
   validarSuscripcionInput,
   VapidNoConfiguradoError,
+  enviarPushAUsuario,
 } from './notificaciones.service';
 
 // Nunca se devuelven p256dh ni auth al frontend (ni en el alta ni en el
@@ -24,6 +26,10 @@ function serializarSuscripcionPublica(row: PushSubscriptionRow) {
     endpoint_enmascarado: enmascararEndpoint(row.endpoint),
     creada_en: row.creada_en,
     ultima_actividad_en: row.ultima_actividad_en,
+    chat_activado: row.chat_activado,
+    vista_previa: row.vista_previa,
+    sonido: row.sonido,
+    contador_no_leidos: row.contador_no_leidos,
   };
 }
 
@@ -109,5 +115,44 @@ export async function deleteSuscripcion(req: Request, res: Response) {
   } catch (error) {
     console.error('Error al desactivar suscripción push:', error);
     res.status(500).json({ message: 'No se pudo desactivar la suscripción' });
+  }
+}
+
+export async function postPushTest(req: Request, res: Response) {
+  const usuarioId = req.auth?.userId;
+  if (!usuarioId) return res.status(401).json({ message: 'No autenticado' });
+  try {
+    const summary = await enviarPushAUsuario(usuarioId, {
+      title: 'Notificación de prueba', body: 'Las notificaciones de Emphasys están funcionando.', url: '/', tag: 'emphasys-test', data: { type: 'test' },
+    }, { respectPreferences: true });
+    res.json(summary);
+  } catch (error) {
+    if (error instanceof VapidNoConfiguradoError) return res.status(503).json({ message: 'Las variables VAPID no están configuradas en este servidor.' });
+    console.error('[Notificaciones] Error en push de prueba:', error);
+    res.status(500).json({ message: 'No se pudo enviar la notificación de prueba' });
+  }
+}
+
+export async function patchSuscripcionPreferences(req: Request, res: Response) {
+  const usuarioId = req.auth?.userId;
+  if (!usuarioId) return res.status(401).json({ message: 'No autenticado' });
+  const id = String(req.params.id ?? '');
+  if (!/^\d+$/.test(id)) return res.status(400).json({ message: 'id inválido' });
+  const allowed = new Set(['chat_activado', 'vista_previa', 'sonido', 'contador_no_leidos']);
+  const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+  const keys = Object.keys(body);
+  if (!keys.length || keys.some((key) => !allowed.has(key))) {
+    return res.status(400).json({ message: 'Solo se permiten preferencias de notificaciones válidas.' });
+  }
+  if (keys.some((key) => typeof body[key] !== 'boolean')) {
+    return res.status(400).json({ message: 'Las preferencias deben ser booleanas.' });
+  }
+  try {
+    const updated = await actualizarPreferenciasSuscripcion(id, usuarioId, body as any);
+    if (!updated) return res.status(404).json({ message: 'Suscripción no encontrada' });
+    res.json(serializarSuscripcionPublica(updated));
+  } catch (error) {
+    console.error('[Notificaciones] Error actualizando preferencias:', error);
+    res.status(500).json({ message: 'No se pudieron actualizar las preferencias' });
   }
 }

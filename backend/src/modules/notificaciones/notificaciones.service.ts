@@ -4,6 +4,9 @@
 // todavía (ver notificaciones.repository.ts y notificaciones.controller.ts
 // para el resto del alcance de este bloque).
 
+import webpush from 'web-push';
+import { desactivarSuscripcion, listarSuscripcionesActivas, marcarActividadSuscripcion, type PushSubscriptionRow } from './notificaciones.repository';
+
 const MAX_ENDPOINT_LENGTH = 2048;
 const MAX_KEY_LENGTH = 500;
 const MAX_USER_AGENT_LENGTH = 500;
@@ -89,6 +92,44 @@ export class VapidNoConfiguradoError extends Error {
     super('VAPID no está configurado en este servidor');
     this.name = 'VapidNoConfiguradoError';
   }
+}
+
+export interface PushNotificationPayload {
+  title: string; body?: string; url?: string; tag?: string;
+  data?: Record<string, unknown>; icon?: string; badge?: string; sound?: boolean;
+}
+export interface PushSendSummary { subscriptionsFound: number; successful: number; failed: number; deactivated: number; }
+
+function obtenerVapidConfig() {
+  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const subject = process.env.VAPID_SUBJECT?.trim();
+  if (!publicKey || !privateKey || !subject) throw new VapidNoConfiguradoError();
+  return { publicKey, privateKey, subject };
+}
+
+export async function enviarPushAUsuario(usuarioId: number, payload: PushNotificationPayload, options: { respectPreferences?: boolean; chatOnly?: boolean } = {}): Promise<PushSendSummary> {
+  const vapid = obtenerVapidConfig();
+  webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
+  const suscripciones = await listarSuscripcionesActivas(usuarioId);
+  const summary: PushSendSummary = { subscriptionsFound: suscripciones.length, successful: 0, failed: 0, deactivated: 0 };
+  const base = { title: payload.title || 'Emphasys', url: payload.url || '/', tag: payload.tag || 'emphasys-notification', data: payload.data || {}, icon: payload.icon || '/emphazul_192.png', badge: payload.badge || '/emphazul_192.png' };
+  await Promise.all(suscripciones.map(async (suscripcion: PushSubscriptionRow) => {
+    if (options.chatOnly && !suscripcion.chat_activado) return;
+    try {
+      const bodyText = options.respectPreferences && !suscripcion.vista_previa ? 'Tienes una nueva notificación en Emphasys.' : (payload.body || '');
+      const body = JSON.stringify({ ...base, body: bodyText, sound: options.respectPreferences ? suscripcion.sonido : payload.sound !== false });
+      await webpush.sendNotification({ endpoint: suscripcion.endpoint, keys: { p256dh: suscripcion.p256dh, auth: suscripcion.auth } }, body);
+      await marcarActividadSuscripcion(suscripcion.id);
+      summary.successful += 1;
+    } catch (error: any) {
+      summary.failed += 1;
+      if (error?.statusCode === 404 || error?.statusCode === 410) {
+        if (await desactivarSuscripcion(suscripcion.id, usuarioId)) summary.deactivated += 1;
+      } else console.error('[Notificaciones] Fallo enviando push', { usuarioId, suscripcionId: suscripcion.id, statusCode: error?.statusCode });
+    }
+  }));
+  return summary;
 }
 
 // Lectura perezosa (no al arrancar el proceso): las claves VAPID son

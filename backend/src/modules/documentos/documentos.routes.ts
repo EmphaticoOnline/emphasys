@@ -25,6 +25,7 @@ import {
   calcularImpuestosPreviewHandler,
   exportarDocumentos,
   obtenerRecepcionResumenHandler,
+  obtenerEditabilidadNotaVenta,
 } from './documentos.controller';
 import { obtenerCamposDocumento } from './documentos-campos.controller';
 import { obtenerDetalleDocumentoHandler } from './documentos-detalle.controller';
@@ -45,6 +46,7 @@ router.get('/:id/recepcion-resumen', requireAuth, requireEmpresaActiva, obtenerR
 
 // GET /api/documentos/:id/validar-eliminacion
 router.get('/:id/validar-eliminacion', requireAuth, requireEmpresaActiva, validarEliminacionCotizacion);
+router.get('/:id/editabilidad-nota-venta', requireAuth, requireEmpresaActiva, obtenerEditabilidadNotaVenta);
 
 // GET /api/documentos/:id/campos (valores dinámicos)
 router.get('/:id/campos', requireAuth, requireEmpresaActiva, obtenerCamposDocumento);

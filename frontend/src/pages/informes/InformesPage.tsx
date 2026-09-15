@@ -64,6 +64,11 @@ const CATEGORIAS: Categoria[] = [
         path: '/informes/ventas/ventas-por-periodo',
       },
       {
+        label: 'Conversión de Cotizaciones a Ventas',
+        descripcion: 'Mide cuántas cotizaciones se convierten en factura por vendedor y período.',
+        path: '/informes/ventas/conversion-cotizaciones',
+      },
+      {
         label: 'Pedidos Pendientes de Facturar',
         descripcion: 'Pedidos con importe aún no cubierto mediante facturas de venta.',
         path: '/informes/ventas/pedidos-pendientes-facturar',
