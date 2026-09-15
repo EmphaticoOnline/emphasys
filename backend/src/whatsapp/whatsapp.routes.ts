@@ -24,6 +24,7 @@ import {
 	actualizarPlantillaController,
 } from "./whatsapp.controller";
 import { requireAuth, requireEmpresaActiva, requireSuperadmin } from "../modules/auth/auth.middleware";
+import { analizarTemperatura, obtenerTemperatura } from "../modules/leads/temperatura.controller";
 
 const router = Router();
 
@@ -37,6 +38,8 @@ router.get("/conversaciones", requireAuth, requireEmpresaActiva, listarConversac
 router.post("/conversaciones/:id/leer", requireAuth, requireEmpresaActiva, marcarConversacionLeidaWhatsapp);
 router.get("/reglas-seguimiento", requireAuth, requireEmpresaActiva, obtenerReglasSeguimientoWhatsapp);
 router.get("/conversacion/:id", requireAuth, requireEmpresaActiva, obtenerConversacionWhatsapp);
+router.get("/conversaciones/:id/temperatura", requireAuth, requireEmpresaActiva, obtenerTemperatura);
+router.post("/conversaciones/:id/temperatura", requireAuth, requireEmpresaActiva, analizarTemperatura);
 router.patch("/conversaciones/:id/etapa", requireAuth, requireEmpresaActiva, actualizarEtapaConversacion);
 router.patch("/conversaciones/:id/finalizar", requireAuth, requireEmpresaActiva, finalizarConversacionWhatsapp);
 router.patch("/conversaciones/:id/reabrir", requireAuth, requireEmpresaActiva, reabrirConversacionWhatsapp);
