@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER="ubuntu@api.emphasys.cloud"
+SERVER="${SSH_SERVER:-ubuntu@148.113.192.7}"
 REMOTE_PATH="/var/www/emphasys-backend"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
