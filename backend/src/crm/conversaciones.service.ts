@@ -429,6 +429,57 @@ export type MensajeSalienteMetadata = {
   conversacion_origen_id: number;
 };
 
+export type MensajeOrigenEnvio =
+  | 'manual'
+  | 'plantilla_manual'
+  | 'automatizado'
+  | 'sistema'
+  | 'desconocido';
+
+export type MensajeAutoria = {
+  usuarioId: number | null;
+  origenEnvio: MensajeOrigenEnvio;
+};
+
+async function resolverAutoriaMensajeSaliente(
+  empresaId: number,
+  conversacionId: number,
+  autoria?: MensajeAutoria | null
+) {
+  const usuarioId = Number(autoria?.usuarioId);
+  const autorUsuarioId = Number.isSafeInteger(usuarioId) && usuarioId > 0 ? usuarioId : null;
+  const origenEnvio = autoria?.origenEnvio ?? 'desconocido';
+
+  const { rows } = await pool.query<{
+    autor_vendedor_contacto_id: number | null;
+    responsabilidad_contacto_id: number | null;
+  }>(
+    `SELECT
+       CASE WHEN vc.empresa_id = $1 THEN u.vendedor_contacto_id ELSE NULL END AS autor_vendedor_contacto_id,
+       r.id AS responsabilidad_contacto_id
+     FROM crm.conversaciones c
+     LEFT JOIN core.usuarios u
+       ON u.id = $3
+     LEFT JOIN public.contactos vc
+       ON vc.id = u.vendedor_contacto_id
+     LEFT JOIN crm.contacto_responsabilidades r
+       ON r.empresa_id = c.empresa_id
+      AND r.contacto_id = c.contacto_id
+      AND r.vigente_hasta IS NULL
+     WHERE c.empresa_id = $1
+       AND c.id = $2
+     LIMIT 1`,
+    [empresaId, conversacionId, autorUsuarioId]
+  );
+
+  return {
+    autorUsuarioId,
+    autorVendedorContactoId: rows[0]?.autor_vendedor_contacto_id ?? null,
+    responsabilidadContactoId: rows[0]?.responsabilidad_contacto_id ?? null,
+    origenEnvio,
+  };
+}
+
 export const registrarMensajeTextoSalienteWhatsapp = async (
   empresaId: number,
   conversacionId: number,
@@ -436,8 +487,10 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
   text: string,
   externalId: string | null,
   mensajeRespuestaId?: number | null,
-  metadata?: MensajeSalienteMetadata | null
+  metadata?: MensajeSalienteMetadata | null,
+  autoria?: MensajeAutoria | null
 ) => {
+  const autor = await resolverAutoriaMensajeSaliente(empresaId, conversacionId, autoria);
   await pool.query(
     `
       INSERT INTO crm.mensajes
@@ -454,9 +507,13 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
         status,
         mensaje_respuesta_id,
         respuesta_json,
+        autor_usuario_id,
+        autor_vendedor_contacto_id,
+        responsabilidad_contacto_id,
+        origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,$12,$13,$14,$15,NOW())
       `,
     [
       empresaId,
@@ -469,7 +526,11 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
       externalId,
       'sent',
       mensajeRespuestaId ?? null,
-      metadata ? JSON.stringify(metadata) : null
+      metadata ? JSON.stringify(metadata) : null,
+      autor.autorUsuarioId,
+      autor.autorVendedorContactoId,
+      autor.responsabilidadContactoId,
+      autor.origenEnvio,
     ]
   );
 };
@@ -482,8 +543,10 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
   caption: string | null,
   externalId: string | null,
   mensajeRespuestaId?: number | null,
-  metadata?: MensajeSalienteMetadata | null
+  metadata?: MensajeSalienteMetadata | null,
+  autoria?: MensajeAutoria | null
 ) => {
+  const autor = await resolverAutoriaMensajeSaliente(empresaId, conversacionId, autoria);
   await pool.query(
     `
       INSERT INTO crm.mensajes
@@ -501,9 +564,13 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
         status,
         mensaje_respuesta_id,
         respuesta_json,
+        autor_usuario_id,
+        autor_vendedor_contacto_id,
+        responsabilidad_contacto_id,
+        origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
       `,
     [
       empresaId,
@@ -517,19 +584,35 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
       externalId,
       'sent',
       mensajeRespuestaId ?? null,
-      metadata ? JSON.stringify(metadata) : null
+      metadata ? JSON.stringify(metadata) : null,
+      autor.autorUsuarioId,
+      autor.autorVendedorContactoId,
+      autor.responsabilidadContactoId,
+      autor.origenEnvio,
     ]
   );
 };
 
 export const registrarMensajeVideoSalienteWhatsapp = async (
   empresaId: number, conversacionId: number, telefono: string, mediaUrl: string,
-  caption: string | null, externalId: string | null, mensajeRespuestaId?: number | null
+  caption: string | null, externalId: string | null, mensajeRespuestaId?: number | null,
+  autoria?: MensajeAutoria | null
 ) => {
+  const autor = await resolverAutoriaMensajeSaliente(empresaId, conversacionId, autoria);
   await pool.query(
-    `INSERT INTO crm.mensajes (empresa_id, conversacion_id, telefono, tipo_mensaje, canal, tipo_contenido, caption, contenido, fecha_envio, id_externo, status, mensaje_respuesta_id, creado_en)
-     VALUES ($1,$2,$3,'saliente','whatsapp','video',$4,$5,NOW(),$6,'sent',$7,NOW())`,
-    [empresaId, conversacionId, telefono, caption, mediaUrl, externalId, mensajeRespuestaId ?? null]
+    `INSERT INTO crm.mensajes (
+       empresa_id, conversacion_id, telefono, tipo_mensaje, canal, tipo_contenido,
+       caption, contenido, fecha_envio, id_externo, status, mensaje_respuesta_id,
+       autor_usuario_id, autor_vendedor_contacto_id, responsabilidad_contacto_id,
+       origen_envio, creado_en
+     ) VALUES (
+       $1,$2,$3,'saliente','whatsapp','video',$4,$5,NOW(),$6,'sent',$7,$8,$9,$10,$11,NOW()
+     )`,
+    [
+      empresaId, conversacionId, telefono, caption, mediaUrl, externalId,
+      mensajeRespuestaId ?? null, autor.autorUsuarioId, autor.autorVendedorContactoId,
+      autor.responsabilidadContactoId, autor.origenEnvio,
+    ]
   );
 };
 
@@ -541,8 +624,10 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
   filename: string | null,
   externalId: string | null,
   mensajeRespuestaId?: number | null,
-  metadata?: MensajeSalienteMetadata | null
+  metadata?: MensajeSalienteMetadata | null,
+  autoria?: MensajeAutoria | null
 ) => {
+  const autor = await resolverAutoriaMensajeSaliente(empresaId, conversacionId, autoria);
   await pool.query(
     `
       INSERT INTO crm.mensajes
@@ -560,9 +645,13 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
         status,
         mensaje_respuesta_id,
         respuesta_json,
+        autor_usuario_id,
+        autor_vendedor_contacto_id,
+        responsabilidad_contacto_id,
+        origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
       `,
     [
       empresaId,
@@ -576,7 +665,11 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
       externalId,
       'sent',
       mensajeRespuestaId ?? null,
-      metadata ? JSON.stringify(metadata) : null
+      metadata ? JSON.stringify(metadata) : null,
+      autor.autorUsuarioId,
+      autor.autorVendedorContactoId,
+      autor.responsabilidadContactoId,
+      autor.origenEnvio,
     ]
   );
 };
@@ -588,8 +681,10 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
   mediaUrl: string,
   externalId: string | null,
   mensajeRespuestaId?: number | null,
-  metadata?: MensajeSalienteMetadata | null
+  metadata?: MensajeSalienteMetadata | null,
+  autoria?: MensajeAutoria | null
 ) => {
+  const autor = await resolverAutoriaMensajeSaliente(empresaId, conversacionId, autoria);
   await pool.query(
     `
       INSERT INTO crm.mensajes
@@ -606,9 +701,13 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
         status,
         mensaje_respuesta_id,
         respuesta_json,
+        autor_usuario_id,
+        autor_vendedor_contacto_id,
+        responsabilidad_contacto_id,
+        origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,$12,$13,$14,$15,NOW())
       `,
     [
       empresaId,
@@ -621,7 +720,11 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
       externalId,
       'sent',
       mensajeRespuestaId ?? null,
-      metadata ? JSON.stringify(metadata) : null
+      metadata ? JSON.stringify(metadata) : null,
+      autor.autorUsuarioId,
+      autor.autorVendedorContactoId,
+      autor.responsabilidadContactoId,
+      autor.origenEnvio,
     ]
   );
 };
@@ -631,8 +734,10 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
   conversacionId: number,
   telefono: string,
   contenido: string,
-  externalId: string | null
+  externalId: string | null,
+  autoria?: MensajeAutoria | null
 ) => {
+  const autor = await resolverAutoriaMensajeSaliente(empresaId, conversacionId, autoria);
   await pool.query(
     `
       INSERT INTO crm.mensajes
@@ -646,9 +751,13 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
         fecha_envio,
         id_externo,
         status,
+        autor_usuario_id,
+        autor_vendedor_contacto_id,
+        responsabilidad_contacto_id,
+        origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,$8,NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,$8,$9,$10,$11,$12,NOW())
       `,
     [
       empresaId,
@@ -658,7 +767,11 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
       'whatsapp',
       contenido,
       externalId,
-      'sent'
+      'sent',
+      autor.autorUsuarioId,
+      autor.autorVendedorContactoId,
+      autor.responsabilidadContactoId,
+      autor.origenEnvio,
     ]
   );
 };
