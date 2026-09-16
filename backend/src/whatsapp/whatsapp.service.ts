@@ -13,6 +13,7 @@ import {
   registrarMensajeVideoSalienteWhatsapp,
   registrarMensajePlantillaSalienteWhatsapp,
   registrarMensajeTextoSalienteWhatsapp,
+  type MensajeAutoria,
   type MensajeSalienteMetadata,
 } from "../crm/conversaciones.service";
 import { getWhatsappConfig } from "./whatsapp-config.service";
@@ -211,7 +212,8 @@ export const sendTextMessage = async (
   to: string,
   text: string,
   mensajeRespuestaId?: number | null,
-  forwardMetadata?: MensajeSalienteMetadata | null
+  forwardMetadata?: MensajeSalienteMetadata | null,
+  autoria?: MensajeAutoria | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -265,7 +267,8 @@ export const sendTextMessage = async (
       text,
       response.data?.messageId || null,
       mensajeRespuestaId ?? null,
-      forwardMetadata ?? null
+      forwardMetadata ?? null,
+      autoria ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -347,7 +350,8 @@ export const sendImageMessage = async (
   mediaUrl: string,
   caption?: string | null,
   mensajeRespuestaId?: number | null,
-  forwardMetadata?: MensajeSalienteMetadata | null
+  forwardMetadata?: MensajeSalienteMetadata | null,
+  autoria?: MensajeAutoria | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -404,7 +408,8 @@ export const sendImageMessage = async (
       caption ?? null,
       response.data?.messageId || null,
       mensajeRespuestaId ?? null,
-      forwardMetadata ?? null
+      forwardMetadata ?? null,
+      autoria ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -417,7 +422,8 @@ export const sendImageMessage = async (
 };
 
 export const sendVideoMessage = async (
-  empresaId: number, to: string, mediaUrl: string, caption?: string | null, mensajeRespuestaId?: number | null
+  empresaId: number, to: string, mediaUrl: string, caption?: string | null,
+  mensajeRespuestaId?: number | null, autoria?: MensajeAutoria | null
 ) => {
   const config = await getWhatsappConfig(empresaId);
   const destino = normalizarTelefono(to);
@@ -428,7 +434,16 @@ export const sendVideoMessage = async (
   const replyContext = await resolveReplyContext(empresaId, mensajeRespuestaId);
   const message = { type: "video", url: mediaUrl, caption: caption ?? undefined, ...(replyContext ? { context: replyContext } : {}) };
   const response = await axios.post(GUPSHUP_API_URL, qs.stringify({ channel: "whatsapp", source: config.phone_number, destination: destino, message: JSON.stringify(message) }), { headers: { apikey: config.api_key, "Content-Type": "application/x-www-form-urlencoded" } });
-  await registrarMensajeVideoSalienteWhatsapp(empresaId, conversacionId, destino, mediaUrl, caption ?? null, response.data?.messageId || null, mensajeRespuestaId);
+  await registrarMensajeVideoSalienteWhatsapp(
+    empresaId,
+    conversacionId,
+    destino,
+    mediaUrl,
+    caption ?? null,
+    response.data?.messageId || null,
+    mensajeRespuestaId,
+    autoria ?? null
+  );
   await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
   return response.data;
 };
@@ -442,6 +457,7 @@ export const sendDocumentMessage = async (
     skipWindowValidation?: boolean;
     mensajeRespuestaId?: number | null;
     forwardMetadata?: MensajeSalienteMetadata | null;
+    autoria?: MensajeAutoria | null;
   }
 ) => {
   try {
@@ -536,7 +552,8 @@ export const sendDocumentMessage = async (
       filename ?? null,
       response.data?.messageId || null,
       options?.mensajeRespuestaId ?? null,
-      options?.forwardMetadata ?? null
+      options?.forwardMetadata ?? null,
+      options?.autoria ?? null
     );
 
     console.info('[WhatsApp Media] Registro interno documento completado', {
@@ -563,7 +580,8 @@ export const sendAudioMessage = async (
   to: string,
   mediaUrl: string,
   mensajeRespuestaId?: number | null,
-  forwardMetadata?: MensajeSalienteMetadata | null
+  forwardMetadata?: MensajeSalienteMetadata | null,
+  autoria?: MensajeAutoria | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -617,7 +635,8 @@ export const sendAudioMessage = async (
       mediaUrl,
       response.data?.messageId || null,
       mensajeRespuestaId ?? null,
-      forwardMetadata ?? null
+      forwardMetadata ?? null,
+      autoria ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -633,7 +652,8 @@ export const sendTemplateMessage = async (
   empresaId: number,
   to: string,
   tipoPlantilla: string,
-  params: string[] = []
+  params: string[] = [],
+  autoria?: MensajeAutoria | null
 ) => {
   try {
     console.info('[WhatsApp Template] Inicio de flujo template', {
@@ -730,7 +750,8 @@ export const sendTemplateMessage = async (
       conversacionId,
       destinoGupshup,
       `Plantilla: ${plantilla.nombre_interno}`,
-      response.data?.messageId || null
+      response.data?.messageId || null,
+      autoria ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -753,7 +774,8 @@ export const sendTemplateDocumentMessage = async (
   tipoPlantilla: string,
   params: string[],
   documentLink: string,
-  filename: string
+  filename: string,
+  autoria?: MensajeAutoria | null
 ) => {
   try {
     console.info('[WhatsApp Template Document] Inicio de flujo', {
@@ -853,7 +875,8 @@ export const sendTemplateDocumentMessage = async (
       conversacionId,
       destinoGupshup,
       `Plantilla: ${plantilla.nombre_interno}`,
-      response.data?.messageId || null
+      response.data?.messageId || null,
+      autoria ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -874,7 +897,8 @@ export const sendTemplateMensajeDirecta = async (
   empresaId: number,
   to: string,
   plantilla: WhatsappPlantilla,
-  params: string[] = []
+  params: string[] = [],
+  autoria?: MensajeAutoria | null
 ) => {
   try {
     const config = await getWhatsappConfig(empresaId);
@@ -928,7 +952,8 @@ export const sendTemplateMensajeDirecta = async (
       conversacionId,
       destinoGupshup,
       `Plantilla: ${plantilla.nombre_interno}`,
-      response.data?.messageId || null
+      response.data?.messageId || null,
+      autoria ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);

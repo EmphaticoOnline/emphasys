@@ -1326,7 +1326,11 @@ export async function enviarFacturaPorWhatsappCfdi(req: Request, res: Response) 
       tipoPlantilla,
       templateParams,
       links.pdfUrl,
-      links.pdfFilename
+      links.pdfFilename,
+      {
+        usuarioId: req.auth?.userId ? Number(req.auth.userId) : null,
+        origenEnvio: 'plantilla_manual',
+      }
     );
     console.info('[CFDI WhatsApp] Respuesta Gupshup template+PDF', {
       documentoId,
@@ -1409,7 +1413,11 @@ export async function enviarWhatsappCotizacion(req: Request, res: Response) {
       tipoPlantilla,
       templateParams,
       links.pdfUrl,
-      links.pdfFilename
+      links.pdfFilename,
+      {
+        usuarioId: req.auth?.userId ? Number(req.auth.userId) : null,
+        origenEnvio: 'plantilla_manual',
+      }
     );
 
     console.info('[WhatsApp Documento] Respuesta Gupshup template+PDF', {

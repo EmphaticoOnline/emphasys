@@ -167,6 +167,9 @@ async function asignarVendedorSiAplica(empresaId: number, contactoId: number): P
       contactoId,
     });
     await client.query("BEGIN");
+    await client.query(
+      `SELECT set_config('app.responsabilidad_origen', 'round_robin', true)`
+    );
 
     const contactoRes = await client.query<{ vendedor_id: number | null }>(
       `SELECT vendedor_id
@@ -875,7 +878,14 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
         return responderErrorWhatsapp(res, buildWhatsappErrorInfo("MENSAJE_VACIO", "mensaje es requerido"));
       }
 
-      const respuesta = await sendTextMessage(Number(empresaId), String(telefono), String(mensaje), mensajeRespuestaId);
+      const respuesta = await sendTextMessage(
+        Number(empresaId),
+        String(telefono),
+        String(mensaje),
+        mensajeRespuestaId,
+        null,
+        { usuarioId: usuarioId ? Number(usuarioId) : null, origenEnvio: 'manual' }
+      );
       return res.status(200).json(respuesta);
     }
 
@@ -891,7 +901,9 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
         String(telefono),
         String(media_url),
         mensaje ? String(mensaje) : null,
-        mensajeRespuestaId
+        mensajeRespuestaId,
+        null,
+        { usuarioId: usuarioId ? Number(usuarioId) : null, origenEnvio: 'manual' }
       );
       return res.status(200).json(respuesta);
     }
@@ -908,7 +920,10 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
         String(telefono),
         String(media_url),
         mensaje ? String(mensaje) : null,
-        { mensajeRespuestaId }
+        {
+          mensajeRespuestaId,
+          autoria: { usuarioId: usuarioId ? Number(usuarioId) : null, origenEnvio: 'manual' },
+        }
       );
       return res.status(200).json(respuesta);
     }
@@ -924,14 +939,23 @@ export const enviarWhatsapp = async (req: Request, res: Response) => {
         Number(empresaId),
         String(telefono),
         String(media_url),
-        mensajeRespuestaId
+        mensajeRespuestaId,
+        null,
+        { usuarioId: usuarioId ? Number(usuarioId) : null, origenEnvio: 'manual' }
       );
       return res.status(200).json(respuesta);
     }
 
     if (tipoMensaje === "video") {
       if (!media_url) return responderErrorWhatsapp(res, buildWhatsappErrorInfo("ARCHIVO_NO_PERMITIDO", "media_url es requerido"));
-      const respuesta = await sendVideoMessage(Number(empresaId), String(telefono), String(media_url), mensaje ? String(mensaje) : null, mensajeRespuestaId);
+      const respuesta = await sendVideoMessage(
+        Number(empresaId),
+        String(telefono),
+        String(media_url),
+        mensaje ? String(mensaje) : null,
+        mensajeRespuestaId,
+        { usuarioId: usuarioId ? Number(usuarioId) : null, origenEnvio: 'manual' }
+      );
       return res.status(200).json(respuesta);
     }
 
@@ -1182,16 +1206,39 @@ export const reenviarMensajeWhatsapp = async (req: Request, res: Response) => {
 
       try {
         if (mensajeOriginal.tipo_contenido === "text") {
-          await sendTextMessage(Number(empresaId), destino.telefono, mensajeOriginal.contenido as string, null, forwardMetadata);
+          await sendTextMessage(
+            Number(empresaId),
+            destino.telefono,
+            mensajeOriginal.contenido as string,
+            null,
+            forwardMetadata,
+            { usuarioId, origenEnvio: 'manual' }
+          );
         } else if (mensajeOriginal.tipo_contenido === "image") {
-          await sendImageMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, mensajeOriginal.caption ?? null, null, forwardMetadata);
+          await sendImageMessage(
+            Number(empresaId),
+            destino.telefono,
+            mensajeOriginal.media_url as string,
+            mensajeOriginal.caption ?? null,
+            null,
+            forwardMetadata,
+            { usuarioId, origenEnvio: 'manual' }
+          );
         } else if (mensajeOriginal.tipo_contenido === "document") {
           await sendDocumentMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, mensajeOriginal.caption ?? null, {
             mensajeRespuestaId: null,
             forwardMetadata,
+            autoria: { usuarioId, origenEnvio: 'manual' },
           });
         } else if (mensajeOriginal.tipo_contenido === "audio") {
-          await sendAudioMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, null, forwardMetadata);
+          await sendAudioMessage(
+            Number(empresaId),
+            destino.telefono,
+            mensajeOriginal.media_url as string,
+            null,
+            forwardMetadata,
+            { usuarioId, origenEnvio: 'manual' }
+          );
         } else if (mensajeOriginal.tipo_contenido === "video") {
           // No existe un sendVideoMessage dedicado (ningún payload de tipo
           // "video" de Gupshup verificado contra tráfico real todavía, fuera
@@ -1203,6 +1250,7 @@ export const reenviarMensajeWhatsapp = async (req: Request, res: Response) => {
           await sendDocumentMessage(Number(empresaId), destino.telefono, mensajeOriginal.media_url as string, mensajeOriginal.caption ?? null, {
             mensajeRespuestaId: null,
             forwardMetadata,
+            autoria: { usuarioId, origenEnvio: 'manual' },
           });
         }
 
@@ -2072,7 +2120,13 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
       if (!plantilla.activa) {
         return res.status(409).json({ message: "La plantilla no está activa" });
       }
-      respuesta = await sendTemplateMensajeDirecta(Number(empresaId), String(telefono), plantilla, templateParams);
+      respuesta = await sendTemplateMensajeDirecta(
+        Number(empresaId),
+        String(telefono),
+        plantilla,
+        templateParams,
+        { usuarioId: req.auth?.userId ? Number(req.auth.userId) : null, origenEnvio: 'plantilla_manual' }
+      );
     } else {
       const accionPlantilla = String(tipo ?? DEFAULT_WHATSAPP_TEMPLATE_ACTION).trim() || DEFAULT_WHATSAPP_TEMPLATE_ACTION;
       let tipoPlantilla: string;
@@ -2083,7 +2137,13 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
         return res.status(400).json({ message: (error as Error).message });
       }
 
-      respuesta = await sendTemplateMessage(Number(empresaId), String(telefono), tipoPlantilla, templateParams);
+      respuesta = await sendTemplateMessage(
+        Number(empresaId),
+        String(telefono),
+        tipoPlantilla,
+        templateParams,
+        { usuarioId: req.auth?.userId ? Number(req.auth.userId) : null, origenEnvio: 'plantilla_manual' }
+      );
     }
 
     console.info('[WhatsApp Template Controller] Respuesta', { empresaId, telefono, respuesta });

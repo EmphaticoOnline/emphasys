@@ -1,6 +1,33 @@
 import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 
+type ResponsabilidadOrigen = 'manual' | 'round_robin' | 'importacion' | 'automatizacion' | 'sistema';
+
+type ResponsabilidadContexto = {
+  actorUsuarioId?: number | null;
+  responsabilidadOrigen?: ResponsabilidadOrigen;
+};
+
+async function configurarContextoResponsabilidad(
+  client: PoolClient,
+  options: ResponsabilidadContexto
+) {
+  if (options.actorUsuarioId !== undefined) {
+    const actor = Number(options.actorUsuarioId);
+    await client.query(
+      `SELECT set_config('app.usuario_id', $1, true)`,
+      [Number.isSafeInteger(actor) && actor > 0 ? String(actor) : '']
+    );
+  }
+
+  if (options.responsabilidadOrigen) {
+    await client.query(
+      `SELECT set_config('app.responsabilidad_origen', $1, true)`,
+      [options.responsabilidadOrigen]
+    );
+  }
+}
+
 export type ContactoTelefonoMatch = {
   contacto_id: number;
   nombre: string;
@@ -560,13 +587,20 @@ export async function insertarContacto(
     telefono?: string;
   },
   empresaId: number,
-  options: { catalogoIds?: number[]; permitirTelefonosDuplicados?: boolean; client?: PoolClient } = {}
+  options: {
+    catalogoIds?: number[];
+    permitirTelefonosDuplicados?: boolean;
+    client?: PoolClient;
+    actorUsuarioId?: number | null;
+    responsabilidadOrigen?: ResponsabilidadOrigen;
+  } = {}
 ) {
   const client = options.client ?? await pool.connect();
   const ownTransaction = !options.client;
 
   try {
     if (ownTransaction) await client.query('BEGIN');
+    await configurarContextoResponsabilidad(client, options);
 
     const matches = await buscarTelefonosDuplicados(client, empresaId, data);
     if (matches.length && !options.permitirTelefonosDuplicados) {
@@ -768,12 +802,18 @@ export async function actualizarContacto(
   id: number,
   empresa_id: number,
   data: any,
-  options: { catalogoIds?: number[]; permitirTelefonosDuplicados?: boolean } = {}
+  options: {
+    catalogoIds?: number[];
+    permitirTelefonosDuplicados?: boolean;
+    actorUsuarioId?: number | null;
+    responsabilidadOrigen?: ResponsabilidadOrigen;
+  } = {}
 ) {
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
+    await configurarContextoResponsabilidad(client, options);
 
     const matches = await buscarTelefonosDuplicados(client, empresa_id, data, id);
     if (matches.length && !options.permitirTelefonosDuplicados) {

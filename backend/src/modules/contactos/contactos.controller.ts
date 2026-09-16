@@ -18,6 +18,16 @@ import type { ExportColumna } from "../../utils/exportar";
 import { normalizarTelefono } from "../../utils/telefono";
 import { normalizeRFC } from "../../shared/normalizers/rfc";
 import { normalizeEmail } from "../../shared/normalizers/email";
+import { resolverContextoScopeComercial } from "../auth/scope-comercial";
+
+async function puedeModificarAsignacion(req: Request, empresaId: number) {
+  const scope = await resolverContextoScopeComercial(
+    empresaId,
+    req.auth?.userId,
+    req.auth?.esSuperadmin
+  );
+  return scope.esAdmin;
+}
 
 const normalizeTelefonoContacto = (value: any) => {
   if (value === undefined || value === null || String(value).trim() === "") return null;
@@ -54,6 +64,10 @@ export async function crearContacto(req: Request, res: Response) {
     const permitirTelefonosDuplicados = data.permitir_telefonos_duplicados === true;
     delete data.catalogoIds;
     delete data.permitir_telefonos_duplicados;
+
+    if ('vendedor_id' in data && !(await puedeModificarAsignacion(req, Number(empresaId)))) {
+      return res.status(403).json({ message: 'Sólo un administrador puede asignar el responsable comercial.' });
+    }
 
     data.nombre = String(data.nombre).trim();
     if ('nombre_contacto' in data) {
@@ -107,6 +121,8 @@ export async function crearContacto(req: Request, res: Response) {
     const contacto = await insertarContacto(data, Number(empresaId), {
       catalogoIds,
       permitirTelefonosDuplicados,
+      actorUsuarioId: req.auth?.userId ?? null,
+      responsabilidadOrigen: 'manual',
     });
 
     res.status(201).json(contacto);
@@ -243,6 +259,10 @@ export async function actualizarContacto(req: Request, res: Response) {
       return res.status(400).json({ message: "empresaId es obligatorio" });
     }
 
+    if ('vendedor_id' in data && !(await puedeModificarAsignacion(req, Number(empresaId)))) {
+      return res.status(403).json({ message: 'Sólo un administrador puede reasignar el responsable comercial.' });
+    }
+
     if ('nombre' in data) {
       data.nombre = String(data.nombre ?? '').trim();
     }
@@ -296,6 +316,8 @@ export async function actualizarContacto(req: Request, res: Response) {
     const contacto = await actualizarContactoRepository(id, Number(empresaId), data, {
       catalogoIds,
       permitirTelefonosDuplicados,
+      actorUsuarioId: req.auth?.userId ?? null,
+      responsabilidadOrigen: 'manual',
     });
     res.json(contacto);
   } catch (error) {
