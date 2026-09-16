@@ -6,6 +6,7 @@ export type ConfiguracionNavigationOption = {
 };
 
 export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
+	{ titulo: 'Horarios laborales', descripcion: 'Configura la zona horaria, días laborables y excepciones de la empresa activa.', path: '/configuracion/horarios-laborales' },
 	{ titulo: 'Unidades', descripcion: 'Administra unidades operativas y su asociación con el catálogo SAT.', path: '/configuracion/unidades' },
 	{
 		titulo: 'Empresas',

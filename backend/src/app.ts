@@ -30,6 +30,7 @@ import documentosCamposRouter from "./modules/documentos/documentos-campos.route
 import documentosPartidasCamposRouter from "./modules/documentos/documentos-partidas-campos.routes";
 import documentosEsquemaRouter from "./modules/documentos/documentos-esquema.routes";
 import parametrosSistemaRouter from "./modules/configuracion/parametros/parametros.routes";
+import horariosLaboralesRouter from "./modules/configuracion/horarios-laborales/horarios-laborales.routes";
 import camposObligatoriosRouter from "./modules/configuracion/campos-obligatorios/campos-obligatorios.routes";
 import empresasRoutes from "./routes/empresasRoutes";
 import aiReportesRoutes from "./routes/aiReportesRoutes";
@@ -65,6 +66,7 @@ import transporteRouter from "./modules/transporte/transporte.routes";
 import vehiculosRouter from "./modules/transporte/vehiculos.routes";
 import remolquesRouter from "./modules/transporte/remolques.routes";
 import operadoresRouter from "./modules/transporte/operadores.routes";
+import evaluacionVendedoresRouter from "./modules/evaluacion-vendedores/metricas.routes";
 import operacionesFullRouter from "./modules/operaciones-full/operaciones-full.routes";
 import entregasRouter from "./modules/entregas/entregas.routes";
 import preciosBaseComercialesRouter from "./modules/precios-base-comerciales/precios-base-comerciales.routes";
@@ -117,6 +119,7 @@ app.use("/api", impuestosRouter);
 app.use("/api/configuracion/catalogos", configuracionCatalogosRouter);
 // parámetros del sistema
 app.use("/api", parametrosSistemaRouter);
+app.use("/api/configuracion/horarios-laborales", horariosLaboralesRouter);
 // campos obligatorios configurables
 app.use("/api", camposObligatoriosRouter);
 
@@ -197,6 +200,7 @@ app.get("/health", (_req, res) => {
 
 
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/evaluacion-vendedores", evaluacionVendedoresRouter);
 
 // 404 explícito para rutas /api no manejadas (evita caer al fallback del frontend)
 app.use("/api", (_req, res) => {

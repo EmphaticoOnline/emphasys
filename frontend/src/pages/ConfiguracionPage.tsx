@@ -21,8 +21,11 @@ import {
   VerifiedUserRounded,
   PaymentsRounded,
   DirectionsCarRounded,
+  ScheduleRounded,
 } from '@mui/icons-material';
 import { CONFIGURACION_OPTIONS } from './configuracion/configuracionNavigation';
+import { esRolAdmin } from '../session/rolScope';
+import { useSession } from '../session/useSession';
 
 const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
   Empresas: BusinessRounded,
@@ -49,13 +52,16 @@ const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
   'Métodos de pago': PaymentsRounded,
   'Políticas de autorización': VerifiedUserRounded,
   Unidades: CategoryRounded,
+  'Horarios laborales': ScheduleRounded,
 };
 
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
+  const { session } = useSession();
   const isSuperadmin = Boolean((window.localStorage.getItem('emphasys.session') && JSON.parse(window.localStorage.getItem('emphasys.session') || '{}')?.user?.es_superadmin));
 
-  const opcionesVisibles = CONFIGURACION_OPTIONS.filter((opcion) => !opcion.soloSuperadmin || isSuperadmin);
+  const puedeHorarios = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
+  const opcionesVisibles = CONFIGURACION_OPTIONS.filter((opcion) => (!opcion.soloSuperadmin || isSuperadmin) && (opcion.titulo !== 'Horarios laborales' || puedeHorarios));
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

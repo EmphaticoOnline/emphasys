@@ -41,6 +41,7 @@ import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 import CRMPage from './pages/CRMPage';
+import EvaluacionVendedoresPage from './pages/EvaluacionVendedoresPage';
 import ActividadFormPage from './pages/ActividadFormPage';
 import OportunidadDetallePage from './pages/OportunidadDetallePage';
 import AIReportesPage from './pages/AIReportesPage';
@@ -76,6 +77,7 @@ import CamposObligatoriosPage from './pages/configuracion/CamposObligatoriosPage
 import AutorizacionesBandejaPage from './pages/AutorizacionesBandejaPage';
 import AutorizacionesReglasPage from './pages/configuracion/AutorizacionesReglasPage';
 import MetodosPagoPage from './pages/configuracion/MetodosPagoPage';
+import HorariosLaboralesPage from './pages/configuracion/HorariosLaboralesPage';
 import ExistenciasPorAlmacenPage from './pages/informes/inventario/ExistenciasPorAlmacenPage';
 import KardexProductoPage from './pages/informes/inventario/KardexProductoPage';
 import MovimientosInventarioPage from './pages/informes/inventario/MovimientosInventarioPage';
@@ -155,6 +157,7 @@ export default function App() {
               <Route path="/crm/oportunidades" element={<CRMPage />} />
               <Route path="/crm/oportunidades/:id" element={<OportunidadDetallePage />} />
               <Route path="/crm/conversaciones" element={<CRMPage />} />
+              <Route path="/evaluacion-vendedores" element={<EvaluacionVendedoresPage />} />
               <Route path="/leads" element={<Navigate to="/crm/conversaciones" replace />} />
               <Route path="/oportunidades" element={<Navigate to="/crm/oportunidades" replace />} />
 
@@ -230,6 +233,7 @@ export default function App() {
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
               <Route path="/configuracion/autorizaciones-reglas" element={<AutorizacionesReglasPage />} />
               <Route path="/configuracion/metodos-pago" element={<MetodosPagoPage />} />
+              <Route path="/configuracion/horarios-laborales" element={<HorariosLaboralesPage />} />
 
               {/* Autorizaciones */}
               <Route path="/autorizaciones" element={<AutorizacionesBandejaPage />} />

@@ -497,6 +497,7 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
       (
         empresa_id,
         conversacion_id,
+        contacto_id,
         telefono,
         tipo_mensaje,
         canal,
@@ -513,7 +514,7 @@ export const registrarMensajeTextoSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,$12,$13,$14,$15,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,$12,$13,$14,$15,NOW())
       `,
     [
       empresaId,
@@ -553,6 +554,7 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
       (
         empresa_id,
         conversacion_id,
+        contacto_id,
         telefono,
         tipo_mensaje,
         canal,
@@ -570,7 +572,7 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
       `,
     [
       empresaId,
@@ -606,7 +608,7 @@ export const registrarMensajeVideoSalienteWhatsapp = async (
        autor_usuario_id, autor_vendedor_contacto_id, responsabilidad_contacto_id,
        origen_envio, creado_en
      ) VALUES (
-       $1,$2,$3,'saliente','whatsapp','video',$4,$5,NOW(),$6,'sent',$7,$8,$9,$10,$11,NOW()
+       $1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,'saliente','whatsapp','video',$4,$5,NOW(),$6,'sent',$7,$8,$9,$10,$11,NOW()
      )`,
     [
       empresaId, conversacionId, telefono, caption, mediaUrl, externalId,
@@ -634,6 +636,7 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
       (
         empresa_id,
         conversacion_id,
+        contacto_id,
         telefono,
         tipo_mensaje,
         canal,
@@ -651,7 +654,7 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
       `,
     [
       empresaId,
@@ -691,6 +694,7 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
       (
         empresa_id,
         conversacion_id,
+        contacto_id,
         telefono,
         tipo_mensaje,
         canal,
@@ -707,7 +711,7 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,$12,$13,$14,$15,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,$12,$13,$14,$15,NOW())
       `,
     [
       empresaId,
@@ -744,6 +748,7 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
       (
         empresa_id,
         conversacion_id,
+        contacto_id,
         telefono,
         tipo_mensaje,
         canal,
@@ -757,7 +762,7 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,NOW(),$7,$8,$9,$10,$11,$12,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,NOW(),$7,$8,$9,$10,$11,$12,NOW())
       `,
     [
       empresaId,
@@ -816,6 +821,7 @@ export const registrarMensajeEntranteWhatsapp = async (
       (
         empresa_id,
         conversacion_id,
+        contacto_id,
         telefono,
         tipo_mensaje,
         canal,
@@ -831,7 +837,7 @@ export const registrarMensajeEntranteWhatsapp = async (
         respuesta_json,
         creado_en
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,NOW())
       ON CONFLICT (empresa_id, id_externo) WHERE id_externo IS NOT NULL DO NOTHING
       RETURNING id
       `,
