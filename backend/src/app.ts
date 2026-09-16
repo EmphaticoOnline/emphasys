@@ -66,6 +66,7 @@ import transporteRouter from "./modules/transporte/transporte.routes";
 import vehiculosRouter from "./modules/transporte/vehiculos.routes";
 import remolquesRouter from "./modules/transporte/remolques.routes";
 import operadoresRouter from "./modules/transporte/operadores.routes";
+import evaluacionVendedoresRouter from "./modules/evaluacion-vendedores/metricas.routes";
 import operacionesFullRouter from "./modules/operaciones-full/operaciones-full.routes";
 import entregasRouter from "./modules/entregas/entregas.routes";
 import preciosBaseComercialesRouter from "./modules/precios-base-comerciales/precios-base-comerciales.routes";
@@ -199,6 +200,7 @@ app.get("/health", (_req, res) => {
 
 
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/evaluacion-vendedores", evaluacionVendedoresRouter);
 
 // 404 explícito para rutas /api no manejadas (evita caer al fallback del frontend)
 app.use("/api", (_req, res) => {
