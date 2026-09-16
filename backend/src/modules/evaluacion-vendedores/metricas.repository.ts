@@ -22,3 +22,11 @@ export async function obtenerNombresVendedores(empresaId: number, ids: number[])
   const { rows } = await pool.query<{ id: number; nombre: string }>('SELECT id,nombre FROM public.contactos WHERE empresa_id=$1 AND id=ANY($2::int[])', [empresaId, ids]);
   return new Map(rows.map((row) => [row.id, row.nombre]));
 }
+
+export type ContactoMetrica = { id: number; nombre: string | null; nombre_contacto: string | null; telefono: string | null; telefono_secundario: string | null };
+
+export async function obtenerContactosMetrica(empresaId: number, ids: number[]) {
+  if (!ids.length) return new Map<number, ContactoMetrica>();
+  const { rows } = await pool.query<ContactoMetrica>('SELECT id,nombre,nombre_contacto,telefono,telefono_secundario FROM public.contactos WHERE empresa_id=$1 AND id=ANY($2::int[])', [empresaId, ids]);
+  return new Map(rows.map((row) => [row.id, row]));
+}

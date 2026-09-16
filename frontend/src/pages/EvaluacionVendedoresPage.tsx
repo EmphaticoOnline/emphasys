@@ -24,11 +24,17 @@ const origen = (v: string) => v === 'manual' ? 'Manual' : v === 'plantilla_manua
 
 function BloqueCard({ bloque, vendedor }: { bloque: BloqueRespondido | BloquePendiente; vendedor: VendedorMetrica }) {
   const respondido = 'fecha_respuesta' in bloque;
+  const contacto = bloque as BloqueRespondido & { contacto_nombre?: string | null; contacto_nombre_contacto?: string | null; contacto_telefono?: string | null; contacto_telefono_secundario?: string | null };
+  const nombre = contacto.contacto_nombre_contacto?.trim() || contacto.contacto_nombre?.trim();
+  const telefono = contacto.contacto_telefono?.trim() || contacto.contacto_telefono_secundario?.trim();
+  const nombreEsTelefono = nombre && telefono && nombre === telefono;
+  const identificador = nombre && !nombreEsTelefono ? `${nombre}${telefono ? ` · ${telefono}` : ''}` : telefono || nombre || `Contacto #${bloque.contacto_id}`;
   const responsable = !respondido ? bloque.responsable_vigente_contacto_id : null;
   const responsableTexto = responsable == null ? 'Sin responsable' : responsable === vendedor.vendedor_contacto_id ? (vendedor.nombre ?? `Vendedor ID ${responsable}`) : `Vendedor ID ${responsable}`;
   return <Paper variant="outlined" sx={{ p: 2 }}><Stack spacing={1}>
-    <Typography fontWeight={700}>Conversación {bloque.conversacion_id}</Typography>
-    <Typography variant="body2" color="text.secondary">Contacto: {bloque.contacto_id}</Typography>
+    <Typography fontWeight={700}>Conversación con {identificador}</Typography>
+    <Typography variant="caption" color="text.secondary">#{bloque.conversacion_id}</Typography>
+    <Typography variant="body2" color="text.secondary">Contacto: {identificador}</Typography>
     <Typography variant="body2">Inicio: {fechaHora(bloque.fecha_inicio_bloque)}</Typography>
     {respondido ? <><Typography variant="body2">Respuesta: {fechaHora(bloque.fecha_respuesta)}</Typography><Typography variant="body2">Tiempo transcurrido: {formatoTiempo(bloque.tiempo_total_segundos)}</Typography><Typography variant="body2">Tiempo laboral: {formatoTiempo(bloque.tiempo_laboral_segundos)}</Typography><Typography variant="body2">Origen: {origen(bloque.origen_respuesta)}</Typography><Stack direction="row" gap={.75} flexWrap="wrap">{bloque.reasignado_durante_espera && <Chip size="small" label="Reasignado" variant="outlined" />}{bloque.respuesta_por_tercero && <Chip size="small" label="Respuesta por tercero" variant="outlined" />}{bloque.primera_respuesta_elegible_para_kpi && <Chip size="small" label="Primera respuesta elegible" variant="outlined" />}</Stack></> : <><Typography variant="body2">Responsable actual: {responsableTexto}</Typography><Typography variant="body2">Tiempo transcurrido: {formatoTiempo(bloque.tiempo_total_actual)}</Typography><Typography variant="body2">Tiempo laboral transcurrido: {formatoTiempo(bloque.tiempo_laboral_actual)}</Typography>{bloque.reasignado_desde_inicio && <Chip size="small" label="Reasignado desde el inicio" variant="outlined" />}</>}
   </Stack></Paper>;
