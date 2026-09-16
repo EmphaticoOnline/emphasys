@@ -11,7 +11,7 @@ export async function cargarDatosMetrica(corte = '2026-09-15T21:55:41.716Z', emp
   const ids = empresa.rows.map((e) => e.id);
   const [horarios, excepciones, responsabilidades] = await Promise.all([
     pool.query<HorarioLaboral>('SELECT empresa_id,dia_semana,hora_inicio,hora_fin,activo FROM core.empresa_horarios_laborales WHERE empresa_id = ANY($1::int[]) ORDER BY empresa_id,dia_semana', [ids]),
-    pool.query<ExcepcionLaboral>('SELECT empresa_id,fecha,tipo,hora_inicio,hora_fin FROM core.empresa_excepciones_laborales WHERE empresa_id = ANY($1::int[]) ORDER BY empresa_id,fecha', [ids]),
+    pool.query<ExcepcionLaboral>("SELECT empresa_id,to_char(fecha,'YYYY-MM-DD') AS fecha,tipo,hora_inicio,hora_fin FROM core.empresa_excepciones_laborales WHERE empresa_id = ANY($1::int[]) ORDER BY empresa_id,fecha", [ids]),
     pool.query<ResponsabilidadMetrica>('SELECT id,empresa_id,contacto_id,vendedor_contacto_id,vigente_desde,vigente_hasta FROM crm.contacto_responsabilidades WHERE empresa_id = ANY($1::int[]) ORDER BY empresa_id,contacto_id,vigente_desde', [ids]),
   ]);
   return { mensajes: mensajes.rows, empresas: empresa.rows, horarios: horarios.rows, excepciones: excepciones.rows, responsabilidades: responsabilidades.rows };

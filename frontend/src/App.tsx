@@ -41,6 +41,7 @@ import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 import CRMPage from './pages/CRMPage';
+import EvaluacionVendedoresPage from './pages/EvaluacionVendedoresPage';
 import ActividadFormPage from './pages/ActividadFormPage';
 import OportunidadDetallePage from './pages/OportunidadDetallePage';
 import AIReportesPage from './pages/AIReportesPage';
@@ -156,6 +157,7 @@ export default function App() {
               <Route path="/crm/oportunidades" element={<CRMPage />} />
               <Route path="/crm/oportunidades/:id" element={<OportunidadDetallePage />} />
               <Route path="/crm/conversaciones" element={<CRMPage />} />
+              <Route path="/evaluacion-vendedores" element={<EvaluacionVendedoresPage />} />
               <Route path="/leads" element={<Navigate to="/crm/conversaciones" replace />} />
               <Route path="/oportunidades" element={<Navigate to="/crm/oportunidades" replace />} />
 

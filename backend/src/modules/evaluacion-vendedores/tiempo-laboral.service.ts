@@ -20,7 +20,7 @@ const diaSemana = (date: string) => { const [y, m, d] = date.split('-').map(Numb
 
 export function calcularSegundosLaborales(inicio: Date, fin: Date, config: { zona_horaria: string | null; horarios: HorarioLaboral[]; excepciones: ExcepcionLaboral[] }): number {
   if (!(inicio instanceof Date) || !(fin instanceof Date) || Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime()) || fin <= inicio || !config.zona_horaria) return 0;
-  const zona = config.zona_horaria; const horarios = new Map(config.horarios.map((h) => [h.dia_semana, h])); const excepciones = new Map(config.excepciones.map((x) => [x.fecha, x]));
+  const zona = config.zona_horaria; const horarios = new Map(config.horarios.map((h) => [h.dia_semana, h])); const excepciones = new Map(config.excepciones.map((x) => [String(x.fecha).slice(0, 10), x]));
   let local = partes(inicio, zona); let fecha = claveFecha(local.year, local.month, local.day); const fechaFin = partes(fin, zona); const ultimaFecha = claveFecha(fechaFin.year, fechaFin.month, fechaFin.day); let total = 0;
   while (true) {
     const excepcion = excepciones.get(fecha); const horario = excepcion?.tipo === 'inhabil' ? null : excepcion?.tipo === 'horario_especial' ? excepcion : horarios.get(diaSemana(fecha));

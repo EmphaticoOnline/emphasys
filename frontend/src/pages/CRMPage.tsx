@@ -5,6 +5,8 @@ import ActividadesPage from './ActividadesPage';
 import LeadsPage from './LeadsPage';
 import OportunidadesPage from './OportunidadesPage';
 import { CRM_TABS } from '../components/crmNavigation';
+import { esRolAdmin } from '../session/rolScope';
+import { useSession } from '../session/useSession';
 
 type CrmTabKey = (typeof CRM_TABS)[number]['key'];
 
@@ -31,6 +33,8 @@ function getActiveTab(pathname: string): CrmTabKey {
 export default function CRMPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { session } = useSession();
+  const tabsVisibles = CRM_TABS.filter((tab) => tab.key !== 'evaluacion-vendedores' || esRolAdmin(session.roles));
   const activeTab = getActiveTab(location.pathname);
   // Mismo patrón de detección responsiva usado en el resto del proyecto.
   const theme = useTheme();
@@ -45,7 +49,7 @@ export default function CRMPage() {
   const hideChromeForMobileChat = isMobile && activeTab === 'conversaciones' && mobileConversationOpen;
 
   const handleTabChange = (_event: React.SyntheticEvent, nextTab: CrmTabKey) => {
-    const targetTab = CRM_TABS.find((tab) => tab.key === nextTab);
+    const targetTab = tabsVisibles.find((tab) => tab.key === nextTab);
     if (targetTab && targetTab.path !== location.pathname) {
       navigate(targetTab.path);
     }
@@ -112,7 +116,7 @@ export default function CRMPage() {
               },
             }}
           >
-            {CRM_TABS.map((tab) => (
+            {tabsVisibles.map((tab) => (
               <Tab key={tab.key} value={tab.key} label={tab.label} />
             ))}
           </Tabs>
