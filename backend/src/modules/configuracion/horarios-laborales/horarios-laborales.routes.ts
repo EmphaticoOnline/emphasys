@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { requireAuth, requireEmpresaActiva } from '../../auth/auth.middleware';
+import { deleteExcepcion, getHorarios, postExcepcion, putExcepcion, putHorario, putZona, requireAdminConfiguracion } from './horarios-laborales.controller';
+const router = Router();
+router.use(requireAuth, requireEmpresaActiva, requireAdminConfiguracion);
+router.get('/', getHorarios);
+router.put('/zona-horaria', putZona);
+router.put('/horarios', putHorario);
+router.post('/excepciones', postExcepcion);
+router.put('/excepciones/:id', putExcepcion);
+router.delete('/excepciones/:id', deleteExcepcion);
+export default router;

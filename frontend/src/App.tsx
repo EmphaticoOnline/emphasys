@@ -76,6 +76,7 @@ import CamposObligatoriosPage from './pages/configuracion/CamposObligatoriosPage
 import AutorizacionesBandejaPage from './pages/AutorizacionesBandejaPage';
 import AutorizacionesReglasPage from './pages/configuracion/AutorizacionesReglasPage';
 import MetodosPagoPage from './pages/configuracion/MetodosPagoPage';
+import HorariosLaboralesPage from './pages/configuracion/HorariosLaboralesPage';
 import ExistenciasPorAlmacenPage from './pages/informes/inventario/ExistenciasPorAlmacenPage';
 import KardexProductoPage from './pages/informes/inventario/KardexProductoPage';
 import MovimientosInventarioPage from './pages/informes/inventario/MovimientosInventarioPage';
@@ -230,6 +231,7 @@ export default function App() {
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
               <Route path="/configuracion/autorizaciones-reglas" element={<AutorizacionesReglasPage />} />
               <Route path="/configuracion/metodos-pago" element={<MetodosPagoPage />} />
+              <Route path="/configuracion/horarios-laborales" element={<HorariosLaboralesPage />} />
 
               {/* Autorizaciones */}
               <Route path="/autorizaciones" element={<AutorizacionesBandejaPage />} />
