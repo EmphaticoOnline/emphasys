@@ -106,6 +106,9 @@ export class FacturamaClient {
         username: config.username,
         password: config.password,
       },
+      headers: {
+        'User-Agent': 'EmphasysERP/1.0',
+      },
     });
   }
 
