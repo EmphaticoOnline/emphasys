@@ -1,5 +1,6 @@
 import app from './app';
 import pool from './config/database';
+import { iniciarReconciliacionCancelacionesJob, detenerReconciliacionCancelacionesJob } from './modules/documentos/documentos-cancel-reconciliation.job';
 
 const PORT = process.env.PORT || 7001;
 
@@ -20,6 +21,7 @@ const server = app.listen(PORT, async () => {
   if (typeof process.send === "function") {
     process.send("ready");
   }
+  iniciarReconciliacionCancelacionesJob();
 });
 
 let shuttingDown = false;
@@ -27,6 +29,7 @@ let shuttingDown = false;
 const shutdown = (signal: string) => {
   if (shuttingDown) return;
   shuttingDown = true;
+  detenerReconciliacionCancelacionesJob();
   console.log(`[shutdown] ${signal}: dejando de aceptar conexiones nuevas...`);
   server.close((error) => {
     if (error) {

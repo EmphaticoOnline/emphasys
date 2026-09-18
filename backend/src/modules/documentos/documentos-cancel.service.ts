@@ -621,7 +621,18 @@ async function ejecutarCancelacionInterna(params: {
       throw new DocumentoCancelValidationError('Documento no encontrado');
     }
     if (esCancelado(documento.estatus_documento)) {
-      throw new DocumentoCancelValidationError('El documento ya está cancelado');
+      // Otra ejecución pudo completar la cancelación mientras esta esperaba
+      // el mismo bloqueo. No repetir efectos internos ni degradar el intento.
+      await client.query('ROLLBACK');
+      return {
+        ok: true,
+        documento_id: documentoId,
+        estatus_documento: 'Cancelado',
+        fecha_cancelacion: documento.fecha_cancelacion ?? new Date().toISOString(),
+        inventario_revertido: false,
+        cfdi_cancelado_facturama: Boolean(cfdiUuid),
+        intento_id: intentoId,
+      };
     }
 
     await assertSinAplicacionesActivas(client, documentoId, empresaId);
@@ -752,7 +763,15 @@ async function ejecutarCancelacionInterna(params: {
     const estadoFallback = cfdiUuid ? 'externo_ok_interno_pendiente' : 'error_interno';
     const errorMensaje = String((error as Error)?.message ?? 'Error desconocido').substring(0, 1000);
 
-    await actualizarEstadoIntento(intentoId, estadoFallback, { errorInternoMensaje: errorMensaje });
+    await pool.query(
+      `UPDATE documentos_cancelacion_intentos
+          SET estado = $2::varchar,
+              error_interno_mensaje = COALESCE($3::text, error_interno_mensaje),
+              updated_at = NOW()
+        WHERE id = $1
+          AND estado NOT IN ('completado', 'cancelada', 'rechazada')`,
+      [intentoId, estadoFallback, errorMensaje]
+    );
 
     throw error;
   } finally {
