@@ -37,6 +37,8 @@ import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
 import { CONTACTOS_CAMPOS } from '../definitions/contactos.fields';
 import ContactoDomiciliosSection from '../components/contactos/ContactoDomiciliosSection';
 import ContactoOperadorSection from '../components/contactos/ContactoOperadorSection';
+import { useSession } from '../session/useSession';
+import { esRolAdmin, esRolVendedor } from '../session/rolScope';
 
 type FormState = {
   nombre: string;
@@ -122,6 +124,7 @@ const normalizeContactoMexicoMobilePhone = (telefono: string): string => {
 };
 
 export default function ContactoFormPage() {
+  const { session } = useSession();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -169,7 +172,16 @@ function validarRFC(rfc: string) {
   const [comercialError, setComercialError] = useState<string | null>(null);
 
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
+  const esAdmin = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
+  const esVendedor = !esAdmin && esRolVendedor(session.roles);
+  const vendedorPropioId = session.user?.vendedor_contacto_id ?? null;
   const [listasPrecioVenta, setListasPrecioVenta] = useState<PrecioLista[]>([]);
+
+  useEffect(() => {
+    if (!id && esVendedor && vendedorPropioId) {
+      setForm((prev) => ({ ...prev, vendedor_id: String(vendedorPropioId) }));
+    }
+  }, [id, esVendedor, vendedorPropioId]);
 
   const [cpSatLoading, setCpSatLoading] = useState<boolean>(false);
   const [coloniasSatLoading, setColoniasSatLoading] = useState<boolean>(false);
@@ -841,10 +853,13 @@ function validarRFC(rfc: string) {
                 })()}
 
                 <Autocomplete
-                  options={vendedores}
+                  options={esVendedor && vendedorPropioId
+                    ? vendedores.filter((v) => v.id === vendedorPropioId)
+                    : vendedores}
                   getOptionLabel={(option) => option.nombre || ''}
                   value={vendedores.find((v) => v.id === Number(form.vendedor_id)) || null}
                   onChange={(_, value) => setForm((prev) => ({ ...prev, vendedor_id: value ? String(value.id) : '' }))}
+                  disabled={esVendedor}
                   renderInput={(params) => (
                     <TextField
                       {...(params as any)}

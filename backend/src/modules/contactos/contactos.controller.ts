@@ -19,14 +19,34 @@ import { normalizarTelefono } from "../../utils/telefono";
 import { normalizeRFC } from "../../shared/normalizers/rfc";
 import { normalizeEmail } from "../../shared/normalizers/email";
 import { resolverContextoScopeComercial } from "../auth/scope-comercial";
+import pool from "../../config/database";
 
-async function puedeModificarAsignacion(req: Request, empresaId: number) {
-  const scope = await resolverContextoScopeComercial(
+async function obtenerScopeComercial(req: Request, empresaId: number) {
+  return resolverContextoScopeComercial(
     empresaId,
     req.auth?.userId,
     req.auth?.esSuperadmin
   );
-  return scope.esAdmin;
+}
+
+async function vendedorPerteneceAEmpresa(empresaId: number, vendedorId: number) {
+  const result = await pool.query(
+    `SELECT 1 FROM public.contactos
+      WHERE id = $1 AND empresa_id = $2 AND tipo_contacto = 'Vendedor'
+      LIMIT 1`,
+    [vendedorId, empresaId]
+  );
+  return result.rowCount === 1;
+}
+
+async function vendedorActualDelContacto(empresaId: number, contactoId: number) {
+  const result = await pool.query<{ vendedor_id: number | null }>(
+    `SELECT vendedor_id FROM public.contactos
+      WHERE id = $1 AND empresa_id = $2
+      LIMIT 1`,
+    [contactoId, empresaId]
+  );
+  return result.rows[0]?.vendedor_id ?? null;
 }
 
 const normalizeTelefonoContacto = (value: any) => {
@@ -65,8 +85,19 @@ export async function crearContacto(req: Request, res: Response) {
     delete data.catalogoIds;
     delete data.permitir_telefonos_duplicados;
 
-    if ('vendedor_id' in data && !(await puedeModificarAsignacion(req, Number(empresaId)))) {
-      return res.status(403).json({ message: 'Sólo un administrador puede asignar el responsable comercial.' });
+    const scope = await obtenerScopeComercial(req, Number(empresaId));
+    if (!scope.esAdmin) {
+      if (!scope.esVendedor || !scope.vendedorContactoId || !(await vendedorPerteneceAEmpresa(Number(empresaId), scope.vendedorContactoId))) {
+        return res.status(403).json({ message: 'Tu usuario vendedor no tiene un contacto Vendedor válido asignado.' });
+      }
+
+      const vendedorSolicitado = data.vendedor_id == null || data.vendedor_id === ''
+        ? scope.vendedorContactoId
+        : Number(data.vendedor_id);
+      if (!Number.isFinite(vendedorSolicitado) || vendedorSolicitado !== scope.vendedorContactoId) {
+        return res.status(403).json({ message: 'Un vendedor sólo puede asignarse como responsable a sí mismo.' });
+      }
+      data.vendedor_id = scope.vendedorContactoId;
     }
 
     data.nombre = String(data.nombre).trim();
@@ -259,8 +290,18 @@ export async function actualizarContacto(req: Request, res: Response) {
       return res.status(400).json({ message: "empresaId es obligatorio" });
     }
 
-    if ('vendedor_id' in data && !(await puedeModificarAsignacion(req, Number(empresaId)))) {
-      return res.status(403).json({ message: 'Sólo un administrador puede reasignar el responsable comercial.' });
+    if ('vendedor_id' in data) {
+      const scope = await obtenerScopeComercial(req, Number(empresaId));
+      if (!scope.esAdmin) {
+        const vendedorActual = await vendedorActualDelContacto(Number(empresaId), id);
+        const vendedorSolicitado = data.vendedor_id == null || data.vendedor_id === ''
+          ? null
+          : Number(data.vendedor_id);
+        if (vendedorSolicitado !== vendedorActual) {
+          return res.status(403).json({ message: 'Sólo un administrador puede cambiar el responsable comercial.' });
+        }
+        delete data.vendedor_id;
+      }
     }
 
     if ('nombre' in data) {
