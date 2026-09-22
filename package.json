@@ -7,7 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy": "FRONTEND_TARGET=all bash ./deploy-rsync.sh",
-    "deploy:erp": "FRONTEND_TARGET=erp bash ./deploy-rsync.sh",
+    "deploy:erp": "node scripts/deploy-erp.js",
     "deploy:compass": "FRONTEND_TARGET=compass bash ./deploy-rsync.sh",
     "legacy:deploy": "bash ./deploy.sh",
     "legacy:deploy:fast": "node scripts/deploy.js",

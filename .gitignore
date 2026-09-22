@@ -22,6 +22,7 @@ Thumbs.db
 *.txt
 csd-pruebas/
 .local-deploy/
+.cache/deploy-erp/
 .vscode/
 
 # Storage privado de CFDIs descargados del SAT (XML/ZIP fiscales) — nunca versionar
