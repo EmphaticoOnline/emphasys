@@ -71,6 +71,7 @@ import operacionesFullRouter from "./modules/operaciones-full/operaciones-full.r
 import entregasRouter from "./modules/entregas/entregas.routes";
 import preciosBaseComercialesRouter from "./modules/precios-base-comerciales/precios-base-comerciales.routes";
 import { FRONTEND_BUILD_VERSION } from "./config/version";
+import metaLeadsWebhookRouter from "./webhooks/meta-leads.routes";
 
 const app = express();
 
@@ -200,6 +201,7 @@ app.get("/health", (_req, res) => {
 
 
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/webhooks", metaLeadsWebhookRouter);
 app.use("/api/evaluacion-vendedores", evaluacionVendedoresRouter);
 
 // 404 explícito para rutas /api no manejadas (evita caer al fallback del frontend)
