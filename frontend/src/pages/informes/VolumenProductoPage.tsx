@@ -121,8 +121,8 @@ function SummaryCard({
 
 // ── Columnas DataGrid resumen ─────────────────────────────────────────────────
 
-function buildColumnsResumen(ultimoPrecioLabel: string): GridColDef<ProductoVolumen>[] {
-  return [
+function buildColumnsResumen(ultimoPrecioLabel: string, esVentas: boolean): GridColDef<ProductoVolumen>[] {
+  const columns: GridColDef<ProductoVolumen>[] = [
     { field: 'clave', headerName: 'Clave', width: 85 },
     { field: 'descripcion', headerName: 'Descripción', flex: 1, minWidth: 180 },
     { field: 'unidad', headerName: 'Unidad', width: 65 },
@@ -160,15 +160,23 @@ function buildColumnsResumen(ultimoPrecioLabel: string): GridColDef<ProductoVolu
     },
     {
       field: 'subtotal',
-      headerName: 'Subtotal',
+      headerName: esVentas ? 'Venta' : 'Subtotal',
       width: 120,
       align: 'right',
       headerAlign: 'right',
       renderCell: (p: GridRenderCellParams<ProductoVolumen, number>) => formatMXN(p.value ?? 0),
     },
+    ...(esVentas ? [{
+      field: 'iva',
+      headerName: 'Impuestos',
+      width: 118,
+      align: 'right' as const,
+      headerAlign: 'right' as const,
+      renderCell: (p: GridRenderCellParams<ProductoVolumen, number>) => formatMXN(p.value ?? 0),
+    }] : []),
     {
       field: 'total',
-      headerName: 'Total',
+      headerName: esVentas ? 'Total facturado' : 'Total',
       width: 130,
       align: 'right',
       headerAlign: 'right',
@@ -203,6 +211,7 @@ function buildColumnsResumen(ultimoPrecioLabel: string): GridColDef<ProductoVolu
       ),
     },
   ];
+  return columns;
 }
 
 // ── Vista detalle ─────────────────────────────────────────────────────────────
@@ -216,6 +225,7 @@ function DetalleTable({
   partidas: PartidaVolumenDetalle[];
   contactoLabel: string;
 }) {
+  const esVentas = contactoLabel === 'Cliente';
   const partidasPorGrupo = useMemo(() => {
     const m = new Map<string, PartidaVolumenDetalle[]>();
     for (const p of partidas) {
@@ -263,7 +273,7 @@ function DetalleTable({
               </Box>
               <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 2 }}>
                 <Typography variant="body2" fontWeight={700} color="primary.main">
-                  {formatMXN(prod.total)}
+                  {formatMXN(prod.venta)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {prod.pct_participacion.toFixed(2)} %
@@ -290,14 +300,15 @@ function DetalleTable({
                   <TableCell align="right">Cantidad</TableCell>
                   <TableCell align="right">Precio unit.</TableCell>
                   <TableCell align="right">Descuento</TableCell>
-                  <TableCell align="right">Subtotal</TableCell>
-                  <TableCell align="right">Total</TableCell>
+                  <TableCell align="right">{esVentas ? 'Venta' : 'Subtotal'}</TableCell>
+                  {esVentas && <TableCell align="right">Impuestos</TableCell>}
+                  <TableCell align="right">{esVentas ? 'Total facturado' : 'Total'}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8}>
+                    <TableCell colSpan={esVentas ? 9 : 8}>
                       <Typography variant="caption" color="text.disabled">
                         Sin partidas en el período
                       </Typography>
@@ -315,8 +326,9 @@ function DetalleTable({
                         {item.descuento > 0 ? formatMXN(item.descuento) : '—'}
                       </TableCell>
                       <TableCell align="right">{formatMXN(item.subtotal)}</TableCell>
+                      {esVentas && <TableCell align="right">{formatMXN(item.iva)}</TableCell>}
                       <TableCell align="right" sx={{ fontWeight: 600 }}>
-                        {formatMXN(item.total)}
+                        {formatMXN(esVentas ? item.total_facturado : item.total)}
                       </TableCell>
                     </TableRow>
                   ))
@@ -324,14 +336,14 @@ function DetalleTable({
                 {/* Subtotal del producto */}
                 <TableRow sx={{ bgcolor: '#f8fafc' }}>
                   <TableCell
-                    colSpan={7}
+                    colSpan={esVentas ? 8 : 7}
                     align="right"
                     sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.74rem' }}
                   >
                     Total {prod.clave} — {formatCantidad(prod.cantidad_total)} {prod.unidad || 'uds'}:
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    {formatMXN(prod.total)}
+                    {formatMXN(prod.venta)}
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -481,13 +493,13 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
   };
 
   const columnsResumen = useMemo(
-    () => buildColumnsResumen(config.ultimoPrecioLabel),
-    [config.ultimoPrecioLabel]
+    () => buildColumnsResumen(config.ultimoPrecioLabel, config.contactoLabel === 'Cliente'),
+    [config.ultimoPrecioLabel, config.contactoLabel]
   );
 
   // ── Indicadores resumen ──
   const productos     = resultado?.productos ?? [];
-  const totalGeneral  = productos.reduce((s, p) => s + p.total, 0);
+  const totalGeneral  = productos.reduce((s, p) => s + p.venta, 0);
   const totalSubtotal = productos.reduce((s, p) => s + p.subtotal, 0);
   const totalCantidad = productos.reduce((s, p) => s + p.cantidad_total, 0);
   const precioProm    = totalCantidad > 0 ? totalSubtotal / totalCantidad : 0;
@@ -664,7 +676,7 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
           <SummaryCard
             icon={AttachMoneyIcon}
             label={config.totalLabel}
-            value={`$${formatMXN(totalGeneral)}`}
+          value={`$${formatMXN(totalGeneral)}`}
             color="#006261"
           />
           <SummaryCard

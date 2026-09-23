@@ -51,6 +51,10 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
     // Si el tratamiento es sin IVA, omitir el resolver y dejar la partida sin impuestos
     if ((tratamientoImpuestos ?? '').toLowerCase() === 'sin_iva') {
       await eliminarImpuestosDePartida(partidaId, executor);
+      await executor.query(
+        `UPDATE documentos_partidas SET total_partida = subtotal_partida WHERE id = $1`,
+        [partidaId]
+      );
 
       // Recalcular totales del documento (encabezado)
       await actualizarTotales(documentoId, executor);
@@ -93,6 +97,18 @@ export async function calcularImpuestosPartida(partidaId: number, client?: PoolC
         monto: imp.monto,
       })),
       executor
+    );
+
+    const traslados = impuestosCalculados
+      .filter((imp) => String(imp.tipo).toLowerCase() === 'traslado')
+      .reduce((sum, imp) => sum + Number(imp.monto || 0), 0);
+    const retenciones = impuestosCalculados
+      .filter((imp) => String(imp.tipo).toLowerCase() === 'retencion')
+      .reduce((sum, imp) => sum + Number(imp.monto || 0), 0);
+    const totalPartida = Math.round((subtotalNumber + traslados - retenciones + Number.EPSILON) * 100) / 100;
+    await executor.query(
+      `UPDATE documentos_partidas SET total_partida = $2 WHERE id = $1`,
+      [partidaId, totalPartida]
     );
 
     // Recalcular totales del documento para mantener consistencia en cualquier tipo documental.

@@ -123,9 +123,10 @@ function SummaryCard({
 
 // ── Columnas vista resumen ────────────────────────────────────────────────────
 
-function buildColumnsResumen(): GridColDef<ContactoVolumen>[] {
-  return [
-    { field: 'nombre', headerName: 'Proveedor', flex: 1, minWidth: 200 },
+function buildColumnsResumen(contactoLabel: string): GridColDef<ContactoVolumen>[] {
+  const totalLabel = contactoLabel === 'Cliente' ? 'Venta' : 'Total Comprado';
+  const columns: GridColDef<ContactoVolumen>[] = [
+    { field: 'nombre', headerName: contactoLabel, flex: 1, minWidth: 200 },
     { field: 'rfc', headerName: 'RFC', width: 120 },
     {
       field: 'cantidad_facturas',
@@ -152,7 +153,7 @@ function buildColumnsResumen(): GridColDef<ContactoVolumen>[] {
     },
     {
       field: 'total_comprado',
-      headerName: 'Total Comprado',
+      headerName: totalLabel,
       width: 140,
       align: 'right',
       headerAlign: 'right',
@@ -175,6 +176,17 @@ function buildColumnsResumen(): GridColDef<ContactoVolumen>[] {
       ),
     },
   ];
+  if (contactoLabel === 'Cliente') {
+    columns.splice(6, 0, {
+      field: 'total_facturado',
+      headerName: 'Total facturado',
+      width: 140,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (p: GridRenderCellParams<ContactoVolumen, number>) => formatMXN(p.value ?? 0),
+    });
+  }
+  return columns;
 }
 
 // ── Vista detallada ───────────────────────────────────────────────────────────
@@ -182,9 +194,11 @@ function buildColumnsResumen(): GridColDef<ContactoVolumen>[] {
 function DetalleTable({
   contactos,
   facturas,
+  esVentas,
 }: {
   contactos: ContactoVolumen[];
   facturas: FacturaVolumenDetalle[];
+  esVentas: boolean;
 }) {
   const facturasPorContacto = useMemo(() => {
     const m = new Map<number, FacturaVolumenDetalle[]>();
@@ -256,9 +270,9 @@ function DetalleTable({
                 <TableRow sx={{ bgcolor: '#1d2f6808' }}>
                   <TableCell>Fecha</TableCell>
                   <TableCell>Folio</TableCell>
-                  <TableCell align="right">Subtotal</TableCell>
+                  <TableCell align="right">{esVentas ? 'Venta' : 'Subtotal'}</TableCell>
                   <TableCell align="right">IVA</TableCell>
-                  <TableCell align="right">Total</TableCell>
+                  <TableCell align="right">{esVentas ? 'Total facturado' : 'Total'}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -411,7 +425,11 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
     }
   };
 
-  const columnsResumen = useMemo(() => buildColumnsResumen(), []);
+  const esVentas = config.contactoLabel === 'Cliente';
+  const etiquetaContactoPlural = esVentas ? 'Clientes' : 'Proveedores';
+  const etiquetaTotal = esVentas ? 'Ventas totales' : 'Total Comprado';
+  const etiquetaMovimiento = esVentas ? 'Ventas' : 'Compras';
+  const columnsResumen = useMemo(() => buildColumnsResumen(config.contactoLabel), [config.contactoLabel]);
 
   // ── Indicadores resumen ──
   const contactos = resultado?.contactos ?? [];
@@ -534,13 +552,13 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           <SummaryCard
             icon={StoreIcon}
-            label="Proveedores activos"
+            label={`${etiquetaContactoPlural} activos`}
             value={String(contactos.length)}
             color="#1d2f68"
           />
           <SummaryCard
             icon={ShoppingCartIcon}
-            label="Compras totales"
+            label={`${etiquetaMovimiento} totales`}
             value={`$${formatMXN(totalComprado)}`}
             color="#006261"
           />
@@ -552,7 +570,7 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
           />
           <SummaryCard
             icon={TrendingUpIcon}
-            label="Principal proveedor"
+            label={`Principal ${config.contactoLabel.toLowerCase()}`}
             value={principal ? principal.nombre : '—'}
             color="#b45309"
           />
@@ -581,7 +599,7 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
                 disableRowSelectionOnClick
                 localeText={{
                   ...esES.components.MuiDataGrid.defaultProps.localeText,
-                  noRowsLabel: 'Sin compras en el período indicado',
+                  noRowsLabel: `Sin ${etiquetaMovimiento.toLowerCase()} en el período indicado`,
                 }}
                 sx={[standardDataGridSx, { border: '1px solid', borderColor: 'divider' }]}
               />
@@ -601,7 +619,7 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
                 }}
               >
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" color="text.secondary">Proveedores</Typography>
+                  <Typography variant="caption" color="text.secondary">{etiquetaContactoPlural}</Typography>
                   <Typography variant="body2" fontWeight={700}>{contactos.length}</Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
@@ -609,7 +627,7 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
                   <Typography variant="body2" fontWeight={700}>{totalFacturas.toLocaleString('es-MX')}</Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" color="text.secondary">Total Comprado</Typography>
+                  <Typography variant="caption" color="text.secondary">{etiquetaTotal}</Typography>
                   <Typography variant="subtitle1" fontWeight={700} color="primary.main">
                     ${formatMXN(totalComprado)}
                   </Typography>
@@ -621,7 +639,7 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
 
         {resultado && mostrarDetalle && (
           <>
-            <DetalleTable contactos={contactos} facturas={resultado.facturas} />
+            <DetalleTable contactos={contactos} facturas={resultado.facturas} esVentas={esVentas} />
             {/* Totales generales */}
             {contactos.length > 0 && (
               <Box
@@ -637,7 +655,7 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
                 }}
               >
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" color="text.secondary">Proveedores</Typography>
+                  <Typography variant="caption" color="text.secondary">{etiquetaContactoPlural}</Typography>
                   <Typography variant="body2" fontWeight={700}>{contactos.length}</Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
@@ -645,7 +663,7 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
                   <Typography variant="body2" fontWeight={700}>{totalFacturas.toLocaleString('es-MX')}</Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" color="text.secondary">Total Comprado</Typography>
+                  <Typography variant="caption" color="text.secondary">{etiquetaTotal}</Typography>
                   <Typography variant="subtitle1" fontWeight={700} color="primary.main">
                     ${formatMXN(totalComprado)}
                   </Typography>
@@ -657,7 +675,7 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
 
         {resultado && contactos.length === 0 && (
           <Typography variant="body2" color="text.secondary">
-            Sin compras en el período indicado.
+            Sin {etiquetaMovimiento.toLowerCase()} en el período indicado.
           </Typography>
         )}
       </Paper>

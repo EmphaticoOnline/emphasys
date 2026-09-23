@@ -141,6 +141,7 @@ export type ContactoVolumen = {
   subtotal: number;
   iva: number;
   total_comprado: number;
+  total_facturado: number;
   pct_participacion: number;
 };
 
@@ -152,6 +153,7 @@ export type FacturaVolumenDetalle = {
   subtotal: number;
   iva: number;
   total: number;
+  total_facturado: number;
   cancelado: boolean;
 };
 
@@ -216,6 +218,8 @@ export type ProductoVolumen = {
   subtotal: number;
   iva: number;
   total: number;
+  venta: number;
+  total_facturado: number;
   ultimo_movimiento: string;
   pct_participacion: number;
 };
@@ -230,7 +234,9 @@ export type PartidaVolumenDetalle = {
   precio_unitario: number;
   descuento: number;
   subtotal: number;
+  iva: number;
   total: number;
+  total_facturado: number;
 };
 
 export type VolumenProductoResult = {

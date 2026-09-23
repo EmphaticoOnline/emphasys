@@ -324,6 +324,7 @@ export type ContactoVolumen = {
   subtotal: number;
   iva: number;
   total_comprado: number;
+  total_facturado: number;
   pct_participacion: number;
 };
 
@@ -375,6 +376,7 @@ async function _obtenerVolumen(
     subtotal: number;
     iva: number;
     total_comprado: number;
+    total_facturado: number;
     pct_participacion: number;
   }>(
     `WITH base AS (
@@ -382,7 +384,8 @@ async function _obtenerVolumen(
          d.contacto_principal_id AS contacto_id,
          SUM(d.subtotal)::numeric AS subtotal,
          SUM(d.iva)::numeric      AS iva,
-         SUM(d.total)::numeric    AS total_comprado,
+         SUM(d.subtotal)::numeric AS total_comprado,
+         SUM(d.total)::numeric    AS total_facturado,
          COUNT(d.id)::int         AS cantidad_facturas
        FROM documentos d
        WHERE d.empresa_id = $1
@@ -402,6 +405,7 @@ async function _obtenerVolumen(
        COALESCE(b.subtotal, 0)       AS subtotal,
        COALESCE(b.iva, 0)            AS iva,
        COALESCE(b.total_comprado, 0) AS total_comprado,
+       COALESCE(b.total_facturado, 0) AS total_facturado,
        ROUND(
          COALESCE(b.total_comprado, 0) * 100.0 / NULLIF((SELECT gt FROM gran_total), 0),
          2
@@ -470,6 +474,7 @@ async function _obtenerVolumen(
       subtotal: Number(r.subtotal),
       iva: Number(r.iva),
       total_comprado: Number(r.total_comprado),
+      total_facturado: Number(r.total_facturado),
       pct_participacion: Number(r.pct_participacion),
     })),
     facturas,
@@ -511,6 +516,8 @@ export type ProductoVolumen = {
   subtotal: number;
   iva: number;
   total: number;
+  venta: number;
+  total_facturado: number;
   ultimo_movimiento: string;
   pct_participacion: number;
 };
@@ -526,6 +533,8 @@ export type PartidaVolumenDetalle = {
   descuento: number;
   subtotal: number;
   total: number;
+  iva: number;
+  total_facturado: number;
 };
 
 export type VolumenProductoResult = {
@@ -572,7 +581,21 @@ async function _obtenerVolumenProducto(
     filtroContacto = `AND d.contacto_principal_id = $${args.length}`;
   }
 
-  const havingClause = excluirSinMovimiento ? 'HAVING SUM(total) > 0' : '';
+  const usaVentaComercial = tipoDocumento === 'factura';
+  const havingClause = excluirSinMovimiento
+    ? (usaVentaComercial ? 'HAVING SUM(subtotal) > 0' : 'HAVING SUM(total) > 0')
+    : '';
+  const ivaExpr = usaVentaComercial ? 'SUM(traslados - retenciones)' : 'SUM(total - subtotal)';
+  const ventaExpr = usaVentaComercial ? 'SUM(subtotal)' : 'SUM(total)';
+  const totalFacturadoExpr = usaVentaComercial
+    ? 'SUM(subtotal + traslados - retenciones)'
+    : 'SUM(total)';
+  const detalleIvaExpr = usaVentaComercial
+    ? 'COALESCE(tax.traslados, 0) - COALESCE(tax.retenciones, 0)'
+    : 'dp.total_partida - dp.subtotal_partida';
+  const detalleTotalExpr = usaVentaComercial
+    ? 'dp.subtotal_partida + COALESCE(tax.traslados, 0) - COALESCE(tax.retenciones, 0)'
+    : 'dp.total_partida';
 
   const { rows: resumen } = await pool.query(
     `WITH
@@ -586,11 +609,21 @@ async function _obtenerVolumenProducto(
          dp.cantidad::numeric                                                     AS cantidad,
          dp.subtotal_partida::numeric                                             AS subtotal,
          dp.total_partida::numeric                                                AS total,
+         COALESCE(tax.traslados, 0)::numeric                                     AS traslados,
+         COALESCE(tax.retenciones, 0)::numeric                                   AS retenciones,
          d.id                                                                     AS doc_id
        FROM documentos_partidas dp
        JOIN documentos d ON d.id = dp.documento_id AND d.empresa_id = $1
        LEFT JOIN productos p ON p.id = dp.producto_id AND p.empresa_id = $1
        LEFT JOIN unidades u ON u.id = p.unidad_venta_id
+       LEFT JOIN LATERAL (
+         SELECT
+           SUM(CASE WHEN LOWER(COALESCE(i.tipo, '')) = 'traslado' THEN dpi.monto ELSE 0 END) AS traslados,
+           SUM(CASE WHEN LOWER(COALESCE(i.tipo, '')) = 'retencion' THEN dpi.monto ELSE 0 END) AS retenciones
+         FROM documentos_partidas_impuestos dpi
+         LEFT JOIN impuestos i ON i.id = dpi.impuesto_id
+         WHERE dpi.partida_id = dp.id
+       ) tax ON true
        WHERE d.tipo_documento = $4
          AND d.fecha_documento >= $2::date
          AND d.fecha_documento <= $3::date
@@ -608,13 +641,15 @@ async function _obtenerVolumenProducto(
          SUM(cantidad)::numeric         AS cantidad_total,
          COUNT(DISTINCT doc_id)::int    AS cantidad_documentos,
          SUM(subtotal)::numeric         AS subtotal,
-         SUM(total - subtotal)::numeric AS iva,
-         SUM(total)::numeric            AS total
+         ${ivaExpr}::numeric AS iva,
+         ${ventaExpr}::numeric AS venta,
+         ${totalFacturadoExpr}::numeric AS total,
+         ${totalFacturadoExpr}::numeric AS total_facturado
        FROM base_raw
        GROUP BY grupo_key, producto_id, clave, descripcion, unidad
        ${havingClause}
      ),
-     gran_total AS (SELECT COALESCE(SUM(total), 0) AS gt FROM base),
+     gran_total AS (SELECT COALESCE(SUM(venta), 0) AS gt FROM base),
      hist_movimiento AS (
        SELECT
          ${grupoKey2}                    AS grupo_key,
@@ -645,8 +680,10 @@ async function _obtenerVolumenProducto(
        b.cantidad_documentos,
        b.subtotal,
        b.iva,
+       b.venta,
        b.total,
-       ROUND(b.total * 100.0 / NULLIF((SELECT gt FROM gran_total), 0), 2)::numeric AS pct_participacion,
+       b.total_facturado,
+       ROUND(b.venta * 100.0 / NULLIF((SELECT gt FROM gran_total), 0), 2)::numeric AS pct_participacion,
        CASE WHEN b.cantidad_total > 0
          THEN ROUND((b.subtotal / b.cantidad_total)::numeric, 4)
          ELSE 0
@@ -656,7 +693,7 @@ async function _obtenerVolumenProducto(
      FROM base b
      LEFT JOIN hist_movimiento hm ON hm.grupo_key = b.grupo_key
      LEFT JOIN hist_precio hp ON hp.grupo_key = b.grupo_key
-     ORDER BY b.total DESC`,
+     ORDER BY b.venta DESC`,
     args
   );
 
@@ -674,10 +711,19 @@ async function _obtenerVolumenProducto(
          dp.precio_unitario::numeric            AS precio_unitario,
          COALESCE(dp.descuento, 0)::numeric     AS descuento,
          dp.subtotal_partida::numeric           AS subtotal,
-         dp.total_partida::numeric              AS total
+         (${detalleIvaExpr})::numeric           AS iva,
+         (${detalleTotalExpr})::numeric         AS total
        FROM documentos_partidas dp
        JOIN documentos d ON d.id = dp.documento_id AND d.empresa_id = $1
        LEFT JOIN contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = $1
+       LEFT JOIN LATERAL (
+         SELECT
+           SUM(CASE WHEN LOWER(COALESCE(i.tipo, '')) = 'traslado' THEN dpi.monto ELSE 0 END) AS traslados,
+           SUM(CASE WHEN LOWER(COALESCE(i.tipo, '')) = 'retencion' THEN dpi.monto ELSE 0 END) AS retenciones
+         FROM documentos_partidas_impuestos dpi
+         LEFT JOIN impuestos i ON i.id = dpi.impuesto_id
+         WHERE dpi.partida_id = dp.id
+       ) tax ON true
        WHERE d.tipo_documento = $4
          AND d.fecha_documento >= $2::date
          AND d.fecha_documento <= $3::date
@@ -698,6 +744,8 @@ async function _obtenerVolumenProducto(
       descuento:       Number(r.descuento ?? 0),
       subtotal:        Number(r.subtotal ?? 0),
       total:           Number(r.total ?? 0),
+      iva:             Number(r.iva ?? 0),
+      total_facturado: Number(r.total ?? 0),
     }));
   }
 
@@ -715,6 +763,8 @@ async function _obtenerVolumenProducto(
       subtotal:               Number(r.subtotal ?? 0),
       iva:                    Number(r.iva ?? 0),
       total:                  Number(r.total ?? 0),
+      venta:                  Number(r.venta ?? r.subtotal ?? 0),
+      total_facturado:        Number(r.total_facturado ?? r.total ?? 0),
       pct_participacion:      Number(r.pct_participacion ?? 0),
       precio_promedio:        Number(r.precio_promedio ?? 0),
       ultimo_movimiento:      toFecha(r.ultimo_movimiento),

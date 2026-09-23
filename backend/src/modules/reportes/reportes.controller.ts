@@ -220,7 +220,8 @@ function buildColsResumen(contactoLabel: string): ExportColumna[] {
     { field: 'cantidad_facturas', headerName: 'Facturas'        },
     { field: 'subtotal',          headerName: 'Subtotal'        },
     { field: 'iva',               headerName: 'IVA'             },
-    { field: 'total_comprado',    headerName: 'Total Comprado'  },
+    { field: 'total_comprado',    headerName: contactoLabel === 'Cliente' ? 'Venta' : 'Total Comprado'  },
+    ...(contactoLabel === 'Cliente' ? [{ field: 'total_facturado', headerName: 'Total facturado' }] : []),
     { field: 'pct_participacion', headerName: '% Participación' },
   ];
 }
@@ -233,7 +234,7 @@ function buildColsDetalle(contactoLabel: string): ExportColumna[] {
     { field: 'folio',    headerName: 'Folio'       },
     { field: 'subtotal', headerName: 'Subtotal'    },
     { field: 'iva',      headerName: 'IVA'         },
-    { field: 'total',    headerName: 'Total'       },
+    { field: 'total',    headerName: contactoLabel === 'Cliente' ? 'Total facturado' : 'Total' },
   ];
 }
 
@@ -325,6 +326,7 @@ export async function getVentasPorCliente(req: Request, res: Response) {
 // ── Volumen por Producto (Compras / Ventas) ───────────────────────────────────
 
 function buildColsProductoResumen(ultimoPrecioLabel: string): ExportColumna[] {
+  const esVentas = ultimoPrecioLabel === 'Último precio';
   return [
     { field: 'clave',                  headerName: 'Clave'             },
     { field: 'descripcion',            headerName: 'Descripción'       },
@@ -333,16 +335,17 @@ function buildColsProductoResumen(ultimoPrecioLabel: string): ExportColumna[] {
     { field: 'cantidad_documentos',    headerName: 'Documentos'        },
     { field: 'precio_promedio',        headerName: 'Precio Prom.'      },
     { field: 'ultimo_precio_unitario', headerName: ultimoPrecioLabel   },
-    { field: 'subtotal',               headerName: 'Subtotal'          },
-    { field: 'iva',                    headerName: 'IVA'               },
-    { field: 'total',                  headerName: 'Total'             },
+    { field: 'subtotal',               headerName: esVentas ? 'Venta' : 'Subtotal' },
+    { field: 'iva',                    headerName: 'Impuestos'         },
+    { field: 'total',                  headerName: esVentas ? 'Total facturado' : 'Total' },
     { field: 'ultimo_movimiento',      headerName: 'Últ. Movimiento'  },
     { field: 'pct_participacion',      headerName: '% Participación'  },
   ];
 }
 
 function buildColsProductoDetalle(contactoLabel: string): ExportColumna[] {
-  return [
+  const esVentas = contactoLabel === 'Cliente';
+  const columnas: ExportColumna[] = [
     { field: 'clave',           headerName: 'Clave'         },
     { field: 'descripcion',     headerName: 'Descripción'   },
     { field: 'fecha',           headerName: 'Fecha'         },
@@ -351,12 +354,14 @@ function buildColsProductoDetalle(contactoLabel: string): ExportColumna[] {
     { field: 'cantidad',        headerName: 'Cantidad'      },
     { field: 'precio_unitario', headerName: 'Precio Unit.'  },
     { field: 'descuento',       headerName: 'Descuento'     },
-    { field: 'subtotal',        headerName: 'Subtotal'      },
-    { field: 'total',           headerName: 'Total'         },
+    { field: 'subtotal',        headerName: esVentas ? 'Venta' : 'Subtotal' },
   ];
+  if (esVentas) columnas.push({ field: 'iva', headerName: 'Impuestos' });
+  columnas.push({ field: esVentas ? 'total_facturado' : 'total', headerName: esVentas ? 'Total facturado' : 'Total' });
+  return columnas;
 }
 
-function buildFilasExcelProductoDetalle(resultado: VolumenProductoResult): Record<string, unknown>[] {
+function buildFilasExcelProductoDetalle(resultado: VolumenProductoResult, contactoLabel: string): Record<string, unknown>[] {
   const mapProducto = new Map(resultado.productos.map((p) => [p.grupo_key, p]));
   return resultado.partidas.map((partida) => {
     const prod = mapProducto.get(partida.grupo_key);
@@ -370,7 +375,7 @@ function buildFilasExcelProductoDetalle(resultado: VolumenProductoResult): Recor
       precio_unitario: partida.precio_unitario,
       descuento:       partida.descuento,
       subtotal:        partida.subtotal,
-      total:           partida.total,
+      ...(contactoLabel === 'Cliente' ? { iva: partida.iva, total_facturado: partida.total_facturado } : { total: partida.total }),
     };
   });
 }
@@ -396,7 +401,7 @@ async function sendVolumenProducto(
 
   if (formato === 'excel') {
     const filas = detalle
-      ? buildFilasExcelProductoDetalle(resultado)
+      ? buildFilasExcelProductoDetalle(resultado, contactoLabel)
       : resultado.productos.map((p) => ({ ...p, ultimo_movimiento: fmtFechaMX(p.ultimo_movimiento) }));
     const columnas = detalle
       ? buildColsProductoDetalle(contactoLabel)
