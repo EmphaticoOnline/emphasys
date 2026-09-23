@@ -654,6 +654,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [loading, setLoading] = useState(true);
+  // Una recarga no debe deshabilitar acciones de filas que ya están disponibles.
+  const accionesBloqueadasPorCarga = loading && rows.length === 0;
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([]);
@@ -2654,7 +2656,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                 size="small"
                 color="error"
                 disabled={
-                  loading ||
+                  accionesBloqueadasPorCarga ||
                   documentoCancelado ||
                   facturaEnBorrador ||
                   Boolean(bloqueoCancelacionCfdi) ||
@@ -3090,7 +3092,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         label: bloqueoCancelacionCfdi || (facturaEnBorrador ? 'Cancelar documento (borrador, use Eliminar)' : 'Cancelar documento'),
         icon: <CancelIcon fontSize="small" />,
         destructive: true,
-        disabled: loading || documentoCancelado || facturaEnBorrador || Boolean(bloqueoCancelacionCfdi) || cancelandoId === rowId,
+        disabled: accionesBloqueadasPorCarga || documentoCancelado || facturaEnBorrador || Boolean(bloqueoCancelacionCfdi) || cancelandoId === rowId,
         onClick: () => abrirDialogoCancelar(contextMenuRow),
       },
       {
@@ -3122,6 +3124,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     hasAction,
     load,
     loading,
+    accionesBloqueadasPorCarga,
     menuLoading,
     modulo,
     navigate,

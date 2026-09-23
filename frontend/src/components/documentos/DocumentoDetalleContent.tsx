@@ -254,7 +254,7 @@ export function ResumenTab({
                 No admite nuevas aplicaciones.
               </Alert>
               <Typography variant="body2" sx={{ mt: 1.5 }}>
-                La factura permanece timbrada hasta que el PAC o el SAT confirmen la cancelación.
+                La factura permanece timbrada hasta que el SAT confirme la cancelación.
               </Typography>
             </>
           ) : cancelacionEstado === 'error' ? (
@@ -272,7 +272,7 @@ export function ResumenTab({
               onClick={() => { void onReconcile(); }}
               sx={{ mt: 1.5 }}
             >
-              {reconciling ? 'Reconciliando…' : 'Reconciliar estado'}
+              {reconciling ? 'Consultando SAT…' : 'Reconciliar estado'}
             </Button>
           ) : null}
         </Box>

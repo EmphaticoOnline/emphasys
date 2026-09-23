@@ -1,6 +1,7 @@
 import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 import { FacturamaClient } from '../cfdi/facturama.client';
+import { clasificarResultadoSat, consultarCfdiSat, extraerDatosConsultaDesdeXml, obtenerProveedorStatusSat } from '../cfdi/sat-consulta.service';
 import { obtenerRolesDeUsuarioEnEmpresa } from '../auth/auth.service';
 import { revertirInventarioDocumentoEnTransaccion } from '../inventario/inventario.service';
 import { generarReversaCancelacionFacturaVenta } from '../contabilidad/facturaVentaContabilizacion.repository';
@@ -484,6 +485,7 @@ async function actualizarEstadoIntento(
     facturamaRespuesta?: Record<string, unknown> | null;
     incrementarConsulta?: boolean;
     preservarRespuestaAnterior?: boolean;
+    limpiarErrores?: boolean;
   } = {}
 ): Promise<void> {
   await pool.query(
@@ -493,10 +495,10 @@ async function actualizarEstadoIntento(
                                       THEN COALESCE(facturama_respuesta, '{}'::jsonb) || COALESCE($3::jsonb, '{}'::jsonb)
                                       ELSE COALESCE($3::jsonb, facturama_respuesta)
                                     END,
-            error_externo_mensaje  = COALESCE($4::text, error_externo_mensaje),
+            error_externo_mensaje  = CASE WHEN $12::boolean THEN NULL ELSE COALESCE($4::text, error_externo_mensaje) END,
             error_interno_mensaje  = COALESCE($5::text, error_interno_mensaje),
             proveedor_status       = COALESCE($6::varchar, proveedor_status),
-            error_codigo           = COALESCE($7::varchar, error_codigo),
+            error_codigo           = CASE WHEN $12::boolean THEN NULL ELSE COALESCE($7::varchar, error_codigo) END,
             mensaje_sanitizado     = COALESCE($8::text, mensaje_sanitizado),
             acuse_xml              = COALESCE($9::text, acuse_xml),
             intentos_consulta      = intentos_consulta + CASE WHEN $10::boolean THEN 1 ELSE 0 END,
@@ -515,6 +517,7 @@ async function actualizarEstadoIntento(
       extras.acuseXml ?? null,
       Boolean(extras.incrementarConsulta),
       Boolean(extras.preservarRespuestaAnterior),
+      Boolean(extras.limpiarErrores),
     ]
   );
 }
@@ -549,13 +552,6 @@ export function clasificarFalloCancelacionPac(error: any): {
     message: String(error?.message || 'Facturama rechazó la solicitud de cancelación.'),
     pacResponse: sanitizarRespuestaPac(error?.facturamaResponse),
   };
-}
-
-export async function consultarEstadoSatPac(
-  client: Pick<FacturamaClient, 'getSatCfdiStatus'>,
-  payload: { uuid: string; issuerRfc: string; receiverRfc: string; total: string | number }
-) {
-  return client.getSatCfdiStatus(payload);
 }
 
 /**
@@ -1028,13 +1024,14 @@ export async function reconciliarCancelacionDocumentoService(input: {
     rfc_emisor: string | null;
     rfc_receptor: string | null;
     total: string | number | null;
+    xml_timbrado: string | null;
   }>(
     `SELECT i.id AS intento_id, i.estado, i.pac_id, i.modalidad, i.cfdi_uuid,
             i.motivo_cancelacion, i.motivo_sat, i.uuid_sustitucion, i.acuse_xml,
             d.estatus_documento, i.cfdi_pac_config_id,
             dc.cfdi_pac_config_id AS documento_cfdi_pac_config_id,
             dc.pac, dc.pac_modalidad, dc.uuid AS documento_cfdi_uuid,
-            dc.rfc_emisor, dc.rfc_receptor, dc.total
+            dc.rfc_emisor, dc.rfc_receptor, dc.total, dc.xml_timbrado
        FROM documentos_cancelacion_intentos i
        JOIN documentos d
          ON d.id = i.documento_id
@@ -1056,18 +1053,10 @@ export async function reconciliarCancelacionDocumentoService(input: {
       409
     );
   }
-  if (!intento.pac_id || !intento.modalidad) {
-    throw new DocumentoCancelValidationError(
-      'El intento no tiene identidad PAC suficiente para consultar su estado.',
-      { intento_id: Number(intento.intento_id) },
-      'CANCELACION_IDENTIDAD_PAC_INCOMPLETA',
-      409
-    );
-  }
   const uuid = limpiarTexto(intento.cfdi_uuid) || limpiarTexto(intento.documento_cfdi_uuid);
   const issuerRfc = limpiarTexto(intento.rfc_emisor);
   const receiverRfc = limpiarTexto(intento.rfc_receptor);
-  if (!uuid || !issuerRfc || !receiverRfc || intento.total == null || !Number.isFinite(Number(intento.total))) {
+  if (!uuid || !issuerRfc || !receiverRfc || intento.total == null || !Number.isFinite(Number(intento.total)) || !intento.xml_timbrado) {
     throw new DocumentoCancelValidationError(
       'El intento no tiene identidad fiscal suficiente para consultar el estado SAT.',
       { intento_id: Number(intento.intento_id) },
@@ -1076,23 +1065,12 @@ export async function reconciliarCancelacionDocumentoService(input: {
     );
   }
 
-  const facturama = await FacturamaClient.forHistorical({
-    empresaId: input.empresaId,
-    configId: intento.cfdi_pac_config_id ?? intento.documento_cfdi_pac_config_id,
-    pac: intento.pac,
-    modalidad: intento.pac_modalidad ?? intento.modalidad,
-  });
   let consulta;
   try {
-    consulta = await consultarEstadoSatPac(facturama, {
-      uuid,
-      issuerRfc,
-      receiverRfc,
-      total: intento.total,
-    });
+    consulta = await consultarCfdiSat(extraerDatosConsultaDesdeXml(intento.xml_timbrado, uuid));
   } catch (error: any) {
-    const code = String(error?.response?.status || error?.code || 'PAC_STATUS_QUERY_ERROR');
-    const message = 'No fue posible confirmar el estado fiscal; requiere conciliación.';
+    const code = String(error?.code || 'SAT_STATUS_QUERY_ERROR');
+    const message = 'No fue posible confirmar el estado fiscal en el SAT; requiere reconciliación.';
     await actualizarEstadoIntento(Number(intento.intento_id), 'requiere_reconciliacion', {
       errorCodigo: code,
       errorExternoMensaje: message,
@@ -1116,24 +1094,28 @@ export async function reconciliarCancelacionDocumentoService(input: {
     };
   }
 
-  const estadoSat = interpretarEstadoSatCfdi(consulta.status);
-  const estado: CfdiCancelacionEstado = interpretarResultadoReconciliacionSat(consulta.status);
+  const estadoSat = interpretarEstadoSatCfdi(consulta.estado);
+  const estado: CfdiCancelacionEstado = clasificarResultadoSat(consulta);
+  const proveedorStatusSat = obtenerProveedorStatusSat(consulta);
   const respuestaSanitizada = {
-    Status: consulta.status,
+    CodigoEstatus: consulta.codigoEstatus,
+    Estado: consulta.estado,
+    EsCancelable: consulta.esCancelable,
+    EstatusCancelacion: consulta.estatusCancelacion,
+    ValidacionEFOS: consulta.validacionEfos,
     Source: 'SAT',
-    Uuid: consulta.data?.Uuid ?? uuid,
-    IsCancelable: consulta.data?.IsCancelable ?? null,
     HttpStatus: consulta.httpStatus,
     Endpoint: consulta.endpoint,
-    Method: 'GET',
+    Method: 'POST',
   };
   await actualizarEstadoIntento(Number(intento.intento_id), estado, {
-    proveedorStatus: consulta.status,
+    proveedorStatus: proveedorStatusSat,
     facturamaRespuesta: { Reconciliation: respuestaSanitizada },
     errorCodigo: null,
-    mensajeSanitizado: `Consulta SAT de reconciliación: ${consulta.status}.`,
+    mensajeSanitizado: `Consulta SAT de reconciliación: ${consulta.estado ?? 'sin estado'}.`,
     incrementarConsulta: true,
     preservarRespuestaAnterior: true,
+    limpiarErrores: true,
   });
   await pool.query(
     `UPDATE documentos_cfdi
@@ -1142,7 +1124,7 @@ export async function reconciliarCancelacionDocumentoService(input: {
             estado_sat = CASE WHEN $4::varchar = 'vigente' THEN 'vigente' ELSE estado_sat END,
             cancelacion_ultima_consulta_at = NOW()
       WHERE documento_id = $1`,
-    [input.documentoId, estado, consulta.status, estadoSat]
+    [input.documentoId, estado, proveedorStatusSat, estadoSat]
   );
 
   if (estado === 'cancelada') {
@@ -1163,26 +1145,26 @@ export async function reconciliarCancelacionDocumentoService(input: {
       documento_id: input.documentoId,
       intento_id: Number(intento.intento_id),
       cancelacion_estado: 'cancelada',
-      proveedor_status: consulta.status,
+      proveedor_status: proveedorStatusSat,
       estatus_documento: result.estatus_documento,
-      message: 'Facturama confirmó la cancelación del CFDI.',
+      message: 'El SAT confirmó la cancelación del CFDI.',
     };
   }
 
   const messages: Record<CfdiCancelacionEstado, string> = {
-    no_solicitada: 'Facturama no reporta una solicitud de cancelación.',
-    solicitada: 'La cancelación continúa solicitada.',
+    no_solicitada: 'El SAT no reporta una solicitud de cancelación.',
+    solicitada: 'El SAT reporta que la cancelación continúa solicitada.',
     pendiente: 'El SAT reporta el CFDI vigente; la solicitud de cancelación sigue pendiente.',
-    cancelada: 'Facturama confirmó la cancelación del CFDI.',
-    rechazada: 'Facturama reporta que la cancelación fue rechazada.',
-    error: 'Facturama reporta el CFDI vigente y sin cancelación confirmada.',
+    cancelada: 'El SAT confirmó la cancelación del CFDI.',
+    rechazada: 'El SAT reporta que la cancelación fue rechazada.',
+    error: 'El SAT reporta el CFDI vigente y sin cancelación confirmada.',
     requiere_reconciliacion: 'La consulta no permitió determinar el estado; requiere conciliación.',
   };
   return {
     documento_id: input.documentoId,
     intento_id: Number(intento.intento_id),
     cancelacion_estado: estado,
-    proveedor_status: consulta.status,
+    proveedor_status: proveedorStatusSat,
     estatus_documento: intento.estatus_documento,
     message: messages[estado],
   };
