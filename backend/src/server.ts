@@ -2,6 +2,7 @@ import app from './app';
 import pool from './config/database';
 import { detenerReconciliacionCancelacionesJob } from './modules/documentos/documentos-cancel-reconciliation.job';
 import { retryPendingMetaLeads } from './webhooks/meta-leads-commercial.service';
+import { iniciarRecordatoriosActividadesJob, detenerRecordatoriosActividadesJob } from './crm/activity-reminders.job';
 
 const PORT = process.env.PORT || 7001;
 
@@ -23,6 +24,7 @@ const server = app.listen(PORT, async () => {
     process.send("ready");
   }
   setInterval(() => { void retryPendingMetaLeads(); }, 60_000).unref();
+  iniciarRecordatoriosActividadesJob();
 });
 
 let shuttingDown = false;
@@ -31,6 +33,7 @@ const shutdown = (signal: string) => {
   if (shuttingDown) return;
   shuttingDown = true;
   detenerReconciliacionCancelacionesJob();
+  detenerRecordatoriosActividadesJob();
   console.log(`[shutdown] ${signal}: dejando de aceptar conexiones nuevas...`);
   server.close((error) => {
     if (error) {

@@ -214,16 +214,7 @@ export default function Layout({ children }: LayoutProps) {
 
         setRecordatoriosQueue((prev) => [...prev, ...nuevas]);
 
-        await Promise.allSettled(
-          nuevas.map(async (actividad) => {
-            try {
-              await marcarRecordatorioDisparado(actividad.id);
-              recordatoriosProcesadosRef.current.add(actividad.id);
-            } catch (error) {
-              console.error('No se pudo marcar el recordatorio como disparado:', error);
-            }
-          })
-        );
+        nuevas.forEach((actividad) => recordatoriosProcesadosRef.current.add(actividad.id));
       } catch (error) {
         console.error('No se pudieron consultar recordatorios de actividades:', error);
       }
@@ -401,6 +392,11 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   const handleCloseRecordatorio = () => {
+    if (recordatorioActual) {
+      void marcarRecordatorioDisparado(recordatorioActual.id).catch((error) => {
+        console.error('No se pudo confirmar el recordatorio mostrado:', error);
+      });
+    }
     setRecordatorioActual(null);
   };
 

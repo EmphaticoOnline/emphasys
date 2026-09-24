@@ -319,25 +319,34 @@ export async function listarRecordatoriosActividades(req: Request, res: Response
     }
 
     const { rows } = await pool.query<ActividadRecordatorioRow>(
-      `SELECT
+      `WITH candidatos AS (
+         SELECT a.id
+           FROM crm.actividades a
+          WHERE a.empresa_id = $1
+            AND a.usuario_asignado_id = $2
+            AND a.estatus = 'pendiente'
+            AND a.recordatorio = TRUE
+            AND a.recordatorio_erp_entregado_at IS NULL
+            AND (a.recordatorio_erp_claimed_at IS NULL OR a.recordatorio_erp_claimed_at < NOW() - INTERVAL '2 minutes')
+            AND (a.fecha_programada - make_interval(mins => COALESCE(a.recordatorio_minutos, 0))) <= NOW()
+          ORDER BY a.fecha_programada ASC, a.id ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 50
+       )
+       UPDATE crm.actividades a
+          SET recordatorio_erp_claimed_at = NOW(),
+              recordatorio_erp_claimed_by = CONCAT($2::text, ':', EXTRACT(EPOCH FROM NOW())::bigint),
+              updated_at = NOW()
+        FROM candidatos x
+       WHERE a.id = x.id
+       RETURNING
          a.id,
          a.tipo_actividad,
          a.notas,
          a.fecha_programada,
          a.contacto_id,
          a.oportunidad_id,
-         c.nombre AS cliente_nombre
-       FROM crm.actividades a
-       LEFT JOIN public.contactos c
-         ON c.id = a.contacto_id
-        AND c.empresa_id = a.empresa_id
-       WHERE a.empresa_id = $1
-         AND a.usuario_asignado_id = $2
-         AND a.estatus = 'pendiente'
-         AND a.recordatorio = TRUE
-         AND a.recordatorio_disparado_at IS NULL
-         AND (a.fecha_programada - make_interval(mins => COALESCE(a.recordatorio_minutos, 0))) <= NOW()
-       ORDER BY a.fecha_programada ASC, a.id ASC`,
+         (SELECT c.nombre FROM public.contactos c WHERE c.id = a.contacto_id AND c.empresa_id = a.empresa_id) AS cliente_nombre`,
       [Number(empresaId), Number(usuarioId)]
     );
 
@@ -370,22 +379,38 @@ export async function marcarRecordatorioActividadDisparado(req: Request, res: Re
       return res.status(400).json({ message: 'id de actividad inválido' });
     }
 
+    const claimId = `${Number(usuarioId)}:${Date.now()}`;
     const { rows } = await pool.query<{ id: number }>(
       `UPDATE crm.actividades
        SET
-         recordatorio_disparado_at = NOW(),
+         recordatorio_erp_claimed_at = NOW(),
+         recordatorio_erp_claimed_by = $4,
          updated_at = NOW()
        WHERE id = $1
          AND empresa_id = $2
          AND usuario_asignado_id = $3
+         AND estatus = 'pendiente'
+         AND recordatorio = TRUE
+         AND recordatorio_erp_entregado_at IS NULL
+         AND (recordatorio_erp_claimed_at IS NULL OR recordatorio_erp_claimed_at < NOW() - INTERVAL '2 minutes')
        RETURNING id`,
-      [actividadId, Number(empresaId), Number(usuarioId)]
+      [actividadId, Number(empresaId), Number(usuarioId), claimId]
     );
 
     if (!rows.length) {
       return res.status(404).json({ message: 'Actividad no encontrada' });
     }
 
+    await pool.query(
+      `UPDATE crm.actividades
+          SET recordatorio_erp_entregado_at = NOW(),
+              recordatorio_erp_claimed_at = NULL,
+              recordatorio_erp_claimed_by = NULL,
+              recordatorio_disparado_at = COALESCE(recordatorio_disparado_at, NOW()),
+              updated_at = NOW()
+        WHERE id = $1 AND empresa_id = $2 AND usuario_asignado_id = $3`,
+      [actividadId, Number(empresaId), Number(usuarioId)]
+    );
     return res.json({ ok: true });
   } catch (error) {
     console.error('Error al marcar recordatorio como disparado:', {
