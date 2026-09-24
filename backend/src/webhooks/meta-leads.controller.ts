@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { processMetaLeadgenEvent } from "./meta-leads.service";
 
 type MetaLeadgenChange = {
 	field?: unknown;
@@ -64,5 +65,20 @@ export const receiveMetaLeadsWebhook = (req: Request, res: Response) => {
 		leadgen_events: leadgenEvents,
 	});
 
-	return res.sendStatus(200);
+	res.sendStatus(200);
+
+	for (const entry of entries) {
+		const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+		for (const change of changes) {
+			if (change?.field !== "leadgen" || !change.value?.leadgen_id) continue;
+			void processMetaLeadgenEvent({
+				leadgen_id: String(change.value.leadgen_id),
+				page_id: asStringOrNull(change.value.page_id),
+				form_id: asStringOrNull(change.value.form_id),
+				created_time: asStringOrNull(change.value.created_time),
+			}).catch(() => {
+				// El error ya se registra de forma segura en el servicio.
+			});
+		}
+	}
 };
