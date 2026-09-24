@@ -143,7 +143,7 @@ async function processEvent(event: LeadEvent) {
     const owner=await resolveOwner(client,contact.vendedor_id ? Number(contact.vendedor_id) : null);
     const scheduled=await nextBusinessOpening(new Date());
     const notes=`Nueva solicitud comercial de Meta Leads. Formulario: ${event.form_id ?? 'sin ID'}. Campos: ${event.fieldNames.join(', ') || 'ninguno'}. Campaign ID: ${event.lead.campaign_id ?? 'no disponible'}. Ad ID: ${event.lead.ad_id ?? 'no disponible'}.`;
-    const activity=await client.query(`INSERT INTO crm.actividades (empresa_id,usuario_asignado_id,usuario_creador_id,contacto_id,oportunidad_id,tipo_actividad,fecha_programada,notas,estatus,recordatorio,recordatorio_minutos) VALUES ($1,$2,$2,$3,NULL,'tarea',$4,$5,'pendiente',true,1) RETURNING id`,[EMPRESA_ID,owner,owner,contact.id,scheduled,notes]);
+    const activity=await client.query(`INSERT INTO crm.actividades (empresa_id,usuario_asignado_id,usuario_creador_id,contacto_id,oportunidad_id,tipo_actividad,fecha_programada,notas,estatus,recordatorio,recordatorio_minutos) VALUES ($1,$2,$2,$3,NULL,'tarea',$4,$5,'pendiente',true,1) RETURNING id`,[EMPRESA_ID,owner,contact.id,scheduled,notes]);
     await client.query(`UPDATE crm.meta_leads SET estado='procesado',intentos=intentos+1,contacto_id=$3,actividad_id=$4,procesado_at=now(),actualizado_at=now(),ultimo_error=NULL WHERE empresa_id=$1 AND leadgen_id=$2`,[EMPRESA_ID,event.leadgen_id,contact.id,activity.rows[0].id]);
     await client.query('COMMIT');
     console.info('[Meta Leads] Evento comercial procesado',{leadgen_id:event.leadgen_id,contacto_id:contact.id,actividad_id:activity.rows[0].id});
