@@ -4250,6 +4250,7 @@ export default function DocumentosFormPage({
                     type="number"
                     value={form.descuento_global ?? 0}
                     onChange={(e) => handleDescuentoGlobalChange(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
                     disabled={!usaPartidas || permiteCapturaManualSinPartidas || trazabilidadActiva}
                     size="small"
                     InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
@@ -4820,6 +4821,7 @@ export default function DocumentosFormPage({
                                       e.target.value
                                     )
                                   }
+                                  onFocus={(e) => e.currentTarget.select()}
                                   InputProps={{
                                     startAdornment: (
                                       <InputAdornment position="start" sx={{ mr: 0.25 }}>
@@ -5173,6 +5175,7 @@ export default function DocumentosFormPage({
                                     e.target.value
                                   )
                                 }
+                                onFocus={(e) => e.currentTarget.select()}
                                 size="small"
                                 InputProps={{
                                   startAdornment: (
@@ -6350,6 +6353,7 @@ export default function DocumentosFormPage({
                     type="number"
                     value={form.descuento_global ?? 0}
                     onChange={(e) => handleDescuentoGlobalChange(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
                     disabled={!usaPartidas || permiteCapturaManualSinPartidas || trazabilidadActiva}
                     fullWidth
                     size="small"
@@ -7161,6 +7165,7 @@ export default function DocumentosFormPage({
                                     esDescuentoPartidaPorMonto(partida) ? 'descuento_monto' : 'descuento',
                                     e.target.value
                                   )}
+                                  onFocus={(e) => e.currentTarget.select()}
                                   size="small"
                                   InputProps={{
                                     startAdornment: (
@@ -7543,6 +7548,7 @@ export default function DocumentosFormPage({
                               esDescuentoPartidaPorMonto(partida) ? 'descuento_monto' : 'descuento',
                               e.target.value
                             )}
+                            onFocus={(e) => e.currentTarget.select()}
                             size="small"
                             InputProps={{
                               startAdornment: (

@@ -76,6 +76,12 @@ const theme = createTheme({
         },
       },
     },
+    MuiTablePagination: {
+      defaultProps: {
+        labelDisplayedRows: ({ from, to, count }) =>
+          `${from}–${to} de ${count === -1 ? `más de ${to}` : count}`,
+      },
+    },
     MuiTab: {
       styleOverrides: {
         root: {
