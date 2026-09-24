@@ -1826,7 +1826,7 @@ export async function actualizarDocumentoRepository(
   const current = currentRows[0];
   if (!current) return null;
 
-  await assertNotaVentaEditable(id, empresaId, executor);
+  await assertNotaVentaEditable(id, empresaId, executor, data as Record<string, unknown>);
 
   if (esFacturaTimbrada(current)) {
     validarCamposFacturaTimbrada(data as Record<string, unknown>);

@@ -47,6 +47,7 @@ import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
@@ -577,6 +578,7 @@ function FacturaWorkspacePanel({
   const saldo = Number(row.saldo ?? 0);
 
   const editarAction = findAction(gridContextMenuActions, 'editar');
+  const emitirAction = findAction(gridContextMenuActions, 'emitir');
   const timbrarAction = findAction(gridContextMenuActions, 'timbrar');
   const registrarMovimientoAction = findAction(gridContextMenuActions, 'registrar-movimiento');
   const contabilizarAction = findAction(gridContextMenuActions, 'contabilizar-factura-venta');
@@ -698,19 +700,21 @@ function FacturaWorkspacePanel({
             disabled: !row.cfdi_uuid,
             icon: <FileDownloadOutlinedIcon fontSize="small" />,
           })}
-          <Tooltip title={timbrarDisabled ? 'CFDI ya timbrado' : 'Timbrar CFDI'} arrow>
-            <span>
-              <IconButton
-                size="small"
-                aria-label="Timbrar CFDI"
-                disabled={timbrarDisabled}
-                onClick={facturaYaTimbrada ? undefined : runButtonAction(timbrarAction)}
-                sx={actionButtonSx}
-              >
-                {timbrarAction?.icon ?? <NotificationsActiveIcon fontSize="small" />}
-              </IconButton>
-            </span>
-          </Tooltip>
+          {timbrarAction && !timbrarAction.hidden ? (
+            <Tooltip title={timbrarDisabled ? 'CFDI ya timbrado' : 'Timbrar CFDI'} arrow>
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label="Timbrar CFDI"
+                  disabled={timbrarDisabled}
+                  onClick={facturaYaTimbrada ? undefined : runButtonAction(timbrarAction)}
+                  sx={actionButtonSx}
+                >
+                  {timbrarAction.icon ?? <NotificationsActiveIcon fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          ) : null}
           {onRegistrarMovimiento ? (
             <Tooltip
               title={registrarMovimientoTooltip}
@@ -765,6 +769,7 @@ function FacturaWorkspacePanel({
 
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ py: 0.5, flexShrink: 0, ml: 'auto' }}>
           {renderActionButton(cancelarAction, 'Cancelar')}
+          {renderActionButton(emitirAction, 'Emitir', { icon: <CheckCircleIcon fontSize="small" /> })}
           {renderActionButton(editarAction, 'Editar')}
           {renderActionButton(eliminarAction, 'Eliminar', { disabled: !facturaEliminable })}
         </Stack>

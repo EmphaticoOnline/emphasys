@@ -41,6 +41,14 @@ export function useGridContextMenu<TRow>(
     return nextMap;
   }, [getRowId, rows]);
 
+  React.useEffect(() => {
+    if (!contextMenuRow) return;
+    const currentRow = rowMap.get(String(getRowId(contextMenuRow)));
+    if (currentRow && currentRow !== contextMenuRow) {
+      setContextMenuRow(currentRow);
+    }
+  }, [contextMenuRow, getRowId, rowMap]);
+
   const closeContextMenu = React.useCallback(() => {
     setContextMenuRow(null);
     setAnchorPosition(null);

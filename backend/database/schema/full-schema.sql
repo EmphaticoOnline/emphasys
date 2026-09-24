@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-09-10T01:50:39.922Z
+-- Generated at: 2026-09-24T02:49:35.806Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict p6UiKCe6Z1l5TaRxmUON5WhfHRIZlPWrydsXV61p9AKexbhpXTsPqmGJHJuT8Xz
+\restrict EpMmdn1oOXoRkaOF49u8SoQTuGageuv6k98ExPcZa6X1bB6muTW1QZ1lcul5lHR
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -579,6 +579,75 @@ BEGIN
     RAISE EXCEPTION 'vendedor_contacto_id % no es un Vendedor válido', NEW.vendedor_contacto_id
       USING ERRCODE = '23514';
   END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: registrar_cambio_responsable_contacto(); Type: FUNCTION; Schema: crm; Owner: -
+--
+
+CREATE FUNCTION crm.registrar_cambio_responsable_contacto() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_actor integer;
+  v_origen varchar(30);
+  v_responsable_usuario integer;
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.vendedor_id IS NOT DISTINCT FROM OLD.vendedor_id THEN
+    RETURN NEW;
+  END IF;
+
+  v_actor := NULLIF(current_setting('app.usuario_id', true), '')::integer;
+  v_origen := COALESCE(NULLIF(current_setting('app.responsabilidad_origen', true), ''), 'sistema');
+
+  IF v_origen NOT IN ('manual', 'round_robin', 'importacion', 'automatizacion', 'sistema') THEN
+    v_origen := 'sistema';
+  END IF;
+
+  UPDATE crm.contacto_responsabilidades
+     SET vigente_hasta = now(),
+         finalizado_por_usuario_id = v_actor
+   WHERE empresa_id = NEW.empresa_id
+     AND contacto_id = NEW.id
+     AND vigente_hasta IS NULL;
+
+  IF NEW.vendedor_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT CASE WHEN COUNT(*) = 1 THEN MIN(u.id) ELSE NULL END
+    INTO v_responsable_usuario
+    FROM core.usuarios u
+    JOIN core.usuarios_empresas ue
+      ON ue.usuario_id = u.id
+     AND ue.empresa_id = NEW.empresa_id
+     AND ue.activo = true
+   WHERE u.vendedor_contacto_id = NEW.vendedor_id
+     AND u.activo = true;
+
+  INSERT INTO crm.contacto_responsabilidades (
+    empresa_id,
+    contacto_id,
+    vendedor_contacto_id,
+    responsable_usuario_id,
+    asignado_por_usuario_id,
+    origen,
+    vigente_desde,
+    motivo
+  ) VALUES (
+    NEW.empresa_id,
+    NEW.id,
+    NEW.vendedor_id,
+    v_responsable_usuario,
+    v_actor,
+    v_origen,
+    now(),
+    CASE WHEN v_origen = 'sistema' THEN 'Asignación registrada sin contexto explícito de origen' ELSE NULL END
+  );
 
   RETURN NEW;
 END;
@@ -4345,6 +4414,71 @@ ALTER SEQUENCE core.cfdi_sat_solicitudes_id_seq OWNED BY core.cfdi_sat_solicitud
 
 
 --
+-- Name: empresa_excepciones_laborales; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.empresa_excepciones_laborales (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    fecha date NOT NULL,
+    tipo character varying(30) NOT NULL,
+    descripcion text,
+    hora_inicio time without time zone,
+    hora_fin time without time zone,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT empresa_excepciones_laborales_horario_chk CHECK (((((tipo)::text = 'inhabil'::text) AND (hora_inicio IS NULL) AND (hora_fin IS NULL)) OR (((tipo)::text = 'horario_especial'::text) AND (hora_inicio IS NOT NULL) AND (hora_fin IS NOT NULL) AND (hora_fin > hora_inicio)))),
+    CONSTRAINT empresa_excepciones_laborales_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['inhabil'::character varying, 'horario_especial'::character varying])::text[])))
+);
+
+
+--
+-- Name: empresa_excepciones_laborales_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+ALTER TABLE core.empresa_excepciones_laborales ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME core.empresa_excepciones_laborales_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: empresa_horarios_laborales; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.empresa_horarios_laborales (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    dia_semana smallint NOT NULL,
+    hora_inicio time without time zone NOT NULL,
+    hora_fin time without time zone NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT empresa_horarios_laborales_dia_semana_check CHECK (((dia_semana >= 0) AND (dia_semana <= 6))),
+    CONSTRAINT empresa_horarios_laborales_horas_chk CHECK ((hora_fin > hora_inicio))
+);
+
+
+--
+-- Name: empresa_horarios_laborales_id_seq; Type: SEQUENCE; Schema: core; Owner: -
+--
+
+ALTER TABLE core.empresa_horarios_laborales ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME core.empresa_horarios_laborales_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: empresas; Type: TABLE; Schema: core; Owner: -
 --
 
@@ -4377,7 +4511,8 @@ CREATE TABLE core.empresas (
     cfdi_csd_fecha_actualizacion timestamp without time zone,
     cfdi_csd_cer_path character varying,
     cfdi_csd_key_path character varying,
-    cfdi_csd_password_encrypted text
+    cfdi_csd_password_encrypted text,
+    zona_horaria character varying(64)
 );
 
 
@@ -4575,6 +4710,13 @@ COMMENT ON COLUMN core.empresas.cfdi_csd_key_path IS 'Ruta relativa en uploads d
 --
 
 COMMENT ON COLUMN core.empresas.cfdi_csd_password_encrypted IS 'Contrasena CSD cifrada para registro en Facturama Multiemisor';
+
+
+--
+-- Name: COLUMN empresas.zona_horaria; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.zona_horaria IS 'Zona horaria IANA usada para métricas y calendarios laborales; NULL significa no configurada.';
 
 
 --
@@ -5315,7 +5457,11 @@ CREATE TABLE core.push_subscriptions (
     nombre_dispositivo text,
     creada_en timestamp with time zone DEFAULT now() NOT NULL,
     ultima_actividad_en timestamp with time zone DEFAULT now() NOT NULL,
-    desactivada_en timestamp with time zone
+    desactivada_en timestamp with time zone,
+    chat_activado boolean DEFAULT true NOT NULL,
+    vista_previa boolean DEFAULT true NOT NULL,
+    sonido boolean DEFAULT true NOT NULL,
+    contador_no_leidos boolean DEFAULT true NOT NULL
 );
 
 
@@ -5401,6 +5547,34 @@ COMMENT ON COLUMN core.push_subscriptions.ultima_actividad_en IS 'Fecha y hora d
 --
 
 COMMENT ON COLUMN core.push_subscriptions.desactivada_en IS 'Fecha y hora en que se desactivó (soft-delete). NULL = suscripción activa. Vuelve a NULL automáticamente si el mismo endpoint se registra de nuevo (reactivación vía UPSERT).';
+
+
+--
+-- Name: COLUMN push_subscriptions.chat_activado; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.chat_activado IS 'Preferencia de notificaciones de chat para esta suscripción/dispositivo.';
+
+
+--
+-- Name: COLUMN push_subscriptions.vista_previa; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.vista_previa IS 'Permite mostrar el contenido del mensaje en esta suscripción/dispositivo.';
+
+
+--
+-- Name: COLUMN push_subscriptions.sonido; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.sonido IS 'Solicita sonido para notificaciones de esta suscripción/dispositivo cuando la plataforma lo soporta.';
+
+
+--
+-- Name: COLUMN push_subscriptions.contador_no_leidos; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.push_subscriptions.contador_no_leidos IS 'Prepara el contador de no leídos para esta suscripción/dispositivo.';
 
 
 --
@@ -5854,7 +6028,14 @@ CREATE TABLE crm.actividades (
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now(),
     recordatorio_disparado_at timestamp without time zone,
-    contacto_id integer
+    contacto_id integer,
+    recordatorio_erp_claimed_at timestamp without time zone,
+    recordatorio_erp_claimed_by character varying(120),
+    recordatorio_erp_entregado_at timestamp without time zone,
+    recordatorio_push_claimed_at timestamp without time zone,
+    recordatorio_push_entregado_at timestamp without time zone,
+    recordatorio_push_ultimo_intento_at timestamp without time zone,
+    recordatorio_push_error text
 );
 
 
@@ -6079,6 +6260,49 @@ ALTER SEQUENCE crm.configuracion_email_usuario_id_seq OWNED BY crm.configuracion
 
 
 --
+-- Name: contacto_responsabilidades; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.contacto_responsabilidades (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    contacto_id integer NOT NULL,
+    vendedor_contacto_id integer NOT NULL,
+    responsable_usuario_id integer,
+    asignado_por_usuario_id integer,
+    finalizado_por_usuario_id integer,
+    origen character varying(30) NOT NULL,
+    motivo text,
+    vigente_desde timestamp with time zone DEFAULT now() NOT NULL,
+    vigente_hasta timestamp with time zone,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT contacto_responsabilidades_origen_check CHECK (((origen)::text = ANY ((ARRAY['manual'::character varying, 'round_robin'::character varying, 'importacion'::character varying, 'automatizacion'::character varying, 'sistema'::character varying])::text[]))),
+    CONSTRAINT contacto_responsabilidades_vigencia_chk CHECK (((vigente_hasta IS NULL) OR (vigente_hasta >= vigente_desde)))
+);
+
+
+--
+-- Name: TABLE contacto_responsabilidades; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON TABLE crm.contacto_responsabilidades IS 'Historial temporal de la responsabilidad comercial de cada contacto; no representa autoría de mensajes.';
+
+
+--
+-- Name: contacto_responsabilidades_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+ALTER TABLE crm.contacto_responsabilidades ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME crm.contacto_responsabilidades_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: conversacion_etiquetas; Type: TABLE; Schema: crm; Owner: -
 --
 
@@ -6144,6 +6368,54 @@ CREATE SEQUENCE crm.conversacion_etiquetas_id_seq
 --
 
 ALTER SEQUENCE crm.conversacion_etiquetas_id_seq OWNED BY crm.conversacion_etiquetas.id;
+
+
+--
+-- Name: conversacion_temperaturas; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.conversacion_temperaturas (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    conversacion_id bigint NOT NULL,
+    puntuacion integer NOT NULL,
+    nivel character varying(20) NOT NULL,
+    confianza numeric(4,3) NOT NULL,
+    explicacion text NOT NULL,
+    principales_razones jsonb DEFAULT '[]'::jsonb NOT NULL,
+    riesgo_informacion_faltante jsonb DEFAULT '[]'::jsonb NOT NULL,
+    siguiente_accion_recomendada text NOT NULL,
+    mensajes_considerados integer NOT NULL,
+    ultimo_mensaje_id_considerado bigint,
+    ultima_fecha_mensaje_considerada timestamp with time zone,
+    snapshot_hash character varying(64) NOT NULL,
+    modelo character varying(100) NOT NULL,
+    prompt_version character varying(50) NOT NULL,
+    tokens_entrada integer,
+    tokens_salida integer,
+    tokens_totales integer,
+    creado_por integer,
+    creado_en timestamp with time zone DEFAULT now() NOT NULL,
+    desglose_puntuacion jsonb,
+    CONSTRAINT conversacion_temperaturas_confianza_check CHECK (((confianza >= (0)::numeric) AND (confianza <= (1)::numeric))),
+    CONSTRAINT conversacion_temperaturas_mensajes_considerados_check CHECK ((mensajes_considerados >= 0)),
+    CONSTRAINT conversacion_temperaturas_nivel_check CHECK (((nivel)::text = ANY ((ARRAY['frio'::character varying, 'tibio'::character varying, 'caliente'::character varying, 'muy_caliente'::character varying])::text[]))),
+    CONSTRAINT conversacion_temperaturas_puntuacion_check CHECK (((puntuacion >= 0) AND (puntuacion <= 100)))
+);
+
+
+--
+-- Name: conversacion_temperaturas_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+ALTER TABLE crm.conversacion_temperaturas ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME crm.conversacion_temperaturas_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -6484,6 +6756,11 @@ CREATE TABLE crm.mensajes (
     email_bcc character varying(200),
     in_reply_to character varying(150),
     mensaje_respuesta_id bigint,
+    autor_usuario_id integer,
+    autor_vendedor_contacto_id integer,
+    responsabilidad_contacto_id bigint,
+    origen_envio character varying(30),
+    CONSTRAINT mensajes_origen_envio_chk CHECK (((origen_envio IS NULL) OR ((origen_envio)::text = ANY ((ARRAY['manual'::character varying, 'plantilla_manual'::character varying, 'automatizado'::character varying, 'sistema'::character varying, 'desconocido'::character varying])::text[])))),
     CONSTRAINT mensajes_status_check CHECK ((((status)::text = ANY (ARRAY[('queued'::character varying)::text, ('sent'::character varying)::text, ('delivered'::character varying)::text, ('read'::character varying)::text, ('failed'::character varying)::text, ('received'::character varying)::text])) OR (status IS NULL))),
     CONSTRAINT mensajes_telefono_check CHECK (((telefono)::text ~ '^[+0-9]{8,20}$'::text)),
     CONSTRAINT mensajes_tipo_contenido_chk CHECK (((tipo_contenido)::text = ANY ((ARRAY['text'::character varying, 'image'::character varying, 'audio'::character varying, 'document'::character varying, 'video'::character varying])::text[]))),
@@ -6583,6 +6860,34 @@ COMMENT ON COLUMN crm.mensajes.mensaje_respuesta_id IS 'Mensaje original al que 
 
 
 --
+-- Name: COLUMN mensajes.autor_usuario_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.autor_usuario_id IS 'Usuario autenticado que originó el mensaje saliente; NULL en historial previo o envíos sin autor conocido.';
+
+
+--
+-- Name: COLUMN mensajes.autor_vendedor_contacto_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.autor_vendedor_contacto_id IS 'Contacto vendedor vinculado al usuario autor al momento del envío.';
+
+
+--
+-- Name: COLUMN mensajes.responsabilidad_contacto_id; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.responsabilidad_contacto_id IS 'Responsabilidad vigente del contacto al momento del envío, separada de la autoría.';
+
+
+--
+-- Name: COLUMN mensajes.origen_envio; Type: COMMENT; Schema: crm; Owner: -
+--
+
+COMMENT ON COLUMN crm.mensajes.origen_envio IS 'Clasificación del envío: manual, plantilla_manual, automatizado, sistema o desconocido.';
+
+
+--
 -- Name: mensajes_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
 --
 
@@ -6594,6 +6899,53 @@ ALTER TABLE crm.mensajes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     NO MAXVALUE
     CACHE 1
 );
+
+
+--
+-- Name: meta_leads; Type: TABLE; Schema: crm; Owner: -
+--
+
+CREATE TABLE crm.meta_leads (
+    id bigint NOT NULL,
+    empresa_id integer NOT NULL,
+    leadgen_id text NOT NULL,
+    page_id text NOT NULL,
+    form_id text,
+    form_name text,
+    created_time text,
+    ad_id text,
+    campaign_id text,
+    campaign_name text,
+    field_names jsonb DEFAULT '[]'::jsonb NOT NULL,
+    estado text DEFAULT 'pendiente'::text NOT NULL,
+    intentos integer DEFAULT 0 NOT NULL,
+    ultimo_error text,
+    proximo_reintento_at timestamp without time zone,
+    contacto_id integer,
+    actividad_id integer,
+    recibido_at timestamp without time zone DEFAULT now() NOT NULL,
+    procesado_at timestamp without time zone,
+    actualizado_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: meta_leads_id_seq; Type: SEQUENCE; Schema: crm; Owner: -
+--
+
+CREATE SEQUENCE crm.meta_leads_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: meta_leads_id_seq; Type: SEQUENCE OWNED BY; Schema: crm; Owner: -
+--
+
+ALTER SEQUENCE crm.meta_leads_id_seq OWNED BY crm.meta_leads.id;
 
 
 --
@@ -8312,7 +8664,8 @@ CREATE TABLE public.contactos (
     codigo_legacy character varying(20),
     precio_lista_id bigint,
     nombre_contacto character varying(150),
-    interes_inicial character varying(500)
+    interes_inicial character varying(500),
+    participa_en_round_robin boolean DEFAULT true NOT NULL
 );
 
 
@@ -8335,6 +8688,13 @@ COMMENT ON COLUMN public.contactos.nombre_contacto IS 'Nombre de la persona de c
 --
 
 COMMENT ON COLUMN public.contactos.interes_inicial IS 'Interés inicial capturado para seguimiento comercial del contacto';
+
+
+--
+-- Name: COLUMN contactos.participa_en_round_robin; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.contactos.participa_en_round_robin IS 'Indica si un contacto de tipo Vendedor participa en la asignación automática round-robin de su empresa. No afecta asignaciones manuales ni el estado activo.';
 
 
 --
@@ -13247,6 +13607,13 @@ ALTER TABLE ONLY crm.etiquetas ALTER COLUMN id SET DEFAULT nextval('crm.etiqueta
 
 
 --
+-- Name: meta_leads id; Type: DEFAULT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.meta_leads ALTER COLUMN id SET DEFAULT nextval('crm.meta_leads_id_seq'::regclass);
+
+
+--
 -- Name: oportunidades_venta id; Type: DEFAULT; Schema: crm; Owner: -
 --
 
@@ -14002,7 +14369,7 @@ ALTER TABLE ONLY contabilidad.polizas
 -- Name: CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
 --
 
-COMMENT ON CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero ON contabilidad.polizas IS 'Evita duplicar números de póliza por empresa, tipo, ejercicio y periodo.';
+COMMENT ON CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero ON contabilidad.polizas IS 'Evita duplicar números de p��liza por empresa, tipo, ejercicio y periodo.';
 
 
 --
@@ -14137,6 +14504,38 @@ ALTER TABLE ONLY core.cfdi_sat_paquetes
 
 ALTER TABLE ONLY core.cfdi_sat_solicitudes
     ADD CONSTRAINT cfdi_sat_solicitudes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: empresa_excepciones_laborales empresa_excepciones_laborales_empresa_fecha_uq; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresa_excepciones_laborales
+    ADD CONSTRAINT empresa_excepciones_laborales_empresa_fecha_uq UNIQUE (empresa_id, fecha);
+
+
+--
+-- Name: empresa_excepciones_laborales empresa_excepciones_laborales_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresa_excepciones_laborales
+    ADD CONSTRAINT empresa_excepciones_laborales_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: empresa_horarios_laborales empresa_horarios_laborales_empresa_dia_uq; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresa_horarios_laborales
+    ADD CONSTRAINT empresa_horarios_laborales_empresa_dia_uq UNIQUE (empresa_id, dia_semana);
+
+
+--
+-- Name: empresa_horarios_laborales empresa_horarios_laborales_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresa_horarios_laborales
+    ADD CONSTRAINT empresa_horarios_laborales_pkey PRIMARY KEY (id);
 
 
 --
@@ -14459,11 +14858,35 @@ ALTER TABLE ONLY crm.configuracion_email_usuario
 
 
 --
+-- Name: contacto_responsabilidades contacto_responsabilidades_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.contacto_responsabilidades
+    ADD CONSTRAINT contacto_responsabilidades_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: conversacion_etiquetas conversacion_etiquetas_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
 --
 
 ALTER TABLE ONLY crm.conversacion_etiquetas
     ADD CONSTRAINT conversacion_etiquetas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: conversacion_temperaturas conversacion_temperaturas_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_temperaturas
+    ADD CONSTRAINT conversacion_temperaturas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: conversacion_temperaturas conversacion_temperaturas_snapshot_uq; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_temperaturas
+    ADD CONSTRAINT conversacion_temperaturas_snapshot_uq UNIQUE (empresa_id, conversacion_id, snapshot_hash, prompt_version, modelo);
 
 
 --
@@ -14536,6 +14959,22 @@ ALTER TABLE ONLY crm.mensaje_reacciones
 
 ALTER TABLE ONLY crm.mensajes
     ADD CONSTRAINT mensajes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: meta_leads meta_leads_empresa_leadgen_uq; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.meta_leads
+    ADD CONSTRAINT meta_leads_empresa_leadgen_uq UNIQUE (empresa_id, leadgen_id);
+
+
+--
+-- Name: meta_leads meta_leads_pkey; Type: CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.meta_leads
+    ADD CONSTRAINT meta_leads_pkey PRIMARY KEY (id);
 
 
 --
@@ -16820,6 +17259,20 @@ CREATE INDEX ix_cfdi_sat_solicitudes_empresa ON core.cfdi_sat_solicitudes USING 
 
 
 --
+-- Name: ix_empresa_excepciones_laborales_empresa_fecha; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_empresa_excepciones_laborales_empresa_fecha ON core.empresa_excepciones_laborales USING btree (empresa_id, fecha);
+
+
+--
+-- Name: ix_empresa_horarios_laborales_empresa; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_empresa_horarios_laborales_empresa ON core.empresa_horarios_laborales USING btree (empresa_id, dia_semana) WHERE (activo = true);
+
+
+--
 -- Name: ix_empresas_cfdi_pac_config_id; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -16883,10 +17336,24 @@ CREATE INDEX idx_actividades_oportunidad ON crm.actividades USING btree (oportun
 
 
 --
+-- Name: idx_actividades_recordatorios_entrega; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_actividades_recordatorios_entrega ON crm.actividades USING btree (empresa_id, usuario_asignado_id, fecha_programada) WHERE (((estatus)::text = 'pendiente'::text) AND (recordatorio = true));
+
+
+--
 -- Name: idx_actividades_usuario_asignado_fecha; Type: INDEX; Schema: crm; Owner: -
 --
 
 CREATE INDEX idx_actividades_usuario_asignado_fecha ON crm.actividades USING btree (usuario_asignado_id, fecha_programada);
+
+
+--
+-- Name: idx_meta_leads_reintentos; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX idx_meta_leads_reintentos ON crm.meta_leads USING btree (estado, proximo_reintento_at);
 
 
 --
@@ -16932,6 +17399,20 @@ COMMENT ON INDEX crm.idx_whatsapp_etiquetas_empresa_activo IS 'Optimiza consulta
 
 
 --
+-- Name: ix_contacto_responsabilidades_historial; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_contacto_responsabilidades_historial ON crm.contacto_responsabilidades USING btree (empresa_id, contacto_id, vigente_desde DESC);
+
+
+--
+-- Name: ix_contacto_responsabilidades_vendedor; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_contacto_responsabilidades_vendedor ON crm.contacto_responsabilidades USING btree (empresa_id, vendedor_contacto_id, vigente_desde DESC);
+
+
+--
 -- Name: ix_conv_empresa_estado; Type: INDEX; Schema: crm; Owner: -
 --
 
@@ -16946,10 +17427,38 @@ CREATE INDEX ix_conv_lecturas_usuario_conv ON crm.conversaciones_lecturas USING 
 
 
 --
+-- Name: ix_conversacion_temperaturas_snapshot; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_conversacion_temperaturas_snapshot ON crm.conversacion_temperaturas USING btree (empresa_id, conversacion_id, snapshot_hash, prompt_version, modelo);
+
+
+--
+-- Name: ix_conversacion_temperaturas_ultimo; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_conversacion_temperaturas_ultimo ON crm.conversacion_temperaturas USING btree (empresa_id, conversacion_id, creado_en DESC);
+
+
+--
 -- Name: ix_mensaje_reacciones_mensaje_id; Type: INDEX; Schema: crm; Owner: -
 --
 
 CREATE INDEX ix_mensaje_reacciones_mensaje_id ON crm.mensaje_reacciones USING btree (mensaje_id);
+
+
+--
+-- Name: ix_mensajes_autor_fecha; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_mensajes_autor_fecha ON crm.mensajes USING btree (empresa_id, autor_usuario_id, fecha_envio DESC) WHERE (autor_usuario_id IS NOT NULL);
+
+
+--
+-- Name: ix_mensajes_autor_vendedor_fecha; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE INDEX ix_mensajes_autor_vendedor_fecha ON crm.mensajes USING btree (empresa_id, autor_vendedor_contacto_id, fecha_envio DESC) WHERE (autor_vendedor_contacto_id IS NOT NULL);
 
 
 --
@@ -16978,6 +17487,13 @@ CREATE INDEX ix_mensajes_respuesta_id ON crm.mensajes USING btree (mensaje_respu
 --
 
 CREATE INDEX ix_mensajes_unread_lookup ON crm.mensajes USING btree (empresa_id, conversacion_id, tipo_mensaje, fecha_envio);
+
+
+--
+-- Name: ux_contacto_responsabilidades_vigente; Type: INDEX; Schema: crm; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_contacto_responsabilidades_vigente ON crm.contacto_responsabilidades USING btree (empresa_id, contacto_id) WHERE (vigente_hasta IS NULL);
 
 
 --
@@ -18766,6 +19282,13 @@ CREATE TRIGGER trg_produccion_seguimientos_updated_at BEFORE UPDATE ON produccio
 
 
 --
+-- Name: contactos trg_contactos_responsabilidad; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contactos_responsabilidad AFTER INSERT OR UPDATE OF vendedor_id ON public.contactos FOR EACH ROW EXECUTE FUNCTION crm.registrar_cambio_responsable_contacto();
+
+
+--
 -- Name: contactos trg_contactos_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -19628,6 +20151,22 @@ ALTER TABLE ONLY core.cfdi_sat_solicitudes
 
 
 --
+-- Name: empresa_excepciones_laborales empresa_excepciones_laborales_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresa_excepciones_laborales
+    ADD CONSTRAINT empresa_excepciones_laborales_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: empresa_horarios_laborales empresa_horarios_laborales_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresa_horarios_laborales
+    ADD CONSTRAINT empresa_horarios_laborales_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
 -- Name: entidades_catalogos entidades_catalogos_catalogo_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -19971,6 +20510,70 @@ ALTER TABLE ONLY crm.configuracion_email_usuario
 
 
 --
+-- Name: contacto_responsabilidades contacto_responsabilidades_asignado_por_usuario_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.contacto_responsabilidades
+    ADD CONSTRAINT contacto_responsabilidades_asignado_por_usuario_id_fkey FOREIGN KEY (asignado_por_usuario_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: contacto_responsabilidades contacto_responsabilidades_contacto_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.contacto_responsabilidades
+    ADD CONSTRAINT contacto_responsabilidades_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: contacto_responsabilidades contacto_responsabilidades_empresa_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.contacto_responsabilidades
+    ADD CONSTRAINT contacto_responsabilidades_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: contacto_responsabilidades contacto_responsabilidades_finalizado_por_usuario_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.contacto_responsabilidades
+    ADD CONSTRAINT contacto_responsabilidades_finalizado_por_usuario_id_fkey FOREIGN KEY (finalizado_por_usuario_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: contacto_responsabilidades contacto_responsabilidades_responsable_usuario_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.contacto_responsabilidades
+    ADD CONSTRAINT contacto_responsabilidades_responsable_usuario_id_fkey FOREIGN KEY (responsable_usuario_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: contacto_responsabilidades contacto_responsabilidades_vendedor_contacto_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.contacto_responsabilidades
+    ADD CONSTRAINT contacto_responsabilidades_vendedor_contacto_id_fkey FOREIGN KEY (vendedor_contacto_id) REFERENCES public.contactos(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: conversacion_temperaturas conversacion_temperaturas_conversacion_fk; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_temperaturas
+    ADD CONSTRAINT conversacion_temperaturas_conversacion_fk FOREIGN KEY (conversacion_id) REFERENCES crm.conversaciones(id) ON DELETE CASCADE;
+
+
+--
+-- Name: conversacion_temperaturas conversacion_temperaturas_empresa_fk; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.conversacion_temperaturas
+    ADD CONSTRAINT conversacion_temperaturas_empresa_fk FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
 -- Name: conversaciones_lecturas conversaciones_lecturas_conversacion_fk; Type: FK CONSTRAINT; Schema: crm; Owner: -
 --
 
@@ -20083,11 +20686,35 @@ ALTER TABLE ONLY crm.mensaje_reacciones
 
 
 --
+-- Name: mensajes mensajes_autor_usuario_fk; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensajes
+    ADD CONSTRAINT mensajes_autor_usuario_fk FOREIGN KEY (autor_usuario_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: mensajes mensajes_autor_vendedor_contacto_fk; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensajes
+    ADD CONSTRAINT mensajes_autor_vendedor_contacto_fk FOREIGN KEY (autor_vendedor_contacto_id) REFERENCES public.contactos(id) ON DELETE SET NULL;
+
+
+--
 -- Name: mensajes mensajes_mensaje_respuesta_id_fkey; Type: FK CONSTRAINT; Schema: crm; Owner: -
 --
 
 ALTER TABLE ONLY crm.mensajes
     ADD CONSTRAINT mensajes_mensaje_respuesta_id_fkey FOREIGN KEY (mensaje_respuesta_id) REFERENCES crm.mensajes(id);
+
+
+--
+-- Name: mensajes mensajes_responsabilidad_contacto_fk; Type: FK CONSTRAINT; Schema: crm; Owner: -
+--
+
+ALTER TABLE ONLY crm.mensajes
+    ADD CONSTRAINT mensajes_responsabilidad_contacto_fk FOREIGN KEY (responsabilidad_contacto_id) REFERENCES crm.contacto_responsabilidades(id) ON DELETE SET NULL;
 
 
 --
@@ -21518,5 +22145,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict p6UiKCe6Z1l5TaRxmUON5WhfHRIZlPWrydsXV61p9AKexbhpXTsPqmGJHJuT8Xz
+\unrestrict EpMmdn1oOXoRkaOF49u8SoQTuGageuv6k98ExPcZa6X1bB6muTW1QZ1lcul5lHR
 

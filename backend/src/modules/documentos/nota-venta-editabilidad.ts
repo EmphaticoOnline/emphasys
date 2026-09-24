@@ -8,6 +8,63 @@ export type NotaVentaEditabilidad = {
 
 type Executor = Pick<typeof pool, 'query'>;
 
+type NotaVentaCambioSolicitado = Record<string, unknown> | undefined;
+
+function normalizarEstatusParaTransicion(value: unknown): string {
+  const normalizado = String(value ?? 'borrador').trim().toLowerCase();
+  if (!normalizado) return 'borrador';
+  return normalizado === 'enviado' ? 'emitido' : normalizado;
+}
+
+function valoresDocumentoCoinciden(actual: unknown, entrante: unknown): boolean {
+  if (actual == null && entrante == null) return true;
+  if (typeof actual === 'number' || typeof entrante === 'number') {
+    const actualNumero = Number(actual);
+    const entranteNumero = Number(entrante);
+    if (Number.isFinite(actualNumero) && Number.isFinite(entranteNumero)) {
+      return actualNumero === entranteNumero;
+    }
+  }
+  return String(actual ?? '').trim() === String(entrante ?? '').trim();
+}
+
+/**
+ * La trazabilidad de partidas protege el contenido de una nota de venta, pero
+ * no debe impedir la única transición operativa permitida por la política
+ * general de trazabilidad: borrador -> emitido.
+ *
+ * Se comprueba el valor real de cada campo enviado para que, por ejemplo,
+ * tipo_documento=factura no se considere un cambio cuando ya está guardado
+ * con ese valor. Cualquier cambio de contenido hace que esta excepción no
+ * aplique.
+ */
+function esTransicionEmisionSinCambiosDeContenido(
+  documentoActual: Record<string, any>,
+  cambios: NotaVentaCambioSolicitado,
+): boolean {
+  if (!cambios || typeof cambios !== 'object') return false;
+
+  if (
+    normalizarEstatusParaTransicion(documentoActual.estatus_documento) !== 'borrador'
+    || normalizarEstatusParaTransicion(cambios.estatus_documento) !== 'emitido'
+  ) {
+    return false;
+  }
+
+  for (const [campo, valorEntrante] of Object.entries(cambios)) {
+    if (campo === 'estatus_documento') continue;
+    if (!(campo in documentoActual)) return false;
+
+    const valorActual = documentoActual[campo];
+    const valoresCoinciden = campo === 'tipo_documento'
+      ? String(valorActual ?? '').trim().toLowerCase() === String(valorEntrante ?? '').trim().toLowerCase()
+      : valoresDocumentoCoinciden(valorActual, valorEntrante);
+    if (!valoresCoinciden) return false;
+  }
+
+  return true;
+}
+
 export async function evaluarEditabilidadNotaVenta(documentoId: number, empresaId: number, executor: Executor = pool): Promise<NotaVentaEditabilidad> {
   const { rows } = await executor.query(`
     SELECT d.tipo_documento, d.tratamiento_impuestos, d.estatus_documento,
@@ -34,8 +91,35 @@ export async function evaluarEditabilidadNotaVenta(documentoId: number, empresaI
   return { esNotaVenta, editable: motivos.length === 0, motivos };
 }
 
-export async function assertNotaVentaEditable(documentoId: number, empresaId: number, executor?: Executor): Promise<void> {
+export async function assertNotaVentaEditable(
+  documentoId: number,
+  empresaId: number,
+  executor?: Executor,
+  cambios?: NotaVentaCambioSolicitado,
+): Promise<void> {
   const estado = await evaluarEditabilidadNotaVenta(documentoId, empresaId, executor);
   if (!estado.esNotaVenta || estado.editable) return;
+
+  if (estado.motivos.includes('vinculos_partidas')) {
+    const documentoRows = await (executor ?? pool).query<Record<string, any>>(
+      `SELECT *
+         FROM documentos
+        WHERE id = $1
+          AND empresa_id = $2
+        LIMIT 1`,
+      [documentoId, empresaId],
+    );
+    const documentoActual = documentoRows.rows[0];
+    const otrosMotivos = estado.motivos.filter((motivo) => motivo !== 'vinculos_partidas');
+
+    if (
+      documentoActual
+      && otrosMotivos.length === 0
+      && esTransicionEmisionSinCambiosDeContenido(documentoActual, cambios)
+    ) {
+      return;
+    }
+  }
+
   throw new Error(`VALIDATION_ERROR: La nota de venta no puede modificarse porque tiene: ${estado.motivos.join(', ')}.`);
 }

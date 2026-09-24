@@ -87,11 +87,18 @@ export function interpretarEstadoSatCfdi(value: unknown): CfdiSatEstado {
   return 'desconocido';
 }
 
-export function interpretarResultadoReconciliacionSat(value: unknown): CfdiCancelacionEstado {
+export function interpretarResultadoReconciliacionSat(value: unknown, details?: unknown): CfdiCancelacionEstado {
   const status = String(value ?? '').trim().toLowerCase();
   if (status === 'cancelado' || status === 'cancelada') return 'cancelada';
-  if (status === 'vigente') return 'pendiente';
   if (status === 'rejected' || status === 'rechazada') return 'rechazada';
+  const source = details && typeof details === 'object' && !Array.isArray(details) ? details as Record<string, unknown> : {};
+  const reconciliation = source.Reconciliation && typeof source.Reconciliation === 'object' ? source.Reconciliation as Record<string, unknown> : {};
+  const cancellationStatus = [source.EstatusCancelacion, source.estatusCancelacion, source.CancellationStatus, source.cancellationStatus, source.CancelacionStatus, source.cancelacionStatus, reconciliation.EstatusCancelacion, reconciliation.estatusCancelacion, reconciliation.CancellationStatus, reconciliation.cancellationStatus, reconciliation.CancelacionStatus, reconciliation.cancelacionStatus].find((candidate) => String(candidate ?? '').trim().length > 0);
+  const normalizedCancellationStatus = String(cancellationStatus ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s_-]+/g, '');
+  if (['cancelado', 'cancelada', 'canceled', 'cancelled'].includes(normalizedCancellationStatus)) return 'cancelada';
+  if (['pendiente', 'solicitada', 'requested', 'pending', 'enproceso'].includes(normalizedCancellationStatus)) return 'pendiente';
+  if (['rechazado', 'rechazada', 'rejected'].includes(normalizedCancellationStatus)) return 'rechazada';
+  if (['nosolicitada', 'notrequested', 'none', 'sinsolicitud'].includes(normalizedCancellationStatus)) return 'no_solicitada';
   return 'requiere_reconciliacion';
 }
 

@@ -2891,6 +2891,40 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         },
       },
       {
+        id: 'emitir',
+        label: 'Emitir',
+        icon: <CheckCircleIcon fontSize="small" />,
+        hidden: tipoDocumento !== 'factura',
+        disabled:
+          loading
+          || actualizandoEstatusId === rowId
+          || normalizeDocumentoEstatus(contextMenuRow.estatus_documento) !== 'borrador',
+        onClick: async () => {
+          try {
+            setActualizandoEstatusId(rowId);
+            const updated = await updateDocumento(rowId, tipoDocumento, {
+              estatus_documento: 'Emitido',
+            });
+            let saldoActualizado: number | undefined;
+            if (showSaldo) {
+              const saldoData = await fetchSaldoDocumento(rowId).catch(() => null);
+              if (saldoData) saldoActualizado = Number(saldoData.saldo ?? 0);
+            }
+            setRows((prev) => prev.map((row) => {
+              if (Number(row.id) !== rowId) return row;
+              const merged = { ...row, ...(updated as Partial<CotizacionListado>) };
+              if (saldoActualizado !== undefined) merged.saldo = saldoActualizado;
+              return merged;
+            }));
+            setSnackbar({ open: true, message: 'Documento emitido', severity: 'success' });
+          } catch (err: any) {
+            setError(err?.message || 'No se pudo emitir el documento');
+          } finally {
+            setActualizandoEstatusId(null);
+          }
+        },
+      },
+      {
         id: 'separator-workflow',
         type: 'separator',
       },
@@ -3124,6 +3158,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     hasAction,
     load,
     loading,
+    actualizandoEstatusId,
+    showSaldo,
     accionesBloqueadasPorCarga,
     menuLoading,
     modulo,

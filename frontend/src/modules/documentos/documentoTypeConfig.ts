@@ -153,7 +153,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
     features: {
       filtroAgente: false,
       mostrarSaldo: true,
-      accionesDisponibles: ['aplicar_pago', 'timbrar', 'enviar_email', 'enviar_whatsapp'],
+      accionesDisponibles: ['emitir', 'aplicar_pago', 'timbrar', 'enviar_email', 'enviar_whatsapp'],
     },
     partidas: {
       mostrarImagenes: true,
