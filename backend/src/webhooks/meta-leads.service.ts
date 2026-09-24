@@ -7,7 +7,6 @@ const META_LEAD_FIELDS = [
 	"field_data",
 	"form_id",
 	"ad_id",
-	"adgroup_id",
 	"campaign_id",
 ].join(",");
 
