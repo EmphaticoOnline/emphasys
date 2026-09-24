@@ -213,7 +213,8 @@ export default function ContactosPage() {
       headerName: 'Origen Contacto',
       width: 160,
       headerClassName: 'finanzas-header',
-      renderCell: (params: GridRenderCellParams) => params.value || '',
+      renderCell: (params: GridRenderCellParams) =>
+        params.row?.origen_contacto_descripcion || params.value || '',
     },
     {
       field: 'interes_inicial',

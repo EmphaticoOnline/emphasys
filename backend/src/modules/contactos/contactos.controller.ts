@@ -483,7 +483,11 @@ export async function exportarContactos(req: Request, res: Response) {
       observaciones,
     });
 
-    const buffer = generarExcelBuffer(contactos, exportColumns, 'Contactos');
+    const contactosParaExportar = contactos.map((contacto) => ({
+      ...contacto,
+      origen_contacto: contacto.origen_contacto_descripcion || contacto.origen_contacto,
+    }));
+    const buffer = generarExcelBuffer(contactosParaExportar, exportColumns, 'Contactos');
 
     const fecha = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

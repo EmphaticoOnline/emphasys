@@ -1,6 +1,12 @@
 import pool from '../../config/database';
 import type { PoolClient } from 'pg';
 
+// The search box is a text search, so user-supplied LIKE metacharacters must
+// remain literal while the surrounding wildcards preserve partial matching.
+function escapeLikeLiteral(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
 type ResponsabilidadOrigen = 'manual' | 'round_robin' | 'importacion' | 'automatizacion' | 'sistema';
 
 type ResponsabilidadContexto = {
@@ -434,24 +440,25 @@ export async function obtenerContactosPaginados(
   }
 
   if (search && search.trim()) {
-    const term = `%${search.trim()}%`;
+    const term = `%${escapeLikeLiteral(search.trim())}%`;
     params.push(term);
     const idx = params.length;
     whereClauses.push(
       `(
-        sat.unaccent(contactos.nombre) ILIKE sat.unaccent($${idx})
-        OR sat.unaccent(contactos.nombre_contacto) ILIKE sat.unaccent($${idx})
-        OR contactos.email ILIKE $${idx}
-        OR contactos.rfc ILIKE $${idx}
-        OR cdf.rfc ILIKE $${idx}
-        OR contactos.telefono ILIKE $${idx}
-        OR contactos.telefono_secundario ILIKE $${idx}
-        OR sat.unaccent(COALESCE(contactos.interes_inicial, '')) ILIKE sat.unaccent($${idx})
-        OR sat.unaccent(COALESCE(contactos.observaciones, '')) ILIKE sat.unaccent($${idx})
-        OR contactos.tipo_contacto::text ILIKE $${idx}
-        OR sat.unaccent(vendedor.nombre) ILIKE sat.unaccent($${idx})
-        OR sat.unaccent(clasificacion.descripcion) ILIKE sat.unaccent($${idx})
-        OR sat.unaccent(origen.descripcion) ILIKE sat.unaccent($${idx})
+        sat.unaccent(contactos.nombre) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR sat.unaccent(contactos.nombre_contacto) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR contactos.email ILIKE $${idx} ESCAPE '\\'
+        OR contactos.rfc ILIKE $${idx} ESCAPE '\\'
+        OR cdf.rfc ILIKE $${idx} ESCAPE '\\'
+        OR contactos.telefono ILIKE $${idx} ESCAPE '\\'
+        OR contactos.telefono_secundario ILIKE $${idx} ESCAPE '\\'
+        OR sat.unaccent(COALESCE(contactos.interes_inicial, '')) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR sat.unaccent(COALESCE(contactos.observaciones, '')) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR contactos.tipo_contacto::text ILIKE $${idx} ESCAPE '\\'
+        OR sat.unaccent(vendedor.nombre) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR sat.unaccent(clasificacion.descripcion) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR origen.clave ILIKE $${idx} ESCAPE '\\'
+        OR sat.unaccent(origen.descripcion) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
       )`
     );
   }
@@ -653,7 +660,7 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
         c.telefono_secundario,
         c.activo,
   c.tipo_contacto,
-  c.vendedor_id,
+        c.vendedor_id,
         c.precio_lista_id,
         c.dias_credito,
         pl.nombre AS precio_lista_nombre,
@@ -675,7 +682,9 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
   cdf.regimen_fiscal,
   cdf.uso_cfdi,
   cdf.forma_pago,
-  cdf.metodo_pago
+        cdf.metodo_pago
+        ,origen.clave AS origen_contacto
+        ,origen.descripcion AS origen_contacto_descripcion
 
       FROM contactos c
   LEFT JOIN precios_listas pl
@@ -688,6 +697,21 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
 
       LEFT JOIN contactos_datos_fiscales cdf
              ON cdf.contacto_id = c.id
+
+      LEFT JOIN LATERAL (
+        SELECT c_origen.clave, c_origen.descripcion
+          FROM core.entidades_catalogos ec_origen
+          JOIN core.catalogos c_origen ON c_origen.id = ec_origen.catalogo_id
+          JOIN core.catalogos_tipos ct_origen ON ct_origen.id = c_origen.tipo_catalogo_id
+         WHERE ec_origen.empresa_id = c.empresa_id
+           AND ec_origen.entidad_id = c.id
+           AND ec_origen.entidad_tipo_id = (
+             SELECT id FROM core.entidades_tipos WHERE codigo = 'CONTACTO' LIMIT 1
+           )
+           AND ct_origen.nombre ILIKE '%origen%'
+         ORDER BY c_origen.orden NULLS LAST, c_origen.descripcion ASC
+         LIMIT 1
+      ) origen ON true
 
       WHERE c.id = $1
       AND c.empresa_id = $2`,
@@ -711,6 +735,8 @@ export async function obtenerContactoPorId(id: number, empresa_id: number) {
       activo: row.activo,
       tipo_contacto: row.tipo_contacto,
       vendedor_id: row.vendedor_id,
+      origen_contacto: row.origen_contacto,
+      origen_contacto_descripcion: row.origen_contacto_descripcion,
       precio_lista_id: row.precio_lista_id,
       precio_lista_nombre: row.precio_lista_nombre,
       dias_credito: row.dias_credito ?? null,
@@ -925,24 +951,25 @@ export async function obtenerContactosParaExportar(
   }
 
   if (search && search.trim()) {
-    const term = `%${search.trim()}%`;
+    const term = `%${escapeLikeLiteral(search.trim())}%`;
     params.push(term);
     const idx = params.length;
     whereClauses.push(
       `(
-        sat.unaccent(contactos.nombre) ILIKE sat.unaccent($${idx})
-        OR sat.unaccent(contactos.nombre_contacto) ILIKE sat.unaccent($${idx})
-        OR contactos.email ILIKE $${idx}
-        OR contactos.rfc ILIKE $${idx}
-        OR cdf.rfc ILIKE $${idx}
-        OR contactos.telefono ILIKE $${idx}
-        OR contactos.telefono_secundario ILIKE $${idx}
-        OR sat.unaccent(COALESCE(contactos.interes_inicial, '')) ILIKE sat.unaccent($${idx})
-        OR sat.unaccent(COALESCE(contactos.observaciones, '')) ILIKE sat.unaccent($${idx})
-        OR contactos.tipo_contacto::text ILIKE $${idx}
-        OR sat.unaccent(vendedor.nombre) ILIKE sat.unaccent($${idx})
-        OR sat.unaccent(clasificacion.descripcion) ILIKE sat.unaccent($${idx})
-        OR sat.unaccent(origen.descripcion) ILIKE sat.unaccent($${idx})
+        sat.unaccent(contactos.nombre) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR sat.unaccent(contactos.nombre_contacto) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR contactos.email ILIKE $${idx} ESCAPE '\\'
+        OR contactos.rfc ILIKE $${idx} ESCAPE '\\'
+        OR cdf.rfc ILIKE $${idx} ESCAPE '\\'
+        OR contactos.telefono ILIKE $${idx} ESCAPE '\\'
+        OR contactos.telefono_secundario ILIKE $${idx} ESCAPE '\\'
+        OR sat.unaccent(COALESCE(contactos.interes_inicial, '')) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR sat.unaccent(COALESCE(contactos.observaciones, '')) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR contactos.tipo_contacto::text ILIKE $${idx} ESCAPE '\\'
+        OR sat.unaccent(vendedor.nombre) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR sat.unaccent(clasificacion.descripcion) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR origen.clave ILIKE $${idx} ESCAPE '\\'
+        OR sat.unaccent(origen.descripcion) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
       )`
     );
   }

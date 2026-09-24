@@ -14,23 +14,37 @@ const META_LEAD_FIELDS = [
 async function guardarMetadatosMeta(lead: NormalizedMetaLead, fieldNames: string[]) {
 	const token = process.env.META_LEADS_PAGE_ACCESS_TOKEN;
 	if (!token) return;
-	const metadata = async (id: string | number | null, fields: string) => {
+	const metadata = async (objectType: "form" | "campaign", id: string | number | null, fields: string) => {
 		if (id == null) return null;
 		try {
 			const response = await axios.get<{ name?: unknown }>(`https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(String(id))}`, { params: { fields, access_token: token }, timeout: 5000 });
 			return typeof response.data?.name === "string" ? response.data.name : null;
-		} catch {
+		} catch (error) {
+			const axiosError = axios.isAxiosError(error) ? error : null;
+			console.warn("[Meta Leads] Enriquecimiento de nombre fallido", {
+				object_type: objectType,
+				object_id: String(id),
+				status: axiosError?.response?.status ?? null,
+				code: axiosError?.code ?? (error instanceof Error ? error.name : "UNKNOWN_ERROR"),
+			});
 			return null;
 		}
 	};
 	const [formName, campaignName] = await Promise.all([
-		metadata(lead.form_id, "id,name"),
-		metadata(lead.campaign_id, "id,name"),
+		metadata("form", lead.form_id, "id,name"),
+		metadata("campaign", lead.campaign_id, "id,name"),
 	]);
-	await import("../config/database").then(({ default: db }) => db.query(
-		`UPDATE crm.meta_leads SET form_name=$3,campaign_name=$4,field_names=$5,actualizado_at=now() WHERE empresa_id=2 AND leadgen_id=$1 AND page_id='351160398405043'`,
-		[lead.leadgen_id, lead.page_id, formName, campaignName, JSON.stringify(fieldNames)]
-	));
+	try {
+		await import("../config/database").then(({ default: db }) => db.query(
+			`UPDATE crm.meta_leads SET form_name=$3, campaign_id=$4, campaign_name=$5, ad_id=$6, field_names=$7, actualizado_at=now() WHERE empresa_id=2 AND leadgen_id=$1 AND page_id='351160398405043'`,
+			[lead.leadgen_id, lead.page_id, formName, lead.campaign_id, campaignName, lead.ad_id, JSON.stringify(fieldNames)]
+		));
+	} catch (error) {
+		console.warn("[Meta Leads] Persistencia de metadatos fallida", {
+			status: axios.isAxiosError(error) ? error.response?.status ?? null : null,
+			code: error instanceof Error ? error.name : "UNKNOWN_ERROR",
+		});
+	}
 }
 
 type MetaFieldDataItem = {
@@ -61,7 +75,6 @@ export type NormalizedMetaLead = {
 	state: string | null;
 	email: string | null;
 	ad_id: string | number | null;
-	adgroup_id: string | number | null;
 	campaign_id: string | number | null;
 };
 
@@ -117,7 +130,6 @@ export function normalizeMetaLead(
 			state: fieldValues.get("state") ?? null,
 			email: fieldValues.get("email") ?? null,
 			ad_id: asStringOrNumberOrNull(response.ad_id),
-			adgroup_id: asStringOrNumberOrNull(response.adgroup_id),
 			campaign_id: asStringOrNumberOrNull(response.campaign_id),
 		},
 	};

@@ -488,6 +488,9 @@ async function actualizarEstadoIntento(
     limpiarErrores?: boolean;
   } = {}
 ): Promise<void> {
+  // `no_solicitada` es un estado consolidado del CFDI, no un estado válido
+  // para un intento histórico que sí fue registrado.
+  const estadoPersistido = estadoIntentoParaEstadoConsolidado(estado);
   await pool.query(
     `UPDATE documentos_cancelacion_intentos
         SET estado                 = $2::varchar,
@@ -507,7 +510,7 @@ async function actualizarEstadoIntento(
       WHERE id = $1`,
     [
       intentoId,
-      estado,
+      estadoPersistido,
       extras.facturamaRespuesta ? JSON.stringify(extras.facturamaRespuesta) : null,
       extras.errorExternoMensaje ?? null,
       extras.errorInternoMensaje ?? null,
@@ -520,6 +523,10 @@ async function actualizarEstadoIntento(
       Boolean(extras.limpiarErrores),
     ]
   );
+}
+
+export function estadoIntentoParaEstadoConsolidado(estado: string): string {
+  return estado === 'no_solicitada' ? 'error' : estado;
 }
 
 function sanitizarRespuestaPac(value: unknown): Record<string, unknown> | null {
@@ -1097,6 +1104,7 @@ export async function reconciliarCancelacionDocumentoService(input: {
   const estadoSat = interpretarEstadoSatCfdi(consulta.estado);
   const estado: CfdiCancelacionEstado = clasificarResultadoSat(consulta);
   const proveedorStatusSat = obtenerProveedorStatusSat(consulta);
+  const intentoEstadoEsSinSolicitud = estado === 'no_solicitada';
   const respuestaSanitizada = {
     CodigoEstatus: consulta.codigoEstatus,
     Estado: consulta.estado,
@@ -1111,11 +1119,13 @@ export async function reconciliarCancelacionDocumentoService(input: {
   await actualizarEstadoIntento(Number(intento.intento_id), estado, {
     proveedorStatus: proveedorStatusSat,
     facturamaRespuesta: { Reconciliation: respuestaSanitizada },
-    errorCodigo: null,
-    mensajeSanitizado: `Consulta SAT de reconciliación: ${consulta.estado ?? 'sin estado'}.`,
+    errorCodigo: intentoEstadoEsSinSolicitud ? 'SIN_SOLICITUD_ACTIVA' : null,
+    mensajeSanitizado: intentoEstadoEsSinSolicitud
+      ? 'SAT reporta CFDI vigente sin solicitud de cancelación activa.'
+      : `Consulta SAT de reconciliación: ${consulta.estado ?? 'sin estado'}.`,
     incrementarConsulta: true,
     preservarRespuestaAnterior: true,
-    limpiarErrores: true,
+    limpiarErrores: !intentoEstadoEsSinSolicitud,
   });
   await pool.query(
     `UPDATE documentos_cfdi

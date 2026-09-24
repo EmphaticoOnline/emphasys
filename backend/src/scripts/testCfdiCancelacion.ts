@@ -11,6 +11,7 @@ import {
   interpretarResultadoReconciliacionSat,
   validarIdentidadCfdiOriginal,
 } from '../modules/cfdi/cfdi-cancelacion';
+import { estadoIntentoParaEstadoConsolidado } from '../modules/documentos/documentos-cancel.service';
 import {
   clasificarResultadoSat,
   construirExpresionImpresa,
@@ -61,6 +62,8 @@ assert.equal(interpretarResultadoReconciliacionSat('Vigente', { IsCancelable: 'C
 assert.equal(interpretarResultadoReconciliacionSat('Cancelado'), 'cancelada');
 assert.equal(interpretarResultadoReconciliacionSat('rejected'), 'rechazada');
 assert.equal(interpretarResultadoReconciliacionSat('No Encontrado'), 'requiere_reconciliacion');
+assert.equal(estadoIntentoParaEstadoConsolidado('no_solicitada'), 'error');
+assert.equal(estadoIntentoParaEstadoConsolidado('pendiente'), 'pendiente');
 assert.equal(esSolicitudCancelacionActiva('pendiente'), true);
 assert.equal(esSolicitudCancelacionActiva('requiere_reconciliacion'), true);
 assert.equal(esSolicitudCancelacionActiva('rechazada'), false);
@@ -100,6 +103,10 @@ const cases = [
 for (const [name, codigo, estado, estatus, expected] of cases) {
   const parsed = parsearRespuestaSat(soap(codigo, estado, estatus));
   assert.equal(clasificarResultadoSat(parsed), expected, name);
+  if (name === 'Vigente sin solicitud') {
+    assert.equal(clasificarResultadoSat(parsed), 'no_solicitada');
+    assert.equal(estadoIntentoParaEstadoConsolidado(clasificarResultadoSat(parsed)), 'error');
+  }
   assert.ok((obtenerProveedorStatusSat(parsed) ?? '').length <= 40, `${name}: proveedor_status excede varchar(40)`);
 }
 const respuestaLarga = parsearRespuestaSat(soap('S - Comprobante obtenido satisfactoriamente.', 'Vigente'));
