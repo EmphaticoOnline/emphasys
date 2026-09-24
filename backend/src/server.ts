@@ -1,6 +1,7 @@
 import app from './app';
 import pool from './config/database';
 import { detenerReconciliacionCancelacionesJob } from './modules/documentos/documentos-cancel-reconciliation.job';
+import { retryPendingMetaLeads } from './webhooks/meta-leads-commercial.service';
 
 const PORT = process.env.PORT || 7001;
 
@@ -21,6 +22,7 @@ const server = app.listen(PORT, async () => {
   if (typeof process.send === "function") {
     process.send("ready");
   }
+  setInterval(() => { void retryPendingMetaLeads(); }, 60_000).unref();
 });
 
 let shuttingDown = false;

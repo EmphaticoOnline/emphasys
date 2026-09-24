@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { processMetaLeadgenEvent } from "./meta-leads.service";
+import { persistMetaLeadEvent } from "./meta-leads-commercial.service";
 
 type MetaLeadgenChange = {
 	field?: unknown;
@@ -38,7 +39,7 @@ export const verifyMetaLeadsWebhook = (req: Request, res: Response) => {
 	return res.sendStatus(403);
 };
 
-export const receiveMetaLeadsWebhook = (req: Request, res: Response) => {
+export const receiveMetaLeadsWebhook = async (req: Request, res: Response) => {
 	const body = req.body as { object?: unknown; entry?: MetaWebhookEntry[] };
 	const entries = Array.isArray(body?.entry) ? body.entry : [];
 	const leadgenEvents = entries.flatMap((entry) => {
@@ -64,6 +65,24 @@ export const receiveMetaLeadsWebhook = (req: Request, res: Response) => {
 		),
 		leadgen_events: leadgenEvents,
 	});
+
+	for (const event of leadgenEvents) {
+		if (!event.leadgen_id || String(event.page_id ?? '') !== '351160398405043') continue;
+		try {
+			await persistMetaLeadEvent({
+				leadgen_id: String(event.leadgen_id),
+				page_id: event.page_id,
+				form_id: event.form_id,
+				created_time: event.created_time,
+			});
+		} catch (error) {
+			console.error("[Meta Leads Webhook] No se pudo persistir el evento antes de responder", {
+				leadgen_id: event.leadgen_id,
+				reason: error instanceof Error ? error.message : "persistence_error",
+			});
+			return res.sendStatus(500);
+		}
+	}
 
 	res.sendStatus(200);
 

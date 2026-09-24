@@ -1,4 +1,5 @@
 import axios, { AxiosError } from "axios";
+import { processMetaLeadCommercial } from "./meta-leads-commercial.service";
 
 const META_GRAPH_VERSION = "v26.0";
 const META_LEAD_FIELDS = [
@@ -9,6 +10,28 @@ const META_LEAD_FIELDS = [
 	"ad_id",
 	"campaign_id",
 ].join(",");
+
+async function guardarMetadatosMeta(lead: NormalizedMetaLead, fieldNames: string[]) {
+	const token = process.env.META_LEADS_PAGE_ACCESS_TOKEN;
+	if (!token) return;
+	const metadata = async (id: string | number | null, fields: string) => {
+		if (id == null) return null;
+		try {
+			const response = await axios.get<{ name?: unknown }>(`https://graph.facebook.com/${META_GRAPH_VERSION}/${encodeURIComponent(String(id))}`, { params: { fields, access_token: token }, timeout: 5000 });
+			return typeof response.data?.name === "string" ? response.data.name : null;
+		} catch {
+			return null;
+		}
+	};
+	const [formName, campaignName] = await Promise.all([
+		metadata(lead.form_id, "id,name"),
+		metadata(lead.campaign_id, "id,name"),
+	]);
+	await import("../config/database").then(({ default: db }) => db.query(
+		`UPDATE crm.meta_leads SET form_name=$3,campaign_name=$4,field_names=$5,actualizado_at=now() WHERE empresa_id=2 AND leadgen_id=$1 AND page_id='351160398405043'`,
+		[lead.leadgen_id, lead.page_id, formName, campaignName, JSON.stringify(fieldNames)]
+	));
+}
 
 type MetaFieldDataItem = {
 	field_name?: unknown;
@@ -109,7 +132,7 @@ const classifyMetaError = (error: unknown): MetaLeadErrorReason => {
 	return "invalid_response";
 };
 
-async function fetchAndNormalizeMetaLead(context: MetaLeadEventContext): Promise<MetaLeadQueryResult> {
+export async function fetchAndNormalizeMetaLead(context: MetaLeadEventContext): Promise<MetaLeadQueryResult> {
 	const accessToken = process.env.META_LEADS_PAGE_ACCESS_TOKEN;
 	if (!accessToken) return { ok: false, reason: "missing_token" };
 
@@ -159,4 +182,6 @@ export async function processMetaLeadgenEvent(context: MetaLeadEventContext): Pr
 		form_id: context.form_id,
 		field_names: result.fieldNames,
 	});
+	await guardarMetadatosMeta(result.lead, result.fieldNames);
+	await processMetaLeadCommercial({ ...context, lead: result.lead, fieldNames: result.fieldNames });
 }
