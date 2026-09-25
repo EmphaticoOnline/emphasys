@@ -27,7 +27,7 @@ import {
   DEFAULT_WHATSAPP_TEMPLATE_ACTION,
   resolverTipoPlantillaWhatsapp,
 } from "../whatsapp/whatsapp-template-type.service";
-import { obtenerPlantillaWhatsappPorId } from "../whatsapp/whatsapp-plantillas.service";
+import { obtenerPlantillaWhatsappPorId, resolverParametrosAutomaticosWhatsapp } from "../whatsapp/whatsapp-plantillas.service";
 import { resolverContextoScopeComercial } from "../modules/auth/scope-comercial";
 import {
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappRepo,
@@ -2091,7 +2091,7 @@ export const quitarEtiquetaConversacionWhatsapp = async (req: Request, res: Resp
 export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
-    const { telefono, tipo, plantilla_id, params } = req.body || {};
+    const { telefono, tipo, plantilla_id, params, contacto_id } = req.body || {};
 
     console.info('[WhatsApp Template Controller] Solicitud recibida', {
       empresaId,
@@ -2119,6 +2119,10 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
       }
       if (!plantilla.activa) {
         return res.status(409).json({ message: "La plantilla no está activa" });
+      }
+      if (contacto_id) {
+        const resolved = await resolverParametrosAutomaticosWhatsapp(Number(empresaId), Number(contacto_id), plantilla, templateParams);
+        templateParams.splice(0, templateParams.length, ...resolved);
       }
       respuesta = await sendTemplateMensajeDirecta(
         Number(empresaId),

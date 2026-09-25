@@ -22,6 +22,7 @@ import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import {
   fetchWhatsappPlantillas,
+  fetchContextoParametrosWhatsapp,
   type OrigenParametro,
   type ParametroPlantilla,
   type WhatsappPlantillaOption,
@@ -32,12 +33,15 @@ export interface ContactoAutoFill {
   nombre?: string | null;
   telefono?: string | null;
   empresa?: string | null;
+  vendedor?: string | null;
+  formularioMeta?: string | null;
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
   telefono: string;
+  contactoId?: number | null;
   contacto?: ContactoAutoFill;
   onSuccess: (plantillaNombre: string) => void;
 }
@@ -58,6 +62,8 @@ function resolveAutoValue(
     case 'contacto.nombre': return contacto?.nombre ?? '';
     case 'contacto.telefono': return contacto?.telefono ?? telefono;
     case 'contacto.empresa': return contacto?.empresa ?? '';
+    case 'contacto.vendedor': return contacto?.vendedor ?? '';
+    case 'meta.formulario': return contacto?.formularioMeta?.trim() || 'tu proyecto';
     default: return '';
   }
 }
@@ -97,6 +103,7 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contacto, 
   const [manualValues, setManualValues] = React.useState<Record<number, string>>({});
   const [isSending, setIsSending] = React.useState(false);
   const [sendError, setSendError] = React.useState<string | null>(null);
+  const [contexto, setContexto] = React.useState<ContactoAutoFill | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
@@ -105,11 +112,18 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contacto, 
     setSelectedId('');
     setManualValues({});
     setSendError(null);
+    setContexto(null);
+
+    if (contactoId) {
+      fetchContextoParametrosWhatsapp(contactoId)
+        .then(setContexto)
+        .catch(() => setContexto(null));
+    }
 
     fetchWhatsappPlantillas(false)
       .then(setTemplates)
       .catch((err: any) => setLoadError(err?.message ?? 'No se pudieron cargar las plantillas'));
-  }, [open]);
+  }, [open, contactoId]);
 
   const selectedTemplate = templates?.find((t) => String(t.id) === selectedId) ?? null;
 
@@ -124,13 +138,13 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contacto, 
     for (const idx of variableIndices) {
       const paramConfig = getParamConfig(idx, selectedTemplate.configuracion_parametros);
       if (paramConfig && isAutoFill(paramConfig.origen)) {
-        result[idx] = resolveAutoValue(paramConfig.origen, contacto, telefono);
+        result[idx] = resolveAutoValue(paramConfig.origen, contexto ?? contacto, telefono);
       } else {
         result[idx] = manualValues[idx] ?? '';
       }
     }
     return result;
-  }, [selectedTemplate, variableIndices, manualValues, contacto, telefono]);
+  }, [selectedTemplate, variableIndices, manualValues, contexto, contacto, telefono]);
 
   const manualVariables = React.useMemo((): ParametroPlantilla[] => {
     return variableIndices
@@ -171,7 +185,7 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contacto, 
     try {
       await apiFetch('/api/whatsapp/enviar-plantilla', {
         method: 'POST',
-        body: { telefono, plantilla_id: Number(selectedTemplate.id), params } as any,
+        body: { telefono, plantilla_id: Number(selectedTemplate.id), contacto_id: contactoId ?? undefined, params } as any,
       });
       onSuccess(selectedTemplate.nombre_interno);
     } catch (err: any) {

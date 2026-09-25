@@ -63,6 +63,8 @@ const ORIGENES: { value: OrigenParametro; label: string }[] = [
   { value: 'contacto.nombre', label: 'Nombre del contacto' },
   { value: 'contacto.telefono', label: 'Teléfono del contacto' },
   { value: 'contacto.empresa', label: 'Empresa del contacto' },
+  { value: 'contacto.vendedor', label: 'Vendedor asignado al contacto' },
+  { value: 'meta.formulario', label: 'Formulario de Meta' },
 ];
 
 type FormState = {

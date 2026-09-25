@@ -3,8 +3,64 @@ import pool from "../config/database";
 export type ParametroPlantilla = {
   variable: number;
   label: string;
-  origen: 'manual' | 'contacto.nombre' | 'contacto.telefono' | 'contacto.empresa';
+  origen: 'manual' | 'contacto.nombre' | 'contacto.telefono' | 'contacto.empresa' | 'contacto.vendedor' | 'meta.formulario';
 };
+
+export type ContextoParametrosWhatsapp = {
+  nombre: string;
+  telefono: string;
+  empresa: string;
+  vendedor: string;
+  formularioMeta: string;
+};
+
+const FORMULARIO_META_FALLBACK = 'tu proyecto';
+
+export async function obtenerContextoParametrosWhatsapp(empresaId: number, contactoId: number): Promise<ContextoParametrosWhatsapp | null> {
+  const { rows } = await pool.query<ContextoParametrosWhatsapp>(
+    `SELECT COALESCE(NULLIF(BTRIM(c.nombre_contacto), ''), c.nombre, '') AS nombre,
+            COALESCE(c.telefono, '') AS telefono,
+            COALESCE(c.zona, '') AS empresa,
+            COALESCE(NULLIF(BTRIM(vendedor.nombre), ''), '') AS vendedor,
+            COALESCE(NULLIF(BTRIM(meta.form_name), ''), $3) AS "formularioMeta"
+       FROM public.contactos c
+       LEFT JOIN public.contactos vendedor ON vendedor.id = c.vendedor_id AND vendedor.empresa_id = c.empresa_id
+       LEFT JOIN LATERAL (
+         SELECT ml.form_name FROM crm.meta_leads ml
+          WHERE ml.empresa_id = c.empresa_id AND ml.contacto_id = c.id
+          ORDER BY COALESCE(ml.procesado_at, ml.actualizado_at, ml.recibido_at) DESC, ml.id DESC
+          LIMIT 1
+       ) meta ON TRUE
+      WHERE c.empresa_id = $1 AND c.id = $2
+      LIMIT 1`,
+    [empresaId, contactoId, FORMULARIO_META_FALLBACK]
+  );
+  return rows[0] ?? null;
+}
+
+export async function resolverParametrosAutomaticosWhatsapp(
+  empresaId: number,
+  contactoId: number,
+  plantilla: Pick<WhatsappPlantilla, 'configuracion_parametros'>,
+  params: string[]
+): Promise<string[]> {
+  const contexto = await obtenerContextoParametrosWhatsapp(empresaId, contactoId);
+  if (!contexto || !plantilla.configuracion_parametros) return params;
+  const result = [...params];
+  for (const parametro of plantilla.configuracion_parametros) {
+    const index = parametro.variable - 1;
+    if (index < 0) continue;
+    switch (parametro.origen) {
+      case 'contacto.nombre': result[index] = contexto.nombre; break;
+      case 'contacto.telefono': result[index] = contexto.telefono; break;
+      case 'contacto.empresa': result[index] = contexto.empresa; break;
+      case 'contacto.vendedor': result[index] = contexto.vendedor; break;
+      case 'meta.formulario': result[index] = contexto.formularioMeta; break;
+      default: break;
+    }
+  }
+  return result;
+}
 
 export type WhatsappPlantilla = {
   id: number;

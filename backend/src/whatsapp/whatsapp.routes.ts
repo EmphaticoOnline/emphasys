@@ -14,6 +14,7 @@ import {
 	enviarWhatsappPlantilla,
 	listarEtiquetasWhatsapp,
 	listarPlantillasWhatsapp,
+	obtenerContextoParametrosWhatsappController,
 	crearEtiquetaWhatsappController,
 	actualizarEtiquetaWhatsappController,
 	eliminarEtiquetaWhatsappController,
@@ -44,6 +45,7 @@ router.patch("/conversaciones/:id/etapa", requireAuth, requireEmpresaActiva, act
 router.patch("/conversaciones/:id/finalizar", requireAuth, requireEmpresaActiva, finalizarConversacionWhatsapp);
 router.patch("/conversaciones/:id/reabrir", requireAuth, requireEmpresaActiva, reabrirConversacionWhatsapp);
 router.get("/plantillas", requireAuth, requireEmpresaActiva, listarPlantillasWhatsapp);
+router.get("/plantillas/contexto-contacto/:contactoId", requireAuth, requireEmpresaActiva, obtenerContextoParametrosWhatsappController);
 router.post("/plantillas", requireAuth, requireSuperadmin, requireEmpresaActiva, crearPlantillaController);
 router.put("/plantillas/:id", requireAuth, requireSuperadmin, requireEmpresaActiva, actualizarPlantillaController);
 router.get("/etiquetas", requireAuth, requireEmpresaActiva, listarEtiquetasWhatsapp);

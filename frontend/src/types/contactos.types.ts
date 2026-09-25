@@ -20,6 +20,7 @@ export interface Contacto {
   dias_credito?: number | null;
   limite_credito?: number | null;
   vendedor_id?: number | null;
+  vendedor_nombre?: string | null;
   fecha_alta: string;
   updated_at: string;
   observaciones?: string | null;

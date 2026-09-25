@@ -1,6 +1,6 @@
 import { apiFetch } from './apiFetch';
 
-export type OrigenParametro = 'manual' | 'contacto.nombre' | 'contacto.telefono' | 'contacto.empresa';
+export type OrigenParametro = 'manual' | 'contacto.nombre' | 'contacto.telefono' | 'contacto.empresa' | 'contacto.vendedor' | 'meta.formulario';
 
 export type ParametroPlantilla = {
   variable: number;
@@ -20,6 +20,18 @@ export type WhatsappPlantillaOption = {
   contenido?: string | null;
   configuracion_parametros?: ParametroPlantilla[] | null;
 };
+
+export type ContextoParametrosWhatsapp = {
+  nombre: string;
+  telefono: string;
+  empresa: string;
+  vendedor: string;
+  formularioMeta: string;
+};
+
+export async function fetchContextoParametrosWhatsapp(contactoId: number): Promise<ContextoParametrosWhatsapp> {
+  return apiFetch(`/api/whatsapp/plantillas/contexto-contacto/${contactoId}`);
+}
 
 export async function fetchWhatsappPlantillas(incluirInactivas = false): Promise<WhatsappPlantillaOption[]> {
   const params = new URLSearchParams();

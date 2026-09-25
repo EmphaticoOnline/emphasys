@@ -26,6 +26,7 @@ import {
   crearPlantilla as crearPlantillaRepo,
   actualizarPlantilla as actualizarPlantillaRepo,
   type ParametroPlantilla,
+  obtenerContextoParametrosWhatsapp,
 } from "./whatsapp-plantillas.service";
 
 const TIPOS_VALIDOS = [
@@ -37,7 +38,7 @@ const TIPOS_VALIDOS = [
   "seguimiento",
 ];
 
-const ORIGENES_VALIDOS = ["manual", "contacto.nombre", "contacto.telefono", "contacto.empresa"] as const;
+const ORIGENES_VALIDOS = ["manual", "contacto.nombre", "contacto.telefono", "contacto.empresa", "contacto.vendedor", "meta.formulario"] as const;
 
 function parseConfiguracionParametros(raw: unknown): ParametroPlantilla[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null;
@@ -98,6 +99,20 @@ export const listarPlantillasWhatsapp = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error listando plantillas de WhatsApp:", error);
     return res.status(500).json({ message: "No se pudieron obtener las plantillas" });
+  }
+};
+
+export const obtenerContextoParametrosWhatsappController = async (req: Request, res: Response) => {
+  try {
+    const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
+    const contactoId = Number(req.params.contactoId);
+    if (!empresaId || !Number.isInteger(contactoId) || contactoId <= 0) return res.status(400).json({ message: "contactoId inválido" });
+    const contexto = await obtenerContextoParametrosWhatsapp(empresaId, contactoId);
+    if (!contexto) return res.status(404).json({ message: "Contacto no encontrado" });
+    return res.status(200).json(contexto);
+  } catch (error) {
+    console.error("Error obteniendo contexto de parámetros WhatsApp:", error);
+    return res.status(500).json({ message: "No se pudo obtener el contexto del contacto" });
   }
 };
 

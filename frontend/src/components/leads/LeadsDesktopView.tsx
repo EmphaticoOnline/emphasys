@@ -900,8 +900,10 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
         open={isTemplateDialogOpen}
         onClose={() => setIsTemplateDialogOpen(false)}
         telefono={selectedLead?.phone ?? ''}
+        contactoId={selectedContactoId}
         contacto={{
           nombre: selectedContacto?.nombre || selectedLead?.name || null,
+          vendedor: selectedContacto?.vendedor_nombre || null,
           telefono: selectedLead?.phone || null,
           empresa: selectedContacto?.zona || null,
         }}
