@@ -131,7 +131,6 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
       faltaCuenta={!liquidacion.cuentaFinancieraId}
       formatter={liquidacion.formatter}
       horizontalStats={isLaptop}
-      actions={railActions}
     />
   );
 
@@ -342,8 +341,8 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
           sx: {
             width: { xs: '100%', md: '80vw', lg: '74vw', xl: '70vw' },
             maxWidth: { md: 1120 },
-            height: { xs: '100%', md: 'auto' },
-            maxHeight: { xs: '100%', md: '90vh' },
+            height: { xs: '100%', md: 'calc(100vh - 32px)' },
+            maxHeight: { xs: '100%', md: 'calc(100vh - 32px)' },
             m: { xs: 0, md: 2 },
             borderRadius: { xs: 0, md: 2 },
             display: 'flex',
@@ -427,6 +426,18 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
             </Box>
           </Box>
         ) : null}
+      </Box>
+
+      <Box
+        sx={{
+          flexShrink: 0,
+          px: { xs: 1.5, md: 2 },
+          py: 1.25,
+          bgcolor: '#fff',
+          borderTop: '1px solid #e5e7eb',
+        }}
+      >
+        {railActions}
       </Box>
     </Dialog>
   );
