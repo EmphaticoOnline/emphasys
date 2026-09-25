@@ -36,8 +36,8 @@ async function guardarMetadatosMeta(lead: NormalizedMetaLead, fieldNames: string
 	]);
 	try {
 		await import("../config/database").then(({ default: db }) => db.query(
-			`UPDATE crm.meta_leads SET form_name=$3, campaign_id=$4, campaign_name=$5, ad_id=$6, field_names=$7, actualizado_at=now() WHERE empresa_id=2 AND leadgen_id=$1 AND page_id='351160398405043'`,
-			[lead.leadgen_id, lead.page_id, formName, lead.campaign_id, campaignName, lead.ad_id, JSON.stringify(fieldNames)]
+			`UPDATE crm.meta_leads SET form_name=$3, campaign_id=$4, campaign_name=$5, ad_id=$6, field_names=$7, field_data=$8, actualizado_at=now() WHERE empresa_id=2 AND leadgen_id=$1 AND page_id='351160398405043'`,
+			[lead.leadgen_id, lead.page_id, formName, lead.campaign_id, campaignName, lead.ad_id, JSON.stringify(fieldNames), JSON.stringify(lead.field_data)]
 		));
 	} catch (error) {
 		console.warn("[Meta Leads] Persistencia de metadatos fallida", {
@@ -74,6 +74,7 @@ export type NormalizedMetaLead = {
 	phone_number: string | null;
 	state: string | null;
 	email: string | null;
+	field_data: MetaFieldDataItem[];
 	ad_id: string | number | null;
 	campaign_id: string | number | null;
 };
@@ -129,6 +130,7 @@ export function normalizeMetaLead(
 			phone_number: fieldValues.get("phone_number") ?? null,
 			state: fieldValues.get("state") ?? null,
 			email: fieldValues.get("email") ?? null,
+			field_data: Array.isArray(response.field_data) ? response.field_data : [],
 			ad_id: asStringOrNumberOrNull(response.ad_id),
 			campaign_id: asStringOrNumberOrNull(response.campaign_id),
 		},
