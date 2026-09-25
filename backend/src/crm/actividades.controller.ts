@@ -1025,6 +1025,78 @@ export async function actualizarActividad(req: Request, res: Response) {
   }
 }
 
+const RESULTADO_PLANTILLA_WHATSAPP = 'Plantilla de WhatsApp enviada';
+
+export async function completarActividadMetaTrasEnvioWhatsapp(
+  empresaId: number,
+  actividadId: number,
+  contactoId?: number | null,
+): Promise<'completada' | 'ya_completada' | 'omitida'> {
+  if (!Number.isInteger(actividadId) || actividadId <= 0) {
+    return 'omitida';
+  }
+
+  const contactoFiltro = contactoId != null && Number.isInteger(contactoId) && contactoId > 0
+    ? contactoId
+    : null;
+
+  const { rowCount } = await pool.query(
+    `UPDATE crm.actividades a
+     SET
+       estatus = 'realizada',
+       resultado = CASE
+         WHEN NULLIF(BTRIM(COALESCE(a.resultado, '')), '') IS NULL THEN $3::text
+         ELSE a.resultado
+       END,
+       fecha_realizacion = COALESCE(a.fecha_realizacion, NOW()),
+       updated_at = NOW()
+     WHERE a.id = $1
+       AND a.empresa_id = $2
+       AND a.estatus = 'pendiente'
+       AND ($4::int IS NULL OR a.contacto_id = $4)
+       AND EXISTS (
+         SELECT 1
+         FROM crm.meta_leads ml
+         WHERE ml.empresa_id = a.empresa_id
+           AND ml.actividad_id = a.id
+       )`,
+    [actividadId, empresaId, RESULTADO_PLANTILLA_WHATSAPP, contactoFiltro],
+  );
+
+  if ((rowCount ?? 0) > 0) {
+    return 'completada';
+  }
+
+  const { rows } = await pool.query<{ estatus: string; contacto_id: number | null; es_meta: boolean }>(
+    `SELECT
+       a.estatus,
+       a.contacto_id,
+       EXISTS (
+         SELECT 1
+         FROM crm.meta_leads ml
+         WHERE ml.empresa_id = a.empresa_id
+           AND ml.actividad_id = a.id
+       ) AS es_meta
+     FROM crm.actividades a
+     WHERE a.id = $1
+       AND a.empresa_id = $2
+     LIMIT 1`,
+    [actividadId, empresaId],
+  );
+
+  const actual = rows[0];
+  if (!actual?.es_meta) {
+    return 'omitida';
+  }
+  if (contactoFiltro != null && actual.contacto_id !== contactoFiltro) {
+    return 'omitida';
+  }
+  if (actual.estatus === 'realizada') {
+    return 'ya_completada';
+  }
+  return 'omitida';
+}
+
 export async function actualizarEstatusActividad(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId;

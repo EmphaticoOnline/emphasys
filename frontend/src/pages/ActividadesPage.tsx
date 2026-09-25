@@ -21,7 +21,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import ActivityCard, { type ActividadResumen } from '../components/ActivityCard';
 import { apiFetch } from '../services/apiFetch';
 import { fetchUsuariosHabilitados } from '../services/usuariosService';
@@ -194,9 +194,18 @@ async function actualizarActividad(actividadId: number, actividad: ActividadDeta
 
 export default function ActividadesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useSession();
   const esAdmin = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
-  const [usuarioSeleccionadoId, setUsuarioSeleccionadoId] = React.useState<number | null>(null);
+  const usuarioDesdeUrl = React.useMemo(() => {
+    const raw = searchParams.get('usuario');
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [searchParams]);
+  const [usuarioSeleccionadoId, setUsuarioSeleccionadoId] = React.useState<number | null>(esAdmin ? usuarioDesdeUrl : null);
+  const empresaAnteriorRef = React.useRef<number | null>(session.empresaActivaId);
   const [usuariosEmpresa, setUsuariosEmpresa] = React.useState<Usuario[]>([]);
   const [usuariosLoading, setUsuariosLoading] = React.useState(false);
   const [expanded, setExpanded] = React.useState<Record<GrupoActividadKey, boolean>>(buildInitialExpandedState);
@@ -215,7 +224,19 @@ export default function ActividadesPage() {
   const [cancelarError, setCancelarError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    setUsuarioSeleccionadoId(null);
+    const cambioEmpresa = empresaAnteriorRef.current !== null
+      && empresaAnteriorRef.current !== session.empresaActivaId;
+    empresaAnteriorRef.current = session.empresaActivaId;
+
+    if (cambioEmpresa) {
+      setUsuarioSeleccionadoId(null);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('usuario');
+      setSearchParams(nextParams, { replace: true });
+    } else {
+      setUsuarioSeleccionadoId(esAdmin ? usuarioDesdeUrl : null);
+    }
+
     if (!esAdmin || !session.empresaActivaId) {
       setUsuariosEmpresa([]);
       return undefined;
@@ -237,7 +258,7 @@ export default function ActividadesPage() {
     return () => {
       active = false;
     };
-  }, [esAdmin, session.empresaActivaId]);
+  }, [esAdmin, session.empresaActivaId, searchParams, setSearchParams, usuarioDesdeUrl]);
 
   const loadActividades = React.useCallback(async () => {
     try {
@@ -354,7 +375,11 @@ export default function ActividadesPage() {
       return;
     }
 
-    navigate(`/crm/actividades/${actividad.id}`);
+    navigate(`/crm/actividades/${actividad.id}`, {
+      state: {
+        returnTo: `${location.pathname}${location.search}`,
+      },
+    });
   };
 
   const handleCloseCompletarDialog = () => {
@@ -405,7 +430,12 @@ export default function ActividadesPage() {
       value={usuarioSeleccionadoId === null ? '' : String(usuarioSeleccionadoId)}
       onChange={(event) => {
         const value = event.target.value;
-        setUsuarioSeleccionadoId(value === '' ? null : Number(value));
+        const nextId = value === '' ? null : Number(value);
+        setUsuarioSeleccionadoId(nextId);
+        const nextParams = new URLSearchParams(searchParams);
+        if (nextId === null) nextParams.delete('usuario');
+        else nextParams.set('usuario', String(nextId));
+        setSearchParams(nextParams);
       }}
       disabled={usuariosLoading}
       sx={{ minWidth: { xs: '100%', sm: 260 } }}

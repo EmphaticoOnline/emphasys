@@ -37,6 +37,14 @@ type ContactoWorkspaceProps = {
 
 const currencyFormatter = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const dateFormatter = new Intl.DateTimeFormat('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+const dateTimeFormatter = new Intl.DateTimeFormat('es-MX', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
 
 function formatCurrency(value?: number | string | null) {
   if (value === null || value === undefined || value === '') return null;
@@ -50,6 +58,13 @@ function formatDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return dateFormatter.format(date);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return dateTimeFormatter.format(date);
 }
 
 function getInitials(nombre: string) {
@@ -492,7 +507,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
                 <InfoRow label="Vendedor asignado" value={vendedorAsignado} />
                 <InfoRow label="Origen del contacto" value={contacto.origen_contacto_descripcion || contacto.origen_contacto} />
                 <InfoRow label="Activo" value={contacto.activo ? 'Sí' : 'No'} />
-                <InfoRow label="Alta en sistema" value={formatDate(contacto.fecha_alta)} />
+                <InfoRow label="Alta en sistema" value={formatDateTime(contacto.fecha_alta)} />
               </Box>
             </Box>
 

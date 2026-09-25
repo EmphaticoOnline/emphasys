@@ -43,6 +43,7 @@ interface Props {
   telefono: string;
   contactoId?: number | null;
   contacto?: ContactoAutoFill;
+  actividadId?: number | null;
   onSuccess: (plantillaNombre: string, result?: { conversacion_id?: number | string | null }) => void;
 }
 
@@ -94,9 +95,11 @@ const ORIGEN_LABELS: Record<OrigenParametro, string> = {
   'contacto.nombre': 'Nombre del contacto',
   'contacto.telefono': 'Teléfono del contacto',
   'contacto.empresa': 'Empresa del contacto',
+  'contacto.vendedor': 'Vendedor del contacto',
+  'meta.formulario': 'Formulario de Meta',
 };
 
-export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId, contacto, onSuccess }: Props) {
+export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId, contacto, actividadId, onSuccess }: Props) {
   const [templates, setTemplates] = React.useState<WhatsappPlantillaOption[] | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [selectedId, setSelectedId] = React.useState<string>('');
@@ -185,7 +188,13 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId
     try {
       const response = await apiFetch<{ conversacion_id?: number | string | null }>('/api/whatsapp/enviar-plantilla', {
         method: 'POST',
-        body: { telefono, plantilla_id: Number(selectedTemplate.id), contacto_id: contactoId ?? undefined, params } as any,
+        body: {
+          telefono,
+          plantilla_id: Number(selectedTemplate.id),
+          contacto_id: contactoId ?? undefined,
+          actividad_id: actividadId ?? undefined,
+          params,
+        } as any,
       });
       onSuccess(selectedTemplate.nombre_interno, response);
     } catch (err: any) {

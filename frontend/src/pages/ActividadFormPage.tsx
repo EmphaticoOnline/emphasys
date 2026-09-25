@@ -9,8 +9,8 @@ import {
   Checkbox,
   Link,
   CircularProgress,
+  Collapse,
   FormControlLabel,
-  Grid,
   MenuItem,
   Paper,
   Stack,
@@ -22,7 +22,9 @@ import {
   TableRow,
   TextField,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -44,6 +46,8 @@ type ActividadDetalle = {
   contacto_id: number | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
+  estatus: string | null;
+  resultado: string | null;
   recordatorio: boolean | null;
   recordatorio_minutos: number | null;
   contacto: ContactoActividad | null;
@@ -248,6 +252,51 @@ function readableFieldName(value: string) {
   return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+const CAMPOS_IDENTIDAD_META = new Set([
+  'full_name',
+  'nombre',
+  'email',
+  'correo',
+  'phone_number',
+  'telefono',
+  'phone',
+  'company_name',
+  'empresa',
+]);
+
+function valorContactoParaCampoMeta(
+  key: string,
+  contacto: ContactoActividad,
+  personaNombre: string,
+  empresaNombre: string,
+) {
+  switch (key) {
+    case 'full_name':
+    case 'nombre':
+      return personaNombre;
+    case 'email':
+    case 'correo':
+      return contacto.email ?? '';
+    case 'phone_number':
+    case 'telefono':
+    case 'phone':
+      return contacto.telefono ?? '';
+    case 'company_name':
+    case 'empresa':
+      return empresaNombre;
+    default:
+      return null;
+  }
+}
+
+function valoresCoinciden(left: string, right: string) {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function esNotaAutomaticaMeta(notas: string) {
+  return notas.trim().startsWith('Nueva solicitud comercial de Meta Leads.');
+}
+
 function fieldValues(item: any): string[] {
   const values = item?.values ?? item?.value;
   if (Array.isArray(values)) return values.map((value) => typeof value === 'string' ? value : JSON.stringify(value));
@@ -290,6 +339,9 @@ export default function ActividadFormPage() {
   const [downloadingPdf, setDownloadingPdf] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [templateOpen, setTemplateOpen] = React.useState(false);
+  const [respuestasAbiertas, setRespuestasAbiertas] = React.useState(false);
+  const theme = useTheme();
+  const movil = useMediaQuery(theme.breakpoints.down('md'));
 
   React.useEffect(() => {
     let mounted = true;
@@ -458,6 +510,24 @@ export default function ActividadFormPage() {
   const personaNombre = actividad?.contacto?.nombre_contacto?.trim() || actividad?.contacto?.nombre?.trim() || (actividad?.contacto ? `Contacto #${actividad.contacto.id}` : '');
   const empresaNombre = actividad?.contacto?.nombre?.trim() || '';
   const mostrarEmpresa = Boolean(empresaNombre && empresaNombre !== personaNombre);
+  const respuestasMeta = metaFields.map((item: any, index: number) => {
+    const key = String(item?.field_name ?? item?.field ?? item?.name ?? `campo_${index + 1}`);
+    return {
+      key,
+      label: readableFieldName(key),
+      value: fieldValues(item).join(', ') || 'Sin valor',
+    };
+  });
+  const resumenMeta = actividad?.contacto
+    ? respuestasMeta.filter((item) => {
+      if (!CAMPOS_IDENTIDAD_META.has(item.key)) return true;
+      const actual = valorContactoParaCampoMeta(item.key, actividad.contacto!, personaNombre, empresaNombre);
+      if (actual == null) return true;
+      return !valoresCoinciden(actual, item.value);
+    })
+    : respuestasMeta;
+  const notaAutomatica = Boolean(actividad?.meta_lead && esNotaAutomaticaMeta(form.notas));
+  const etiquetaEstatus = (actividad?.estatus?.trim() || 'Sin estatus').replace(/^./, (letter) => letter.toUpperCase());
 
   if (loading) {
     return (
@@ -472,281 +542,285 @@ export default function ActividadFormPage() {
     );
   }
 
-  return (
-    <Box sx={{ p: { xs: 2, md: 3 }, width: '100%', maxWidth: 1440, mx: 'auto' }}>
-      <Stack spacing={2}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
-            {isCreateMode ? 'Nueva actividad' : 'Detalle de actividad'}
-          </Typography>
-          <Typography sx={{ color: '#475569', mt: 0.35 }}>
-            {isCreateMode ? 'Programa una nueva actividad comercial.' : 'Ajusta los datos básicos de la actividad.'}
-          </Typography>
+  const seguimiento = (
+    <Stack spacing={1.5} component="form" onSubmit={handleSubmit}>
+      <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+        <Typography sx={{ color: '#8b93a7', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em' }}>
+          SEGUIMIENTO
+        </Typography>
+        {!actividad?.meta_lead && !isCreateMode ? (
+          <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: '#e8edf6', color: '#1d2f68', fontSize: 12, fontWeight: 700 }}>
+            {etiquetaEstatus}
           </Box>
-          {!isCreateMode && actividad?.meta_lead && (
-            <Button variant="contained" disabled={!canStartWhatsapp} onClick={handleWhatsappAction}>
-              {actividad.whatsapp_conversacion ? 'Abrir conversación' : 'Iniciar WhatsApp'}
-            </Button>
-          )}
-        </Box>
-
-        {error ? <Alert severity="error">{error}</Alert> : null}
-
-        <Grid container spacing={3} alignItems="flex-start">
-          <Grid size={{ xs: 12, md: 12 }}>
-            <Stack
-              spacing={1.5}
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: actividad?.meta_lead ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)' },
-                alignItems: 'start',
-              }}
-            >
-              {actividad?.contacto ? (
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, borderColor: '#dbe3ee' }}>
-                  <Stack spacing={1}>
-                    <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-                      <Typography variant="h6" sx={{ color: '#0f172a', fontWeight: 700 }}>Contacto</Typography>
-                      <Link
-                        component="button"
-                        type="button"
-                        underline="hover"
-                        onClick={() => navigate(`/contactos/${actividad.contacto!.id}`)}
-                        sx={{ fontWeight: 600 }}
-                      >
-                        Abrir
-                      </Link>
-                    </Stack>
-                    <DetailRow label="Persona" value={personaNombre} />
-                    {mostrarEmpresa && <DetailRow label="Empresa" value={empresaNombre} />}
-                    {actividad.contacto.telefono && <DetailRow label="Teléfono" value={actividad.contacto.telefono} />}
-                    {actividad.contacto.telefono_secundario && <DetailRow label="Teléfono secundario" value={actividad.contacto.telefono_secundario} />}
-                    {actividad.contacto.email && <DetailRow label="Email" value={actividad.contacto.email} />}
-                    {actividad.contacto.vendedor_nombre && <DetailRow label="Vendedor actual" value={actividad.contacto.vendedor_nombre} />}
-                  </Stack>
-                </Paper>
-              ) : null}
-
-              {actividad?.meta_lead && (
-                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, borderColor: '#bfdbfe', backgroundColor: '#f8fbff' }}>
-                  <Stack spacing={1.25}>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>Solicitud de Meta</Typography>
-                    <DetailRow label="Formulario" value={actividad.meta_lead.form_name?.trim() || 'Formulario no disponible'} />
-                    {metaRequestDate ? <DetailRow label="Fecha de solicitud" value={metaRequestDate} /> : null}
-                    {actividad.meta_lead.campaign_name?.trim() && <DetailRow label="Campaña" value={actividad.meta_lead.campaign_name} />}
-                    {metaFields.length ? (
-                      <>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155' }}>Información proporcionada</Typography>
-                        {metaFields.map((item: any, index: number) => {
-                          const key = String(item?.field_name ?? item?.field ?? item?.name ?? `campo_${index + 1}`);
-                          return <DetailRow key={`${key}-${index}`} label={readableFieldName(key)} value={fieldValues(item).join(', ') || 'Sin valor'} />;
-                        })}
-                      </>
-                    ) : null}
-                  </Stack>
-                </Paper>
-              )}
-
-              {actividad?.oportunidad_id ? (
-                <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 3, borderColor: '#dbe3ee' }}>
-                  <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-                    <Typography sx={{ color: '#334155' }}>
-                      Oportunidad: {actividad.cliente_nombre ?? 'Sin cliente'}
-                    </Typography>
-                    <Link
-                      component="button"
-                      type="button"
-                      underline="hover"
-                      onClick={() => navigate(`/crm/oportunidades/${actividad.oportunidad_id}`)}
-                      sx={{ fontWeight: 600 }}
-                    >
-                      Abrir
-                    </Link>
-                  </Stack>
-                </Paper>
-              ) : null}
-
-              <Paper component="form" onSubmit={handleSubmit} variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, borderColor: '#dbe3ee', gridColumn: { xs: '1', md: '1 / -1' } }}>
-                <Stack spacing={2}>
-                  {!isCreateMode && actividad && (
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ pb: 0.5 }}>
-                      <DetailRow label="Estatus" value={actividad.estatus || 'Sin estatus'} />
-                      <DetailRow label="Fecha programada" value={formatDate(actividad.fecha_programada)} />
-                      {actividad.resultado && <DetailRow label="Resultado" value={actividad.resultado} />}
-                    </Stack>
-                  )}
-                  <TextField
-                    select
-                    label="Tipo"
-                    value={form.tipo_actividad}
-                    onChange={handleChange('tipo_actividad')}
-                    fullWidth
-                  >
-                    {TIPO_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-
-                  <TextField
-                    label="Notas"
-                    value={form.notas}
-                    onChange={handleChange('notas')}
-                    fullWidth
-                    multiline
-                    minRows={3}
-                  />
-
-                  <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
-                    <DateTimePicker
-                      label="Fecha programada"
-                      value={form.fecha_programada ? dayjs(form.fecha_programada) : null}
-                      onChange={(value) => {
-                        setForm((prev) => ({
-                          ...prev,
-                          fecha_programada: value ? value.format('YYYY-MM-DDTHH:mm') : '',
-                        }));
-                      }}
-                      format="DD/MM/YYYY HH:mm"
-                      ampm
-                      slotProps={{
-                        textField: {
-                          fullWidth: true,
-                        },
-                        popper: {
-                          placement: 'bottom-start',
-                        },
-                      }}
-                    />
-                  </LocalizationProvider>
-
-                  <FormControlLabel
-                    control={(
-                      <Checkbox
-                        checked={form.recordatorio}
-                        onChange={(event) => {
-                          const checked = event.target.checked;
-                          setForm((prev) => ({
-                            ...prev,
-                            recordatorio: checked,
-                            recordatorio_minutos: checked ? prev.recordatorio_minutos : '',
-                          }));
-                        }}
-                      />
-                    )}
-                    label="Activar recordatorio"
-                  />
-
-                  {form.recordatorio ? (
-                    <TextField
-                      label="Minutos antes"
-                      value={form.recordatorio_minutos}
-                      onChange={handleChange('recordatorio_minutos')}
-                      fullWidth
-                      type="number"
-                      inputProps={{ min: 1 }}
-                    />
-                  ) : null}
-
-                  <Stack direction="row" spacing={1.5} justifyContent="flex-end">
-                    <Button color="inherit" onClick={() => navigate(returnTo, { state: { openDrawerContactoId } })}>
-                      Cancelar
-                    </Button>
-                    <Button type="submit" variant="contained" disabled={saving}>
-                      {saving ? 'Guardando...' : 'Guardar'}
-                    </Button>
-                  </Stack>
-                </Stack>
-              </Paper>
-            </Stack>
-          </Grid>
-
-          <Grid size={{ xs: 12, md: 7 }}>
-            {oportunidad ? (
-              <Stack spacing={1.5}>
-                <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3, borderColor: '#dbe3ee' }}>
-                  <Stack spacing={2}>
-                    <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>
-                        Detalle de la oportunidad
-                      </Typography>
-                      <Button
-                        variant="outlined"
-                        startIcon={<PrintOutlinedIcon />}
-                        onClick={handlePrintPdf}
-                        disabled={!oportunidad.cotizacion_principal_id || downloadingPdf || loading}
-                      >
-                        {downloadingPdf ? 'Generando...' : 'PDF'}
-                      </Button>
-                    </Stack>
-                    <DetailRow label="Folio" value={oportunidad.folio || 'Sin folio'} />
-                    <DetailRow label="Cliente" value={oportunidad.contacto_nombre || 'Sin cliente'} />
-                    <DetailRow label="Vendedor" value={oportunidad.vendedor_nombre || 'Sin vendedor'} />
-                    <DetailRow label="Estatus" value={oportunidad.estatus || 'Sin estatus'} />
-                    <DetailRow label="Monto" value={formatCurrency(oportunidad.monto_oportunidad)} />
-                    <DetailRow label="Fecha de cotización" value={formatDate(oportunidad.fecha_cotizacion)} />
-                    <DetailRow label="Fecha estimada de cierre" value={formatDate(oportunidad.fecha_estimada_cierre)} />
-                    {oportunidad.comentarios_no_cierre ? (
-                      <DetailRow label="Comentarios" value={oportunidad.comentarios_no_cierre} />
-                    ) : null}
-                  </Stack>
-                </Paper>
-
-                <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3, borderColor: '#dbe3ee' }}>
-                  <Stack spacing={1.5}>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>
-                      Partidas de la cotización
-                    </Typography>
-
-                    {partidas.length ? (
-                      <TableContainer>
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Producto</TableCell>
-                              <TableCell align="right">Cantidad</TableCell>
-                              <TableCell align="right">Precio</TableCell>
-                              <TableCell align="right">Importe</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {partidas.map((partida) => (
-                              <TableRow key={partida.id} hover>
-                                <TableCell>
-                                  {partida.producto_descripcion || partida.descripcion_alterna || 'Sin producto'}
-                                </TableCell>
-                                <TableCell align="right">{partida.cantidad}</TableCell>
-                                <TableCell align="right">{formatCurrency(partida.precio_unitario)}</TableCell>
-                                <TableCell align="right">{formatCurrency(partida.subtotal_partida)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    ) : (
-                      <Typography sx={{ color: '#64748b' }}>
-                        Esta cotización no tiene partidas registradas.
-                      </Typography>
-                    )}
-                  </Stack>
-                </Paper>
-              </Stack>
-            ) : null}
-          </Grid>
-        </Grid>
+        ) : null}
       </Stack>
-      {actividad?.meta_lead && actividad.contacto?.telefono && !actividad.whatsapp_conversacion && (
+      {!isCreateMode && actividad?.resultado ? <DetailRow label="Resultado" value={actividad.resultado} /> : null}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+        <TextField select label="Tipo" value={form.tipo_actividad} onChange={handleChange('tipo_actividad')} fullWidth size="small">
+          {TIPO_OPTIONS.map((option) => (
+            <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+          ))}
+        </TextField>
+        <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+          <DateTimePicker
+            label="Fecha programada"
+            value={form.fecha_programada ? dayjs(form.fecha_programada) : null}
+            onChange={(value) => {
+              setForm((prev) => ({
+                ...prev,
+                fecha_programada: value ? value.format('YYYY-MM-DDTHH:mm') : '',
+              }));
+            }}
+            format="DD/MM/YYYY HH:mm"
+            ampm
+            slotProps={{
+              textField: { fullWidth: true, size: 'small' },
+              popper: { placement: 'bottom-start' },
+            }}
+          />
+        </LocalizationProvider>
+      </Stack>
+      <Stack direction="row" spacing={2} alignItems="center">
+        <FormControlLabel
+          control={(
+            <Checkbox
+              checked={form.recordatorio}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setForm((prev) => ({
+                  ...prev,
+                  recordatorio: checked,
+                  recordatorio_minutos: checked ? prev.recordatorio_minutos : '',
+                }));
+              }}
+              sx={{ color: '#1d2f68', '&.Mui-checked': { color: '#1d2f68' } }}
+            />
+          )}
+          label="Recordatorio"
+        />
+        {form.recordatorio ? (
+          <TextField
+            label="Minutos antes"
+            value={form.recordatorio_minutos}
+            onChange={handleChange('recordatorio_minutos')}
+            type="number"
+            size="small"
+            inputProps={{ min: 1 }}
+            sx={{ width: 120 }}
+          />
+        ) : null}
+      </Stack>
+      <TextField
+        label="Notas"
+        value={form.notas}
+        onChange={handleChange('notas')}
+        fullWidth
+        multiline
+        minRows={notaAutomatica ? 2 : 3}
+        sx={notaAutomatica ? { '& .MuiInputBase-input': { color: '#64748b', fontSize: 12 } } : {}}
+      />
+      <Stack direction="row" spacing={1} justifyContent="flex-end">
+        <Button type="button" color="inherit" onClick={() => navigate(returnTo, { state: { openDrawerContactoId } })}>
+          Cancelar
+        </Button>
+        <Button type="submit" variant="contained" disabled={saving}>
+          {saving ? 'Guardando...' : 'Guardar'}
+        </Button>
+      </Stack>
+    </Stack>
+  );
+
+  const origen = actividad?.meta_lead ? (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+        <Typography sx={{ color: '#8b93a7', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em' }}>
+          ORIGEN
+        </Typography>
+        <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: '#e8edf6', color: '#1d2f68', fontSize: 12, fontWeight: 700 }}>
+          {etiquetaEstatus}
+        </Box>
+      </Stack>
+      <Typography sx={{ color: '#0f172a', fontWeight: 700, fontSize: 16 }}>
+        Meta · {actividad.meta_lead.form_name?.trim() || 'Formulario no disponible'}
+      </Typography>
+      {metaRequestDate ? <Typography sx={{ color: '#64748b' }}>Llegó el {metaRequestDate}</Typography> : null}
+      {actividad.meta_lead.campaign_name?.trim() ? <DetailRow label="Campaña" value={actividad.meta_lead.campaign_name} /> : null}
+      {resumenMeta.map((item) => (
+        <Stack key={`${item.key}-resumen`} direction={movil ? 'column' : 'row'} spacing={movil ? 0.25 : 1.5}>
+          <Typography sx={{ color: '#8b93a7', fontSize: 13, width: movil ? 'auto' : 168, flexShrink: 0 }}>
+            {item.key === 'phone_number' || item.key === 'telefono' || item.key === 'phone' ? 'Teléfono en la solicitud' : item.label}
+          </Typography>
+          <Typography sx={{ color: '#0f172a', fontWeight: 600 }}>{item.value}</Typography>
+        </Stack>
+      ))}
+      {respuestasMeta.length ? (
+        <Box>
+          <Link
+            component="button"
+            type="button"
+            underline="hover"
+            onClick={() => setRespuestasAbiertas((open) => !open)}
+            sx={{ fontWeight: 700, fontSize: 13 }}
+          >
+            {respuestasAbiertas ? 'Ocultar respuestas del formulario' : `Ver respuestas del formulario (${respuestasMeta.length})`}
+          </Link>
+          <Collapse in={respuestasAbiertas}>
+            <Stack spacing={0.75} sx={{ pt: 1 }}>
+              {respuestasMeta.map((item) => (
+                <Stack key={`${item.key}-completa`} direction={movil ? 'column' : 'row'} spacing={movil ? 0 : 1.5}>
+                  <Typography sx={{ color: '#8b93a7', fontSize: 13, width: movil ? 'auto' : 168, flexShrink: 0 }}>{item.label}</Typography>
+                  <Typography sx={{ color: '#0f172a', fontSize: 13 }}>{item.value}</Typography>
+                </Stack>
+              ))}
+            </Stack>
+          </Collapse>
+        </Box>
+      ) : null}
+    </Stack>
+  ) : null;
+
+  const whatsappButton = actividad?.meta_lead ? (
+    <Button variant="contained" disabled={!canStartWhatsapp} onClick={handleWhatsappAction} fullWidth sx={{ fontWeight: 700 }}>
+      {actividad.whatsapp_conversacion ? 'Abrir conversación' : 'Iniciar WhatsApp'}
+    </Button>
+  ) : null;
+
+  const persona = actividad?.contacto ? (
+    <Stack spacing={2}>
+      <Stack spacing={0.5}>
+        <Typography sx={{ color: '#0f172a', fontWeight: 700, fontSize: 22, lineHeight: 1.15 }}>
+          {personaNombre}
+        </Typography>
+        {mostrarEmpresa ? <Typography sx={{ color: '#64748b' }}>{empresaNombre}</Typography> : null}
+      </Stack>
+      {actividad.contacto.vendedor_nombre ? (
+        <Stack spacing={0.25}>
+          <Typography sx={{ color: '#8b93a7', fontSize: 12 }}>Atiende</Typography>
+          <Typography sx={{ color: '#0f172a', fontWeight: 600 }}>{actividad.contacto.vendedor_nombre}</Typography>
+        </Stack>
+      ) : null}
+      <Stack spacing={1}>
+        {actividad.contacto.telefono ? <DetailRow label="Teléfono" value={actividad.contacto.telefono} /> : null}
+        {actividad.contacto.telefono_secundario ? <DetailRow label="Teléfono secundario" value={actividad.contacto.telefono_secundario} /> : null}
+        {actividad.contacto.email ? <DetailRow label="Email" value={actividad.contacto.email} /> : null}
+      </Stack>
+      <Link
+        component="button"
+        type="button"
+        underline="hover"
+        onClick={() => navigate(`/contactos/${actividad.contacto!.id}`)}
+        sx={{ fontWeight: 700, fontSize: 13, alignSelf: 'flex-start' }}
+      >
+        Abrir contacto
+      </Link>
+      {!movil ? whatsappButton : null}
+    </Stack>
+  ) : null;
+
+  const oportunidadPanel = oportunidad ? (
+    <Stack spacing={1.5}>
+      <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3, borderColor: '#dbe3ee' }}>
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>Detalle de la oportunidad</Typography>
+            <Button
+              variant="outlined"
+              startIcon={<PrintOutlinedIcon />}
+              onClick={handlePrintPdf}
+              disabled={!oportunidad.cotizacion_principal_id || downloadingPdf || loading}
+            >
+              {downloadingPdf ? 'Generando...' : 'PDF'}
+            </Button>
+          </Stack>
+          <DetailRow label="Folio" value={oportunidad.folio || 'Sin folio'} />
+          <DetailRow label="Cliente" value={oportunidad.contacto_nombre || 'Sin cliente'} />
+          <DetailRow label="Vendedor" value={oportunidad.vendedor_nombre || 'Sin vendedor'} />
+          <DetailRow label="Estatus" value={oportunidad.estatus || 'Sin estatus'} />
+          <DetailRow label="Monto" value={formatCurrency(oportunidad.monto_oportunidad)} />
+          <DetailRow label="Fecha de cotización" value={formatDate(oportunidad.fecha_cotizacion)} />
+          <DetailRow label="Fecha estimada de cierre" value={formatDate(oportunidad.fecha_estimada_cierre)} />
+          {oportunidad.comentarios_no_cierre ? <DetailRow label="Comentarios" value={oportunidad.comentarios_no_cierre} /> : null}
+          {actividad?.oportunidad_id ? (
+            <Link component="button" type="button" underline="hover" onClick={() => navigate(`/crm/oportunidades/${actividad.oportunidad_id}`)} sx={{ fontWeight: 700, alignSelf: 'flex-start' }}>
+              Abrir oportunidad
+            </Link>
+          ) : null}
+        </Stack>
+      </Paper>
+      <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3, borderColor: '#dbe3ee' }}>
+        <Stack spacing={1.5}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>Partidas de la cotización</Typography>
+          {partidas.length ? (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Producto</TableCell>
+                    <TableCell align="right">Cantidad</TableCell>
+                    <TableCell align="right">Precio</TableCell>
+                    <TableCell align="right">Importe</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {partidas.map((partida) => (
+                    <TableRow key={partida.id} hover>
+                      <TableCell>{partida.producto_descripcion || partida.descripcion_alterna || 'Sin producto'}</TableCell>
+                      <TableCell align="right">{partida.cantidad}</TableCell>
+                      <TableCell align="right">{formatCurrency(partida.precio_unitario)}</TableCell>
+                      <TableCell align="right">{formatCurrency(partida.subtotal_partida)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Typography sx={{ color: '#64748b' }}>Esta cotización no tiene partidas registradas.</Typography>
+          )}
+        </Stack>
+      </Paper>
+    </Stack>
+  ) : null;
+
+  return (
+    <Box sx={{ p: { xs: 2, md: 3 }, width: '100%', maxWidth: 920, mx: 'auto' }}>
+      <Stack spacing={2}>
+        {isCreateMode ? (
+          <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a' }}>Nueva actividad</Typography>
+        ) : null}
+        {contacto && isCreateMode ? (
+          <Typography sx={{ color: '#64748b' }}>{contacto.nombre}</Typography>
+        ) : null}
+        {error ? <Alert severity="error">{error}</Alert> : null}
+        {isCreateMode ? (
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, borderColor: '#dbe3ee' }}>{seguimiento}</Paper>
+        ) : (
+          <Paper variant="outlined" sx={{ borderRadius: 3, borderColor: '#dbe3ee', overflow: 'hidden' }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '272px minmax(0, 1fr)' } }}>
+              <Box sx={{ bgcolor: '#f7f8fb', p: '20px 18px 16px', borderRight: { md: '1px solid #dbe3ee' }, borderBottom: { xs: '1px solid #dbe3ee', md: 'none' } }}>
+                {persona}
+                {movil ? <Box sx={{ mt: persona ? 2 : 0 }}>{whatsappButton}</Box> : null}
+              </Box>
+              <Stack spacing={2} sx={{ p: '18px 20px 16px' }}>
+                {origen}
+                {origen ? <Box sx={{ borderTop: '1px solid #dbe3ee' }} /> : null}
+                {seguimiento}
+              </Stack>
+            </Box>
+          </Paper>
+        )}
+        {oportunidadPanel}
+      </Stack>
+      {actividad?.meta_lead && actividad.contacto?.telefono && !actividad.whatsapp_conversacion ? (
         <SendWhatsappTemplateDialog
           open={templateOpen}
           onClose={() => setTemplateOpen(false)}
           contactoId={actividad.contacto.id}
           telefono={actividad.contacto.telefono}
-          contacto={{ nombre: actividad.contacto.nombre, vendedor: actividad.contacto.vendedor_nombre }}
+          actividadId={actividad.id}
+          contacto={{ nombre: actividad.contacto.nombre, vendedor: actividad.contacto.vendedor_nombre, formularioMeta: actividad.meta_lead.form_name }}
           onSuccess={(plantillaNombre, result) => { void handleTemplateSuccess(plantillaNombre, result); }}
         />
-      )}
+      ) : null}
     </Box>
   );
 }

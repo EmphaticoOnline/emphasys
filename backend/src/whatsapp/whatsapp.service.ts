@@ -958,7 +958,7 @@ export const sendTemplateMensajeDirecta = async (
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
 
-    return { ...response.data, plantilla_usada: plantilla.provider_template_id };
+    return { ...response.data, plantilla_usada: plantilla.provider_template_id, conversacion_id: conversacionId };
   } catch (error: any) {
     console.error("[WhatsApp Template Directa] API Error", {
       message: error?.message,

@@ -28,6 +28,7 @@ import {
   resolverTipoPlantillaWhatsapp,
 } from "../whatsapp/whatsapp-template-type.service";
 import { obtenerPlantillaWhatsappPorId, resolverParametrosAutomaticosWhatsapp } from "../whatsapp/whatsapp-plantillas.service";
+import { completarActividadMetaTrasEnvioWhatsapp } from "./actividades.controller";
 import { resolverContextoScopeComercial } from "../modules/auth/scope-comercial";
 import {
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappRepo,
@@ -2091,7 +2092,9 @@ export const quitarEtiquetaConversacionWhatsapp = async (req: Request, res: Resp
 export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
-    const { telefono, tipo, plantilla_id, params, contacto_id } = req.body || {};
+    const { telefono, tipo, plantilla_id, params, contacto_id, actividad_id } = req.body || {};
+    const actividadMetaId = Number(actividad_id);
+    const contactoEnvioId = Number(contacto_id);
 
     console.info('[WhatsApp Template Controller] Solicitud recibida', {
       empresaId,
@@ -2154,6 +2157,14 @@ export const enviarWhatsappPlantilla = async (req: Request, res: Response) => {
 
     if (respuesta?.error) {
       return res.status(409).json({ message: respuesta.message || "No hay plantilla disponible" });
+    }
+
+    if (Number.isInteger(actividadMetaId) && actividadMetaId > 0) {
+      await completarActividadMetaTrasEnvioWhatsapp(
+        Number(empresaId),
+        actividadMetaId,
+        Number.isInteger(contactoEnvioId) && contactoEnvioId > 0 ? contactoEnvioId : null,
+      );
     }
 
     return res.status(200).json(respuesta);
