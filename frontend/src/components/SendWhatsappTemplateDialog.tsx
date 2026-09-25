@@ -96,7 +96,7 @@ const ORIGEN_LABELS: Record<OrigenParametro, string> = {
   'contacto.empresa': 'Empresa del contacto',
 };
 
-export function SendWhatsappTemplateDialog({ open, onClose, telefono, contacto, onSuccess }: Props) {
+export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId, contacto, onSuccess }: Props) {
   const [templates, setTemplates] = React.useState<WhatsappPlantillaOption[] | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [selectedId, setSelectedId] = React.useState<string>('');
