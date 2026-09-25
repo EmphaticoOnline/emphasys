@@ -43,7 +43,7 @@ interface Props {
   telefono: string;
   contactoId?: number | null;
   contacto?: ContactoAutoFill;
-  onSuccess: (plantillaNombre: string) => void;
+  onSuccess: (plantillaNombre: string, result?: { conversacion_id?: number | string | null }) => void;
 }
 
 function extractVariableIndices(contenido: string): number[] {
@@ -183,11 +183,11 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId
     const params = variableIndices.map((idx) => resolvedValues[idx] ?? '');
 
     try {
-      await apiFetch('/api/whatsapp/enviar-plantilla', {
+      const response = await apiFetch<{ conversacion_id?: number | string | null }>('/api/whatsapp/enviar-plantilla', {
         method: 'POST',
         body: { telefono, plantilla_id: Number(selectedTemplate.id), contacto_id: contactoId ?? undefined, params } as any,
       });
-      onSuccess(selectedTemplate.nombre_interno);
+      onSuccess(selectedTemplate.nombre_interno, response);
     } catch (err: any) {
       setSendError(err?.message ?? 'No se pudo enviar la plantilla');
     } finally {

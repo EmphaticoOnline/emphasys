@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import pool from '../config/database';
 import { formatearFolioDocumento } from '../utils/documentos';
+import { resolverContextoScopeComercial } from '../modules/auth/scope-comercial';
 
 type CrearActividadBody = {
   usuario_asignado_id?: unknown;
@@ -46,6 +47,39 @@ type ActividadRow = {
   created_at: Date | string | null;
   updated_at: Date | string | null;
   cliente_nombre?: string | null;
+  contacto_detalle?: ContactoActividad | null;
+  meta_lead?: MetaLeadActividad | null;
+  whatsapp_conversacion?: ConversacionActividad | null;
+};
+
+type ContactoActividad = {
+  id: number;
+  nombre: string | null;
+  nombre_contacto: string | null;
+  telefono: string | null;
+  telefono_secundario: string | null;
+  email: string | null;
+  vendedor_id: number | null;
+  vendedor_nombre: string | null;
+  zona: string | null;
+  observaciones: string | null;
+};
+
+type MetaLeadActividad = {
+  leadgen_id: string;
+  form_id: string | null;
+  form_name: string | null;
+  created_time: string | null;
+  recibido_at: Date | string | null;
+  field_data: unknown;
+  campaign_name: string | null;
+};
+
+type ConversacionActividad = {
+  id: number;
+  estado: string | null;
+  creada_en: Date | string | null;
+  ultimo_mensaje_en: Date | string | null;
 };
 
 type ActividadListadoRow = {
@@ -195,6 +229,9 @@ function serializeActividad(row: ActividadRow) {
     created_at: row.created_at,
     updated_at: row.updated_at,
     cliente_nombre: row.cliente_nombre ?? null,
+    contacto: row.contacto_detalle ?? null,
+    meta_lead: row.meta_lead ?? null,
+    whatsapp_conversacion: row.whatsapp_conversacion ?? null,
   };
 }
 
@@ -291,11 +328,58 @@ async function obtenerActividadDetallada(empresaId: number, actividadId: number)
        a.recordatorio_minutos,
        a.created_at,
        a.updated_at,
-       c.nombre AS cliente_nombre
+       c.nombre AS cliente_nombre,
+       CASE WHEN c.id IS NULL THEN NULL ELSE jsonb_build_object(
+         'id', c.id,
+         'nombre', c.nombre,
+         'nombre_contacto', c.nombre_contacto,
+         'telefono', c.telefono,
+         'telefono_secundario', c.telefono_secundario,
+         'email', c.email,
+         'vendedor_id', c.vendedor_id,
+         'vendedor_nombre', vendedor.nombre,
+         'zona', c.zona,
+         'observaciones', c.observaciones
+       ) END AS contacto_detalle,
+       CASE WHEN meta.id IS NULL THEN NULL ELSE jsonb_build_object(
+         'leadgen_id', meta.leadgen_id,
+         'form_id', meta.form_id,
+         'form_name', meta.form_name,
+         'created_time', meta.created_time,
+         'recibido_at', meta.recibido_at,
+         'field_data', meta.field_data,
+         'campaign_name', meta.campaign_name
+       ) END AS meta_lead,
+       CASE WHEN conv.id IS NULL THEN NULL ELSE jsonb_build_object(
+         'id', conv.id,
+         'estado', conv.estado,
+         'creada_en', conv.creada_en,
+         'ultimo_mensaje_en', conv.ultimo_mensaje_en
+       ) END AS whatsapp_conversacion
      FROM crm.actividades a
      LEFT JOIN public.contactos c
        ON c.id = a.contacto_id
       AND c.empresa_id = a.empresa_id
+     LEFT JOIN public.contactos vendedor
+       ON vendedor.id = c.vendedor_id
+      AND vendedor.empresa_id = c.empresa_id
+     LEFT JOIN LATERAL (
+       SELECT ml.id, ml.leadgen_id, ml.form_id, ml.form_name, ml.created_time,
+              ml.recibido_at, ml.field_data, ml.campaign_name
+       FROM crm.meta_leads ml
+       WHERE ml.empresa_id = a.empresa_id
+         AND ml.actividad_id = a.id
+       ORDER BY COALESCE(ml.procesado_at, ml.actualizado_at, ml.recibido_at) DESC, ml.id DESC
+       LIMIT 1
+     ) meta ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT cc.id, cc.estado, cc.creada_en, cc.ultimo_mensaje_en
+       FROM crm.conversaciones cc
+       WHERE cc.empresa_id = a.empresa_id
+         AND cc.contacto_id = a.contacto_id
+       ORDER BY COALESCE(cc.ultimo_mensaje_en, cc.creada_en) DESC, cc.id DESC
+       LIMIT 1
+     ) conv ON TRUE
      WHERE a.id = $1
        AND a.empresa_id = $2
      LIMIT 1`,
@@ -429,6 +513,7 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
     const usuarioId = req.auth?.userId;
     const oportunidadIdRaw = req.query.oportunidad_id;
     const contactoIdRaw = req.query.contacto_id;
+    const usuarioAsignadoRaw = req.query.usuario_asignado_id;
 
     if (!empresaId) {
       return res.status(400).json({ message: 'empresaId no disponible en contexto' });
@@ -436,6 +521,21 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
 
     if (!usuarioId) {
       return res.status(401).json({ message: 'Usuario no autenticado' });
+    }
+
+    const scope = await resolverContextoScopeComercial(Number(empresaId), Number(usuarioId), req.auth?.esSuperadmin);
+    let usuarioAsignadoId = Number(usuarioId);
+    if (usuarioAsignadoRaw !== undefined && usuarioAsignadoRaw !== '') {
+      const solicitado = Number(usuarioAsignadoRaw);
+      if (!Number.isInteger(solicitado) || solicitado <= 0) return res.status(400).json({ message: 'usuario_asignado_id inválido' });
+      if (!scope.esAdmin) return res.status(403).json({ message: 'No puedes consultar actividades de otro usuario' });
+      const valido = await pool.query(
+        `SELECT 1 FROM core.usuarios_empresas ue JOIN core.usuarios u ON u.id = ue.usuario_id
+          WHERE ue.empresa_id = $1 AND ue.usuario_id = $2 AND ue.activo = true AND u.activo = true LIMIT 1`,
+        [Number(empresaId), solicitado]
+      );
+      if (!valido.rows[0]) return res.status(403).json({ message: 'El usuario no pertenece a la empresa activa' });
+      usuarioAsignadoId = solicitado;
     }
 
     if (oportunidadIdRaw !== undefined && contactoIdRaw !== undefined) {
@@ -467,8 +567,9 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
           AND c.empresa_id = a.empresa_id
          WHERE a.empresa_id = $1
            AND a.oportunidad_id = $2
+           AND a.usuario_asignado_id = $3
          ORDER BY fecha_programada DESC, id DESC`,
-        [Number(empresaId), oportunidadId]
+        [Number(empresaId), oportunidadId, usuarioAsignadoId]
       );
 
       return res.json(rows.map(serializeActividadOportunidad));
@@ -499,8 +600,9 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
           AND c.empresa_id = a.empresa_id
          WHERE a.empresa_id = $1
            AND a.contacto_id = $2
+           AND a.usuario_asignado_id = $3
          ORDER BY a.fecha_programada DESC, a.id DESC`,
-        [Number(empresaId), contactoId]
+        [Number(empresaId), contactoId, usuarioAsignadoId]
       );
 
       return res.json(rows.map(serializeActividadOportunidad));
@@ -561,7 +663,7 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
          d.numero,
          o.created_at
        ORDER BY a.fecha_programada ASC`,
-      [Number(empresaId), Number(usuarioId)]
+      [Number(empresaId), usuarioAsignadoId]
     );
 
     const response: ActividadesAgrupadasResponse = {

@@ -15,6 +15,7 @@ import {
   DialogTitle,
   Fab,
   IconButton,
+  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -23,6 +24,10 @@ import {
 import { useNavigate } from 'react-router-dom';
 import ActivityCard, { type ActividadResumen } from '../components/ActivityCard';
 import { apiFetch } from '../services/apiFetch';
+import { fetchUsuariosHabilitados } from '../services/usuariosService';
+import { useSession } from '../session/useSession';
+import { esRolAdmin } from '../session/rolScope';
+import type { Usuario } from '../types/usuario';
 
 type GrupoActividadKey = 'atrasadas' | 'hoy' | 'futuro' | 'completadas';
 
@@ -141,8 +146,9 @@ function groupCompletadas(actividades: ActividadResumen[]) {
   return actividades.filter((actividad) => actividad.estatus === 'realizada');
 }
 
-async function fetchActividades() {
-  const response = await apiFetch<ActividadesApiResponse>('/api/crm/actividades');
+async function fetchActividades(usuarioAsignadoId?: number | null) {
+  const query = usuarioAsignadoId ? `?usuario_asignado_id=${usuarioAsignadoId}` : '';
+  const response = await apiFetch<ActividadesApiResponse>(`/api/crm/actividades${query}`);
   return [
     ...(response.vencidas ?? []),
     ...(response.hoy ?? []),
@@ -188,6 +194,11 @@ async function actualizarActividad(actividadId: number, actividad: ActividadDeta
 
 export default function ActividadesPage() {
   const navigate = useNavigate();
+  const { session } = useSession();
+  const esAdmin = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
+  const [usuarioSeleccionadoId, setUsuarioSeleccionadoId] = React.useState<number | null>(null);
+  const [usuariosEmpresa, setUsuariosEmpresa] = React.useState<Usuario[]>([]);
+  const [usuariosLoading, setUsuariosLoading] = React.useState(false);
   const [expanded, setExpanded] = React.useState<Record<GrupoActividadKey, boolean>>(buildInitialExpandedState);
   const [actividades, setActividades] = React.useState<ActividadResumen[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -203,10 +214,35 @@ export default function ActividadesPage() {
   const [canceling, setCanceling] = React.useState(false);
   const [cancelarError, setCancelarError] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    setUsuarioSeleccionadoId(null);
+    if (!esAdmin || !session.empresaActivaId) {
+      setUsuariosEmpresa([]);
+      return undefined;
+    }
+
+    let active = true;
+    setUsuariosLoading(true);
+    void fetchUsuariosHabilitados()
+      .then((usuarios) => {
+        if (active) setUsuariosEmpresa(usuarios);
+      })
+      .catch(() => {
+        if (active) setUsuariosEmpresa([]);
+      })
+      .finally(() => {
+        if (active) setUsuariosLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [esAdmin, session.empresaActivaId]);
+
   const loadActividades = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await fetchActividades();
+      const data = await fetchActividades(usuarioSeleccionadoId);
       setActividades(data);
       setError(null);
     } catch (err) {
@@ -215,7 +251,7 @@ export default function ActividadesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [usuarioSeleccionadoId]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -361,6 +397,28 @@ export default function ActividadesPage() {
     console.info('Crear nueva actividad');
   };
 
+  const selectorUsuario = esAdmin ? (
+    <TextField
+      select
+      size="small"
+      label="Usuario"
+      value={usuarioSeleccionadoId === null ? '' : String(usuarioSeleccionadoId)}
+      onChange={(event) => {
+        const value = event.target.value;
+        setUsuarioSeleccionadoId(value === '' ? null : Number(value));
+      }}
+      disabled={usuariosLoading}
+      sx={{ minWidth: { xs: '100%', sm: 260 } }}
+    >
+      <MenuItem value="">Mis actividades</MenuItem>
+      {usuariosEmpresa.map((usuario) => (
+        <MenuItem key={usuario.id} value={String(usuario.id)}>
+          {usuario.nombre}
+        </MenuItem>
+      ))}
+    </TextField>
+  ) : null;
+
   if (loading) {
     return (
       <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -385,6 +443,12 @@ export default function ActividadesPage() {
   if (actividadesVisibles.length === 0) {
     return (
       <Box sx={{ p: { xs: 2, md: 3 } }}>
+        <Stack spacing={1.5} sx={{ mb: 3 }}>
+          <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
+            Actividades
+          </Typography>
+          {selectorUsuario}
+        </Stack>
         <Paper
           variant="outlined"
           sx={{
@@ -416,12 +480,17 @@ export default function ActividadesPage() {
     <Box sx={{ p: { xs: 2, md: 3 }, position: 'relative' }}>
       <Stack spacing={3}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
-            Actividades
-          </Typography>
-          <Typography sx={{ color: '#475569', mt: 0.75 }}>
-            Revisa primero lo urgente y avanza tu bandeja de trabajo sin salir de CRM.
-          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                Actividades
+              </Typography>
+              <Typography sx={{ color: '#475569', mt: 0.75 }}>
+                Revisa primero lo urgente y avanza tu bandeja de trabajo sin salir de CRM.
+              </Typography>
+            </Box>
+            {selectorUsuario}
+          </Stack>
         </Box>
 
         {grupos.map((grupo) => {

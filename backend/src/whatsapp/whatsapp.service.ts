@@ -756,7 +756,7 @@ export const sendTemplateMessage = async (
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
 
-    return { ...response.data, plantilla_usada: plantilla.provider_template_id };
+    return { ...response.data, plantilla_usada: plantilla.provider_template_id, conversacion_id: conversacionId };
   } catch (error: any) {
     console.error("[WhatsApp Template] API Error", {
       message: error?.message,
@@ -881,7 +881,7 @@ export const sendTemplateDocumentMessage = async (
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
 
-    return { ...response.data, plantilla_usada: plantilla.provider_template_id };
+    return { ...response.data, plantilla_usada: plantilla.provider_template_id, conversacion_id: conversacionId };
   } catch (error: any) {
     console.error('[WhatsApp Template Document] API Error', {
       message: error?.message,

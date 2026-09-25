@@ -32,6 +32,7 @@ import { getContacto } from '../services/contactos.api';
 import { loadSession } from '../session/sessionStorage';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import type { CotizacionPartida } from '../types/cotizacion';
+import { SendWhatsappTemplateDialog } from '../components/SendWhatsappTemplateDialog';
 
 dayjs.locale('es');
 
@@ -45,6 +46,39 @@ type ActividadDetalle = {
   cliente_nombre: string | null;
   recordatorio: boolean | null;
   recordatorio_minutos: number | null;
+  contacto: ContactoActividad | null;
+  meta_lead: MetaLeadActividad | null;
+  whatsapp_conversacion: ConversacionActividad | null;
+};
+
+type ContactoActividad = {
+  id: number;
+  nombre: string | null;
+  nombre_contacto: string | null;
+  telefono: string | null;
+  telefono_secundario: string | null;
+  email: string | null;
+  vendedor_id: number | null;
+  vendedor_nombre: string | null;
+  zona: string | null;
+  observaciones: string | null;
+};
+
+type MetaLeadActividad = {
+  leadgen_id: string;
+  form_id: string | null;
+  form_name: string | null;
+  created_time: string | null;
+  recibido_at: string | null;
+  field_data: unknown;
+  campaign_name: string | null;
+};
+
+type ConversacionActividad = {
+  id: number;
+  estado: string | null;
+  creada_en: string | null;
+  ultimo_mensaje_en: string | null;
 };
 
 type ActividadFormState = {
@@ -161,6 +195,32 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
+function formatMetaRequestDate(createdTime: string | null, recibidoAt: string | null) {
+  const candidates = [createdTime, recibidoAt];
+
+  for (const candidate of candidates) {
+    if (!candidate || !String(candidate).trim()) continue;
+
+    const raw = String(candidate).trim();
+    const numericTimestamp = /^\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : null;
+    const date = numericTimestamp !== null && Number.isFinite(numericTimestamp)
+      ? new Date(numericTimestamp * 1000)
+      : new Date(raw);
+
+    if (!Number.isNaN(date.getTime())) {
+      return new Intl.DateTimeFormat('es-MX', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+    }
+  }
+
+  return null;
+}
+
 function formatCurrency(value: number | string | null) {
   const amount = Number(value ?? 0);
   if (Number.isNaN(amount)) return '$0.00';
@@ -180,6 +240,19 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       <Typography sx={{ color: '#0f172a', fontWeight: 600 }}>{value}</Typography>
     </Stack>
   );
+}
+
+function readableFieldName(value: string) {
+  const labels: Record<string, string> = { full_name: 'Nombre', company_name: 'Empresa', phone_number: 'Teléfono', email: 'Correo', state: 'Estado' };
+  if (labels[value]) return labels[value];
+  return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function fieldValues(item: any): string[] {
+  const values = item?.values ?? item?.value;
+  if (Array.isArray(values)) return values.map((value) => typeof value === 'string' ? value : JSON.stringify(value));
+  if (values == null) return [];
+  return [typeof values === 'string' ? values : JSON.stringify(values)];
 }
 
 export default function ActividadFormPage() {
@@ -216,6 +289,7 @@ export default function ActividadFormPage() {
   const [saving, setSaving] = React.useState(false);
   const [downloadingPdf, setDownloadingPdf] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [templateOpen, setTemplateOpen] = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
@@ -354,6 +428,37 @@ export default function ActividadFormPage() {
     }
   };
 
+  const handleTemplateSuccess = async (_plantillaNombre: string, result?: { conversacion_id?: number | string | null }) => {
+    setTemplateOpen(false);
+    if (!id) return;
+    const conversationId = result?.conversacion_id;
+    if (conversationId) {
+      navigate(`/crm/conversaciones?conversation=${encodeURIComponent(String(conversationId))}`);
+      return;
+    }
+    const refreshed = await fetchActividad(id);
+    setActividad(refreshed);
+  };
+
+  const handleWhatsappAction = () => {
+    if (actividad?.whatsapp_conversacion) {
+      navigate(`/crm/conversaciones?conversation=${actividad.whatsapp_conversacion.id}`);
+      return;
+    }
+    setTemplateOpen(true);
+  };
+
+  const metaFields = actividad?.meta_lead && Array.isArray(actividad.meta_lead.field_data)
+    ? actividad.meta_lead.field_data
+    : [];
+  const metaRequestDate = actividad?.meta_lead
+    ? formatMetaRequestDate(actividad.meta_lead.created_time, actividad.meta_lead.recibido_at)
+    : null;
+  const canStartWhatsapp = Boolean(actividad?.meta_lead && (actividad.whatsapp_conversacion || actividad.contacto?.telefono));
+  const personaNombre = actividad?.contacto?.nombre_contacto?.trim() || actividad?.contacto?.nombre?.trim() || (actividad?.contacto ? `Contacto #${actividad.contacto.id}` : '');
+  const empresaNombre = actividad?.contacto?.nombre?.trim() || '';
+  const mostrarEmpresa = Boolean(empresaNombre && empresaNombre !== personaNombre);
+
   if (loading) {
     return (
       <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -368,45 +473,80 @@ export default function ActividadFormPage() {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 2.5 }, maxWidth: 'lg', mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, width: '100%', maxWidth: 1440, mx: 'auto' }}>
       <Stack spacing={2}>
-        <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Box>
           <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
-            {isCreateMode ? 'Nueva actividad' : 'Editar actividad'}
+            {isCreateMode ? 'Nueva actividad' : 'Detalle de actividad'}
           </Typography>
           <Typography sx={{ color: '#475569', mt: 0.35 }}>
             {isCreateMode ? 'Programa una nueva actividad comercial.' : 'Ajusta los datos básicos de la actividad.'}
           </Typography>
+          </Box>
+          {!isCreateMode && actividad?.meta_lead && (
+            <Button variant="contained" disabled={!canStartWhatsapp} onClick={handleWhatsappAction}>
+              {actividad.whatsapp_conversacion ? 'Abrir conversación' : 'Iniciar WhatsApp'}
+            </Button>
+          )}
         </Box>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
 
         <Grid container spacing={3} alignItems="flex-start">
-          <Grid size={{ xs: 12, md: 5 }}>
-            <Stack spacing={1.5}>
-              {contacto ? (
-                <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 3, borderColor: '#dbe3ee' }}>
+          <Grid size={{ xs: 12, md: 12 }}>
+            <Stack
+              spacing={1.5}
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: actividad?.meta_lead ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)' },
+                alignItems: 'start',
+              }}
+            >
+              {actividad?.contacto ? (
+                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, borderColor: '#dbe3ee' }}>
                   <Stack spacing={1}>
                     <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-                      <Typography sx={{ color: '#334155' }}>
-                        Contacto: {contacto.nombre}
-                      </Typography>
+                      <Typography variant="h6" sx={{ color: '#0f172a', fontWeight: 700 }}>Contacto</Typography>
                       <Link
                         component="button"
                         type="button"
                         underline="hover"
-                        onClick={() => navigate(`/contactos/${contacto.id}`)}
+                        onClick={() => navigate(`/contactos/${actividad.contacto!.id}`)}
                         sx={{ fontWeight: 600 }}
                       >
                         Abrir
                       </Link>
                     </Stack>
-                    <Typography sx={{ color: '#64748b', fontSize: 14 }}>
-                      Oportunidad: {form.oportunidad_id ? 'Ligada a oportunidad' : 'Sin oportunidad'}
-                    </Typography>
+                    <DetailRow label="Persona" value={personaNombre} />
+                    {mostrarEmpresa && <DetailRow label="Empresa" value={empresaNombre} />}
+                    {actividad.contacto.telefono && <DetailRow label="Teléfono" value={actividad.contacto.telefono} />}
+                    {actividad.contacto.telefono_secundario && <DetailRow label="Teléfono secundario" value={actividad.contacto.telefono_secundario} />}
+                    {actividad.contacto.email && <DetailRow label="Email" value={actividad.contacto.email} />}
+                    {actividad.contacto.vendedor_nombre && <DetailRow label="Vendedor actual" value={actividad.contacto.vendedor_nombre} />}
                   </Stack>
                 </Paper>
               ) : null}
+
+              {actividad?.meta_lead && (
+                <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, borderColor: '#bfdbfe', backgroundColor: '#f8fbff' }}>
+                  <Stack spacing={1.25}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>Solicitud de Meta</Typography>
+                    <DetailRow label="Formulario" value={actividad.meta_lead.form_name?.trim() || 'Formulario no disponible'} />
+                    {metaRequestDate ? <DetailRow label="Fecha de solicitud" value={metaRequestDate} /> : null}
+                    {actividad.meta_lead.campaign_name?.trim() && <DetailRow label="Campaña" value={actividad.meta_lead.campaign_name} />}
+                    {metaFields.length ? (
+                      <>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155' }}>Información proporcionada</Typography>
+                        {metaFields.map((item: any, index: number) => {
+                          const key = String(item?.field_name ?? item?.field ?? item?.name ?? `campo_${index + 1}`);
+                          return <DetailRow key={`${key}-${index}`} label={readableFieldName(key)} value={fieldValues(item).join(', ') || 'Sin valor'} />;
+                        })}
+                      </>
+                    ) : null}
+                  </Stack>
+                </Paper>
+              )}
 
               {actividad?.oportunidad_id ? (
                 <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 3, borderColor: '#dbe3ee' }}>
@@ -427,8 +567,15 @@ export default function ActividadFormPage() {
                 </Paper>
               ) : null}
 
-              <Paper component="form" onSubmit={handleSubmit} variant="outlined" sx={{ p: 2.5, borderRadius: 3, borderColor: '#dbe3ee' }}>
+              <Paper component="form" onSubmit={handleSubmit} variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, borderColor: '#dbe3ee', gridColumn: { xs: '1', md: '1 / -1' } }}>
                 <Stack spacing={2}>
+                  {!isCreateMode && actividad && (
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ pb: 0.5 }}>
+                      <DetailRow label="Estatus" value={actividad.estatus || 'Sin estatus'} />
+                      <DetailRow label="Fecha programada" value={formatDate(actividad.fecha_programada)} />
+                      {actividad.resultado && <DetailRow label="Resultado" value={actividad.resultado} />}
+                    </Stack>
+                  )}
                   <TextField
                     select
                     label="Tipo"
@@ -590,6 +737,16 @@ export default function ActividadFormPage() {
           </Grid>
         </Grid>
       </Stack>
+      {actividad?.meta_lead && actividad.contacto?.telefono && !actividad.whatsapp_conversacion && (
+        <SendWhatsappTemplateDialog
+          open={templateOpen}
+          onClose={() => setTemplateOpen(false)}
+          contactoId={actividad.contacto.id}
+          telefono={actividad.contacto.telefono}
+          contacto={{ nombre: actividad.contacto.nombre, vendedor: actividad.contacto.vendedor_nombre }}
+          onSuccess={(plantillaNombre, result) => { void handleTemplateSuccess(plantillaNombre, result); }}
+        />
+      )}
     </Box>
   );
 }
