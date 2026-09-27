@@ -525,6 +525,7 @@ export type MovimientosPorPeriodoParams = {
   agrupacion:    Agrupacion;
   contacto_id?:  number | null;
   producto_id?:  number | null;
+  origen_contacto_id?: number | null;
 };
 
 function buildPeriodoQs(params: MovimientosPorPeriodoParams, extras: Record<string, string> = {}): URLSearchParams {
@@ -536,6 +537,7 @@ function buildPeriodoQs(params: MovimientosPorPeriodoParams, extras: Record<stri
   });
   if (params.contacto_id) qs.set('contacto_id', String(params.contacto_id));
   if (params.producto_id) qs.set('producto_id', String(params.producto_id));
+  if (params.origen_contacto_id != null) qs.set('origen_contacto_id', String(params.origen_contacto_id));
   return qs;
 }
 
@@ -570,6 +572,15 @@ export const fetchVentasPorPeriodo = (p: MovimientosPorPeriodoParams) =>
 
 export const buildVentasPorPeriodoExportUrl = (p: MovimientosPorPeriodoParams, f: 'excel' | 'pdf') =>
   buildPeriodoExportUrl('ventas/ventas-por-periodo', p, f);
+
+export type OrigenContacto = { id: number; descripcion: string };
+export type VentasPorOrigenRow = { origen_id: number | null; origen: string; documentos: number; clientes: number; subtotal: number; iva: number; total: number; porcentaje_total: number };
+export type VentasPorOrigenResult = { filas: VentasPorOrigenRow[]; totales: VentasPorOrigenRow; kpis: { total:number; cantidad_documentos:number; cantidad_contactos:number; ticket_promedio:number } };
+export type VentasPorOrigenDetalle = { id:number; fecha:string; folio:string; cliente:string; subtotal:number };
+export async function fetchDetalleVentasPorOrigen(p: MovimientosPorPeriodoParams): Promise<VentasPorOrigenDetalle[]> { const r=await apiFetch(`${BASE}/ventas/ventas-por-origen-contacto/detalle?${buildPeriodoQs(p).toString()}`); if(!r.ok) throw new Error('Error al obtener el detalle'); return r.json(); }
+export async function fetchOrigenesContacto(): Promise<OrigenContacto[]> { const r = await apiFetch(`${BASE}/catalogos/origenes-contacto`); if (!r.ok) throw new Error('No se pudieron cargar los orígenes'); return r.json(); }
+export async function fetchVentasPorOrigen(p: MovimientosPorPeriodoParams): Promise<VentasPorOrigenResult> { const r = await apiFetch(`${BASE}/ventas/ventas-por-origen-contacto?${buildPeriodoQs(p).toString()}`); if (!r.ok) throw new Error((await r.json()).message ?? 'Error al obtener reporte'); return r.json(); }
+export function buildVentasPorOrigenExportUrl(p: MovimientosPorPeriodoParams, f: 'excel'|'pdf') { return `${BASE}/ventas/ventas-por-origen-contacto?${buildPeriodoQs(p,{formato:f}).toString()}`; }
 
 // ── Pendientes de Facturar (Pedidos / Remisiones) ─────────────────────────────
 

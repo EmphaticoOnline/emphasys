@@ -42,6 +42,7 @@ import type {
   DocumentoPeriodo,
   Agrupacion,
 } from '../../services/reportesService';
+import { fetchOrigenesContacto, type OrigenContacto } from '../../services/reportesService';
 
 // ── Configuración del reporte (inyectada desde el wrapper) ────────────────────
 
@@ -345,6 +346,8 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
   const [agrupacion,  setAgrupacion]  = useState<Agrupacion>('mes');
   const [proveedor,   setProveedor]   = useState<ContactoOpcion | null>(null);
   const [producto,    setProducto]    = useState<ProductoOpcion | null>(null);
+  const [origen, setOrigen] = useState<OrigenContacto | null>(null);
+  const [origenes, setOrigenes] = useState<OrigenContacto[]>([]);
 
   const [opcionesProveedor, setOpcionesProveedor] = useState<ContactoOpcion[]>([]);
   const [opcionesProducto,  setOpcionesProducto]  = useState<ProductoOpcion[]>([]);
@@ -360,6 +363,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
   const fetchRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const proveedorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productoTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { if (config.tiposContacto.includes('cliente')) fetchOrigenesContacto().then(setOrigenes).catch(() => undefined); }, [config.tiposContacto]);
 
   // La cantidad sólo es significativa cuando hay un único producto seleccionado
   const mostrarCantidad = !!producto;
@@ -404,6 +408,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
     agrupacion,
     ...(proveedor ? { contacto_id: proveedor.id } : {}),
     ...(producto  ? { producto_id: producto.id  } : {}),
+    ...(origen ? { origen_contacto_id: origen.id } : {}),
   });
 
   useEffect(() => {
@@ -425,7 +430,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
     }, 500);
     return () => { if (fetchRef.current) clearTimeout(fetchRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fechaInicio, fechaFin, agrupacion, proveedor, producto]);
+  }, [fechaInicio, fechaFin, agrupacion, proveedor, producto, origen]);
 
   const handleExportar = async (formato: 'excel' | 'pdf') => {
     if (exportando) return;
@@ -563,6 +568,13 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
               <TextField {...(inputProps as any)} label="Producto (todos)" size="small" />
             )}
           />
+
+          {config.tiposContacto.includes('cliente') && <Autocomplete<OrigenContacto>
+            options={origenes} value={origen} onChange={(_, val) => setOrigen(val)}
+            getOptionLabel={(o) => o.descripcion} getOptionKey={(o) => o.id}
+            isOptionEqualToValue={(a,b) => a.id === b.id} sx={{ width: 190 }}
+            renderInput={(p) => <TextField {...p} label="Origen de contacto (todos)" size="small" />}
+          />}
 
           <Tooltip title="Agrupar por">
             <Select

@@ -64,6 +64,11 @@ const CATEGORIAS: Categoria[] = [
         path: '/informes/ventas/ventas-por-periodo',
       },
       {
+        label: 'Ventas por Origen de Contacto',
+        descripcion: 'Distribución y participación de ventas por origen del contacto.',
+        path: '/informes/ventas/ventas-por-origen-contacto',
+      },
+      {
         label: 'Conversión de Cotizaciones a Ventas',
         descripcion: 'Mide cuántas cotizaciones se convierten en factura por vendedor y período.',
         path: '/informes/ventas/conversion-cotizaciones',

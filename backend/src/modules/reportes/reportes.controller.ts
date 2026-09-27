@@ -13,6 +13,11 @@ import {
   obtenerHistorialPreciosVenta,
   obtenerComprasPorPeriodo,
   obtenerVentasPorPeriodo,
+  obtenerOrigenesContacto,
+  obtenerVentasPorOrigen,
+  obtenerDetalleVentasPorOrigen,
+  ORIGEN_SIN_ID,
+  ORIGEN_MULTIPLE_ID,
   obtenerConversionCotizaciones,
   obtenerPedidosPendientesFacturar,
   obtenerRemisionesPendientesFacturar,
@@ -50,6 +55,7 @@ import {
   generarVencimientosProveedoresPDF,
   generarHistorialPreciosPDF,
   generarMovimientosPorPeriodoPDF,
+  generarVentasPorOrigenPDF,
   generarPendientesFacturarPDF,
   generarExistenciasPorAlmacenPDF,
   generarKardexPDF,
@@ -644,8 +650,9 @@ function parsePeriodoParams(req: Request) {
   const agrupacion  = ((req.query.agrupacion  as string) || 'mes').toLowerCase() as Agrupacion;
   const contactoId  = req.query.contacto_id ? Number(req.query.contacto_id) : null;
   const productoId  = req.query.producto_id  ? Number(req.query.producto_id)  : null;
+  const origenContactoId = req.query.origen_contacto_id !== undefined ? Number(req.query.origen_contacto_id) : null;
   const formato     = ((req.query.formato     as string) || 'json').toLowerCase();
-  return { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, formato };
+  return { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, formato };
 }
 
 function buildColsPeriodoResumen(contactoLabel: string, mostrarCantidad: boolean): ExportColumna[] {
@@ -754,16 +761,45 @@ export async function getComprasPorPeriodo(req: Request, res: Response) {
 }
 
 export async function getVentasPorPeriodo(req: Request, res: Response) {
-  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, formato } = parsePeriodoParams(req);
+  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, formato } = parsePeriodoParams(req);
   if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
   if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
   if (!AGRUPACIONES_VALIDAS.includes(agrupacion)) return res.status(400).json({ message: 'agrupacion inválida' });
   try {
-    const resultado = await obtenerVentasPorPeriodo({ empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId });
+    const resultado = await obtenerVentasPorPeriodo({ empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId });
     return sendMovimientosPorPeriodo(res, resultado, formato, 'Ventas por Período', 'Cliente', 'ventas-por-periodo', !!productoId);
   } catch (err: unknown) {
     return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
   }
+}
+
+export async function getOrigenesContacto(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number | undefined;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try { return res.json([{ id: ORIGEN_SIN_ID, descripcion: 'Sin origen' }, { id: ORIGEN_MULTIPLE_ID, descripcion: 'Origen múltiple' }, ...(await obtenerOrigenesContacto(empresaId))]); }
+  catch (err) { return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' }); }
+}
+
+export async function getVentasPorOrigenContacto(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, formato } = parsePeriodoParams(req);
+  if (!empresaId || !fechaInicio || !fechaFin) return res.status(400).json({ message: 'Empresa, fecha_inicio y fecha_fin son requeridos' });
+  try {
+    const resultado = await obtenerVentasPorOrigen({ empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId });
+    if (!formato || formato === 'json') return res.json(resultado);
+    if (formato === 'excel') {
+      const rows = [...resultado.filas, resultado.totales].map(r => ({ origen: r.origen, documentos:r.documentos, clientes:r.clientes, subtotal:r.subtotal, iva:r.iva, total:r.total, porcentaje_total:r.porcentaje_total }));
+      const buffer = generarExcelBuffer(rows, [{field:'origen',headerName:'Origen'},{field:'documentos',headerName:'Documentos'},{field:'clientes',headerName:'Clientes'},{field:'subtotal',headerName:'Subtotal'},{field:'iva',headerName:'IVA'},{field:'total',headerName:'Total'},{field:'porcentaje_total',headerName:'% del total'}], 'Ventas por Origen de Contacto');
+      res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.setHeader('Content-Disposition','attachment; filename="ventas-por-origen-contacto.xlsx"'); return res.send(buffer);
+    }
+    if (formato === 'pdf') { const buffer = await generarVentasPorOrigenPDF(resultado); res.setHeader('Content-Type','application/pdf'); res.setHeader('Content-Disposition','attachment; filename="ventas-por-origen-contacto.pdf"'); return res.send(buffer); }
+    return res.status(400).json({ message: 'Formato no soportado' });
+  } catch (err) { return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' }); }
+}
+
+export async function getDetalleVentasPorOrigen(req: Request, res: Response) {
+  const { empresaId, fechaInicio, fechaFin, contactoId, productoId } = parsePeriodoParams(req); const origenContactoId=Number(req.query.origen_contacto_id);
+  if(!empresaId||!fechaInicio||!fechaFin||!Number.isFinite(origenContactoId)) return res.status(400).json({message:'Filtros requeridos'});
+  try{return res.json(await obtenerDetalleVentasPorOrigen({empresaId,fechaInicio,fechaFin,contactoId,productoId,origenContactoId}));}catch(err){return res.status(500).json({message:err instanceof Error?err.message:'Error'});}
 }
 
 export async function getConversionCotizaciones(req: Request, res: Response) {

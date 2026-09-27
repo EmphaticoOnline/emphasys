@@ -67,6 +67,7 @@ import HistorialPreciosCompraPage from './pages/informes/compras/HistorialPrecio
 import ComprasPorPeriodoPage from './pages/informes/compras/ComprasPorPeriodoPage';
 import HistorialPreciosVentaPage from './pages/informes/ventas/HistorialPreciosVentaPage';
 import VentasPorPeriodoPage from './pages/informes/ventas/VentasPorPeriodoPage';
+import VentasPorOrigenContactoPage from './pages/informes/ventas/VentasPorOrigenContactoPage';
 import ConversionCotizacionesPage from './pages/informes/ventas/ConversionCotizacionesPage';
 import PedidosPendientesFacturarPage from './pages/informes/ventas/PedidosPendientesFacturarPage';
 import RemisionesPendientesFacturarPage from './pages/informes/ventas/RemisionesPendientesFacturarPage';
@@ -197,6 +198,7 @@ export default function App() {
               <Route path="/informes/compras/compras-por-periodo"               element={<ComprasPorPeriodoPage />} />
               <Route path="/informes/ventas/historial-precios"                  element={<HistorialPreciosVentaPage />} />
               <Route path="/informes/ventas/ventas-por-periodo"                 element={<VentasPorPeriodoPage />} />
+              <Route path="/informes/ventas/ventas-por-origen-contacto"        element={<VentasPorOrigenContactoPage />} />
               <Route path="/informes/ventas/conversion-cotizaciones"         element={<ConversionCotizacionesPage />} />
               <Route path="/informes/ventas/pedidos-pendientes-facturar"        element={<PedidosPendientesFacturarPage />} />
               <Route path="/informes/ventas/remisiones-pendientes-facturar"     element={<RemisionesPendientesFacturarPage />} />

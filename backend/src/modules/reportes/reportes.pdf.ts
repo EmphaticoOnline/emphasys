@@ -17,6 +17,7 @@ import type {
   MovimientosPorPeriodoResult,
   PeriodoResumen,
   DocumentoPeriodo,
+  VentasPorOrigenResult,
   PendientesFacturarResult,
   ExistenciasPorAlmacenResult,
   KardexResult,
@@ -24,6 +25,10 @@ import type {
   ProductosBajoMinimoResult,
   InventarioValorizadoResult,
 } from './reportes.repository';
+
+export function generarVentasPorOrigenPDF(resultado: VentasPorOrigenResult): Promise<Buffer> {
+  return new Promise(resolve => { const chunks: Buffer[] = []; const doc = new PDFDocument({ size:'A4', margin:40 }); doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.fontSize(16).text('Ventas por Origen de Contacto'); doc.fontSize(9).fillColor('#666').text(`${resultado.fecha_inicio} — ${resultado.fecha_fin}`); doc.moveDown(); doc.fillColor('#000').fontSize(10).text(`Total vendido (subtotal): $${resultado.kpis.total.toFixed(2)}   Documentos: ${resultado.kpis.cantidad_documentos}   Clientes: ${resultado.kpis.cantidad_contactos}   Ticket promedio: $${resultado.kpis.ticket_promedio.toFixed(2)}`); doc.moveDown(); doc.font('Helvetica-Bold').text('Origen                         Documentos   Clientes   Subtotal   IVA   Total   %'); doc.font('Helvetica'); for (const r of [...resultado.filas, resultado.totales]) doc.text(`${r.origen.padEnd(28).slice(0,28)} ${String(r.documentos).padStart(9)} ${String(r.clientes).padStart(9)} $${r.subtotal.toFixed(2)} $${r.iva.toFixed(2)} $${r.total.toFixed(2)} ${r.porcentaje_total.toFixed(2)}%`); doc.end(); });
+}
 
 const BRAND       = '#1d2f68';
 const GRAY_HEADER = '#374151';

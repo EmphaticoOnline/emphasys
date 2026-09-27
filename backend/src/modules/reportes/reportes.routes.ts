@@ -13,6 +13,9 @@ import {
   getHistorialPreciosVenta,
   getComprasPorPeriodo,
   getVentasPorPeriodo,
+  getOrigenesContacto,
+  getVentasPorOrigenContacto,
+  getDetalleVentasPorOrigen,
   getConversionCotizaciones,
   getPedidosPendientesFacturar,
   getRemisionesPendientesFacturar,
@@ -44,6 +47,9 @@ router.get('/compras/historial-precios',                getHistorialPreciosCompr
 router.get('/compras/compras-por-periodo',             getComprasPorPeriodo);
 router.get('/ventas/historial-precios',                getHistorialPreciosVenta);
 router.get('/ventas/ventas-por-periodo',               getVentasPorPeriodo);
+router.get('/catalogos/origenes-contacto',               getOrigenesContacto);
+router.get('/ventas/ventas-por-origen-contacto',       getVentasPorOrigenContacto);
+router.get('/ventas/ventas-por-origen-contacto/detalle', getDetalleVentasPorOrigen);
 router.get('/ventas/conversion-cotizaciones',          getConversionCotizaciones);
 router.get('/ventas/pedidos-pendientes-facturar',      getPedidosPendientesFacturar);
 router.get('/ventas/remisiones-pendientes-facturar',   getRemisionesPendientesFacturar);

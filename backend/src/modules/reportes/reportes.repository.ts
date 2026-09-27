@@ -1203,6 +1203,7 @@ export type DocumentoPeriodo = {
   fecha:            string;
   folio:            string;
   contacto_nombre:  string;
+  contacto_id:      number | null;
   cantidad_total:   number;
   subtotal:         number;
   iva:              number;
@@ -1225,6 +1226,12 @@ export type MovimientosPorPeriodoResult = {
   documentos:   DocumentoPeriodo[];
   kpis:         KpisMovimientosPeriodo;
 };
+
+export const ORIGEN_SIN_ID = -1;
+export const ORIGEN_MULTIPLE_ID = -2;
+export type VentasPorOrigenRow = { origen_id: number | null; origen: string; documentos: number; clientes: number; subtotal: number; iva: number; total: number; porcentaje_total: number };
+export type VentasPorOrigenResult = { fecha_inicio: string; fecha_fin: string; filas: VentasPorOrigenRow[]; totales: VentasPorOrigenRow; kpis: KpisMovimientosPeriodo; evolucion: PeriodoResumen[]; total_comparable: number };
+export type VentasPorOrigenDetalle = { id:number; fecha:string; folio:string; cliente:string; subtotal:number };
 
 const AGRUPACION_TRUNC: Record<Agrupacion, string> = {
   dia:    'day',
@@ -1267,9 +1274,10 @@ async function _obtenerMovimientosPorPeriodo(
     agrupacion:  Agrupacion;
     contactoId?: number | null;
     productoId?: number | null;
+    origenContactoId?: number | null;
   }
 ): Promise<MovimientosPorPeriodoResult> {
-  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId } = params;
+  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId } = params;
 
   const trunc = AGRUPACION_TRUNC[agrupacion];
   const sinCancelados = `LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
@@ -1293,6 +1301,19 @@ async function _obtenerMovimientosPorPeriodo(
     filtroProducto = '';   // el join ya actúa como filtro
     filtroProductoCant = `AND dp.producto_id = $${pIdx}`;
   }
+  const origenJoin = `LEFT JOIN LATERAL (
+    SELECT CASE WHEN COUNT(*) > 1 THEN ${ORIGEN_MULTIPLE_ID} ELSE MIN(cat.id) END AS origen_id,
+           CASE WHEN COUNT(*) = 0 THEN 'Sin origen' WHEN COUNT(*) > 1 THEN 'Origen múltiple' ELSE MIN(cat.descripcion) END AS origen
+      FROM core.entidades_catalogos ec
+      JOIN core.catalogos cat ON cat.id = ec.catalogo_id AND cat.empresa_id = d.empresa_id
+      JOIN core.catalogos_tipos ct ON ct.id = cat.tipo_catalogo_id AND ct.empresa_id = d.empresa_id
+      JOIN core.entidades_tipos et ON et.id = ec.entidad_tipo_id AND et.codigo = 'CONTACTO'
+     WHERE ec.empresa_id = d.empresa_id AND ec.entidad_id = d.contacto_principal_id
+       AND ct.nombre = 'Origenes de Contactos'
+  ) origen ON TRUE`;
+  const filtroOrigen = origenContactoId != null
+    ? `AND (( $${args.push(origenContactoId)} = ${ORIGEN_SIN_ID} AND origen.origen_id IS NULL) OR ($${args.length} = ${ORIGEN_MULTIPLE_ID} AND origen.origen_id = ${ORIGEN_MULTIPLE_ID}) OR (origen.origen_id = $${args.length} AND $${args.length} > 0))`
+    : '';
 
   // ── Resumen agrupado por período ──────────────────────────────────────────
   const { rows: resumenRows } = await pool.query(
@@ -1303,6 +1324,7 @@ async function _obtenerMovimientosPorPeriodo(
               d.total::numeric    AS total
        FROM documentos d
        ${joinProducto}
+       ${origenJoin}
        WHERE d.empresa_id = $1
          AND d.tipo_documento = $4
          AND d.fecha_documento >= $2::date
@@ -1310,6 +1332,7 @@ async function _obtenerMovimientosPorPeriodo(
          AND ${sinCancelados}
          ${filtroContacto}
          ${filtroProducto}
+         ${filtroOrigen}
      ),
      cantidades AS (
        SELECT
@@ -1342,6 +1365,7 @@ async function _obtenerMovimientosPorPeriodo(
        SELECT DISTINCT d.id
        FROM documentos d
        ${joinProducto}
+       ${origenJoin}
        WHERE d.empresa_id = $1
          AND d.tipo_documento = $4
          AND d.fecha_documento >= $2::date
@@ -1349,10 +1373,12 @@ async function _obtenerMovimientosPorPeriodo(
          AND ${sinCancelados}
          ${filtroContacto}
          ${filtroProducto}
+         ${filtroOrigen}
      )
      SELECT
        DATE_TRUNC('${trunc}', d.fecha_documento)::date::text AS periodo_key,
        d.id,
+       d.contacto_principal_id AS contacto_id,
        d.fecha_documento                                       AS fecha,
        COALESCE(d.serie, '')                                   AS serie,
        COALESCE(d.numero, 0)::int                             AS numero,
@@ -1392,6 +1418,7 @@ async function _obtenerMovimientosPorPeriodo(
     fecha:           toFecha(r.fecha),
     folio:           formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
     contacto_nombre: String(r.contacto_nombre ?? '—'),
+    contacto_id: r.contacto_id == null ? null : Number(r.contacto_id),
     cantidad_total:  Number(r.cantidad_total ?? 0),
     subtotal:        Number(r.subtotal ?? 0),
     iva:             Number(r.iva ?? 0),
@@ -1400,7 +1427,7 @@ async function _obtenerMovimientosPorPeriodo(
 
   const totalGeneral       = periodos.reduce((s, p) => s + p.total, 0);
   const cantidadDocs       = periodos.reduce((s, p) => s + p.cantidad_documentos, 0);
-  const cantidadContactos  = new Set(docRows.map((r) => r.contacto_nombre)).size;
+  const cantidadContactos  = new Set(docRows.map((r) => r.contacto_id)).size;
   const cantidadTotal      = periodos.reduce((s, p) => s + p.cantidad_total, 0);
 
   return {
@@ -1437,8 +1464,46 @@ export async function obtenerVentasPorPeriodo(params: {
   agrupacion:  Agrupacion;
   contactoId?: number | null;
   productoId?: number | null;
+  origenContactoId?: number | null;
 }): Promise<MovimientosPorPeriodoResult> {
   return _obtenerMovimientosPorPeriodo('factura', params);
+}
+
+export async function obtenerOrigenesContacto(empresaId: number) {
+  const { rows } = await pool.query(`SELECT c.id, c.descripcion FROM core.catalogos c JOIN core.catalogos_tipos ct ON ct.id = c.tipo_catalogo_id JOIN core.entidades_tipos et ON et.id = ct.entidad_tipo_id WHERE c.empresa_id=$1 AND ct.empresa_id=$1 AND et.codigo='CONTACTO' AND ct.nombre='Origenes de Contactos' AND COALESCE(c.activo, true) ORDER BY c.orden NULLS LAST, c.descripcion`, [empresaId]);
+  return rows;
+}
+
+export async function obtenerVentasPorOrigen(params: { empresaId: number; fechaInicio: string; fechaFin: string; contactoId?: number | null; productoId?: number | null; origenContactoId?: number | null; agrupacion: Agrupacion }): Promise<VentasPorOrigenResult> {
+  const { empresaId, fechaInicio, fechaFin, contactoId, productoId, origenContactoId, agrupacion } = params;
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin];
+  const filters = [`d.empresa_id=$1`, `d.fecha_documento >= $2::date`, `d.fecha_documento <= $3::date`, `d.tipo_documento='factura'`, `LOWER(COALESCE(d.estatus_documento,'')) NOT IN ('cancelado','cancelada')`];
+  if (contactoId) { args.push(contactoId); filters.push(`d.contacto_principal_id=$${args.length}`); }
+  const product = productoId ? (() => { args.push(productoId); return `AND EXISTS (SELECT 1 FROM documentos_partidas dp WHERE dp.documento_id=d.id AND dp.producto_id=$${args.length})`; })() : '';
+  const originFilter = origenContactoId != null ? (() => { args.push(origenContactoId); return `AND ($${args.length} = ${ORIGEN_SIN_ID} AND x.origen_id IS NULL OR $${args.length} = ${ORIGEN_MULTIPLE_ID} AND x.origen_id=${ORIGEN_MULTIPLE_ID} OR $${args.length} > 0 AND x.origen_id=$${args.length})`; })() : '';
+  const base = `WITH docs_base AS (SELECT d.id,d.contacto_principal_id,d.fecha_documento,d.subtotal::numeric subtotal,d.iva::numeric iva,d.total::numeric total, CASE WHEN COUNT(ct.id)=0 THEN NULL WHEN COUNT(ct.id)>1 THEN ${ORIGEN_MULTIPLE_ID} ELSE MIN(cat.id) END origen_id, CASE WHEN COUNT(ct.id)=0 THEN 'Sin origen' WHEN COUNT(ct.id)>1 THEN 'Origen múltiple' ELSE MIN(cat.descripcion) END origen FROM documentos d LEFT JOIN core.entidades_catalogos ec ON ec.empresa_id=d.empresa_id AND ec.entidad_id=d.contacto_principal_id LEFT JOIN core.entidades_tipos et ON et.id=ec.entidad_tipo_id AND et.codigo='CONTACTO' LEFT JOIN core.catalogos cat ON cat.id=ec.catalogo_id AND cat.empresa_id=d.empresa_id LEFT JOIN core.catalogos_tipos ct ON ct.id=cat.tipo_catalogo_id AND ct.nombre='Origenes de Contactos' AND ct.empresa_id=d.empresa_id WHERE ${filters.join(' AND ')} ${product} GROUP BY d.id,d.contacto_principal_id,d.fecha_documento,d.subtotal,d.iva,d.total) SELECT origem`;
+  const q = base.replace('SELECT origem', `SELECT x.origen_id, x.origen, COUNT(*)::int documentos, COUNT(DISTINCT x.contacto_principal_id)::int clientes, COALESCE(SUM(x.subtotal),0)::numeric subtotal, COALESCE(SUM(x.iva),0)::numeric iva, COALESCE(SUM(x.total),0)::numeric total FROM docs_base x WHERE TRUE ${originFilter} GROUP BY x.origen_id,x.origen ORDER BY total DESC`);
+  const { rows } = await pool.query(q, args);
+  const allArgs = [...args.slice(0, originFilter ? -1 : args.length)];
+  const { rows: all } = await pool.query(q.replace(originFilter, ''), allArgs);
+  const comparableTotal = all.reduce((s,r)=>s+Number(r.subtotal),0);
+  const total = rows.reduce((s,r)=>s+Number(r.subtotal),0), docs = rows.reduce((s,r)=>s+Number(r.documentos),0);
+  const kpis = { total, cantidad_documentos: docs, cantidad_contactos: rows.reduce((s,r)=>s+Number(r.clientes),0), cantidad_total: 0, ticket_promedio: docs ? total/docs : 0 };
+  const filas = rows.map(r=>({...r, origen_id:r.origen_id == null ? null : Number(r.origen_id), documentos:Number(r.documentos), clientes:Number(r.clientes), subtotal:Number(r.subtotal), iva:Number(r.iva), total:Number(r.total), porcentaje_total: comparableTotal ? Number(r.total)*100/comparableTotal : 0}));
+  const totales = { origen_id:null, origen:'Total', documentos:docs, clientes:kpis.cantidad_contactos, subtotal:rows.reduce((s,r)=>s+Number(r.subtotal),0), iva:rows.reduce((s,r)=>s+Number(r.iva),0), total, porcentaje_total: comparableTotal ? total*100/comparableTotal : 0 };
+  let evolucion: PeriodoResumen[] = [];
+  if (origenContactoId != null) {
+    const trunc = AGRUPACION_TRUNC[agrupacion];
+    const evq = base.replace('SELECT origem', `SELECT DATE_TRUNC('${trunc}', fecha_documento)::date::text periodo_key, COUNT(*)::int cantidad_documentos, COUNT(DISTINCT contacto_principal_id)::int cantidad_contactos, 0::numeric cantidad_total, SUM(subtotal)::numeric subtotal, SUM(iva)::numeric iva, SUM(total)::numeric total FROM docs_base x WHERE TRUE ${originFilter} GROUP BY 1 ORDER BY 1`);
+    const { rows: ev } = await pool.query(evq, args);
+    evolucion = ev.map(r=>({ periodo_key:String(r.periodo_key), periodo_label:_periodoLabel(String(r.periodo_key), agrupacion), cantidad_documentos:Number(r.cantidad_documentos), cantidad_contactos:Number(r.cantidad_contactos), cantidad_total:0, subtotal:Number(r.subtotal), iva:Number(r.iva), total:Number(r.total) }));
+  }
+  return { fecha_inicio:fechaInicio, fecha_fin:fechaFin, filas, totales, kpis, evolucion, total_comparable: comparableTotal };
+}
+
+export async function obtenerDetalleVentasPorOrigen(params: { empresaId:number; fechaInicio:string; fechaFin:string; contactoId?:number|null; productoId?:number|null; origenContactoId:number }): Promise<VentasPorOrigenDetalle[]> {
+  const {empresaId,fechaInicio,fechaFin,contactoId,productoId,origenContactoId}=params; const args:unknown[]=[empresaId,fechaInicio,fechaFin]; const f=[`d.empresa_id=$1`,`d.fecha_documento >= $2::date`,`d.fecha_documento <= $3::date`,`d.tipo_documento='factura'`,`LOWER(COALESCE(d.estatus_documento,'')) NOT IN ('cancelado','cancelada')`]; if(contactoId){args.push(contactoId);f.push(`d.contacto_principal_id=$${args.length}`);} let product=''; if(productoId){args.push(productoId);product=`AND EXISTS (SELECT 1 FROM documentos_partidas dp WHERE dp.documento_id=d.id AND dp.producto_id=$${args.length})`;} args.push(origenContactoId); const oi=args.length;
+  const {rows}=await pool.query(`SELECT d.id,d.fecha_documento AS fecha,d.serie,d.numero,COALESCE(c.nombre,'—') AS cliente,d.subtotal::numeric subtotal FROM documentos d LEFT JOIN contactos c ON c.id=d.contacto_principal_id AND c.empresa_id=d.empresa_id LEFT JOIN LATERAL (SELECT CASE WHEN COUNT(ct.id)=0 THEN NULL WHEN COUNT(ct.id)>1 THEN ${ORIGEN_MULTIPLE_ID} ELSE MIN(cat.id) END origen_id FROM core.entidades_catalogos ec LEFT JOIN core.entidades_tipos et ON et.id=ec.entidad_tipo_id AND et.codigo='CONTACTO' LEFT JOIN core.catalogos cat ON cat.id=ec.catalogo_id AND cat.empresa_id=d.empresa_id LEFT JOIN core.catalogos_tipos ct ON ct.id=cat.tipo_catalogo_id AND ct.nombre='Origenes de Contactos' AND ct.empresa_id=d.empresa_id WHERE ec.empresa_id=d.empresa_id AND ec.entidad_id=d.contacto_principal_id) o ON TRUE WHERE ${f.join(' AND ')} ${product} AND (($${oi}=${ORIGEN_SIN_ID} AND o.origen_id IS NULL) OR ($${oi}=${ORIGEN_MULTIPLE_ID} AND o.origen_id=${ORIGEN_MULTIPLE_ID}) OR ($${oi}>0 AND o.origen_id=$${oi})) ORDER BY d.fecha_documento,d.id`,args); return rows.map(r=>({id:Number(r.id),fecha:toFecha(r.fecha),folio:formatearFolioDocumento(String(r.serie??''),Number(r.numero??0)),cliente:String(r.cliente||'—'),subtotal:Number(r.subtotal||0)}));
 }
 
 export type ConversionCotizacionesRow = {
