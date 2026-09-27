@@ -56,7 +56,6 @@ import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { resolveDocumentoFormPath, resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
 import DynamicFieldControl from '../components/DynamicFieldControl';
 import MobileBackIconButton from '../components/MobileBackIconButton';
@@ -68,6 +67,9 @@ import ObservacionesEncabezadoCampo from '../components/ObservacionesEncabezadoC
 import PartidaObservacionesEditor from '../components/documentos/PartidaObservacionesEditor';
 import PartidaEspecificacionesEditor from '../components/documentos/PartidaEspecificacionesEditor';
 import FacturaResumenFlotante, { type FacturaResumenFlotantePosicion } from '../components/documentos/facturas/FacturaResumenFlotante';
+import TratamientoFiscalControl, { TRATAMIENTO_OPCIONES } from '../components/documentos/TratamientoFiscalControl';
+import NotaCreditoCaptura, { filasDesdePreparacion, type CandidataNotaCredito } from '../components/documentos/nota-credito/NotaCreditoCaptura';
+import { resolverValorInicialNotaCredito } from '../components/documentos/nota-credito/cantidadInicialNotaCredito';
 import { useCamposDinamicos } from '../hooks/useCamposDinamicos';
 import {
   resolveFacturaCapturaVistaInicial,
@@ -311,20 +313,6 @@ const getCuentaFinancieraDisplayLabel = (cuenta: FinanzasCuenta) => {
     .trim();
 
   return sanitized || raw || `Cuenta ${cuenta.id}`;
-};
-
-const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
-  { label: 'Operación estándar', value: 'normal' },
-  { label: 'Nota de venta', value: 'sin_iva' },
-  { label: 'Operación tasa cero', value: 'tasa_cero' },
-  { label: 'Operación exenta', value: 'exento' },
-];
-
-const TRATAMIENTO_ABREVIATURA: Record<TratamientoImpuestos, string> = {
-  normal: 'EST',
-  sin_iva: 'NV',
-  tasa_cero: 'T0',
-  exento: 'EX',
 };
 
 const TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL = new Set<TipoDocumento>([
@@ -671,12 +659,15 @@ export default function DocumentosFormPage({
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [contactoFallback, setContactoFallback] = useState<Contacto | null>(null);
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
+  const [conceptosCatalogoListo, setConceptosCatalogoListo] = useState(false);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [documentosOrigenDisponibles, setDocumentosOrigenDisponibles] = useState<CotizacionListado[]>([]);
   const [documentosOrigenSeleccionados, setDocumentosOrigenSeleccionados] = useState<CotizacionListado[]>([]);
+  const [tratamientoCapturaNotaCredito, setTratamientoCapturaNotaCredito] = useState<TratamientoImpuestos | null>(null);
   const [preparacionNotaCredito, setPreparacionNotaCredito] = useState<PrepararGeneracionResponse | null>(null);
   const [valoresEspecialesNotaCredito, setValoresEspecialesNotaCredito] = useState<Record<number, number>>({});
+  const [partidasIncluidasNotaCredito, setPartidasIncluidasNotaCredito] = useState<number[]>([]);
   const [loadingPreparacionNotaCredito, setLoadingPreparacionNotaCredito] = useState(false);
   const [resumenNotaCreditoEspecial, setResumenNotaCreditoEspecial] = useState<FinancialSummary>(EMPTY_FINANCIAL_SUMMARY);
   const [detallePartidasNotaCreditoEspecial, setDetallePartidasNotaCreditoEspecial] = useState<Record<number, { subtotal: number; iva: number; total: number }>>({});
@@ -781,6 +772,15 @@ export default function DocumentosFormPage({
     const parsedContactoId = rawContactoId ? Number(rawContactoId) : NaN;
     return Number.isFinite(parsedContactoId) ? parsedContactoId : null;
   }, [location.search]);
+  const origenIdsNotaCredito = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('origenIds') || params.get('origenId') || '';
+    return raw.split(',').map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0);
+  }, [location.search]);
+  const motivoInicialNotaCredito = useMemo(() => {
+    const raw = new URLSearchParams(location.search).get('motivo');
+    return raw === 'devolucion' || raw === 'bonificacion' || raw === 'otro' ? raw : null;
+  }, [location.search]);
   const conversacionId = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return params.get('conversacionId');
@@ -874,6 +874,8 @@ export default function DocumentosFormPage({
   const previewSeqRef = useRef<Record<number, number>>({});
   const previewGlobalSeqRef = useRef<number>(0);
   const resumenNotaCreditoEspecialSeqRef = useRef<number>(0);
+  const origenNotaCreditoAplicadoRef = useRef(false);
+  const inclusionNotaCreditoAplicadaRef = useRef(false);
   const tratamientoRef = useRef<TratamientoImpuestos | null>(form.tratamiento_impuestos ?? 'normal');
   const descuentoGlobalRef = useRef<number>(clampDiscountPercent(form.descuento_global ?? 0));
   const resumenFinancieroRef = useRef<HTMLDivElement | null>(null);
@@ -1647,6 +1649,10 @@ export default function DocumentosFormPage({
       concepto_id: valor === 'otro' ? (prev.concepto_id ?? null) : null,
     }));
 
+    setValoresEspecialesNotaCredito({});
+    setPartidasIncluidasNotaCredito([]);
+    inclusionNotaCreditoAplicadaRef.current = false;
+
     if (valor === 'otro') {
       setPartidas([emptyPartida()]);
       const montoActual = Number(form.total ?? 0);
@@ -1744,6 +1750,8 @@ export default function DocumentosFormPage({
       setConceptos(conceptosData ?? []);
     } catch (e) {
       console.error(e);
+    } finally {
+      setConceptosCatalogoListo(true);
     }
   };
 
@@ -1759,6 +1767,11 @@ export default function DocumentosFormPage({
       }
       const [data, saldoData] = await Promise.all(requests);
       const doc = data.documento;
+      if (['nota_credito', 'nota_credito_compra'].includes(String(doc.tipo_documento ?? tipoDocumento).toLowerCase())) {
+        setDocumentosOrigenSeleccionados(
+          Array.isArray((doc as any).documentos_origen) ? (doc as any).documentos_origen : [],
+        );
+      }
       if (tipoDocumento === 'factura') {
         const editabilidad = await apiFetch<{ esNotaVenta: boolean; editable: boolean; motivos: string[] }>(`/api/facturas/${Number(documentoActualId)}/editabilidad-nota-venta`);
         setNotaVentaEditabilidad(editabilidad);
@@ -2071,6 +2084,7 @@ export default function DocumentosFormPage({
       setBonificacionInputDisplay({});
       setBonificacionInputFocusedId(null);
       setBusquedaNotaCreditoEspecial('');
+      setTratamientoCapturaNotaCredito(null);
       return;
     }
 
@@ -2080,22 +2094,40 @@ export default function DocumentosFormPage({
   }, [isNotaCreditoBonificacion, isNotaCreditoDevolucion, tipoDocumentoOrigenNotaCredito]);
 
   useEffect(() => {
+    if (!isNotaCredito || isEdit || !motivoInicialNotaCredito) return;
+    setForm((prev) => (prev.motivo_nc === motivoInicialNotaCredito ? prev : { ...prev, motivo_nc: motivoInicialNotaCredito }));
+  }, [isEdit, isNotaCredito, motivoInicialNotaCredito]);
+
+  useEffect(() => {
     if (!usaGeneracionEspecialNotaCredito || !form.contacto_principal_id) {
+      origenNotaCreditoAplicadoRef.current = false;
+      inclusionNotaCreditoAplicadaRef.current = false;
       setDocumentosOrigenSeleccionados([]);
-      setPreparacionNotaCredito(null);
-      setValoresEspecialesNotaCredito({});
-      setDetallePartidasNotaCreditoEspecial({});
-      setLineasSeleccionadasNotaCreditoEspecial({});
-      setBonificacionInputDisplay({});
-      setBonificacionInputFocusedId(null);
+      setPartidasIncluidasNotaCredito([]);
+      if (!usaGeneracionEspecialNotaCredito) {
+        setPreparacionNotaCredito(null);
+        setValoresEspecialesNotaCredito({});
+      }
       return;
     }
 
-    setDocumentosOrigenSeleccionados(documentosOrigenCliente);
-  }, [documentosOrigenCliente, form.contacto_principal_id, usaGeneracionEspecialNotaCredito]);
+    if (isEdit) {
+      if (documentosOrigenSeleccionados.length > 0) return;
+      const ids = Array.from(new Set(Object.values(capturasEspecialesDocumentoActual).map((captura) => Number(captura.documentoOrigenId)).filter((id) => id > 0)));
+      const docs = documentosOrigenDisponibles.filter((doc) => ids.includes(Number(doc.id)));
+      if (docs.length > 0) setDocumentosOrigenSeleccionados(docs);
+      return;
+    }
+
+    if (origenIdsNotaCredito.length === 0 || origenNotaCreditoAplicadoRef.current) return;
+    const docs = documentosOrigenDisponibles.filter((doc) => origenIdsNotaCredito.includes(Number(doc.id)));
+    if (docs.length !== origenIdsNotaCredito.length) return;
+    origenNotaCreditoAplicadoRef.current = true;
+    setDocumentosOrigenSeleccionados(docs);
+  }, [capturasEspecialesDocumentoActual, documentosOrigenDisponibles, documentosOrigenSeleccionados.length, form.contacto_principal_id, isEdit, origenIdsNotaCredito, usaGeneracionEspecialNotaCredito]);
 
   useEffect(() => {
-    if (!nombreConceptoAutoNotaCredito || conceptoManualOverrideRef.current) return;
+    if (!conceptosCatalogoListo || !nombreConceptoAutoNotaCredito || conceptoManualOverrideRef.current) return;
 
     const nombreObjetivo = nombreConceptoAutoNotaCredito;
     const conceptoExistente = conceptos.find((concepto) => normalizarNombreConcepto(concepto.nombre_concepto) === normalizarNombreConcepto(nombreObjetivo));
@@ -2112,6 +2144,14 @@ export default function DocumentosFormPage({
     conceptoAutoSyncRef.current = nombreObjetivo;
 
     let cancelled = false;
+    const asignarConcepto = (concepto: Concepto) => {
+      setConceptos((prev) => [
+        ...prev.filter((item) => item.id !== concepto.id),
+        concepto,
+      ]);
+      setForm((prev) => ({ ...prev, concepto_id: concepto.id }));
+    };
+
     void (async () => {
       try {
         const creado = await crearConcepto({
@@ -2121,17 +2161,38 @@ export default function DocumentosFormPage({
         });
 
         if (cancelled) return;
-
-        setConceptos((prev) => [
-          ...prev.filter((concepto) => concepto.id !== creado.id),
-          creado,
-        ]);
-        setForm((prev) => ({ ...prev, concepto_id: creado.id }));
+        asignarConcepto(creado);
       } catch (error) {
+        if (cancelled) return;
+        const status = (error as { status?: number }).status;
+        const message = error instanceof Error ? error.message : '';
+        const esDuplicado = status === 409 || /duplicate key|ux_concepto_empresa/i.test(message);
+        if (esDuplicado) {
+          try {
+            const refreshed = await fetchConceptos();
+            const existente = refreshed.find((concepto) => normalizarNombreConcepto(concepto.nombre_concepto) === normalizarNombreConcepto(nombreObjetivo));
+            if (!cancelled && existente) {
+              asignarConcepto(existente);
+              return;
+            }
+          } catch (reloadError) {
+            if (!cancelled) {
+              const detalle = reloadError instanceof Error ? reloadError.message : message;
+              setSnackbar({
+                open: true,
+                message: `El concepto "${nombreObjetivo}" ya existe, pero no se pudo recuperar: ${detalle}`,
+                severity: 'error',
+              });
+            }
+            return;
+          }
+        }
         if (!cancelled) {
           setSnackbar({
             open: true,
-            message: `No se pudo crear automáticamente el concepto "${nombreObjetivo}"`,
+            message: message
+              ? `No se pudo crear automáticamente el concepto "${nombreObjetivo}": ${message}`
+              : `No se pudo crear automáticamente el concepto "${nombreObjetivo}"`,
             severity: 'error',
           });
         }
@@ -2145,7 +2206,7 @@ export default function DocumentosFormPage({
     return () => {
       cancelled = true;
     };
-  }, [conceptos, form.concepto_id, nombreConceptoAutoNotaCredito, normalizarNombreConcepto, tipoDocumento]);
+  }, [conceptos, conceptosCatalogoListo, form.concepto_id, nombreConceptoAutoNotaCredito, normalizarNombreConcepto, tipoDocumento]);
 
   useEffect(() => {
     if ((!isNotaCreditoDevolucion && !isNotaCreditoBonificacion) || documentosOrigenSeleccionados.length === 0) {
@@ -2170,23 +2231,33 @@ export default function DocumentosFormPage({
     )
       .then((data) => {
         setPreparacionNotaCredito(data);
-        setValoresEspecialesNotaCredito(() => Object.fromEntries(data.partidas.map((partida) => [
-          partida.partida_id,
-          Number(capturasEspecialesDocumentoActual[partida.partida_id]?.valor ?? 0),
-        ])));
-        setLineasSeleccionadasNotaCreditoEspecial(() => Object.fromEntries(data.partidas.map((partida) => [
-          partida.partida_id,
-          Number(capturasEspecialesDocumentoActual[partida.partida_id]?.valor ?? 0) > 0,
-        ])));
-        setBonificacionInputDisplay(() => Object.fromEntries(data.partidas.map((partida) => [
-          partida.partida_id,
-          formatMontoBonificacionInput(Number(capturasEspecialesDocumentoActual[partida.partida_id]?.valor ?? 0)),
-        ])));
+        setValoresEspecialesNotaCredito((prev) => {
+          const next = { ...prev };
+          data.partidas.forEach((partida) => {
+            const inicial = resolverValorInicialNotaCredito({
+              valorEnSesion: next[partida.partida_id],
+              capturaGuardada: capturasEspecialesDocumentoActual[partida.partida_id],
+              devolucion: isNotaCreditoDevolucion,
+              cantidadPendiente: Number(partida.cantidad_pendiente_sugerida ?? 0),
+            });
+            if (inicial != null) next[partida.partida_id] = inicial;
+          });
+          return next;
+        });
+        setLineasSeleccionadasNotaCreditoEspecial((prev) => {
+          const next = { ...prev };
+          data.partidas.forEach((partida) => {
+            if (next[partida.partida_id] == null) {
+              next[partida.partida_id] = Number(capturasEspecialesDocumentoActual[partida.partida_id]?.valor ?? 0) > 0;
+            }
+          });
+          return next;
+        });
         setBonificacionInputFocusedId(null);
-        const contactoId = data.documentos_origen.length === 1
-          ? (documentosOrigenSeleccionados[0]?.contacto_principal_id ?? null)
-          : (documentosOrigenSeleccionados[0]?.contacto_principal_id ?? null);
-        setForm((prev) => ({ ...prev, contacto_principal_id: contactoId }));
+        const tratamientoOrigen = data.documentos_origen[0]?.tratamiento_impuestos;
+        if (tratamientoOrigen) {
+          setForm((prev) => (prev.tratamiento_impuestos === tratamientoOrigen ? prev : { ...prev, tratamiento_impuestos: tratamientoOrigen }));
+        }
       })
       .catch((prepError: any) => {
         setPreparacionNotaCredito(null);
@@ -2197,7 +2268,42 @@ export default function DocumentosFormPage({
         setSnackbar({ open: true, message: prepError?.message || 'No se pudo preparar la nota de crédito.', severity: 'error' });
       })
       .finally(() => setLoadingPreparacionNotaCredito(false));
-  }, [capturasEspecialesDocumentoActual, documentosOrigenSeleccionados, formatMontoBonificacionInput, isNotaCreditoBonificacion, isNotaCreditoDevolucion, session.empresaActivaId, session.token, tipoDocumento]);
+  }, [capturasEspecialesDocumentoActual, documentosOrigenSeleccionados, isNotaCreditoBonificacion, isNotaCreditoDevolucion, session.empresaActivaId, session.token, tipoDocumento]);
+
+  useEffect(() => {
+    if (!usaGeneracionEspecialNotaCredito) {
+      setTratamientoCapturaNotaCredito(null);
+      return;
+    }
+    const tratamientoPersistido = preparacionNotaCredito?.documentos_origen[0]?.tratamiento_impuestos
+      ?? (isEdit ? documentosOrigenSeleccionados[0]?.tratamiento_impuestos : null)
+      ?? (origenIdsNotaCredito.length > 0 ? documentosOrigenSeleccionados[0]?.tratamiento_impuestos : null);
+    if (tratamientoPersistido) {
+      setTratamientoCapturaNotaCredito(tratamientoPersistido as TratamientoImpuestos);
+    } else if (!isEdit && origenIdsNotaCredito.length === 0 && documentosOrigenSeleccionados.length === 0) {
+      setTratamientoCapturaNotaCredito(null);
+    }
+  }, [documentosOrigenSeleccionados, isEdit, origenIdsNotaCredito.length, preparacionNotaCredito, usaGeneracionEspecialNotaCredito]);
+
+  useEffect(() => {
+    if (!usaGeneracionEspecialNotaCredito || !preparacionNotaCredito || inclusionNotaCreditoAplicadaRef.current) return;
+    if (isEdit) {
+      const ids = Object.entries(capturasEspecialesDocumentoActual)
+        .filter(([, captura]) => Number(captura.valor) > 0)
+        .map(([partidaId]) => Number(partidaId));
+      if (ids.length === 0 && Object.keys(capturasEspecialesDocumentoActual).length === 0) return;
+      inclusionNotaCreditoAplicadaRef.current = true;
+      setPartidasIncluidasNotaCredito(ids);
+      return;
+    }
+    if (origenIdsNotaCredito.length === 0) return;
+    const ids = preparacionNotaCredito.partidas
+      .filter((partida) => origenIdsNotaCredito.includes(Number(partida.documento_origen_id)))
+      .filter((partida) => (isNotaCreditoDevolucion ? Number(partida.cantidad_pendiente_sugerida ?? 0) : Number(partida.importe_maximo_sugerido ?? 0)) > 0.000001)
+      .map((partida) => partida.partida_id);
+    inclusionNotaCreditoAplicadaRef.current = true;
+    setPartidasIncluidasNotaCredito(ids);
+  }, [capturasEspecialesDocumentoActual, isEdit, isNotaCreditoDevolucion, origenIdsNotaCredito, preparacionNotaCredito, usaGeneracionEspecialNotaCredito]);
 
   useEffect(() => {
     if (!usaGeneracionEspecialNotaCredito) {
@@ -2207,6 +2313,12 @@ export default function DocumentosFormPage({
     }
 
     const partidasConMonto = partidasNotaCreditoDisponibles
+      .filter((partida) => partidasIncluidasNotaCredito.includes(partida.partida_id))
+      .filter((partida) => {
+        const capturado = Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0);
+        const maximo = getMaximoCapturableNotaCredito(partida);
+        return capturado > 0 && capturado <= maximo + 0.000001;
+      })
       .map((partida) => ({ partida, subtotal: getMontoEspecialNotaCredito(partida) }))
       .filter((item) => item.subtotal > 0);
 
@@ -2310,7 +2422,7 @@ export default function DocumentosFormPage({
         total: resumenNormalizado.total,
       }));
     });
-  }, [form.tratamiento_impuestos, getMontoEspecialNotaCredito, partidasNotaCreditoDisponibles, usaGeneracionEspecialNotaCredito]);
+  }, [form.tratamiento_impuestos, getMaximoCapturableNotaCredito, getMontoEspecialNotaCredito, partidasIncluidasNotaCredito, partidasNotaCreditoDisponibles, usaGeneracionEspecialNotaCredito, valoresEspecialesNotaCredito]);
 
   useEffect(() => {
     if (!isNotaCreditoBonificacion) {
@@ -2517,14 +2629,23 @@ export default function DocumentosFormPage({
       setSnackbar({ open: true, message: 'Captura un monto mayor a cero para la nota de crédito, o agrega partidas válidas.', severity: 'error' });
       return false;
     }
+    if (context === 'save' && isNotaCredito && isEdit && String(form.estatus_documento ?? 'borrador').trim().toLowerCase() !== 'borrador') {
+      setSnackbar({ open: true, message: 'Solo se puede editar una nota de crédito en borrador.', severity: 'error' });
+      return false;
+    }
     if (context === 'save' && usaGeneracionEspecialNotaCredito) {
-      if (documentosOrigenSeleccionados.length === 0 || !preparacionNotaCredito) {
+      if (!preparacionNotaCredito) {
         setSnackbar({ open: true, message: 'Selecciona al menos una factura origen válida.', severity: 'error' });
         return false;
       }
-      const tieneCapturaValida = preparacionNotaCredito.partidas.some((partida) => Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0) > 0);
-      if (!tieneCapturaValida) {
+      const capturas = partidasNotaCreditoDisponibles.filter((partida) => partidasIncluidasNotaCredito.includes(partida.partida_id) && Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0) > 0);
+      if (capturas.length === 0) {
         setSnackbar({ open: true, message: isNotaCreditoDevolucion ? 'Captura al menos una cantidad a devolver.' : 'Captura al menos un monto a bonificar.', severity: 'error' });
+        return false;
+      }
+      const excede = capturas.some((partida) => Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0) > getMaximoCapturableNotaCredito(partida) + 0.000001);
+      if (excede) {
+        setSnackbar({ open: true, message: isNotaCreditoDevolucion ? 'No se puede devolver más de lo disponible.' : 'No se puede bonificar por encima del máximo permitido.', severity: 'error' });
         return false;
       }
     }
@@ -2563,7 +2684,7 @@ export default function DocumentosFormPage({
     }
 
     return true;
-  }, [documentoActualId, documentosOrigenSeleccionados.length, form, getNotaCreditoManualTotalActual, hasAnticiposRegistrados, isNotaCredito, isNotaCreditoBonificacion, isNotaCreditoDevolucion, isNotaCreditoManual, preparacionNotaCredito, requiereCuentaFinanciera, tienePartidaValida, tipoDocumento, totalAnticipadoRegistrado, usaGeneracionEspecialNotaCredito, valoresEspecialesNotaCredito]);
+  }, [documentoActualId, form, getMaximoCapturableNotaCredito, getNotaCreditoManualTotalActual, hasAnticiposRegistrados, isEdit, isNotaCredito, isNotaCreditoBonificacion, isNotaCreditoDevolucion, isNotaCreditoManual, partidasIncluidasNotaCredito, partidasNotaCreditoDisponibles, preparacionNotaCredito, requiereCuentaFinanciera, tienePartidaValida, tipoDocumento, totalAnticipadoRegistrado, usaGeneracionEspecialNotaCredito, valoresEspecialesNotaCredito]);
 
   const persistDocumento = useCallback(async (options?: {
     context?: 'save' | 'anticipo' | 'exit';
@@ -2633,8 +2754,25 @@ export default function DocumentosFormPage({
           throw new Error('No se pudo preparar la generación de la nota de crédito.');
         }
 
+        const partidasGeneracion = preparacionNotaCredito.partidas
+          .filter((partida) => partidasIncluidasNotaCredito.includes(partida.partida_id))
+          .map((partida) => {
+            const valor = Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0);
+            if (valor <= 0) return null;
+            return {
+              documentoId: Number(partida.documento_origen_id),
+              payload: isNotaCreditoDevolucion
+                ? { partida_origen_id: partida.partida_id, cantidad: valor }
+                : {
+                    partida_origen_id: partida.partida_id,
+                    cantidad: 1,
+                    monto_bonificacion: Number(valor.toFixed(2)),
+                  },
+            };
+          })
+          .filter(Boolean) as Array<{ documentoId: number; payload: { partida_origen_id: number; cantidad: number; monto_bonificacion?: number | null } }>;
         const resultado = await generarDocumentoDesdeOrigen({
-          documento_origen_ids: documentosOrigenSeleccionados.map((doc) => doc.id),
+          documento_origen_ids: Array.from(new Set(partidasGeneracion.map((partida) => partida.documentoId))),
           ...(documentoActualId ? { documento_destino_id: Number(documentoActualId) } : {}),
           tipo_documento_destino: tipoDocumento,
           datos_encabezado: {
@@ -2644,6 +2782,7 @@ export default function DocumentosFormPage({
             comentarios: form.observaciones?.trim() || null,
             motivo_nc: motivoNotaCredito,
             concepto_id: form.concepto_id ?? null,
+            tratamiento_impuestos: form.tratamiento_impuestos || 'normal',
             rfc_receptor: form.rfc_receptor?.trim() || null,
             nombre_receptor: form.nombre_receptor?.trim() || null,
             regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
@@ -2652,19 +2791,7 @@ export default function DocumentosFormPage({
             metodo_pago: form.metodo_pago?.trim() || null,
             codigo_postal_receptor: form.codigo_postal_receptor?.trim() || null,
           },
-          partidas: preparacionNotaCredito.partidas
-            .map((partida) => {
-              const valor = Number(valoresEspecialesNotaCredito[partida.partida_id] ?? 0);
-              if (valor <= 0) return null;
-              return isNotaCreditoDevolucion
-                ? { partida_origen_id: partida.partida_id, cantidad: valor }
-                : {
-                    partida_origen_id: partida.partida_id,
-                    cantidad: 1,
-                    monto_bonificacion: Number(valor.toFixed(2)),
-                  };
-            })
-            .filter(Boolean) as Array<{ partida_origen_id: number; cantidad: number; monto_bonificacion?: number | null }>,
+          partidas: partidasGeneracion.map((partida) => partida.payload),
         }, session.token, session.empresaActivaId);
 
         const docId = Number(resultado.documento_destino_id);
@@ -2845,6 +2972,14 @@ export default function DocumentosFormPage({
     loadDocumentosCargoMonetarios,
     montosAplicacionMonetaria,
     documentosCargoMonetarios,
+    documentosOrigenSeleccionados,
+    isNotaCreditoDevolucion,
+    motivoNotaCredito,
+    partidasIncluidasNotaCredito,
+    preparacionNotaCredito,
+    session.empresaActivaId,
+    session.token,
+    valoresEspecialesNotaCredito,
   ]);
 
   const handleSave = async () => {
@@ -3295,6 +3430,14 @@ export default function DocumentosFormPage({
   const esDetalleContacto = (resp: ContactoDetalle | Contacto): resp is ContactoDetalle => 'contacto' in resp;
 
   const handleClienteSelect = (value: Contacto | null) => {
+    if (isNotaCredito && !isEdit) {
+      origenNotaCreditoAplicadoRef.current = false;
+      inclusionNotaCreditoAplicadaRef.current = false;
+      setDocumentosOrigenSeleccionados([]);
+      setPartidasIncluidasNotaCredito([]);
+      setValoresEspecialesNotaCredito({});
+      setPreparacionNotaCredito(null);
+    }
     setForm((prev) => ({
       ...prev,
       contacto_principal_id: value?.id ?? null,
@@ -3607,7 +3750,6 @@ export default function DocumentosFormPage({
   const [floatFacturaPos, setFloatFacturaPos] = useState<FacturaResumenFlotantePosicion | null>(null);
   const [filaFacturaExpandida, setFilaFacturaExpandida] = useState<number | null>(null);
   const [encabezadoDetalleAbierto, setEncabezadoDetalleAbierto] = useState(false);
-  const [tratamientoMenuAnchor, setTratamientoMenuAnchor] = useState<HTMLElement | null>(null);
   const workspaceFacturaRef = useRef<HTMLDivElement | null>(null);
 
   const renderVistaFacturaToggle = () => (
@@ -3635,7 +3777,7 @@ export default function DocumentosFormPage({
             fontSize: 12.5,
             fontWeight: vistaFacturaCaptura === opt.value ? 700 : 500,
             color: vistaFacturaCaptura === opt.value ? '#fff' : '#3d4557',
-            bgcolor: vistaFacturaCaptura === opt.value ? '#1d2f68' : '#fff',
+            bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : '#fff',
           }}
         >
           {opt.label}
@@ -3765,7 +3907,7 @@ export default function DocumentosFormPage({
             {partidaImagenDialog.view === 'pegar' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                  <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                  <Typography variant="subtitle2" fontWeight={700} color="primary.main">
                     Pegar imagen desde el portapapeles
                   </Typography>
                   <Button
@@ -3823,7 +3965,7 @@ export default function DocumentosFormPage({
             {partidaImagenDialog.view === 'producto' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                  <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                  <Typography variant="subtitle2" fontWeight={700} color="primary.main">
                     Imágenes del producto
                   </Typography>
                   <Button size="small" onClick={() => setPartidaImagenDialog((prev) => ({ ...prev, view: 'menu' }))}>
@@ -3988,7 +4130,7 @@ export default function DocumentosFormPage({
               </Box>
             ))}
           </Stack>
-          <Box sx={{ bgcolor: '#1d2f68', px: 1.75, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <Box sx={{ bgcolor: 'primary.main', px: 1.75, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
               Total {form.moneda}
             </Typography>
@@ -4054,7 +4196,7 @@ export default function DocumentosFormPage({
         )}
         <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap" useFlexGap>
           {isMobile && <MobileBackIconButton onClick={() => void handleNavigateBack()} disabled={saving} />}
-          <Typography variant="h5" fontWeight={700} color="#1d2f68" sx={{ flexShrink: 0 }}>
+          <Typography variant="h5" fontWeight={700} color="primary.main" sx={{ flexShrink: 0 }}>
             {isEdit ? textos.editar : textos.nuevo}
           </Typography>
           {renderVistaFacturaToggle()}
@@ -4258,49 +4400,11 @@ export default function DocumentosFormPage({
                     sx={{ flex: '0 0 78px' }}
                   />
                   {widgetTratamientoFiscal && (
-                    <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                      <Typography sx={{ fontSize: 9.5, color: 'rgba(0,0,0,0.6)', pl: 0.25, lineHeight: 1 }}>Tratamiento</Typography>
-                      <Box sx={{ height: 34, display: 'flex', alignItems: 'center' }}>
-                        <Tooltip title={TRATAMIENTO_OPCIONES.find((opt) => opt.value === (form.tratamiento_impuestos || 'normal'))?.label ?? ''}>
-                          <ButtonBase
-                            onClick={(e) => setTratamientoMenuAnchor(e.currentTarget)}
-                            disabled={trazabilidadActiva}
-                            sx={{
-                              height: 26,
-                              gap: 0.4,
-                              pl: 1.1,
-                              pr: 0.6,
-                              borderRadius: 999,
-                              bgcolor: '#eef2ff',
-                              border: '1px solid #c9d2e8',
-                            }}
-                          >
-                            <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: '#1d2f68', fontFamily: 'monospace' }}>
-                              {TRATAMIENTO_ABREVIATURA[form.tratamiento_impuestos || 'normal']}
-                            </Typography>
-                            <ArrowDropDownIcon sx={{ fontSize: 17, color: '#1d2f68' }} />
-                          </ButtonBase>
-                        </Tooltip>
-                      </Box>
-                      <Menu anchorEl={tratamientoMenuAnchor} open={Boolean(tratamientoMenuAnchor)} onClose={() => setTratamientoMenuAnchor(null)}>
-                        {TRATAMIENTO_OPCIONES.map((opt) => (
-                          <MenuItem
-                            key={opt.value}
-                            selected={(form.tratamiento_impuestos || 'normal') === opt.value}
-                            onClick={() => {
-                              handleTratamientoChange(opt.value);
-                              setTratamientoMenuAnchor(null);
-                            }}
-                            sx={{ gap: 1 }}
-                          >
-                            <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#5b6479', fontFamily: 'monospace', width: 24, flexShrink: 0 }}>
-                              {TRATAMIENTO_ABREVIATURA[opt.value]}
-                            </Typography>
-                            <Typography sx={{ fontSize: 12.5 }}>{opt.label}</Typography>
-                          </MenuItem>
-                        ))}
-                      </Menu>
-                    </Box>
+                    <TratamientoFiscalControl
+                      value={form.tratamiento_impuestos}
+                      onChange={handleTratamientoChange}
+                      disabled={trazabilidadActiva}
+                    />
                   )}
                   <Tooltip title={encabezadoDetalleAbierto ? 'Ocultar observaciones y campos de empresa' : 'Mostrar observaciones y campos de empresa'}>
                     <IconButton
@@ -4311,9 +4415,9 @@ export default function DocumentosFormPage({
                         height: 26,
                         borderRadius: 1,
                         border: '1px solid',
-                        borderColor: encabezadoDetalleAbierto ? '#c9d2e8' : '#d9dde6',
+                        borderColor: (theme) => (encabezadoDetalleAbierto ? theme.emphasys.action.disabled : '#d9dde6'),
                         bgcolor: encabezadoDetalleAbierto ? '#eef1f8' : 'transparent',
-                        color: encabezadoDetalleAbierto ? '#1d2f68' : '#5b6479',
+                        color: encabezadoDetalleAbierto ? 'primary.main' : '#5b6479',
                       }}
                     >
                       {encabezadoDetalleAbierto ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
@@ -4324,7 +4428,7 @@ export default function DocumentosFormPage({
                 {encabezadoDetalleAbierto && (
                   <Box sx={{ bgcolor: '#f7f9fc', border: '1px solid #e2e6ee', borderRadius: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#1d2f68' }}>
+                      <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'primary.main' }}>
                         Detalle del documento
                       </Typography>
                       <Box sx={{ flex: 1, height: '1px', bgcolor: '#dde3ee' }} />
@@ -4367,7 +4471,7 @@ export default function DocumentosFormPage({
               {usaPartidas && (
                 <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', flexGrow: 1 }}>
                   <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #e2e5ec', display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                    <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#1d2f68' }}>Partidas</Typography>
+                    <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: 'primary.main' }}>Partidas</Typography>
                     <Box
                       sx={{
                         fontSize: 11,
@@ -4390,11 +4494,11 @@ export default function DocumentosFormPage({
                           sx={{
                             width: 26,
                             height: 26,
-                            bgcolor: '#1d2f68',
+                            bgcolor: 'primary.main',
                             color: '#fff',
-                            boxShadow: '0 1px 3px rgba(29,47,104,0.35)',
-                            '&:hover': { bgcolor: '#162551' },
-                            '&.Mui-disabled': { bgcolor: '#c9d2e8', color: '#fff' },
+                            boxShadow: (theme) => `0 1px 3px ${theme.emphasys.action.hoverTint}`,
+                            '&:hover': { bgcolor: 'primary.dark' },
+                            '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' },
                           }}
                         >
                           <AddIcon sx={{ fontSize: 18 }} />
@@ -4430,7 +4534,7 @@ export default function DocumentosFormPage({
                     const cellUnderlineSx = {
                       '& .MuiInput-underline:before': { borderBottomColor: 'transparent' },
                       '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#d9dde6' },
-                      '& .MuiInput-underline:after': { borderBottomColor: '#1d2f68' },
+                      '& .MuiInput-underline:after': { borderBottomColor: 'primary.main' },
                       width: '100%',
                     };
 
@@ -4831,7 +4935,7 @@ export default function DocumentosFormPage({
                                           }
                                           disabled={trazabilidadActiva}
                                           title="Cambiar tipo de descuento"
-                                          sx={{ fontSize: 11, fontWeight: 700, px: 0.5, py: 0.1, borderRadius: 0.5, color: '#1d2f68', bgcolor: '#eef2ff' }}
+                                          sx={{ fontSize: 11, fontWeight: 700, px: 0.5, py: 0.1, borderRadius: 0.5, color: 'primary.main', bgcolor: (theme) => theme.emphasys.action.tint }}
                                         >
                                           {esDescuentoPartidaPorMonto(partida) ? '$' : '%'}
                                         </ButtonBase>
@@ -4872,7 +4976,7 @@ export default function DocumentosFormPage({
                                       cursor: 'help',
                                       textDecoration: 'underline',
                                       textDecorationStyle: 'dotted',
-                                      textDecorationColor: '#c9d2e8',
+                                      textDecorationColor: (theme) => theme.emphasys.action.disabled,
                                       textUnderlineOffset: '3px',
                                     }}
                                   >
@@ -4938,12 +5042,12 @@ export default function DocumentosFormPage({
                                       aria-label={expanded ? 'Ocultar detalles de partida' : 'Ver detalles de partida'}
                                       sx={{
                                         p: 0.5,
-                                        color: expanded ? '#1d2f68' : '#5b6479',
+                                        color: expanded ? 'primary.main' : '#5b6479',
                                         bgcolor: expanded ? '#eef1f8' : 'transparent',
                                         border: '1px solid',
-                                        borderColor: expanded ? '#c9d2e8' : '#d9dde6',
+                                        borderColor: (theme) => (expanded ? theme.emphasys.action.disabled : '#d9dde6'),
                                         borderRadius: 1,
-                                        '&:hover': { borderColor: '#1d2f68', color: '#1d2f68', bgcolor: '#f7f9fc' },
+                                        '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: '#f7f9fc' },
                                       }}
                                     >
                                       {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
@@ -4968,11 +5072,11 @@ export default function DocumentosFormPage({
                               sx={{
                                 width: 26,
                                 height: 26,
-                                bgcolor: '#1d2f68',
+                                bgcolor: 'primary.main',
                                 color: '#fff',
-                                boxShadow: '0 1px 3px rgba(29,47,104,0.35)',
-                                '&:hover': { bgcolor: '#162551' },
-                                '&.Mui-disabled': { bgcolor: '#c9d2e8', color: '#fff' },
+                                boxShadow: (theme) => `0 1px 3px ${theme.emphasys.action.hoverTint}`,
+                                '&:hover': { bgcolor: 'primary.dark' },
+                                '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' },
                               }}
                             >
                               <AddIcon sx={{ fontSize: 18 }} />
@@ -4989,7 +5093,7 @@ export default function DocumentosFormPage({
                             variant="outlined"
                             sx={{
                               borderRadius: 1.5,
-                              borderColor: expanded ? '#1d2f68' : '#e2e5ec',
+                              borderColor: expanded ? 'primary.main' : '#e2e5ec',
                               overflow: 'hidden',
                             }}
                           >
@@ -5186,7 +5290,7 @@ export default function DocumentosFormPage({
                                         }
                                         disabled={trazabilidadActiva}
                                         title="Cambiar tipo de descuento"
-                                        sx={{ fontSize: 11.5, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: '#1d2f68', bgcolor: '#eef2ff' }}
+                                        sx={{ fontSize: 11.5, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: 'primary.main', bgcolor: (theme) => theme.emphasys.action.tint }}
                                       >
                                         {esDescuentoPartidaPorMonto(partida) ? '$' : '%'}
                                       </ButtonBase>
@@ -5296,7 +5400,7 @@ export default function DocumentosFormPage({
                         onClick={() => void handleNavigateBack()}
                         disabled={saving}
                         aria-label="Volver"
-                        sx={{ border: '1px solid rgba(29,47,104,0.5)', color: '#1d2f68', borderRadius: 1 }}
+                        sx={{ border: '1px solid', borderColor: 'primary.main', color: 'primary.main', borderRadius: 1 }}
                       >
                         <ArrowBackIcon fontSize="small" />
                       </IconButton>
@@ -5308,7 +5412,7 @@ export default function DocumentosFormPage({
                         onClick={handleSave}
                         disabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
                         aria-label="Guardar factura"
-                        sx={{ bgcolor: '#1d2f68', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: '#162551' }, '&.Mui-disabled': { bgcolor: '#c9d2e8', color: '#fff' } }}
+                        sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' } }}
                       >
                         {saving ? <CircularProgress size={18} color="inherit" /> : <CheckIcon fontSize="small" />}
                       </IconButton>
@@ -5355,6 +5459,189 @@ export default function DocumentosFormPage({
     );
   };
 
+  if (isNotaCredito) {
+    const estatusNc = String(form.estatus_documento ?? 'borrador').trim().toLowerCase();
+    const soloLectura = isEdit && estatusNc !== 'borrador';
+    const filas = filasDesdePreparacion(preparacionNotaCredito?.partidas ?? [], {
+      incluidas: partidasIncluidasNotaCredito,
+      documentos: documentosOrigenSeleccionados,
+      productos,
+      devolucion: isNotaCreditoDevolucion,
+      ajustePropio: capturasEspecialesDocumentoActual,
+    });
+    const documentoOrigenUnico = origenIdsNotaCredito.length === 1
+      ? documentosOrigenSeleccionados.find((doc) => Number(doc.id) === origenIdsNotaCredito[0])
+      : null;
+    const folioOrigen = origenIdsNotaCredito.length === 1
+      ? (preparacionNotaCredito?.documentos_origen.find((doc) => doc.documento_id === origenIdsNotaCredito[0])?.folio
+        ?? (documentoOrigenUnico ? formatearFolioDocumento(documentoOrigenUnico.serie ?? '', Number(documentoOrigenUnico.numero ?? 0)) : null))
+      : null;
+    const fiscalNcIncompleto = tipoDocumento === 'nota_credito'
+      && form.tratamiento_impuestos !== 'sin_iva'
+      && (!form.rfc_receptor || !form.regimen_fiscal_receptor || !form.uso_cfdi || !form.forma_pago || !form.metodo_pago || !form.codigo_postal_receptor);
+    const contactosCaptura = contactoSeleccionado && !contactos.some((item) => item.id === contactoSeleccionado.id)
+      ? [contactoSeleccionado, ...contactos]
+      : contactos;
+
+    const cargarCandidatas = async (): Promise<CandidataNotaCredito[]> => {
+      if (!session.token || !session.empresaActivaId || !form.contacto_principal_id) return [];
+      const tratamientoFijo = tratamientoCapturaNotaCredito
+        ?? preparacionNotaCredito?.documentos_origen[0]?.tratamiento_impuestos
+        ?? documentosOrigenSeleccionados.find((doc) => doc.tratamiento_impuestos)?.tratamiento_impuestos
+        ?? null;
+      // Este selector es el flujo "NC nueva -> agregar partidas". No debe
+      // reutilizar una factura inválida como origen de la preparación, porque
+      // prepararGeneracionMultiple valida el conjunto completo y rechaza todo
+      // al encontrar un borrador. La validación estricta del flujo
+      // "generar NC desde esta factura" permanece en el backend.
+      const compatibles = documentosOrigenCliente.filter((doc) => {
+        const estatus = String(doc.estatus_documento ?? 'borrador').trim().toLowerCase();
+        if (estatus === 'borrador' || estatus === 'cancelado' || estatus === 'cancelada') return false;
+        return !tratamientoFijo || String(doc.tratamiento_impuestos || 'normal') === String(tratamientoFijo);
+      });
+      const grupos = new Map<string, typeof compatibles>();
+      compatibles.forEach((doc) => {
+        const clave = String(doc.tratamiento_impuestos || 'normal');
+        grupos.set(clave, [...(grupos.get(clave) ?? []), doc]);
+      });
+      const respuestas = await Promise.all(Array.from(grupos.entries()).map(async ([tratamiento, docs]) => {
+        const data = await prepararGeneracionMultiple(docs.map((doc) => doc.id), tipoDocumento, session.token!, session.empresaActivaId!);
+        return { tratamiento: tratamiento as TratamientoImpuestos, docs, data };
+      }));
+      return respuestas.flatMap(({ tratamiento, docs, data }) => filasDesdePreparacion(data.partidas, {
+        incluidas: data.partidas.map((partida) => partida.partida_id).filter((id) => !partidasIncluidasNotaCredito.includes(id)),
+        documentos: docs,
+        productos,
+        devolucion: isNotaCreditoDevolucion,
+        ajustePropio: capturasEspecialesDocumentoActual,
+      }).map((fila) => ({ ...fila, tratamiento })));
+    };
+
+    const quitarPartida = (partidaId: number) => {
+      const partida = preparacionNotaCredito?.partidas.find((item) => item.partida_id === partidaId);
+      const siguientes = partidasIncluidasNotaCredito.filter((id) => id !== partidaId);
+      setPartidasIncluidasNotaCredito(siguientes);
+      setValoresEspecialesNotaCredito((prev) => ({ ...prev, [partidaId]: 0 }));
+      if (!partida) return;
+      const permanece = siguientes.some((id) => preparacionNotaCredito?.partidas.some((item) => item.partida_id === id && Number(item.documento_origen_id) === Number(partida.documento_origen_id)));
+      if (!permanece) {
+        setDocumentosOrigenSeleccionados((prev) => prev.filter((doc) => Number(doc.id) !== Number(partida.documento_origen_id)));
+      }
+      if (!isEdit && origenIdsNotaCredito.length === 0 && siguientes.length === 0) {
+        setTratamientoCapturaNotaCredito(null);
+        setForm((prev) => ({ ...prev, tratamiento_impuestos: 'sin_iva' }));
+      }
+    };
+
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        {soloLectura && (
+          <Alert severity="info">Esta nota de crédito ya no está en borrador. La captura queda en solo lectura.</Alert>
+        )}
+        {error && <Alert severity="error">{error}</Alert>}
+        <NotaCreditoCaptura
+          tituloCliente={tipoDocumento === 'nota_credito_compra' ? 'Proveedor' : 'Cliente'}
+          clienteNombre={contactoSeleccionado?.nombre || ''}
+          contactos={contactosCaptura}
+          clienteId={form.contacto_principal_id ?? null}
+          onCliente={handleClienteSelect}
+          clienteBloqueado={isEdit || origenIdsNotaCredito.length > 0}
+          fecha={form.fecha_documento}
+          onFecha={(value) => setForm((prev) => ({ ...prev, fecha_documento: value }))}
+          motivo={motivoNotaCredito}
+          onMotivo={(value) => handleMotivoNotaCreditoChange(value as MotivoNotaCredito)}
+          motivoBloqueado={isEdit}
+          referencia={form.observaciones || ''}
+          onReferencia={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
+          muestraPartidas={usaGeneracionEspecialNotaCredito}
+          filas={filas}
+          valores={valoresEspecialesNotaCredito}
+          onValor={(partidaId, valor) => setValoresEspecialesNotaCredito((prev) => ({ ...prev, [partidaId]: valor }))}
+          onQuitar={quitarPartida}
+          puedeQuitar={!soloLectura}
+          onAgregar={(seleccion) => {
+            const ids = seleccion.map((fila) => fila.documentoId);
+            const docs = documentosOrigenDisponibles.filter((doc) => ids.includes(Number(doc.id)));
+            setDocumentosOrigenSeleccionados((prev) => {
+              const mapa = new Map(prev.map((doc) => [Number(doc.id), doc]));
+              docs.forEach((doc) => mapa.set(Number(doc.id), doc));
+              return Array.from(mapa.values());
+            });
+            setPartidasIncluidasNotaCredito((prev) => Array.from(new Set([...prev, ...seleccion.map((fila) => fila.partidaId)])));
+            if (isNotaCreditoDevolucion) {
+              setValoresEspecialesNotaCredito((prev) => {
+                const next = { ...prev };
+                seleccion.forEach((fila) => {
+                  const inicial = resolverValorInicialNotaCredito({
+                    valorEnSesion: next[fila.partidaId],
+                    capturaGuardada: capturasEspecialesDocumentoActual[fila.partidaId],
+                    devolucion: true,
+                    cantidadPendiente: fila.disponible,
+                  });
+                  if (inicial != null) next[fila.partidaId] = inicial;
+                });
+                return next;
+              });
+            }
+            const tratamiento = seleccion[0]?.tratamiento;
+            if (tratamiento) {
+              setTratamientoCapturaNotaCredito(tratamiento);
+              setForm((prev) => ({ ...prev, tratamiento_impuestos: tratamiento }));
+            }
+          }}
+          cargarCandidatas={usaGeneracionEspecialNotaCredito ? cargarCandidatas : undefined}
+          tratamiento={form.tratamiento_impuestos}
+          tratamientoIndeterminado={usaGeneracionEspecialNotaCredito && tratamientoCapturaNotaCredito === null}
+          usuarioPreferenciasId={sessionUserId}
+          onTratamiento={handleTratamientoChange}
+          tratamientoBloqueado={soloLectura || trazabilidadActiva}
+          conceptos={conceptosActivos}
+          conceptoId={form.concepto_id ?? null}
+          onConcepto={(id) => {
+            conceptoManualOverrideRef.current = true;
+            setForm((prev) => ({ ...prev, concepto_id: id }));
+          }}
+          importe={notaCreditoManualTotalInput}
+          onImporte={handleNotaCreditoManualTotalChange}
+          onImporteFocus={handleNotaCreditoManualTotalFocus}
+          onImporteBlur={handleNotaCreditoManualTotalBlur}
+          subtotal={usaGeneracionEspecialNotaCredito ? resumenNotaCreditoEspecial.subtotalNeto : Number(form.subtotal ?? 0)}
+          iva={usaGeneracionEspecialNotaCredito ? resumenNotaCreditoEspecial.iva : Number(form.iva ?? 0)}
+          total={usaGeneracionEspecialNotaCredito ? resumenNotaCreditoEspecial.total : Number(form.total ?? 0)}
+          folioOrigen={folioOrigen ? String(folioOrigen) : null}
+          soloLectura={soloLectura}
+          guardando={saving || loading}
+          onGuardar={() => void handleSave()}
+          onCancelar={() => { void handleNavigateBack(); }}
+        />
+        {fiscalNcIncompleto && (
+          <Paper variant="outlined" sx={{ p: 1.5 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'primary.main', mb: 1 }}>Datos fiscales del receptor</Typography>
+            <DocumentoDatosFiscalesTab
+              values={fiscalValues}
+              onChange={(changes) => setForm((prev) => ({ ...prev, ...changes }))}
+              disabled={saving || loading || soloLectura}
+              showCatalogNote={false}
+              compact
+            />
+          </Paper>
+        )}
+        <Dialog open={conceptoObligatorioDialog.open} onClose={() => setConceptoObligatorioDialog({ open: false, message: '' })}>
+          <DialogTitle>Concepto requerido</DialogTitle>
+          <DialogContent>
+            <DialogContentText>{conceptoObligatorioDialog.message}</DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setConceptoObligatorioDialog({ open: false, message: '' })}>Entendido</Button>
+          </DialogActions>
+        </Dialog>
+        <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>
+          <Alert severity={snackbar.severity} onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}>{snackbar.message}</Alert>
+        </Snackbar>
+      </Box>
+    );
+  }
+
   if (tipoDocumento === 'factura' && vistaFacturaCaptura === 'nueva') {
     return renderVistaNueva();
   }
@@ -5382,7 +5669,7 @@ export default function DocumentosFormPage({
             disabled={saving}
           />
           <Box>
-            <Typography variant="h5" fontWeight={600} color="#1d2f68">
+            <Typography variant="h5" fontWeight={600} color="primary.main">
               {isEdit ? textos.editar : textos.nuevo}
             </Typography>
             <Typography variant="body2" color="#4b5563">
@@ -5411,7 +5698,7 @@ export default function DocumentosFormPage({
           sx={{ width: '100%', minWidth: 0, display: isMobile ? 'none' : 'flex' }}
         >
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" fontWeight={700} color="#1d2f68">
+            <Typography variant="h5" fontWeight={700} color="primary.main">
               {isEdit ? textos.editar : textos.nuevo}
             </Typography>
             <Typography variant="body2" color="#4b5563">
@@ -5561,7 +5848,7 @@ export default function DocumentosFormPage({
           }}
         >
           {loadingAnticiposResumen ? <CircularProgress size={16} /> : null}
-          <Typography variant="body2" color="#1d2f68" fontWeight={700}>
+          <Typography variant="body2" color="primary.main" fontWeight={700}>
             {anticipoConfig.flujo === 'compras' ? 'Anticipos pagados' : 'Anticipos'}:
           </Typography>
           <Typography variant="body2" color="text.primary">
@@ -6369,7 +6656,7 @@ export default function DocumentosFormPage({
                 <Box id="aplicaciones-pago" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, scrollMarginTop: 16 }}>
                   <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }}>
                     <Box>
-                      <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                      <Typography variant="subtitle1" fontWeight={700} color="primary.main">
                         Aplicaciones del pago
                       </Typography>
                     </Box>
@@ -6439,7 +6726,7 @@ export default function DocumentosFormPage({
                         >
                           <Stack spacing={1.25}>
                             <Box>
-                              <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                              <Typography variant="subtitle2" fontWeight={700} color="primary.main">
                                 {formatearFolioDocumento(item.serie || '', item.numero || 0) || '—'}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
@@ -6578,7 +6865,7 @@ export default function DocumentosFormPage({
                 <Stack spacing={1.5}>
                   <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }}>
                     <Box>
-                      <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                      <Typography variant="subtitle1" fontWeight={700} color="primary.main">
                         Partidas disponibles para {isNotaCreditoDevolucion ? 'devolución' : 'bonificación'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -6830,7 +7117,7 @@ export default function DocumentosFormPage({
 
               {camposDocumento.campos.length > 0 && (
                 <Box>
-                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ mb: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={700} color="primary.main" sx={{ mb: 1 }}>
                     Campos configurables
                   </Typography>
                   <Grid container spacing={1.5}>
@@ -6862,7 +7149,7 @@ export default function DocumentosFormPage({
 
               {!usaCapturaEspecialNotaCredito && usaPartidas && (
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                <Typography variant="h6" color="#1d2f68" fontWeight={700}>
+                <Typography variant="h6" color="primary.main" fontWeight={700}>
                   Partidas
                 </Typography>
                 <Button startIcon={<AddIcon />} onClick={addRow} variant="outlined" size="small" disabled={trazabilidadActiva}>
@@ -6902,7 +7189,7 @@ export default function DocumentosFormPage({
                           <Stack spacing={1.25}>
                             <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                               <Box sx={{ minWidth: 0, flex: 1 }}>
-                                <Typography variant="subtitle2" fontWeight={800} color="#1d2f68" sx={{ wordBreak: 'break-word' }}>
+                                <Typography variant="subtitle2" fontWeight={800} color="primary.main" sx={{ wordBreak: 'break-word' }}>
                                   {productoSeleccionado?.clave || productoSeleccionado?.descripcion || partida.descripcion_alterna || 'Producto sin seleccionar'}
                                 </Typography>
                                 {productoSeleccionado?.descripcion && productoSeleccionado?.clave ? (
@@ -7177,7 +7464,7 @@ export default function DocumentosFormPage({
                                           )}
                                           disabled={trazabilidadActiva}
                                           title="Cambiar tipo de descuento"
-                                          sx={{ fontSize: 12, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: '#1d2f68', bgcolor: '#eef2ff' }}
+                                          sx={{ fontSize: 12, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: 'primary.main', bgcolor: (theme) => theme.emphasys.action.tint }}
                                         >
                                           {esDescuentoPartidaPorMonto(partida) ? '$' : '%'}
                                         </ButtonBase>
@@ -7560,7 +7847,7 @@ export default function DocumentosFormPage({
                                     )}
                                     disabled={trazabilidadActiva}
                                     title="Cambiar tipo de descuento"
-                                    sx={{ fontSize: 12, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: '#1d2f68', bgcolor: '#eef2ff' }}
+                                    sx={{ fontSize: 12, fontWeight: 700, px: 0.5, py: 0.25, borderRadius: 0.5, color: 'primary.main', bgcolor: (theme) => theme.emphasys.action.tint }}
                                   >
                                     {esDescuentoPartidaPorMonto(partida) ? '$' : '%'}
                                   </ButtonBase>
@@ -7883,7 +8170,7 @@ export default function DocumentosFormPage({
                     }}
                   >
                     <Box>
-                      <Typography variant="subtitle2" fontWeight={800} color="#1d2f68">
+                      <Typography variant="subtitle2" fontWeight={800} color="primary.main">
                         Totales del documento
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
@@ -8421,7 +8708,7 @@ export default function DocumentosFormPage({
           {partidaImagenDialog.view === 'pegar' && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                <Typography variant="subtitle2" fontWeight={700} color="primary.main">
                   Pegar imagen desde el portapapeles
                 </Typography>
                 <Button
@@ -8480,7 +8767,7 @@ export default function DocumentosFormPage({
           {partidaImagenDialog.view === 'producto' && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                <Typography variant="subtitle2" fontWeight={700} color="primary.main">
                   Imágenes del producto
                 </Typography>
                 <Button size="small" onClick={() => setPartidaImagenDialog((prev) => ({ ...prev, view: 'menu' }))}>

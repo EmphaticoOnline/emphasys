@@ -16,7 +16,8 @@ export class DocumentoCobroBloqueadoError extends Error {
     readonly code:
       | 'INVOICE_CANCELLATION_IN_PROGRESS'
       | 'INVOICE_CANCELLATION_RECONCILIATION_REQUIRED'
-      | 'INVOICE_CANCELLED',
+      | 'INVOICE_CANCELLED'
+      | 'INVOICE_DRAFT',
     message: string
   ) {
     super(message);
@@ -33,7 +34,8 @@ export function esCancelacionCobroBloqueante(value: unknown): boolean {
 export async function assertDocumentoCobrableEnTransaccion(
   client: PoolClient,
   documentoId: number,
-  empresaId: number
+  empresaId: number,
+  options: { bloquearBorrador?: boolean } = {}
 ): Promise<void> {
   const { rows } = await client.query<{
     serie: string | null;
@@ -67,6 +69,12 @@ export async function assertDocumentoCobrableEnTransaccion(
     throw new DocumentoCobroBloqueadoError(
       'INVOICE_CANCELLED',
       `No se puede aplicar el pago a la factura ${folio} porque está cancelada.`
+    );
+  }
+  if (options.bloquearBorrador && estatus === 'borrador') {
+    throw new DocumentoCobroBloqueadoError(
+      'INVOICE_DRAFT',
+      `No se puede aplicar el pago a la factura ${folio} porque está en borrador.`
     );
   }
   const estado = String(row.intento_estado || row.cancelacion_estado || '').trim().toLowerCase();

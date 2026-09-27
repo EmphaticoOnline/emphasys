@@ -6,7 +6,8 @@ export type TipoRelacionDocumento =
   | 'correccion'
   | 'sustitucion_fiscal'
   | 'duplicacion'
-  | 'referencia_interna';
+  | 'referencia_interna'
+  | 'origen_nota_credito';
 
 export type DependenciaCancelacion = {
   relacion: 'documento_origen_id' | 'vinculo_partidas';
@@ -81,7 +82,20 @@ export async function obtenerDependenciasCancelacion(
         WHERE dpv.documento_origen_id = $2
           AND d.empresa_id = $1
           AND d.id <> $2
-          AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+         AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+       UNION ALL
+       SELECT 'documentos_relaciones'::text AS relacion,
+              destino.id AS documento_id, destino.tipo_documento,
+              CONCAT_WS('-', NULLIF(destino.serie, ''), LPAD(destino.numero::text, CASE WHEN ABS(destino.numero) < 1000 THEN 3 ELSE 6 END, '0')) AS folio,
+              destino.estatus_documento
+         FROM documentos_relaciones dr
+         JOIN documentos destino ON destino.id = dr.documento_destino_id
+        WHERE dr.empresa_id = $1
+          AND dr.documento_origen_id = $2
+          AND dr.tipo_relacion = 'origen_nota_credito'
+          AND dr.activa = true
+          AND LOWER(TRIM(COALESCE(destino.tipo_documento, ''))) = 'nota_credito'
+          AND LOWER(TRIM(COALESCE(destino.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
      )
      SELECT dep.relacion, dep.documento_id, dep.tipo_documento, dep.folio,
             dep.estatus_documento, rel.tipo_relacion, rel.bloquea_cancelacion

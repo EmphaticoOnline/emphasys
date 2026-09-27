@@ -145,6 +145,17 @@ export const normalizeWhatsappPayload = (body: any): NormalizedMessage | null =>
     };
   }
 
+  if (rawType === 'button') {
+    return {
+      ...base,
+      text: message.button?.text || message.button?.payload || '',
+      tipoContenido: 'text',
+      mediaUrl: null,
+      caption: null,
+      mimeType: null,
+    };
+  }
+
   const tipoContenido = MEDIA_TYPE_MAP[rawType];
 
   if (!tipoContenido) {

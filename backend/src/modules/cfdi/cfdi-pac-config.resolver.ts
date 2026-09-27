@@ -15,6 +15,14 @@ export type PacConfigDb = {
   query<T extends QueryResultRow = any>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
 };
 
+/** La empresa no tiene una configuración PAC activa asignada para timbrar. */
+export class CfdiPacConfigurationError extends Error {
+  constructor(empresaId: number) {
+    super(`La empresa ${empresaId} no tiene una configuración PAC activa asignada.`);
+    this.name = 'CfdiPacConfigurationError';
+  }
+}
+
 const CONFIG_COLUMNS = `cfg.id, cfg.pac, cfg.modo, cfg.base_url,
   cfg.username, cfg.password, cfg.stamp_path`;
 
@@ -31,7 +39,7 @@ export async function resolvePacConfigForEmpresa(
     [empresaId]
   );
   if (!rows[0]) {
-    throw new Error(`La empresa ${empresaId} no tiene una configuración PAC activa asignada.`);
+    throw new CfdiPacConfigurationError(empresaId);
   }
   return rows[0];
 }

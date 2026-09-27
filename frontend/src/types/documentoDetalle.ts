@@ -67,5 +67,6 @@ export interface DocumentoDetalleResponse {
   pagos: PagoAplicado[];
   notasCredito: NotaCreditoAplicada[];
   documentosRelacionados: DocumentoRelacionado[];
+  documentosOrigen: DocumentoRelacionado[];
   movimientosInventario: MovimientoInventarioDocumento[];
 }

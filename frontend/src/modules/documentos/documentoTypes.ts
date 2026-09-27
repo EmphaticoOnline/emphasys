@@ -145,6 +145,7 @@ export type DocumentoTypeConfig = {
     mostrarSaldo?: boolean;
     tiposContactoPermitidos?: string[];
     accionesDisponibles?: DocumentoAccion[];
+    vistaWorkspace?: boolean;
   };
   partidas?: {
     mostrarImagenes?: boolean;

@@ -32,6 +32,7 @@ import {
   Tooltip,
   Typography,
   Snackbar,
+  useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -49,9 +50,12 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import AssignmentReturnOutlinedIcon from '@mui/icons-material/AssignmentReturnOutlined';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
 import type { DocumentoIndicatorModel } from '../indicadores';
+import { estadoVisualDocumento } from '../estadoVisualDocumento';
+import { getStatusToneColor } from '../../status/status.semantics';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
 import FacturaDocumentoResumenView from './FacturaDocumentoResumenView';
 import FacturaWorkspaceContabilidadTab from './FacturaWorkspaceContabilidadTab';
@@ -141,19 +145,6 @@ function estatusChipSx(option: StatusOption | undefined) {
   };
 }
 
-function estadoVisualFactura(row: CotizacionListado): { color: string; label: string } {
-  const estatus = normalizeEstatus(row.estatus_documento);
-  const cancelacion = normalizeEstatus(row.cfdi_cancelacion_estado);
-  const cancelada = estatus === 'cancelado' || estatus === 'cancelada' || cancelacion === 'cancelada';
-  if (cancelada) return { color: '#D32F2F', label: 'Cancelada' };
-  if (['solicitada', 'pendiente', 'requiere_reconciliacion'].includes(cancelacion)) {
-    return { color: '#F59E0B', label: 'Cancelación pendiente' };
-  }
-  const emitida = estatus === 'emitido' || estatus === 'timbrado' || Boolean(row.cfdi_uuid);
-  if (emitida) return { color: '#2E7D32', label: 'Emitida / Timbrada' };
-  return { color: '#FFD600', label: 'Borrador' };
-}
-
 export default function FacturasWorkspaceView({
   rows,
   isLoading,
@@ -192,6 +183,7 @@ export default function FacturasWorkspaceView({
   paginationModel,
   onPaginationModelChange,
 }: FacturasWorkspaceViewProps) {
+  const theme = useTheme();
   const [selectedId, setSelectedId] = useState<number | null>(() => {
     if (initialSelectedId && rows.some((row) => row.id === initialSelectedId)) {
       return initialSelectedId;
@@ -401,7 +393,7 @@ export default function FacturasWorkspaceView({
               const saldo = Number(row.saldo ?? 0);
               const selected = row.id === selectedId;
               const checked = selectedDocumentIds.includes(row.id);
-              const estadoVisual = estadoVisualFactura(row);
+              const estadoVisual = estadoVisualDocumento(row);
               return (
                 <Box
                   key={row.id}
@@ -441,7 +433,7 @@ export default function FacturasWorkspaceView({
                       <Typography variant="caption" color="text.disabled">{formatDate(row.fecha_documento)}</Typography>
                       {option ? <Chip label={option.label} size="small" sx={{ height: 18, fontSize: 10, flexShrink: 0, ...estatusChipSx(option) }} /> : null}
                       <Tooltip title={estadoVisual.label} arrow>
-                        <Box component="span" sx={{ width: 10, height: 10, flex: '0 0 10px', borderRadius: '50%', bgcolor: estadoVisual.color, display: 'inline-block' }} />
+                        <Box component="span" sx={{ width: 10, height: 10, flex: '0 0 10px', borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisual.tone), display: 'inline-block' }} />
                       </Tooltip>
                     </Stack>
                     <Typography variant="caption" fontWeight={700} color={saldo > 0 ? 'error.main' : 'success.main'}>
@@ -581,6 +573,7 @@ function FacturaWorkspacePanel({
   const emitirAction = findAction(gridContextMenuActions, 'emitir');
   const timbrarAction = findAction(gridContextMenuActions, 'timbrar');
   const registrarMovimientoAction = findAction(gridContextMenuActions, 'registrar-movimiento');
+  const generarNotaCreditoAction = findAction(gridContextMenuActions, 'generar-nota_credito');
   const contabilizarAction = findAction(gridContextMenuActions, 'contabilizar-factura-venta');
   const cancelarAction = findAction(gridContextMenuActions, 'cancelar-documento');
   const eliminarAction = findAction(gridContextMenuActions, 'eliminar');
@@ -733,6 +726,9 @@ function FacturaWorkspacePanel({
               </span>
             </Tooltip>
           ) : null}
+          {renderActionButton(generarNotaCreditoAction, 'Generar Nota de crédito', {
+            icon: <AssignmentReturnOutlinedIcon fontSize="small" />,
+          })}
 
           <Tooltip title="Enviar" arrow>
             <span>

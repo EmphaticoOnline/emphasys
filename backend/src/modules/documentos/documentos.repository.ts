@@ -14,6 +14,7 @@ import { sanitizarRichTextBasico } from '../../utils/richTextSanitize';
 import { obtenerConfiguracionEspecificaciones } from '../productos/especificaciones-configuracion.service';
 import { esFacturaTimbrada, validarCamposFacturaTimbrada } from './factura-timbrada-edicion';
 import { assertNotaVentaEditable } from './nota-venta-editabilidad';
+import { assertNotaCreditoSinAplicacionesParaBorrador } from '../finanzas/aplicaciones-saldo.rules';
 
 function sanitizarObservacionesPartida(observaciones: unknown): string | null {
   return typeof observaciones === 'string' && observaciones
@@ -65,6 +66,21 @@ export type Documento = {
   producto_resumen?: string | null;
   estado_seguimiento?: string | null;
   comentario_seguimiento?: string | null;
+  documentos_origen?: Array<{
+    id: number;
+    empresa_id: number;
+    tipo_documento: string;
+    serie: string | null;
+    numero: number | null;
+    fecha_documento: string | Date;
+    contacto_principal_id: number | null;
+    moneda: string | null;
+    total: number | string;
+    estatus_documento: string;
+    motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
+    tratamiento_impuestos?: string | null;
+    nombre_cliente?: string | null;
+  }>;
 };
 
 export type Partida = {
@@ -323,6 +339,11 @@ function esFacturaBorrador(current: Record<string, any>): boolean {
     && String(current.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador';
 }
 
+function esNotaCredito(current: Record<string, any>): boolean {
+  const tipo = String(current.tipo_documento ?? '').trim().toLowerCase();
+  return tipo === 'nota_credito' || tipo === 'nota_credito_compra';
+}
+
 const normalizarEstatusDocumentoParaTransicion = (value: unknown): string => {
   const normalizado = String(value ?? 'borrador').trim().toLowerCase();
   if (!normalizado) return 'borrador';
@@ -376,7 +397,11 @@ function assertSoloObservacionesModificadas(
     if (campo === 'estatus_documento') {
       const incomingEstatus = (dataToUpdate as any).estatus_documento;
       if (incomingEstatus === undefined) continue;
-      assertTransicionEstatusDocumentoConTrazabilidad(current.estatus_documento, incomingEstatus, folioRelacionado);
+      const actual = normalizarEstatusDocumentoParaTransicion(current.estatus_documento);
+      const nuevo = normalizarEstatusDocumentoParaTransicion(incomingEstatus);
+      if (!(esNotaCredito(current) && actual === 'emitido' && nuevo === 'borrador')) {
+        assertTransicionEstatusDocumentoConTrazabilidad(current.estatus_documento, incomingEstatus, folioRelacionado);
+      }
       continue;
     }
 
@@ -512,6 +537,66 @@ async function assertFacturaEliminable(
       'No se puede eliminar la factura porque tiene pagos aplicados.'
     );
   }
+}
+
+async function assertNotaCreditoEliminable(
+  documentoId: number,
+  tipoDocumento: unknown,
+  estatusDocumento: unknown,
+  executor: Pick<import('pg').PoolClient, 'query'>
+) {
+  if (String(tipoDocumento ?? '').trim().toLowerCase() !== 'nota_credito') return;
+
+  const estatus = String(estatusDocumento ?? '').trim().toLowerCase();
+  const { rows: cfdiRows } = await executor.query<{ uuid: string | null }>(
+    `SELECT uuid
+       FROM documentos_cfdi
+      WHERE documento_id = $1
+      LIMIT 1`,
+    [documentoId]
+  );
+
+  if (estatus === 'timbrado' || cfdiRows[0]?.uuid) {
+    throw new DocumentoDeleteValidationError(
+      'No se puede eliminar una nota de crédito timbrada. Utilice la cancelación fiscal (CFDI) en su lugar.'
+    );
+  }
+
+  if (estatus !== 'borrador') {
+    throw new DocumentoDeleteValidationError(
+      'Solo se puede eliminar una nota de crédito en borrador. Para conservar la trazabilidad, utilice la cancelación.'
+    );
+  }
+}
+
+async function eliminarDependenciasPropiasNotaCredito(
+  documentoId: number,
+  empresaId: number,
+  executor: Pick<import('pg').PoolClient, 'query'>
+) {
+  await executor.query(
+    `DELETE FROM documentos_relaciones
+      WHERE empresa_id = $1
+        AND (documento_origen_id = $2 OR documento_destino_id = $2)`,
+    [empresaId, documentoId]
+  );
+
+  await executor.query(
+    `DELETE FROM documentos_partidas_vinculos dpv
+      WHERE EXISTS (
+        SELECT 1
+          FROM documentos_partidas dp
+         WHERE dp.id = dpv.partida_origen_id
+           AND dp.documento_id = $1
+      )
+         OR EXISTS (
+        SELECT 1
+          FROM documentos_partidas dp
+         WHERE dp.id = dpv.partida_destino_id
+           AND dp.documento_id = $1
+      )`,
+    [documentoId]
+  );
 }
 
 /**
@@ -1024,6 +1109,9 @@ type DocumentosAdditionalFilters = {
   fechaHasta?: string | null;
   montoMin?: number | null;
   montoMax?: number | null;
+  estatus?: string[] | null;
+  motivos?: string[] | null;
+  aplicacion?: 'pendiente' | 'aplicada' | null;
 };
 
 export async function listarDocumentosRepositoryPaginado(
@@ -1046,6 +1134,7 @@ export async function listarDocumentosRepositoryPaginado(
   ].includes((tipoDocumento || '').toLowerCase());
   const esFacturaVenta = (tipoDocumento || '').toLowerCase() === 'factura';
   const muestraCfdi = ['factura', 'pago_cliente'].includes((tipoDocumento || '').toLowerCase());
+  const muestraElegibilidadNotaCredito = ['nota_credito', 'nota_credito_compra'].includes((tipoDocumento || '').toLowerCase());
   const esCotizacion = (tipoDocumento || '').toLowerCase() === 'cotizacion';
   const esOrdenCompra = (tipoDocumento || '').toLowerCase() === 'orden_compra';
   const selectSaldo = tieneSaldoDocumental
@@ -1072,6 +1161,25 @@ export async function listarDocumentosRepositoryPaginado(
        cancelacion_intento.proveedor_status AS cfdi_cancelacion_proveedor_status,
        cancelacion_intento.fecha_solicitud AS cfdi_cancelacion_fecha_solicitud,
        dc.cancelacion_ultima_consulta_at AS cfdi_cancelacion_fecha_ultima_consulta,
+       EXISTS (
+         SELECT 1 FROM aplicaciones_saldo ap
+          WHERE ap.empresa_id = d.empresa_id
+            AND (ap.documento_origen_id = d.id OR ap.documento_destino_id = d.id)
+       ) AS tiene_aplicaciones_saldo_activas,`
+    : muestraElegibilidadNotaCredito
+    ? `dc.uuid AS cfdi_uuid,
+       false AS cfdi_tiene_xml,
+       NULL::timestamptz AS cfdi_fecha_timbrado,
+       dc.estado_sat AS cfdi_estado_sat,
+       dc.fecha_cancelacion AS cfdi_fecha_cancelacion,
+       dc.pac_id AS cfdi_pac_id,
+       dc.pac_modalidad AS cfdi_pac_modalidad,
+       dc.cancelacion_estado AS cfdi_cancelacion_estado,
+       NULL::bigint AS cfdi_cancelacion_intento_id,
+       NULL::text AS cfdi_cancelacion_proveedor,
+       NULL::text AS cfdi_cancelacion_proveedor_status,
+       NULL::timestamptz AS cfdi_cancelacion_fecha_solicitud,
+       NULL::timestamptz AS cfdi_cancelacion_fecha_ultima_consulta,
        EXISTS (
          SELECT 1 FROM aplicaciones_saldo ap
           WHERE ap.empresa_id = d.empresa_id
@@ -1104,6 +1212,8 @@ export async function listarDocumentosRepositoryPaginado(
             i.id DESC
           LIMIT 1
        ) cancelacion_intento ON TRUE`
+    : muestraElegibilidadNotaCredito
+    ? 'LEFT JOIN documentos_cfdi dc ON dc.documento_id = d.id'
     : '';
   const selectInventario = esFacturaVenta
     ? `jsonb_build_object(
@@ -1235,7 +1345,7 @@ export async function listarDocumentosRepositoryPaginado(
   }
 
   if (additionalFilters) {
-    const { soloPendientes, quickFilter, clienteId, agenteId, fechaDesde, fechaHasta, montoMin, montoMax } = additionalFilters;
+    const { soloPendientes, quickFilter, clienteId, agenteId, fechaDesde, fechaHasta, montoMin, montoMax, estatus, motivos, aplicacion } = additionalFilters;
 
     if (soloPendientes && tieneSaldoDocumental) {
       whereClauses.push('COALESCE(dso.saldo_operativo, 0) > 0');
@@ -1279,6 +1389,36 @@ export async function listarDocumentosRepositoryPaginado(
     if (montoMax !== null && montoMax !== undefined && !isNaN(montoMax)) {
       values.push(montoMax);
       whereClauses.push(`d.total <= $${values.length}`);
+    }
+
+    const estatusLista = (estatus ?? []).map((valor) => valor.trim().toLowerCase()).filter((valor) => /^[a-z_]+$/.test(valor));
+    if (estatusLista.length > 0) {
+      const normalizados = [...new Set(estatusLista.flatMap((valor) => (
+        valor === 'cancelado' || valor === 'cancelada' ? ['cancelado', 'cancelada'] : [valor]
+      )))];
+      const marcas = normalizados.map((valor) => {
+        values.push(valor);
+        return `$${values.length}`;
+      });
+      whereClauses.push(`LOWER(COALESCE(d.estatus_documento, '')) IN (${marcas.join(', ')})`);
+    }
+
+    const motivosLista = (motivos ?? []).map((valor) => valor.trim().toLowerCase()).filter((valor) => (
+      valor === 'devolucion' || valor === 'bonificacion' || valor === 'otro'
+    ));
+    if (motivosLista.length > 0) {
+      const marcas = motivosLista.map((valor) => {
+        values.push(valor);
+        return `$${values.length}`;
+      });
+      whereClauses.push(`d.motivo_nc IN (${marcas.join(', ')})`);
+    }
+
+    if (tieneSaldoDocumental && (aplicacion === 'pendiente' || aplicacion === 'aplicada')) {
+      const activa = `LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
+      whereClauses.push(aplicacion === 'pendiente'
+        ? `COALESCE(dso.saldo_operativo, 0) > 0 AND ${activa}`
+        : `COALESCE(dso.saldo_operativo, 0) <= 0 AND ${activa}`);
     }
   }
 
@@ -1579,6 +1719,50 @@ export async function obtenerDocumentoRepository(
     ? { tipo_documento: trazRow.tipo_documento_relacionado ?? '', folio: trazRow.folio_relacionado ?? '' }
     : null;
 
+  if (['nota_credito', 'nota_credito_compra'].includes(String(documento.tipo_documento ?? '').trim().toLowerCase())) {
+    const { rows: origenesRows } = await executor.query(
+      `SELECT DISTINCT ON (origen.id)
+              origen.id,
+              origen.empresa_id,
+              origen.tipo_documento,
+              origen.serie,
+              origen.numero,
+              origen.fecha_documento,
+              origen.contacto_principal_id,
+              origen.moneda,
+              origen.total,
+              origen.estatus_documento,
+              origen.motivo_nc,
+              origen.tratamiento_impuestos,
+              c.nombre AS nombre_cliente
+         FROM documentos_relaciones dr
+         JOIN documentos origen ON origen.id = dr.documento_origen_id
+         LEFT JOIN contactos c ON c.id = origen.contacto_principal_id
+        WHERE dr.empresa_id = $1
+          AND dr.documento_destino_id = $2
+          AND dr.tipo_relacion = 'origen_nota_credito'
+          AND dr.activa = true
+        ORDER BY origen.id
+      `,
+      [empresaId, id],
+    );
+    const origenes = [...origenesRows];
+    const legacyId = Number(documento.documento_origen_id ?? 0);
+    if (legacyId > 0 && !origenes.some((row: any) => Number(row.id) === legacyId)) {
+      const { rows: legacyRows } = await executor.query(
+        `SELECT d.id, d.empresa_id, d.tipo_documento, d.serie, d.numero,
+                d.fecha_documento, d.contacto_principal_id, d.moneda, d.total,
+                d.estatus_documento, d.motivo_nc, d.tratamiento_impuestos, c.nombre AS nombre_cliente
+           FROM documentos d
+           LEFT JOIN contactos c ON c.id = d.contacto_principal_id
+          WHERE d.id = $1 AND d.empresa_id = $2`,
+        [legacyId, empresaId],
+      );
+      origenes.push(...legacyRows);
+    }
+    documento.documentos_origen = origenes;
+  }
+
   return { documento, partidas };
 }
 
@@ -1825,6 +2009,35 @@ export async function actualizarDocumentoRepository(
   );
   const current = currentRows[0];
   if (!current) return null;
+
+  const tipoActual = String(current.tipo_documento ?? '').trim().toLowerCase();
+  if (
+    (tipoActual === 'nota_credito' || tipoActual === 'nota_credito_compra')
+    && String(data.estatus_documento ?? '').trim().toLowerCase() === 'borrador'
+    && String(current.estatus_documento ?? '').trim().toLowerCase() !== 'borrador'
+  ) {
+    await assertNotaCreditoSinAplicacionesParaBorrador(executor, id, empresaId);
+    if (Boolean(current.esta_timbrado) || String(current.estatus_documento ?? '').trim().toLowerCase() === 'timbrado') {
+      throw new Error('VALIDATION_ERROR: Una nota de crédito timbrada no puede regresar a borrador; utilice el flujo fiscal correspondiente.');
+    }
+  }
+
+  if (tipoActual === 'nota_credito' || tipoActual === 'nota_credito_compra') {
+    if (
+      Object.prototype.hasOwnProperty.call(data, 'contacto_principal_id')
+      && data.contacto_principal_id != null
+      && Number(data.contacto_principal_id) !== Number(current.contacto_principal_id ?? 0)
+    ) {
+      throw new Error('VALIDATION_ERROR: El cliente de una nota de crédito no puede cambiarse después de crearla');
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(data, 'motivo_nc')
+      && data.motivo_nc != null
+      && String(data.motivo_nc) !== String(current.motivo_nc ?? '')
+    ) {
+      throw new Error('VALIDATION_ERROR: El motivo de una nota de crédito no puede cambiarse después de crearla');
+    }
+  }
 
   await assertNotaVentaEditable(id, empresaId, executor, data as Record<string, unknown>);
 
@@ -2380,7 +2593,12 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
 
     if (documentoActual) {
       assertFacturaCompraNoEmitida(documentoActual.tipo_documento, documentoActual.estatus_documento);
+      await assertNotaCreditoEliminable(id, documentoActual.tipo_documento, documentoActual.estatus_documento, client);
       await assertFacturaEliminable(id, empresaId, documentoActual.tipo_documento, documentoActual.estatus_documento, client);
+
+      if (String(documentoActual.tipo_documento ?? '').trim().toLowerCase() === 'nota_credito') {
+        await eliminarDependenciasPropiasNotaCredito(id, empresaId, client);
+      }
     }
 
     const { rows: _vinculosEliminar } = await client.query(

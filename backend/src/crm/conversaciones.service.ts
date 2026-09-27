@@ -50,7 +50,12 @@ export async function getReglasSeguimiento(empresaId: number): Promise<ReglasSeg
   }
 }
 
-export const getOrCreateWhatsappContacto = async (empresaId: number, telefono: string) => {
+export type ResultadoContactoWhatsapp = {
+  contactoId: number;
+  creadoAhora: boolean;
+};
+
+export const getOrCreateWhatsappContacto = async (empresaId: number, telefono: string): Promise<ResultadoContactoWhatsapp> => {
   const telefonoNormalizado = normalizarTelefono(telefono);
   const variantes = Array.from(new Set([
     telefono,
@@ -63,8 +68,13 @@ export const getOrCreateWhatsappContacto = async (empresaId: number, telefono: s
       : null,
   ].filter((value): value is string => Boolean(value))));
 
-  for (const variante of variantes) {
-    const contactoResult = await pool.query(
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`whatsapp-contacto:${empresaId}:${telefonoNormalizado}`]);
+
+    for (const variante of variantes) {
+      const contactoResult = await client.query(
       `
         SELECT id
         FROM public.contactos
@@ -75,39 +85,79 @@ export const getOrCreateWhatsappContacto = async (empresaId: number, telefono: s
       [empresaId, variante]
     );
 
-    if (contactoResult.rows.length > 0) {
-      console.info('[WhatsApp Contacto] Contacto existente encontrado', {
-        empresaId,
-        telefonoOriginal: telefono,
-        telefonoNormalizado,
-        varianteUsada: variante,
-        contactoId: contactoResult.rows[0].id,
-        huboMatch: true,
-      });
+      if (contactoResult.rows.length > 0) {
+        console.info('[WhatsApp Contacto] Contacto existente encontrado', {
+          empresaId,
+          telefonoOriginal: telefono,
+          telefonoNormalizado,
+          varianteUsada: variante,
+          contactoId: contactoResult.rows[0].id,
+          huboMatch: true,
+        });
 
-      return contactoResult.rows[0].id as number;
+        await client.query('COMMIT');
+        return { contactoId: contactoResult.rows[0].id as number, creadoAhora: false };
+      }
     }
+
+    console.info('[WhatsApp Contacto] No se encontro contacto existente, creando nuevo', {
+      empresaId,
+      telefonoOriginal: telefono,
+      telefonoNormalizado,
+      variantesBuscadas: variantes,
+      huboMatch: false,
+    });
+
+    const newContacto = await client.query(
+      `
+          INSERT INTO public.contactos
+    (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
+    VALUES ($1, 'Lead', $2, $3, true, false)
+          RETURNING id
+          `,
+      [empresaId, telefonoNormalizado, telefonoNormalizado]
+    );
+
+    await client.query('COMMIT');
+    return { contactoId: newContacto.rows[0].id as number, creadoAhora: true };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
+};
 
-  console.info('[WhatsApp Contacto] No se encontro contacto existente, creando nuevo', {
-    empresaId,
-    telefonoOriginal: telefono,
-    telefonoNormalizado,
-    variantesBuscadas: variantes,
-    huboMatch: false,
-  });
-
-  const newContacto = await pool.query(
-    `
-        INSERT INTO public.contactos
-  (empresa_id, tipo_contacto, nombre, telefono, activo, bloqueado)
-  VALUES ($1, 'Lead', $2, $3, true, false)
-        RETURNING id
-        `,
-    [empresaId, telefonoNormalizado, telefonoNormalizado]
+/** Resuelve y asigna el origen Web a un contacto recién creado. Best-effort. */
+export const asignarOrigenWebWhatsapp = async (empresaId: number, contactoId: number): Promise<boolean> => {
+  const catalogo = await pool.query(
+    `SELECT c.id
+       FROM core.catalogos c
+       JOIN core.catalogos_tipos ct ON ct.id = c.tipo_catalogo_id
+       JOIN core.entidades_tipos et ON et.id = ct.entidad_tipo_id
+      WHERE c.empresa_id = $1
+        AND c.clave = 'Web'
+        AND c.activo = true
+        AND ct.empresa_id = $1
+        AND ct.nombre = 'Origenes de Contactos'
+        AND ct.activo = true
+        AND et.codigo = 'CONTACTO'
+      LIMIT 1`,
+    [empresaId]
   );
 
-  return newContacto.rows[0].id as number;
+  const catalogoId = catalogo.rows[0]?.id;
+  if (!catalogoId) return false;
+
+  await pool.query(
+    `INSERT INTO core.entidades_catalogos (empresa_id, entidad_tipo_id, entidad_id, catalogo_id)
+     SELECT $1, et.id, $2, $3
+       FROM core.entidades_tipos et
+      WHERE et.codigo = 'CONTACTO'
+     ON CONFLICT DO NOTHING`,
+    [empresaId, contactoId, catalogoId]
+  );
+  return true;
 };
 
 export const getOrCreateConversacionContacto = async (empresaId: number, contactoId: number) => {

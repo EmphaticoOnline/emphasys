@@ -61,8 +61,8 @@ export const folioDe = (serie?: string | null, numero?: number | null): string =
 };
 
 export const headerCellSx = {
-  backgroundColor: '#1d2f68',
-  color: '#fff',
+  backgroundColor: 'primary.main',
+  color: 'primary.contrastText',
   fontWeight: 600,
   fontSize: '13px',
   py: '6px',

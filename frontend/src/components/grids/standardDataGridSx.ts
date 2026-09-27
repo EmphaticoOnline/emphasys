@@ -4,10 +4,10 @@ import type { SystemStyleObject } from '@mui/system';
 export const STANDARD_DATA_GRID_HEADER_HEIGHT = 38;
 export const STANDARD_DATA_GRID_ROW_HEIGHT = 34;
 
-export const standardDataGridSx: SystemStyleObject<Theme> = {
+export const standardDataGridSx = (theme: Theme): SystemStyleObject<Theme> => ({
   '& .MuiDataGrid-columnHeaders': {
-    backgroundColor: '#1d2f68',
-    color: '#ffffff',
+    backgroundColor: theme.emphasys.grid.header,
+    color: theme.emphasys.grid.headerForeground,
     fontSize: 13,
     minHeight: STANDARD_DATA_GRID_HEADER_HEIGHT,
     maxHeight: STANDARD_DATA_GRID_HEADER_HEIGHT,
@@ -24,8 +24,8 @@ export const standardDataGridSx: SystemStyleObject<Theme> = {
   // que hace falta !important para ganarle sin importar el orden de las
   // reglas en la hoja de estilos.
   '& .MuiDataGrid-columnHeader': {
-    backgroundColor: '#1d2f68',
-    color: '#ffffff',
+    backgroundColor: theme.emphasys.grid.header,
+    color: theme.emphasys.grid.headerForeground,
     borderBottom: 'none !important',
   },
   '& .MuiDataGrid-row--borderBottom .MuiDataGrid-filler, & .MuiDataGrid-row--borderBottom .MuiDataGrid-scrollbarFiller': {
@@ -36,21 +36,21 @@ export const standardDataGridSx: SystemStyleObject<Theme> = {
     alignItems: 'center',
   },
   '& .MuiDataGrid-columnHeaderTitle': {
-    color: '#ffffff',
+    color: theme.emphasys.grid.headerForeground,
     fontSize: 13,
     fontWeight: 600,
   },
   '& .MuiDataGrid-sortIcon': {
-    color: '#ffffff',
+    color: theme.emphasys.grid.headerForeground,
   },
   '& .MuiDataGrid-menuIcon': {
-    color: '#ffffff',
+    color: theme.emphasys.grid.headerForeground,
   },
   '& .MuiDataGrid-iconButtonContainer .MuiSvgIcon-root': {
-    color: '#ffffff',
+    color: theme.emphasys.grid.headerForeground,
   },
   '& .MuiDataGrid-columnHeader .MuiSvgIcon-root': {
-    color: '#ffffff',
+    color: theme.emphasys.grid.headerForeground,
   },
   // GridIconButtonContainer default: visibility:hidden; width:0.
   // Restore visibility for sorted/filtered columns and on hover.
@@ -74,39 +74,39 @@ export const standardDataGridSx: SystemStyleObject<Theme> = {
     color: 'rgba(255,255,255,0.25)',
   },
   '& .MuiDataGrid-row:nth-of-type(even)': {
-    backgroundColor: 'rgba(0, 120, 70, 0.05)',
+    backgroundColor: theme.emphasys.grid.stripe,
   },
   '& .MuiDataGrid-row:hover': {
-    backgroundColor: 'rgba(15, 23, 42, 0.04)',
+    backgroundColor: theme.emphasys.grid.hover,
   },
   '& .MuiDataGrid-row.Mui-selected': {
-    backgroundColor: 'rgba(29, 47, 104, 0.08)',
+    backgroundColor: theme.emphasys.grid.selected,
   },
   '& .MuiDataGrid-row.Mui-selected:hover': {
-    backgroundColor: 'rgba(29, 47, 104, 0.12)',
+    backgroundColor: theme.emphasys.grid.selectedHover,
   },
   '& .finanzas-header': {
-    backgroundColor: '#1d2f68 !important',
-    color: '#ffffff !important',
+    backgroundColor: `${theme.emphasys.grid.header} !important`,
+    color: `${theme.emphasys.grid.headerForeground} !important`,
     fontWeight: 600,
   },
   '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
-    color: '#ffffff !important',
+    color: `${theme.emphasys.grid.headerForeground} !important`,
     fontWeight: 600,
   },
   '& .finanzas-header .MuiDataGrid-sortIcon': {
-    color: '#ffffff !important',
+    color: `${theme.emphasys.grid.headerForeground} !important`,
   },
   '& .finanzas-header .MuiDataGrid-menuIcon': {
-    color: '#ffffff !important',
+    color: `${theme.emphasys.grid.headerForeground} !important`,
   },
   '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
-    color: '#ffffff !important',
+    color: `${theme.emphasys.grid.headerForeground} !important`,
   },
   '& .finanzas-header .MuiIconButton-root': {
-    color: '#ffffff !important',
+    color: `${theme.emphasys.grid.headerForeground} !important`,
   },
   '& .finanzas-header .MuiSvgIcon-root': {
-    color: '#ffffff !important',
+    color: `${theme.emphasys.grid.headerForeground} !important`,
   },
-};
+});

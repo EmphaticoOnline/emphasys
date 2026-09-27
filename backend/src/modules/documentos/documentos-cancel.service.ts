@@ -788,6 +788,29 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
   // 1. Verificar permiso siempre (antes de cualquier otra operación)
   await validarPermisoAdministrador(input.empresaId, input.usuarioId, input.esSuperadmin);
 
+  // Un borrador no es todavía un documento fiscal cancelable. Esta validación
+  // debe ocurrir antes de buscar reintentos o resolver el PAC para evitar que
+  // una llamada directa pueda iniciar cualquier flujo de cancelación externa.
+  const estadoClient = await pool.connect();
+  try {
+    const documento = await obtenerDocumentoParaCancelacion(estadoClient, input.documentoId, input.empresaId, false);
+    if (!documento) throw new DocumentoCancelValidationError('Documento no encontrado');
+
+    const tipoDocumento = String(documento.tipo_documento ?? '').trim().toLowerCase();
+    const estatusDocumento = String(documento.estatus_documento ?? '').trim().toLowerCase();
+    if (
+      (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra' || tipoDocumento === 'factura')
+      && estatusDocumento === 'borrador'
+    ) {
+      const nombreDocumento = tipoDocumento === 'factura' ? 'factura' : 'nota de crédito';
+      throw new DocumentoCancelValidationError(
+        `No se puede cancelar ${nombreDocumento} en borrador. Elimínelo si ya no lo necesita.`
+      );
+    }
+  } finally {
+    estadoClient.release();
+  }
+
   const motivoCancelacion = limpiarTexto(input.motivoCancelacion);
   const motivoSat = normalizarMotivoSat(input.motivoSat);
   const uuidSustitucion = limpiarTexto(input.uuidSustitucion);

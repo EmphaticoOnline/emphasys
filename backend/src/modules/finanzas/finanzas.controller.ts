@@ -4,6 +4,7 @@ import {
   actualizarCuenta,
   actualizarOperacion,
   actualizarTransferencia,
+  aplicarDistribucionSaldoNotaCredito,
   crearAplicacion,
   crearConciliacion,
   crearCuenta,
@@ -294,6 +295,33 @@ export async function postConciliacion(req: Request, res: Response) {
     res.status(201).json(result);
   } catch (err: any) {
     res.status(err?.status ?? 400).json({ message: err.message || 'No se pudo registrar la conciliación' });
+  }
+}
+
+export async function postAplicarSaldoNotaCredito(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+    const documentoId = Number(req.params.id);
+    if (!Number.isInteger(documentoId) || documentoId <= 0) {
+      return res.status(400).json({ message: 'documentoId inválido' });
+    }
+    const result = await aplicarDistribucionSaldoNotaCredito(
+      {
+        documento_origen_id: documentoId,
+        aplicaciones: Array.isArray(req.body?.aplicaciones) ? req.body.aplicaciones : [],
+        quitar: Array.isArray(req.body?.quitar) ? req.body.quitar : [],
+        created_by: req.auth?.userId ?? null,
+      },
+      empresaId,
+    );
+    res.status(201).json(result);
+  } catch (err: any) {
+    const status = err?.status ?? 400;
+    res.status(status).json({
+      ...(err?.code ? { code: err.code } : {}),
+      message: err.message || 'No se pudo aplicar el saldo de la nota de crédito',
+    });
   }
 }
 

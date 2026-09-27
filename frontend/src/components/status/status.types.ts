@@ -1,6 +1,6 @@
 import type * as React from 'react';
 
-export type StatusTone = 'success' | 'info' | 'warning' | 'error' | 'neutral' | 'blocked';
+export type StatusTone = 'success' | 'info' | 'warning' | 'error' | 'neutral' | 'blocked' | 'draft';
 export type StatusSize = 'compact' | 'small';
 
 export type StatusIconComponent = React.ElementType<{ fontSize?: 'inherit' | 'small' | 'medium' | 'large'; sx?: object }>;

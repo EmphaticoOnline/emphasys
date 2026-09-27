@@ -216,6 +216,7 @@ export interface DocumentoSaldo {
   id: number;
   empresa_id: number;
   tipo_documento: string;
+  tratamiento_impuestos?: string | null;
   moneda: string;
   tipo_cambio?: number | null;
   total: number;
@@ -271,6 +272,8 @@ export interface EstadoCuentaItem {
   empresa_id: number;
   origen: 'documento' | 'operacion';
   tipo: string;
+  estatus_documento?: string | null;
+  tratamiento_impuestos?: string | null;
   moneda: string;
   tipo_cambio?: number | null;
   monto: number;

@@ -24,6 +24,7 @@
     "cfdi:sat-cancel:test": "ts-node src/scripts/cfdiSatCancelTest.ts",
     "test:cfdi-email": "ts-node src/scripts/testCfdiEmail.ts",
     "test:cfdi-pac-empresa": "ts-node src/scripts/testCfdiPacPorEmpresa.ts",
+    "test:cfdi-error-normalizer": "ts-node src/scripts/testCfdiErrorNormalizer.ts",
     "test:transporte-viaje": "ts-node src/scripts/testTransporteViaje.ts",
     "test:carta-porte-31": "ts-node src/scripts/testCartaPorte31.ts",
     "test:carta-porte-consistency": "ts-node src/scripts/testCartaPorteConsistency.ts",

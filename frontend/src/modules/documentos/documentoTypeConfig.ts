@@ -234,6 +234,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       filtroAgente: false,
       mostrarSaldo: true,
       accionesDisponibles: ['timbrar'],
+      vistaWorkspace: true,
     },
     partidas: {
       mostrarImagenes: false,
@@ -862,6 +863,7 @@ export const DOCUMENTO_TYPE_CONFIG: DocumentoTypeConfigMap = {
       filtroAgente: false,
       mostrarSaldo: true,
       accionesDisponibles: [],
+      vistaWorkspace: true,
     },
     partidas: {
       mostrarImagenes: false,

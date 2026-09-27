@@ -115,6 +115,10 @@ export function useLiquidacionDocumento(params: LiquidacionDocumentoParams | nul
       const saldoOrigen = roundMoney(Number(saldoData?.saldo ?? saldoInicial ?? 0));
       const contactoDoc = Number(documento.contacto_principal_id ?? contactoIdParam) || contactoIdParam;
 
+      if (String(documento.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador') {
+        throw new Error('No se puede registrar cobro sobre una factura en borrador.');
+      }
+
       if (saldoData?.cobro_bloqueado) {
         throw new Error('El saldo de este documento está suspendido. No admite nuevas aplicaciones.');
       }

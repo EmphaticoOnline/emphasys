@@ -7,6 +7,7 @@ export type EstadoIntentoTimbrado =
   | 'persistido'
   | 'error_descarga'
   | 'error_validacion'
+  | 'error_previo_pac'
   | 'reconciliado';
 
 function sanitizarMensaje(value: unknown): string | null {
@@ -29,6 +30,31 @@ export async function registrarIdAceptado(params: {
      DO UPDATE SET updated_at = NOW()
      RETURNING id`,
     [params.empresaId, params.documentoId, params.proveedorCfdiId, params.endpoint, params.cfdiPacConfigId]
+  );
+  return rows[0].id;
+}
+
+/** Registra un fallo que ocurrió antes de que Facturama devolviera un ID. */
+export async function registrarErrorTimbrado(params: {
+  empresaId: number;
+  documentoId: number;
+  tipoDocumento: string;
+  errorCodigo: string;
+  errorMensaje: unknown;
+}): Promise<number> {
+  const { rows } = await pool.query<{ id: number }>(
+    `INSERT INTO public.cfdi_intentos_timbrado
+       (empresa_id, documento_id, proveedor, proveedor_cfdi_id, endpoint, estado,
+        error_codigo, error_mensaje_sanitizado, metadata_sanitizada)
+     VALUES ($1, $2, 'facturama', NULL, 'not-requested', 'error_previo_pac', $3, $4, $5::jsonb)
+     RETURNING id`,
+    [
+      params.empresaId,
+      params.documentoId,
+      params.errorCodigo,
+      sanitizarMensaje(params.errorMensaje),
+      JSON.stringify({ tipo_documento: params.tipoDocumento, fase: 'antes_de_respuesta_pac' }),
+    ],
   );
   return rows[0].id;
 }

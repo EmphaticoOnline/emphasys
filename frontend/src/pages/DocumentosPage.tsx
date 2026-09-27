@@ -116,6 +116,8 @@ import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfi
 import { useDocumentoConfig } from '../modules/documentos/useDocumentoConfig';
 import { AnticiposAplicacionDialog } from '../modules/finanzas/AnticiposAplicacionDialog';
 import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
+import { AplicarSaldoNotaCreditoDialog } from '../modules/finanzas/AplicarSaldoNotaCreditoDialog';
+import { notaCreditoPuedeAplicarSaldo } from '../modules/finanzas/aplicarSaldoNotaCredito.logic';
 import { LiquidacionDocumentoView, resolveLiquidacionConfig } from '../modules/finanzas/liquidacion-documento';
 import DocumentoDetalleDrawer from '../components/documentos/DocumentoDetalleDrawer';
 import { DocumentoWhatsappDialog } from '../modules/documentos/DocumentoWhatsappDialog';
@@ -139,6 +141,7 @@ import {
 import DocumentosDesktopView from '../components/documentos/DocumentosDesktopView';
 import DocumentosMobileView from '../components/documentos/DocumentosMobileView';
 import FacturasWorkspaceView from '../components/documentos/facturas/FacturasWorkspaceView';
+import NotasCreditoWorkspaceView, { FILTRO_NOTAS_VACIO, type FiltroNotas } from '../components/documentos/nota-credito/NotasCreditoWorkspaceView';
 import CartaPorteViajeDrawer from '../components/documentos/facturas/CartaPorteViajeDrawer';
 import { guardarFacturasWorkspacePreferencia, resolveFacturasWorkspaceEnabled } from '../modules/documentos/facturasWorkspaceFlag';
 import FacturaGlobalDialog from '../modules/documentos/FacturaGlobalDialog';
@@ -243,7 +246,6 @@ import {
 import {
   getOpcionesGeneracion,
   prepararGeneracion,
-  prepararGeneracionMultiple,
   generarDocumentoDesdeOrigen,
   AutorizacionRequeridaError,
   SinPermisoAutorizacionError,
@@ -376,13 +378,30 @@ const isFacturaTimbrada = (value: unknown): boolean => normalizeDocumentoEstatus
 // esté timbrada (cancelación operativa interna, sin CFDI/PAC) — ver
 // esFacturaEmitidaSinTimbrar más abajo para ese caso informativo.
 const esFacturaEnBorrador = (tipoDocumento: TipoDocumento, estatusDocumento: unknown): boolean =>
-  tipoDocumento === 'factura' && normalizeDocumentoEstatus(estatusDocumento) === 'borrador';
+  (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra')
+  && normalizeDocumentoEstatus(estatusDocumento) === 'borrador';
+
+const origenFacturaBorradorBloqueaNotaCredito = (tipoDocumento: TipoDocumento, estatusDocumento: unknown, tipoDestino: string): boolean =>
+  (tipoDestino === 'nota_credito' || tipoDestino === 'nota_credito_compra')
+  && esFacturaEnBorrador(tipoDocumento, estatusDocumento);
 
 const MENSAJE_FACTURA_BORRADOR_CANCELAR =
   'La factura está en borrador; no se puede cancelar. Elimínela si ya no la necesita.';
 
 const MENSAJE_FACTURA_EMITIDA_SIN_TIMBRAR_CANCELAR =
   'Cancela el documento en Emphasys. No se cancelará CFDI porque no está timbrado.';
+
+const TITULO_ERROR_GENERICO = 'No fue posible completar la operación';
+
+const obtenerTituloErrorTimbrado = (tipoDocumento: TipoDocumento): string => {
+  if (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') {
+    return 'No fue posible timbrar la nota de crédito';
+  }
+  if (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra') {
+    return 'No fue posible timbrar la factura';
+  }
+  return 'No fue posible timbrar el documento';
+};
 
 const obtenerBloqueoCancelacionCfdi = (row: CotizacionListado): string | null => {
   if (!isFacturaTimbrada(row.estatus_documento)) return null;
@@ -657,6 +676,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   // Una recarga no debe deshabilitar acciones de filas que ya están disponibles.
   const accionesBloqueadasPorCarga = loading && rows.length === 0;
   const [error, setError] = useState<string | null>(null);
+  const [errorDialogTitle, setErrorDialogTitle] = useState<string>(TITULO_ERROR_GENERICO);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([]);
   const [facturasWorkspaceEnabled, setFacturasWorkspaceEnabled] = useState(() =>
@@ -762,12 +782,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     tipoDestino: string | null;
     data: PrepararGeneracionResponse | null;
     cantidades: Record<number, number>;
+    montosBonificacion?: Record<number, number>;
+    motivoNc?: 'devolucion' | 'bonificacion';
     tratamientoImpuestos: TratamientoImpuestos;
     serieExterna: string;
     numeroExterno: string;
     enviando: boolean;
     emitirAlGenerar: boolean;
-  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false });
+  }>({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, montosBonificacion: {}, motivoNc: 'devolucion', tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false });
+  const [sinPendienteNcDialogOpen, setSinPendienteNcDialogOpen] = useState(false);
   const [aplicarAnticiposDialog, setAplicarAnticiposDialog] = useState<{
     open: boolean;
     documentoOrigenId: number | null;
@@ -783,6 +806,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     saldo: number;
     tipoDocumento: TipoDocumento | null;
   }>({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
+  const [aplicarSaldoNcModal, setAplicarSaldoNcModal] = useState<{
+    open: boolean;
+    documentoId: number | null;
+    contactoId: number | null;
+    tipoDocumento: TipoDocumento | null;
+    folio: string;
+    clienteNombre: string;
+  }>({ open: false, documentoId: null, contactoId: null, tipoDocumento: null, folio: '', clienteNombre: '' });
   const [liquidacion, setLiquidacion] = useState<{
     open: boolean;
     documentoId: number | null;
@@ -814,8 +845,22 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     setCartaPorteDrawer({ open: true, documentoId, folio: resolverFolioVisual(row, tipoDocumento) || String(documentoId) });
   }, [tipoDocumento]);
 
+  const abrirAplicarSaldoNotaCredito = useCallback((row: CotizacionListado) => {
+    setAplicarSaldoNcDrawer({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
+    setFocusedDocumentId(Number(row.id));
+    setAplicarSaldoNcModal({
+      open: true,
+      documentoId: Number(row.id) || null,
+      contactoId: Number(row.contacto_principal_id ?? 0) || null,
+      tipoDocumento,
+      folio: resolverFolioVisual(row, tipoDocumento) || String(row.id),
+      clienteNombre: String(row.nombre_cliente || '').trim(),
+    });
+  }, [tipoDocumento]);
+
   const abrirLiquidacionDesdeFila = useCallback((row: CotizacionListado) => {
     setAplicarSaldoNcDrawer({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
+    setAplicarSaldoNcModal({ open: false, documentoId: null, contactoId: null, tipoDocumento: null, folio: '', clienteNombre: '' });
     setFocusedDocumentId(Number(row.id));
     setHighlightedDocumentId(null);
     setLiquidacion({
@@ -868,6 +913,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   });
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('todos');
   const [filtrosCotizacion, setFiltrosCotizacion] = useState<FiltrosCotizacion>(FILTROS_COTIZACION_INICIALES);
+  const [filtrosNotas, setFiltrosNotas] = useState<FiltroNotas>(FILTRO_NOTAS_VACIO);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [focusedDocumentId, setFocusedDocumentId] = useState<number | null>(null);
   const [highlightedDocumentId, setHighlightedDocumentId] = useState<number | null>(null);
@@ -926,7 +972,14 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     onOpen: (row) => {
       setFocusedDocumentId(Number(row.id));
       setHighlightedDocumentId(null);
-      if (tieneOpcionesGeneracion && token && empresaId) {
+      // No condicionar esta precarga a `tieneOpcionesGeneracion`: ese flag se
+      // resuelve de forma asíncrona (a partir de la primera fila cargada) y
+      // puede seguir en `null` cuando la selección inicial del Workspace se
+      // restaura antes de que esa resolución termine, dejando la fila
+      // enfocada sin sus opciones de generación cacheadas hasta que el
+      // usuario cambia de fila y regresa. `loadOpcionesGeneracion` ya cachea
+      // por documento, así que esto no duplica peticiones.
+      if (token && empresaId) {
         void loadOpcionesGeneracion(Number(row.id)).catch((err) => {
           console.warn('No se pudieron precargar opciones de generación para el menú contextual', err);
         });
@@ -1138,9 +1191,57 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     setSeguimientoMenu({ anchorEl: null, rowId: null, currentValue: null });
   };
 
+  const obtenerFolioOrigenGeneracion = useCallback((documentoId: number | null | undefined, folioFallback?: string | null): string => {
+    const row = rows.find((r) => Number(r.id) === Number(documentoId));
+    if (row) return resolverFolioVisual(row, tipoDocumento);
+    return folioFallback || String(documentoId ?? '');
+  }, [rows, tipoDocumento]);
+
+  // Reutiliza el mismo cálculo que llena la columna "Pendiente" del modal
+  // (cantidad_pendiente_sugerida) para decidir si aún queda algo por devolver
+  // en alguna partida de alguna de las facturas origen.
+  const tieneCantidadPendienteDevolucion = (data: PrepararGeneracionResponse): boolean =>
+    data.partidas.some((partida) => Number(partida.cantidad_pendiente_sugerida) > 0);
+
+  const esGeneracionNotaCredito = (tipoDestino: string | null): boolean =>
+    tipoDestino === 'nota_credito' || tipoDestino === 'nota_credito_compra';
+
+  const cerrarGeneracionDialogSinPendiente = () => {
+    setGeneracionDialog({
+      open: false,
+      loading: false,
+      documentoId: null,
+      documentoIds: [],
+      tipoDestino: null,
+      data: null,
+      cantidades: {},
+      montosBonificacion: {},
+      motivoNc: 'devolucion',
+      tratamientoImpuestos: 'normal',
+      serieExterna: '',
+      numeroExterno: '',
+      enviando: false,
+      emitirAlGenerar: false,
+    });
+    setSinPendienteNcDialogOpen(true);
+  };
+
+  const abrirCapturaNotaCredito = (documentoIds: number[], tipoDestino: string, contactoId?: number | null) => {
+    const params = new URLSearchParams();
+    params.set(documentoIds.length === 1 ? 'origenId' : 'origenIds', documentoIds.join(','));
+    params.set('motivo', 'devolucion');
+    if (contactoId) params.set('contactoId', String(contactoId));
+    navigate(`${resolveDocumentosListPath(tipoDestino as TipoDocumento, modulo)}/nuevo?${params.toString()}`);
+  };
+
   const handlePrepararGeneracion = async (documentoId: number, tipoDestino: string) => {
     if (!requireAuthData()) return;
     closeMenu();
+    if (esGeneracionNotaCredito(tipoDestino)) {
+      const row = rows.find((item) => Number(item.id) === documentoId);
+      abrirCapturaNotaCredito([documentoId], tipoDestino, row?.contacto_principal_id ?? null);
+      return;
+    }
     setGeneracionDialog({
       open: true,
       loading: true,
@@ -1158,6 +1259,12 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
     try {
       const data = await prepararGeneracion(documentoId, tipoDestino as any, token!, empresaId!);
+
+      if (esGeneracionNotaCredito(tipoDestino) && !tieneCantidadPendienteDevolucion(data)) {
+        cerrarGeneracionDialogSinPendiente();
+        return;
+      }
+
       const cantidades = data.partidas.reduce<Record<number, number>>((acc, p) => {
         acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
         return acc;
@@ -1220,6 +1327,11 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
     return opciones.map((op) => {
       const esDirectaSinPermiso = op.modo_autorizacion === 'directa' && op.usuario_puede_autorizar === false;
+      const origenEnBorrador = origenFacturaBorradorBloqueaNotaCredito(
+        tipoDocumento,
+        contextMenuRow.estatus_documento,
+        op.tipo_documento_destino,
+      );
       let label = `Generar ${op.nombre || op.tipo_documento_destino}`;
       if (op.modo_autorizacion === 'directa') {
         label = `Autorizar y generar ${op.nombre || op.tipo_documento_destino}`;
@@ -1230,14 +1342,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         id: `generar-${op.tipo_documento_destino}`,
         label,
         icon: <NoteAddIcon fontSize="small" />,
-        disabled: loading || esDirectaSinPermiso,
-        tooltip: esDirectaSinPermiso ? `Requiere rol: ${op.rol_requerido ?? 'Autorizador'}` : undefined,
+        disabled: loading || esDirectaSinPermiso || origenEnBorrador,
+        tooltip: esDirectaSinPermiso
+          ? `Requiere rol: ${op.rol_requerido ?? 'Autorizador'}`
+          : origenEnBorrador ? 'No disponible mientras la factura esté en borrador' : undefined,
         onClick: () => {
           void handlePrepararGeneracion(rowId, op.tipo_documento_destino);
         },
       };
     });
-  }, [contextMenuRow, handlePrepararGeneracion, loading, menuLoading, opcionesGeneracion, tieneOpcionesGeneracion]);
+  }, [contextMenuRow, handlePrepararGeneracion, loading, menuLoading, opcionesGeneracion, tieneOpcionesGeneracion, tipoDocumento]);
 
   const handleOpenEstatusMenu = (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => {
     event.preventDefault();
@@ -1377,49 +1491,13 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       setSnackbar({ open: true, message: 'La selección debe usar la misma moneda.', severity: 'warning' });
       return;
     }
-
-    setGeneracionDialog({
-      open: true,
-      loading: true,
-      documentoId: selectedDocumentIds[0] ?? null,
-      documentoIds: selectedDocumentIds,
-      tipoDestino: bulkNotaCreditoDestino,
-      data: null,
-      cantidades: {},
-      tratamientoImpuestos: 'normal',
-      serieExterna: '',
-      numeroExterno: '',
-      enviando: false,
-      emitirAlGenerar: false,
-    });
-
-    try {
-      const data = await prepararGeneracionMultiple(selectedDocumentIds, bulkNotaCreditoDestino as any, token!, empresaId!);
-      const cantidades = data.partidas.reduce<Record<number, number>>((acc, p) => {
-        acc[p.partida_id] = p.cantidad_default ?? p.cantidad_pendiente_sugerida ?? 0;
-        return acc;
-      }, {});
-      const tratamientosOrigen = Array.from(new Set((data.documentos_origen ?? []).map((doc) => normalizarTratamiento(doc.tratamiento_impuestos))));
-      const tratamientoInicial = tratamientosOrigen.length === 1 ? tratamientosOrigen[0]! : normalizarTratamiento(data.documento_origen?.tratamiento_impuestos);
-      setGeneracionDialog({
-        open: true,
-        loading: false,
-        documentoId: selectedDocumentIds[0] ?? null,
-        documentoIds: selectedDocumentIds,
-        tipoDestino: bulkNotaCreditoDestino,
-        data,
-        cantidades,
-        tratamientoImpuestos: tratamientoInicial,
-        serieExterna: '',
-        numeroExterno: '',
-        enviando: false,
-        // Esta consolidación siempre genera nota de crédito, nunca nota de venta.
-        emitirAlGenerar: false,
-      });
-    } catch (err: any) {
-      setGeneracionDialog({ open: false, loading: false, documentoId: null, documentoIds: [], tipoDestino: null, data: null, cantidades: {}, tratamientoImpuestos: 'normal', serieExterna: '', numeroExterno: '', enviando: false, emitirAlGenerar: false });
-      setSnackbar({ open: true, message: err?.message || 'No se pudo preparar la consolidación', severity: 'error' });
+    const tratamientos = new Set(selectedRows.map((row) => String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase()));
+    if (tratamientos.size > 1) {
+      setSnackbar({ open: true, message: 'Todas las facturas origen de una Nota de Crédito deben tener el mismo tratamiento fiscal', severity: 'warning' });
+      return;
     }
+
+    abrirCapturaNotaCredito(selectedDocumentIds, bulkNotaCreditoDestino, contactoBase);
   };
 
   const handleCantidadChange = (partidaId: number, value: string) => {
@@ -1428,6 +1506,18 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       ...prev,
       cantidades: { ...prev.cantidades, [partidaId]: Number.isNaN(num) ? 0 : num },
     }));
+  };
+
+  const handleMontoBonificacionChange = (partidaId: number, value: string) => {
+    const num = Number(value);
+    setGeneracionDialog((prev) => ({
+      ...prev,
+      montosBonificacion: { ...(prev.montosBonificacion ?? {}), [partidaId]: Number.isNaN(num) ? 0 : num },
+    }));
+  };
+
+  const handleMotivoGeneracionChange = (motivoNc: 'devolucion' | 'bonificacion') => {
+    setGeneracionDialog((prev) => ({ ...prev, motivoNc, cantidades: {}, montosBonificacion: {} }));
   };
 
   const completeGeneratedDocumentNavigation = useCallback((options: {
@@ -1492,12 +1582,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     if (!generacionDialog.data || !generacionDialog.tipoDestino) return;
     if (!requireAuthData()) return;
 
+    const motivoNc = generacionDialog.motivoNc ?? 'devolucion';
     const partidas = generacionDialog.data.partidas
-      .map((p) => ({ partida_origen_id: p.partida_id, cantidad: generacionDialog.cantidades[p.partida_id] ?? 0 }))
-      .filter((p) => p.cantidad > 0);
+      .map((p) => motivoNc === 'devolucion'
+        ? { partida_origen_id: p.partida_id, cantidad: generacionDialog.cantidades[p.partida_id] ?? 0 }
+        : { partida_origen_id: p.partida_id, cantidad: 1, monto_bonificacion: generacionDialog.montosBonificacion?.[p.partida_id] ?? 0 })
+      .filter((p) => motivoNc === 'devolucion' ? p.cantidad > 0 : Number(p.monto_bonificacion ?? 0) > 0);
 
     if (partidas.length === 0) {
-      setSnackbar({ open: true, message: 'Captura al menos una cantidad mayor a cero', severity: 'warning' });
+      setSnackbar({ open: true, message: motivoNc === 'devolucion' ? 'Captura al menos una cantidad mayor a cero' : 'Captura al menos un monto mayor a cero', severity: 'warning' });
       return;
     }
 
@@ -1508,7 +1601,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       tipo_documento_destino: generacionDialog.tipoDestino as any,
       datos_encabezado: {
         fecha: toCivilDate(),
-        tratamiento_impuestos: generacionDialog.tratamientoImpuestos,
+        ...(generacionDialog.tipoDestino === 'nota_credito'
+          ? { motivo_nc: motivoNc }
+          : { tratamiento_impuestos: generacionDialog.tratamientoImpuestos }),
         ...(serieExternaVal !== null && { serie_externa: serieExternaVal }),
         ...(numeroExternoVal !== null && { numero_externo: numeroExternoVal }),
       },
@@ -1561,18 +1656,28 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     if (loadingPreferences) return;
     try {
       setLoading(true);
+      const vistaNotas = Boolean(documentoTypeConfig?.features?.vistaWorkspace);
       const result = await getDocumentosPaginados(tipoDocumento, {
         page: page + 1,
         limit: pageSize,
         search: debouncedSearch || null,
-        ...(isFacturaConSaldo && soloPendientes ? { soloPendientes: true } : {}),
-        ...(quickFilter !== 'todos' ? { quickFilter } : {}),
-        clienteId: filtrosCotizacion.clienteId,
-        agenteId: filtrosCotizacion.agenteId,
-        fechaDesde: filtrosCotizacion.fechaDesde || null,
-        fechaHasta: filtrosCotizacion.fechaHasta || null,
-        montoMin: filtrosCotizacion.montoMin || null,
-        montoMax: filtrosCotizacion.montoMax || null,
+        ...(vistaNotas ? {
+          clienteId: filtrosNotas.clienteId,
+          fechaDesde: filtrosNotas.desde || null,
+          fechaHasta: filtrosNotas.hasta || null,
+          estatus: filtrosNotas.estatus,
+          motivos: filtrosNotas.motivos,
+          aplicacion: filtrosNotas.aplicacion || null,
+        } : {
+          ...(isFacturaConSaldo && soloPendientes ? { soloPendientes: true } : {}),
+          ...(quickFilter !== 'todos' ? { quickFilter } : {}),
+          clienteId: filtrosCotizacion.clienteId,
+          agenteId: filtrosCotizacion.agenteId,
+          fechaDesde: filtrosCotizacion.fechaDesde || null,
+          fechaHasta: filtrosCotizacion.fechaHasta || null,
+          montoMin: filtrosCotizacion.montoMin || null,
+          montoMax: filtrosCotizacion.montoMax || null,
+        }),
       });
       setRows(result.data);
       setRowCount(result.total);
@@ -1628,7 +1733,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipoDocumento, page, pageSize, debouncedSearch, soloPendientes, quickFilter, filtrosCotizacion, loadingPreferences]);
+  }, [tipoDocumento, page, pageSize, debouncedSearch, soloPendientes, quickFilter, filtrosCotizacion, filtrosNotas, loadingPreferences]);
 
   // Estado contable de la contabilización de ventas: se resuelve aparte con
   // un endpoint "barato" (sin resolver cuentas contables) para no multiplicar
@@ -2369,6 +2474,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         const estatusDocumentoNormalizado = String(params.row?.estatus_documento ?? '').trim().toLowerCase();
         const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
         const facturaEnBorrador = esFacturaEnBorrador(tipoDocumento, params.row?.estatus_documento);
+        const notaCreditoEnBorrador = (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra')
+          && estatusDocumentoNormalizado === 'borrador';
+        const documentoEnBorradorCancelacion = facturaEnBorrador || notaCreditoEnBorrador;
         const facturaEmitidaSinTimbrar = tipoDocumento === 'factura' && !facturaEnBorrador && !facturaTimbrada;
         const bloqueoCancelacionCfdi = obtenerBloqueoCancelacionCfdi(params.row as CotizacionListado);
         const whatsappHabilitado = puedeEnviarWhatsappDocumento(tipoDocumento, params.row as CotizacionListado);
@@ -2523,7 +2631,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading || Boolean(params.row?.cobro_bloqueado) || Number(params.row?.contacto_principal_id ?? 0) <= 0}
+                  disabled={loading || facturaEnBorrador || Boolean(params.row?.cobro_bloqueado) || Number(params.row?.contacto_principal_id ?? 0) <= 0}
                   onClick={(e) => {
                     e.stopPropagation();
                     abrirLiquidacionDesdeFila(params.row as CotizacionListado);
@@ -2568,22 +2676,20 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               </span>
             </Tooltip>
           )}
-          {(tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') && Number(params.row?.saldo ?? 0) > 0 && String(params.row?.estatus_documento ?? '').toLowerCase() !== 'cancelado' && (
+          {(tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') && (
             <Tooltip title={Number(params.row?.contacto_principal_id ?? 0) > 0 ? 'Aplicar saldo' : 'Documento sin contacto principal'}>
               <span>
                 <IconButton
                   size="small"
                   color="primary"
-                  disabled={loading || Number(params.row?.contacto_principal_id ?? 0) <= 0}
+                  disabled={
+                    loading
+                    || !notaCreditoPuedeAplicarSaldo(tipoDocumento, params.row ?? {})
+                    || Number(params.row?.contacto_principal_id ?? 0) <= 0
+                  }
                   onClick={(e) => {
                     e.stopPropagation();
-                    setAplicarSaldoNcDrawer({
-                      open: true,
-                      documentoId: Number(params.row?.id ?? 0) || null,
-                      contactoId: Number(params.row?.contacto_principal_id ?? 0) || null,
-                      saldo: Number(params.row?.saldo ?? 0),
-                      tipoDocumento,
-                    });
+                    abrirAplicarSaldoNotaCredito(params.row as CotizacionListado);
                   }}
                 >
                   <LinkIcon fontSize="small" />
@@ -2629,6 +2735,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                       if (err?.status === 409 && err?.payload?.estado_reconciliacion) {
                         setTimbradoPendienteIds((prev) => new Set(prev).add(Number(params.row.id)));
                       }
+                      setErrorDialogTitle(obtenerTituloErrorTimbrado(tipoDocumento));
                       setError(err?.message || 'No se pudo timbrar el documento');
                     } finally {
                       setTimbrandoId(null);
@@ -2658,7 +2765,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                 disabled={
                   accionesBloqueadasPorCarga ||
                   documentoCancelado ||
-                  facturaEnBorrador ||
+                  documentoEnBorradorCancelacion ||
                   Boolean(bloqueoCancelacionCfdi) ||
                   cancelandoId === Number(params.row?.id)
                 }
@@ -2805,6 +2912,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     liquidacionConfig,
     abrirLiquidacionDesdeFila,
     abrirAplicarSaldoExistente,
+    abrirAplicarSaldoNotaCredito,
   ]);
 
   const columns: GridColDef[] = useMemo(
@@ -2847,13 +2955,14 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     const facturaTimbrada = !documentoPuedeTimbrarCfdi || isFacturaTimbrada(contextMenuRow?.estatus_documento);
     const envioCfdiDisponible = puedeEnviarCfdiPorCorreo(tipoDocumento, contextMenuRow);
     const whatsappHabilitado = puedeEnviarWhatsappDocumento(tipoDocumento, contextMenuRow);
-    const canApplySaldoNc =
-      (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra') &&
-      Number(contextMenuRow?.saldo ?? 0) > 0 &&
-      String(contextMenuRow?.estatus_documento ?? '').toLowerCase() !== 'cancelado';
+    const esNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
+    const canApplySaldoNc = notaCreditoPuedeAplicarSaldo(tipoDocumento, contextMenuRow);
     const estatusDocumentoNormalizado = String(contextMenuRow?.estatus_documento ?? '').trim().toLowerCase();
     const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
     const facturaEnBorrador = esFacturaEnBorrador(tipoDocumento, contextMenuRow?.estatus_documento);
+    const notaCreditoEnBorrador = (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra')
+      && estatusDocumentoNormalizado === 'borrador';
+    const documentoEnBorradorCancelacion = facturaEnBorrador || notaCreditoEnBorrador;
     const bloqueoCancelacionCfdi = obtenerBloqueoCancelacionCfdi(contextMenuRow);
     const estadoContableFacturaVentaMenu = estadoContableVentas[rowId];
 
@@ -2960,6 +3069,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         ),
         disabled:
           loading
+          || facturaEnBorrador
           || Boolean(contextMenuRow?.cobro_bloqueado)
           || Number(contextMenuRow?.contacto_principal_id ?? 0) <= 0,
         onClick: () => {
@@ -2990,16 +3100,10 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         id: 'aplicar-saldo',
         label: 'Aplicar saldo',
         icon: <LinkIcon fontSize="small" />,
-        hidden: !canApplySaldoNc,
-        disabled: loading || Number(contextMenuRow?.contacto_principal_id ?? 0) <= 0,
+        hidden: !esNotaCredito,
+        disabled: loading || !canApplySaldoNc || Number(contextMenuRow?.contacto_principal_id ?? 0) <= 0,
         onClick: () => {
-          setAplicarSaldoNcDrawer({
-            open: true,
-            documentoId: rowId,
-            contactoId: Number(contextMenuRow?.contacto_principal_id ?? 0) || null,
-            saldo: Number(contextMenuRow?.saldo ?? 0),
-            tipoDocumento,
-          });
+          abrirAplicarSaldoNotaCredito(contextMenuRow);
         },
       },
       {
@@ -3115,6 +3219,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             if (err?.status === 409 && err?.payload?.estado_reconciliacion) {
               setTimbradoPendienteIds((prev) => new Set(prev).add(rowId));
             }
+            setErrorDialogTitle(obtenerTituloErrorTimbrado(tipoDocumento));
             setError(err?.message || 'No se pudo timbrar el documento');
           } finally {
             setTimbrandoId(null);
@@ -3126,7 +3231,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         label: bloqueoCancelacionCfdi || (facturaEnBorrador ? 'Cancelar documento (borrador, use Eliminar)' : 'Cancelar documento'),
         icon: <CancelIcon fontSize="small" />,
         destructive: true,
-        disabled: accionesBloqueadasPorCarga || documentoCancelado || facturaEnBorrador || Boolean(bloqueoCancelacionCfdi) || cancelandoId === rowId,
+        disabled: accionesBloqueadasPorCarga || documentoCancelado || documentoEnBorradorCancelacion || Boolean(bloqueoCancelacionCfdi) || cancelandoId === rowId,
         onClick: () => abrirDialogoCancelar(contextMenuRow),
       },
       {
@@ -3178,6 +3283,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     liquidacionConfig,
     abrirLiquidacionDesdeFila,
     abrirAplicarSaldoExistente,
+    abrirAplicarSaldoNotaCredito,
   ]);
 
   const resumenTotales = useMemo(() => {
@@ -3334,7 +3440,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   fontSize: 12,
                   fontWeight: selected ? 700 : 600,
                   px: 0.35,
-                  color: selected ? '#1d2f68' : '#4b5563',
+                  color: selected ? 'primary.main' : '#4b5563',
                   backgroundColor: selected ? '#e8eefc' : '#fff',
                   borderColor: selected ? '#9db1ea' : '#d1d5db',
                   '&:hover': {
@@ -3360,9 +3466,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               minWidth: 132,
               fontWeight: 700,
               textTransform: 'none',
-              backgroundColor: filtersOpen || hayFiltrosActivos ? '#1d2f68' : undefined,
+              backgroundColor: filtersOpen || hayFiltrosActivos ? 'primary.main' : undefined,
               '&:hover': {
-                backgroundColor: filtersOpen || hayFiltrosActivos ? '#162551' : undefined,
+                backgroundColor: filtersOpen || hayFiltrosActivos ? 'primary.dark' : undefined,
               },
             }}
           >
@@ -3555,7 +3661,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               <Button variant="text" onClick={handleLimpiarFiltros}>
                 Limpiar
               </Button>
-              <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}>
+              <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}>
                 Aplicar filtros
               </Button>
             </Stack>
@@ -3679,7 +3785,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             void handleDuplicarSeleccionados();
           }}
           disabled={bulkDuplicating}
-          sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
+          sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
         >
           Duplicar seleccionados
         </Button>
@@ -3888,6 +3994,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   const facturasWorkspaceVisible =
     tipoDocumento === 'factura' && modulo === 'ventas' && facturasWorkspaceEnabled;
 
+  const notasCreditoWorkspaceVisible = Boolean(documentoTypeConfig?.features?.vistaWorkspace);
+
   const facturasWorkspaceView = facturasWorkspaceVisible ? (
     <Container maxWidth={false} sx={{ py: 2 }}>
       <FacturasWorkspaceView
@@ -3982,9 +4090,39 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     />
   );
 
+  const notasCreditoWorkspaceView = notasCreditoWorkspaceVisible ? (
+    <NotasCreditoWorkspaceView
+      rows={filteredRows}
+      isLoading={loading || loadingPreferences}
+      selectedId={focusedDocumentId}
+      onSelect={selectGridRow}
+      search={search}
+      onSearch={setSearch}
+      onCreate={() => navigate(`${basePath}/nuevo`)}
+      actions={gridContextMenuActions}
+      onOpenEstatus={handleOpenEstatusMenu}
+      tipoDocumento={tipoDocumento}
+      formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
+      formatDate={formatCivilDate}
+      currency={currency}
+      filtros={filtrosNotas}
+      onFiltrosChange={(siguiente) => {
+        setFiltrosNotas(siguiente);
+        setPage(0);
+      }}
+      total={rowCount}
+      page={page}
+      pageSize={pageSize}
+      onPageChange={setPage}
+      tiposContacto={contactoTiposPermitidos}
+      etiquetaContacto={contactoLabel}
+      estatusOpciones={documentoTypeConfig?.estatusPermitidos ?? ['borrador', 'emitido', 'cancelado']}
+    />
+  ) : null;
+
   return (
     <>
-      {!isMobile && facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
+      {notasCreditoWorkspaceView ? notasCreditoWorkspaceView : !isMobile && facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
         <Container maxWidth={false} sx={{ py: 2 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             {mobileView}
@@ -4023,13 +4161,27 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         />
       ) : null}
 
-      <Dialog open={Boolean(error)} onClose={() => setError(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Error</DialogTitle>
+      <Dialog
+        open={Boolean(error)}
+        onClose={() => {
+          setError(null);
+          setErrorDialogTitle(TITULO_ERROR_GENERICO);
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>{errorDialogTitle}</DialogTitle>
         <DialogContent>
           <DialogContentText>{error}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button variant="contained" onClick={() => setError(null)}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setError(null);
+              setErrorDialogTitle(TITULO_ERROR_GENERICO);
+            }}
+          >
             ENTENDIDO
           </Button>
         </DialogActions>
@@ -4047,12 +4199,16 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           const estatusMenuRow = estatusMenu.rowId ? rows.find((r) => Number(r.id) === estatusMenu.rowId) : null;
           const opcionCancelarNoAplica =
             status.value === 'cancelado' && esFacturaEnBorrador(tipoDocumento, estatusMenuRow?.estatus_documento);
+          const opcionBorradorNcBloqueada =
+            status.value === 'borrador'
+            && (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra')
+            && (isFacturaTimbrada(estatusMenuRow?.estatus_documento) || Boolean(estatusMenuRow?.tiene_aplicaciones_saldo_activas));
 
           return (
             <MenuItem
               key={status.value}
               selected={estatusMenu.currentValue === status.value}
-              disabled={actualizandoEstatusId !== null || opcionCancelarNoAplica}
+              disabled={actualizandoEstatusId !== null || opcionCancelarNoAplica || opcionBorradorNcBloqueada}
               onClick={() => void handleSeleccionarEstatus(status.value)}
             >
               {status.label}
@@ -4099,11 +4255,15 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             <ListItemText primary="Cargando opciones..." />
           </MenuItem>
         )}
-        {!menuLoading && menuDocumentoId != null && (opcionesGeneracion[menuDocumentoId] || []).map((op) => (
-          <MenuItem key={op.tipo_documento_destino} onClick={() => handleSeleccionarOpcion(op.tipo_documento_destino)}>
+        {!menuLoading && menuDocumentoId != null && (opcionesGeneracion[menuDocumentoId] || []).map((op) => {
+          const menuRow = rows.find((row) => Number(row.id) === menuDocumentoId);
+          const disabled = Boolean(menuRow && origenFacturaBorradorBloqueaNotaCredito(tipoDocumento, menuRow.estatus_documento, op.tipo_documento_destino));
+          return (
+          <MenuItem key={op.tipo_documento_destino} disabled={disabled} onClick={() => handleSeleccionarOpcion(op.tipo_documento_destino)}>
             <ListItemText primary={op.nombre || op.tipo_documento_destino} />
           </MenuItem>
-        ))}
+          );
+        })}
       </Menu>
 
       <Snackbar
@@ -4157,6 +4317,24 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           }
         }}
       />
+
+      {aplicarSaldoNcModal.open && aplicarSaldoNcModal.documentoId && aplicarSaldoNcModal.contactoId && aplicarSaldoNcModal.tipoDocumento ? (
+        <AplicarSaldoNotaCreditoDialog
+          open={aplicarSaldoNcModal.open}
+          documentoId={aplicarSaldoNcModal.documentoId}
+          contactoId={aplicarSaldoNcModal.contactoId}
+          tipoDocumento={aplicarSaldoNcModal.tipoDocumento}
+          folio={aplicarSaldoNcModal.folio}
+          clienteNombre={aplicarSaldoNcModal.clienteNombre}
+          usuarioId={session.user?.id ?? null}
+          onClose={() => setAplicarSaldoNcModal({ open: false, documentoId: null, contactoId: null, tipoDocumento: null, folio: '', clienteNombre: '' })}
+          onSaved={() => {
+            setAplicarSaldoNcModal({ open: false, documentoId: null, contactoId: null, tipoDocumento: null, folio: '', clienteNombre: '' });
+            setSnackbar({ open: true, message: 'Cambios guardados', severity: 'success' });
+            void load();
+          }}
+        />
+      ) : null}
 
       {aplicarSaldoNcDrawer.open && aplicarSaldoNcDrawer.documentoId && aplicarSaldoNcDrawer.contactoId && aplicarSaldoNcDrawer.tipoDocumento ? (
         <FacturaPagosDrawer
@@ -4218,7 +4396,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         fullWidth
         maxWidth="md"
       >
-        <DialogTitle>Generar documento</DialogTitle>
+        <DialogTitle>
+          {generacionDialog.tipoDestino === 'nota_credito' ? 'Generar nota de crédito' : 'Generar documento'}
+        </DialogTitle>
         <DialogContent>
           {generacionDialog.loading || !generacionDialog.data ? (
             <Stack alignItems="center" justifyContent="center" py={3} spacing={1}>
@@ -4230,26 +4410,51 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           ) : (
             <Stack spacing={2}>
               <Typography variant="body2" color="text.secondary">
-                Origen: {generacionDialog.data.es_consolidado
-                  ? `${generacionDialog.data.documentos_origen.length} documentos consolidados`
-                  : (generacionDialog.data.documento_origen?.folio || generacionDialog.data.documento_origen?.documento_id)} · Destino: {generacionDialog.tipoDestino}
+                {generacionDialog.tipoDestino === 'nota_credito' ? (
+                  <>
+                    Origen: {generacionDialog.data.es_consolidado
+                      ? generacionDialog.data.documentos_origen
+                          .map((origen) => obtenerFolioOrigenGeneracion(origen.documento_id, origen.folio))
+                          .join(', ')
+                      : obtenerFolioOrigenGeneracion(generacionDialog.documentoId, generacionDialog.data.documento_origen?.folio)}
+                  </>
+                ) : (
+                  <>
+                    Origen: {generacionDialog.data.es_consolidado
+                      ? `${generacionDialog.data.documentos_origen.length} documentos consolidados`
+                      : (generacionDialog.data.documento_origen?.folio || generacionDialog.data.documento_origen?.documento_id)} · Destino: {generacionDialog.tipoDestino}
+                  </>
+                )}
               </Typography>
-              <TextField
-                select
-                label="Tratamiento fiscal"
-                size="small"
-                value={generacionDialog.tratamientoImpuestos}
-                onChange={(event) => setGeneracionDialog((prev) => ({
-                  ...prev,
-                  tratamientoImpuestos: normalizarTratamiento(event.target.value),
-                }))}
-              >
-                {TRATAMIENTO_OPCIONES.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </TextField>
+              {generacionDialog.tipoDestino === 'nota_credito' ? (
+                <TextField
+                  select
+                  label="Motivo"
+                  size="small"
+                  value={generacionDialog.motivoNc ?? 'devolucion'}
+                  onChange={(event) => handleMotivoGeneracionChange(event.target.value as 'devolucion' | 'bonificacion')}
+                >
+                  <MenuItem value="devolucion">Devolución</MenuItem>
+                  <MenuItem value="bonificacion">Bonificación</MenuItem>
+                </TextField>
+              ) : (
+                <TextField
+                  select
+                  label="Tratamiento fiscal"
+                  size="small"
+                  value={generacionDialog.tratamientoImpuestos}
+                  onChange={(event) => setGeneracionDialog((prev) => ({
+                    ...prev,
+                    tratamientoImpuestos: normalizarTratamiento(event.target.value),
+                  }))}
+                >
+                  {TRATAMIENTO_OPCIONES.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
               {generacionDialog.tipoDestino === 'factura' && generacionDialog.tratamientoImpuestos === 'sin_iva' && (
                 <FormControlLabel
                   control={
@@ -4292,8 +4497,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                     {generacionDialog.data.es_consolidado && <TableCell>Documento origen</TableCell>}
                     <TableCell>Producto</TableCell>
                     <TableCell align="right">Cant. origen</TableCell>
-                    <TableCell align="right">Pendiente</TableCell>
-                    <TableCell align="right">Cantidad a generar</TableCell>
+                    <TableCell align="right">{generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion' ? 'Máximo bonificable' : 'Pendiente'}</TableCell>
+                    <TableCell align="right">{generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion' ? 'Monto a bonificar' : 'Cantidad a devolver'}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -4302,14 +4507,23 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                       {generacionDialog.data!.es_consolidado && <TableCell>{p.documento_origen_folio || p.documento_origen_id}</TableCell>}
                       <TableCell>{p.descripcion || `Producto ${p.producto_id ?? ''}`}</TableCell>
                       <TableCell align="right">{p.cantidad_origen}</TableCell>
-                      <TableCell align="right">{p.cantidad_pendiente_sugerida}</TableCell>
+                      <TableCell align="right">{generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion' ? currency.format(p.importe_maximo_sugerido) : p.cantidad_pendiente_sugerida}</TableCell>
                       <TableCell align="right" sx={{ minWidth: 140 }}>
                         <TextField
                           size="small"
                           type="number"
-                          inputProps={{ min: 0, step: 'any' }}
-                          value={generacionDialog.cantidades[p.partida_id] ?? ''}
-                          onChange={(e) => handleCantidadChange(p.partida_id, e.target.value)}
+                          value={generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion'
+                            ? (generacionDialog.montosBonificacion?.[p.partida_id] ?? '')
+                            : (generacionDialog.cantidades[p.partida_id] ?? '')}
+                          onChange={(e) => generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion'
+                            ? handleMontoBonificacionChange(p.partida_id, e.target.value)
+                            : handleCantidadChange(p.partida_id, e.target.value)}
+                          onFocus={(e) => {
+                            if (Number(e.currentTarget.value) === 0) {
+                              e.currentTarget.select();
+                            }
+                          }}
+                          inputProps={{ min: 0, step: 'any', max: generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion' ? p.importe_maximo_sugerido : p.cantidad_pendiente_sugerida }}
                         />
                       </TableCell>
                     </TableRow>
@@ -4333,6 +4547,18 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             startIcon={generacionDialog.enviando ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
             {generacionDialog.enviando ? 'Generando...' : 'Generar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={sinPendienteNcDialogOpen} onClose={() => setSinPendienteNcDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>No hay cantidades pendientes</DialogTitle>
+        <DialogContent>
+          <DialogContentText>Todas las cantidades de la factura ya fueron incluidas en notas de crédito.</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setSinPendienteNcDialogOpen(false)}>
+            ENTENDIDO
           </Button>
         </DialogActions>
       </Dialog>
@@ -4417,9 +4643,22 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={cancelarDialog.open} onClose={cerrarDialogoCancelar} fullWidth maxWidth="sm">
-        <DialogTitle>Cancelar documento</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
+      <Dialog
+        open={cancelarDialog.open}
+        onClose={cerrarDialogoCancelar}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            bgcolor: (theme) => theme.emphasys.content.elevated,
+            color: (theme) => theme.emphasys.content.foreground,
+            backgroundImage: 'none',
+            border: (theme) => `1px solid ${theme.emphasys.content.border}`,
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: (theme) => theme.emphasys.content.foreground }}>Cancelar documento</DialogTitle>
+        <DialogContent sx={{ pt: 1, color: (theme) => theme.emphasys.content.secondary }}>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <DialogContentText>
               {cancelarDialog.timbrada
@@ -4487,13 +4726,18 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             ) : null}
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1, borderTop: (theme) => `1px solid ${theme.emphasys.content.border}` }}>
           <Button onClick={cerrarDialogoCancelar} disabled={cancelarDialog.enviando}>
-            Cancelar
+            No cancelar
           </Button>
           <Button
             variant="contained"
-            color="error"
+            sx={{
+              bgcolor: (theme) => theme.palette.error.main,
+              color: (theme) => theme.emphasys.action.primaryForeground,
+              '&:hover': { bgcolor: (theme) => theme.palette.error.dark },
+              '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled },
+            }}
             onClick={() => {
               void confirmarCancelacion();
             }}
@@ -4623,7 +4867,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         <Box sx={{ p: 3, height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
             <Box>
-              <Typography variant="h6" fontWeight={700} color="#1d2f68">
+              <Typography variant="h6" fontWeight={700} color="primary.main">
                 Producción
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -4688,7 +4932,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
 
               <Box>
                 <Stack direction="row" alignItems="baseline" justifyContent="space-between" sx={{ mb: 1 }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                  <Typography variant="subtitle1" fontWeight={700} color="primary.main">
                     Historial de avances
                   </Typography>
                   {produccionDrawer.historial.length > 0 ? (

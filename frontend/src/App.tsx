@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import SidebarLayout from './components/layout/SidebarLayout';
+import AppThemeGate from './theme/AppThemeGate';
 import ContactosPage from './pages/ContactosPage';
 import ContactoFormPage from './pages/ContactoFormPage';
 import ProductosPage from './pages/ProductosPage';
@@ -92,6 +93,10 @@ import {
 } from './compass/CompassModule';
 import { isCompassHostname } from './routing/appHostname';
 import LiquidacionFacturaOrigenMockupPage from './dev-mockups/LiquidacionFacturaOrigenMockupPage';
+import NotaCreditoMockupPage from './dev-mockups/nota-credito/NotaCreditoMockupPage';
+import NotasCreditoWorkspaceMockupPage from './dev-mockups/notas-credito-workspace/NotasCreditoWorkspaceMockupPage';
+import NotasCreditoWorkspacePropuesta2 from './dev-mockups/notas-credito-workspace/NotasCreditoWorkspacePropuesta2';
+import IdentidadErpMockupPage from './dev-mockups/identidad-erp/IdentidadErpMockupPage';
 
 export default function App() {
   const compassHost = isCompassHostname(window.location.hostname);
@@ -101,6 +106,10 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dev/mockups/liquidacion-factura-origen" element={<LiquidacionFacturaOrigenMockupPage />} />
+        <Route path="/dev/mockups/nota-credito" element={<NotaCreditoMockupPage />} />
+        <Route path="/dev/mockups/notas-credito" element={<NotasCreditoWorkspaceMockupPage />} />
+        <Route path="/dev/mockups/notas-credito-2" element={<NotasCreditoWorkspacePropuesta2 />} />
+        <Route path="/dev/mockups/identidad" element={<IdentidadErpMockupPage />} />
 
         <Route element={<RequireAuth />}>
           <Route path="/compass" element={<CompassLayout />}>
@@ -121,6 +130,7 @@ export default function App() {
           {compassHost ? (
             <Route path="*" element={<Navigate to="/compass" replace />} />
           ) : (
+          <Route element={<AppThemeGate />}>
           <Route element={<SidebarLayout />}>
             {/* Selección de empresa: no requiere empresa activa */}
             <Route path="/seleccionar-empresa" element={<SeleccionEmpresaPage />} />
@@ -246,6 +256,7 @@ export default function App() {
               <Route path="/" element={<Navigate to="/contactos" replace />} />
               <Route path="*" element={<Navigate to="/contactos" replace />} />
             </Route>
+          </Route>
           </Route>
           )}
         </Route>

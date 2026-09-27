@@ -393,7 +393,7 @@ export class CfdiService {
 
       return {
         cfdiType: 'E',
-        relations: await this.resolverNcRelations(data.documento.documento_origen_id, empresaId),
+        relations: await this.resolverNcRelations(data.documento.id, empresaId),
       };
     }
 
@@ -418,33 +418,69 @@ export class CfdiService {
     };
   }
 
-  private async resolverNcRelations(documentoOrigenId: number | null | undefined, empresaId: number) {
-    const origenId = Number(documentoOrigenId);
-    ensure(Number.isFinite(origenId) && origenId > 0, 'La nota de crédito no tiene factura origen relacionada.');
-
-    const { rows } = await pool.query<{ uuid: string | null }>(
-      `SELECT dc.uuid
-         FROM documentos origen
-         LEFT JOIN documentos_cfdi dc ON dc.documento_id = origen.id
-        WHERE origen.id = $1
-          AND origen.empresa_id = $2
-          AND LOWER(COALESCE(origen.tipo_documento, '')) = 'factura'
+  private async resolverNcRelations(notaCreditoId: number, empresaId: number) {
+    const { rows: notaRows } = await pool.query<{ documento_origen_id: number | null }>(
+      `SELECT documento_origen_id
+         FROM documentos
+        WHERE id = $1 AND empresa_id = $2
+          AND LOWER(tipo_documento) = 'nota_credito'
         LIMIT 1`,
-      [origenId, empresaId]
+      [notaCreditoId, empresaId],
     );
-
-    if (!rows.length) {
-      throw new CfdiValidationError('La factura origen no existe o no pertenece a la empresa.');
+    if (!notaRows[0]) {
+      throw new CfdiValidationError('La nota de crédito no existe o no pertenece a la empresa.');
     }
 
-    const uuid = String(rows[0]?.uuid || '').trim();
-    if (!uuid) {
-      throw new CfdiValidationError('La factura origen aún no está timbrada');
+    const { rows: relationRows } = await pool.query<{ documento_origen_id: number }>(
+      `SELECT documento_origen_id
+         FROM documentos_relaciones
+        WHERE empresa_id = $1
+          AND documento_destino_id = $2
+          AND tipo_relacion = 'origen_nota_credito'
+          AND activa = true
+        ORDER BY documento_origen_id`,
+      [empresaId, notaCreditoId],
+    );
+    const relationIds = relationRows.map((row) => Number(row.documento_origen_id));
+    const legacyId = Number(notaRows[0].documento_origen_id ?? 0);
+    const uniqueRelationIds = Array.from(new Set(relationIds));
+
+    if (uniqueRelationIds.length > 0 && legacyId > 0 && !uniqueRelationIds.includes(legacyId)) {
+      throw new CfdiValidationError('La nota de crédito tiene orígenes documentales incompatibles.');
+    }
+
+    const origenIds = uniqueRelationIds.length > 0
+      ? uniqueRelationIds
+      : (legacyId > 0 ? [legacyId] : []);
+    if (origenIds.length === 0) {
+      throw new CfdiValidationError('La nota de crédito no tiene factura origen relacionada.');
+    }
+
+    const { rows } = await pool.query<{ id: number; folio: string; uuid: string | null }>(
+      `SELECT origen.id,
+              CONCAT_WS('-', NULLIF(origen.serie, ''), origen.numero::text) AS folio,
+              dc.uuid
+         FROM documentos origen
+         LEFT JOIN documentos_cfdi dc ON dc.documento_id = origen.id
+        WHERE origen.id = ANY($1::int[])
+          AND origen.empresa_id = $2
+          AND LOWER(COALESCE(origen.tipo_documento, '')) = 'factura'
+        ORDER BY origen.id`,
+      [origenIds, empresaId],
+    );
+
+    if (rows.length !== origenIds.length) {
+      throw new CfdiValidationError('Una o más facturas origen no existen, no pertenecen a la empresa o no son facturas de venta.');
+    }
+
+    const sinUuid = rows.find((row) => !String(row.uuid ?? '').trim());
+    if (sinUuid) {
+      throw new CfdiValidationError(`La factura origen ${sinUuid.folio || `#${sinUuid.id}`} aún no está timbrada.`);
     }
 
     return {
       type: '01',
-      cfdis: [{ uuid }],
+      cfdis: rows.map((row) => ({ uuid: String(row.uuid).trim() })),
     };
   }
 

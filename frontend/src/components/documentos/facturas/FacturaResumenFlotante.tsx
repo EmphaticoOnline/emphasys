@@ -4,7 +4,7 @@ import { Box, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
 
-export type FacturaResumenFlotantePosicion = { right: number; bottom: number };
+export type FacturaResumenFlotantePosicion = { x: number; y: number };
 
 type Props = {
   containerRef: React.RefObject<HTMLElement | null>;
@@ -27,7 +27,7 @@ type Props = {
 };
 
 const MARGEN_ARRASTRE = 16;
-const POSICION_INICIAL: FacturaResumenFlotantePosicion = { right: 16, bottom: 16 };
+const POSICION_INICIAL: FacturaResumenFlotantePosicion = { x: 16, y: 16 };
 
 // Panel flotante de solo lectura con el resumen financiero de la factura,
 // mostrado cuando el rail derecho está colapsado. Arrastrable solo desde su
@@ -53,52 +53,125 @@ export default function FacturaResumenFlotante({
 }: Props) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
-  const dragStateRef = useRef<{ startX: number; startY: number; startRight: number; startBottom: number } | null>(null);
+  const [boundaryRect, setBoundaryRect] = useState<DOMRect | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
+    captureElement: HTMLDivElement;
+  } | null>(null);
 
-  const pos = position ?? POSICION_INICIAL;
+  const initialPosition = useCallback((): FacturaResumenFlotantePosicion => {
+    if (!boundaryRect || !panelRef.current) return POSICION_INICIAL;
+    return {
+      x: Math.max(MARGEN_ARRASTRE, boundaryRect.right - panelRef.current.offsetWidth - MARGEN_ARRASTRE),
+      y: Math.max(MARGEN_ARRASTRE, boundaryRect.bottom - panelRef.current.offsetHeight - MARGEN_ARRASTRE),
+    };
+  }, [boundaryRect]);
+  const pos = position ?? initialPosition();
   const movido = position !== null;
 
-  const handleMove = useCallback(
-    (event: MouseEvent) => {
-      const dragState = dragStateRef.current;
-      const container = containerRef.current;
-      const panel = panelRef.current;
-      if (!dragState || !container || !panel) return;
+  const getBoundary = useCallback((): HTMLElement | null => {
+    // workspaceFacturaRef identifica la factura; el boundary real del panel es
+    // el <main> visible que la contiene, no el rectángulo de la factura.
+    return (containerRef.current?.closest('main') as HTMLElement | null) ?? containerRef.current;
+  }, [containerRef]);
 
-      const clamp = (value: number, max: number) => Math.max(MARGEN_ARRASTRE, Math.min(value, Math.max(MARGEN_ARRASTRE, max)));
+  const updateBoundaryRect = useCallback(() => {
+    const boundary = getBoundary();
+    if (boundary) setBoundaryRect(boundary.getBoundingClientRect());
+  }, [getBoundary]);
 
-      const nextRight = clamp(
-        dragState.startRight - (event.clientX - dragState.startX),
-        container.clientWidth - panel.offsetWidth - MARGEN_ARRASTRE
-      );
-      const nextBottom = clamp(
-        dragState.startBottom - (event.clientY - dragState.startY),
-        container.clientHeight - panel.offsetHeight - MARGEN_ARRASTRE
-      );
-      onPositionChange({ right: nextRight, bottom: nextBottom });
-    },
-    [containerRef, onPositionChange]
-  );
+  useEffect(() => {
+    updateBoundaryRect();
+    window.addEventListener('resize', updateBoundaryRect);
+    window.addEventListener('scroll', updateBoundaryRect, true);
+    return () => {
+      window.removeEventListener('resize', updateBoundaryRect);
+      window.removeEventListener('scroll', updateBoundaryRect, true);
+    };
+  }, [updateBoundaryRect]);
 
-  const handleUp = useCallback(() => {
-    setDragging(false);
+  const clampPosition = useCallback((next: FacturaResumenFlotantePosicion): FacturaResumenFlotantePosicion => {
+    const panel = panelRef.current;
+    const boundary = getBoundary()?.getBoundingClientRect();
+    if (!boundary || !panel) {
+      return {
+        x: Math.max(MARGEN_ARRASTRE, next.x),
+        y: Math.max(MARGEN_ARRASTRE, next.y),
+      };
+    }
+    const minX = boundary.left + MARGEN_ARRASTRE;
+    const maxX = Math.max(minX, boundary.right - panel.offsetWidth - MARGEN_ARRASTRE);
+    const minY = boundary.top + MARGEN_ARRASTRE;
+    const maxY = Math.max(minY, boundary.bottom - panel.offsetHeight - MARGEN_ARRASTRE);
+    return {
+      x: Math.max(minX, Math.min(next.x, maxX)),
+      y: Math.max(minY, Math.min(next.y, maxY)),
+    };
+  }, [getBoundary]);
+
+  const finishDrag = useCallback((pointerId?: number) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || (pointerId !== undefined && dragState.pointerId !== pointerId)) return;
+    if (dragState.captureElement.hasPointerCapture(dragState.pointerId)) {
+      dragState.captureElement.releasePointerCapture(dragState.pointerId);
+    }
     dragStateRef.current = null;
-    window.removeEventListener('mousemove', handleMove);
-    window.removeEventListener('mouseup', handleUp);
-  }, [handleMove]);
+    setDragging(false);
+  }, []);
 
-  useEffect(() => () => {
-    window.removeEventListener('mousemove', handleMove);
-    window.removeEventListener('mouseup', handleUp);
-  }, [handleMove, handleUp]);
-
-  const handleHeaderMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('button')) return;
+  const handleHeaderPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
     event.preventDefault();
-    dragStateRef.current = { startX: event.clientX, startY: event.clientY, startRight: pos.right, startBottom: pos.bottom };
+    onPositionChange(clampPosition({
+      x: dragState.startX + (event.clientX - dragState.startClientX),
+      y: dragState.startY + (event.clientY - dragState.startClientY),
+    }));
+  }, [clampPosition, onPositionChange]);
+
+  const handleHeaderPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    finishDrag(event.pointerId);
+  }, [finishDrag]);
+
+  useEffect(() => {
+    if (position === null) return;
+    const revalidarPosicion = () => {
+      const next = clampPosition(position);
+      if (next.x !== position.x || next.y !== position.y) onPositionChange(next);
+    };
+    const boundary = getBoundary();
+    const observer = typeof ResizeObserver !== 'undefined' && boundary
+      ? new ResizeObserver(() => {
+          updateBoundaryRect();
+          revalidarPosicion();
+        })
+      : null;
+    if (boundary) observer?.observe(boundary);
+    window.addEventListener('resize', revalidarPosicion);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', revalidarPosicion);
+    };
+  }, [clampPosition, containerRef, getBoundary, onPositionChange, position, updateBoundaryRect]);
+
+  const handleHeaderPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('button')) return;
+    if (event.button !== 0 || dragStateRef.current) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: pos.x,
+      startY: pos.y,
+      captureElement: event.currentTarget,
+    };
     setDragging(true);
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
   };
 
   const filas: Array<{ label: string; value: number; strong?: boolean }> = [
@@ -110,9 +183,9 @@ export default function FacturaResumenFlotante({
     <Box
       ref={panelRef}
       sx={{
-        position: 'absolute',
-        right: pos.right,
-        bottom: pos.bottom,
+        position: 'fixed',
+        left: pos.x,
+        top: pos.y,
         width: 300,
         maxWidth: 'calc(100% - 32px)',
         bgcolor: '#fff',
@@ -125,7 +198,11 @@ export default function FacturaResumenFlotante({
       }}
     >
       <Box
-        onMouseDown={handleHeaderMouseDown}
+        onPointerDown={handleHeaderPointerDown}
+        onPointerMove={handleHeaderPointerMove}
+        onPointerUp={handleHeaderPointerUp}
+        onPointerCancel={(event) => finishDrag(event.pointerId)}
+        onLostPointerCapture={(event) => finishDrag(event.pointerId)}
         sx={{
           px: 1.25,
           py: 1,
@@ -134,6 +211,8 @@ export default function FacturaResumenFlotante({
           alignItems: 'center',
           gap: 0.75,
           cursor: dragging ? 'grabbing' : 'grab',
+          touchAction: 'none',
+          userSelect: 'none',
           bgcolor: dragging ? '#f0f2f6' : '#fff',
         }}
       >

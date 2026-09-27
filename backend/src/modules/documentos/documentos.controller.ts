@@ -20,6 +20,7 @@ import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
 import { obtenerPrevalidacionComplementoPago, timbrarComplementoPago } from '../cfdi/cfdi-pago.service';
 import { PagoComplementValidationError } from '../cfdi/pago-complement.errors';
 import { CfdiAcceptedPendingDownloadError } from '../cfdi/facturama.client';
+import { responderErrorCfdi } from '../cfdi/cfdi-error-normalizer';
 import pool from '../../config/database';
 import { agregarPartidaService, reemplazarPartidasService } from './documentos-partidas.service';
 import { actualizarCotizacionService, actualizarDocumentoService, aplicarInventarioPostEmision, crearDocumentoService, duplicarCotizacionService, duplicarDocumentosMasivoService } from './documentos.service';
@@ -85,6 +86,20 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   ajuste_cliente: 'ajuste de saldo cliente',
   ajuste_proveedor: 'ajuste de saldo proveedor',
 };
+
+function mensajeSeguroErrorEliminacion(error: unknown, tipo: TipoDocumento): string {
+  if (error instanceof DocumentoDeleteValidationError) return error.message;
+
+  const code = typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: unknown }).code ?? '')
+    : '';
+
+  if (code === '23503') {
+    return `No se puede eliminar ${nombreDocumento[tipo] ?? 'el documento'} porque está relacionado con otros documentos.`;
+  }
+
+  return `No se pudo eliminar ${nombreDocumento[tipo] ?? 'el documento'} por una restricción de integridad.`;
+}
 
 const TIPOS_DOCUMENTO_ENVIO = new Set<TipoDocumento>(['cotizacion', 'orden_servicio', 'orden_compra']);
 const CARPETAS_PUBLICAS_POR_TIPO: Partial<Record<TipoDocumento, string>> = {
@@ -294,7 +309,6 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
         cancelado: String(timbre.estado_sat ?? '').toLowerCase() === 'cancelado'
           || String(timbre.cancelacion_estado ?? '').toLowerCase() === 'cancelada',
       };
-      if (!(result.documento as any).timbre.cancelado) (result.documento as any).estatus_documento = 'Timbrado';
     }
   } catch (err) {
     console.error('Error al consultar timbre CFDI para PDF', err);
@@ -482,6 +496,14 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
       const fechaHasta = typeof req.query.fecha_hasta === 'string' ? req.query.fecha_hasta : null;
       const montoMinRaw = typeof req.query.monto_min === 'string' ? Number(req.query.monto_min) : null;
       const montoMaxRaw = typeof req.query.monto_max === 'string' ? Number(req.query.monto_max) : null;
+      const estatus = typeof req.query.estatus === 'string'
+        ? req.query.estatus.split(',').map((valor) => valor.trim().toLowerCase()).filter(Boolean)
+        : [];
+      const motivos = typeof req.query.motivo_nc === 'string'
+        ? req.query.motivo_nc.split(',').map((valor) => valor.trim().toLowerCase()).filter(Boolean)
+        : [];
+      const aplicacionRaw = typeof req.query.aplicacion === 'string' ? req.query.aplicacion.trim().toLowerCase() : '';
+      const aplicacion = aplicacionRaw === 'pendiente' || aplicacionRaw === 'aplicada' ? aplicacionRaw : null;
 
       const result = await listarDocumentosRepositoryPaginado(
         tipo,
@@ -497,6 +519,9 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
           fechaHasta,
           montoMin: montoMinRaw !== null && !isNaN(montoMinRaw) ? montoMinRaw : null,
           montoMax: montoMaxRaw !== null && !isNaN(montoMaxRaw) ? montoMaxRaw : null,
+          estatus,
+          motivos,
+          aplicacion,
         },
         scope.agenteId
       );
@@ -634,8 +659,9 @@ const buildEliminarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false)
     if (error instanceof DocumentoDeleteValidationError) {
       return res.status(400).json({ message: error.message });
     }
-    console.error(`Error al eliminar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
-    res.status(500).json({ message: `Error al eliminar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}` });
+    const tipo = resolverTipoDocumentoRequest(req, tipoPorDefecto);
+    console.error(`Error al eliminar ${nombreDocumento[tipo] ?? tipo}`, error);
+    res.status(409).json({ message: mensajeSeguroErrorEliminacion(error, tipo) });
   }
 };
 
@@ -747,11 +773,12 @@ export const eliminarCotizacion = async (req: Request, res: Response) => {
     if (!deleted) return res.status(404).json({ error: 'Cotización no encontrada' });
     return res.status(204).send();
   } catch (error) {
+    const tipo = resolverTipoDocumentoRequest(req, 'cotizacion');
     if (error instanceof DocumentoDeleteValidationError) {
-      return res.status(400).json({ error: error.message });
+      return res.status(400).json({ message: error.message });
     }
-    console.error('Error al eliminar cotización', error);
-    return res.status(500).json({ error: 'Error al eliminar la cotización' });
+    console.error(`Error al eliminar ${nombreDocumento[tipo] ?? tipo}`, error);
+    return res.status(409).json({ message: mensajeSeguroErrorEliminacion(error, tipo) });
   }
 };
 
@@ -1516,11 +1543,13 @@ export async function timbrarFacturaCfdi(req: Request, res: Response) {
         intento_id: error.intentoId,
       });
     }
-    if (error instanceof CfdiValidationError) {
-      return res.status(400).json({ message: error.message });
-    }
-    console.error('Error al timbrar factura', error);
-    res.status(500).json({ message: 'Error al timbrar la factura' });
+    await responderErrorCfdi({
+      res,
+      error,
+      documentoId,
+      empresaId: Number(empresaId),
+      tipoDocumento: 'factura',
+    });
   }
 }
 
@@ -1543,11 +1572,13 @@ export async function timbrarDocumentoCfdi(req: Request, res: Response) {
         intento_id: error.intentoId,
       });
     }
-    if (error instanceof CfdiValidationError) {
-      return res.status(400).json({ message: error.message });
-    }
-    console.error('Error al timbrar documento CFDI', error);
-    res.status(500).json({ message: 'Error al timbrar el documento' });
+    await responderErrorCfdi({
+      res,
+      error,
+      documentoId,
+      empresaId: Number(empresaId),
+      tipoDocumento: resolverTipoDocumentoRequest(req, 'factura'),
+    });
   }
 }
 
@@ -1569,19 +1600,14 @@ export async function timbrarComplementoPagoHandler(req: Request, res: Response)
       emailDisponible: true,
     });
   } catch (error) {
-    if (error instanceof PagoComplementValidationError) {
-      return res.status(error.statusCode).json({
-        code: error.code,
-        message: error.message,
-        ...(error.details ? { details: error.details } : {}),
-      });
-    }
-    if (error instanceof CfdiValidationError) {
-      return res.status(400).json({ message: error.message });
-    }
-    console.error('Error al timbrar complemento de pago', error);
-    const message = error instanceof Error ? error.message : 'Error al timbrar el complemento de pago';
-    res.status(500).json({ message });
+    await responderErrorCfdi({
+      res,
+      error,
+      documentoId,
+      empresaId: Number(empresaId),
+      tipoDocumento: 'pago_cliente',
+      status: error instanceof PagoComplementValidationError ? error.statusCode : undefined,
+    });
   }
 }
 

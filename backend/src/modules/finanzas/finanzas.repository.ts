@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import { obtenerReglaDocumentoOrigenFinanciero } from './documento-origen-financiero';
 import { crearDocumentoRepository } from '../documentos/documentos.repository';
 import { assertDocumentoCobrableEnTransaccion } from '../documentos/documentos-cobro';
+import { assertNotaCreditoElegibleParaAplicacion, assertTratamientoCompatibleNotaCredito } from './aplicaciones-saldo.rules';
 
 // pg puede devolver columnas `date` como objetos Date en lugar de strings.
 // Esta función normaliza ambos casos a "YYYY-MM-DD" usando UTC para evitar desfase de zona horaria.
@@ -78,14 +79,15 @@ type AplicacionAnticipoBatchInput = {
 
 export async function obtenerSaldoDocumento(id: number, empresaId: number) {
   const sql = `
-    SELECT id, empresa_id, tipo_documento, moneda, tipo_cambio, total,
-           saldo_operativo AS saldo,
-           saldo_registrado,
-           saldo_suspendido_cancelacion,
-           cobro_bloqueado,
-           cancelacion_estado_operativo
-    FROM documentos_saldo_operativo
-    WHERE id = $1 AND empresa_id = $2
+    SELECT s.id, s.empresa_id, s.tipo_documento, d.tratamiento_impuestos, s.moneda, s.tipo_cambio, s.total,
+           s.saldo_operativo AS saldo,
+           s.saldo_registrado,
+           s.saldo_suspendido_cancelacion,
+           s.cobro_bloqueado,
+           s.cancelacion_estado_operativo
+    FROM documentos_saldo_operativo s
+    JOIN documentos d ON d.id = s.id AND d.empresa_id = s.empresa_id
+    WHERE s.id = $1 AND s.empresa_id = $2
   `;
   const { rows } = await pool.query(sql, [id, empresaId]);
   return rows[0] || null;
@@ -363,6 +365,7 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
            d.empresa_id,
            'documento'::text AS origen,
            d.tipo_documento AS tipo,
+           d.estatus_documento,
            d.serie,
            d.numero,
            d.moneda,
@@ -371,6 +374,7 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
            dso.saldo_operativo AS saldo,
            dso.saldo_registrado,
            dso.saldo_suspendido_cancelacion,
+           d.tratamiento_impuestos,
            d.fecha_documento AS fecha
     FROM documentos d
     JOIN documentos_saldo_operativo dso ON dso.id = d.id AND dso.empresa_id = d.empresa_id
@@ -386,6 +390,7 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
      fo.empresa_id,
      'operacion'::text AS origen,
      fo.tipo_movimiento AS tipo,
+     NULL::text AS estatus_documento,
    NULL::text AS serie,
    NULL::int AS numero,
      fc.moneda,
@@ -394,6 +399,7 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
      NULL::numeric AS saldo,
      NULL::numeric AS saldo_registrado,
      NULL::numeric AS saldo_suspendido_cancelacion,
+     NULL::text AS tratamiento_impuestos,
      fo.fecha
     FROM finanzas_operaciones fo
     JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
@@ -808,7 +814,7 @@ export async function upsertOperacionDocumentoEnTransaccion(
         tipo_documento: string;
         contacto_principal_id: number | null;
       }>(
-        `SELECT id, empresa_id, tipo_documento, contacto_principal_id
+        `SELECT id, empresa_id, tipo_documento, estatus_documento, contacto_principal_id
          FROM documentos
          WHERE id = $1 AND empresa_id = $2`,
         [documentoOrigenId, empresaId]
@@ -820,6 +826,9 @@ export async function upsertOperacionDocumentoEnTransaccion(
       if (!regla) throw new Error('El tipo de documento origen no soporta anticipos/pagos financieros');
       if (data.tipo_movimiento !== regla.tipoMovimiento) {
         throw new Error('tipo_movimiento incompatible con el documento origen');
+      }
+      if (documentoOrigen.tipo_documento === 'factura') {
+        await assertDocumentoCobrableEnTransaccion(client, documentoOrigenId, empresaId, { bloquearBorrador: true });
       }
 
       naturaleza = regla.naturaleza;
@@ -908,7 +917,7 @@ export async function upsertOperacionDocumentoEnTransaccion(
       tipo_documento: string;
       contacto_principal_id: number | null;
     }>(
-      `SELECT id, empresa_id, tipo_documento, contacto_principal_id
+      `SELECT id, empresa_id, tipo_documento, estatus_documento, contacto_principal_id
        FROM documentos
        WHERE id = $1 AND empresa_id = $2`,
       [data.documento_origen_id, empresaId]
@@ -920,6 +929,9 @@ export async function upsertOperacionDocumentoEnTransaccion(
     if (!regla) throw new Error('El tipo de documento origen no soporta anticipos/pagos financieros');
     if (data.tipo_movimiento !== regla.tipoMovimiento) {
       throw new Error('tipo_movimiento incompatible con el documento origen');
+    }
+    if (documentoOrigen.tipo_documento === 'factura') {
+      await assertDocumentoCobrableEnTransaccion(client, data.documento_origen_id!, empresaId, { bloquearBorrador: true });
     }
 
     naturaleza = regla.naturaleza;
@@ -989,7 +1001,7 @@ async function crearAplicacionTx(
   // 1) Bloquear destino primero. La validación de cancelación se ejecuta
   // después del lock para cerrar la carrera entre aplicar y cancelar.
   const destinoQuery = `
-    SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
+    SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.tratamiento_impuestos, d.moneda, d.tipo_cambio, d.total
     FROM documentos d
     WHERE d.id = $1 AND d.tipo_documento IN ('factura', 'factura_compra') AND d.empresa_id = $2
     FOR UPDATE
@@ -1001,11 +1013,11 @@ async function crearAplicacionTx(
     (err as any).status = 404;
     throw err;
   }
-  await assertDocumentoCobrableEnTransaccion(client, documentoDestinoId, empresaId);
+  await assertDocumentoCobrableEnTransaccion(client, documentoDestinoId, empresaId, { bloquearBorrador: true });
 
   // 2) Bloquear origen documental
   const origenDocQuery = `
-    SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.moneda, d.tipo_cambio, d.total
+    SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.tratamiento_impuestos, d.moneda, d.tipo_cambio, d.total
     FROM documentos d
     WHERE d.id = $1 AND d.empresa_id = $2 AND d.tipo_documento IN ('nota_credito', 'nota_credito_compra', 'pago_cliente', 'pago_proveedor', 'ajuste_cliente', 'ajuste_proveedor')
     FOR UPDATE
@@ -1016,6 +1028,13 @@ async function crearAplicacionTx(
     const err = new Error('Documento origen no encontrado o tipo inválido');
     (err as any).status = 404;
     throw err;
+  }
+
+  if (origen.tipo_documento === 'nota_credito' || origen.tipo_documento === 'nota_credito_compra') {
+    await assertNotaCreditoElegibleParaAplicacion(client, origen.id, empresaId);
+  }
+  if (origen.tipo_documento === 'nota_credito' || origen.tipo_documento === 'nota_credito_compra') {
+    assertTratamientoCompatibleNotaCredito(origen.tratamiento_impuestos, destino.tratamiento_impuestos);
   }
 
   // 3) Validar empresa/contacto
@@ -1585,6 +1604,216 @@ async function obtenerConciliacionVigentePorFecha(
     [cuentaId, empresaId, fechaCorte]
   );
   return rows[0]?.id ?? null;
+}
+
+type AplicacionDistribucionNotaCreditoInput = {
+  documento_origen_id: number;
+  aplicaciones: Array<{
+    documento_destino_id: number;
+    monto: number;
+    monto_moneda_documento: number;
+    fecha_aplicacion?: string | null;
+  }>;
+  quitar?: number[];
+  created_by?: number | null;
+};
+
+function errorHttp(status: number, message: string, code?: string) {
+  const err = new Error(message) as Error & { status: number; code?: string };
+  err.status = status;
+  if (code) err.code = code;
+  return err;
+}
+
+function normalizarIdsQuitarAplicacion(value: unknown): number[] {
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw errorHttp(400, 'La lista de aplicaciones por quitar es inválida');
+  const ids: number[] = [];
+  const vistos = new Set<number>();
+  for (const raw of value) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0) throw errorHttp(400, 'ID de aplicación inválido');
+    if (vistos.has(id)) throw errorHttp(400, 'La lista de aplicaciones por quitar repite un identificador');
+    vistos.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function aplicacionDocumentalCompatible(origenTipo: string, destinoTipo: string) {
+  return (origenTipo === 'nota_credito' && destinoTipo === 'factura')
+    || (origenTipo === 'nota_credito_compra' && destinoTipo === 'factura_compra');
+}
+
+async function destinosDeAplicacionesPorQuitar(
+  client: PoolClient,
+  ids: number[],
+  documentoOrigenId: number,
+  empresaId: number,
+) {
+  const { rows } = await client.query<{ id: number; documento_destino_id: number }>(
+    `SELECT id, documento_destino_id
+       FROM aplicaciones_saldo
+      WHERE empresa_id = $1
+        AND documento_origen_id = $2
+        AND id = ANY($3::int[])`,
+    [empresaId, documentoOrigenId, ids],
+  );
+  if (rows.length !== ids.length) {
+    throw errorHttp(409, 'Hay una aplicación que no pertenece a esta nota de crédito');
+  }
+  return rows.map((row) => Number(row.documento_destino_id));
+}
+
+async function quitarAplicacionesNotaCreditoTx(
+  client: PoolClient,
+  ids: number[],
+  documentoOrigenId: number,
+  empresaId: number,
+) {
+  const { rows } = await client.query<{ origen_tipo: string; destino_tipo: string }>(
+    `SELECT a.id,
+            o.tipo_documento AS origen_tipo,
+            d.tipo_documento AS destino_tipo
+       FROM aplicaciones_saldo a
+       JOIN documentos o ON o.id = a.documento_origen_id AND o.empresa_id = a.empresa_id
+       JOIN documentos d ON d.id = a.documento_destino_id AND d.empresa_id = a.empresa_id
+      WHERE a.empresa_id = $1
+        AND a.documento_origen_id = $2
+        AND a.id = ANY($3::int[])
+      FOR UPDATE OF a`,
+    [empresaId, documentoOrigenId, ids],
+  );
+  if (rows.length !== ids.length) {
+    throw errorHttp(409, 'Hay una aplicación que no pertenece a esta nota de crédito');
+  }
+  for (const row of rows) {
+    if (!aplicacionDocumentalCompatible(row.origen_tipo, row.destino_tipo)) {
+      throw errorHttp(409, 'La aplicación no es documental compatible');
+    }
+  }
+  const deleted = await client.query(
+    `DELETE FROM aplicaciones_saldo
+      WHERE empresa_id = $1
+        AND documento_origen_id = $2
+        AND id = ANY($3::int[])`,
+    [empresaId, documentoOrigenId, ids],
+  );
+  if (deleted.rowCount !== ids.length) {
+    throw errorHttp(409, 'No se pudieron quitar todas las aplicaciones solicitadas');
+  }
+}
+
+export async function aplicarDistribucionSaldoNotaCredito(
+  data: AplicacionDistribucionNotaCreditoInput,
+  empresaId: number,
+) {
+  const documentoOrigenId = Number(data.documento_origen_id ?? 0);
+  const aplicaciones = Array.isArray(data.aplicaciones) ? data.aplicaciones : [];
+  const quitarIds = normalizarIdsQuitarAplicacion(data.quitar);
+
+  if (!Number.isInteger(documentoOrigenId) || documentoOrigenId <= 0) {
+    throw errorHttp(400, 'documento_origen_id es obligatorio');
+  }
+  if (aplicaciones.length === 0 && quitarIds.length === 0) {
+    throw errorHttp(400, 'Se requiere al menos una aplicación con importe mayor a cero');
+  }
+  if (aplicaciones.length > 100 || quitarIds.length > 100) {
+    throw errorHttp(400, 'La distribución excede el máximo de facturas por operación');
+  }
+
+  const normalizadas = aplicaciones.map((item) => ({
+    documento_destino_id: Number(item.documento_destino_id),
+    monto: Number(item.monto),
+    monto_moneda_documento: Number(item.monto_moneda_documento),
+    fecha_aplicacion: item.fecha_aplicacion ?? null,
+  }));
+  const destinosVistos = new Set<number>();
+  for (const item of normalizadas) {
+    if (!Number.isInteger(item.documento_destino_id) || item.documento_destino_id <= 0) {
+      throw errorHttp(400, 'documento_destino_id inválido');
+    }
+    if (item.documento_destino_id === documentoOrigenId) {
+      throw errorHttp(409, 'No se puede aplicar un documento contra sí mismo');
+    }
+    if (destinosVistos.has(item.documento_destino_id)) {
+      throw errorHttp(400, 'La distribución repite una factura destino');
+    }
+    destinosVistos.add(item.documento_destino_id);
+    if (!(item.monto > 0) || !(item.monto_moneda_documento > 0) || !Number.isFinite(item.monto) || !Number.isFinite(item.monto_moneda_documento)) {
+      throw errorHttp(400, 'Cada aplicación debe tener un importe mayor a cero');
+    }
+  }
+
+  const ordenadas = [...normalizadas].sort((a, b) => a.documento_destino_id - b.documento_destino_id);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const destinosQuitar = quitarIds.length
+      ? await destinosDeAplicacionesPorQuitar(client, quitarIds, documentoOrigenId, empresaId)
+      : [];
+    const idsBloqueo = [...new Set([
+      ...ordenadas.map((item) => item.documento_destino_id),
+      ...destinosQuitar,
+    ])].sort((a, b) => a - b);
+
+    for (const destinoId of idsBloqueo) {
+      const locked = await client.query(
+        `SELECT id
+           FROM documentos
+          WHERE empresa_id = $1
+            AND id = $2
+            AND tipo_documento IN ('factura', 'factura_compra')
+          FOR UPDATE`,
+        [empresaId, destinoId],
+      );
+      if (!locked.rows[0]) {
+        throw errorHttp(404, 'Documento destino no encontrado o tipo inválido');
+      }
+    }
+
+    const origen = await client.query<{ id: number; tipo_documento: string }>(
+      `SELECT id, tipo_documento
+         FROM documentos
+        WHERE id = $1
+          AND empresa_id = $2
+          AND tipo_documento IN ('nota_credito', 'nota_credito_compra')
+        FOR UPDATE`,
+      [documentoOrigenId, empresaId],
+    );
+    if (!origen.rows[0]) {
+      throw errorHttp(404, 'La nota de crédito no existe o no es compatible');
+    }
+
+    if (quitarIds.length > 0) {
+      await quitarAplicacionesNotaCreditoTx(client, quitarIds, documentoOrigenId, empresaId);
+    }
+
+    const created = [];
+    for (const item of ordenadas) {
+      created.push(await crearAplicacionTx(
+        client,
+        {
+          documento_origen_id: documentoOrigenId,
+          documento_destino_id: item.documento_destino_id,
+          monto: item.monto,
+          monto_moneda_documento: item.monto_moneda_documento,
+          fecha_aplicacion: item.fecha_aplicacion,
+          created_by: data.created_by ?? null,
+        },
+        empresaId,
+      ));
+    }
+
+    await client.query('COMMIT');
+    return created;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function crearAplicacion(

@@ -171,6 +171,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     const documentos = (estadoCuenta ?? [])
       .filter((item) => item.origen === 'documento' && Number(item.saldo ?? 0) > 0)
       .filter((item) => documentosCompatibles.includes(String(item.tipo ?? '').toLowerCase()))
+      .filter((item) => String(item.estatus_documento ?? '').trim().toLowerCase() !== 'borrador')
       .filter((item) => Number(item.id) !== Number(documentoId))
       .filter((item) => String(item.moneda ?? '').trim().toUpperCase() === String(monedaSaldo).trim().toUpperCase())
       .sort((a, b) => a.fecha.localeCompare(b.fecha));

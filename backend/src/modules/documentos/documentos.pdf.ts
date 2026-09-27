@@ -40,6 +40,7 @@ type DocumentoCotizacion = {
   serie?: string | null;
   numero?: number | null;
   fecha_documento?: string | null;
+  estatus_documento?: string | null;
   concepto_id?: number | null;
   producto_resumen?: string | null;
   cliente_nombre?: string | null;
@@ -131,6 +132,19 @@ const formatDate = (value?: string | Date | null) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('es-MX');
+};
+
+const formatEstatusDocumento = (value?: string | null): string => {
+  const estatus = String(value ?? '').trim().toLowerCase();
+  const etiquetas: Record<string, string> = {
+    borrador: 'Borrador',
+    emitido: 'Emitido',
+    enviado: 'Emitido',
+    timbrado: 'Timbrado',
+    cancelado: 'Cancelado',
+    cancelada: 'Cancelado',
+  };
+  return etiquetas[estatus] ?? (String(value ?? '').trim() || 'Borrador');
 };
 
 const formatTelefonoParaImpresion = (telefono: string): string => {
@@ -1937,7 +1951,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       }
 
       // Pie fijo timbrado CFDI anclado al borde inferior
-      const necesitaNuevaPagina = doc.y > footerTop;
+      const necesitaNuevaPagina = estaTimbrado && doc.y > footerTop;
       console.log('[PDF DEBUG]', {
         bloque: 'footer:antesEvaluar',
         y: doc.y,
@@ -1949,16 +1963,6 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         estaTimbrado,
       });
       if (necesitaNuevaPagina) {
-        if (!estaTimbrado) {
-          console.log('[PDF DEBUG]', {
-            bloque: 'footer:saltaAddPage',
-            y: doc.y,
-            pageHeight: doc.page.height,
-            accion: 'skip addPage (Borrador)',
-            estaTimbrado,
-          });
-          return; // evita crear una página extra solo para "Borrador"
-        }
         console.log('[PDF DEBUG]', {
           bloque: 'footer:addPage',
           y: doc.y,
@@ -1999,7 +2003,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           doc.addPage();
         }
 
-        const panelY = doc.y + 10;
+        const panelY = pageBottom - requiredHeight;
         doc
           .roundedRect(totalsPanelLeftX, panelY, totalsPanelWidth, totalsPanelHeight, 5)
           .fillAndStroke('#f3f4f6', '#e5e7eb');
@@ -2017,7 +2021,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         });
 
         setFont(true, 9, mutedText);
-        doc.text('Estatus: Borrador', totalsPanelLeftX, panelY + totalsPanelHeight + 6, {
+        doc.text(`Estatus: ${formatEstatusDocumento(documento?.estatus_documento)}`, totalsPanelLeftX, panelY + totalsPanelHeight + 6, {
           width: totalsPanelWidth,
           align: 'right',
           lineBreak: false,

@@ -53,10 +53,6 @@ import { apiFetch } from '../../api/apiClient';
 import type { RolResumen } from '../../session/sessionTypes';
 import { esRolAdmin, esRolVendedor } from '../../session/rolScope';
 
-const BRAND = '#1d2f68';
-// Brand teal used as left-rail accent on active nav items
-const ACCENT = '#006261';
-
 type DocumentoTabDef = { label: string; value: string; icon: string | null };
 
 const NAVIGATION_DOCUMENT_OVERRIDES: Record<'ventas' | 'compras', DocumentoTabDef[]> = {
@@ -169,6 +165,7 @@ function SidebarNav({
   onChangePassword,
   onOpenNotifications,
 }: SidebarNavProps) {
+  const frame = useTheme().emphasys.frame;
   const initials = getInitials(userName);
 
   return (
@@ -186,11 +183,11 @@ function SidebarNav({
           alignItems: 'center',
           px: collapsed ? 0 : 1.5,
           justifyContent: collapsed ? 'center' : 'space-between',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          borderBottom: `1px solid ${frame.border}`,
           flexShrink: 0,
           cursor: !isMobile && collapsed ? 'pointer' : 'default',
           transition: 'background 0.15s',
-          '&:hover': !isMobile && collapsed ? { background: 'rgba(255,255,255,0.06)' } : {},
+          '&:hover': !isMobile && collapsed ? { background: frame.hover } : {},
         }}
       >
         {collapsed ? (
@@ -198,7 +195,7 @@ function SidebarNav({
           <img
             src={colibri}
             alt="Emphasys"
-            style={{ height: COLIBRI_HEIGHT, width: 'auto' }}
+            style={{ height: COLIBRI_HEIGHT, width: 'auto', filter: frame.logoFilter }}
           />
         ) : (
           <>
@@ -206,7 +203,7 @@ function SidebarNav({
               <img
                 src={logo}
                 alt="Emphasys"
-                style={{ height: LOGO_HEIGHT, width: 'auto', maxWidth: '100%' }}
+                style={{ height: LOGO_HEIGHT, width: 'auto', maxWidth: '100%', filter: frame.logoFilter }}
               />
             </Box>
             {!isMobile && (
@@ -214,10 +211,10 @@ function SidebarNav({
                 onClick={onToggleCollapse}
                 size="small"
                 sx={{
-                  color: 'rgba(255,255,255,0.45)',
+                  color: frame.subtle,
                   flexShrink: 0,
                   ml: 0.5,
-                  '&:hover': { color: '#fff', background: 'rgba(255,255,255,0.1)' },
+                  '&:hover': { color: frame.foreground, background: frame.hover },
                 }}
               >
                 <ChevronLeftIcon sx={{ fontSize: 18 }} />
@@ -231,7 +228,7 @@ function SidebarNav({
       <Box sx={{
         flex: 1, overflowY: 'auto', overflowX: 'hidden', py: 1,
         '&::-webkit-scrollbar': { width: 4 },
-        '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.15)', borderRadius: 2 },
+        '&::-webkit-scrollbar-thumb': { background: frame.border, borderRadius: 2 },
       }}>
         {navItems.map((item) => {
           const active = isNavActive(item.path, pathname);
@@ -251,15 +248,14 @@ function SidebarNav({
                   borderRadius: '7px',
                   cursor: 'pointer',
                   justifyContent: collapsed ? 'center' : 'flex-start',
-                  color: active ? '#fff' : 'rgba(255,255,255,0.65)',
-                  background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  color: active ? frame.selectionForeground : frame.muted,
+                  background: active ? frame.selection : 'transparent',
                   fontWeight: active ? 600 : 400,
-                  // Left accent rail — renders as inset shadow so it doesn't affect layout
-                  boxShadow: active && !collapsed ? `inset 3px 0 0 ${ACCENT}` : 'none',
+                  boxShadow: active && !collapsed ? `inset 3px 0 0 ${frame.accent}` : 'none',
                   transition: 'background 0.12s, color 0.12s, box-shadow 0.12s',
                   '&:hover': {
-                    background: active ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)',
-                    color: '#fff',
+                    background: active ? frame.selection : frame.hover,
+                    color: frame.foreground,
                   },
                 }}
               >
@@ -280,7 +276,7 @@ function SidebarNav({
 
       {/* Footer: user avatar + logout */}
       <Box sx={{
-        borderTop: '1px solid rgba(255,255,255,0.1)',
+        borderTop: `1px solid ${frame.border}`,
         px: collapsed ? 0.75 : 1.25,
         py: 1,
         flexShrink: 0,
@@ -288,17 +284,17 @@ function SidebarNav({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: collapsed ? 'center' : 'flex-start' }}>
           <Box sx={{
             width: 28, height: 28, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.18)',
-            border: '1px solid rgba(255,255,255,0.28)',
+            background: frame.selection,
+            border: `1px solid ${frame.controlBorder}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
+            fontSize: 11, fontWeight: 700, color: frame.foreground, flexShrink: 0,
           }}>
             {initials}
           </Box>
           {!collapsed && (
             <Typography sx={{
               flex: 1, fontSize: 12, fontWeight: 500,
-              color: 'rgba(255,255,255,0.82)',
+              color: frame.foreground,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {userName}
@@ -308,7 +304,7 @@ function SidebarNav({
             <IconButton
               size="small"
               onClick={onOpenNotifications}
-              sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff', background: 'rgba(255,255,255,0.1)' } }}
+              sx={{ color: frame.subtle, '&:hover': { color: frame.foreground, background: frame.hover } }}
             >
               <NotificationsIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -317,7 +313,7 @@ function SidebarNav({
             <IconButton
               size="small"
               onClick={onChangePassword}
-              sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff', background: 'rgba(255,255,255,0.1)' } }}
+              sx={{ color: frame.subtle, '&:hover': { color: frame.foreground, background: frame.hover } }}
             >
               <LockResetIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -326,7 +322,7 @@ function SidebarNav({
             <IconButton
               size="small"
               onClick={onLogout}
-              sx={{ color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff', background: 'rgba(255,255,255,0.1)' } }}
+              sx={{ color: frame.subtle, '&:hover': { color: frame.foreground, background: frame.hover } }}
             >
               <LogoutIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -469,8 +465,12 @@ export default function SidebarLayout() {
     }
   }, [docModulo, docTab, documentTabs, navigate]);
 
+  const frame = theme.emphasys.frame;
+  const documentNav = theme.emphasys.documentNav;
+  const canvas = theme.emphasys.canvas;
+
   const documentTabBar = documentTabs.length > 0 ? (
-    <Box sx={{ background: '#f6f8fa', borderBottom: '1px solid #e5e7eb', px: 2.5, pt: 1.5, pb: 0, flexShrink: 0 }}>
+    <Box sx={{ background: documentNav.background, borderBottom: `1px solid ${documentNav.border}`, px: 2.5, pt: 1.5, pb: 0, flexShrink: 0 }}>
       <Tabs
         value={docTab}
         onChange={handleDocumentTabChange}
@@ -485,7 +485,7 @@ export default function SidebarLayout() {
             minHeight: 0,
             textTransform: 'none',
             fontWeight: 600,
-            color: '#4b5563',
+            color: documentNav.foreground,
             borderTop: '3px solid transparent',
             borderRadius: '6px 6px 0 0',
             padding: '8px 10px',
@@ -493,16 +493,16 @@ export default function SidebarLayout() {
             alignItems: 'flex-end',
           },
           '& .Mui-selected': {
-            color: '#1d2f68',
-            backgroundColor: '#fff',
-            borderTop: `3px solid ${ACCENT}`,
-            borderLeft: '1px solid #e5e7eb',
-            borderRight: '1px solid #e5e7eb',
-            borderBottom: '1px solid #fff',
+            color: documentNav.selectedForeground,
+            backgroundColor: documentNav.selectedBackground,
+            borderTop: `3px solid ${documentNav.indicator}`,
+            borderLeft: `1px solid ${documentNav.border}`,
+            borderRight: `1px solid ${documentNav.border}`,
+            borderBottom: `1px solid ${documentNav.selectedBackground}`,
           },
           '& .MuiTab-root:hover': {
-            color: '#1d2f68',
-            backgroundColor: '#f1f3f6',
+            color: documentNav.hoverForeground,
+            backgroundColor: documentNav.hoverBackground,
           },
         }}
       >
@@ -569,14 +569,14 @@ export default function SidebarLayout() {
         <AppBar
           position="fixed"
           elevation={0}
-          sx={{ background: BRAND, borderBottom: '1px solid rgba(255,255,255,0.1)' }}
+          sx={{ background: frame.background, borderBottom: `1px solid ${frame.border}`, color: frame.foreground }}
         >
           <Toolbar sx={{ minHeight: '56px !important', px: 2, gap: 1 }}>
             <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}>
               <MenuIcon />
             </IconButton>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <img src={logo} alt="Emphasys" style={{ height: 24, width: 'auto' }} />
+              <img src={logo} alt="Emphasys" style={{ height: 24, width: 'auto', filter: frame.logoFilter }} />
             </Box>
             <Box sx={{ flex: 1 }} />
             <EmpresaSelector />
@@ -587,7 +587,7 @@ export default function SidebarLayout() {
           anchor="left"
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
-          PaperProps={{ sx: { width: SIDEBAR_WIDTH, background: BRAND, border: 'none' } }}
+          PaperProps={{ sx: { width: SIDEBAR_WIDTH, background: frame.background, border: 'none' } }}
         >
           <SidebarNav {...navProps} collapsed={false} />
         </Drawer>
@@ -611,7 +611,7 @@ export default function SidebarLayout() {
       <Box sx={{
         width: sidebarWidth,
         flexShrink: 0,
-        background: BRAND,
+        background: frame.background,
         height: '100vh',
         position: 'fixed',
         left: 0,
@@ -638,8 +638,9 @@ export default function SidebarLayout() {
         {/* TopBar */}
         <Box sx={{
           height: TOPBAR_HEIGHT,
-          background: BRAND,
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          background: frame.background,
+          color: frame.foreground,
+          borderBottom: `1px solid ${frame.border}`,
           display: 'flex',
           alignItems: 'center',
           px: 3,
@@ -650,14 +651,14 @@ export default function SidebarLayout() {
             {breadcrumbs.map((crumb, index) => (
               <React.Fragment key={crumb}>
                 {index > 0 && (
-                  <Typography sx={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, lineHeight: 1, mx: 0.25 }}>
+                  <Typography sx={{ color: frame.subtle, fontSize: 13, lineHeight: 1, mx: 0.25 }}>
                     ›
                   </Typography>
                 )}
                 <Typography sx={{
                   fontSize: 13,
                   fontWeight: index === breadcrumbs.length - 1 ? 600 : 400,
-                  color: index === breadcrumbs.length - 1 ? '#fff' : 'rgba(255,255,255,0.65)',
+                  color: index === breadcrumbs.length - 1 ? frame.foreground : frame.muted,
                   lineHeight: 1,
                 }}>
                   {crumb}
@@ -672,15 +673,26 @@ export default function SidebarLayout() {
         {documentTabBar}
 
         {/* Content */}
-        <Box sx={{ flex: 1, overflow: 'auto', background: '#eef1f4', py: 2, px: 2, minHeight: 0 }}>
+        <Box sx={{
+          flex: 1,
+          overflow: canvas.inset ? 'auto' : 'hidden',
+          background: canvas.page,
+          py: canvas.inset,
+          px: canvas.inset,
+          minHeight: 0,
+          display: canvas.inset ? 'block' : 'flex',
+          flexDirection: 'column',
+        }}>
           <Box
             component="main"
             sx={{
               width: '100%',
-              minHeight: '100%',
-              background: '#fff',
-              borderRadius: 2,
-              border: '1px solid #e5e7eb',
+              minHeight: canvas.inset ? '100%' : 0,
+              flex: canvas.inset ? undefined : 1,
+              overflow: canvas.inset ? 'visible' : 'auto',
+              background: canvas.sheet,
+              borderRadius: canvas.radius,
+              border: canvas.border === 'transparent' ? 'none' : `1px solid ${canvas.border}`,
               display: 'flex',
               flexDirection: 'column',
             }}

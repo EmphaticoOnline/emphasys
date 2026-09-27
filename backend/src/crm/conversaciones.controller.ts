@@ -48,6 +48,7 @@ import {
   getReglasSeguimiento,
   getOrCreateConversacionWhatsapp,
   getOrCreateWhatsappContacto,
+  asignarOrigenWebWhatsapp,
   MOTIVOS_FINALIZACION,
   MotivoFinalizacion,
   obtenerConversacionesDestinoValidas,
@@ -70,6 +71,17 @@ type EtapaOportunidad =
   | "negociacion"
   | "convertida"
   | "perdida";
+
+const esMensajeWebGrupoPm = (texto: string): boolean => {
+  const normalizado = String(texto ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[ \t\r\n]+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  return /^hola,\s*vengo de la pagina web de grupo pm publicidad\.\s*pagina:\s*.+?\.\s*me interesa recibir informacion\./i.test(normalizado);
+};
 
 const normalizarEtapaOportunidad = (valor: unknown): EtapaOportunidad | null => {
   const etapa = String(valor ?? '').trim().toLowerCase();
@@ -409,7 +421,7 @@ async function procesarReaccionEntranteWhatsapp(
     }
 
     const telefono = normalizarTelefono(reaction.from);
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, telefono);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, telefono)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     const mensajeId = await resolverMensajeCitadoEntrante(empresaId, conversacionId, reaction.targetMessageId);
@@ -686,7 +698,23 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
     console.log("[WhatsApp Webhook] Teléfono normalizado", { telefono });
 
     console.log("[WhatsApp Webhook] Buscando contacto", { empresaId, telefono });
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, telefono);
+    const resultadoContacto = await getOrCreateWhatsappContacto(empresaId, telefono);
+    const contactoId = resultadoContacto.contactoId;
+
+    if (resultadoContacto.creadoAhora && esMensajeWebGrupoPm(normalized.text)) {
+      try {
+        const asignado = await asignarOrigenWebWhatsapp(empresaId, contactoId);
+        if (!asignado) {
+          console.warn('[WhatsApp Contacto] No se resolvió catálogo Web para contacto nuevo', { empresaId, contactoId });
+        }
+      } catch (error) {
+        console.warn('[WhatsApp Contacto] No se pudo asignar origen Web; se continúa con el mensaje', {
+          empresaId,
+          contactoId,
+          razon: error instanceof Error ? error.message : 'error_catalogo_web',
+        });
+      }
+    }
     console.log("[WhatsApp Webhook] Contacto resuelto", { contactoId });
 
     try {
@@ -1469,7 +1497,7 @@ export const listarConversacionesWhatsapp = async (req: Request, res: Response) 
         c.id,
         c.contacto_id AS "contactoId",
         COALESCE(ct.telefono, lm.telefono) AS telefono,
-        COALESCE(ct.nombre, NULL) AS nombre,
+        COALESCE(NULLIF(BTRIM(ct.nombre_contacto), ''), NULLIF(BTRIM(ct.nombre), '')) AS nombre,
         ct.vendedor_id AS "vendedor_id",
         c.etapa_oportunidad,
         c.estado,

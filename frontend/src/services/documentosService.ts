@@ -104,6 +104,9 @@ export function getDocumentosPaginados(
     fechaHasta?: string | null;
     montoMin?: string | null;
     montoMax?: string | null;
+    estatus?: string[] | null;
+    motivos?: string[] | null;
+    aplicacion?: 'pendiente' | 'aplicada' | null;
   }
 ): Promise<DocumentosPaginadosResponse> {
   const base = getBasePath(tipo);
@@ -124,6 +127,9 @@ export function getDocumentosPaginados(
   if (options.fechaHasta) params.set('fecha_hasta', options.fechaHasta);
   if (options.montoMin) params.set('monto_min', options.montoMin);
   if (options.montoMax) params.set('monto_max', options.montoMax);
+  if (options.estatus && options.estatus.length > 0) params.set('estatus', options.estatus.join(','));
+  if (options.motivos && options.motivos.length > 0) params.set('motivo_nc', options.motivos.join(','));
+  if (options.aplicacion) params.set('aplicacion', options.aplicacion);
 
   return apiFetch(`${base}?${params.toString()}`);
 }

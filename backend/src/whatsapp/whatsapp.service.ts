@@ -223,7 +223,7 @@ export const sendTextMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, destinoNormalizado)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     await validateWhatsapp24hWindow(empresaId, conversacionId);
@@ -304,7 +304,7 @@ export const sendReactionMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, destinoNormalizado)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     await validateWhatsapp24hWindow(empresaId, conversacionId);
@@ -361,7 +361,7 @@ export const sendImageMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, destinoNormalizado)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     await validateWhatsapp24hWindow(empresaId, conversacionId);
@@ -428,7 +428,7 @@ export const sendVideoMessage = async (
   const config = await getWhatsappConfig(empresaId);
   const destino = normalizarTelefono(to);
   if (!destino) throw new Error("telefono inválido o vacío para WhatsApp");
-  const contactoId = await getOrCreateWhatsappContacto(empresaId, destino);
+  const contactoId = (await getOrCreateWhatsappContacto(empresaId, destino)).contactoId;
   const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
   await validateWhatsapp24hWindow(empresaId, conversacionId);
   const replyContext = await resolveReplyContext(empresaId, mensajeRespuestaId);
@@ -480,7 +480,7 @@ export const sendDocumentMessage = async (
       endpoint: GUPSHUP_API_URL,
     });
 
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, destinoNormalizado)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     if (!options?.skipWindowValidation) {
@@ -591,7 +591,7 @@ export const sendAudioMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, destinoNormalizado)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     await validateWhatsapp24hWindow(empresaId, conversacionId);
@@ -687,7 +687,7 @@ export const sendTemplateMessage = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, destinoNormalizado)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     const proveedorNormalized = plantilla.proveedor?.toLowerCase();
@@ -804,7 +804,7 @@ export const sendTemplateDocumentMessage = async (
       throw new Error('telefono inválido o vacío para WhatsApp');
     }
 
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, destinoNormalizado)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     const proveedorNormalized = plantilla.proveedor?.toLowerCase();
@@ -909,7 +909,7 @@ export const sendTemplateMensajeDirecta = async (
       throw new Error("telefono inválido o vacío para WhatsApp");
     }
 
-    const contactoId = await getOrCreateWhatsappContacto(empresaId, destinoNormalizado);
+    const contactoId = (await getOrCreateWhatsappContacto(empresaId, destinoNormalizado)).contactoId;
     const conversacionId = await getOrCreateConversacionWhatsapp(empresaId, contactoId);
 
     const proveedorNormalized = plantilla.proveedor?.toLowerCase();

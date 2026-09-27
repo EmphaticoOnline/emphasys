@@ -1,5 +1,6 @@
 import pool from "../../config/database";
 import type { PoolClient } from "pg";
+import { registrarRelacionDocumento } from './documentos-dependencias-cancelacion';
 
 /**
  * Lanza ServiceError si alguno de los documentos origen tiene un intento de
@@ -189,6 +190,22 @@ function validarEstatusOrigenParaGeneracion(
   documentosOrigen: DocumentoGeneracionRow[],
   tipoDestino: TipoDocumento
 ) {
+  const tipoDestinoNormalizado = String(tipoDestino ?? '').trim().toLowerCase();
+  if (tipoDestinoNormalizado === 'nota_credito' || tipoDestinoNormalizado === 'nota_credito_compra') {
+    const documentoBorrador = documentosOrigen.find((doc) =>
+      ['factura', 'factura_compra'].includes(String(doc.tipo_documento ?? '').trim().toLowerCase())
+      && String(doc.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador'
+    );
+    if (documentoBorrador) {
+      throw new ServiceError(
+        'ORIGEN_EN_BORRADOR',
+        'No se puede generar una Nota de Crédito desde una factura en borrador',
+        400,
+        { documento_origen_id: Number(documentoBorrador.id) }
+      );
+    }
+  }
+
   if (!TIPOS_DESTINO_REQUIEREN_OC_EMITIDA.has(String(tipoDestino ?? '').toLowerCase())) return;
 
   for (const doc of documentosOrigen) {
@@ -217,6 +234,42 @@ const normalizarIdsDocumentoOrigen = (payload: GenerarDocumentoPayload) => {
 
   return Array.from(new Set(ids));
 };
+
+async function sincronizarOrigenesNotaCredito(
+  client: PoolClient,
+  empresaId: number,
+  notaCreditoId: number,
+  documentoOrigenIds: number[],
+  documentoOrigenUnicoId: number | null,
+  usuarioId: number | null,
+): Promise<void> {
+  await client.query(
+    `DELETE FROM documentos_relaciones
+      WHERE empresa_id = $1
+        AND documento_destino_id = $2
+        AND tipo_relacion = 'origen_nota_credito'`,
+    [empresaId, notaCreditoId],
+  );
+
+  for (const documentoOrigenId of documentoOrigenIds) {
+    await registrarRelacionDocumento(client, {
+      empresaId,
+      documentoOrigenId,
+      documentoDestinoId: notaCreditoId,
+      tipoRelacion: 'origen_nota_credito',
+      bloqueaCancelacion: true,
+      usuarioId,
+      metadata: { origen: 'generar_documento_desde_origen' },
+    });
+  }
+
+  await client.query(
+    `UPDATE documentos
+        SET documento_origen_id = $1
+      WHERE id = $2 AND empresa_id = $3`,
+    [documentoOrigenUnicoId, notaCreditoId, empresaId],
+  );
+}
 
 async function cargarDatosFiscalesContacto(
   contactoId: number,
@@ -437,6 +490,37 @@ function validarCompatibilidadConsolidada(documentosOrigen: DocumentoGeneracionR
   }
 }
 
+function validarTratamientoNotaCredito(
+  documentosOrigen: DocumentoGeneracionRow[],
+  tipoDestino: TipoDocumento,
+  tratamientoSolicitado?: string | null,
+) {
+  const tipoDestinoNormalizado = String(tipoDestino ?? '').toLowerCase();
+  if (!['nota_credito', 'nota_credito_compra'].includes(tipoDestinoNormalizado) || documentosOrigen.length === 0) return;
+
+  const tratamientos = Array.from(new Set(
+    documentosOrigen.map((documento) => normalizarTratamientoImpuestos(documento.tratamiento_impuestos)),
+  ));
+  if (tratamientos.length !== 1) {
+    throw new ServiceError(
+      'TRATAMIENTOS_INCOMPATIBLES',
+      'Todas las facturas origen de una Nota de Crédito deben tener el mismo tratamiento fiscal',
+      400,
+      { documento_origen_ids: documentosOrigen.map((documento) => Number(documento.id)), tratamientos },
+    );
+  }
+
+  const tratamientoOrigen = tratamientos[0];
+  if (tratamientoSolicitado != null && normalizarTratamientoImpuestos(tratamientoSolicitado) !== tratamientoOrigen) {
+    throw new ServiceError(
+      'TRATAMIENTO_NO_COINCIDE',
+      'El tratamiento fiscal de la Nota de Crédito debe coincidir con el de la factura origen',
+      400,
+      { tratamiento_origen: tratamientoOrigen, tratamiento_solicitado: tratamientoSolicitado },
+    );
+  }
+}
+
 async function cargarPartidasOrigen(documentoIds: number[], client: PoolClient): Promise<PartidaGeneracionRow[]> {
   const { rows } = await client.query<PartidaGeneracionRow>(
     `SELECT dp.id AS partida_id,
@@ -471,6 +555,7 @@ async function cargarCantidadesGeneradas(documentoIds: number[], client: PoolCli
        JOIN documentos d_dest ON d_dest.id = dpv.documento_destino_id
       WHERE dpv.documento_origen_id = ANY($1::int[])
         AND ($2::text IS NULL OR LOWER(d_dest.tipo_documento) = LOWER($2))
+        AND LOWER(TRIM(COALESCE(d_dest.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
       GROUP BY dpv.partida_origen_id`,
     [documentoIds, tipoDestino ?? null]
   );
@@ -668,6 +753,7 @@ export class DocumentGenerationService {
       }
 
       validarCompatibilidadConsolidada(documentosOrigen, tipoDestino);
+      validarTratamientoNotaCredito(documentosOrigen, tipoDestino);
       validarEstatusOrigenParaGeneracion(documentosOrigen, tipoDestino);
       if (requiereValidacionDeFlujoOrigenDestino(tipoDestino)) {
         await validarFlujosOrigenDestino(documentosOrigen, tipoDestino, empresaId, client);
@@ -706,6 +792,7 @@ export class DocumentGenerationService {
       }
 
       validarCompatibilidadConsolidada(documentosOrigen, tipo_documento_destino);
+      validarTratamientoNotaCredito(documentosOrigen, tipo_documento_destino, datos_encabezado?.tratamiento_impuestos);
       validarEstatusOrigenParaGeneracion(documentosOrigen, tipo_documento_destino);
       await assertDocumentosSinCancelacionPendiente(documentoOrigenIds, empresaId, client);
       if (requiereValidacionDeFlujoOrigenDestino(tipo_documento_destino)) {
@@ -749,7 +836,11 @@ export class DocumentGenerationService {
       }
 
       const origenesUnicosPartidas = Array.from(new Set(partidasOrigen.map((partida) => Number(partida.documento_id))));
-      const documentoOrigenUnicoId = origenesUnicosPartidas.length === 1 ? origenesUnicosPartidas[0] : null;
+      if (origenesUnicosPartidas.length === 0) {
+        throw new ServiceError("PARTIDAS_REQUERIDAS", "Se requiere al menos una partida válida para generar el documento", 400);
+      }
+      const documentoOrigenIdsEfectivos = origenesUnicosPartidas;
+      const documentoOrigenUnicoId = documentoOrigenIdsEfectivos.length === 1 ? documentoOrigenIdsEfectivos[0] : null;
 
       const camposCotizacion: { estado_seguimiento: string } | null = tipo_documento_destino === "cotizacion"
         ? sanitizarCamposCotizacion({ estado_seguimiento: undefined as string | undefined }, { applyDefaults: true }) as { estado_seguimiento: string }
@@ -777,6 +868,29 @@ export class DocumentGenerationService {
         }
         if (String(documentoDestinoExistente.tipo_documento).toLowerCase() !== String(tipo_documento_destino).toLowerCase()) {
           throw new ServiceError("DOCUMENTO_INVALIDO", "El documento destino no coincide con el tipo solicitado", 400);
+        }
+        const esNotaCreditoDestino = tipo_documento_destino === 'nota_credito' || tipo_documento_destino === 'nota_credito_compra';
+        if (
+          esNotaCreditoDestino
+          && String(documentoDestinoExistente.estatus_documento ?? '').trim().toLowerCase() !== 'borrador'
+        ) {
+          throw new ServiceError("DOCUMENTO_NO_EDITABLE", "Una nota de crédito que ya no está en borrador no puede cambiar sus facturas origen", 409);
+        }
+        if (esNotaCreditoDestino) {
+          const contactoSolicitado = datos_encabezado?.contacto_principal_id;
+          if (
+            contactoSolicitado != null
+            && Number(contactoSolicitado) !== Number(documentoDestinoExistente.contacto_principal_id ?? 0)
+          ) {
+            throw new ServiceError("NC_IDENTIDAD_BLOQUEADA", "El cliente de una nota de crédito no puede cambiarse después de crearla", 409);
+          }
+          const motivoSolicitado = datos_encabezado?.motivo_nc;
+          if (
+            motivoSolicitado != null
+            && String(motivoSolicitado) !== String(documentoDestinoExistente.motivo_nc ?? '')
+          ) {
+            throw new ServiceError("NC_IDENTIDAD_BLOQUEADA", "El motivo de una nota de crédito no puede cambiarse después de crearla", 409);
+          }
         }
 
         const serieDestino = datos_encabezado?.serie
@@ -1042,6 +1156,18 @@ export class DocumentGenerationService {
         );
 
         documentoDestino = insertDocRows[0];
+      }
+
+      if (tipo_documento_destino === 'nota_credito' || tipo_documento_destino === 'nota_credito_compra') {
+        await sincronizarOrigenesNotaCredito(
+          client,
+          empresaId,
+          Number(documentoDestino.id),
+          documentoOrigenIdsEfectivos,
+          documentoOrigenUnicoId,
+          usuarioId ?? null,
+        );
+        documentoDestino.documento_origen_id = documentoOrigenUnicoId;
       }
 
       const cantidadesGeneradas = await cargarCantidadesGeneradas(documentoOrigenIds, client, tipo_documento_destino);

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { obtenerDocumentoRepository, obtenerDocumentosRelacionadosRepository } from './documentos.repository';
+import type { Documento } from './documentos.repository';
 import { listarPagosAplicadosPorDocumento, listarNotasCreditoAplicadasPorDocumento } from '../finanzas/finanzas.repository';
 import { listarMovimientosPorDocumentoRepository } from '../inventario/inventario.repository';
 import { evaluarScopeVentas, resolverContextoScopeComercial } from '../auth/scope-comercial';
@@ -37,6 +38,16 @@ export async function obtenerDetalleDocumentoHandler(req: Request, res: Response
       pagos,
       notasCredito,
       documentosRelacionados,
+      documentosOrigen: (result.documento.documentos_origen ?? []).map((origen: NonNullable<Documento['documentos_origen']>[number]) => ({
+        id: origen.id,
+        tipo_documento: origen.tipo_documento,
+        serie: origen.serie,
+        numero: origen.numero,
+        fecha_documento: origen.fecha_documento,
+        estatus_documento: origen.estatus_documento,
+        total: Number(origen.total),
+        relacion: 'origen' as const,
+      })),
       movimientosInventario,
     });
   } catch (error) {

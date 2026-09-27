@@ -152,6 +152,24 @@ export async function crearAplicacion(payload: {
   });
 }
 
+export async function aplicarSaldoNotaCredito(
+  documentoId: number,
+  payload: {
+    aplicaciones: Array<{
+      documento_destino_id: number;
+      monto: number;
+      monto_moneda_documento: number;
+      fecha_aplicacion?: string | null;
+    }>;
+    quitar?: number[];
+  },
+): Promise<AplicacionOperacion[]> {
+  return apiFetch(`${BASE}/notas-credito/${documentoId}/aplicar-saldo`, {
+    method: 'POST',
+    body: payload as any,
+  });
+}
+
 export async function aplicarAnticiposDocumento(
   documentoOrigenId: number,
   payload: {
@@ -175,6 +193,17 @@ export async function desaplicarPago(id: number, motivo?: string | null): Promis
   return apiFetch(`${BASE}/aplicaciones/${id}/desaplicar`, {
     method: 'POST',
     body: { motivo } as any,
+  });
+}
+
+export async function desaplicarAplicacionDocumental(id: number): Promise<{
+  aplicacion_id: number;
+  documento_origen_id: number;
+  documento_destino_id: number;
+  monto_desaplicado: number;
+}> {
+  return apiFetch(`${BASE}/aplicaciones/${id}/desaplicar-documental`, {
+    method: 'POST',
   });
 }
 

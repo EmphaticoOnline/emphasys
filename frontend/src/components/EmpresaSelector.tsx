@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Box, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import type { SelectChangeEvent } from '@mui/material';
 import { useSession } from '../session/useSession';
 import type { Empresa } from '../session/sessionTypes';
@@ -16,6 +17,9 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
   const empresas: Empresa[] = session.empresas ?? [];
   const empresaActivaId = session.empresaActivaId ?? '';
   const isPanel = variant === 'panel';
+  const theme = useTheme();
+  const frame = theme.emphasys.frame;
+  const primary = theme.palette.primary.main;
 
   if (!empresas || empresas.length <= 1) return null;
 
@@ -37,18 +41,18 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
         minWidth: fullWidth ? '100%' : 220,
         width: fullWidth ? '100%' : 'auto',
         '& .MuiInputLabel-root': { color: '#475569' },
-        '& .MuiInputLabel-root.Mui-focused': { color: '#1d2f68' },
+        '& .MuiInputLabel-root.Mui-focused': { color: primary },
         '& .MuiOutlinedInput-notchedOutline': {
-          borderColor: isPanel ? '#cbd5e1' : 'rgba(255,255,255,0.5)',
+          borderColor: isPanel ? '#cbd5e1' : frame.controlBorder,
         },
-        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isPanel ? '#94a3b8' : '#ffffff' },
+        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isPanel ? '#94a3b8' : frame.foreground },
         '& .MuiOutlinedInput-root': {
-          color: isPanel ? '#0f172a' : '#fff',
-          backgroundColor: isPanel ? '#fff' : 'rgba(255,255,255,0.1)',
+          color: isPanel ? '#0f172a' : frame.controlForeground,
+          backgroundColor: isPanel ? '#fff' : frame.control,
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: isPanel ? '#1d2f68' : '#ffffff',
+            borderColor: isPanel ? primary : frame.foreground,
           },
-          '& .MuiSelect-icon': { color: isPanel ? '#1d2f68' : '#fff' },
+          '& .MuiSelect-icon': { color: isPanel ? primary : frame.foreground },
         },
       }}
     >
@@ -72,7 +76,7 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <Typography sx={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', whiteSpace: 'nowrap' }}>
+      <Typography sx={{ fontSize: 14, color: frame.muted, whiteSpace: 'nowrap' }}>
         Empresa
       </Typography>
       {formControl}
