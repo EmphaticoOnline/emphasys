@@ -37,7 +37,8 @@ CREATE TABLE crm.actividades (
     oportunidad_id integer,
     tipo_actividad character varying(30) NOT NULL,
     fecha_programada timestamp without time zone NOT NULL,
-    notas text,
+    descripcion text,
+    observaciones text,
     estatus character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
     fecha_realizacion timestamp without time zone,
     resultado text,
@@ -110,7 +111,10 @@ COMMENT ON COLUMN crm.actividades.fecha_programada IS 'Fecha y hora en que debe 
 -- Name: COLUMN actividades.notas; Type: COMMENT; Schema: crm; Owner: -
 --
 
-COMMENT ON COLUMN crm.actividades.notas IS 'Notas o instrucciones capturadas para el seguimiento.';
+COMMENT ON COLUMN crm.actividades.descripcion IS 'Descripción breve y operativa de la actividad.';
+
+-- Contenido amplio de contexto; puede contener HTML enriquecido básico sanitizado.
+COMMENT ON COLUMN crm.actividades.observaciones IS 'Observaciones y contexto de la actividad.';
 
 
 --
@@ -284,4 +288,3 @@ ALTER TABLE ONLY crm.actividades
 --
 
 \unrestrict PyZT2o4en2riJI0Z5PnDBePySMYBkKnQPVZ5cQGIDphg0dsm3qDzLvmCFa6CDRs
-

@@ -40,6 +40,7 @@ CREATE TABLE whatsapp.plantillas (
     activa boolean DEFAULT true NOT NULL,
     creado_en timestamp with time zone DEFAULT now() NOT NULL,
     actualizado_en timestamp with time zone
+    ,imagen_url text
 );
 
 
@@ -188,4 +189,3 @@ ALTER TABLE ONLY whatsapp.plantillas
 --
 
 \unrestrict e8SwG8grY2ZMJNUktGIVMmjPPefKJWEkjg2JYOoRtuDoHQl8KIFMEQvHJdDQl0E
-

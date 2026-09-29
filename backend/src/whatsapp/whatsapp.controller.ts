@@ -138,7 +138,10 @@ export const crearPlantillaController = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "provider_template_id es requerido" });
     }
 
-    const { contenido, configuracion_parametros } = req.body as Record<string, unknown>;
+    const { contenido, configuracion_parametros, imagen_url } = req.body as Record<string, unknown>;
+    if (imagen_url !== undefined && imagen_url !== null && (typeof imagen_url !== "string" || !/^https?:\/\//i.test(imagen_url.trim()))) {
+      return res.status(400).json({ message: "imagen_url debe ser una URL HTTP o HTTPS" });
+    }
 
     const plantilla = await crearPlantillaRepo(empresaId, {
       nombre_interno: nombre_interno.trim(),
@@ -149,6 +152,7 @@ export const crearPlantillaController = async (req: Request, res: Response) => {
       activa: activa === undefined ? true : Boolean(activa),
       contenido: typeof contenido === "string" && contenido.trim() ? contenido.trim() : null,
       configuracion_parametros: parseConfiguracionParametros(configuracion_parametros),
+      imagen_url: typeof imagen_url === "string" && imagen_url.trim() ? imagen_url.trim() : null,
     });
 
     return res.status(201).json(plantilla);
@@ -204,6 +208,12 @@ export const actualizarPlantillaController = async (req: Request, res: Response)
     }
     if (body.configuracion_parametros !== undefined) {
       payload.configuracion_parametros = parseConfiguracionParametros(body.configuracion_parametros);
+    }
+    if (body.imagen_url !== undefined) {
+      if (body.imagen_url !== null && (typeof body.imagen_url !== "string" || !/^https?:\/\//i.test(body.imagen_url.trim()))) {
+        return res.status(400).json({ message: "imagen_url debe ser una URL HTTP o HTTPS" });
+      }
+      payload.imagen_url = typeof body.imagen_url === "string" && body.imagen_url.trim() ? body.imagen_url.trim() : null;
     }
 
     const plantilla = await actualizarPlantillaRepo(empresaId, plantillaId, payload);

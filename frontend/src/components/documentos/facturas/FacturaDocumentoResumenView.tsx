@@ -27,6 +27,7 @@ import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from '@
 import type { CotizacionDocumento, CotizacionListado, CotizacionPartida } from '../../../types/cotizacion';
 import { useSession } from '../../../session/useSession';
 import { summarizeDocumentTaxes } from '../../../utils/documentTaxSummary';
+import { resolverFolioVisual } from '../../../utils/documentos.utils';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 
@@ -71,7 +72,8 @@ export default function FacturaDocumentoResumenView({
     [session.empresas, session.empresaActivaId]
   );
 
-  const folio = row.numero != null ? `${row.serie ?? ''}${row.numero}` : String(row.id);
+  const folio = resolverFolioVisual(row, 'factura') || String(row.id);
+  const esNotaDeVenta = String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
   const timbrado = Boolean(row.cfdi_uuid);
   const estatus = String(row.estatus_documento ?? '').toLowerCase();
 
@@ -105,7 +107,7 @@ export default function FacturaDocumentoResumenView({
         {/* Encabezado — una sola línea */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} sx={{ pb: 1, mb: 1, borderBottom: '2px solid #1d2f68', flexShrink: 0 }}>
           <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 800 }} noWrap>Factura {folio}</Typography>
+            <Typography sx={{ fontSize: 15, fontWeight: 800 }} noWrap>{esNotaDeVenta ? `Nota de venta · ${folio}` : folio}</Typography>
             <Typography variant="caption" color="text.secondary" noWrap>
               {row.fecha_documento ? new Date(row.fecha_documento).toLocaleDateString('es-MX') : '—'}
             </Typography>

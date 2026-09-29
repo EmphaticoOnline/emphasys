@@ -1692,7 +1692,8 @@ CREATE TABLE contabilidad.configuracion_cuentas_contables (
     producto_tipo character varying(30),
     uso_contable character varying(60) NOT NULL,
     activa boolean DEFAULT true NOT NULL,
-    notas text,
+    descripcion text,
+    observaciones text,
     creado_en timestamp with time zone DEFAULT now() NOT NULL,
     actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_config_cuentas_una_sola_entidad CHECK (((((((((((((contacto_id IS NOT NULL))::integer + ((producto_id IS NOT NULL))::integer) + ((almacen_id IS NOT NULL))::integer) + ((finanzas_cuenta_id IS NOT NULL))::integer) + ((concepto_id IS NOT NULL))::integer) + ((impuesto_id IS NOT NULL))::integer) + ((producto_familia IS NOT NULL))::integer) + ((producto_linea IS NOT NULL))::integer) + ((producto_clasificacion IS NOT NULL))::integer) + ((producto_tipo IS NOT NULL))::integer) <= 1)),
@@ -6099,7 +6100,8 @@ COMMENT ON COLUMN crm.actividades.fecha_programada IS 'Fecha y hora en que debe 
 -- Name: COLUMN actividades.notas; Type: COMMENT; Schema: crm; Owner: -
 --
 
-COMMENT ON COLUMN crm.actividades.notas IS 'Notas o instrucciones capturadas para el seguimiento.';
+COMMENT ON COLUMN crm.actividades.descripcion IS 'Descripción breve y operativa de la actividad.';
+COMMENT ON COLUMN crm.actividades.observaciones IS 'Observaciones y contexto de la actividad.';
 
 
 --
@@ -13089,6 +13091,7 @@ CREATE TABLE whatsapp.plantillas (
     actualizado_en timestamp with time zone,
     contenido text,
     configuracion_parametros jsonb
+    ,imagen_url text
 );
 
 
@@ -22146,4 +22149,3 @@ ALTER TABLE ONLY whatsapp.plantillas
 --
 
 \unrestrict EpMmdn1oOXoRkaOF49u8SoQTuGageuv6k98ExPcZa6X1bB6muTW1QZ1lcul5lHR
-

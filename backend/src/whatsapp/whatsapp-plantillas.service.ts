@@ -73,6 +73,7 @@ export type WhatsappPlantilla = {
   activa: boolean;
   contenido?: string | null;
   configuracion_parametros?: ParametroPlantilla[] | null;
+  imagen_url?: string | null;
 };
 
 export type PlantillaPayload = {
@@ -84,6 +85,7 @@ export type PlantillaPayload = {
   activa?: boolean;
   contenido?: string | null;
   configuracion_parametros?: ParametroPlantilla[] | null;
+  imagen_url?: string | null;
 };
 
 export type PlantillaUpdatePayload = Partial<PlantillaPayload>;
@@ -92,7 +94,7 @@ export async function crearPlantilla(
   empresaId: number,
   payload: PlantillaPayload
 ): Promise<WhatsappPlantilla> {
-  const { nombre_interno, tipo, proveedor, provider_template_id, es_default, activa = true, contenido = null, configuracion_parametros = null } = payload;
+  const { nombre_interno, tipo, proveedor, provider_template_id, es_default, activa = true, contenido = null, configuracion_parametros = null, imagen_url = null } = payload;
 
   const client = await pool.connect();
   try {
@@ -109,10 +111,10 @@ export async function crearPlantilla(
 
     const { rows } = await client.query<WhatsappPlantilla>(
       `INSERT INTO whatsapp.plantillas
-         (empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros`,
-      [empresaId, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros ? JSON.stringify(configuracion_parametros) : null]
+         (empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros, imagen_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros, imagen_url`,
+      [empresaId, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros ? JSON.stringify(configuracion_parametros) : null, imagen_url]
     );
 
     await client.query("COMMIT");
@@ -143,6 +145,7 @@ export async function actualizarPlantilla(
   const configuracion_parametros = 'configuracion_parametros' in payload
     ? (payload.configuracion_parametros ?? null)
     : (current.configuracion_parametros ?? null);
+  const imagen_url = 'imagen_url' in payload ? (payload.imagen_url ?? null) : (current.imagen_url ?? null);
 
   const client = await pool.connect();
   try {
@@ -167,10 +170,11 @@ export async function actualizarPlantilla(
               activa = $6,
               contenido = $7,
               configuracion_parametros = $8,
+              imagen_url = $9,
               actualizado_en = NOW()
-        WHERE id = $9 AND empresa_id = $10
-        RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros`,
-      [nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros ? JSON.stringify(configuracion_parametros) : null, plantillaId, empresaId]
+        WHERE id = $10 AND empresa_id = $11
+        RETURNING id, empresa_id, nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros, imagen_url`,
+      [nombre_interno, tipo, proveedor, provider_template_id, es_default, activa, contenido, configuracion_parametros ? JSON.stringify(configuracion_parametros) : null, imagen_url, plantillaId, empresaId]
     );
 
     await client.query("COMMIT");
@@ -200,7 +204,8 @@ export async function listarPlantillasWhatsapp(
       es_default,
       activa,
       contenido,
-      configuracion_parametros
+      configuracion_parametros,
+      imagen_url
     FROM whatsapp.plantillas
     WHERE empresa_id = $1
       ${filtroActiva}
@@ -228,7 +233,8 @@ export async function obtenerPlantillaWhatsappPorId(
       es_default,
       activa,
       contenido,
-      configuracion_parametros
+      configuracion_parametros,
+      imagen_url
     FROM whatsapp.plantillas
     WHERE empresa_id = $1
       AND id = $2
@@ -255,7 +261,8 @@ export async function resolverPlantillaWhatsapp(
       es_default,
       activa,
       contenido,
-      configuracion_parametros
+      configuracion_parametros,
+      imagen_url
     FROM whatsapp.plantillas
     WHERE empresa_id = $1
       AND tipo = $2
@@ -281,7 +288,8 @@ export async function resolverPlantillaWhatsapp(
       es_default,
       activa,
       contenido,
-      configuracion_parametros
+      configuracion_parametros,
+      imagen_url
     FROM whatsapp.plantillas
     WHERE empresa_id = $1
       AND tipo = $2

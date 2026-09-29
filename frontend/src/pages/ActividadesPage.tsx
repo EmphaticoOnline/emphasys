@@ -44,7 +44,8 @@ type ActividadApiItem = {
   tipo_actividad: string;
   fecha_programada: string;
   estatus: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
   oportunidad_folio: string | null;
@@ -62,7 +63,8 @@ type ActividadesApiResponse = {
 type ActividadDetalle = {
   id: number;
   tipo_actividad: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   fecha_programada: string;
   oportunidad_id: number | null;
   recordatorio: boolean | null;
@@ -107,7 +109,7 @@ function mapActividadApiToResumen(item: ActividadApiItem): ActividadResumen {
     oportunidad_id: item.oportunidad_id,
     tipo: tipo === 'llamada' || tipo === 'whatsapp' || tipo === 'visita' ? tipo : 'otro',
     estatus: item.estatus,
-    titulo: item.notas?.trim() || `Actividad #${item.id}`,
+    titulo: item.descripcion?.trim() || `Actividad de ${item.tipo_actividad}`,
     cliente_nombre: item.cliente_nombre ?? 'Sin cliente',
     fecha_programada: item.fecha_programada,
     oportunidad_folio: item.oportunidad_folio,
@@ -183,7 +185,8 @@ async function actualizarActividad(actividadId: number, actividad: ActividadDeta
     method: 'PUT',
     body: {
       tipo_actividad: actividad.tipo_actividad,
-      notas: actividad.notas,
+      descripcion: actividad.descripcion,
+      observaciones: actividad.observaciones,
       fecha_programada: actividad.fecha_programada,
       oportunidad_id: actividad.oportunidad_id,
       recordatorio: actividad.recordatorio ?? false,

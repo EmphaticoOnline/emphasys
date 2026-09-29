@@ -18,8 +18,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import IconButton from '@mui/material/IconButton';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import CloseIcon from '@mui/icons-material/Close';
 import {
   fetchWhatsappPlantillas,
   fetchContextoParametrosWhatsapp,
@@ -107,6 +109,7 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId
   const [isSending, setIsSending] = React.useState(false);
   const [sendError, setSendError] = React.useState<string | null>(null);
   const [contexto, setContexto] = React.useState<ContactoAutoFill | null>(null);
+  const [imageViewerOpen, setImageViewerOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
@@ -116,6 +119,7 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId
     setManualValues({});
     setSendError(null);
     setContexto(null);
+    setImageViewerOpen(false);
 
     if (contactoId) {
       fetchContextoParametrosWhatsapp(contactoId)
@@ -180,6 +184,10 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId
 
   const handleSend = async () => {
     if (!selectedTemplate) return;
+    if (selectedTemplate.imagen_url && !/^https?:\/\//i.test(selectedTemplate.imagen_url.trim())) {
+      setSendError('La imagen predeterminada de la plantilla no tiene una URL HTTP o HTTPS válida.');
+      return;
+    }
     setSendError(null);
     setIsSending(true);
 
@@ -358,6 +366,21 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId
                   </Typography>
                   {renderPreview()}
                 </Box>
+
+                {selectedTemplate.imagen_url ? (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                      Imagen que se enviará
+                    </Typography>
+                    <Box
+                      component="img"
+                      src={selectedTemplate.imagen_url}
+                      alt="Imagen predeterminada de la plantilla"
+                      onClick={() => setImageViewerOpen(true)}
+                      sx={{ width: 112, height: 84, objectFit: 'contain', borderRadius: 1, border: '1px solid', borderColor: 'divider', backgroundColor: 'action.hover', cursor: 'pointer', '&:hover': { boxShadow: 2 } }}
+                    />
+                  </Box>
+                ) : null}
               </>
             )}
 
@@ -386,6 +409,20 @@ export function SendWhatsappTemplateDialog({ open, onClose, telefono, contactoId
           {isSending ? 'Enviando…' : 'Enviar'}
         </Button>
       </DialogActions>
+
+      <Dialog open={imageViewerOpen} onClose={() => setImageViewerOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Imagen de la plantilla
+          <IconButton onClick={() => setImageViewerOpen(false)} aria-label="Cerrar visor de imagen">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2, minHeight: 240 }}>
+          {selectedTemplate?.imagen_url ? (
+            <Box component="img" src={selectedTemplate.imagen_url} alt="Imagen ampliada de la plantilla" sx={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: 'auto', height: 'auto', objectFit: 'contain' }} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

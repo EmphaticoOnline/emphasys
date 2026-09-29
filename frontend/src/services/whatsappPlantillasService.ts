@@ -19,6 +19,7 @@ export type WhatsappPlantillaOption = {
   activa: boolean;
   contenido?: string | null;
   configuracion_parametros?: ParametroPlantilla[] | null;
+  imagen_url?: string | null;
 };
 
 export type ContextoParametrosWhatsapp = {
@@ -49,6 +50,7 @@ export type PlantillaAdminPayload = {
   activa?: boolean;
   contenido?: string | null;
   configuracion_parametros?: ParametroPlantilla[] | null;
+  imagen_url?: string | null;
 };
 
 export async function crearWhatsappPlantilla(payload: PlantillaAdminPayload): Promise<WhatsappPlantillaOption> {

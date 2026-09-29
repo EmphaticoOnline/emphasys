@@ -1,0 +1,39 @@
+.compass-login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: oklch(0.975 0.005 85);
+  color: oklch(0.24 0.02 250);
+  font-family: "Manrope", sans-serif;
+}
+
+.compass-login__card {
+  width: min(100%, 430px);
+  padding: clamp(28px, 6vw, 48px);
+  border: 1px solid oklch(0.89 0.008 80);
+  border-radius: 12px;
+  background: oklch(0.99 0.003 85);
+  box-shadow: 0 18px 50px oklch(0.24 0.02 250 / 0.08);
+}
+
+.compass-login__brand { display: flex; align-items: center; gap: 10px; margin-bottom: 42px; }
+.compass-login__mark { width: 28px; height: 28px; background: oklch(0.34 0.045 205); mask-position: center; mask-repeat: no-repeat; mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat; -webkit-mask-size: contain; }
+.compass-login__wordmark { font-family: "Space Grotesk", sans-serif !important; font-size: 21px !important; letter-spacing: -0.02em; }
+.compass-login__title { font-family: "Space Grotesk", sans-serif !important; font-size: 28px !important; font-weight: 500 !important; letter-spacing: -0.03em; }
+.compass-login__intro { margin-top: 8px !important; color: oklch(0.5 0.018 100); font-size: 14px !important; }
+.compass-login__form { display: flex; flex-direction: column; gap: 18px; margin-top: 30px; }
+.compass-login__form .MuiInputLabel-root { color: oklch(0.5 0.018 100); }
+.compass-login__form .MuiOutlinedInput-root { border-radius: 8px; background: oklch(0.975 0.005 85); }
+.compass-login__form .MuiOutlinedInput-notchedOutline { border-color: oklch(0.89 0.008 80); }
+.compass-login__form .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline { border-color: oklch(0.6 0.05 205); }
+.compass-login__form .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline { border-color: oklch(0.34 0.045 205); border-width: 1px; }
+.compass-login__submit { min-height: 48px; border-radius: 8px !important; background: oklch(0.34 0.045 205) !important; box-shadow: none !important; font-family: "Manrope", sans-serif !important; font-weight: 600 !important; text-transform: none !important; }
+.compass-login__submit:hover { background: oklch(0.29 0.05 205) !important; }
+.compass-login__error { color: oklch(0.55 0.16 28); font-size: 13px !important; }
+
+@media (max-width: 480px) {
+  .compass-login { padding: 16px; align-items: start; padding-top: 10vh; }
+  .compass-login__card { padding: 28px 22px; }
+  .compass-login__brand { margin-bottom: 34px; }
+}

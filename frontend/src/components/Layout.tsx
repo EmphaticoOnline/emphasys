@@ -57,7 +57,8 @@ const NAVIGATION_DOCUMENT_OVERRIDES: Record<'ventas' | 'compras', DocumentoTabDe
 type ActividadRecordatorio = {
   id: number;
   tipo_actividad: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   fecha_programada: string;
   oportunidad_id: number | null;
 };
@@ -73,9 +74,9 @@ async function marcarRecordatorioDisparado(actividadId: number) {
 }
 
 function getRecordatorioTexto(actividad: ActividadRecordatorio) {
-  const notas = actividad.notas?.trim();
-  if (notas) {
-    return notas;
+  const descripcion = actividad.descripcion?.trim();
+  if (descripcion) {
+    return descripcion;
   }
 
   return `Actividad de ${actividad.tipo_actividad}`;

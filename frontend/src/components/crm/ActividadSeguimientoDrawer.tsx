@@ -37,6 +37,7 @@ import 'dayjs/locale/es';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/apiFetch';
 import { loadSession } from '../../session/sessionStorage';
+import RichTextEditor from '../RichTextEditor';
 
 dayjs.locale('es');
 
@@ -47,7 +48,8 @@ type Actividad = {
   tipo_actividad: TipoActividad;
   fecha_programada: string;
   estatus: 'pendiente' | 'realizada' | 'cancelada' | string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   contacto_id: number | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
@@ -59,7 +61,8 @@ type CrearActividadPayload = {
   usuario_asignado_id: number;
   tipo_actividad: TipoActividad;
   fecha_programada: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   contacto_id?: number | null;
   oportunidad_id?: number | null;
   recordatorio: boolean;
@@ -70,7 +73,8 @@ type CreateActividadDialogState = {
   open: boolean;
   tipo_actividad: TipoActividad;
   fecha_programada: string;
-  notas: string;
+  descripcion: string;
+  observaciones: string;
   recordatorio: boolean;
   recordatorio_minutos: string;
 };
@@ -97,12 +101,15 @@ export type SeguimientoTarget = {
   montoLabel?: string;
   montoValor?: number | null;
   statusChip?: SeguimientoStatusChip | null;
+  initialDescripcion?: string;
+  initialObservaciones?: string;
 };
 
 type ActividadSeguimientoDrawerProps = {
   open: boolean;
   onClose: () => void;
   target: SeguimientoTarget | null;
+  initialMode?: 'followup' | 'create';
   onActivitiesChanged?: () => Promise<void> | void;
 };
 
@@ -117,7 +124,8 @@ const EMPTY_CREATE_ACTIVIDAD_DIALOG: CreateActividadDialogState = {
   open: false,
   tipo_actividad: 'llamada',
   fecha_programada: '',
-  notas: '',
+  descripcion: '',
+  observaciones: '',
   recordatorio: false,
   recordatorio_minutos: '',
 };
@@ -138,7 +146,7 @@ function matchesActividadSearch(actividad: Actividad, normalizedSearchTerm: stri
     return true;
   }
 
-  return [actividad.notas, actividad.resultado, actividad.cliente_nombre].some((value) =>
+  return [actividad.descripcion, actividad.observaciones, actividad.resultado, actividad.cliente_nombre].some((value) =>
     normalizeActividadSearchValue(value).includes(normalizedSearchTerm)
   );
 }
@@ -245,7 +253,8 @@ async function reagendarActividad(actividad: Actividad, nuevaFecha: string) {
     method: 'PUT',
     body: {
       tipo_actividad: actividad.tipo_actividad,
-      notas: actividad.notas,
+      descripcion: actividad.descripcion,
+      observaciones: actividad.observaciones,
       fecha_programada: new Date(nuevaFecha).toISOString(),
       oportunidad_id: actividad.oportunidad_id,
       recordatorio: false,
@@ -269,7 +278,7 @@ function obtenerFechaLocalParaInput(valor: string) {
   return new Date(fecha.getTime() - desfase * 60000).toISOString().slice(0, 16);
 }
 
-export default function ActividadSeguimientoDrawer({ open, onClose, target, onActivitiesChanged }: ActividadSeguimientoDrawerProps) {
+export default function ActividadSeguimientoDrawer({ open, onClose, target, initialMode = 'followup', onActivitiesChanged }: ActividadSeguimientoDrawerProps) {
   const navigate = useNavigate();
   const session = React.useMemo(() => loadSession(), []);
   const sessionUserId = session.user?.id ?? null;
@@ -331,13 +340,13 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
   }, [target]);
 
   React.useEffect(() => {
-    if (!open || !target) {
+    if (!open || !target || initialMode === 'create') {
       return;
     }
 
     setSeguimientoSearchTerm('');
     void loadActividades();
-  }, [loadActividades, open, target]);
+  }, [initialMode, loadActividades, open, target]);
 
   React.useEffect(() => {
     if (!open) {
@@ -351,15 +360,23 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
       open: true,
       tipo_actividad: 'llamada',
       fecha_programada: defaultProgrammedDateTime(),
-      notas: '',
+      descripcion: target?.initialDescripcion ?? '',
+      observaciones: target?.initialObservaciones ?? '',
       recordatorio: false,
       recordatorio_minutos: '',
     });
-  }, []);
+  }, [target]);
+
+  React.useEffect(() => {
+    if (open && target && initialMode === 'create') {
+      openCreateActividadDialog();
+    }
+  }, [initialMode, open, openCreateActividadDialog, target]);
 
   const closeCreateActividadDialog = React.useCallback(() => {
     setCreateActividadDialog(EMPTY_CREATE_ACTIVIDAD_DIALOG);
-  }, []);
+    if (initialMode === 'create') onClose();
+  }, [initialMode, onClose]);
 
   const closeRealizarActividadDialog = React.useCallback(() => {
     setRealizarActividadDialog(EMPTY_REALIZAR_ACTIVIDAD_DIALOG);
@@ -395,7 +412,8 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
         usuario_asignado_id: sessionUserId,
         tipo_actividad: createActividadDialog.tipo_actividad,
         fecha_programada: new Date(createActividadDialog.fecha_programada).toISOString(),
-        notas: createActividadDialog.notas.trim() || null,
+        descripcion: createActividadDialog.descripcion.trim() || null,
+        observaciones: createActividadDialog.observaciones.trim() || null,
         contacto_id: target.kind === 'contacto' ? target.id : null,
         oportunidad_id: target.kind === 'oportunidad' ? target.id : null,
         recordatorio: createActividadDialog.recordatorio,
@@ -403,12 +421,13 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
       });
 
       closeCreateActividadDialog();
+      if (initialMode === 'create') onClose();
       await loadActividades();
       await notifyActivitiesChanged();
     } finally {
       setSavingActividad(false);
     }
-  }, [closeCreateActividadDialog, createActividadDialog, loadActividades, notifyActivitiesChanged, sessionUserId, target]);
+  }, [closeCreateActividadDialog, createActividadDialog, initialMode, loadActividades, notifyActivitiesChanged, onClose, sessionUserId, target]);
 
   const handleOpenRealizarActividadDialog = React.useCallback((actividad: Actividad) => {
     setRealizarActividadDialog({
@@ -512,7 +531,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
     <>
       <Drawer
         anchor="right"
-        open={open}
+        open={open && initialMode !== 'create'}
         onClose={onClose}
         PaperProps={{
           sx: {
@@ -679,7 +698,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
                             </Typography>
                           </Stack>
                           <Typography variant="body2" sx={{ color: '#334155' }}>
-                            {actividad.notas || 'Sin notas'}
+                            {actividad.descripcion || `Actividad de ${formatTipoActividadLabel(actividad.tipo_actividad)}`}
                           </Typography>
                           <Stack direction="row" spacing={0.25} alignItems="center">
                             <Tooltip title="Completar actividad">
@@ -828,9 +847,14 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
         <DialogContent>
           <Stack spacing={1.5} sx={{ pt: 1 }}>
             {target ? (
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
-                {target.title} · {target.subtitle}
-              </Typography>
+              <Box>
+                <Typography variant="subtitle1" sx={{ color: '#0f172a', fontWeight: 700, lineHeight: 1.25 }}>
+                  {target.title}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', mt: 0.25 }}>
+                  {target.subtitle}
+                </Typography>
+              </Box>
             ) : null}
 
             <TextField
@@ -904,12 +928,23 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, onAc
             ) : null}
 
             <TextField
-              label="Notas"
+              label="Descripción"
               multiline
-              minRows={4}
-              value={createActividadDialog.notas}
-              onChange={(event) => setCreateActividadDialog((prev) => ({ ...prev, notas: event.target.value }))}
+              minRows={3}
+              value={createActividadDialog.descripcion}
+              onChange={(event) => setCreateActividadDialog((prev) => ({ ...prev, descripcion: event.target.value }))}
               fullWidth
+              inputProps={{ maxLength: 240 }}
+              sx={{ '& .MuiInputBase-input': { fontSize: 13 } }}
+            />
+            <Typography variant="caption" color="text.secondary">Observaciones</Typography>
+            <RichTextEditor
+              content={createActividadDialog.observaciones}
+              onChange={(html) => setCreateActividadDialog((prev) => ({ ...prev, observaciones: html }))}
+              placeholder="Contexto adicional de la actividad"
+              minHeight={120}
+              maxHeight={260}
+              denseToolbar
             />
           </Stack>
         </DialogContent>

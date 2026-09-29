@@ -330,7 +330,6 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
     <Dialog
       open
       onClose={handleDialogClose}
-      fullScreen={isMobile}
       maxWidth={false}
       aria-labelledby="liquidacion-documento-title"
       slotProps={{

@@ -789,7 +789,8 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
   telefono: string,
   contenido: string,
   externalId: string | null,
-  autoria?: MensajeAutoria | null
+  autoria?: MensajeAutoria | null,
+  mediaUrl?: string | null
 ) => {
   const autor = await resolverAutoriaMensajeSaliente(empresaId, conversacionId, autoria);
   await pool.query(
@@ -802,6 +803,8 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
         telefono,
         tipo_mensaje,
         canal,
+        tipo_contenido,
+        media_url,
         contenido,
         fecha_envio,
         id_externo,
@@ -812,7 +815,7 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,NOW(),$7,$8,$9,$10,$11,$12,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12,$13,$14,NOW())
       `,
     [
       empresaId,
@@ -820,6 +823,8 @@ export const registrarMensajePlantillaSalienteWhatsapp = async (
       telefono,
       'saliente',
       'whatsapp',
+      mediaUrl ? 'image' : 'text',
+      mediaUrl ?? null,
       contenido,
       externalId,
       'sent',

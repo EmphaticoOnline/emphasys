@@ -23,6 +23,14 @@ const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 const GUPSHUP_TEMPLATE_API_URL = "https://api.gupshup.io/wa/api/v1/template/msg";
 const WHATSAPP_WINDOW_MINUTES = 1440;
 
+function buildTemplateMessage(imagenUrl: string | null | undefined) {
+  if (imagenUrl === null || imagenUrl === undefined) return { type: "text", text: "text" };
+  if (!/^https?:\/\//i.test(imagenUrl.trim())) {
+    throw new Error("La plantilla IMAGE requiere una imagen_url HTTP o HTTPS válida");
+  }
+  return { type: "image", image: { link: imagenUrl.trim() } };
+}
+
 // Límite de destinatarios por operación de reenvío múltiple: evita que un
 // clic accidental (o un uso indebido tipo campaña masiva) dispare cientos de
 // envíos simultáneos hacia Gupshup. No hay una configuración general de
@@ -704,10 +712,7 @@ export const sendTemplateMessage = async (
             id: plantilla.provider_template_id,
             params,
           }),
-          message: JSON.stringify({
-            type: "text",
-            text: "text",
-          }),
+          message: JSON.stringify(buildTemplateMessage(plantilla.imagen_url)),
         });
         break;
       default:
@@ -751,7 +756,8 @@ export const sendTemplateMessage = async (
       destinoGupshup,
       `Plantilla: ${plantilla.nombre_interno}`,
       response.data?.messageId || null,
-      autoria ?? null
+      autoria ?? null,
+      plantilla.imagen_url ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);
@@ -926,10 +932,7 @@ export const sendTemplateMensajeDirecta = async (
             id: plantilla.provider_template_id,
             params,
           }),
-          message: JSON.stringify({
-            type: "text",
-            text: "text",
-          }),
+          message: JSON.stringify(buildTemplateMessage(plantilla.imagen_url)),
         });
         break;
       default:
@@ -953,7 +956,8 @@ export const sendTemplateMensajeDirecta = async (
       destinoGupshup,
       `Plantilla: ${plantilla.nombre_interno}`,
       response.data?.messageId || null,
-      autoria ?? null
+      autoria ?? null,
+      plantilla.imagen_url ?? null
     );
 
     await actualizarConversacionSalienteWhatsapp(conversacionId, empresaId);

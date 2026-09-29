@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -26,6 +26,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
   { content, onChange, placeholder, minHeight = 260, maxHeight = 480, contentFontSize, denseToolbar = false },
   ref
 ) {
+  const lastExternalContent = useRef(content);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -44,6 +45,12 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
       onChange(editor.isEmpty ? '' : editor.getHTML());
     },
   });
+
+  useEffect(() => {
+    if (!editor || content === lastExternalContent.current) return;
+    lastExternalContent.current = content;
+    if (content !== editor.getHTML()) editor.commands.setContent(content || '', { emitUpdate: false });
+  }, [content, editor]);
 
   useImperativeHandle(ref, () => ({
     setContent: (html: string) => {

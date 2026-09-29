@@ -8,7 +8,8 @@ type Actividad = {
   tipo_actividad: TipoActividad;
   fecha_programada: string;
   estatus: 'pendiente' | 'realizada' | 'cancelada' | string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   oportunidad_id: number | null;
   descripcion?: string | null;
   observaciones?: string | null;

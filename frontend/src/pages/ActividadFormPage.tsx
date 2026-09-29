@@ -35,13 +35,15 @@ import { loadSession } from '../session/sessionStorage';
 import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import type { CotizacionPartida } from '../types/cotizacion';
 import { SendWhatsappTemplateDialog } from '../components/SendWhatsappTemplateDialog';
+import RichTextEditor from '../components/RichTextEditor';
 
 dayjs.locale('es');
 
 type ActividadDetalle = {
   id: number;
   tipo_actividad: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   fecha_programada: string;
   contacto_id: number | null;
   oportunidad_id: number | null;
@@ -87,7 +89,8 @@ type ConversacionActividad = {
 
 type ActividadFormState = {
   tipo_actividad: string;
-  notas: string;
+  descripcion: string;
+  observaciones: string;
   fecha_programada: string;
   contacto_id: string;
   oportunidad_id: string;
@@ -145,7 +148,8 @@ async function guardarActividad(id: string, form: ActividadFormState) {
     method: 'PUT',
     body: {
       tipo_actividad: form.tipo_actividad,
-      notas: form.notas,
+      descripcion: form.descripcion,
+      observaciones: form.observaciones,
       fecha_programada: new Date(form.fecha_programada).toISOString(),
       contacto_id: form.contacto_id ? Number(form.contacto_id) : null,
       oportunidad_id: form.oportunidad_id ? Number(form.oportunidad_id) : null,
@@ -163,7 +167,8 @@ async function crearActividad(form: ActividadFormState, usuarioAsignadoId: numbe
     body: {
       usuario_asignado_id: usuarioAsignadoId,
       tipo_actividad: form.tipo_actividad,
-      notas: form.notas,
+      descripcion: form.descripcion,
+      observaciones: form.observaciones,
       fecha_programada: new Date(form.fecha_programada).toISOString(),
       contacto_id: form.contacto_id ? Number(form.contacto_id) : null,
       oportunidad_id: form.oportunidad_id ? Number(form.oportunidad_id) : null,
@@ -327,7 +332,8 @@ export default function ActividadFormPage() {
   const [partidas, setPartidas] = React.useState<CotizacionPartida[]>([]);
   const [form, setForm] = React.useState<ActividadFormState>({
     tipo_actividad: 'llamada',
-    notas: '',
+    descripcion: '',
+    observaciones: '',
     fecha_programada: '',
     contacto_id: '',
     oportunidad_id: '',
@@ -369,7 +375,8 @@ export default function ActividadFormPage() {
             : null);
           setForm({
             tipo_actividad: data.tipo_actividad || 'llamada',
-            notas: data.notas ?? '',
+            descripcion: data.descripcion ?? '',
+            observaciones: data.observaciones ?? '',
             fecha_programada: toDateTimeLocal(data.fecha_programada),
             contacto_id: data.contacto_id ? String(data.contacto_id) : '',
             oportunidad_id: data.oportunidad_id ? String(data.oportunidad_id) : '',
@@ -393,7 +400,8 @@ export default function ActividadFormPage() {
             : null);
           setForm({
             tipo_actividad: 'llamada',
-            notas: '',
+            descripcion: '',
+            observaciones: '',
             fecha_programada: '',
             contacto_id: contactoBase ? String(contactoBase.id) : '',
             oportunidad_id: '',
@@ -526,7 +534,7 @@ export default function ActividadFormPage() {
       return !valoresCoinciden(actual, item.value);
     })
     : respuestasMeta;
-  const notaAutomatica = Boolean(actividad?.meta_lead && esNotaAutomaticaMeta(form.notas));
+  const notaAutomatica = Boolean(actividad?.meta_lead && esNotaAutomaticaMeta(form.observaciones));
   const etiquetaEstatus = (actividad?.estatus?.trim() || 'Sin estatus').replace(/^./, (letter) => letter.toUpperCase());
 
   if (loading) {
@@ -611,14 +619,17 @@ export default function ActividadFormPage() {
         ) : null}
       </Stack>
       <TextField
-        label="Notas"
-        value={form.notas}
-        onChange={handleChange('notas')}
-        fullWidth
+        label="Descripción"
         multiline
-        minRows={notaAutomatica ? 2 : 3}
-        sx={notaAutomatica ? { '& .MuiInputBase-input': { color: '#64748b', fontSize: 12 } } : {}}
+        minRows={3}
+        value={form.descripcion}
+        onChange={handleChange('descripcion')}
+        inputProps={{ maxLength: 240 }}
+        fullWidth
+        sx={{ '& .MuiInputBase-input': { fontSize: 13 } }}
       />
+      <Typography variant="caption" color="text.secondary">Observaciones</Typography>
+      <RichTextEditor content={form.observaciones} onChange={(html) => setForm((prev) => ({ ...prev, observaciones: html }))} minHeight={140} maxHeight={360} />
       <Stack direction="row" spacing={1} justifyContent="flex-end">
         <Button type="button" color="inherit" onClick={() => navigate(returnTo, { state: { openDrawerContactoId } })}>
           Cancelar

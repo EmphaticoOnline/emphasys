@@ -5,9 +5,11 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import { apiFetch } from '../../api/apiClient';
 import type { LeadConPrioridad, TemperaturaResumen } from '../../pages/LeadsPage';
 import { motivosTooltip, temperaturaColor, temperaturaLabel } from './TemperaturaScoreButton';
+import ActividadSeguimientoDrawer, { type SeguimientoTarget } from '../crm/ActividadSeguimientoDrawer';
 
 type Props = {
   open: boolean;
@@ -27,6 +29,21 @@ export default function TemperaturaProspectoModal({ open, lead, onClose, onUpdat
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [eligible, setEligible] = useState(lead.elegibleParaAnalisis !== false);
+  const [actividadOpen, setActividadOpen] = useState(false);
+
+  const construirObservacionesIA = (value: TemperaturaResumen) => {
+    const lines = [
+      '<p><strong>Análisis de IA al programar la actividad</strong></p>',
+      `<p>Temperatura: ${escapeHtml(value.nivel)}<br>Puntuación: ${escapeHtml(String(value.puntuacion))}<br>Confianza: ${escapeHtml(`${Math.round(value.confianza * 100)}%`)}</p>`,
+      value.explicacion?.trim() ? `<p><strong>Explicación:</strong><br>${escapeHtml(value.explicacion).replace(/\n/g, '<br>')}</p>` : '',
+      value.principales_razones?.length ? `<p><strong>Principales razones:</strong></p><ul>${value.principales_razones.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '',
+      value.riesgo_informacion_faltante?.length ? `<p><strong>Información faltante:</strong></p><ul>${value.riesgo_informacion_faltante.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '',
+      value.siguiente_accion_recomendada?.trim() ? `<p><strong>Siguiente acción recomendada:</strong><br>${escapeHtml(value.siguiente_accion_recomendada).replace(/\n/g, '<br>')}</p>` : '',
+    ];
+    return lines.filter(Boolean).join('');
+  };
+
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] as string));
 
   useEffect(() => {
     if (!open) return;
@@ -79,8 +96,19 @@ export default function TemperaturaProspectoModal({ open, lead, onClose, onUpdat
   const finalized = lead.estado === 'finalizada';
   const current = analysis;
   const interactionInsufficient = !eligible;
+  const contactoId = Number(lead.contactoId);
+  const puedeProgramar = Boolean(current?.siguiente_accion_recomendada?.trim() && Number.isInteger(contactoId) && contactoId > 0);
+  const actividadTarget: SeguimientoTarget | null = puedeProgramar && current ? {
+    kind: 'contacto',
+    id: contactoId,
+    title: lead.name?.trim() || `Contacto #${contactoId}`,
+    subtitle: 'Actividad sugerida por análisis de IA',
+    initialDescripcion: current.siguiente_accion_recomendada.trim().slice(0, 240),
+    initialObservaciones: construirObservacionesIA(current),
+  } : null;
 
   return (
+    <>
     <Dialog open={open} onClose={onClose} fullScreen={fullScreen} fullWidth maxWidth="sm" scroll="paper">
       <DialogTitle sx={{ pr: 6 }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
@@ -116,10 +144,13 @@ export default function TemperaturaProspectoModal({ open, lead, onClose, onUpdat
           <Box><Typography variant="subtitle2">Razones</Typography>{current.principales_razones.length ? <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2.5 }}>{current.principales_razones.map((item) => <li key={item}><Typography variant="body2">{item}</Typography></li>)}</Box> : <Typography variant="body2" color="text.secondary">No especificadas.</Typography>}</Box>
           <Box><Typography variant="subtitle2">Información faltante</Typography>{current.riesgo_informacion_faltante.length ? <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2.5 }}>{current.riesgo_informacion_faltante.map((item) => <li key={item}><Typography variant="body2">{item}</Typography></li>)}</Box> : <Typography variant="body2" color="text.secondary">No especificada.</Typography>}</Box>
           <Box><Typography variant="subtitle2">Siguiente acción</Typography><Typography variant="body2">{current.siguiente_accion_recomendada || 'Sin acción recomendada.'}</Typography></Box>
+          {puedeProgramar && <Button variant="contained" startIcon={<EventAvailableOutlinedIcon />} onClick={() => { setActividadOpen(true); onClose(); }}>Programar actividad</Button>}
           <Typography variant="caption" color="text.secondary">Analizado: {current.creado_en ? new Date(current.creado_en).toLocaleString() : '—'}</Typography>
         </Stack>}
         {eligible && !loading && !current && !error && <Typography color="text.secondary">Aún no existe un análisis para esta conversación.</Typography>}
       </DialogContent>
     </Dialog>
+    <ActividadSeguimientoDrawer open={actividadOpen} initialMode="create" onClose={() => setActividadOpen(false)} target={actividadTarget} />
+    </>
   );
 }

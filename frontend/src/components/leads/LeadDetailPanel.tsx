@@ -23,6 +23,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ReplayIcon from '@mui/icons-material/Replay';
 import ReplyIcon from '@mui/icons-material/Reply';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import type { NavigateFunction } from 'react-router-dom';
 import { buildLeadOwnerLabel, formatFechaHora, formatMinutesAgo, getWindowDisplayState } from '../../utils/leadsDerivation';
@@ -36,6 +37,7 @@ import type {
   Priority,
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
+import ActividadSeguimientoDrawer, { type SeguimientoTarget } from '../crm/ActividadSeguimientoDrawer';
 
 // Menu/select props compartidos por los selects compactos del inspector
 // (mismo criterio visual que ya usaban los selects de LeadsDesktopView).
@@ -132,6 +134,13 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
     handleReabrirConversacion,
     reabrirSavingId,
   } = props;
+  const [actividadOpen, setActividadOpen] = React.useState(false);
+  const actividadTarget: SeguimientoTarget | null = selectedContactoId ? {
+    kind: 'contacto',
+    id: selectedContactoId,
+    title: selectedLead.name?.trim() || `Contacto #${selectedContactoId}`,
+    subtitle: 'Programar actividad',
+  } : null;
 
   return (
     <>
@@ -190,7 +199,8 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
             </Typography>
           )}
 
-          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+            <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
             {conversationTags.map((tag) => (
               <Chip
                 key={tag.id}
@@ -214,6 +224,16 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
             >
               <AddIcon fontSize="small" />
             </IconButton>
+            </Stack>
+            {actividadTarget && <Button
+              variant="outlined"
+              size="small"
+              startIcon={<EventAvailableOutlinedIcon fontSize="small" />}
+              onClick={() => setActividadOpen(true)}
+              sx={{ textTransform: 'none', whiteSpace: 'nowrap', fontSize: '0.75rem', ml: 'auto' }}
+            >
+              Programar actividad
+            </Button>}
           </Stack>
 
           <TextField
@@ -560,6 +580,12 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
           </Tooltip>
         )}
       </Box>
+      <ActividadSeguimientoDrawer
+        open={actividadOpen}
+        initialMode="create"
+        onClose={() => setActividadOpen(false)}
+        target={actividadTarget}
+      />
     </>
   );
 }

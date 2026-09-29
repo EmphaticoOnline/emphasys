@@ -562,37 +562,21 @@ export default function SidebarLayout() {
     onOpenNotifications: () => setNotificationsOpen(true),
   };
 
-  // ── MOBILE (sin cambios) ──
   if (isMobile) {
     return (
       <>
-        <AppBar
-          position="fixed"
-          elevation={0}
-          sx={{ background: frame.background, borderBottom: `1px solid ${frame.border}`, color: frame.foreground }}
-        >
+        <AppBar position="fixed" elevation={0} sx={{ background: frame.background, borderBottom: `1px solid ${frame.border}`, color: frame.foreground }}>
           <Toolbar sx={{ minHeight: '56px !important', px: 2, gap: 1 }}>
-            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}>
-              <MenuIcon />
-            </IconButton>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <img src={logo} alt="Emphasys" style={{ height: 24, width: 'auto', filter: frame.logoFilter }} />
-            </Box>
+            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}><MenuIcon /></IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}><img src={logo} alt="Emphasys" style={{ height: 24, width: 'auto', filter: frame.logoFilter }} /></Box>
             <Box sx={{ flex: 1 }} />
             <EmpresaSelector />
           </Toolbar>
         </AppBar>
-
-        <Drawer
-          anchor="left"
-          open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          PaperProps={{ sx: { width: SIDEBAR_WIDTH, background: frame.background, border: 'none' } }}
-        >
+        <Drawer anchor="left" open={mobileOpen} onClose={() => setMobileOpen(false)} PaperProps={{ sx: { width: SIDEBAR_WIDTH, background: frame.background, border: 'none' } }}>
           <SidebarNav {...navProps} collapsed={false} />
         </Drawer>
-
-        <Box sx={{ mt: '56px' }}>
+        <Box sx={{ mt: '56px', width: '100%' }}>
           {documentTabBar}
           <Outlet />
         </Box>
@@ -602,105 +586,27 @@ export default function SidebarLayout() {
     );
   }
 
-  // ── DESKTOP ──
   return (
     <>
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-
-      {/* Sidebar */}
-      <Box sx={{
-        width: sidebarWidth,
-        flexShrink: 0,
-        background: frame.background,
-        height: '100vh',
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        zIndex: 1200,
-        transition: 'width 0.2s ease',
-        overflow: 'hidden',
-      }}>
+      <Box sx={{ width: sidebarWidth, flexShrink: 0, background: frame.background, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 1200, transition: 'width 0.2s ease', overflow: 'hidden' }}>
         <SidebarNav {...navProps} />
       </Box>
 
-      {/* Main area — minWidth:0 prevents flex children from overflowing */}
-      <Box sx={{
-        flex: 1,
-        ml: `${sidebarWidth}px`,
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        overflow: 'hidden',
-        transition: 'margin-left 0.2s ease',
-        minWidth: 0,
-      }}>
-
-        {/* TopBar */}
-        <Box sx={{
-          height: TOPBAR_HEIGHT,
-          background: frame.background,
-          color: frame.foreground,
-          borderBottom: `1px solid ${frame.border}`,
-          display: 'flex',
-          alignItems: 'center',
-          px: 3,
-          gap: 2,
-          flexShrink: 0,
-        }}>
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            {breadcrumbs.map((crumb, index) => (
-              <React.Fragment key={crumb}>
-                {index > 0 && (
-                  <Typography sx={{ color: frame.subtle, fontSize: 13, lineHeight: 1, mx: 0.25 }}>
-                    ›
-                  </Typography>
-                )}
-                <Typography sx={{
-                  fontSize: 13,
-                  fontWeight: index === breadcrumbs.length - 1 ? 600 : 400,
-                  color: index === breadcrumbs.length - 1 ? frame.foreground : frame.muted,
-                  lineHeight: 1,
-                }}>
-                  {crumb}
-                </Typography>
-              </React.Fragment>
-            ))}
+      <Box sx={{ flex: 1, ml: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', transition: 'margin-left 0.2s ease', minWidth: 0 }}>
+        <Box sx={{ height: TOPBAR_HEIGHT, background: frame.background, color: frame.foreground, borderBottom: `1px solid ${frame.border}`, display: 'flex', alignItems: 'center', px: 3, gap: 2, flexShrink: 0 }}>
+            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              {breadcrumbs.map((crumb, index) => <React.Fragment key={crumb}>{index > 0 && <Typography sx={{ color: frame.subtle, fontSize: 13, lineHeight: 1, mx: 0.25 }}>›</Typography>}<Typography sx={{ fontSize: 13, fontWeight: index === breadcrumbs.length - 1 ? 600 : 400, color: index === breadcrumbs.length - 1 ? frame.foreground : frame.muted, lineHeight: 1 }}>{crumb}</Typography></React.Fragment>)}
+            </Box>
+            <RuntimeEnvironmentIndicator email={session.user?.email} />
+            <EmpresaSelector />
           </Box>
-          <RuntimeEnvironmentIndicator email={session.user?.email} />
-          <EmpresaSelector />
-        </Box>
-
         {documentTabBar}
-
-        {/* Content */}
-        <Box sx={{
-          flex: 1,
-          overflow: canvas.inset ? 'auto' : 'hidden',
-          background: canvas.page,
-          py: canvas.inset,
-          px: canvas.inset,
-          minHeight: 0,
-          display: canvas.inset ? 'block' : 'flex',
-          flexDirection: 'column',
-        }}>
-          <Box
-            component="main"
-            sx={{
-              width: '100%',
-              minHeight: canvas.inset ? '100%' : 0,
-              flex: canvas.inset ? undefined : 1,
-              overflow: canvas.inset ? 'visible' : 'auto',
-              background: canvas.sheet,
-              borderRadius: canvas.radius,
-              border: canvas.border === 'transparent' ? 'none' : `1px solid ${canvas.border}`,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
+        <Box sx={{ flex: 1, overflow: canvas.inset ? 'auto' : 'hidden', background: canvas.page, py: canvas.inset, px: canvas.inset, minHeight: 0, display: canvas.inset ? 'block' : 'flex', flexDirection: 'column' }}>
+          <Box component="main" sx={{ width: '100%', minHeight: canvas.inset ? '100%' : 0, flex: canvas.inset ? undefined : 1, overflow: canvas.inset ? 'visible' : 'auto', background: canvas.sheet, borderRadius: canvas.radius, border: canvas.border === 'transparent' ? 'none' : `1px solid ${canvas.border}`, display: 'flex', flexDirection: 'column' }}>
             <Outlet />
           </Box>
         </Box>
-
       </Box>
     </Box>
     <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />

@@ -2,15 +2,24 @@
 
 import { Link, useLocation } from "react-router-dom"
 import { useState } from "react"
-import { MoreHorizontal } from "lucide-react"
+import { LogOut, MoreHorizontal } from "lucide-react"
 import { navPrincipal, navSecundaria } from "@/lib/nav"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { useNavigate } from "react-router-dom"
+import { useSession } from "../../../session/useSession"
 
 export function BottomNav() {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const { logout } = useSession()
   const [open, setOpen] = useState(false)
   const masActivo = navSecundaria.some((item) => item.href === pathname)
+
+  const handleLogout = () => {
+    logout()
+    navigate("/login")
+  }
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden">
@@ -67,6 +76,14 @@ export function BottomNav() {
                   }
                 />
               ))}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-3 rounded-lg px-2 py-3 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <LogOut className="size-4.5" strokeWidth={1.75} />
+                Cerrar sesión
+              </button>
             </div>
           </SheetContent>
         </Sheet>

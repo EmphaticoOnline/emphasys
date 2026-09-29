@@ -33,18 +33,22 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
+import DownloadIcon from '@mui/icons-material/Download';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import DoneIcon from '@mui/icons-material/Done';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import MicIcon from '@mui/icons-material/Mic';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import SendIcon from '@mui/icons-material/Send';
+import SearchIcon from '@mui/icons-material/Search';
 import StopIcon from '@mui/icons-material/Stop';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import { linkifyMessageText } from '../LinkifiedText';
 import { ForwardMessageDialog, type ForwardableMessage } from '../ForwardMessageDialog';
 import { SendWhatsappTemplateDialog } from '../SendWhatsappTemplateDialog';
@@ -1046,6 +1050,28 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
   // Popover compacto de preferencias de sonido (activado/desactivado + tono
   // + probar), anclado al ícono de volumen del header del chat.
   const [soundSettingsAnchor, setSoundSettingsAnchor] = React.useState<HTMLElement | null>(null);
+  const [conversationSearchOpen, setConversationSearchOpen] = React.useState(false);
+  const [conversationSearchMode, setConversationSearchMode] = React.useState<'messages' | 'files'>('messages');
+  const [conversationSearchQuery, setConversationSearchQuery] = React.useState('');
+  const [attachmentMenu, setAttachmentMenu] = React.useState<{ anchor: HTMLElement; message: ActionableMessage } | null>(null);
+  const conversationSearchInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const conversationAttachments = React.useMemo(() => (selectedLead?.conversation ?? [])
+    .filter((message) => ['image', 'video', 'document'].includes(message.tipoContenido ?? ''))
+    .map((message) => ({
+      message,
+      filename: message.caption || (message.mediaUrl ? message.mediaUrl.split('/').pop()?.split('?')[0] : '') || 'Documento',
+      searchable: [message.caption, message.text, message.mediaUrl].filter(Boolean).join(' ').toLocaleLowerCase(),
+    }))
+    .filter((item) => !conversationSearchQuery.trim() || item.searchable.includes(conversationSearchQuery.trim().toLocaleLowerCase())),
+  [conversationSearchQuery, selectedLead]);
+
+  const closeConversationSearch = React.useCallback(() => {
+    setConversationSearchOpen(false);
+    setConversationSearchQuery('');
+    setConversationSearchMode('messages');
+    setAttachmentMenu(null);
+  }, []);
   const closeActionsSheet = React.useCallback(() => setSelectedMessageForActions(null), []);
 
   // Pantalla mostrada dentro del móvil (bandeja vs. chat). Es estado
@@ -1328,6 +1354,14 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
           </Tooltip>
           <IconButton
             size="small"
+            onClick={() => { setConversationSearchOpen((open) => !open); setConversationSearchMode('messages'); setConversationSearchQuery(''); }}
+            aria-label="Buscar en conversación"
+            sx={{ flexShrink: 0 }}
+          >
+            <SearchIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
             onClick={(event) => setSoundSettingsAnchor(event.currentTarget)}
             aria-label="Preferencias de sonido de mensajes"
             sx={{ flexShrink: 0 }}
@@ -1385,6 +1419,34 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
           </Popover>
         </Box>
 
+        {conversationSearchOpen && (
+          <Box sx={{ px: 1, py: 1, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+            <Stack direction="row" spacing={0.75} alignItems="center">
+              <Select
+                size="small"
+                value={conversationSearchMode}
+                onChange={(event) => setConversationSearchMode(event.target.value as 'messages' | 'files')}
+                aria-label="Modo de búsqueda"
+                sx={{ minWidth: 108 }}
+              >
+                <MenuItem value="messages">Mensajes</MenuItem>
+                <MenuItem value="files">Archivos</MenuItem>
+              </Select>
+              <TextField
+                inputRef={conversationSearchInputRef}
+                autoFocus
+                size="small"
+                fullWidth
+                placeholder="Buscar en conversación…"
+                value={conversationSearchQuery}
+                onChange={(event) => setConversationSearchQuery(event.target.value)}
+                inputProps={{ 'aria-label': 'Buscar en conversación' }}
+              />
+              <IconButton size="small" onClick={closeConversationSearch} aria-label="Cerrar búsqueda"><CloseIcon fontSize="small" /></IconButton>
+            </Stack>
+          </Box>
+        )}
+
         <Box
           ref={conversationScrollRef}
           sx={{
@@ -1399,7 +1461,31 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
             gap: 1,
           }}
         >
-          {isLoadingMessages && selectedLead.conversation.length === 0 ? (
+          {conversationSearchOpen && conversationSearchMode === 'files' ? (
+            <Stack spacing={1} sx={{ width: '100%' }}>
+              <Typography variant="subtitle2">Archivos de la conversación</Typography>
+              {conversationAttachments.map(({ message, filename }) => (
+                <Stack key={message.id} direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, p: 0.75, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                  {message.tipoContenido === 'image' && message.mediaUrl ? (
+                    <Box component="img" src={message.mediaUrl} alt={filename} sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 0.75, flexShrink: 0 }} />
+                  ) : message.tipoContenido === 'video' ? <VideoLibraryIcon color="action" sx={{ mx: 1, flexShrink: 0 }} /> : <DescriptionIcon color="action" sx={{ mx: 1, flexShrink: 0 }} />}
+                  <Box component="a" href={message.mediaUrl ?? undefined} target="_blank" rel="noopener noreferrer" sx={{ minWidth: 0, flex: 1, color: 'inherit', textDecoration: 'none' }}>
+                    <Typography variant="body2" noWrap>{filename}</Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap>{message.mimeType || message.tipoContenido}</Typography>
+                  </Box>
+                  <IconButton size="small" onClick={(event) => setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, from: message.from, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } })} aria-label="Acciones del archivo"><MoreVertIcon fontSize="small" /></IconButton>
+                </Stack>
+              ))}
+              {conversationAttachments.length === 0 && <Typography variant="body2" color="text.secondary">No se encontraron archivos.</Typography>}
+              <Popover open={Boolean(attachmentMenu)} anchorEl={attachmentMenu?.anchor} onClose={() => setAttachmentMenu(null)}>
+                <Stack sx={{ p: 0.5 }}>
+                  <Button onClick={() => { if (attachmentMenu) { handleReplyMessage(attachmentMenu.message); setAttachmentMenu(null); closeConversationSearch(); } }}>Responder</Button>
+                  <Button onClick={() => { if (attachmentMenu) { handleForwardMessage(attachmentMenu.message); setAttachmentMenu(null); } }}>Reenviar</Button>
+                  <Button startIcon={<DownloadIcon />} onClick={() => { if (attachmentMenu) { handleDownloadMedia(attachmentMenu.message); setAttachmentMenu(null); } }}>Descargar</Button>
+                </Stack>
+              </Popover>
+            </Stack>
+          ) : isLoadingMessages && selectedLead.conversation.length === 0 ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
               <CircularProgress size={28} />
             </Box>
@@ -1410,7 +1496,12 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
               </Typography>
             </Box>
           ) : (
-            selectedLead.conversation.map((msg, index) => {
+            selectedLead.conversation
+              .filter((msg) => {
+                const query = conversationSearchQuery.trim().toLocaleLowerCase();
+                return !conversationSearchOpen || !query || [msg.caption, msg.text, msg.mediaUrl].filter(Boolean).join(' ').toLocaleLowerCase().includes(query);
+              })
+              .map((msg, index) => {
               // Separador de día (Hoy/Ayer/fecha), mismo criterio que
               // LeadsDesktopView: derivado de sentAt (ya presente en cada
               // mensaje), sin estado ni lógica nueva.
@@ -1440,7 +1531,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                   />
                 </React.Fragment>
               );
-            })
+              })
           )}
           <Box ref={conversationEndRef} />
         </Box>

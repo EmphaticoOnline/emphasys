@@ -7,7 +7,7 @@ const CYCLE_MS = 30_000;
 let timer: NodeJS.Timeout | null = null;
 let started = false;
 
-type Candidate = { id: number; empresa_id: number; usuario_asignado_id: number; tipo_actividad: string; notas: string | null; fecha_programada: Date; recordatorio_minutos: number | null; zona_horaria: string | null };
+type Candidate = { id: number; empresa_id: number; usuario_asignado_id: number; tipo_actividad: string; descripcion: string | null; fecha_programada: Date; recordatorio_minutos: number | null; zona_horaria: string | null };
 
 async function enHorarioLaboral(candidate: Candidate, now: Date): Promise<boolean> {
   if (!candidate.zona_horaria) return true;
@@ -28,7 +28,7 @@ async function ciclo() {
     const lock = await client.query<{ locked: boolean }>('SELECT pg_try_advisory_lock($1,$2) AS locked', [LOCK_NAMESPACE, LOCK_KEY]);
     if (!lock.rows[0]?.locked) return;
     try {
-      const { rows } = await client.query<Candidate>(`SELECT a.id,a.empresa_id,a.usuario_asignado_id,a.tipo_actividad,a.notas,a.fecha_programada,a.recordatorio_minutos,e.zona_horaria
+      const { rows } = await client.query<Candidate>(`SELECT a.id,a.empresa_id,a.usuario_asignado_id,a.tipo_actividad,a.descripcion,a.fecha_programada,a.recordatorio_minutos,e.zona_horaria
         FROM crm.actividades a JOIN core.empresas e ON e.id=a.empresa_id
         WHERE a.estatus='pendiente' AND a.recordatorio=true AND a.recordatorio_push_entregado_at IS NULL
           AND (a.recordatorio_push_claimed_at IS NULL OR a.recordatorio_push_claimed_at < NOW()-INTERVAL '2 minutes')
@@ -41,7 +41,7 @@ async function ciclo() {
           WHERE id=$1 AND recordatorio_push_entregado_at IS NULL AND (recordatorio_push_claimed_at IS NULL OR recordatorio_push_claimed_at < NOW()-INTERVAL '2 minutes') RETURNING id`, [candidate.id]);
         if (!claimed.rows.length) continue;
         try {
-          const result = await enviarPushAUsuario(candidate.usuario_asignado_id, { title: 'Recordatorio', body: candidate.notas?.trim() || `Actividad de ${candidate.tipo_actividad}`, url: `/crm/actividades/${candidate.id}`, tag: `actividad-recordatorio-${candidate.id}`, data: { type: 'activity-reminder', activityId: candidate.id } }, { respectPreferences: true });
+          const result = await enviarPushAUsuario(candidate.usuario_asignado_id, { title: 'Recordatorio', body: candidate.descripcion?.trim() || `Actividad de ${candidate.tipo_actividad}`, url: `/crm/actividades/${candidate.id}`, tag: `actividad-recordatorio-${candidate.id}`, data: { type: 'activity-reminder', activityId: candidate.id } }, { respectPreferences: true });
           if (result.subscriptionsFound > 0 && result.successful > 0) await client.query(`UPDATE crm.actividades SET recordatorio_push_entregado_at=NOW(),recordatorio_push_claimed_at=NULL,recordatorio_push_error=NULL,updated_at=NOW() WHERE id=$1`, [candidate.id]);
           else await client.query(`UPDATE crm.actividades SET recordatorio_push_claimed_at=NULL,recordatorio_push_error=$2,updated_at=NOW() WHERE id=$1`, [candidate.id, 'NO_ACTIVE_PUSH_SUBSCRIPTION']);
         } catch (error) {

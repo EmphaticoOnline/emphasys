@@ -59,6 +59,7 @@ import { getStatusToneColor } from '../../status/status.semantics';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
 import FacturaDocumentoResumenView from './FacturaDocumentoResumenView';
 import FacturaWorkspaceContabilidadTab from './FacturaWorkspaceContabilidadTab';
+import { resolverFolioVisual } from '../../../utils/documentos.utils';
 import {
   useDocumentoDetalleData,
   ResumenTab,
@@ -600,6 +601,7 @@ function FacturaWorkspacePanel({
   // Las facturas con tratamiento sin_iva son notas de venta: no son CFDI
   // fiscales timbrables y tampoco pueden iniciar Carta Porte / Viaje.
   const esNotaDeVenta = String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
+  const folio = resolverFolioVisual(row, tipoDocumento) || String(row.id);
   const cartaPorteDisabled = facturaYaTimbrada || esNotaDeVenta;
   const timbrarDisabled = facturaYaTimbrada || Boolean(timbrarAction?.hidden) || Boolean(timbrarAction?.disabled);
 
@@ -662,7 +664,7 @@ function FacturaWorkspacePanel({
       <Box sx={{ display: 'flex', alignItems: 'center', px: 2.5, height: 44, flexShrink: 0, bgcolor: 'primary.main', color: '#fff', minWidth: 0 }}>
         <Stack direction="row" spacing={0} alignItems="baseline" sx={{ minWidth: 0, flexWrap: 'nowrap' }}>
           <Typography variant="body1" fontWeight={800} noWrap>
-            Factura {row.numero != null ? `${row.serie ?? ''}${row.numero}` : row.id}{' '}
+            {esNotaDeVenta ? 'Nota de venta · ' : ''}{folio}{' '}
             <Box component="span" sx={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>(id interno:{row.id})</Box>
           </Typography>
           <Typography variant="body1" fontWeight={800} sx={{ mx: 0.75, flexShrink: 0 }}>-</Typography>
@@ -805,7 +807,7 @@ function FacturaWorkspacePanel({
             partidas={detalle.data.partidas}
             formatter={formatterMXN}
             tipoDocumento={tipoDocumento}
-            folio={row.numero != null ? `${row.serie ?? ''}${row.numero}` : String(row.id)}
+            folio={folio}
             reconciling={detalle.reconciling}
             reconciliationMessage={null}
             onReconcile={onReconcile}

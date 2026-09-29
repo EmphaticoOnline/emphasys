@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import pool from '../config/database';
 import { formatearFolioDocumento } from '../utils/documentos';
 import { resolverContextoScopeComercial } from '../modules/auth/scope-comercial';
+import { sanitizarRichTextBasico } from '../utils/richTextSanitize';
 
 type CrearActividadBody = {
   usuario_asignado_id?: unknown;
@@ -9,7 +10,8 @@ type CrearActividadBody = {
   oportunidad_id?: unknown;
   tipo_actividad?: unknown;
   fecha_programada?: unknown;
-  notas?: unknown;
+  descripcion?: unknown;
+  observaciones?: unknown;
   recordatorio?: unknown;
   recordatorio_minutos?: unknown;
   estatus?: unknown;
@@ -20,7 +22,8 @@ type CrearActividadBody = {
 type ActualizarActividadBody = {
   tipo_actividad?: unknown;
   fecha_programada?: unknown;
-  notas?: unknown;
+  descripcion?: unknown;
+  observaciones?: unknown;
   contacto_id?: unknown;
   oportunidad_id?: unknown;
   recordatorio?: unknown;
@@ -38,7 +41,8 @@ type ActividadRow = {
   oportunidad_id: number | null;
   tipo_actividad: string;
   fecha_programada: Date | string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   estatus: string;
   fecha_realizacion: Date | string | null;
   resultado: string | null;
@@ -87,7 +91,8 @@ type ActividadListadoRow = {
   tipo_actividad: string;
   fecha_programada: Date | string;
   estatus: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   contacto_id: number | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
@@ -105,7 +110,8 @@ type ActividadListadoItem = {
   tipo_actividad: string;
   fecha_programada: Date | string;
   estatus: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   contacto_id: number | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
@@ -127,7 +133,8 @@ type ActividadOportunidadRow = {
   tipo_actividad: string;
   fecha_programada: Date | string;
   estatus: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   contacto_id: number | null;
   oportunidad_id: number | null;
   cliente_nombre: string | null;
@@ -138,7 +145,8 @@ type ActividadOportunidadRow = {
 type ActividadRecordatorioRow = {
   id: number;
   tipo_actividad: string;
-  notas: string | null;
+  descripcion: string | null;
+  observaciones: string | null;
   fecha_programada: Date | string;
   contacto_id: number | null;
   oportunidad_id: number | null;
@@ -220,7 +228,8 @@ function serializeActividad(row: ActividadRow) {
     oportunidad_id: row.oportunidad_id,
     tipo_actividad: row.tipo_actividad,
     fecha_programada: row.fecha_programada,
-    notas: row.notas,
+    descripcion: row.descripcion,
+    observaciones: row.observaciones,
     estatus: row.estatus,
     fecha_realizacion: row.fecha_realizacion,
     resultado: row.resultado,
@@ -245,7 +254,8 @@ function serializeActividadListado(row: ActividadListadoRow): ActividadListadoIt
     tipo_actividad: row.tipo_actividad,
     fecha_programada: row.fecha_programada,
     estatus: row.estatus,
-    notas: row.notas,
+    descripcion: row.descripcion,
+    observaciones: row.observaciones,
     contacto_id: row.contacto_id,
     oportunidad_id: row.oportunidad_id,
     cliente_nombre: row.cliente_nombre,
@@ -262,7 +272,8 @@ function serializeActividadOportunidad(row: ActividadOportunidadRow) {
     tipo_actividad: row.tipo_actividad,
     fecha_programada: row.fecha_programada,
     estatus: row.estatus,
-    notas: row.notas,
+    descripcion: row.descripcion,
+    observaciones: row.observaciones,
     contacto_id: row.contacto_id,
     oportunidad_id: row.oportunidad_id,
     cliente_nombre: row.cliente_nombre,
@@ -275,7 +286,8 @@ function serializeActividadRecordatorio(row: ActividadRecordatorioRow) {
   return {
     id: row.id,
     tipo_actividad: row.tipo_actividad,
-    notas: row.notas,
+    descripcion: row.descripcion,
+    observaciones: row.observaciones,
     fecha_programada: row.fecha_programada,
     contacto_id: row.contacto_id,
     oportunidad_id: row.oportunidad_id,
@@ -320,7 +332,8 @@ async function obtenerActividadDetallada(empresaId: number, actividadId: number)
        a.oportunidad_id,
        a.tipo_actividad,
        a.fecha_programada,
-       a.notas,
+       a.descripcion,
+       a.observaciones,
        a.estatus,
        a.fecha_realizacion,
        a.resultado,
@@ -426,7 +439,8 @@ export async function listarRecordatoriosActividades(req: Request, res: Response
        RETURNING
          a.id,
          a.tipo_actividad,
-         a.notas,
+         a.descripcion,
+         a.observaciones,
          a.fecha_programada,
          a.contacto_id,
          a.oportunidad_id,
@@ -555,7 +569,8 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
            a.tipo_actividad,
            a.fecha_programada,
            a.estatus,
-           a.notas,
+           a.descripcion,
+           a.observaciones,
            a.contacto_id,
            a.oportunidad_id,
            c.nombre AS cliente_nombre,
@@ -588,7 +603,8 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
            a.tipo_actividad,
            a.fecha_programada,
            a.estatus,
-           a.notas,
+           a.descripcion,
+           a.observaciones,
            a.contacto_id,
            a.oportunidad_id,
            c.nombre AS cliente_nombre,
@@ -614,7 +630,8 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
          a.tipo_actividad,
          a.fecha_programada,
          a.estatus,
-         a.notas,
+           a.descripcion,
+           a.observaciones,
          a.contacto_id,
          a.oportunidad_id,
          c.nombre AS cliente_nombre,
@@ -654,7 +671,8 @@ export async function listarActividadesUsuario(req: Request, res: Response) {
          a.tipo_actividad,
          a.fecha_programada,
          a.estatus,
-         a.notas,
+           a.descripcion,
+           a.observaciones,
          a.contacto_id,
          a.oportunidad_id,
          c.nombre,
@@ -762,11 +780,14 @@ export async function crearActividad(req: Request, res: Response) {
       return res.status(400).json({ message: 'recordatorio_minutos debe ser un entero positivo' });
     }
 
-    const notas = typeof body.notas === 'string'
-      ? body.notas.trim() || null
-      : body.notas == null
+    const descripcion = typeof body.descripcion === 'string'
+      ? body.descripcion.trim() || null
+      : body.descripcion == null
         ? null
-        : String(body.notas);
+        : String(body.descripcion).trim() || null;
+    const observaciones = typeof body.observaciones === 'string'
+      ? sanitizarRichTextBasico(body.observaciones).trim() || null
+      : body.observaciones == null ? null : sanitizarRichTextBasico(String(body.observaciones)).trim() || null;
 
     let contactoIdFinal: number;
 
@@ -801,12 +822,13 @@ export async function crearActividad(req: Request, res: Response) {
          oportunidad_id,
          tipo_actividad,
          fecha_programada,
-         notas,
+         descripcion,
+         observaciones,
          estatus,
          recordatorio,
          recordatorio_minutos
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', COALESCE($9, FALSE), $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pendiente', COALESCE($10, FALSE), $11)
        RETURNING id`,
       [
         Number(empresaId),
@@ -816,7 +838,8 @@ export async function crearActividad(req: Request, res: Response) {
         oportunidadId ?? null,
         tipoActividad,
         fechaProgramada,
-        notas,
+        descripcion,
+        observaciones,
         recordatorio,
         recordatorioMinutos ?? null,
       ]
@@ -931,11 +954,14 @@ export async function actualizarActividad(req: Request, res: Response) {
       return res.status(400).json({ message: 'recordatorio_minutos debe ser un entero positivo' });
     }
 
-    const notas = typeof body.notas === 'string'
-      ? body.notas.trim() || null
-      : body.notas == null
+    const descripcion = typeof body.descripcion === 'string'
+      ? body.descripcion.trim() || null
+      : body.descripcion == null
         ? null
-        : String(body.notas);
+        : String(body.descripcion).trim() || null;
+    const observaciones = typeof body.observaciones === 'string'
+      ? sanitizarRichTextBasico(body.observaciones).trim() || null
+      : body.observaciones == null ? null : sanitizarRichTextBasico(String(body.observaciones)).trim() || null;
 
     const { rows: actividadExistenteRows } = await pool.query<ActividadExistenteRow>(
       `SELECT id, contacto_id
@@ -981,26 +1007,28 @@ export async function actualizarActividad(req: Request, res: Response) {
        SET
          tipo_actividad = $1,
          fecha_programada = $2,
-         notas = $3,
-         contacto_id = $4,
-         oportunidad_id = $5,
+         descripcion = $3,
+         observaciones = $4,
+         contacto_id = $5,
+         oportunidad_id = $6,
          recordatorio = CASE
-           WHEN $6::boolean THEN COALESCE($7, FALSE)
+           WHEN $7::boolean THEN COALESCE($8, FALSE)
            ELSE recordatorio
          END,
          recordatorio_minutos = CASE
-           WHEN $6::boolean AND COALESCE($7, FALSE) = FALSE THEN NULL
-           WHEN $8::boolean THEN $9
+           WHEN $7::boolean AND COALESCE($8, FALSE) = FALSE THEN NULL
+           WHEN $9::boolean THEN $10
            ELSE recordatorio_minutos
          END,
          updated_at = NOW()
-       WHERE id = $10
-         AND empresa_id = $11
+       WHERE id = $11
+         AND empresa_id = $12
        RETURNING id`,
       [
         tipoActividad,
         fechaProgramada,
-        notas,
+        descripcion,
+        observaciones,
         contactoIdFinal,
         oportunidadId ?? null,
         recordatorioProvided,

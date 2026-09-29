@@ -31,6 +31,10 @@ import AddIcon from '@mui/icons-material/Add';
 import ClearIcon from '@mui/icons-material/Clear';
 import EditIcon from '@mui/icons-material/Edit';
 import SearchIcon from '@mui/icons-material/Search';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import ImageIcon from '@mui/icons-material/Image';
+import CloseIcon from '@mui/icons-material/Close';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import {
   actualizarWhatsappPlantilla,
   crearWhatsappPlantilla,
@@ -40,6 +44,7 @@ import {
   type PlantillaAdminPayload,
   type WhatsappPlantillaOption,
 } from '../../services/whatsappPlantillasService';
+import { uploadArchivo } from '../../services/uploadsService';
 import { GridContextMenu } from '../../components/grids/GridContextMenu';
 import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTrigger';
 import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
@@ -76,6 +81,7 @@ type FormState = {
   activa: boolean;
   contenido: string;
   configuracion_parametros: ParametroPlantilla[];
+  imagen_url: string | null;
 };
 
 const EMPTY_FORM: FormState = {
@@ -87,6 +93,7 @@ const EMPTY_FORM: FormState = {
   activa: true,
   contenido: '',
   configuracion_parametros: [],
+  imagen_url: null,
 };
 
 function extractVariableIndices(contenido: string): number[] {
@@ -116,6 +123,7 @@ export default function WhatsappPlantillasPage() {
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<WhatsappPlantillaOption | null>(null);
   const [form, setForm] = React.useState<FormState>(EMPTY_FORM);
+  const [imageViewerOpen, setImageViewerOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
@@ -159,6 +167,7 @@ export default function WhatsappPlantillasPage() {
       activa: row.activa,
       contenido: row.contenido ?? '',
       configuracion_parametros: syncParametros(configActual, indices),
+      imagen_url: row.imagen_url ?? null,
     });
     setDialogOpen(true);
   };
@@ -188,6 +197,20 @@ export default function WhatsappPlantillasPage() {
     }));
   };
 
+  const handleImagenChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Selecciona un archivo de imagen'); return; }
+    try {
+      setSaving(true);
+      const uploaded = await uploadArchivo(file);
+      setForm((prev) => ({ ...prev, imagen_url: uploaded.url }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo subir la imagen');
+    } finally { setSaving(false); }
+  };
+
   const handleSave = async () => {
     const nombre_interno = form.nombre_interno.trim();
     const proveedor = form.proveedor.trim();
@@ -207,6 +230,7 @@ export default function WhatsappPlantillasPage() {
       activa: form.activa,
       contenido: form.contenido.trim() || null,
       configuracion_parametros: form.configuracion_parametros.length > 0 ? form.configuracion_parametros : null,
+      imagen_url: form.imagen_url,
     };
 
     try {
@@ -509,6 +533,45 @@ export default function WhatsappPlantillasPage() {
             onChange={(event) => setForm((prev) => ({ ...prev, proveedor: event.target.value }))}
             required
           />
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Imagen predeterminada (opcional)</Typography>
+            <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+              {form.imagen_url ? (
+                <Box
+                  component="img"
+                  src={form.imagen_url}
+                  alt="Vista previa de la plantilla"
+                  onClick={() => setImageViewerOpen(true)}
+                  sx={{
+                    width: 112,
+                    height: 84,
+                    objectFit: 'contain',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    backgroundColor: 'action.hover',
+                    cursor: 'pointer',
+                    transition: 'box-shadow 0.2s ease',
+                    '&:hover': { boxShadow: 2 },
+                  }}
+                />
+              ) : <ImageIcon color="disabled" sx={{ fontSize: 48 }} />}
+              <Tooltip title="Reemplazar imagen">
+                <IconButton component="label" color="primary" disabled={saving} aria-label="Reemplazar imagen">
+                  <EditOutlinedIcon />
+                  <input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImagenChange} />
+                </IconButton>
+              </Tooltip>
+              {form.imagen_url ? (
+                <Tooltip title="Eliminar imagen">
+                  <IconButton color="error" disabled={saving} onClick={() => setForm((prev) => ({ ...prev, imagen_url: null }))} aria-label="Eliminar imagen">
+                    <DeleteOutlineIcon />
+                  </IconButton>
+                </Tooltip>
+              ) : null}
+            </Stack>
+          </Box>
           <TextField
             size="small"
             label="ID de plantilla en proveedor"
@@ -615,6 +678,25 @@ export default function WhatsappPlantillasPage() {
             {editing ? 'Guardar cambios' : 'Crear plantilla'}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      <Dialog open={imageViewerOpen} onClose={() => setImageViewerOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Vista previa de la imagen
+          <IconButton onClick={() => setImageViewerOpen(false)} aria-label="Cerrar visor de imagen">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2, minHeight: 240 }}>
+          {form.imagen_url ? (
+            <Box
+              component="img"
+              src={form.imagen_url}
+              alt="Imagen predeterminada ampliada"
+              sx={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: 'auto', height: 'auto', objectFit: 'contain' }}
+            />
+          ) : null}
+        </DialogContent>
       </Dialog>
 
       <Snackbar
