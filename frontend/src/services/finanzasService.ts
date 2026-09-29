@@ -1,4 +1,4 @@
-import { apiFetch } from './apiFetch';
+import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 import type {
   AplicacionOperacion,
   DocumentoAnticiposDisponibles,
@@ -27,6 +27,53 @@ import type {
 } from '../types/finanzas';
 
 const BASE = '/api/finanzas';
+
+export interface FinanzasAdjunto {
+  id: number;
+  nombre_original: string;
+  mime_type: string;
+  tamano: number;
+  storage_key: string;
+  fecha_vencimiento: string | null;
+  comentarios: string | null;
+  tipo_id: number | null;
+  tipo_nombre: string | null;
+  created_at: string;
+}
+
+export async function fetchAdjuntosOperacion(id: number): Promise<FinanzasAdjunto[]> {
+  return apiFetch(`${BASE}/operaciones/${id}/adjuntos`);
+}
+
+export async function subirAdjuntoOperacion(id: number, archivo: File): Promise<FinanzasAdjunto> {
+  const body = new FormData();
+  body.append('archivo', archivo);
+  const created = await apiFetch<{ id: number }>(`${BASE}/operaciones/${id}/adjuntos`, { method: 'POST', body });
+  return { id: created.id, nombre_original: archivo.name, mime_type: archivo.type, tamano: archivo.size, storage_key: '', fecha_vencimiento: null, comentarios: null, tipo_id: null, tipo_nombre: null, created_at: new Date().toISOString() };
+}
+
+export async function descargarAdjuntoOperacion(id: number, adjuntoId: number): Promise<void> {
+  const { blob, filename } = await apiFetchBlob(`${BASE}/operaciones/${id}/adjuntos/${adjuntoId}/archivo`);
+  triggerBlobDownload(blob, filename);
+}
+
+export async function abrirAdjuntoOperacion(id: number, adjuntoId: number): Promise<void> {
+  const tab = window.open('', '_blank');
+  if (!tab) throw new Error('El navegador bloqueó la pestaña nueva');
+  try {
+    const { blob } = await apiFetchBlob(`${BASE}/operaciones/${id}/adjuntos/${adjuntoId}/archivo`);
+    const objectUrl = URL.createObjectURL(blob);
+    tab.location.href = objectUrl;
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    tab.close();
+    throw error;
+  }
+}
+
+export async function eliminarAdjuntoOperacion(id: number, adjuntoId: number): Promise<void> {
+  await apiFetch(`${BASE}/operaciones/${id}/adjuntos/${adjuntoId}`, { method: 'DELETE' });
+}
 
 export async function fetchCuentas(): Promise<FinanzasCuenta[]> {
   return apiFetch(`${BASE}/cuentas`);

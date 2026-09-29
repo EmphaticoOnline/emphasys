@@ -75,6 +75,7 @@ export interface ProgramacionPago {
   documento_fecha_vencimiento?: string | null;
   cuenta_identificador?: string | null;
   metodo_pago_nombre?: string | null;
+  adjuntos_count?: number;
   detalles?: ProgramacionPagoDetalle[];
 }
 

@@ -2566,11 +2566,10 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
   try {
     await client.query('BEGIN');
 
-    const { rows: adjuntosDocumento } = await client.query<{ id: number; documento_id: number; empresa_id: number; archivo_url: string }>(
-      `SELECT id, documento_id, empresa_id, archivo_url
-         FROM documentacion.adjuntos
-        WHERE documento_id = $1
-          AND empresa_id = $2`,
+    const { rows: adjuntosDocumento } = await client.query<{ id: number; empresa_id: number; storage_key: string }>(
+      `SELECT a.id, a.empresa_id, a.storage_key
+         FROM documentacion.adjuntos a JOIN documentacion.adjuntos_entidades e ON e.adjunto_id=a.id
+        WHERE e.documento_id = $1 AND a.empresa_id = $2`,
       [id, empresaId]
     );
 
@@ -2692,7 +2691,7 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
     await client.query('COMMIT');
     transactionCommitted = true;
     if ((result.rowCount ?? 0) > 0 && adjuntosDocumento.length > 0) {
-      const failures = await eliminarArchivosAdjuntos(adjuntosDocumento.map((adjunto) => ({ adjuntoId: adjunto.id, documentoId: adjunto.documento_id, empresaId: adjunto.empresa_id, archivoUrl: adjunto.archivo_url })));
+      const failures = await eliminarArchivosAdjuntos(adjuntosDocumento.map((adjunto) => ({ adjuntoId: adjunto.id, documentoId: id, empresaId: adjunto.empresa_id, storageKey: adjunto.storage_key })));
       if (failures > 0) throw new Error('Documento eliminado, pero la limpieza física de adjuntos quedó pendiente y fue registrada');
     }
     return (result.rowCount ?? 0) > 0;

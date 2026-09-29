@@ -1,10 +1,11 @@
 import React from 'react';
-import { Chip, IconButton, Paper, Stack, Typography, Tooltip, TextField, InputAdornment } from '@mui/material';
+import { Chip, IconButton, Paper, Stack, Typography, Tooltip, TextField, InputAdornment, Popover, List, ListItemButton, ListItemText, CircularProgress } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { DataGrid, GridToolbarContainer } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams, GridSortModel } from '@mui/x-data-grid';
@@ -17,6 +18,7 @@ import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
 import { useDeviceProfile } from '../../hooks/useDeviceProfile';
 import { useGridPreferences } from '../../hooks/useGridPreferences';
+import { abrirAdjuntoOperacion, fetchAdjuntosOperacion, type FinanzasAdjunto } from '../../services/finanzasService';
 
 export type FinanzasSearchToolbarProps = {
   value: string;
@@ -114,8 +116,30 @@ export function MovimientosTable({
   );
 
   const [search, setSearch] = React.useState('');
+  const [adjuntosAnchor, setAdjuntosAnchor] = React.useState<HTMLElement | null>(null);
+  const [adjuntosOperacion, setAdjuntosOperacion] = React.useState<FinanzasOperacion | null>(null);
+  const [adjuntosPopover, setAdjuntosPopover] = React.useState<FinanzasAdjunto[]>([]);
+  const [adjuntosLoading, setAdjuntosLoading] = React.useState(false);
   const effectiveSearch = searchTerm ?? search;
   const handleSearchChange = onSearchChange ?? setSearch;
+
+  const abrirAdjuntos = async (event: React.MouseEvent<HTMLElement>, row: Row) => {
+    event.stopPropagation();
+    setAdjuntosAnchor(event.currentTarget);
+    setAdjuntosOperacion(row);
+    setAdjuntosPopover([]);
+    setAdjuntosLoading(true);
+    try {
+      setAdjuntosPopover(await fetchAdjuntosOperacion(row.id));
+    } finally {
+      setAdjuntosLoading(false);
+    }
+  };
+
+  const abrirArchivoDesdePopover = async (event: React.MouseEvent, adjunto: FinanzasAdjunto) => {
+    event.stopPropagation();
+    if (adjuntosOperacion) await abrirAdjuntoOperacion(adjuntosOperacion.id, adjunto.id);
+  };
 
   const defaultSort: GridSortModel = [{ field: 'fecha', sort: 'desc' }];
   const {
@@ -293,6 +317,25 @@ export function MovimientosTable({
   const columns = React.useMemo<GridColDef<Row>[]>(
     () => [
       contextMenuTriggerColumn,
+      {
+        field: 'adjuntos',
+        headerName: '',
+        width: 38,
+        minWidth: 38,
+        maxWidth: 38,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        align: 'center',
+        headerAlign: 'center',
+        renderCell: (params: GridRenderCellParams<Row>) => params.row.adjuntos_count ? (
+          <Tooltip title={`${params.row.adjuntos_count} adjunto${params.row.adjuntos_count === 1 ? '' : 's'}`}>
+            <IconButton size="small" aria-label="Ver adjuntos" onClick={(event) => void abrirAdjuntos(event, params.row)}>
+              <AttachFileIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ) : null,
+      },
       {
         field: 'fecha',
         headerName: 'Fecha',
@@ -555,6 +598,26 @@ export function MovimientosTable({
         open={Boolean(contextMenuRow && contextMenuPosition)}
         onClose={closeContextMenu}
       />
+
+      <Popover
+        open={Boolean(adjuntosAnchor)}
+        anchorEl={adjuntosAnchor}
+        onClose={() => { setAdjuntosAnchor(null); setAdjuntosOperacion(null); }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Stack sx={{ p: 1, minWidth: 230 }}>
+          <Typography variant="subtitle2" sx={{ px: 1, pb: 0.5 }}>Adjuntos</Typography>
+          {adjuntosLoading ? <CircularProgress size={18} sx={{ m: 1 }} /> : (
+            <List dense disablePadding>
+              {adjuntosPopover.map((adjunto) => (
+                <ListItemButton key={adjunto.id} onClick={(event) => void abrirArchivoDesdePopover(event, adjunto)}>
+                  <ListItemText primary={adjunto.nombre_original} primaryTypographyProps={{ noWrap: true }} />
+                </ListItemButton>
+              ))}
+            </List>
+          )}
+        </Stack>
+      </Popover>
     </Paper>
   );
 }

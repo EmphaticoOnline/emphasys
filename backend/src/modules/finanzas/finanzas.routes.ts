@@ -45,6 +45,13 @@ import {
   getHistorialConciliaciones,
   postDeshacerConciliacion,
 } from './finanzas.controller';
+import {
+  descargarAdjuntoOperacion,
+  eliminarAdjuntoOperacion,
+  finanzasAdjuntoUpload,
+  listarAdjuntosOperacion,
+  subirAdjuntoOperacion,
+} from './finanzas-adjuntos.controller';
 
 const router = Router();
 
@@ -70,6 +77,10 @@ router.get('/operaciones', getOperaciones);
 router.post('/operaciones', postOperacion);
 router.put('/operaciones/:id', putOperacion);
 router.delete('/operaciones/:id', deleteOperacion);
+router.get('/operaciones/:id/adjuntos', listarAdjuntosOperacion);
+router.post('/operaciones/:id/adjuntos', finanzasAdjuntoUpload.single('archivo'), subirAdjuntoOperacion);
+router.get('/operaciones/:id/adjuntos/:adjuntoId/archivo', descargarAdjuntoOperacion);
+router.delete('/operaciones/:id/adjuntos/:adjuntoId', eliminarAdjuntoOperacion);
 
 router.post('/transferencias', postTransferencia);
 router.put('/transferencias/:id', putTransferencia);

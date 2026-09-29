@@ -14,12 +14,15 @@ import {
   Stack,
   TextField,
   Typography,
+  IconButton,
 } from '@mui/material';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import { createFilterOptions } from '@mui/material/Autocomplete';
 import type { Concepto, FinanzasCuenta, FinanzasMetodoPago, FinanzasOperacion, NaturalezaOperacion, TipoMovimiento } from '../../types/finanzas';
 import type { Contacto } from '../../types/contactos.types';
 import type { ContactoTipoPermitido } from '../documentos/documentoTypes';
-import { actualizarOperacion, crearOperacion, fetchMetodosPago, type OperacionPayload } from '../../services/finanzasService';
+import { abrirAdjuntoOperacion, actualizarOperacion, crearOperacion, descargarAdjuntoOperacion, eliminarAdjuntoOperacion, fetchAdjuntosOperacion, fetchMetodosPago, subirAdjuntoOperacion, type FinanzasAdjunto, type OperacionPayload } from '../../services/finanzasService';
 import { fetchConceptos, crearConcepto } from '../../services/conceptosService';
 import { fetchContactos } from '../../services/contactosService';
 import { crearContacto } from '../../services/contactos.api';
@@ -91,6 +94,10 @@ export function OperacionDialog({
   const [crearContactoNombre, setCrearContactoNombre] = useState('');
   const [crearContactoTipo, setCrearContactoTipo] = useState<ContactoTipoPermitido>('Cliente');
   const [crearContactoLoading, setCrearContactoLoading] = useState(false);
+  const [operacionIdLocal, setOperacionIdLocal] = useState<number | null>(null);
+  const [adjuntos, setAdjuntos] = useState<FinanzasAdjunto[]>([]);
+  const [archivosPendientes, setArchivosPendientes] = useState<File[]>([]);
+  const [loadingAdjuntos, setLoadingAdjuntos] = useState(false);
 
   // El selector de contacto de Finanzas no restringe por tipo (a diferencia de
   // Documentos, que sí fija cliente/proveedor por reglas de venta/compra), así
@@ -142,6 +149,9 @@ export function OperacionDialog({
       setConceptoId(presetPayload?.concepto_id ? String(presetPayload.concepto_id) : '');
       setMetodoPagoId(presetPayload?.metodo_pago_id ?? null);
     }
+    setOperacionIdLocal(operacion?.id ?? null);
+    setArchivosPendientes([]);
+    setAdjuntos([]);
     setError(null);
   }, [operacion, defaultCuentaId, open, presetPayload]);
 
@@ -164,6 +174,16 @@ export function OperacionDialog({
       .then((data) => setMetodosPago(data))
       .catch(() => setMetodosPago([]));
   }, [open]);
+
+  useEffect(() => {
+    const id = operacion?.id ?? operacionIdLocal;
+    if (!open || !id) return;
+    setLoadingAdjuntos(true);
+    fetchAdjuntosOperacion(id)
+      .then(setAdjuntos)
+      .catch((err: any) => setError(err?.message || 'No se pudieron cargar los adjuntos'))
+      .finally(() => setLoadingAdjuntos(false));
+  }, [open, operacion?.id, operacionIdLocal]);
 
   const handleSave = async () => {
     const montoNumerico = sanitizeNumber(monto);
@@ -194,10 +214,31 @@ export function OperacionDialog({
     try {
       setSaving(true);
       setError(null);
-      if (operacion?.id) {
-        await actualizarOperacion(operacion.id, payload);
+      const id = operacion?.id ?? operacionIdLocal;
+      let savedId = id;
+      if (id) {
+        await actualizarOperacion(id, payload);
       } else {
-        await crearOperacion(payload);
+        const created = await crearOperacion(payload);
+        savedId = created.id;
+        setOperacionIdLocal(created.id);
+      }
+      if (savedId && archivosPendientes.length) {
+        const failed: File[] = [];
+        const uploaded: FinanzasAdjunto[] = [];
+        for (const archivo of archivosPendientes) {
+          try {
+            uploaded.push(await subirAdjuntoOperacion(savedId, archivo));
+          } catch {
+            failed.push(archivo);
+          }
+        }
+        setAdjuntos((prev) => [...uploaded, ...prev]);
+        setArchivosPendientes(failed);
+        if (failed.length) {
+          setError(`La operación se guardó, pero fallaron ${failed.length} archivo(s): ${failed.map((f) => f.name).join(', ')}. Puedes reintentarlo.`);
+          return;
+        }
       }
       onSaved(payload.documento_origen_id ?? null);
       onClose();
@@ -206,6 +247,28 @@ export function OperacionDialog({
     } finally {
       setSaving(false);
     }
+  };
+
+  const operationId = operacion?.id ?? operacionIdLocal;
+
+  const handleDownload = async (adjunto: FinanzasAdjunto) => {
+    if (!operationId) return;
+    try { await descargarAdjuntoOperacion(operationId, adjunto.id); }
+    catch (err: any) { setError(err?.message || `No se pudo descargar ${adjunto.nombre_original}`); }
+  };
+
+  const handleOpenAttachment = async (adjunto: FinanzasAdjunto) => {
+    if (!operationId) return;
+    try { await abrirAdjuntoOperacion(operationId, adjunto.id); }
+    catch (err: any) { setError(err?.message || `No se pudo abrir ${adjunto.nombre_original}`); }
+  };
+
+  const handleDeleteAttachment = async (adjunto: FinanzasAdjunto) => {
+    if (!operationId) return;
+    try {
+      await eliminarAdjuntoOperacion(operationId, adjunto.id);
+      setAdjuntos((prev) => prev.filter((item) => item.id !== adjunto.id));
+    } catch (err: any) { setError(err?.message || `No se pudo eliminar ${adjunto.nombre_original}`); }
   };
 
   const conceptosOptions: ConceptoOption[] = conceptos;
@@ -495,6 +558,42 @@ export function OperacionDialog({
             multiline
             minRows={2}
           />
+
+          <Stack spacing={1}>
+            <Typography variant="subtitle2">Adjuntos</Typography>
+            <Button component="label" variant="outlined" size="small" disabled={saving} sx={{ alignSelf: 'flex-start', textTransform: 'none' }}>
+              Seleccionar archivos
+              <input
+                hidden
+                type="file"
+                multiple
+                accept="application/pdf,image/png,image/jpeg,image/webp"
+                onChange={(event) => {
+                  setArchivosPendientes((prev) => [...prev, ...Array.from(event.target.files || [])]);
+                  event.target.value = '';
+                }}
+              />
+            </Button>
+            {archivosPendientes.map((archivo, index) => (
+              <Stack key={`${archivo.name}-${index}`} direction="row" alignItems="center" spacing={1}>
+                <Typography variant="body2" sx={{ flex: 1 }}>{archivo.name}</Typography>
+                <IconButton size="small" onClick={() => setArchivosPendientes((prev) => prev.filter((_, i) => i !== index))} aria-label={`Quitar ${archivo.name}`}>
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            ))}
+            {loadingAdjuntos && <CircularProgress size={18} />}
+            {adjuntos.map((adjunto) => (
+              <Stack key={adjunto.id} direction="row" alignItems="center" spacing={1}>
+                <Button variant="text" size="small" onClick={() => void handleOpenAttachment(adjunto)} sx={{ flex: 1, justifyContent: 'flex-start', minWidth: 0, overflow: 'hidden', textTransform: 'none' }}>
+                  <Typography variant="body2" noWrap>{adjunto.nombre_original}</Typography>
+                </Button>
+                <IconButton size="small" onClick={() => void handleDownload(adjunto)} aria-label={`Descargar ${adjunto.nombre_original}`}><DownloadOutlinedIcon fontSize="small" /></IconButton>
+                <IconButton size="small" onClick={() => void handleDeleteAttachment(adjunto)} aria-label={`Eliminar ${adjunto.nombre_original}`}><DeleteOutlineIcon fontSize="small" /></IconButton>
+              </Stack>
+            ))}
+            {!loadingAdjuntos && !adjuntos.length && !archivosPendientes.length && <Typography variant="caption" color="text.secondary">Puedes adjuntar varios comprobantes o documentos.</Typography>}
+          </Stack>
 
           {error && (
             <Typography color="error" variant="body2">

@@ -709,6 +709,11 @@ export async function listarOperaciones(empresaId: number, cuentaId?: number, do
               ft.cuenta_destino_id AS transferencia_cuenta_destino,
               coo.identificador AS transferencia_origen_nombre,
               cod.identificador AS transferencia_destino_nombre,
+              (SELECT COUNT(*)::int
+                 FROM documentacion.adjuntos_entidades ae
+                JOIN documentacion.adjuntos a ON a.id = ae.adjunto_id
+                WHERE ae.finanzas_operacion_id = fo.id
+                  AND a.empresa_id = fo.empresa_id) AS adjuntos_count,
               -- saldo_acumulado: saldo real de la cuenta después de cada operación,
               -- calculado cronológicamente (fecha, luego id como desempate estable) y
               -- sembrado con el saldo inicial de la cuenta — independiente del orden de

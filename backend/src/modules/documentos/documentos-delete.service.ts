@@ -50,11 +50,10 @@ async function cotizacionTieneDocumentosPosteriores(documentoId: number, client:
 }
 
 async function eliminarDocumentoBase(documentoId: number, empresaId: number, tipoDocumento: string, client: PoolClient) {
-  const { rows: adjuntosDocumento } = await client.query<{ id: number; documento_id: number; empresa_id: number; archivo_url: string }>(
-    `SELECT id, documento_id, empresa_id, archivo_url
-       FROM documentacion.adjuntos
-      WHERE documento_id = $1
-        AND empresa_id = $2`,
+  const { rows: adjuntosDocumento } = await client.query<{ id: number; empresa_id: number; storage_key: string }>(
+    `SELECT a.id, a.empresa_id, a.storage_key
+       FROM documentacion.adjuntos a JOIN documentacion.adjuntos_entidades e ON e.adjunto_id=a.id
+      WHERE e.documento_id = $1 AND a.empresa_id = $2`,
     [documentoId, empresaId]
   );
   const { rows: _vinculosBase } = await client.query(
@@ -97,7 +96,7 @@ async function eliminarDocumentoBase(documentoId: number, empresaId: number, tip
   );
 
   if ((result.rowCount ?? 0) > 0 && adjuntosDocumento.length > 0) {
-    await eliminarArchivosAdjuntos(adjuntosDocumento.map((adjunto) => ({ adjuntoId: adjunto.id, documentoId: adjunto.documento_id, empresaId: adjunto.empresa_id, archivoUrl: adjunto.archivo_url })));
+    await eliminarArchivosAdjuntos(adjuntosDocumento.map((adjunto) => ({ adjuntoId: adjunto.id, documentoId, empresaId: adjunto.empresa_id, storageKey: adjunto.storage_key })));
   }
 
   return (result.rowCount ?? 0) > 0;
