@@ -118,7 +118,7 @@ export default function SeccionIdentificacion({
               width: 6,
               height: 6,
               borderRadius: '50%',
-              backgroundColor: '#1d2f68',
+              backgroundColor: (theme) => theme.emphasys.action.primary,
               mt: 0.6,
               flexShrink: 0,
             }}

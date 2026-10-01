@@ -5,19 +5,20 @@ import {
   Box,
   Button,
   CircularProgress,
-  Divider,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
   InputAdornment,
-  Paper,
   Snackbar,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import AddIcon from '@mui/icons-material/Add';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -48,6 +49,9 @@ import {
 
 export function FinanzasPage() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const tokens = theme.emphasys;
+  const compacto = useMediaQuery(theme.breakpoints.down('md'));
   const { session } = useSession();
   const esAdmin = Boolean(session.user?.es_superadmin);
   const [cuentas, setCuentas] = useState<FinanzasCuenta[]>([]);
@@ -75,6 +79,21 @@ export function FinanzasPage() {
   const [recalculando, setRecalculando] = useState(false);
 
   const selectedCuenta = useMemo(() => cuentas.find((c) => c.id === selectedCuentaId) || null, [cuentas, selectedCuentaId]);
+  const monedaCuenta = selectedCuenta?.moneda || 'MXN';
+  const formatoMoneda = useMemo(
+    () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: monedaCuenta }),
+    [monedaCuenta],
+  );
+  const resumenMovimientos = useMemo(() => {
+    let depositos = 0;
+    let retiros = 0;
+    for (const operacion of operaciones) {
+      const monto = Math.abs(Number(operacion.monto) || 0);
+      if (operacion.tipo_movimiento === 'Deposito') depositos += monto;
+      else retiros += monto;
+    }
+    return { depositos, retiros, total: operaciones.length };
+  }, [operaciones]);
 
   const loadCuentas = async () => {
     try {
@@ -205,184 +224,235 @@ export function FinanzasPage() {
     }
   };
 
+  const accionSx = { textTransform: 'none', borderRadius: '10px' } as const;
+
   return (
-    <Box sx={{ width: '100%', px: { xs: 2, md: 2 }, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Finanzas
+    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: compacto ? 'column' : 'row', overflow: 'hidden' }}>
+      <CuentasSidebar
+        cuentas={cuentas}
+        selectedId={selectedCuentaId}
+        onSelect={setSelectedCuentaId}
+        onNew={() => setCuentaDialog({ open: true, cuenta: null })}
+        onEdit={handleEditarCuenta}
+        onDelete={handleDeleteCuenta}
+        loading={loadingCuentas}
+        onRecalcularSaldos={esAdmin ? () => setRecalcularDialogOpen(true) : undefined}
+      />
+
+      <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', bgcolor: tokens.content.background, overflow: 'hidden' }}>
+        <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: 1.6, pb: 1.4 }}>
+          <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
+            TESORERÍA
           </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Control de cuentas, movimientos y conciliaciones bancarias.
-          </Typography>
+          <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'space-between', alignItems: 'flex-start', flexDirection: compacto ? 'column' : 'row', mt: 0.35 }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="figure" sx={{ fontSize: { xs: 26, md: 32 }, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
+                {selectedCuenta?.identificador || 'Sin cuenta'}
+              </Typography>
+              <Typography sx={{ mt: 0.7, fontSize: 13, color: tokens.content.secondary }}>
+                {selectedCuenta
+                  ? 'Movimientos, saldo y conciliación de la cuenta seleccionada.'
+                  : 'Selecciona o registra una cuenta para ver sus movimientos.'}
+              </Typography>
+              {selectedCuenta && (
+                <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap' }}>
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.metric.amount.foreground, fontSize: 12, fontWeight: 700 }}>
+                    {selectedCuenta.moneda || 'MXN'}
+                  </Box>
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.content.elevated, color: tokens.content.foreground, fontSize: 12, fontWeight: 700, border: `1px solid ${tokens.content.border}` }}>
+                    {selectedCuenta.tipo_cuenta}
+                  </Box>
+                  {selectedCuenta.cuenta_cerrada && (
+                    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.blocked.background, color: tokens.metric.blocked.foreground, fontSize: 12, fontWeight: 700 }}>
+                      Cerrada
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Box>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ justifyContent: 'flex-end' }}>
+              <Tooltip title="Volver a cargar cuentas y movimientos" arrow>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={() => {
+                    void loadCuentas();
+                    void loadOperaciones(selectedCuentaId);
+                  }}
+                  sx={accionSx}
+                >
+                  Actualizar
+                </Button>
+              </Tooltip>
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => setOperacionDialog({ open: true, operacion: null })}
+                disabled={!selectedCuentaId}
+                sx={accionSx}
+              >
+                Nueva operación
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<CompareArrowsIcon />}
+                onClick={() => setTransferenciaOpen(true)}
+                disabled={cuentas.length < 2}
+                sx={accionSx}
+              >
+                Transferencia
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<CalendarMonthIcon />}
+                onClick={() => navigate('/finanzas/programacion-pagos')}
+                sx={accionSx}
+              >
+                Programación
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<CheckCircleIcon />}
+                onClick={() => {
+                  const url = selectedCuentaId
+                    ? `/finanzas/conciliacion-bancaria?cuenta_id=${selectedCuentaId}`
+                    : '/finanzas/conciliacion-bancaria';
+                  navigate(url);
+                }}
+                disabled={!selectedCuentaId}
+                sx={accionSx}
+              >
+                Conciliar
+              </Button>
+            </Stack>
+          </Box>
+
+          {error && (
+            <Alert severity="error" onClose={() => setError(null)} sx={{ mt: 1.5 }}>
+              {error}
+            </Alert>
+          )}
+
+          <Box sx={{ mt: 1.7, display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1.15fr 1fr 1fr', gap: 0.8 }}>
+            <Box sx={{ bgcolor: tokens.metric.amount.background, borderRadius: 2, px: 1.4, py: 1.05 }}>
+              <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Saldo actual</Typography>
+              <Typography variant="figure" sx={{ mt: 0.25, fontSize: 26, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
+                {formatoMoneda.format(Number(selectedCuenta?.saldo || 0))}
+              </Typography>
+              <Typography sx={{ mt: 0.3, fontSize: 12, color: tokens.metric.caption }}>
+                {selectedCuenta ? selectedCuenta.identificador : 'Sin cuenta seleccionada'}
+              </Typography>
+            </Box>
+            <Box sx={{ bgcolor: tokens.metric.applied.background, borderRadius: 2, px: 1.4, py: 1.05 }}>
+              <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Depósitos</Typography>
+              <Typography variant="figure" sx={{ mt: 0.25, fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
+                {formatoMoneda.format(resumenMovimientos.depositos)}
+              </Typography>
+              <Typography sx={{ mt: 0.3, fontSize: 12, color: tokens.metric.caption }}>En los movimientos cargados</Typography>
+            </Box>
+            <Box sx={{ bgcolor: tokens.metric.blocked.background, borderRadius: 2, px: 1.4, py: 1.05 }}>
+              <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Retiros</Typography>
+              <Typography variant="figure" sx={{ mt: 0.25, fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
+                {formatoMoneda.format(resumenMovimientos.retiros)}
+              </Typography>
+              <Typography sx={{ mt: 0.3, fontSize: 12, color: tokens.metric.caption }}>
+                {resumenMovimientos.total === 1 ? '1 movimiento' : `${resumenMovimientos.total} movimientos`}
+              </Typography>
+            </Box>
+          </Box>
         </Box>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={() => {
-              void loadCuentas();
-              void loadOperaciones(selectedCuentaId);
-            }}
-            sx={{ textTransform: 'none', borderRadius: 999 }}
-          >
-            Actualizar
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setOperacionDialog({ open: true, operacion: null })}
-            disabled={!selectedCuentaId}
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
-          >
-            Nueva operación
-          </Button>
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<CompareArrowsIcon />}
-            onClick={() => setTransferenciaOpen(true)}
-            disabled={cuentas.length < 2}
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#006261', '&:hover': { bgcolor: '#014c4c' } }}
-          >
-            Transferencia
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<CalendarMonthIcon />}
-            onClick={() => navigate('/finanzas/programacion-pagos')}
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}
-          >
-            Programación de pagos
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<CheckCircleIcon />}
-            onClick={() => {
-              const url = selectedCuentaId
-                ? `/finanzas/conciliacion-bancaria?cuenta_id=${selectedCuentaId}`
-                : '/finanzas/conciliacion-bancaria';
-              navigate(url);
-            }}
-            disabled={!selectedCuentaId}
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#0ea5e9', '&:hover': { bgcolor: '#0284c7' } }}
-          >
-            Conciliar
-          </Button>
-        </Stack>
-      </Stack>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-
-      <Box
-        sx={{
+        <Box sx={{
+          flex: 1,
+          minHeight: 0,
           display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
-          gap: 2,
-          alignItems: 'stretch',
-        }}
-      >
-        <CuentasSidebar
-          cuentas={cuentas}
-          selectedId={selectedCuentaId}
-          onSelect={setSelectedCuentaId}
-          onNew={() => setCuentaDialog({ open: true, cuenta: null })}
-          onEdit={handleEditarCuenta}
-          onDelete={handleDeleteCuenta}
-          loading={loadingCuentas}
-          onRecalcularSaldos={esAdmin ? () => setRecalcularDialogOpen(true) : undefined}
-        />
-
-        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              borderRadius: 3,
-              border: '1px solid #e5e7eb',
-              background: 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
-            }}
-          >
-            <Box
+          flexDirection: 'column',
+          mx: { xs: 1, md: 1.75 },
+          mb: { xs: 1, md: 1.75 },
+          bgcolor: tokens.content.well,
+          borderRadius: 3,
+          border: `1px solid ${tokens.content.border}`,
+          overflow: 'hidden',
+        }}>
+          <Box sx={{ px: 1.5, py: 1.1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap', borderBottom: `1px solid ${tokens.content.border}` }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.content.foreground }}>
+              Movimientos
+            </Typography>
+            <TextField
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar contacto, concepto, referencia o monto"
+              size="small"
+              onKeyDown={(event) => event.stopPropagation()}
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 2,
-                flexWrap: 'wrap',
+                minWidth: { xs: '100%', sm: 280 },
+                maxWidth: 360,
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: tokens.content.elevated,
+                  borderRadius: 2,
+                  '& fieldset': { borderColor: tokens.content.border },
+                },
+                '& .MuiOutlinedInput-input': { fontSize: 13, py: 0.85 },
               }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-                  Movimientos — {selectedCuenta?.identificador || 'Sin cuenta seleccionada'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Saldo actual:{' '}
-                  <Typography component="span" fontWeight={600} color="#1d2f68">
-                    {new Intl.NumberFormat('es-MX', { style: 'currency', currency: selectedCuenta?.moneda || 'MXN' }).format(Number(selectedCuenta?.saldo || 0))}
-                  </Typography>
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: tokens.content.muted }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearchTerm('')} aria-label="Limpiar búsqueda" disabled={!searchTerm}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+          <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            {!selectedCuentaId && !loadingCuentas ? (
+              <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', px: 3, textAlign: 'center' }}>
+                <Typography sx={{ color: tokens.content.muted, fontSize: 14 }}>
+                  No hay una cuenta seleccionada.
                 </Typography>
               </Box>
-
-              <TextField
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar contacto, concepto, referencia o monto"
-                size="small"
-                onKeyDown={(event) => event.stopPropagation()}
-                sx={{ minWidth: { xs: '100%', sm: 320 }, maxWidth: 360 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => setSearchTerm('')} aria-label="Limpiar búsqueda" disabled={!searchTerm}>
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
+            ) : (
+              <MovimientosTable
+                operaciones={operaciones}
+                loading={loadingOps}
+                moneda={monedaCuenta}
+                onEdit={(op) => setOperacionDialog({ open: true, operacion: op })}
+                onDelete={requestDeleteOperacion}
+                onEditTransferencia={(op) => {
+                  if (op.transferencia_id) {
+                    setTransferenciaEdit({
+                      id: op.transferencia_id,
+                      cuenta_origen_id: op.transferencia_cuenta_origen || op.cuenta_id,
+                      cuenta_destino_id: op.transferencia_cuenta_destino || op.cuenta_id,
+                      monto: Number(op.monto),
+                      fecha: op.fecha,
+                      referencia: op.referencia || null,
+                      observaciones: op.observaciones || null,
+                    });
+                    setTransferenciaOpen(true);
+                  }
                 }}
+                onDeleteTransferencia={(op) => requestDeleteOperacion(op)}
+                onView={(op) => {
+                  setDetalleOperacionId(op.id);
+                  setDetalleOpen(true);
+                }}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                showToolbar={false}
               />
-            </Box>
-          </Paper>
-
-          <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
-            <MovimientosTable
-              operaciones={operaciones}
-              loading={loadingOps}
-              moneda={selectedCuenta?.moneda || 'MXN'}
-              onEdit={(op) => setOperacionDialog({ open: true, operacion: op })}
-              onDelete={requestDeleteOperacion}
-              onEditTransferencia={(op) => {
-                if (op.transferencia_id) {
-                  setTransferenciaEdit({
-                    id: op.transferencia_id,
-                    cuenta_origen_id: op.transferencia_cuenta_origen || op.cuenta_id,
-                    cuenta_destino_id: op.transferencia_cuenta_destino || op.cuenta_id,
-                    monto: Number(op.monto),
-                    fecha: op.fecha,
-                    referencia: op.referencia || null,
-                    observaciones: op.observaciones || null,
-                  });
-                  setTransferenciaOpen(true);
-                }
-              }}
-              onDeleteTransferencia={(op) => requestDeleteOperacion(op)}
-              onView={(op) => {
-                setDetalleOperacionId(op.id);
-                setDetalleOpen(true);
-              }}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              showToolbar={false}
-            />
+            )}
           </Box>
         </Box>
       </Box>
@@ -480,7 +550,7 @@ export function FinanzasPage() {
             onClick={handleRecalcularSaldos}
             disabled={recalculando}
             startIcon={recalculando ? <CircularProgress size={16} color="inherit" /> : undefined}
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+            sx={{ textTransform: 'none', borderRadius: 999 }}
           >
             Recalcular
           </Button>

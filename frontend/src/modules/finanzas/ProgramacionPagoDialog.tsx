@@ -623,12 +623,7 @@ export default function ProgramacionPagoDialog({
           onClick={handleSave}
           disabled={saving || seleccion.size === 0}
           variant="contained"
-          sx={{
-            textTransform: 'none',
-            borderRadius: 999,
-            bgcolor: '#1d2f68',
-            '&:hover': { bgcolor: '#162551' },
-          }}
+          sx={{ textTransform: 'none', borderRadius: 999 }}
         >
           {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Programar pago'}
         </Button>

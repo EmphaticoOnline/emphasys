@@ -1,7 +1,7 @@
 import { Alert, Box, Button, CircularProgress, Dialog, IconButton, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import { NumericFormat } from 'react-number-format';
 import type { DatosFiscalesValues } from '../../documentos';
@@ -11,8 +11,6 @@ import LiquidacionAplicacionesList from './LiquidacionAplicacionesList';
 import LiquidacionResumenFooter from './LiquidacionResumenFooter';
 import { getCuentaFinancieraDisplayLabel, useLiquidacionDocumento, type LiquidacionDocumentoParams } from './useLiquidacionDocumento';
 import {
-  LIQUIDACION_FIELD_BORDER,
-  LIQUIDACION_NAVY,
   amountFieldSx,
   captureFieldSx,
   fieldLabelSx,
@@ -30,6 +28,7 @@ function FieldLabel({ children }: { children: string }) {
 
 export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params }: Props) {
   const theme = useTheme();
+  const tokens = theme.emphasys;
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isLaptop = useMediaQuery(theme.breakpoints.down('xl'));
   const liquidacion = useLiquidacionDocumento(params);
@@ -71,9 +70,10 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
           width: '100%',
           height: 36,
           px: 1.25,
-          bgcolor: '#fff',
-          borderColor: LIQUIDACION_FIELD_BORDER,
-          color: LIQUIDACION_NAVY,
+          bgcolor: tokens.content.card,
+          borderColor: tokens.content.border,
+          color: tokens.content.foreground,
+          '&:hover': { bgcolor: tokens.content.hover, borderColor: tokens.content.foreground },
           fontWeight: 700,
           textTransform: 'none',
           whiteSpace: 'nowrap',
@@ -93,12 +93,12 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
           fontWeight: 700,
           textTransform: 'none',
           whiteSpace: 'nowrap',
-          bgcolor: LIQUIDACION_NAVY,
-          color: '#fff',
-          '&:hover': { bgcolor: '#162551' },
+          bgcolor: tokens.action.primary,
+          color: tokens.action.primaryForeground,
+          '&:hover': { bgcolor: tokens.action.primaryHover },
           '&.Mui-disabled': {
-            bgcolor: 'rgba(29,47,104,0.35)',
-            color: '#fff',
+            bgcolor: tokens.action.disabled,
+            color: tokens.action.primaryForeground,
           },
         }}
       >
@@ -157,14 +157,14 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
           />
           <Box
             sx={{
-              height: 48,
+              height: 56,
               px: 1.5,
               display: 'flex',
               alignItems: 'center',
-              border: `1px solid ${LIQUIDACION_FIELD_BORDER}`,
-              borderRadius: '6px',
-              bgcolor: '#fff',
-              color: LIQUIDACION_NAVY,
+              border: `1px solid ${tokens.content.border}`,
+              borderRadius: '10px',
+              bgcolor: tokens.metric.amount.background,
+              color: tokens.content.foreground,
               fontSize: 13,
               fontWeight: 700,
               flexShrink: 0,
@@ -285,7 +285,7 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
       </Box>
 
       {config.textos.notaComplemento ? (
-        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+        <Typography sx={{ fontSize: 12.5, lineHeight: 1.45, color: tokens.content.secondary, bgcolor: tokens.content.elevated, border: `1px solid ${tokens.content.border}`, borderRadius: 2, px: 1.25, py: 0.9 }}>
           {config.textos.notaComplemento}
         </Typography>
       ) : null}
@@ -334,7 +334,7 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
       aria-labelledby="liquidacion-documento-title"
       slotProps={{
         backdrop: {
-          sx: { bgcolor: 'rgba(15, 23, 42, 0.28)' },
+          sx: { bgcolor: alpha(tokens.content.foreground, 0.28) },
         },
         paper: {
           sx: {
@@ -343,11 +343,13 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
             height: { xs: '100%', md: 'calc(100vh - 32px)' },
             maxHeight: { xs: '100%', md: 'calc(100vh - 32px)' },
             m: { xs: 0, md: 2 },
-            borderRadius: { xs: 0, md: 2 },
+            borderRadius: { xs: 0, md: 3 },
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            bgcolor: '#f4f6f9',
+            bgcolor: tokens.content.background,
+            color: tokens.content.foreground,
+            border: `1px solid ${tokens.content.border}`,
           },
         },
       }}
@@ -360,15 +362,15 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
           gap: 1.5,
           px: { xs: 1.5, md: 2.25 },
           py: 1.25,
-          bgcolor: '#fff',
-          borderBottom: '1px solid #e5e7eb',
+          bgcolor: tokens.content.elevated,
+          borderBottom: `1px solid ${tokens.content.border}`,
         }}
       >
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography id="liquidacion-documento-title" sx={{ fontSize: 18, fontWeight: 700, color: LIQUIDACION_NAVY, lineHeight: 1.25 }}>
+          <Typography id="liquidacion-documento-title" variant="figure" sx={{ display: 'block', fontSize: 28, lineHeight: 1, color: tokens.content.foreground }}>
             {config.textos.titulo(liquidacion.folio)}
           </Typography>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+          <Typography sx={{ mt: 0.55, fontSize: 14, color: tokens.content.secondary }}>
             {config.textos.contraparte} · {liquidacion.contactoNombre || '—'}
           </Typography>
         </Box>
@@ -377,7 +379,7 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
           onClick={onCancel}
           disabled={liquidacion.saving}
           size="small"
-          sx={{ color: '#64748b', mt: 0.25 }}
+          sx={{ color: tokens.content.muted, mt: 0.25, '&:hover': { bgcolor: tokens.content.hover, color: tokens.content.foreground } }}
         >
           <CloseIcon fontSize="small" />
         </IconButton>
@@ -415,8 +417,8 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
               minHeight: 0,
               overflowY: 'auto',
               overflowX: 'hidden',
-              borderLeft: '1px solid #e5e7eb',
-              bgcolor: '#fff',
+              borderLeft: `1px solid ${tokens.content.border}`,
+              bgcolor: tokens.content.elevated,
               p: 1.25,
             }}
           >
@@ -432,8 +434,8 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
           flexShrink: 0,
           px: { xs: 1.5, md: 2 },
           py: 1.25,
-          bgcolor: '#fff',
-          borderTop: '1px solid #e5e7eb',
+          bgcolor: tokens.content.elevated,
+          borderTop: `1px solid ${tokens.content.border}`,
         }}
       >
         {railActions}

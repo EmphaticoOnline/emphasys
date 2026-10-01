@@ -31,6 +31,8 @@ export interface DocumentosViewCommonProps {
   selectionContent?: React.ReactNode;
   extraActionsContent?: React.ReactNode;
   viewToggleContent?: React.ReactNode;
+  /** Presentación del listado. `catalog` usa el cromado experimental sin cambiar el flujo. */
+  surface?: 'legacy' | 'catalog';
 }
 
 export interface DocumentosDesktopViewProps extends DocumentosViewCommonProps {

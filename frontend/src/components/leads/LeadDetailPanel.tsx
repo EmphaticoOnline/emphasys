@@ -184,7 +184,7 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
               SelectProps={{ MenuProps: leadSelectMenuProps }}
               fullWidth
               helperText={isUpdatingOwner ? 'Actualizando…' : undefined}
-              sx={{ '& .MuiInputBase-input': { fontSize: '0.85rem' }, '& .MuiInputLabel-root': { fontSize: '0.85rem' } }}
+              sx={(theme) => ({ '& .MuiOutlinedInput-root': { borderRadius: 2, backgroundColor: theme.emphasys.content.elevated }, '& .MuiInputBase-input': { fontSize: '0.85rem' }, '& .MuiInputLabel-root': { fontSize: '0.85rem' } })}
             >
               <MenuItem value="">Sin asignar</MenuItem>
               {vendorOptions.map((v) => (
@@ -243,11 +243,12 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
             value={selectedLeadPriority}
             onChange={(e) => updateLead(selectedLead.id, { priority: e.target.value as Priority })}
             SelectProps={{ MenuProps: leadSelectMenuProps }}
-            sx={{
-              maxWidth: 140,
+            sx={(theme) => ({
+              maxWidth: 160,
+              '& .MuiOutlinedInput-root': { borderRadius: 2, backgroundColor: theme.emphasys.content.elevated },
               '& .MuiInputBase-input': { fontSize: '0.85rem' },
               '& .MuiInputLabel-root': { fontSize: '0.85rem' },
-            }}
+            })}
           >
             {priorityOptions.map((p) => (
               <MenuItem key={p} value={p}>
@@ -270,10 +271,11 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
             color="primary"
             SelectProps={{ MenuProps: leadSelectMenuProps }}
             fullWidth
-            sx={{
+            sx={(theme) => ({
+              '& .MuiOutlinedInput-root': { borderRadius: 2, backgroundColor: theme.emphasys.content.elevated },
               '& .MuiInputBase-input': { fontWeight: 700, fontSize: '0.85rem' },
               '& .MuiInputLabel-root': { fontWeight: 700, fontSize: '0.85rem' },
-            }}
+            })}
           >
             {nextActionOptions.map((a) => (
               <MenuItem key={a} value={a}>
@@ -511,7 +513,7 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
               startIcon={<AutoAwesomeIcon fontSize="small" />}
               onClick={handleSuggestMessage}
               disabled={isSuggesting}
-              sx={{ textTransform: 'none', fontSize: '0.75rem', px: 1 }}
+              sx={(theme) => ({ textTransform: 'none', fontSize: '0.75rem', fontWeight: 650, px: 1, color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border, backgroundColor: theme.emphasys.content.elevated })}
             >
               {isSuggesting ? 'Generando…' : 'Sugerir IA'}
             </Button>
@@ -526,7 +528,7 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
               size="small"
               startIcon={<DescriptionIcon fontSize="small" />}
               onClick={handleSendTemplate}
-              sx={{ textTransform: 'none', fontSize: '0.75rem', px: 1 }}
+              sx={(theme) => ({ textTransform: 'none', fontSize: '0.75rem', fontWeight: 650, px: 1, ...(selectedLead.requiresTemplate ? {} : { color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border, backgroundColor: theme.emphasys.content.elevated }) })}
             >
               Plantilla
             </Button>
@@ -536,12 +538,12 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
           <span style={{ display: 'block', width: '100%' }}>
             <Button
               fullWidth
-              variant="outlined"
+              variant={selectedLead.requiresTemplate ? 'outlined' : 'contained'}
               size="small"
               startIcon={<DescriptionIcon fontSize="small" />}
               onClick={handleGenerarCotizacion}
               disabled={!selectedContactoId}
-              sx={{ textTransform: 'none', fontSize: '0.75rem', px: 1 }}
+              sx={(theme) => ({ textTransform: 'none', fontSize: '0.75rem', fontWeight: 650, px: 1, ...(selectedLead.requiresTemplate ? { color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border, backgroundColor: theme.emphasys.content.elevated } : {}) })}
             >
               Cotización
             </Button>
@@ -557,7 +559,7 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
                 startIcon={<ReplayIcon fontSize="small" />}
                 onClick={() => handleReabrirConversacion(selectedLead.id)}
                 disabled={reabrirSavingId === selectedLead.id}
-                sx={{ textTransform: 'none', fontSize: '0.75rem', px: 1 }}
+                sx={(theme) => ({ textTransform: 'none', fontSize: '0.75rem', fontWeight: 650, px: 1, color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border, backgroundColor: theme.emphasys.content.elevated })}
               >
                 {reabrirSavingId === selectedLead.id ? 'Reabriendo…' : 'Reabrir'}
               </Button>
@@ -572,7 +574,7 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
                 size="small"
                 startIcon={<TaskAltIcon fontSize="small" />}
                 onClick={() => handleOpenFinalizarDialog(selectedLead.id)}
-                sx={{ textTransform: 'none', fontSize: '0.75rem', px: 1 }}
+                sx={(theme) => ({ textTransform: 'none', fontSize: '0.75rem', fontWeight: 650, px: 1, color: theme.emphasys.content.secondary, borderColor: theme.emphasys.content.border, backgroundColor: theme.emphasys.content.elevated })}
               >
                 Finalizar
               </Button>

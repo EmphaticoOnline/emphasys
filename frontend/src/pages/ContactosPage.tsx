@@ -644,7 +644,7 @@ export default function ContactosPage() {
   );
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {isMobile ? mobileView : desktopView}
       <ActividadSeguimientoDrawer
         open={seguimientoDrawerOpen}

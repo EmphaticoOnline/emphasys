@@ -17,6 +17,7 @@ import {
   getVentasPorOrigenContacto,
   getDetalleVentasPorOrigen,
   getConversionCotizaciones,
+  getVentasPorVendedor,
   getPedidosPendientesFacturar,
   getRemisionesPendientesFacturar,
   getVencimientosClientes,
@@ -30,11 +31,13 @@ import {
   getMovimientosInventarioPeriodo,
   getProductosBajoMinimo,
   getInventarioValorizado,
+  getResumenEjecutivo,
 } from './reportes.controller';
 
 const router = Router();
 
 router.use(requireAuth, requireEmpresaActiva);
+router.post('/resumen-ejecutivo', getResumenEjecutivo);
 
 router.get('/compras/estado-cuenta-proveedor',         getEstadoCuentaProveedor);
 router.get('/compras/compras-por-proveedor',           getComprasPorProveedor);
@@ -51,6 +54,7 @@ router.get('/catalogos/origenes-contacto',               getOrigenesContacto);
 router.get('/ventas/ventas-por-origen-contacto',       getVentasPorOrigenContacto);
 router.get('/ventas/ventas-por-origen-contacto/detalle', getDetalleVentasPorOrigen);
 router.get('/ventas/conversion-cotizaciones',          getConversionCotizaciones);
+router.get('/ventas/ventas-por-vendedor',              getVentasPorVendedor);
 router.get('/ventas/pedidos-pendientes-facturar',      getPedidosPendientesFacturar);
 router.get('/ventas/remisiones-pendientes-facturar',   getRemisionesPendientesFacturar);
 router.get('/finanzas/vencimientos-proveedores',       getVencimientosProveedores);

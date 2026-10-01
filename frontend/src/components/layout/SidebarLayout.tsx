@@ -52,6 +52,7 @@ import { fetchParametrosSistema } from '../../services/parametrosService';
 import { apiFetch } from '../../api/apiClient';
 import type { RolResumen } from '../../session/sessionTypes';
 import { esRolAdmin, esRolVendedor } from '../../session/rolScope';
+import { MAIN_NAV_TYPE } from '../../theme/tokens';
 
 type DocumentoTabDef = { label: string; value: string; icon: string | null };
 
@@ -167,6 +168,7 @@ function SidebarNav({
 }: SidebarNavProps) {
   const frame = useTheme().emphasys.frame;
   const initials = getInitials(userName);
+  const navType = MAIN_NAV_TYPE;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -240,7 +242,7 @@ function SidebarNav({
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1.25,
+                  gap: navType.iconGap,
                   px: collapsed ? 0 : 1.25,
                   py: 0.85,
                   mx: 0.75,
@@ -248,22 +250,29 @@ function SidebarNav({
                   borderRadius: '7px',
                   cursor: 'pointer',
                   justifyContent: collapsed ? 'center' : 'flex-start',
-                  color: active ? frame.selectionForeground : frame.muted,
+                  color: frame.itemForeground,
+                  opacity: active ? 1 : navType.inactiveOpacity,
                   background: active ? frame.selection : 'transparent',
-                  fontWeight: active ? 600 : 400,
+                  fontWeight: active ? navType.activeFontWeight : navType.fontWeight,
                   boxShadow: active && !collapsed ? `inset 3px 0 0 ${frame.accent}` : 'none',
-                  transition: 'background 0.12s, color 0.12s, box-shadow 0.12s',
+                  transition: 'background 0.12s, color 0.12s, box-shadow 0.12s, opacity 0.12s',
                   '&:hover': {
                     background: active ? frame.selection : frame.hover,
-                    color: frame.foreground,
+                    color: frame.itemForeground,
+                    opacity: 1,
                   },
                 }}
               >
-                <Icon sx={{ fontSize: 18, flexShrink: 0 }} />
+                <Icon sx={{ fontSize: navType.iconSize, flexShrink: 0 }} />
                 {!collapsed && (
                   <Typography sx={{
-                    fontSize: 13, fontWeight: 'inherit', color: 'inherit',
-                    lineHeight: 1, whiteSpace: 'nowrap',
+                    fontFamily: navType.fontFamily,
+                    fontSize: navType.fontSize,
+                    fontWeight: 'inherit',
+                    letterSpacing: active ? navType.activeLetterSpacing : navType.letterSpacing,
+                    lineHeight: navType.lineHeight,
+                    color: 'inherit',
+                    whiteSpace: 'nowrap',
                   }}>
                     {item.label}
                   </Typography>

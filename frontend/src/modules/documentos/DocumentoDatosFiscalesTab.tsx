@@ -310,12 +310,16 @@ export function DocumentoDatosFiscalesTab({ values, onChange, disabled, visibleF
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: fields.forma_pago && fields.metodo_pago ? '1fr 1fr' : '1fr',
+            },
             gap: gridGap,
           }}
         >
           {fields.forma_pago && (
             <Autocomplete
+              fullWidth
               options={formaOptions}
               loading={formaLoading}
               value={

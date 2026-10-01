@@ -24,6 +24,7 @@ import type {
   MovimientosInventarioPeriodoResult,
   ProductosBajoMinimoResult,
   InventarioValorizadoResult,
+  VentasPorVendedorResult,
 } from './reportes.repository';
 
 export function generarVentasPorOrigenPDF(resultado: VentasPorOrigenResult): Promise<Buffer> {
@@ -446,15 +447,28 @@ const CPP_HEADERS_D: Record<CppColD, string> = {
   fecha: 'Fecha', folio: 'Folio', subtotal: 'Subtotal', iva: 'IVA', total: 'Total',
 };
 
-const CPV_HEADERS: Record<CppCol, string> = {
-  nombre: 'Cliente', rfc: 'RFC', facturas: 'Facturas',
-  subtotal: 'Venta', iva: 'IVA', total_comprado: 'Total facturado', pct: '% Part.',
+const CPV_COL = {
+  nombre:         { x: CPP_LEFT,       w: 210, align: 'left'  as const },
+  rfc:            { x: CPP_LEFT + 210, w: 110, align: 'left'  as const },
+  facturas:       { x: CPP_LEFT + 320, w: 52,  align: 'right' as const },
+  total_comprado: { x: CPP_LEFT + 372, w: 90,  align: 'right' as const },
+  pct:            { x: CPP_LEFT + 462, w: 54,  align: 'right' as const },
 };
-const CPV_HEADERS_D: Record<CppColD, string> = {
-  fecha: 'Fecha', folio: 'Folio', subtotal: 'Venta', iva: 'IVA', total: 'Total facturado',
+const CPV_COLS = ['nombre', 'rfc', 'facturas', 'total_comprado', 'pct'] as const;
+const CPV_HEADERS: Record<(typeof CPV_COLS)[number], string> = {
+  nombre: 'Cliente', rfc: 'RFC', facturas: 'Facturas', total_comprado: 'Ventas', pct: '% Part.',
+};
+const CPV_COL_D = {
+  fecha:    { x: CPP_LEFT,       w: 90,  align: 'left'  as const },
+  folio:    { x: CPP_LEFT + 90,  w: 220, align: 'left'  as const },
+  subtotal: { x: CPP_LEFT + 310, w: 206, align: 'right' as const },
+};
+const CPV_COLS_D = ['fecha', 'folio', 'subtotal'] as const;
+const CPV_HEADERS_D: Record<(typeof CPV_COLS_D)[number], string> = {
+  fecha: 'Fecha', folio: 'Folio', subtotal: 'Ventas',
 };
 
-function cppDrawHeaderRow(doc: InstanceType<typeof PDFDocument>, y: number, cols: typeof CPP_COL | typeof CPP_COL_D, headers: Record<string, string>, keys: string[]) {
+function cppDrawHeaderRow(doc: InstanceType<typeof PDFDocument>, y: number, cols: Record<string, AnyCol>, headers: Record<string, string>, keys: string[]) {
   doc.rect(CPP_LEFT, y, CPP_W, HEADER_H).fill(BRAND);
   for (const key of keys) {
     const col = (cols as Record<string, AnyCol>)[key];
@@ -483,20 +497,28 @@ function cppDrawResumenRow(doc: InstanceType<typeof PDFDocument>, p: ContactoVol
     }
   };
 
+  if (esVentas) {
+    draw(p.nombre, CPV_COL.nombre);
+    draw(p.rfc, CPV_COL.rfc);
+    draw(String(p.cantidad_facturas), CPV_COL.facturas);
+    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(BRAND);
+    doc.text(fmt(p.total_comprado), CPV_COL.total_comprado.x, y + pad, { width: CPV_COL.total_comprado.w - pad, align: 'right', lineBreak: false });
+    doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_HEADER);
+    doc.text(`${p.pct_participacion.toFixed(2)} %`, CPV_COL.pct.x, y + pad, { width: CPV_COL.pct.w - pad, align: 'right', lineBreak: false });
+    return;
+  }
   draw(p.nombre,                             CPP_COL.nombre);
   draw(p.rfc,                                CPP_COL.rfc);
   draw(String(p.cantidad_facturas),          CPP_COL.facturas);
   draw(fmt(p.subtotal),                      CPP_COL.subtotal);
   draw(fmt(p.iva),                           CPP_COL.iva);
   doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(BRAND);
-  if (CPP_COL.total_comprado.align === 'right') {
-    doc.text(fmt(esVentas ? p.total_facturado : p.total_comprado), CPP_COL.total_comprado.x, y + pad, { width: CPP_COL.total_comprado.w - pad, align: 'right', lineBreak: false });
-  }
+  doc.text(fmt(p.total_comprado), CPP_COL.total_comprado.x, y + pad, { width: CPP_COL.total_comprado.w - pad, align: 'right', lineBreak: false });
   doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_HEADER);
   doc.text(`${p.pct_participacion.toFixed(2)} %`, CPP_COL.pct.x, y + pad, { width: CPP_COL.pct.w - pad, align: 'right', lineBreak: false });
 }
 
-function cppDrawFacturaRow(doc: InstanceType<typeof PDFDocument>, f: FacturaVolumenDetalle, y: number, shade: boolean) {
+function cppDrawFacturaRow(doc: InstanceType<typeof PDFDocument>, f: FacturaVolumenDetalle, y: number, shade: boolean, esVentas = false) {
   if (shade) doc.rect(CPP_LEFT, y, CPP_W, ROW_H).fill(GRAY_LIGHT);
   const color = f.cancelado ? GRAY_MID : BLACK;
   const strike = f.cancelado;
@@ -517,6 +539,12 @@ function cppDrawFacturaRow(doc: InstanceType<typeof PDFDocument>, f: FacturaVolu
     }
   };
 
+  if (esVentas) {
+    draw(fmtFecha(f.fecha), CPV_COL_D.fecha);
+    draw(f.folio, CPV_COL_D.folio);
+    draw(fmt(f.subtotal), CPV_COL_D.subtotal);
+    return;
+  }
   draw(fmtFecha(f.fecha),  CPP_COL_D.fecha);
   draw(f.folio,            CPP_COL_D.folio);
   draw(fmt(f.subtotal),    CPP_COL_D.subtotal);
@@ -533,7 +561,11 @@ export function generarVolumenContactoPDF(
   const esVentas = contactoLabel === 'Cliente';
   const encabezados = esVentas ? CPV_HEADERS : CPP_HEADERS;
   const encabezadosDetalle = esVentas ? CPV_HEADERS_D : CPP_HEADERS_D;
-  const etiquetaTotal = esVentas ? 'Venta' : 'Total comprado';
+  const colsResumen = esVentas ? CPV_COL : CPP_COL;
+  const keysResumen = esVentas ? CPV_COLS : CPP_COLS;
+  const colsDetalle = esVentas ? CPV_COL_D : CPP_COL_D;
+  const keysDetalle = esVentas ? CPV_COLS_D : CPP_COLS_D;
+  const etiquetaTotal = esVentas ? 'Ventas totales' : 'Total comprado';
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: titulo } });
@@ -587,12 +619,12 @@ export function generarVolumenContactoPDF(
 
     if (!detalle) {
       // ── Vista resumen ──
-      y = cppDrawHeaderRow(doc, y, CPP_COL, encabezados, CPP_COLS);
+      y = cppDrawHeaderRow(doc, y, colsResumen, encabezados, [...keysResumen]);
       let shade = 0;
       for (const p of resultado.contactos) {
         if (y + ROW_H > PAGE_H - MARGIN_BOTTOM) {
           addPageHeader();
-          y = cppDrawHeaderRow(doc, y, CPP_COL, encabezados, CPP_COLS);
+          y = cppDrawHeaderRow(doc, y, colsResumen, encabezados, [...keysResumen]);
           shade = 0;
         }
         cppDrawResumenRow(doc, p, y, shade % 2 === 0, esVentas);
@@ -604,12 +636,12 @@ export function generarVolumenContactoPDF(
       y += 2;
       doc.rect(CPP_LEFT, y, CPP_W, 1).fill(BRAND);
       y += 5;
-      const labelW = 90;
+      const labelCol = esVentas ? CPV_COL.facturas : CPP_COL.iva;
+      const amountCol = esVentas ? CPV_COL.total_comprado : CPP_COL.total_comprado;
       doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-        .text(`${etiquetaTotal}:`, CPP_COL.iva.x, y, { width: CPP_COL.iva.w - 3, align: 'right', lineBreak: false });
+        .text(`${etiquetaTotal}:`, labelCol.x, y, { width: labelCol.w - 3, align: 'right', lineBreak: false });
       doc.font('Helvetica-Bold').fontSize(FONT_MD).fillColor(BRAND)
-        .text(fmt(totalGeneral), CPP_COL.total_comprado.x, y, { width: CPP_COL.total_comprado.w - 3, align: 'right', lineBreak: false });
-      void labelW;
+        .text(fmt(totalGeneral), amountCol.x, y, { width: amountCol.w - 3, align: 'right', lineBreak: false });
     } else {
       // ── Vista detalle ──
       const facturasPorContacto = new Map<number, FacturaVolumenDetalle[]>();
@@ -641,16 +673,16 @@ export function generarVolumenContactoPDF(
 
         // Encabezado de columnas
         if (y + HEADER_H > PAGE_H - MARGIN_BOTTOM) { addPageHeader(); }
-      y = cppDrawHeaderRow(doc, y, CPP_COL_D, encabezadosDetalle, CPP_COLS_D);
+      y = cppDrawHeaderRow(doc, y, colsDetalle, encabezadosDetalle, [...keysDetalle]);
 
         let shade = 0;
         for (const f of facturas) {
           if (y + ROW_H > PAGE_H - MARGIN_BOTTOM) {
             addPageHeader();
-            y = cppDrawHeaderRow(doc, y, CPP_COL_D, encabezadosDetalle, CPP_COLS_D);
+            y = cppDrawHeaderRow(doc, y, colsDetalle, encabezadosDetalle, [...keysDetalle]);
             shade = 0;
           }
-          cppDrawFacturaRow(doc, f, y, shade % 2 === 0);
+          cppDrawFacturaRow(doc, f, y, shade % 2 === 0, esVentas);
           y += ROW_H;
           shade++;
         }
@@ -659,10 +691,12 @@ export function generarVolumenContactoPDF(
         y += 2;
         doc.rect(CPP_LEFT, y, CPP_W, 0.5).fill(GRAY_MID);
         y += 4;
+        const detalleLabel = esVentas ? CPV_COL_D.folio : CPP_COL_D.iva;
+        const detalleMonto = esVentas ? CPV_COL_D.subtotal : CPP_COL_D.total;
         doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-        .text(`${esVentas ? 'Venta' : 'Subtotal proveedor'}:`, CPP_COL_D.iva.x, y, { width: CPP_COL_D.iva.w - 3, align: 'right', lineBreak: false });
+        .text(`${esVentas ? 'Ventas' : 'Subtotal proveedor'}:`, detalleLabel.x, y, { width: detalleLabel.w - 3, align: 'right', lineBreak: false });
         doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(BRAND)
-          .text(fmt(p.total_comprado), CPP_COL_D.total.x, y, { width: CPP_COL_D.total.w - 3, align: 'right', lineBreak: false });
+          .text(fmt(p.total_comprado), detalleMonto.x, y, { width: detalleMonto.w - 3, align: 'right', lineBreak: false });
         y += ROW_H + 4;
       }
 
@@ -670,10 +704,12 @@ export function generarVolumenContactoPDF(
       y += 2;
       doc.rect(CPP_LEFT, y, CPP_W, 1).fill(BRAND);
       y += 5;
+      const totalLabelCol = esVentas ? CPV_COL_D.folio : CPP_COL_D.iva;
+      const totalMontoCol = esVentas ? CPV_COL_D.subtotal : CPP_COL_D.total;
       doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-        .text(`${etiquetaTotal}:`, CPP_COL_D.iva.x, y, { width: CPP_COL_D.iva.w - 3, align: 'right', lineBreak: false });
+        .text(`${etiquetaTotal}:`, totalLabelCol.x, y, { width: totalLabelCol.w - 3, align: 'right', lineBreak: false });
       doc.font('Helvetica-Bold').fontSize(FONT_MD).fillColor(BRAND)
-        .text(fmt(totalGeneral), CPP_COL_D.total.x, y, { width: CPP_COL_D.total.w - 3, align: 'right', lineBreak: false });
+        .text(fmt(totalGeneral), totalMontoCol.x, y, { width: totalMontoCol.w - 3, align: 'right', lineBreak: false });
     }
 
     // Pie de página
@@ -710,12 +746,16 @@ const PPP_COL = {
 type PppCol = keyof typeof PPP_COL;
 const PPP_COLS: PppCol[] = ['clave', 'descripcion', 'unidad', 'cantidad', 'precio_prom', 'ultimo_pu', 'total', 'ult_mov', 'pct'];
 const PPP_COL_V = {
-  ...PPP_COL,
-  venta: { x: PPP_LEFT + 366, w: 48, align: 'right' as const },
-  impuestos: { x: PPP_LEFT + 414, w: 48, align: 'right' as const },
-  total_facturado: { x: PPP_LEFT + 462, w: 54, align: 'right' as const },
+  clave:       { x: PPP_LEFT,       w: 52,  align: 'left'  as const },
+  descripcion: { x: PPP_LEFT + 52,  w: 150, align: 'left'  as const },
+  cantidad:    { x: PPP_LEFT + 202, w: 46,  align: 'right' as const },
+  precio_prom: { x: PPP_LEFT + 248, w: 58,  align: 'right' as const },
+  ultimo_pu:   { x: PPP_LEFT + 306, w: 58,  align: 'right' as const },
+  ventas:      { x: PPP_LEFT + 364, w: 68,  align: 'right' as const },
+  ult_mov:     { x: PPP_LEFT + 432, w: 48,  align: 'right' as const },
+  pct:         { x: PPP_LEFT + 480, w: 36,  align: 'right' as const },
 };
-const PPP_COLS_V = ['clave', 'descripcion', 'unidad', 'cantidad', 'precio_prom', 'ultimo_pu', 'venta', 'impuestos', 'total_facturado', 'ult_mov', 'pct'];
+const PPP_COLS_V = ['clave', 'descripcion', 'cantidad', 'precio_prom', 'ultimo_pu', 'ventas', 'ult_mov', 'pct'];
 
 // Columnas vista detalle de partidas (7 cols, 516px total)
 const PPP_COL_D = {
@@ -730,12 +770,14 @@ const PPP_COL_D = {
 type PppColD = keyof typeof PPP_COL_D;
 const PPP_COLS_D: PppColD[] = ['fecha', 'folio', 'contacto', 'cantidad', 'precio_unit', 'subtotal', 'total'];
 const PPP_COL_D_V = {
-  ...PPP_COL_D,
-  venta: { x: PPP_LEFT + 352, w: 54, align: 'right' as const },
-  impuestos: { x: PPP_LEFT + 406, w: 54, align: 'right' as const },
-  total_facturado: { x: PPP_LEFT + 460, w: 56, align: 'right' as const },
+  fecha:       { x: PPP_LEFT,       w: 62,  align: 'left'  as const },
+  folio:       { x: PPP_LEFT + 62,  w: 78,  align: 'left'  as const },
+  contacto:    { x: PPP_LEFT + 140, w: 156, align: 'left'  as const },
+  cantidad:    { x: PPP_LEFT + 296, w: 48,  align: 'right' as const },
+  precio_unit: { x: PPP_LEFT + 344, w: 72,  align: 'right' as const },
+  ventas:      { x: PPP_LEFT + 416, w: 100, align: 'right' as const },
 };
-const PPP_COLS_D_V = ['fecha', 'folio', 'contacto', 'cantidad', 'precio_unit', 'venta', 'impuestos', 'total_facturado'];
+const PPP_COLS_D_V = ['fecha', 'folio', 'contacto', 'cantidad', 'precio_unit', 'ventas'];
 
 function pppDrawHeaderRow(
   doc: InstanceType<typeof PDFDocument>,
@@ -777,21 +819,17 @@ function pppDrawResumenRow(
     }
   };
 
-  draw(p.clave, PPP_COL.clave);
-  draw(p.descripcion, PPP_COL.descripcion);
-  draw(p.unidad, PPP_COL.unidad);
-  draw(p.cantidad_total.toLocaleString('es-MX', { maximumFractionDigits: 4 }), PPP_COL.cantidad);
-  draw(fmt(p.precio_promedio), PPP_COL.precio_prom);
-  draw(fmt(p.ultimo_precio_unitario), PPP_COL.ultimo_pu);
-  if (esVentas) {
-    draw(fmt(p.venta), PPP_COL_V.venta, true, BRAND);
-    draw(fmt(p.iva), PPP_COL_V.impuestos);
-    draw(fmt(p.total_facturado), PPP_COL_V.total_facturado, true, BRAND);
-  } else {
-    draw(fmt(p.total), PPP_COL.total, true, BRAND);
-  }
-  draw(fmtFecha(p.ultimo_movimiento), PPP_COL.ult_mov);
-  draw(`${p.pct_participacion.toFixed(2)} %`, PPP_COL.pct);
+  const cols = esVentas ? PPP_COL_V : PPP_COL;
+  draw(p.clave, cols.clave);
+  draw(p.descripcion, cols.descripcion);
+  if (!esVentas) draw(p.unidad, PPP_COL.unidad);
+  draw(p.cantidad_total.toLocaleString('es-MX', { maximumFractionDigits: 4 }), cols.cantidad);
+  draw(fmt(p.precio_promedio), cols.precio_prom);
+  draw(fmt(p.ultimo_precio_unitario), cols.ultimo_pu);
+  if (esVentas) draw(fmt(p.venta), PPP_COL_V.ventas, true, BRAND);
+  else draw(fmt(p.total), PPP_COL.total, true, BRAND);
+  draw(fmtFecha(p.ultimo_movimiento), cols.ult_mov);
+  draw(`${p.pct_participacion.toFixed(2)} %`, cols.pct);
 }
 
 function pppDrawPartidaRow(
@@ -813,16 +851,14 @@ function pppDrawPartidaRow(
     }
   };
 
-  draw(fmtFecha(partida.fecha), PPP_COL_D.fecha);
-  draw(partida.folio, PPP_COL_D.folio);
-  draw(partida.contacto_nombre, PPP_COL_D.contacto);
-  draw(partida.cantidad.toLocaleString('es-MX', { maximumFractionDigits: 4 }), PPP_COL_D.cantidad);
-  draw(fmt(partida.precio_unitario), PPP_COL_D.precio_unit);
-  if (esVentas) {
-    draw(fmt(partida.subtotal), PPP_COL_D_V.venta);
-    draw(fmt(partida.iva), PPP_COL_D_V.impuestos);
-    draw(fmt(partida.total_facturado), PPP_COL_D_V.total_facturado, true);
-  } else {
+  const cols = esVentas ? PPP_COL_D_V : PPP_COL_D;
+  draw(fmtFecha(partida.fecha), cols.fecha);
+  draw(partida.folio, cols.folio);
+  draw(partida.contacto_nombre, cols.contacto);
+  draw(partida.cantidad.toLocaleString('es-MX', { maximumFractionDigits: 4 }), cols.cantidad);
+  draw(fmt(partida.precio_unitario), cols.precio_unit);
+  if (esVentas) draw(fmt(partida.subtotal), PPP_COL_D_V.ventas, true);
+  else {
     draw(fmt(partida.subtotal), PPP_COL_D.subtotal);
     draw(fmt(partida.total), PPP_COL_D.total, true);
   }
@@ -839,21 +875,21 @@ export function generarVolumenProductoPDF(
   const PPP_HEADERS: Record<PppCol, string> = {
     clave: 'Clave', descripcion: 'Descripción', unidad: 'Unidad', cantidad: 'Cantidad',
     precio_prom: 'Precio Prom.', ultimo_pu: ultimoPrecioLabel.length > 12 ? 'Últ. C/P' : ultimoPrecioLabel,
-    total: esVentas ? 'Total facturado' : 'Total', ult_mov: 'Últ. Mov.', pct: '% Part.',
+    total: esVentas ? 'Ventas' : 'Total', ult_mov: 'Últ. Mov.', pct: '% Part.',
   };
   const PPP_HEADERS_D: Record<PppColD, string> = {
     fecha: 'Fecha', folio: 'Folio', contacto: contactoLabel,
-    cantidad: 'Cantidad', precio_unit: 'Precio Unit.', subtotal: esVentas ? 'Venta' : 'Subtotal', total: esVentas ? 'Total facturado' : 'Total',
+    cantidad: 'Cantidad', precio_unit: 'Precio Unit.', subtotal: 'Subtotal', total: 'Total',
   };
   const resumenHeaders = esVentas
-    ? { ...PPP_HEADERS, venta: 'Venta', impuestos: 'Impuestos', total_facturado: 'Total facturado' }
+    ? { clave: 'Clave', descripcion: 'Descripción', cantidad: 'Cantidad', precio_prom: 'Precio Prom.', ultimo_pu: ultimoPrecioLabel.length > 12 ? 'Últ. C/P' : ultimoPrecioLabel, ventas: 'Ventas', ult_mov: 'Últ. Mov.', pct: '% Part.' }
     : PPP_HEADERS;
   const resumenCols = esVentas ? PPP_COL_V : PPP_COL;
   const resumenKeys = esVentas ? PPP_COLS_V : PPP_COLS;
   const detalleCols = esVentas ? PPP_COL_D_V : PPP_COL_D;
   const detalleKeys = esVentas ? PPP_COLS_D_V : PPP_COLS_D;
   const detalleHeaders = esVentas
-    ? { ...PPP_HEADERS_D, venta: 'Venta', impuestos: 'Impuestos', total_facturado: 'Total facturado' }
+    ? { fecha: 'Fecha', folio: 'Folio', contacto: contactoLabel, cantidad: 'Cantidad', precio_unit: 'Precio Unit.', ventas: 'Ventas' }
     : PPP_HEADERS_D;
 
   return new Promise((resolve, reject) => {
@@ -888,7 +924,7 @@ export function generarVolumenProductoPDF(
 
     y += 32;
 
-    doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID).text(esVentas ? 'VENTA' : 'TOTAL', PPP_LEFT, y);
+    doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID).text(esVentas ? 'VENTAS' : 'TOTAL', PPP_LEFT, y);
     doc.font('Helvetica-Bold').fontSize(13).fillColor(BRAND)
       .text(fmt(totalGeneral), PPP_LEFT, y + 8, { lineBreak: false });
 
@@ -915,7 +951,7 @@ export function generarVolumenProductoPDF(
       for (const p of resultado.productos) {
         if (y + ROW_H > PAGE_H - MARGIN_BOTTOM) {
           addPageHeader();
-          y = pppDrawHeaderRow(doc, y, PPP_COL as unknown as Record<string, AnyCol>, PPP_HEADERS, PPP_COLS);
+          y = pppDrawHeaderRow(doc, y, resumenCols as unknown as Record<string, AnyCol>, resumenHeaders, resumenKeys);
           shade = 0;
         }
         pppDrawResumenRow(doc, p, y, shade % 2 === 0, esVentas);
@@ -928,9 +964,9 @@ export function generarVolumenProductoPDF(
       doc.rect(PPP_LEFT, y, PPP_W, 1).fill(BRAND);
       y += 5;
       doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-        .text(esVentas ? 'Total facturado:' : 'Total:', PPP_COL.ultimo_pu.x, y, { width: PPP_COL.ultimo_pu.w - 3, align: 'right', lineBreak: false });
+        .text(esVentas ? 'Ventas:' : 'Total:', (esVentas ? PPP_COL_V.ultimo_pu : PPP_COL.ultimo_pu).x, y, { width: (esVentas ? PPP_COL_V.ultimo_pu : PPP_COL.ultimo_pu).w - 3, align: 'right', lineBreak: false });
       doc.font('Helvetica-Bold').fontSize(FONT_MD).fillColor(BRAND)
-        .text(fmt(totalGeneral), (esVentas ? PPP_COL_V.total_facturado : PPP_COL.total).x, y, { width: (esVentas ? PPP_COL_V.total_facturado : PPP_COL.total).w - 3, align: 'right', lineBreak: false });
+        .text(fmt(totalGeneral), (esVentas ? PPP_COL_V.ventas : PPP_COL.total).x, y, { width: (esVentas ? PPP_COL_V.ventas : PPP_COL.total).w - 3, align: 'right', lineBreak: false });
 
     } else {
       // ── Vista detalle ──────────────────────────────────────────────────────
@@ -949,7 +985,7 @@ export function generarVolumenProductoPDF(
         doc.font('Helvetica-Bold').fontSize(FONT_MD).fillColor(BLACK)
           .text(`${prod.clave} — ${prod.descripcion}`, PPP_LEFT + 3, y + 3, { width: PPP_W - 116, lineBreak: false, ellipsis: true });
         doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID)
-          .text(`${prod.unidad || '—'} · Últ. mov.: ${fmtFecha(prod.ultimo_movimiento)}`, PPP_LEFT + 3, y + 13, { lineBreak: false });
+          .text(esVentas ? `Últ. mov.: ${fmtFecha(prod.ultimo_movimiento)}` : `${prod.unidad || '—'} · Últ. mov.: ${fmtFecha(prod.ultimo_movimiento)}`, PPP_LEFT + 3, y + 13, { lineBreak: false });
         doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(BRAND)
           .text(fmt(prod.venta), PPP_RIGHT - 110, y + 3, { width: 107, align: 'right', lineBreak: false });
         doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID)
@@ -978,9 +1014,9 @@ export function generarVolumenProductoPDF(
         doc.rect(PPP_LEFT, y, PPP_W, 0.5).fill(GRAY_MID);
         y += 4;
         doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-          .text(esVentas ? 'Venta artículo:' : 'Subtotal artículo:', PPP_COL_D.precio_unit.x, y, { width: PPP_COL_D.precio_unit.w - 3, align: 'right', lineBreak: false });
+          .text(esVentas ? 'Ventas:' : 'Subtotal artículo:', (esVentas ? PPP_COL_D_V.precio_unit : PPP_COL_D.precio_unit).x, y, { width: (esVentas ? PPP_COL_D_V.precio_unit : PPP_COL_D.precio_unit).w - 3, align: 'right', lineBreak: false });
         doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(BRAND)
-          .text(fmt(prod.venta), PPP_COL_D.subtotal.x, y, { width: PPP_COL_D.subtotal.w - 3, align: 'right', lineBreak: false });
+          .text(fmt(prod.venta), (esVentas ? PPP_COL_D_V.ventas : PPP_COL_D.subtotal).x, y, { width: (esVentas ? PPP_COL_D_V.ventas : PPP_COL_D.subtotal).w - 3, align: 'right', lineBreak: false });
         y += ROW_H + 6;
       }
 
@@ -989,9 +1025,9 @@ export function generarVolumenProductoPDF(
       doc.rect(PPP_LEFT, y, PPP_W, 1).fill(BRAND);
       y += 5;
       doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-        .text(esVentas ? 'Total facturado:' : 'Total:', PPP_COL_D.precio_unit.x, y, { width: PPP_COL_D.precio_unit.w - 3, align: 'right', lineBreak: false });
+        .text(esVentas ? 'Ventas:' : 'Total:', (esVentas ? PPP_COL_D_V.precio_unit : PPP_COL_D.precio_unit).x, y, { width: (esVentas ? PPP_COL_D_V.precio_unit : PPP_COL_D.precio_unit).w - 3, align: 'right', lineBreak: false });
       doc.font('Helvetica-Bold').fontSize(FONT_MD).fillColor(BRAND)
-        .text(fmt(totalGeneral), PPP_COL_D.total.x, y, { width: PPP_COL_D.total.w - 3, align: 'right', lineBreak: false });
+        .text(fmt(totalGeneral), (esVentas ? PPP_COL_D_V.ventas : PPP_COL_D.total).x, y, { width: (esVentas ? PPP_COL_D_V.ventas : PPP_COL_D.total).w - 3, align: 'right', lineBreak: false });
     }
 
     // Pie de página
@@ -1640,20 +1676,24 @@ export function generarMovimientosPorPeriodoPDF(
 
     addPageHeader();
 
+    const esVentas = contactoLabel === 'Cliente';
+    const ventasPdf = resultado.periodos.reduce((s, p) => s + p.subtotal, 0);
     const { fecha_inicio, fecha_fin, kpis } = resultado;
     doc.font('Helvetica').fontSize(FONT_SM).fillColor(GRAY_MID)
       .text(`${fmtFecha(fecha_inicio)} — ${fmtFecha(fecha_fin)}`, MP_LEFT, y, { lineBreak: false });
     y += 14;
 
-    // KPIs — cantidad solo se muestra cuando hay producto seleccionado
+    const ticketPdf = kpis.cantidad_documentos > 0
+      ? (esVentas ? ventasPdf / kpis.cantidad_documentos : kpis.ticket_promedio)
+      : 0;
     const kpiItems = [
-      { label: 'Total comprado',    valor: `$${fmt(kpis.total)}`           },
+      { label: esVentas ? 'Total vendido' : 'Total comprado', valor: `$${fmt(esVentas ? ventasPdf : kpis.total)}` },
       { label: 'Documentos',        valor: String(kpis.cantidad_documentos) },
       { label: `${contactoLabel}s`, valor: String(kpis.cantidad_contactos)  },
       ...(mostrarCantidad
         ? [{ label: 'Cantidad', valor: kpis.cantidad_total.toLocaleString('es-MX', { maximumFractionDigits: 2 }) }]
         : []),
-      { label: 'Ticket promedio',   valor: kpis.cantidad_documentos > 0 ? `$${fmt(kpis.ticket_promedio)}` : '—' },
+      { label: 'Ticket promedio',   valor: kpis.cantidad_documentos > 0 ? `$${fmt(ticketPdf)}` : '—' },
     ];
     const kpiW = MP_W / kpiItems.length;
     kpiItems.forEach((k, i) => {
@@ -1667,7 +1707,22 @@ export function generarMovimientosPorPeriodoPDF(
     y += 36;
 
     // Diseño de columnas — varía según mostrarCantidad
-    const colsResumen: MpColDef[] = mostrarCantidad
+    const colsResumen: MpColDef[] = esVentas
+      ? (mostrarCantidad
+        ? [
+            { x: 40,  w: 120, align: 'left',  header: 'Período'            },
+            { x: 160, w: 64,  align: 'right', header: 'Docs.'              },
+            { x: 224, w: 70,  align: 'right', header: `${contactoLabel}s`  },
+            { x: 294, w: 80,  align: 'right', header: 'Cantidad'           },
+            { x: 374, w: 182, align: 'right', header: 'Ventas'             },
+          ]
+        : [
+            { x: 40,  w: 140, align: 'left',  header: 'Período'            },
+            { x: 180, w: 70,  align: 'right', header: 'Docs.'              },
+            { x: 250, w: 80,  align: 'right', header: `${contactoLabel}s`  },
+            { x: 330, w: 226, align: 'right', header: 'Ventas'             },
+          ])
+      : (mostrarCantidad
       ? [
           { x: 40,  w: 100, align: 'left',  header: 'Período'            },
           { x: 140, w: 58,  align: 'right', header: 'Docs.'              },
@@ -1684,9 +1739,24 @@ export function generarMovimientosPorPeriodoPDF(
           { x: 256, w: 92,  align: 'right', header: 'Subtotal'           },
           { x: 348, w: 70,  align: 'right', header: 'IVA'                },
           { x: 418, w: 138, align: 'right', header: 'Total'              },
-        ];
+        ]);
 
-    const colsDetalle: MpColDef[] = mostrarCantidad
+    const colsDetalle: MpColDef[] = esVentas
+      ? (mostrarCantidad
+        ? [
+            { x: 40,  w: 62,  align: 'left',  header: 'Fecha'        },
+            { x: 102, w: 80,  align: 'left',  header: 'Documento'    },
+            { x: 182, w: 160, align: 'left',  header: contactoLabel  },
+            { x: 342, w: 70,  align: 'right', header: 'Cantidad'     },
+            { x: 412, w: 144, align: 'right', header: 'Ventas'       },
+          ]
+        : [
+            { x: 40,  w: 70,  align: 'left',  header: 'Fecha'        },
+            { x: 110, w: 90,  align: 'left',  header: 'Documento'    },
+            { x: 200, w: 220, align: 'left',  header: contactoLabel  },
+            { x: 420, w: 136, align: 'right', header: 'Ventas'       },
+          ])
+      : (mostrarCantidad
       ? [
           { x: 40,  w: 58,  align: 'left',  header: 'Fecha'        },
           { x: 98,  w: 70,  align: 'left',  header: 'Documento'    },
@@ -1703,7 +1773,7 @@ export function generarMovimientosPorPeriodoPDF(
           { x: 376, w: 68,  align: 'right', header: 'Subtotal'     },
           { x: 444, w: 52,  align: 'right', header: 'IVA'          },
           { x: 496, w: 60,  align: 'right', header: 'Total'        },
-        ];
+        ]);
 
     const drawTableHeader = (cols: MpColDef[], bgColor: string) => {
       doc.rect(MP_LEFT, y, MP_W, HEADER_H).fill(bgColor);
@@ -1740,10 +1810,11 @@ export function generarMovimientosPorPeriodoPDF(
         'Subtotal':               fmt(p.subtotal),
         'IVA':                    fmt(p.iva),
         'Total':                  fmt(p.total),
+        'Ventas':                 fmt(p.subtotal),
       };
       for (const col of colsResumen) {
         drawCell(doc, resumenVals[col.header] ?? '', col, y,
-          col.header === 'Total' ? { bold: true, color: BRAND } : {});
+          col.header === 'Total' || col.header === 'Ventas' ? { bold: true, color: BRAND } : {});
       }
       y += ROW_H;
       shade++;
@@ -1756,17 +1827,26 @@ export function generarMovimientosPorPeriodoPDF(
     const totalSum    = resultado.periodos.reduce((s, p) => s + p.total, 0);
     const subtotalSum = resultado.periodos.reduce((s, p) => s + p.subtotal, 0);
     const ivaSum      = resultado.periodos.reduce((s, p) => s + p.iva, 0);
-    const colSubtotal = colsResumen.find((c) => c.header === 'Subtotal')!;
-    const colIva      = colsResumen.find((c) => c.header === 'IVA')!;
-    const colTotal    = colsResumen.find((c) => c.header === 'Total')!;
-    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-      .text('Total:', colIva.x, y, { width: colIva.w - 3, align: 'right', lineBreak: false });
-    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-      .text(fmt(subtotalSum), colSubtotal.x, y, { width: colSubtotal.w - 3, align: 'right', lineBreak: false });
-    doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
-      .text(fmt(ivaSum), colIva.x, y, { width: colIva.w - 3, align: 'right', lineBreak: false });
-    doc.font('Helvetica-Bold').fontSize(FONT_MD).fillColor(BRAND)
-      .text(fmt(totalSum), colTotal.x, y, { width: colTotal.w - 3, align: 'right', lineBreak: false });
+    if (esVentas) {
+      const colVentas = colsResumen.find((c) => c.header === 'Ventas')!;
+      const previa = colsResumen[colsResumen.length - 2];
+      doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+        .text('Ventas:', previa.x, y, { width: previa.w - 3, align: 'right', lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(FONT_MD).fillColor(BRAND)
+        .text(fmt(subtotalSum), colVentas.x, y, { width: colVentas.w - 3, align: 'right', lineBreak: false });
+    } else {
+      const colSubtotal = colsResumen.find((c) => c.header === 'Subtotal')!;
+      const colIva      = colsResumen.find((c) => c.header === 'IVA')!;
+      const colTotal    = colsResumen.find((c) => c.header === 'Total')!;
+      doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+        .text('Total:', colIva.x, y, { width: colIva.w - 3, align: 'right', lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+        .text(fmt(subtotalSum), colSubtotal.x, y, { width: colSubtotal.w - 3, align: 'right', lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(FONT_SM).fillColor(GRAY_HEADER)
+        .text(fmt(ivaSum), colIva.x, y, { width: colIva.w - 3, align: 'right', lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(FONT_MD).fillColor(BRAND)
+        .text(fmt(totalSum), colTotal.x, y, { width: colTotal.w - 3, align: 'right', lineBreak: false });
+    }
     y += 16;
 
     // ── Detalle por período ───────────────────────────────────────────────────
@@ -1808,10 +1888,11 @@ export function generarMovimientosPorPeriodoPDF(
             'Subtotal':      fmt(d.subtotal),
             'IVA':           fmt(d.iva),
             'Total':         fmt(d.total),
+            'Ventas':        fmt(d.subtotal),
           };
           for (const col of colsDetalle) {
             drawCell(doc, detalleVals[col.header] ?? '', col, y,
-              col.header === 'Total' ? { bold: true, color: BRAND } : {});
+              col.header === 'Total' || col.header === 'Ventas' ? { bold: true, color: BRAND } : {});
           }
           y += ROW_H;
           rowShade++;
@@ -2412,6 +2493,37 @@ export function generarInventarioValorizadoPDF(resultado: InventarioValorizadoRe
       .text(`Unidades totales: ${totalUnidades.toLocaleString('es-MX', { maximumFractionDigits: 4 })}`, INV_LEFT, y, { lineBreak: false });
     y += 12;
     invFooter(doc, y);
+    doc.end();
+  });
+}
+
+export function generarVentasPorVendedorPDF(resultado: VentasPorVendedorResult): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: 'Ventas por Vendedor' } });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    doc.fontSize(16).fillColor('#111111').text('Ventas por Vendedor');
+    doc.moveDown(0.3);
+    doc.fontSize(9).fillColor('#666666').text(`${resultado.fecha_inicio} — ${resultado.fecha_fin}`);
+    doc.moveDown(0.4);
+    doc.fillColor('#111111').fontSize(10).text(
+      `Vendedores activos: ${resultado.vendedores_activos}    Ventas totales: $${fmt(resultado.ventas_totales)}    Facturas: ${resultado.facturas}    Vendedor principal: ${resultado.vendedor_principal ?? '—'}`
+    );
+    doc.moveDown(0.8);
+    doc.font('Helvetica-Bold').fontSize(9).text('Vendedor                         Clientes   Facturas            Ventas     % Part.');
+    doc.font('Helvetica').fontSize(9);
+    for (const row of resultado.vendedores) {
+      doc.text(
+        `${row.vendedor.padEnd(32).slice(0, 32)} ${String(row.clientes).padStart(8)} ${String(row.facturas).padStart(10)} ${fmt(row.ventas).padStart(18)} ${row.pct_participacion.toFixed(2).padStart(8)}%`
+      );
+    }
+    doc.moveDown(0.4);
+    doc.font('Helvetica-Bold').text(
+      `${'TOTAL'.padEnd(32)} ${String(resultado.clientes).padStart(8)} ${String(resultado.facturas).padStart(10)} ${fmt(resultado.ventas_totales).padStart(18)} ${(resultado.ventas_totales > 0 ? 100 : 0).toFixed(2)}%`
+    );
     doc.end();
   });
 }

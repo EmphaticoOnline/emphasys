@@ -1607,6 +1607,161 @@ export async function obtenerConversionCotizaciones(params: {
   };
 }
 
+export type VentaVendedorRow = {
+  vendedor_id: number | null;
+  vendedor: string;
+  clientes: number;
+  facturas: number;
+  ventas: number;
+  pct_participacion: number;
+};
+
+export type VentaVendedorFactura = {
+  id: number;
+  vendedor_id: number | null;
+  fecha: string;
+  folio: string;
+  cliente: string;
+  ventas: number;
+};
+
+export type VentasPorVendedorResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  vendedores_activos: number;
+  ventas_totales: number;
+  facturas: number;
+  clientes: number;
+  vendedor_principal: string | null;
+  vendedores: VentaVendedorRow[];
+  facturas_detalle: VentaVendedorFactura[];
+};
+
+export async function obtenerVentasPorVendedor(params: {
+  empresaId: number;
+  fechaInicio: string;
+  fechaFin: string;
+  vendedorId?: number | null;
+  contactoId?: number | null;
+  detalle?: boolean;
+}): Promise<VentasPorVendedorResult> {
+  const { empresaId, fechaInicio, fechaFin, vendedorId, contactoId, detalle = false } = params;
+  const args: unknown[] = [empresaId, fechaInicio, fechaFin];
+  const filtros = [
+    `d.empresa_id = $1`,
+    `d.tipo_documento = 'factura'`,
+    `d.fecha_documento >= $2::date`,
+    `d.fecha_documento <= $3::date`,
+    `LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`,
+  ];
+  if (vendedorId) {
+    args.push(vendedorId);
+    filtros.push(`d.agente_id = $${args.length}`);
+  }
+  if (contactoId) {
+    args.push(contactoId);
+    filtros.push(`d.contacto_principal_id = $${args.length}`);
+  }
+  const where = filtros.join(' AND ');
+  const joinVendedor = `
+    LEFT JOIN contactos v
+      ON v.id = d.agente_id
+     AND v.empresa_id = d.empresa_id
+     AND LOWER(v.tipo_contacto::text) = 'vendedor'`;
+
+  const [{ rows }, totales] = await Promise.all([
+    pool.query<{
+      vendedor_id: number | null;
+      vendedor: string;
+      clientes: number;
+      facturas: number;
+      ventas: number;
+    }>(
+      `SELECT v.id AS vendedor_id,
+              COALESCE(v.nombre, 'Sin vendedor') AS vendedor,
+              COUNT(DISTINCT d.contacto_principal_id)::int AS clientes,
+              COUNT(DISTINCT d.id)::int AS facturas,
+              COALESCE(SUM(d.subtotal), 0)::numeric AS ventas
+         FROM documentos d
+         ${joinVendedor}
+        WHERE ${where}
+        GROUP BY v.id, v.nombre
+        ORDER BY COALESCE(SUM(d.subtotal), 0) DESC, COALESCE(v.nombre, 'Sin vendedor') ASC`,
+      args
+    ),
+    pool.query<{ clientes: number; facturas: number; ventas: number }>(
+      `SELECT COUNT(DISTINCT d.contacto_principal_id)::int AS clientes,
+              COUNT(DISTINCT d.id)::int AS facturas,
+              COALESCE(SUM(d.subtotal), 0)::numeric AS ventas
+         FROM documentos d
+        WHERE ${where}`,
+      args
+    ),
+  ]);
+
+  const ventasTotales = Number(totales.rows[0]?.ventas ?? 0);
+  const vendedores: VentaVendedorRow[] = rows.map((row) => {
+    const ventas = Number(row.ventas ?? 0);
+    return {
+      vendedor_id: row.vendedor_id == null ? null : Number(row.vendedor_id),
+      vendedor: String(row.vendedor ?? 'Sin vendedor'),
+      clientes: Number(row.clientes ?? 0),
+      facturas: Number(row.facturas ?? 0),
+      ventas,
+      pct_participacion: ventasTotales > 0 ? (ventas / ventasTotales) * 100 : 0,
+    };
+  });
+
+  let facturasDetalle: VentaVendedorFactura[] = [];
+  if (detalle) {
+    const { rows: docs } = await pool.query<{
+      id: number;
+      vendedor_id: number | null;
+      fecha: unknown;
+      serie: string;
+      numero: number;
+      cliente: string | null;
+      ventas: number;
+    }>(
+      `SELECT d.id,
+              v.id AS vendedor_id,
+              d.fecha_documento AS fecha,
+              COALESCE(d.serie, '') AS serie,
+              COALESCE(d.numero, 0)::int AS numero,
+              COALESCE(c.nombre, '—') AS cliente,
+              COALESCE(d.subtotal, 0)::numeric AS ventas
+         FROM documentos d
+         ${joinVendedor}
+         LEFT JOIN contactos c
+           ON c.id = d.contacto_principal_id
+          AND c.empresa_id = d.empresa_id
+        WHERE ${where}
+        ORDER BY d.fecha_documento, d.id`,
+      args
+    );
+    facturasDetalle = docs.map((row) => ({
+      id: Number(row.id),
+      vendedor_id: row.vendedor_id == null ? null : Number(row.vendedor_id),
+      fecha: toFecha(row.fecha),
+      folio: formatearFolioDocumento(row.serie, row.numero),
+      cliente: String(row.cliente || '—'),
+      ventas: Number(row.ventas ?? 0),
+    }));
+  }
+
+  return {
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin,
+    vendedores_activos: vendedores.filter((row) => row.vendedor_id != null).length,
+    ventas_totales: ventasTotales,
+    facturas: Number(totales.rows[0]?.facturas ?? 0),
+    clientes: Number(totales.rows[0]?.clientes ?? 0),
+    vendedor_principal: vendedores[0]?.vendedor ?? null,
+    vendedores,
+    facturas_detalle: facturasDetalle,
+  };
+}
+
 // ── Historial de Precios de Venta ─────────────────────────────────────────────
 
 export async function obtenerHistorialPreciosVenta(params: {

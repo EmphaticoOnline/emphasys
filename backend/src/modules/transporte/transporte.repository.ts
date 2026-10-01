@@ -313,40 +313,6 @@ async function rows<T extends QueryResultRow>(client: DbClient, sql: string, par
   return (await client.query<T>(sql, params)).rows;
 }
 
-/**
- * Partidas de un documento (factura) listas para importarse como mercancías del
- * Viaje: copia la descripción/cantidad/valor de la partida y los atributos SAT
- * del producto asociado. NO reproduce cálculos fiscales/comerciales de
- * Documentos; es sólo lectura para poblar los snapshots de Carta Porte.
- */
-export async function listImportablePartidas(empresaId: number, documentoId: number) {
-  return rows(pool,
-    `SELECT dp.id AS partida_id,
-            dp.numero_partida,
-            dp.producto_id,
-            COALESCE(NULLIF(btrim(dp.descripcion_alterna), ''), p.descripcion) AS descripcion,
-            dp.cantidad,
-            dp.unidad AS unidad_partida,
-            COALESCE(uv.descripcion, ui.descripcion) AS unidad_descripcion,
-            p.clave_unidad_sat,
-            p.clave_bienes_transportados_sat,
-            COALESCE(p.es_material_peligroso, false) AS material_peligroso,
-            p.clave_material_peligroso_sat AS clave_material_peligroso,
-            p.clave_embalaje_sat AS embalaje,
-            p.descripcion_embalaje,
-            dp.subtotal_partida AS valor_mercancia,
-            CASE WHEN p.peso_unitario IS NOT NULL
-                 THEN round(p.peso_unitario * dp.cantidad, 3) END AS peso_sugerido
-       FROM public.documentos_partidas dp
-       JOIN public.documentos d ON d.id = dp.documento_id AND d.empresa_id = $1
-       LEFT JOIN public.productos p ON p.id = dp.producto_id
-       LEFT JOIN public.unidades uv ON uv.id = p.unidad_venta_id
-       LEFT JOIN public.unidades ui ON ui.id = p.unidad_inventario_id
-      WHERE dp.documento_id = $2
-        AND COALESCE(dp.es_gasto, false) = false
-      ORDER BY dp.numero_partida, dp.id`, [empresaId, documentoId]);
-}
-
 export async function getTripAggregate(client: DbClient, empresaId: number, id: number) {
   const tripRows = await rows(client,
     `SELECT id, folio_interno, cliente_contacto_id, estatus, fecha_programada,

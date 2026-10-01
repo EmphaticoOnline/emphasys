@@ -75,13 +75,13 @@ export default function SeccionesIndice({ secciones, activaId, onSeleccionar }: 
                 borderRadius: 1,
                 textAlign: 'left',
                 fontSize: 13,
-                color: seccion.estado === 'pendiente' ? '#9ca3af' : '#111827',
-                backgroundColor: activaId === seccion.id ? 'rgba(29,47,104,0.08)' : 'transparent',
+                backgroundColor: (theme) => (activaId === seccion.id ? theme.emphasys.content.hover : 'transparent'),
+                color: (theme) => (seccion.estado === 'pendiente' ? theme.emphasys.content.muted : theme.emphasys.content.foreground),
                 fontWeight: activaId === seccion.id ? 700 : 500,
-                '&:hover': { backgroundColor: 'rgba(29,47,104,0.06)' },
+                '&:hover': { backgroundColor: (theme) => theme.emphasys.content.hover },
               }}
             >
-              {seccion.estado === 'error' && <ErrorIcon sx={{ fontSize: 15, color: '#b91c1c', flexShrink: 0 }} />}
+              {seccion.estado === 'error' && <ErrorIcon sx={{ fontSize: 15, color: (theme) => theme.emphasys.action.destructive, flexShrink: 0 }} />}
               {seccion.estado === 'pendiente' && (
                 <CheckBoxOutlineBlankIcon sx={{ fontSize: 14, color: '#cbd5e1', flexShrink: 0 }} />
               )}

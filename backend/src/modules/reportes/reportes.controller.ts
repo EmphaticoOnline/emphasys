@@ -19,6 +19,7 @@ import {
   ORIGEN_SIN_ID,
   ORIGEN_MULTIPLE_ID,
   obtenerConversionCotizaciones,
+  obtenerVentasPorVendedor,
   obtenerPedidosPendientesFacturar,
   obtenerRemisionesPendientesFacturar,
   obtenerVencimientosClientes,
@@ -56,6 +57,7 @@ import {
   generarHistorialPreciosPDF,
   generarMovimientosPorPeriodoPDF,
   generarVentasPorOrigenPDF,
+  generarVentasPorVendedorPDF,
   generarPendientesFacturarPDF,
   generarExistenciasPorAlmacenPDF,
   generarKardexPDF,
@@ -63,12 +65,29 @@ import {
   generarProductosBajoMinimoPDF,
   generarInventarioValorizadoPDF,
 } from './reportes.pdf';
+import { construirResumenEjecutivo, interpretarResumenEjecutivo } from './resumen-ejecutivo.service';
 
 const fmtFechaMX = (iso: string): string => {
   if (!iso || iso.length < 10) return iso;
   const [yr, mo, da] = iso.slice(0, 10).split('-');
   return `${da}-${mo}-${yr}`;
 };
+
+export async function getResumenEjecutivo(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number | undefined;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  try {
+    const dataset = await construirResumenEjecutivo(empresaId, req.body?.fecha_inicio, req.body?.fecha_fin);
+    try {
+      return res.json({ dataset, interpretacion: await interpretarResumenEjecutivo(dataset) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No fue posible generar la interpretación';
+      return res.json({ dataset, interpretacion: null, interpretacion_error: message });
+    }
+  } catch (error) {
+    return res.status(400).json({ message: error instanceof Error ? error.message : 'No se pudo construir el resumen ejecutivo' });
+  }
+}
 
 const COLUMNAS_ESTANDAR: ExportColumna[] = [
   { field: 'fecha',         headerName: 'Fecha'        },
@@ -220,19 +239,36 @@ export async function getEstadoCuentaCliente(req: Request, res: Response) {
 // ── Volumen por Contacto (genérico) ──────────────────────────────────────────
 
 function buildColsResumen(contactoLabel: string): ExportColumna[] {
+  if (contactoLabel === 'Cliente') {
+    return [
+      { field: 'nombre',            headerName: 'Cliente'        },
+      { field: 'rfc',               headerName: 'RFC'            },
+      { field: 'cantidad_facturas', headerName: 'Facturas'       },
+      { field: 'total_comprado',    headerName: 'Ventas'         },
+      { field: 'pct_participacion', headerName: '% Participación' },
+    ];
+  }
   return [
     { field: 'nombre',            headerName: contactoLabel     },
     { field: 'rfc',               headerName: 'RFC'             },
     { field: 'cantidad_facturas', headerName: 'Facturas'        },
     { field: 'subtotal',          headerName: 'Subtotal'        },
     { field: 'iva',               headerName: 'IVA'             },
-    { field: 'total_comprado',    headerName: contactoLabel === 'Cliente' ? 'Venta' : 'Total Comprado'  },
-    ...(contactoLabel === 'Cliente' ? [{ field: 'total_facturado', headerName: 'Total facturado' }] : []),
+    { field: 'total_comprado',    headerName: 'Total Comprado'  },
     { field: 'pct_participacion', headerName: '% Participación' },
   ];
 }
 
 function buildColsDetalle(contactoLabel: string): ExportColumna[] {
+  if (contactoLabel === 'Cliente') {
+    return [
+      { field: 'contacto', headerName: 'Cliente' },
+      { field: 'rfc',      headerName: 'RFC'     },
+      { field: 'fecha',    headerName: 'Fecha'   },
+      { field: 'folio',    headerName: 'Folio'   },
+      { field: 'subtotal', headerName: 'Ventas'  },
+    ];
+  }
   return [
     { field: 'contacto', headerName: contactoLabel },
     { field: 'rfc',      headerName: 'RFC'         },
@@ -240,7 +276,7 @@ function buildColsDetalle(contactoLabel: string): ExportColumna[] {
     { field: 'folio',    headerName: 'Folio'       },
     { field: 'subtotal', headerName: 'Subtotal'    },
     { field: 'iva',      headerName: 'IVA'         },
-    { field: 'total',    headerName: contactoLabel === 'Cliente' ? 'Total facturado' : 'Total' },
+    { field: 'total',    headerName: 'Total'       },
   ];
 }
 
@@ -333,6 +369,19 @@ export async function getVentasPorCliente(req: Request, res: Response) {
 
 function buildColsProductoResumen(ultimoPrecioLabel: string): ExportColumna[] {
   const esVentas = ultimoPrecioLabel === 'Último precio';
+  if (esVentas) {
+    return [
+      { field: 'clave',                  headerName: 'Clave'            },
+      { field: 'descripcion',            headerName: 'Descripción'      },
+      { field: 'cantidad_total',         headerName: 'Cantidad'         },
+      { field: 'cantidad_documentos',    headerName: 'Docs.'            },
+      { field: 'precio_promedio',        headerName: 'Precio prom.'     },
+      { field: 'ultimo_precio_unitario', headerName: ultimoPrecioLabel  },
+      { field: 'venta',                  headerName: 'Ventas'           },
+      { field: 'ultimo_movimiento',      headerName: 'Últ. movimiento'  },
+      { field: 'pct_participacion',      headerName: '% Participación'  },
+    ];
+  }
   return [
     { field: 'clave',                  headerName: 'Clave'             },
     { field: 'descripcion',            headerName: 'Descripción'       },
@@ -341,11 +390,11 @@ function buildColsProductoResumen(ultimoPrecioLabel: string): ExportColumna[] {
     { field: 'cantidad_documentos',    headerName: 'Documentos'        },
     { field: 'precio_promedio',        headerName: 'Precio Prom.'      },
     { field: 'ultimo_precio_unitario', headerName: ultimoPrecioLabel   },
-    { field: 'subtotal',               headerName: esVentas ? 'Venta' : 'Subtotal' },
+    { field: 'subtotal',               headerName: 'Subtotal'          },
     { field: 'iva',                    headerName: 'Impuestos'         },
-    { field: 'total',                  headerName: esVentas ? 'Total facturado' : 'Total' },
-    { field: 'ultimo_movimiento',      headerName: 'Últ. Movimiento'  },
-    { field: 'pct_participacion',      headerName: '% Participación'  },
+    { field: 'total',                  headerName: 'Total'             },
+    { field: 'ultimo_movimiento',      headerName: 'Últ. Movimiento'   },
+    { field: 'pct_participacion',      headerName: '% Participación'   },
   ];
 }
 
@@ -360,10 +409,9 @@ function buildColsProductoDetalle(contactoLabel: string): ExportColumna[] {
     { field: 'cantidad',        headerName: 'Cantidad'      },
     { field: 'precio_unitario', headerName: 'Precio Unit.'  },
     { field: 'descuento',       headerName: 'Descuento'     },
-    { field: 'subtotal',        headerName: esVentas ? 'Venta' : 'Subtotal' },
+    { field: 'subtotal',        headerName: esVentas ? 'Ventas' : 'Subtotal' },
   ];
-  if (esVentas) columnas.push({ field: 'iva', headerName: 'Impuestos' });
-  columnas.push({ field: esVentas ? 'total_facturado' : 'total', headerName: esVentas ? 'Total facturado' : 'Total' });
+  if (!esVentas) columnas.push({ field: 'total', headerName: 'Total' });
   return columnas;
 }
 
@@ -656,13 +704,15 @@ function parsePeriodoParams(req: Request) {
 }
 
 function buildColsPeriodoResumen(contactoLabel: string, mostrarCantidad: boolean): ExportColumna[] {
+  const esVentas = contactoLabel === 'Cliente';
   const cols: ExportColumna[] = [
     { field: 'periodo_label',       headerName: 'Período'              },
     { field: 'cantidad_documentos', headerName: 'Documentos'           },
     { field: 'cantidad_contactos',  headerName: contactoLabel + 's'    },
   ];
   if (mostrarCantidad) cols.push({ field: 'cantidad_total', headerName: 'Cantidad' });
-  cols.push(
+  if (esVentas) cols.push({ field: 'subtotal', headerName: 'Ventas' });
+  else cols.push(
     { field: 'subtotal', headerName: 'Subtotal' },
     { field: 'iva',      headerName: 'IVA'      },
     { field: 'total',    headerName: 'Total'    },
@@ -671,6 +721,7 @@ function buildColsPeriodoResumen(contactoLabel: string, mostrarCantidad: boolean
 }
 
 function buildColsPeriodoDetalle(contactoLabel: string, mostrarCantidad: boolean): ExportColumna[] {
+  const esVentas = contactoLabel === 'Cliente';
   const cols: ExportColumna[] = [
     { field: 'periodo_label',   headerName: 'Período'     },
     { field: 'fecha',           headerName: 'Fecha'       },
@@ -678,7 +729,8 @@ function buildColsPeriodoDetalle(contactoLabel: string, mostrarCantidad: boolean
     { field: 'contacto_nombre', headerName: contactoLabel },
   ];
   if (mostrarCantidad) cols.push({ field: 'cantidad_total', headerName: 'Cantidad' });
-  cols.push(
+  if (esVentas) cols.push({ field: 'subtotal', headerName: 'Ventas' });
+  else cols.push(
     { field: 'subtotal', headerName: 'Subtotal' },
     { field: 'iva',      headerName: 'IVA'      },
     { field: 'total',    headerName: 'Total'    },
@@ -800,6 +852,66 @@ export async function getDetalleVentasPorOrigen(req: Request, res: Response) {
   const { empresaId, fechaInicio, fechaFin, contactoId, productoId } = parsePeriodoParams(req); const origenContactoId=Number(req.query.origen_contacto_id);
   if(!empresaId||!fechaInicio||!fechaFin||!Number.isFinite(origenContactoId)) return res.status(400).json({message:'Filtros requeridos'});
   try{return res.json(await obtenerDetalleVentasPorOrigen({empresaId,fechaInicio,fechaFin,contactoId,productoId,origenContactoId}));}catch(err){return res.status(500).json({message:err instanceof Error?err.message:'Error'});}
+}
+
+export async function getVentasPorVendedor(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number | undefined;
+  const fechaInicio = String(req.query.fecha_inicio ?? '').trim();
+  const fechaFin = String(req.query.fecha_fin ?? '').trim();
+  const vendedorRaw = String(req.query.vendedor_id ?? '').trim();
+  const contactoRaw = String(req.query.contacto_id ?? '').trim();
+  const vendedorId = vendedorRaw ? Number(vendedorRaw) : null;
+  const contactoId = contactoRaw ? Number(contactoRaw) : null;
+  const detalle = req.query.detalle === 'true';
+  const formato = String(req.query.formato ?? 'json').toLowerCase();
+
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
+  if (vendedorRaw && (!Number.isInteger(vendedorId) || (vendedorId ?? 0) <= 0)) return res.status(400).json({ message: 'vendedor_id inválido' });
+  if (contactoRaw && (!Number.isInteger(contactoId) || (contactoId ?? 0) <= 0)) return res.status(400).json({ message: 'contacto_id inválido' });
+  if (fechaInicio > fechaFin) return res.status(400).json({ message: 'El rango de fechas es inválido' });
+
+  try {
+    const resultado = await obtenerVentasPorVendedor({ empresaId, fechaInicio, fechaFin, vendedorId, contactoId, detalle });
+    if (formato === 'json') return res.json(resultado);
+    if (formato === 'excel') {
+      const filas = [
+        ...resultado.vendedores.map((row) => ({
+          vendedor: row.vendedor,
+          clientes: row.clientes,
+          facturas: row.facturas,
+          ventas: row.ventas,
+          pct_participacion: Number(row.pct_participacion.toFixed(2)),
+        })),
+        {
+          vendedor: 'TOTAL',
+          clientes: resultado.clientes,
+          facturas: resultado.facturas,
+          ventas: resultado.ventas_totales,
+          pct_participacion: resultado.ventas_totales > 0 ? 100 : 0,
+        },
+      ];
+      const buffer = generarExcelBuffer(filas, [
+        { field: 'vendedor', headerName: 'Vendedor' },
+        { field: 'clientes', headerName: 'Clientes' },
+        { field: 'facturas', headerName: 'Facturas' },
+        { field: 'ventas', headerName: 'Ventas' },
+        { field: 'pct_participacion', headerName: '% Participación' },
+      ], 'Ventas por Vendedor');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="ventas-por-vendedor.xlsx"');
+      return res.send(buffer);
+    }
+    if (formato === 'pdf') {
+      const buffer = await generarVentasPorVendedorPDF(resultado);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="ventas-por-vendedor.pdf"');
+      return res.send(buffer);
+    }
+    return res.status(400).json({ message: 'Formato no soportado' });
+  } catch (err: unknown) {
+    return res.status(500).json({ message: err instanceof Error ? err.message : 'Error al obtener reporte' });
+  }
 }
 
 export async function getConversionCotizaciones(req: Request, res: Response) {

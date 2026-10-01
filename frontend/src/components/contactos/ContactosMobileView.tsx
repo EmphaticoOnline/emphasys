@@ -94,10 +94,10 @@ export default function ContactosMobileView({
   return (
     <Box sx={{ width: '100%', px: 2, py: 0, display: 'flex', justifyContent: 'center' }}>
       <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5, pb: 10 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: '#eef1f4' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: (theme) => theme.emphasys.canvas.page }}>
           <Box>
-            <Typography variant="h5" fontWeight={600} color="#1d2f68">Contactos</Typography>
-            <Typography variant="body2" color="#4b5563">Gestiona y consulta tus contactos registrados.</Typography>
+            <Typography variant="h5" fontWeight={600} sx={{ color: (theme) => theme.emphasys.content.foreground }}>Contactos</Typography>
+            <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.secondary }}>Gestiona y consulta tus contactos registrados.</Typography>
           </Box>
           <TextField
             size="small"
@@ -147,7 +147,7 @@ export default function ContactosMobileView({
             </Box>
           ) : contactos.length === 0 ? (
             <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', px: 2, py: 4, textAlign: 'center' }}>
-              <Typography variant="body2" color="#4b5563">No hay contactos para mostrar.</Typography>
+              <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.secondary }}>No hay contactos para mostrar.</Typography>
             </Box>
           ) : (
             contactos.map((contacto) => {
@@ -175,7 +175,7 @@ export default function ContactosMobileView({
                   <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
                       <Box sx={{ minWidth: 0, pr: 0.5 }}>
-                        <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ lineHeight: 1.2 }}>
+                        <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2, color: (theme) => theme.emphasys.content.foreground }}>
                           {renderValue(contacto.nombre)}
                         </Typography>
                         {hasValue(contacto.nombre_contacto) ? (
@@ -184,7 +184,7 @@ export default function ContactosMobileView({
                           </Typography>
                         ) : null}
                         {subtitle ? (
-                          <Typography variant="body2" color="#4b5563" sx={{ mt: 0.25, wordBreak: 'break-word', lineHeight: 1.3 }}>
+                          <Typography variant="body2" sx={{ mt: 0.25, wordBreak: 'break-word', lineHeight: 1.3, color: (theme) => theme.emphasys.content.secondary }}>
                             {subtitle}
                           </Typography>
                         ) : null}
@@ -241,10 +241,10 @@ export default function ContactosMobileView({
             position: 'fixed',
             right: 20,
             bottom: 20,
-            backgroundColor: '#1d2f68',
-            color: '#ffffff',
-            boxShadow: '0 10px 24px rgba(29, 47, 104, 0.28)',
-            '&:hover': { backgroundColor: '#162551' },
+            backgroundColor: (theme) => theme.emphasys.action.primary,
+            color: (theme) => theme.emphasys.action.primaryForeground,
+            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            '&:hover': { backgroundColor: (theme) => theme.emphasys.action.primaryHover },
           }}
         >
           <AddIcon />

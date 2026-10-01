@@ -22,6 +22,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { DataGrid, type GridColDef, type GridRowSelectionModel } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
@@ -82,6 +83,7 @@ const ESTADO_LABEL: Record<string, string> = {
 
 export default function ConciliacionBancariaPage() {
   const navigate = useNavigate();
+  const tokens = useTheme().emphasys;
   const [searchParams] = useSearchParams();
 
   const [cuentas, setCuentas] = useState<FinanzasCuenta[]>([]);
@@ -390,27 +392,33 @@ export default function ConciliacionBancariaPage() {
   );
 
   return (
-    <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%' }}>
-      {/* Encabezado */}
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <IconButton onClick={() => navigate('/finanzas')} size="small">
-          <ArrowBackIcon fontSize="small" />
-        </IconButton>
-        <Typography variant="h6" fontWeight={700} color="text.primary">
-          Conciliación Bancaria
-        </Typography>
+    <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', px: { xs: 1.5, md: 2.75 }, py: 1.6, display: 'flex', flexDirection: 'column', gap: 1.5, bgcolor: tokens.content.background }}>
+      <Box
+        component="button"
+        type="button"
+        onClick={() => navigate('/finanzas')}
+        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, border: 0, bgcolor: 'transparent', color: tokens.content.foreground, font: 'inherit', cursor: 'pointer', p: 0, width: 'fit-content' }}
+      >
+        <ArrowBackIcon fontSize="small" /> Tesorería
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
+            CONCILIACIÓN
+          </Typography>
+          <Typography variant="figure" sx={{ mt: 0.35, fontSize: { xs: 26, md: 32 }, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
+            Estado de cuenta
+          </Typography>
+        </Box>
         {cuentaSeleccionada && (
-          <Chip
-            label={cuentaSeleccionada.identificador}
-            size="small"
-            variant="outlined"
-            sx={{ ml: 0.5 }}
-          />
+          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.metric.amount.foreground, fontSize: 12, fontWeight: 700 }}>
+            {cuentaSeleccionada.identificador}
+          </Box>
         )}
-      </Stack>
+      </Box>
 
       {/* Filtros */}
-      <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+      <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: tokens.content.elevated, border: `1px solid ${tokens.content.border}` }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="center" flexWrap="wrap">
           <Box sx={{ minWidth: 200 }}>
             <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.25}>
@@ -504,17 +512,18 @@ export default function ConciliacionBancariaPage() {
 
       {/* KPIs */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
-        <KpiCard label="Saldo banco" value={fmt(saldoBancoNum, moneda)} color="#1d2f68" />
-        <KpiCard label="Saldo conciliado anterior" value={fmt(saldoConciliadoAnterior, moneda)} color="#475569" />
-        <KpiCard label="Depósitos encontrados" value={`+${fmt(totalDepositosCotejados, moneda)}`} color="#15803d" />
-        <KpiCard label="Retiros encontrados" value={`−${fmt(totalRetirosCotejados, moneda)}`} color="#b91c1c" />
-        <KpiCard label="Saldo conciliado" value={fmt(saldoConciliadoCalculado, moneda)} color="#006261" />
+        <KpiCard label="Saldo banco" value={fmt(saldoBancoNum, moneda)} fondo={tokens.metric.amount.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} />
+        <KpiCard label="Saldo conciliado anterior" value={fmt(saldoConciliadoAnterior, moneda)} fondo={tokens.content.elevated} tinta={tokens.content.foreground} caption={tokens.metric.caption} />
+        <KpiCard label="Depósitos encontrados" value={`+${fmt(totalDepositosCotejados, moneda)}`} fondo={tokens.metric.applied.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} />
+        <KpiCard label="Retiros encontrados" value={`−${fmt(totalRetirosCotejados, moneda)}`} fondo={tokens.metric.blocked.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} />
+        <KpiCard label="Saldo conciliado" value={fmt(saldoConciliadoCalculado, moneda)} fondo={tokens.metric.available.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} />
         <KpiCard
           label="Diferencia"
-          value={cuadra && cuentaId ? '✓ Cuadra' : fmt(diferencia, moneda)}
-          color={cuadra && cuentaId ? '#15803d' : '#b45309'}
-          highlight={!cuadra && Boolean(cuentaId)}
-          success={cuadra && Boolean(cuentaId)}
+          value={cuadra && cuentaId ? 'Cuadra' : fmt(diferencia, moneda)}
+          fondo={cuadra && cuentaId ? tokens.metric.exhausted.background : tokens.metric.blocked.background}
+          tinta={tokens.content.foreground}
+          caption={tokens.metric.caption}
+          destacado
         />
       </Stack>
 
@@ -601,12 +610,7 @@ export default function ConciliacionBancariaPage() {
                 onClick={() => setConfirmarCerrar(true)}
                 disabled={!cuentaId || !fechaCorte || guardando || conciliacionExistente}
                 size="small"
-                sx={{
-                  textTransform: 'none',
-                  borderRadius: 999,
-                  bgcolor: '#1d2f68',
-                  '&:hover': { bgcolor: '#162551' },
-                }}
+                sx={{ textTransform: 'none', borderRadius: 999 }}
               >
                 {guardando ? <CircularProgress size={16} sx={{ color: 'white' }} /> : 'Cerrar conciliación'}
               </Button>
@@ -650,7 +654,7 @@ export default function ConciliacionBancariaPage() {
               {
                 fontSize: 13,
                 border: 'none',
-                '& .row-cotejado': { bgcolor: '#f0f9ff' },
+                '& .row-cotejado': { bgcolor: tokens.metric.available.background },
               },
             ]}
             initialState={{
@@ -698,7 +702,7 @@ export default function ConciliacionBancariaPage() {
             variant="contained"
             onClick={() => void handleCerrar()}
             disabled={guardando}
-            sx={{ textTransform: 'none', bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+            sx={{ textTransform: 'none' }}
           >
             {guardando ? <CircularProgress size={18} sx={{ color: 'white' }} /> : 'Confirmar cierre'}
           </Button>
@@ -921,35 +925,35 @@ export default function ConciliacionBancariaPage() {
 function KpiCard({
   label,
   value,
-  color,
-  highlight = false,
-  success = false,
+  fondo,
+  tinta,
+  caption,
+  destacado = false,
 }: {
   label: string;
   value: string;
-  color: string;
-  highlight?: boolean;
-  success?: boolean;
+  fondo: string;
+  tinta: string;
+  caption: string;
+  destacado?: boolean;
 }) {
   return (
-    <Paper
-      variant="outlined"
+    <Box
       sx={{
-        p: 1,
+        bgcolor: fondo,
         borderRadius: 2,
+        px: 1.4,
+        py: 1.05,
         flex: 1,
-        minWidth: 130,
-        borderColor: highlight ? '#b45309' : success ? '#15803d' : 'divider',
-        borderWidth: highlight || success ? 2 : 1,
-        bgcolor: success ? '#f0fdf4' : highlight ? '#fffbeb' : undefined,
+        minWidth: 140,
       }}
     >
-      <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+      <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: caption }}>
         {label}
       </Typography>
-      <Typography fontWeight={700} color={color} noWrap sx={{ fontSize: 13, mt: 0.25 }}>
+      <Typography variant="figure" noWrap sx={{ mt: 0.25, fontSize: destacado ? 22 : 18, letterSpacing: '-0.02em', lineHeight: 1.05, color: tinta }}>
         {value}
       </Typography>
-    </Paper>
+    </Box>
   );
 }

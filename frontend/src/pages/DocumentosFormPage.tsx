@@ -46,6 +46,7 @@ import Grid from '@mui/material/Grid';
 import { createFilterOptions } from '@mui/material/Autocomplete';
 
 import AddIcon from '@mui/icons-material/Add';
+import CallSplitOutlinedIcon from '@mui/icons-material/CallSplitOutlined';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -297,6 +298,26 @@ const campoEncabezadoSx = {
   },
 } as const;
 
+const pagoCampoSx = {
+  ...campoEncabezadoSx,
+  '& .MuiOutlinedInput-root': {
+    display: 'flex',
+    alignItems: 'center',
+    minHeight: 40,
+    height: 40,
+  },
+  '& .MuiSelect-select': {
+    fontSize: compactEditableInputFontSize,
+    fontWeight: 400,
+    lineHeight: 1.4375,
+    display: 'flex',
+    alignItems: 'center',
+    minHeight: '40px !important',
+    boxSizing: 'border-box',
+    py: '0 !important',
+  },
+} as const;
+
 const compactTableCellSx = {
   py: 1,
   px: 1.5,
@@ -515,6 +536,7 @@ export default function DocumentosFormPage({
   const { id, codigo } = useParams();
   const { session } = useSession();
   const theme = useTheme();
+  const tokens = theme.emphasys;
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const sessionUserId = session.user?.id ?? null;
   const tipoDocumento = (propTipo ?? (codigo as TipoDocumento)) || 'cotizacion';
@@ -5647,7 +5669,7 @@ export default function DocumentosFormPage({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: mostrarResumenFinancieroStickyVisible ? { xs: 10, sm: 9 } : { xs: 0, sm: 10 } }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pb: mostrarResumenFinancieroStickyVisible ? { xs: 10, sm: 9 } : { xs: 0, sm: 10 }, ...(esDocumentoMonetario ? { px: { xs: 0.5, md: 3, lg: 5 }, width: '100%', boxSizing: 'border-box' } : {}) }}>
       {isMobile ? (
         <Box
           sx={{
@@ -5825,6 +5847,8 @@ export default function DocumentosFormPage({
       ) : (
         <FloatingFormActions
           onBack={() => void handleNavigateBack()}
+          backLabel={esDocumentoMonetario ? 'Cancelar' : 'Volver'}
+          appearance={esDocumentoMonetario ? 'graphite' : 'default'}
           onSave={handleSave}
           saving={saving}
           saveDisabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
@@ -5931,7 +5955,7 @@ export default function DocumentosFormPage({
       )}
 
       {(!showFiscalTab || activeTab === 0) && (
-        <Paper variant="outlined" sx={{ borderRadius: 2, p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, overflowX: 'clip' }}>
+        <Paper variant="outlined" sx={{ borderRadius: esDocumentoMonetario ? 3 : 2, p: esDocumentoMonetario ? { xs: 2.5, md: 4 } : { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: esDocumentoMonetario ? 2.5 : 3, overflowX: 'clip', ...(esDocumentoMonetario ? { bgcolor: tokens.content.card, borderColor: tokens.content.border, color: tokens.content.foreground } : {}) }}>
           {loading ? (
             <Stack direction="row" spacing={1.5} alignItems="center">
               <CircularProgress size={22} />
@@ -5941,8 +5965,8 @@ export default function DocumentosFormPage({
             <>
               {esDocumentoMonetario ? (
                 <>
-                  <Grid container spacing={2} alignItems="center">
-                    <Grid size={{ xs: 12, md: 4 }}>
+                  <Grid container spacing={2} alignItems="stretch">
+                    <Grid size={{ xs: 12, md: 3 }}>
                       <Autocomplete<ContactoAutocompleteOption>
                         fullWidth
                         options={contactos}
@@ -6015,7 +6039,7 @@ export default function DocumentosFormPage({
                             disabled={lockedContacto || trazabilidadActiva}
                             InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                             inputProps={{ ...params.inputProps }}
-                            sx={campoEncabezadoSx}
+                            sx={pagoCampoSx}
                           />
                         )}
                       />
@@ -6046,14 +6070,14 @@ export default function DocumentosFormPage({
                               size="small"
                               InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                               inputProps={{ ...params.inputProps }}
-                              sx={campoEncabezadoSx}
+                              sx={pagoCampoSx}
                             />
                           )}
                         />
                       </Grid>
                     )}
                     {!usaCapturaEspecialNotaCredito && (
-                      <Grid size={{ xs: 12, md: 2 }}>
+                      <Grid size={{ xs: 12, md: 3 }}>
                         <TextField
                           label="Fecha documento"
                           type="date"
@@ -6061,7 +6085,7 @@ export default function DocumentosFormPage({
                           onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
                           disabled={lockedFechaDocumento || trazabilidadActiva}
                           InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                          sx={campoEncabezadoSx}
+                          sx={pagoCampoSx}
                           fullWidth
                           size="small"
                         />
@@ -6071,8 +6095,12 @@ export default function DocumentosFormPage({
                       <NumericFormat
                         customInput={TextField}
                         label="Monto"
-                        value={Number(form.total ?? 0)}
+                        value={Number(form.total ?? 0) === 0 ? '' : form.total}
                         onValueChange={(values) => syncDocumentoMonetarioTotals(values.floatValue ?? 0)}
+                        onFocus={(event) => {
+                          const input = event.target as HTMLInputElement;
+                          requestAnimationFrame(() => input.select());
+                        }}
                         thousandSeparator=","
                         decimalSeparator="."
                         decimalScale={2}
@@ -6084,13 +6112,10 @@ export default function DocumentosFormPage({
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                         inputProps={{ inputMode: 'decimal', style: { textAlign: 'right' } }}
-                        sx={campoEncabezadoSx}
+                        sx={pagoCampoSx}
                       />
                     </Grid>
-                  </Grid>
-
-                  <Grid container spacing={2} alignItems="center">
-                    <Grid size={{ xs: 12, md: 2 }}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                       <TextField
                         select
                         label="Moneda"
@@ -6100,7 +6125,7 @@ export default function DocumentosFormPage({
                         fullWidth
                         size="small"
                         InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                        sx={campoEncabezadoSx}
+                        sx={pagoCampoSx}
                       >
                         <MenuItem value="MXN">MXN</MenuItem>
                         <MenuItem value="USD">USD</MenuItem>
@@ -6118,7 +6143,7 @@ export default function DocumentosFormPage({
                           fullWidth
                           size="small"
                           InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                          sx={campoEncabezadoSx}
+                          sx={pagoCampoSx}
                         >
                           <MenuItem value="">Selecciona una cuenta</MenuItem>
                           {cuentasFinancieras.map((cuenta) => (
@@ -6135,10 +6160,10 @@ export default function DocumentosFormPage({
                         value={form.observaciones || ''}
                         onChange={(value) => setForm((prev) => ({ ...prev, observaciones: value }))}
                         disabled={trazabilidadActiva && !edicionFacturaTimbradaRestringida}
-                        sx={campoEncabezadoSx}
+                        sx={pagoCampoSx}
                       />
                     </Grid>
-                    <Grid size={{ xs: 12, md: 4 }}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                       <Box
                         sx={{
                           width: '100%',
@@ -6149,6 +6174,7 @@ export default function DocumentosFormPage({
                           },
                           '& .MuiInputBase-root': {
                             minHeight: 40,
+                            height: 40,
                           },
                           '& .MuiInputBase-input': {
                             overflow: 'hidden',
@@ -6176,65 +6202,6 @@ export default function DocumentosFormPage({
                       </Box>
                     </Grid>
                   </Grid>
-
-                  {tipoDocumento === 'pago_cliente' && (
-                    <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#f8fafc' }}>
-                      <Stack spacing={1.25}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={1}>
-                          <Box>
-                            <Typography variant="subtitle2" fontWeight={700}>Receptor fiscal del complemento</Typography>
-                            {loadingComplementoPrevalidacion ? (
-                              <Typography variant="body2" color="text.secondary">Comprobando facturas aplicadas…</Typography>
-                            ) : (
-                              <Typography variant="body2" color="text.secondary">
-                                {complementoPrevalidacion?.aplicaciones === 1
-                                  ? '1 factura aplicada'
-                                  : `${complementoPrevalidacion?.aplicaciones ?? 0} facturas aplicadas`}
-                              </Typography>
-                            )}
-                          </Box>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => document.getElementById('aplicaciones-pago')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                            >
-                              {complementoPrevalidacion?.aplicaciones ? 'Gestionar aplicaciones' : 'Aplicar pago'}
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              disabled={!form.contacto_principal_id}
-                              onClick={() => navigate(`/contactos/${form.contacto_principal_id}`, {
-                                state: { returnTo: location.pathname },
-                              })}
-                            >
-                              Editar cliente
-                            </Button>
-                          </Stack>
-                        </Stack>
-                        {complementoPrevalidacion?.receptor ? (
-                          <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 0.5, md: 2 }}>
-                            <Typography variant="body2"><strong>{complementoPrevalidacion.receptor.nombre}</strong></Typography>
-                            <Typography variant="body2">RFC: {complementoPrevalidacion.receptor.rfcEnmascarado}</Typography>
-                            <Typography variant="body2">Régimen: {complementoPrevalidacion.receptor.regimenFiscal}</Typography>
-                            <Typography variant="body2">CP: {complementoPrevalidacion.receptor.codigoPostal}</Typography>
-                          </Stack>
-                        ) : (
-                          <Alert severity={complementoPrevalidacion?.estado === 'inconsistente' ? 'error' : 'info'} sx={{ py: 0 }}>
-                            {complementoPrevalidacion?.error?.message || 'Aún no disponible: no hay facturas aplicadas.'}
-                          </Alert>
-                        )}
-                        <Typography variant="caption" color="text.secondary">
-                          {complementoPrevalidacion?.estado === 'receptor_disponible'
-                            ? complementoPrevalidacion.aplicaciones === 1
-                              ? 'Datos tomados de la factura timbrada.'
-                              : `Datos consistentes en ${complementoPrevalidacion.aplicaciones} facturas timbradas.`
-                            : 'Aún no disponible: no hay facturas aplicadas.'}
-                        </Typography>
-                      </Stack>
-                    </Paper>
-                  )}
 
                   {(form.moneda || 'MXN') !== 'MXN' && (
                     <Grid container spacing={2} alignItems="center">
@@ -6656,7 +6623,7 @@ export default function DocumentosFormPage({
                 <Box id="aplicaciones-pago" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, scrollMarginTop: 16 }}>
                   <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }}>
                     <Box>
-                      <Typography variant="subtitle1" fontWeight={700} color="primary.main">
+                      <Typography variant="subtitle1" fontWeight={700} sx={{ color: tokens.content.foreground }}>
                         Aplicaciones del pago
                       </Typography>
                     </Box>
@@ -6664,46 +6631,68 @@ export default function DocumentosFormPage({
                       <Stack spacing={1} sx={{ width: '100%' }}>
                         <Box
                           sx={{
-                            border: '1px solid #bbf7d0',
-                            backgroundColor: saldoDisponibleDocumentoMonetario > 0 ? '#f0fdf4' : '#f8fafc',
+                            border: `1px solid ${tokens.content.border}`,
+                            backgroundColor: saldoDisponibleDocumentoMonetario > 0 ? tokens.metric.available.background : tokens.content.elevated,
                             borderRadius: 2,
                             px: 1.5,
                             py: 1.25,
                           }}
                         >
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" sx={{ color: tokens.content.muted }}>
                             Disponible para aplicar
                           </Typography>
-                          <Typography variant="h6" fontWeight={700} color={saldoDisponibleDocumentoMonetario > 0 ? '#15803d' : '#475569'}>
+                          <Typography variant="figure" sx={{ fontSize: 22, color: tokens.content.foreground }}>
                             {formatter.format(saldoDisponibleDocumentoMonetario)}
                           </Typography>
                         </Box>
-                        <Button
-                          variant="contained"
-                          fullWidth
-                          onClick={() => { void handleAutoApplyDocumentoMonetario(); }}
-                          disabled={autoApplyingDocumentoMonetario || !form.contacto_principal_id || saldoDisponibleDocumentoMonetario <= 0 || documentosCargoMonetarios.length === 0}
-                        >
-                          {autoApplyingDocumentoMonetario ? 'Distribuyendo...' : 'Distribuir automaticamente'}
-                        </Button>
+                        <Tooltip title={autoApplyingDocumentoMonetario ? 'Distribuyendo…' : 'Distribuir automáticamente'}>
+                          <span>
+                            <IconButton
+                              aria-label="Distribuir automáticamente"
+                              onClick={() => { void handleAutoApplyDocumentoMonetario(); }}
+                              disabled={autoApplyingDocumentoMonetario || !form.contacto_principal_id || saldoDisponibleDocumentoMonetario <= 0 || documentosCargoMonetarios.length === 0}
+                              sx={{
+                                bgcolor: tokens.action.primary,
+                                color: tokens.action.primaryForeground,
+                                '&:hover': { bgcolor: tokens.action.primaryHover },
+                                '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+                              }}
+                            >
+                              {autoApplyingDocumentoMonetario ? <CircularProgress size={18} sx={{ color: tokens.action.primaryForeground }} /> : <CallSplitOutlinedIcon />}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
                       </Stack>
                     ) : (
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <Chip label={`Disponible para aplicar: ${formatter.format(saldoDisponibleDocumentoMonetario)}`} variant="outlined" color={saldoDisponibleDocumentoMonetario > 0 ? 'success' : 'default'} />
-                        <Button
-                          variant="contained"
-                          size="small"
-                          onClick={() => { void handleAutoApplyDocumentoMonetario(); }}
-                          disabled={autoApplyingDocumentoMonetario || !form.contacto_principal_id || saldoDisponibleDocumentoMonetario <= 0 || documentosCargoMonetarios.length === 0}
-                        >
-                          {autoApplyingDocumentoMonetario ? 'Distribuyendo...' : 'Distribuir automaticamente'}
-                        </Button>
+                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 28, px: 1.1, borderRadius: 99, bgcolor: saldoDisponibleDocumentoMonetario > 0 ? tokens.metric.available.background : tokens.content.elevated, color: tokens.content.foreground, fontSize: 12.5, fontWeight: 700 }}>
+                          Disponible para aplicar: {formatter.format(saldoDisponibleDocumentoMonetario)}
+                        </Box>
+                        <Tooltip title={autoApplyingDocumentoMonetario ? 'Distribuyendo…' : 'Distribuir automáticamente'}>
+                          <span>
+                            <IconButton
+                              aria-label="Distribuir automáticamente"
+                              onClick={() => { void handleAutoApplyDocumentoMonetario(); }}
+                              disabled={autoApplyingDocumentoMonetario || !form.contacto_principal_id || saldoDisponibleDocumentoMonetario <= 0 || documentosCargoMonetarios.length === 0}
+                              sx={{
+                                bgcolor: tokens.action.primary,
+                                color: tokens.action.primaryForeground,
+                                '&:hover': { bgcolor: tokens.action.primaryHover },
+                                '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+                              }}
+                            >
+                              {autoApplyingDocumentoMonetario ? <CircularProgress size={18} sx={{ color: tokens.action.primaryForeground }} /> : <CallSplitOutlinedIcon />}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
                       </Stack>
                     )}
                   </Stack>
 
                   {!form.contacto_principal_id ? (
-                    <Alert severity="info">Selecciona un {contactoLabel.toLowerCase()} para cargar documentos de cargo pendientes.</Alert>
+                    <Box sx={{ px: 1.5, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.applied.background, color: tokens.metric.applied.foreground, border: `1px solid ${tokens.content.border}`, fontSize: 14, lineHeight: 1.45 }}>
+                      Selecciona un {contactoLabel.toLowerCase()} para cargar documentos de cargo pendientes.
+                    </Box>
                   ) : loadingDocumentosCargoMonetarios ? (
                     <Stack direction="row" spacing={1} alignItems="center">
                       <CircularProgress size={18} />
@@ -6717,16 +6706,15 @@ export default function DocumentosFormPage({
                         <Box
                           key={item.id}
                           sx={{
-                            border: '1px solid #dbe5f0',
+                            border: `1px solid ${tokens.content.border}`,
                             borderRadius: 2,
-                            backgroundColor: '#fff',
+                            backgroundColor: tokens.content.card,
                             p: 1.5,
-                            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.04)',
                           }}
                         >
                           <Stack spacing={1.25}>
                             <Box>
-                              <Typography variant="subtitle2" fontWeight={700} color="primary.main">
+                              <Typography variant="figure" sx={{ fontSize: 18, color: tokens.content.foreground }}>
                                 {formatearFolioDocumento(item.serie || '', item.numero || 0) || '—'}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
@@ -6738,7 +6726,7 @@ export default function DocumentosFormPage({
                               <Typography variant="body2" color="text.secondary">
                                 Saldo pendiente
                               </Typography>
-                              <Typography variant="h6" fontWeight={700} color="#0f172a">
+                              <Typography variant="figure" sx={{ fontSize: 20, color: tokens.content.foreground }}>
                                 {formatter.format(Number(item.saldo || 0))}
                               </Typography>
                             </Box>
@@ -6779,18 +6767,23 @@ export default function DocumentosFormPage({
                       ))}
                     </Stack>
                   ) : (
-                    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+                    <TableContainer sx={{ border: `1px solid ${tokens.table.line}`, borderRadius: 2, bgcolor: tokens.content.well, overflow: 'hidden' }}>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell sx={compactTableCellSx}>Folio</TableCell>
-                            <TableCell sx={compactTableCellSx}>Fecha</TableCell>
-                            <TableCell align="right" sx={compactTableCellSx}>Saldo pendiente</TableCell>
-                            <TableCell sx={compactTableCellSx}>Monto a aplicar</TableCell>
-                            <TableCell align="center" sx={compactTableCellSx}>Acción</TableCell>
+                            <TableCell sx={{ ...compactTableCellSx, bgcolor: tokens.grid.header, color: tokens.grid.headerForeground, borderBottom: 'none' }}>Folio</TableCell>
+                            <TableCell sx={{ ...compactTableCellSx, bgcolor: tokens.grid.header, color: tokens.grid.headerForeground, borderBottom: 'none' }}>Fecha</TableCell>
+                            <TableCell align="right" sx={{ ...compactTableCellSx, bgcolor: tokens.grid.header, color: tokens.grid.headerForeground, borderBottom: 'none' }}>Saldo pendiente</TableCell>
+                            <TableCell sx={{ ...compactTableCellSx, bgcolor: tokens.grid.header, color: tokens.grid.headerForeground, borderBottom: 'none' }}>Monto a aplicar</TableCell>
+                            <TableCell align="center" sx={{ ...compactTableCellSx, bgcolor: tokens.grid.header, color: tokens.grid.headerForeground, borderBottom: 'none' }}>Acción</TableCell>
                           </TableRow>
                         </TableHead>
-                        <TableBody>
+                        <TableBody
+                          sx={{
+                            '& .MuiTableCell-root': { color: tokens.content.foreground, borderColor: tokens.table.line, bgcolor: tokens.content.well },
+                            '& .MuiTableRow-root.MuiTableRow-hover:hover .MuiTableCell-root': { bgcolor: tokens.grid.hover },
+                          }}
+                        >
                           {documentosCargoMonetarios.map((item) => (
                             <TableRow key={item.id} hover>
                               <TableCell sx={compactTableCellSx}>{formatearFolioDocumento(item.serie || '', item.numero || 0) || '—'}</TableCell>

@@ -14,17 +14,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Badge,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
-  Chip,
   CircularProgress,
-  Divider,
-  Drawer,
   IconButton,
+  InputAdornment,
   Menu,
   MenuItem,
+  Popover,
   Stack,
   Tab,
   Tabs,
@@ -32,15 +31,16 @@ import {
   Tooltip,
   Typography,
   Snackbar,
+  useMediaQuery,
   useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
@@ -51,12 +51,14 @@ import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AssignmentReturnOutlinedIcon from '@mui/icons-material/AssignmentReturnOutlined';
+import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
 import type { DocumentoIndicatorModel } from '../indicadores';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
+import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
 import FacturaDocumentoResumenView from './FacturaDocumentoResumenView';
 import FacturaWorkspaceContabilidadTab from './FacturaWorkspaceContabilidadTab';
 import { resolverFolioVisual } from '../../../utils/documentos.utils';
@@ -71,6 +73,22 @@ import {
 } from '../DocumentoDetalleContent';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
+type FiltroFacturas = {
+  fechaDesde: string;
+  fechaHasta: string;
+  clienteId: number | null;
+  agenteId: number | null;
+  montoMin: string;
+  montoMax: string;
+};
+const FILTRO_FACTURAS_VACIO: FiltroFacturas = {
+  fechaDesde: '',
+  fechaHasta: '',
+  clienteId: null,
+  agenteId: null,
+  montoMin: '',
+  montoMax: '',
+};
 type SortModelItem = { field: string; sort: 'asc' | 'desc' | null | undefined };
 type SortModelInput = readonly SortModelItem[];
 
@@ -88,11 +106,15 @@ export interface FacturasWorkspaceViewProps {
   statusOptions: StatusOption[];
   resumenTotales: { general: number; porEstado: Record<string, number> } | null;
 
-  filtersContent: React.ReactNode;
-  filtersOpen: boolean;
-  onFiltersOpenChange: (open: boolean) => void;
-  hayFiltrosActivos: boolean;
-  filtrosActivosCount: number;
+  filtros: FiltroFacturas;
+  onFiltrosChange: (filtros: FiltroFacturas) => void;
+  contactos: Contacto[];
+  vendedores: Contacto[];
+  mostrarAgente: boolean;
+  etiquetaContacto: string;
+  soloPendientes: boolean;
+  onSoloPendientes: (value: boolean) => void;
+  mostrarSoloPendientes: boolean;
 
   sortModel: SortModelInput;
   onSortModelChange: (model: SortModelItem[]) => void;
@@ -137,13 +159,110 @@ function findAction(actions: GridContextMenuAction[], id: string): GridContextMe
   return found;
 }
 
-function estatusChipSx(option: StatusOption | undefined) {
-  if (!option) return {};
-  return {
-    backgroundColor: option.color || '#f3f4f6',
-    color: option.textColor || '#374151',
-    fontWeight: 700,
-  };
+function agregarAccionVisible(
+  items: WorkspaceContextItem[],
+  action: GridContextMenuActionItem | null,
+  label: string,
+  icon?: React.ReactNode,
+  extraDisabled = false,
+) {
+  if (!action || action.hidden) return;
+  const disabled = Boolean(action.disabled) || extraDisabled;
+  items.push({
+    id: action.id,
+    label,
+    icon: icon ?? action.icon,
+    disabled,
+    onClick: disabled ? undefined : (event) => { void action.onClick?.(event); },
+  });
+}
+
+function itemsMenuFactura(
+  row: CotizacionListado,
+  actions: GridContextMenuAction[],
+  tipoDocumento: TipoDocumento,
+  onCartaPorte: (row: CotizacionListado) => void,
+  onRegistrarMovimiento: ((row: CotizacionListado) => void) | undefined,
+): WorkspaceContextItem[] {
+  const estatus = normalizeEstatus(row.estatus_documento);
+  const saldoPendiente = Number(row.saldo ?? 0) > 0;
+  const facturaYaTimbrada = estatus === 'timbrado' || Boolean(row.cfdi_uuid);
+  const esNotaDeVenta = String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
+  const cartaPorteDisabled = facturaYaTimbrada || esNotaDeVenta;
+  const facturaEliminable = estatus === 'borrador';
+  const timbrarAction = findAction(actions, 'timbrar');
+  const registrarMovimientoAction = findAction(actions, 'registrar-movimiento');
+  const enviarCorreoAction = findAction(actions, 'enviar-correo-factura');
+  const enviarWhatsappAction = findAction(actions, 'enviar-whatsapp');
+  const registrarMovimientoDisabled = !saldoPendiente
+    || Boolean(registrarMovimientoAction?.disabled)
+    || Boolean(row.cobro_bloqueado)
+    || Number(row.contacto_principal_id ?? 0) <= 0;
+  const registrarMovimientoLabel = registrarMovimientoAction?.label
+    || (tipoDocumento === 'factura_compra' ? 'Registrar pago' : 'Registrar cobro');
+  const items: WorkspaceContextItem[] = [{
+    id: 'carta-porte',
+    label: 'Carta Porte / Viaje',
+    icon: <LocalShippingOutlinedIcon fontSize="small" />,
+    disabled: cartaPorteDisabled,
+    onClick: cartaPorteDisabled ? undefined : () => onCartaPorte(row),
+  }];
+  agregarAccionVisible(items, findAction(actions, 'ver-pdf'), 'Imprimir', <PrintOutlinedIcon fontSize="small" />);
+  agregarAccionVisible(items, findAction(actions, 'descargar-cfdi'), 'Descargar CFDI', <FileDownloadOutlinedIcon fontSize="small" />, !row.cfdi_uuid);
+  if (timbrarAction && !timbrarAction.hidden) {
+    const timbrarDisabled = facturaYaTimbrada || Boolean(timbrarAction.disabled);
+    items.push({
+      id: timbrarAction.id,
+      label: 'Timbrar CFDI',
+      icon: timbrarAction.icon ?? <NotificationsActiveIcon fontSize="small" />,
+      disabled: timbrarDisabled,
+      onClick: timbrarDisabled ? undefined : (event) => { void timbrarAction.onClick?.(event); },
+    });
+  }
+  if (onRegistrarMovimiento) {
+    items.push({
+      id: 'registrar-movimiento',
+      label: registrarMovimientoLabel,
+      icon: <AccountBalanceWalletIcon fontSize="small" />,
+      disabled: registrarMovimientoDisabled,
+      onClick: registrarMovimientoDisabled ? undefined : () => onRegistrarMovimiento(row),
+    });
+  }
+  agregarAccionVisible(items, findAction(actions, 'generar-nota_credito'), 'Generar Nota de crédito', <AssignmentReturnOutlinedIcon fontSize="small" />);
+  const correoVisible = Boolean(enviarCorreoAction && !enviarCorreoAction.hidden);
+  const whatsappVisible = Boolean(enviarWhatsappAction && !enviarWhatsappAction.hidden);
+  if (correoVisible && enviarCorreoAction) {
+    items.push({
+      id: enviarCorreoAction.id,
+      label: 'Enviar por correo',
+      icon: enviarCorreoAction.icon ?? <SendOutlinedIcon fontSize="small" />,
+      disabled: Boolean(enviarCorreoAction.disabled),
+      onClick: enviarCorreoAction.disabled ? undefined : (event) => { void enviarCorreoAction.onClick?.(event); },
+    });
+  }
+  if (whatsappVisible && enviarWhatsappAction) {
+    items.push({
+      id: enviarWhatsappAction.id,
+      label: 'Enviar por WhatsApp',
+      icon: enviarWhatsappAction.icon ?? <SendOutlinedIcon fontSize="small" />,
+      disabled: Boolean(enviarWhatsappAction.disabled),
+      onClick: enviarWhatsappAction.disabled ? undefined : (event) => { void enviarWhatsappAction.onClick?.(event); },
+    });
+  }
+  if (!correoVisible && !whatsappVisible) {
+    items.push({
+      id: 'enviar',
+      label: 'Enviar',
+      icon: <SendOutlinedIcon fontSize="small" />,
+      disabled: true,
+    });
+  }
+  agregarAccionVisible(items, findAction(actions, 'contabilizar-factura-venta'), 'Contabilizar factura');
+  agregarAccionVisible(items, findAction(actions, 'cancelar-documento'), 'Cancelar');
+  agregarAccionVisible(items, findAction(actions, 'emitir'), 'Emitir', <CheckCircleIcon fontSize="small" />);
+  agregarAccionVisible(items, findAction(actions, 'editar'), 'Editar');
+  agregarAccionVisible(items, findAction(actions, 'eliminar'), 'Eliminar', undefined, !facturaEliminable);
+  return items;
 }
 
 export default function FacturasWorkspaceView({
@@ -157,11 +276,15 @@ export default function FacturasWorkspaceView({
   onQuickFilterChange,
   statusOptions,
   resumenTotales,
-  filtersContent,
-  filtersOpen,
-  onFiltersOpenChange,
-  hayFiltrosActivos,
-  filtrosActivosCount,
+  filtros,
+  onFiltrosChange,
+  contactos,
+  vendedores,
+  mostrarAgente,
+  etiquetaContacto,
+  soloPendientes,
+  onSoloPendientes,
+  mostrarSoloPendientes,
   sortModel,
   onSortModelChange,
   extraActionsContent,
@@ -185,16 +308,20 @@ export default function FacturasWorkspaceView({
   onPaginationModelChange,
 }: FacturasWorkspaceViewProps) {
   const theme = useTheme();
+  const tokens = theme.emphasys;
+  const compacto = useMediaQuery(theme.breakpoints.down('md'));
+  const [detalleMovil, setDetalleMovil] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(() => {
     if (initialSelectedId && rows.some((row) => row.id === initialSelectedId)) {
       return initialSelectedId;
     }
     return rows[0]?.id ?? null;
   });
-  const [estadoMenuAnchor, setEstadoMenuAnchor] = useState<HTMLElement | null>(null);
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null);
+  const [anclaFiltro, setAnclaFiltro] = useState<HTMLElement | null>(null);
   const [globalMenuAnchor, setGlobalMenuAnchor] = useState<HTMLElement | null>(null);
   const [enviarMenuAnchor, setEnviarMenuAnchor] = useState<HTMLElement | null>(null);
+  const [menuFila, setMenuFila] = useState<{ top: number; left: number; rowId: number } | null>(null);
   const [previewTab, setPreviewTab] = useState(0);
   const [reconcileSnackbar, setReconcileSnackbar] = useState<{
     open: boolean;
@@ -208,6 +335,7 @@ export default function FacturasWorkspaceView({
   useEffect(() => {
     if (rows.length === 0) {
       setSelectedId(null);
+      setDetalleMovil(false);
       return;
     }
     if (!rows.some((row) => row.id === selectedId)) {
@@ -230,6 +358,7 @@ export default function FacturasWorkspaceView({
 
   const handleSelect = (row: CotizacionListado) => {
     setSelectedId(row.id);
+    setDetalleMovil(true);
   };
 
   // Se carga siempre (no sólo fuera del tab "Documento"): es un fetch JSON
@@ -255,98 +384,126 @@ export default function FacturasWorkspaceView({
     []
   );
 
-  const estatusActivoOption = quickFilter === 'todos' ? null : statusOptions.find((o) => o.value === quickFilter) ?? null;
+  const verLista = !compacto || !detalleMovil;
+  const criteriosLista = [
+    filtros.fechaDesde,
+    filtros.fechaHasta,
+    filtros.clienteId,
+    mostrarAgente ? filtros.agenteId : null,
+    filtros.montoMin,
+    filtros.montoMax,
+  ].filter((value) => value !== '' && value !== null).length
+    + (quickFilter !== 'todos' ? 1 : 0)
+    + (mostrarSoloPendientes && soloPendientes ? 1 : 0);
 
   return (
-    <Box sx={{ display: 'flex', height: 'calc(100vh - 180px)', minHeight: 560, border: '1px solid #e3e5ec', borderRadius: 2, overflow: 'hidden', bgcolor: '#fff' }}>
-      {/* ===== Panel izquierdo: colección ===== */}
-      <Box sx={{ width: 360, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #e3e5ec' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1.75, height: 52, flexShrink: 0 }}>
-          <Typography variant="body2" color="text.secondary" noWrap>
-            <b>{rowCount}</b> facturas
-            {resumenTotales ? <> &middot; <b>{currency.format(resumenTotales.general)}</b></> : null}
-          </Typography>
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <Button size="small" variant="outlined" onClick={() => onChangeView(false)} sx={{ textTransform: 'none', fontSize: 11 }}>
-              Vista clásica
-            </Button>
-            <Tooltip title="Acciones de la colección">
-              <IconButton
+    <Box sx={{ flex: 1, minHeight: compacto ? 'calc(100dvh - 112px)' : 0, display: 'flex', flexDirection: compacto ? 'column' : 'row', overflow: 'hidden' }}>
+      <Box sx={{
+        width: compacto ? '100%' : 372,
+        flexShrink: 0,
+        display: verLista ? 'flex' : 'none',
+        flexDirection: 'column',
+        minHeight: 0,
+        bgcolor: tokens.navigation.background,
+        color: tokens.navigation.foreground,
+        borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}`,
+      }}>
+        <Box sx={{ px: 1.75, pt: 1.7, pb: 1.1, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.navigation.muted }}>
+                FACTURAS
+              </Typography>
+              <Typography sx={{ mt: 0.35, fontSize: 13, color: tokens.navigation.subtle }} noWrap>
+                {rowCount} en vista{resumenTotales ? ` · ${currency.format(resumenTotales.general)}` : ''}
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={0.6} alignItems="center">
+              <Button
                 size="small"
-                onClick={(e) => setGlobalMenuAnchor(e.currentTarget)}
-                sx={{ border: '1.5px solid', borderColor: 'primary.main', color: 'primary.main' }}
+                variant="outlined"
+                onClick={() => onChangeView(false)}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: 11,
+                  color: tokens.navigation.foreground,
+                  borderColor: tokens.navigation.border,
+                  '&:hover': { borderColor: tokens.navigation.foreground, bgcolor: tokens.navigation.hover },
+                }}
               >
-                <MoreHorizIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Menu anchorEl={globalMenuAnchor} open={Boolean(globalMenuAnchor)} onClose={() => setGlobalMenuAnchor(null)}>
-              <Box sx={{ px: 1.5, pt: 0.5, pb: 1, minWidth: 260 }} onClick={() => setGlobalMenuAnchor(null)}>
-                {extraActionsContent}
-              </Box>
-            </Menu>
-            <Tooltip title="Nueva factura">
-              <IconButton
-                size="small"
-                onClick={onCreateDocumento}
-                sx={{ bgcolor: 'primary.main', color: '#fff', '&:hover': { bgcolor: 'primary.dark' } }}
-              >
-                <AddIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        </Box>
+                Vista clásica
+              </Button>
+              <Tooltip title="Acciones de la colección">
+                <IconButton
+                  size="small"
+                  aria-label="Acciones de la colección"
+                  onClick={(e) => setGlobalMenuAnchor(e.currentTarget)}
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    color: tokens.navigation.foreground,
+                    border: `1px solid ${tokens.navigation.border}`,
+                    '&:hover': { bgcolor: tokens.navigation.hover },
+                  }}
+                >
+                  <MoreHorizIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Menu anchorEl={globalMenuAnchor} open={Boolean(globalMenuAnchor)} onClose={() => setGlobalMenuAnchor(null)}>
+                <Box sx={{ px: 1.5, pt: 0.5, pb: 1, minWidth: 260 }} onClick={() => setGlobalMenuAnchor(null)}>
+                  {extraActionsContent}
+                </Box>
+              </Menu>
+              <Tooltip title="Nueva factura">
+                <IconButton
+                  size="small"
+                  aria-label="Nueva factura"
+                  onClick={onCreateDocumento}
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    bgcolor: tokens.navigation.control,
+                    color: tokens.navigation.controlForeground,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                    '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground },
+                  }}
+                >
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          </Box>
 
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ px: 1.75, pb: 1, flexShrink: 0 }}>
+          <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 1.35 }}>
           <TextField
             size="small"
             placeholder="Buscar folio, cliente, RFC…"
             value={searchTerm}
             onChange={(e) => onSearchTermChange(e.target.value)}
             InputProps={{
-              startAdornment: <SearchIcon fontSize="small" sx={{ mr: 0.5, color: 'text.disabled' }} />,
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: tokens.navigation.muted }} />
+                </InputAdornment>
+              ),
               endAdornment: searchTerm ? (
-                <IconButton size="small" onClick={onClearSearch}><CloseIcon fontSize="small" /></IconButton>
+                <IconButton size="small" onClick={onClearSearch} sx={{ color: tokens.navigation.muted }}><CloseIcon fontSize="small" /></IconButton>
               ) : null,
             }}
-            sx={{ flex: 1, '& .MuiInputBase-root': { fontSize: 13 } }}
+            sx={{
+              flex: 1,
+              '& .MuiOutlinedInput-root': {
+                color: tokens.navigation.foreground,
+                bgcolor: tokens.navigation.summary,
+                borderRadius: 2,
+                '& fieldset': { borderColor: 'transparent' },
+              },
+              '& .MuiOutlinedInput-input': { fontSize: 13, py: 0.9 },
+              '& .MuiOutlinedInput-input::placeholder': { color: tokens.navigation.muted, opacity: 1 },
+            }}
           />
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={(e) => setEstadoMenuAnchor(e.currentTarget)}
-            endIcon={<ExpandMoreIcon fontSize="small" />}
-            sx={{ textTransform: 'none', whiteSpace: 'nowrap', px: 1, fontWeight: 700, fontSize: 12 }}
-          >
-            {estatusActivoOption?.label ?? 'Todos'}
-          </Button>
-          <Menu anchorEl={estadoMenuAnchor} open={Boolean(estadoMenuAnchor)} onClose={() => setEstadoMenuAnchor(null)}>
-            <MenuItem
-              selected={quickFilter === 'todos'}
-              onClick={() => { onQuickFilterChange('todos'); setEstadoMenuAnchor(null); }}
-              sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, minWidth: 220 }}
-            >
-              <span>Todos</span>
-              <Typography variant="caption" color="text.secondary">
-                {resumenTotales ? currency.format(resumenTotales.general) : ''}
-              </Typography>
-            </MenuItem>
-            {statusOptions.map((option) => (
-              <MenuItem
-                key={option.value}
-                selected={quickFilter === option.value}
-                onClick={() => { onQuickFilterChange(option.value); setEstadoMenuAnchor(null); }}
-                sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}
-              >
-                <span>{option.label}</span>
-                <Typography variant="caption" color="text.secondary">
-                  {resumenTotales ? currency.format(resumenTotales.porEstado[option.value] ?? 0) : ''}
-                </Typography>
-              </MenuItem>
-            ))}
-          </Menu>
-
           <Tooltip title="Ordenar">
-            <IconButton size="small" onClick={(e) => setSortMenuAnchor(e.currentTarget)}>
+            <IconButton size="small" onClick={(e) => setSortMenuAnchor(e.currentTarget)} sx={{ color: tokens.navigation.foreground }}>
               <SwapVertIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -369,29 +526,94 @@ export default function FacturasWorkspaceView({
           </Menu>
 
           <Tooltip title="Filtros">
-            <Badge color="primary" badgeContent={hayFiltrosActivos ? filtrosActivosCount : 0} invisible={!hayFiltrosActivos}>
-              <IconButton size="small" onClick={() => onFiltersOpenChange(true)}>
+            <Box sx={{ position: 'relative', flexShrink: 0 }}>
+              <IconButton
+                size="small"
+                aria-label="Filtros"
+                onClick={(event) => setAnclaFiltro(event.currentTarget)}
+                sx={{ color: tokens.navigation.foreground }}
+              >
                 <FilterAltOutlinedIcon fontSize="small" />
               </IconButton>
-            </Badge>
+              {criteriosLista > 0 && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    minWidth: 16,
+                    height: 16,
+                    px: 0.4,
+                    borderRadius: 99,
+                    bgcolor: tokens.navigation.accent,
+                    color: tokens.frame.background,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  {criteriosLista}
+                </Box>
+              )}
+            </Box>
           </Tooltip>
         </Stack>
+        <PopoverFiltroFacturas
+          ancla={anclaFiltro}
+          filtro={filtros}
+          contactos={contactos}
+          vendedores={vendedores}
+          mostrarAgente={mostrarAgente}
+          etiquetaContacto={etiquetaContacto}
+          onClose={() => setAnclaFiltro(null)}
+          onChange={onFiltrosChange}
+          statusOptions={statusOptions}
+          quickFilter={quickFilter}
+          onQuickFilter={onQuickFilterChange}
+          soloPendientes={soloPendientes}
+          onSoloPendientes={onSoloPendientes}
+          mostrarSoloPendientes={mostrarSoloPendientes}
+          resumen={resumenTotales}
+          currency={currency}
+        />
+        </Box>
 
-        <Divider />
-
-        {selectionContent}
-        <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        <Box sx={{
+          px: 1,
+          pb: 0.5,
+          '& .MuiPaper-root': {
+            bgcolor: tokens.navigation.summary,
+            color: tokens.navigation.foreground,
+            borderColor: tokens.navigation.border,
+          },
+          '& .MuiTypography-root': { color: tokens.navigation.foreground },
+          '& .MuiButton-root': { color: tokens.navigation.foreground },
+        }}>
+          {selectionContent}
+        </Box>
+        <Box sx={{
+          flex: 1,
+          overflowY: 'auto',
+          px: 1,
+          pb: 1.2,
+          scrollbarWidth: 'thin',
+          scrollbarColor: `${tokens.navigation.progress} ${tokens.navigation.background}`,
+        }}>
           {isLoading && rows.length === 0 ? (
-            <Stack alignItems="center" py={4}><CircularProgress size={24} /></Stack>
+            <Stack alignItems="center" py={4}><CircularProgress size={24} sx={{ color: tokens.navigation.foreground }} /></Stack>
           ) : rows.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" sx={{ p: 3, textAlign: 'center' }}>
-              Sin resultados.
+            <Typography sx={{ px: 1.5, py: 3, fontSize: 13, color: tokens.navigation.muted, textAlign: 'center' }}>
+              {searchTerm || criteriosLista > 0 ? 'Ninguna factura coincide con la búsqueda.' : 'Sin facturas en esta vista.'}
             </Typography>
           ) : (
             rows.map((row) => {
               const estatus = normalizeEstatus(row.estatus_documento);
               const option = statusOptions.find((o) => o.value === estatus);
               const saldo = Number(row.saldo ?? 0);
+              const totalFila = Number(row.total ?? 0);
+              const aplicado = Math.max(0, totalFila - saldo);
+              const pct = totalFila > 0 ? Math.min(100, Math.round((aplicado / totalFila) * 100)) : 0;
               const selected = row.id === selectedId;
               const checked = selectedDocumentIds.includes(row.id);
               const estadoVisual = estadoVisualDocumento(row);
@@ -399,18 +621,26 @@ export default function FacturasWorkspaceView({
                 <Box
                   key={row.id}
                   onClick={() => handleSelect(row)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSelectedId(row.id);
+                    onSelectFactura(row);
+                    setMenuFila({ top: event.clientY, left: event.clientX, rowId: row.id });
+                  }}
                   sx={{
-                    px: 1.75,
-                    py: 0.85,
-                    borderBottom: '1px solid #eef0f3',
+                    px: 1,
+                    py: 1.05,
+                    mb: 0.45,
+                    borderRadius: 2,
                     cursor: 'pointer',
-                    bgcolor: selected ? '#eef1fb' : 'transparent',
-                    borderLeft: selected ? '3px solid' : '3px solid transparent',
-                    borderLeftColor: selected ? 'primary.main' : 'transparent',
-                    '&:hover': { bgcolor: selected ? '#eef1fb' : '#f8f9fc' },
+                    bgcolor: selected ? tokens.navigation.selection : 'transparent',
+                    color: selected ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
+                    boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                    '&:hover': { bgcolor: selected ? tokens.navigation.selection : tokens.navigation.hover },
                   }}
                 >
-                  <Stack direction="row" spacing={0.75} alignItems="baseline">
+                  <Stack direction="row" spacing={0.4} alignItems="flex-start">
                     <Checkbox
                       size="small"
                       checked={checked}
@@ -421,25 +651,35 @@ export default function FacturasWorkspaceView({
                           : selectedDocumentIds.filter((id) => id !== row.id);
                         onSelectedDocumentIdsChange(next);
                       }}
-                      sx={{ p: 0.25 }}
+                      inputProps={{ 'aria-label': `Seleccionar ${formatFolio(row)}` }}
+                      sx={{ p: 0.3, mt: -0.2, color: tokens.navigation.muted, '&.Mui-checked': { color: selected ? tokens.navigation.selectionForeground : tokens.navigation.foreground } }}
                     />
-                    <Typography variant="body2" fontWeight={700} noWrap>{formatFolio(row)}</Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1, minWidth: 0 }}>
-                      {row.nombre_cliente || '—'}
-                    </Typography>
-                    <Typography variant="body2" fontWeight={700} noWrap>{currency.format(Number(row.total ?? 0))}</Typography>
-                  </Stack>
-                  <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="space-between" sx={{ pl: 1.75, mt: 0.25 }}>
-                    <Stack direction="row" spacing={0.75} alignItems="center">
-                      <Typography variant="caption" color="text.disabled">{formatDate(row.fecha_documento)}</Typography>
-                      {option ? <Chip label={option.label} size="small" sx={{ height: 18, fontSize: 10, flexShrink: 0, ...estatusChipSx(option) }} /> : null}
-                      <Tooltip title={estadoVisual.label} arrow>
-                        <Box component="span" sx={{ width: 10, height: 10, flex: '0 0 10px', borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisual.tone), display: 'inline-block' }} />
-                      </Tooltip>
-                    </Stack>
-                    <Typography variant="caption" fontWeight={700} color={saldo > 0 ? 'error.main' : 'success.main'}>
-                      Saldo: {currency.format(saldo)}
-                    </Typography>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline' }}>
+                        <Typography variant="figure" sx={{ fontSize: 16, color: 'inherit', lineHeight: 1.1 }}>{formatFolio(row)}</Typography>
+                        <Typography sx={{ fontSize: 13.5, fontWeight: 750, fontVariantNumeric: 'tabular-nums', color: 'inherit' }}>
+                          {currency.format(totalFila)}
+                        </Typography>
+                      </Box>
+                      <Typography variant="figure" sx={{ fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }} noWrap>
+                        {row.nombre_cliente || 'Sin contacto'}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', mt: 0.3 }}>
+                        <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.navigation.foreground }}>
+                          {option?.label || estatus || 'Sin estado'}
+                        </Typography>
+                        <Tooltip title={estadoVisual.label} arrow>
+                          <Box component="span" aria-label={estadoVisual.label} sx={{ width: 8, height: 8, flex: '0 0 8px', borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisual.tone), display: 'inline-block' }} />
+                        </Tooltip>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mt: 0.55 }}>
+                        <Typography sx={{ fontSize: 12, color: tokens.navigation.subtle }}>Saldo: {currency.format(saldo)}</Typography>
+                        <Typography sx={{ fontSize: 11, color: tokens.navigation.muted }}>{formatDate(row.fecha_documento)}</Typography>
+                      </Box>
+                      <Box sx={{ mt: 0.55, height: 3, borderRadius: 99, bgcolor: tokens.navigation.track, overflow: 'hidden' }}>
+                        <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: saldo <= 0 ? tokens.metric.progressDone : tokens.navigation.progress }} />
+                      </Box>
+                    </Box>
                   </Stack>
                 </Box>
               );
@@ -447,41 +687,39 @@ export default function FacturasWorkspaceView({
           )}
         </Box>
 
-        <Divider />
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, py: 0.75, flexShrink: 0 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, py: 0.75, flexShrink: 0, borderTop: `1px solid ${tokens.navigation.border}` }}>
           <IconButton
             size="small"
+            aria-label="Página anterior"
             disabled={paginationModel.page <= 0}
             onClick={() => onPaginationModelChange({ ...paginationModel, page: paginationModel.page - 1 })}
+            sx={{ color: tokens.navigation.foreground }}
           >
             <ChevronLeftIcon fontSize="small" />
           </IconButton>
-          <Typography variant="caption" color="text.secondary">
+          <Typography sx={{ fontSize: 12, color: tokens.navigation.muted }}>
             Página {paginationModel.page + 1} de {Math.max(1, Math.ceil(rowCount / Math.max(1, paginationModel.pageSize)))}
           </Typography>
           <IconButton
             size="small"
+            aria-label="Página siguiente"
             disabled={(paginationModel.page + 1) * paginationModel.pageSize >= rowCount}
             onClick={() => onPaginationModelChange({ ...paginationModel, page: paginationModel.page + 1 })}
+            sx={{ color: tokens.navigation.foreground }}
           >
             <ChevronRightIcon fontSize="small" />
           </IconButton>
         </Stack>
+        <WorkspaceRowContextMenu
+          anchorPosition={menuFila && selectedRow && menuFila.rowId === selectedRow.id ? { top: menuFila.top, left: menuFila.left } : null}
+          items={menuFila && selectedRow && menuFila.rowId === selectedRow.id
+            ? itemsMenuFactura(selectedRow, gridContextMenuActions, tipoDocumento, onCartaPorte, onRegistrarMovimiento)
+            : []}
+          onClose={() => setMenuFila(null)}
+        />
       </Box>
 
-      {/* ===== Drawer de filtros (contenido real, reusado tal cual) ===== */}
-      <Drawer anchor="left" open={filtersOpen} onClose={() => onFiltersOpenChange(false)} sx={{ '& .MuiDrawer-paper': { width: 380, maxWidth: '90%' } }}>
-        <Box sx={{ p: 2.5 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-            <Typography variant="h6" fontWeight={800}>Filtros</Typography>
-            <IconButton size="small" onClick={() => onFiltersOpenChange(false)}><CloseIcon fontSize="small" /></IconButton>
-          </Stack>
-          {filtersContent}
-        </Box>
-      </Drawer>
-
-      {/* ===== Panel derecho: workspace ===== */}
-      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: compacto && verLista ? 'none' : 'flex', flexDirection: 'column', bgcolor: tokens.content.background }}>
         {selectedRow ? (
           <FacturaWorkspacePanel
             key={selectedRow.id}
@@ -490,6 +728,7 @@ export default function FacturasWorkspaceView({
             statusOptions={statusOptions}
             indicators={indicatorsByDocumentId[selectedRow.id]}
             currency={currency}
+            formatDate={formatDate}
             gridContextMenuActions={gridContextMenuActions}
             previewTab={previewTab}
             onPreviewTabChange={setPreviewTab}
@@ -500,10 +739,19 @@ export default function FacturasWorkspaceView({
             setEnviarMenuAnchor={setEnviarMenuAnchor}
             onCartaPorte={onCartaPorte}
             onRegistrarMovimiento={onRegistrarMovimiento}
+            compacto={compacto}
+            onVolver={() => setDetalleMovil(false)}
           />
         ) : (
-          <Stack alignItems="center" justifyContent="center" sx={{ flex: 1 }}>
-            <Typography variant="body2" color="text.secondary">Selecciona una factura de la lista.</Typography>
+          <Stack alignItems="center" justifyContent="center" sx={{ flex: 1, px: 3, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.content.foreground }}>
+              {rows.length > 0 ? 'Selecciona una factura' : 'Sin facturas en esta vista'}
+            </Typography>
+            <Typography sx={{ mt: 0.6, fontSize: 13, color: tokens.content.muted, maxWidth: 360 }}>
+              {rows.length > 0
+                ? 'El documento, sus partidas, pagos y contabilidad aparecen aquí.'
+                : 'Ajusta la búsqueda o crea una factura nueva.'}
+            </Typography>
           </Stack>
         )}
       </Box>
@@ -518,9 +766,9 @@ export default function FacturasWorkspaceView({
           severity={reconcileSnackbar.severity}
           variant="filled"
           sx={{
-            bgcolor: '#111',
-            color: '#fff',
-            borderLeft: `4px solid ${reconcileSnackbar.severity === 'error' ? '#D32F2F' : reconcileSnackbar.severity === 'warning' ? '#F59E0B' : '#2E7D32'}`,
+            bgcolor: tokens.content.foreground,
+            color: tokens.content.background,
+            borderLeft: `4px solid ${reconcileSnackbar.severity === 'error' ? tokens.action.destructive : reconcileSnackbar.severity === 'warning' ? tokens.status.cancellation : tokens.metric.applied.foreground}`,
           }}
         >
           <Typography sx={{ fontWeight: 800, fontSize: 12.5 }}>{reconcileSnackbar.title}</Typography>
@@ -539,6 +787,7 @@ function FacturaWorkspacePanel({
   statusOptions,
   indicators,
   currency,
+  formatDate,
   gridContextMenuActions,
   previewTab,
   onPreviewTabChange,
@@ -549,12 +798,15 @@ function FacturaWorkspacePanel({
   setEnviarMenuAnchor,
   onCartaPorte,
   onRegistrarMovimiento,
+  compacto,
+  onVolver,
 }: {
   row: CotizacionListado;
   tipoDocumento: TipoDocumento;
   statusOptions: StatusOption[];
   indicators: DocumentoIndicatorModel | undefined;
   currency: Intl.NumberFormat;
+  formatDate: (value: unknown) => string;
   gridContextMenuActions: GridContextMenuAction[];
   previewTab: number;
   onPreviewTabChange: (tab: number) => void;
@@ -564,8 +816,12 @@ function FacturaWorkspacePanel({
   enviarMenuAnchor: HTMLElement | null;
   setEnviarMenuAnchor: (el: HTMLElement | null) => void;
   onCartaPorte: (row: CotizacionListado) => void;
-  onRegistrarMovimiento?: (row: CotizacionListado) => void;
+  onRegistrarMovimiento: ((row: CotizacionListado) => void) | undefined;
+  compacto: boolean;
+  onVolver: () => void;
 }) {
+  const theme = useTheme();
+  const tokens = theme.emphasys;
   const estatus = normalizeEstatus(row.estatus_documento);
   const option = statusOptions.find((o) => o.value === estatus);
   const saldo = Number(row.saldo ?? 0);
@@ -606,14 +862,9 @@ function FacturaWorkspacePanel({
   const timbrarDisabled = facturaYaTimbrada || Boolean(timbrarAction?.hidden) || Boolean(timbrarAction?.disabled);
 
 
-  // "Eliminar" siempre visible (requisito del mockup aprobado). La acción
-  // real no calcula de antemano si es eliminable para facturas (hoy sólo
-  // abre el diálogo de confirmación y el backend rechaza si no procede) —
-  // aquí sólo se añade una señal visual best-effort, reflejando la misma
-  // regla que ya aplica el backend (`assertFacturaEliminable`: bloquea si
-  // está timbrada o tiene pagos activos). El clic, cuando está habilitado,
-  // sigue disparando exactamente `handleRequestDelete` sin cambios.
-  const facturaEliminable = !row.cfdi_uuid && !row.tiene_aplicaciones_saldo_activas;
+  // La regla de eliminación de facturas es estrictamente el estado Borrador;
+  // el backend permanece como autoridad final.
+  const facturaEliminable = estatus === 'borrador';
 
   const runButtonAction = (action: GridContextMenuActionItem | null) => (event: React.MouseEvent<HTMLButtonElement>) => {
     void action?.onClick?.(event);
@@ -622,19 +873,19 @@ function FacturaWorkspacePanel({
     closeMenu();
     void action?.onClick?.(event);
   };
-  const actionButtonSx = {
-    width: 32,
-    height: 32,
-    color: '#fff',
-    border: '1px solid rgba(255,255,255,0.55)',
-    borderRadius: 1,
-    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
-    '&.Mui-disabled': {
-      color: 'rgba(255,255,255,0.35)',
-      borderColor: 'rgba(255,255,255,0.2)',
-      bgcolor: 'rgba(255,255,255,0.04)',
-    },
-  } as const;
+  const iconoSx = (disabled: boolean) => ({
+    width: 34,
+    height: 34,
+    borderRadius: '10px',
+    bgcolor: disabled ? tokens.action.disabled : tokens.action.primary,
+    color: tokens.action.primaryForeground,
+    '&:hover': { bgcolor: disabled ? tokens.action.disabled : tokens.action.primaryHover },
+    '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+  });
+  const estadoVisual = estadoVisualDocumento(row);
+  const totalDocumento = Number(row.total ?? 0);
+  const aplicadoDocumento = Math.max(0, totalDocumento - saldo);
+  const pctDocumento = totalDocumento > 0 ? Math.min(100, Math.round((aplicadoDocumento / totalDocumento) * 100)) : 0;
   const renderActionButton = (
     action: GridContextMenuActionItem | null,
     caption: string,
@@ -650,7 +901,7 @@ function FacturaWorkspacePanel({
             aria-label={caption}
             disabled={disabled}
             onClick={runButtonAction(action)}
-            sx={actionButtonSx}
+            sx={iconoSx(disabled)}
           >
             {options?.icon ?? action.icon}
           </IconButton>
@@ -661,21 +912,42 @@ function FacturaWorkspacePanel({
 
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'center', px: 2.5, height: 44, flexShrink: 0, bgcolor: 'primary.main', color: '#fff', minWidth: 0 }}>
-        <Stack direction="row" spacing={0} alignItems="baseline" sx={{ minWidth: 0, flexWrap: 'nowrap' }}>
-          <Typography variant="body1" fontWeight={800} noWrap>
-            {esNotaDeVenta ? 'Nota de venta · ' : ''}{folio}{' '}
-            <Box component="span" sx={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>(id interno:{row.id})</Box>
+      <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: compacto ? 1 : 1.6, pb: 1.4, flexShrink: 0 }}>
+        {compacto && (
+          <Box
+            component="button"
+            type="button"
+            onClick={onVolver}
+            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, border: 0, bgcolor: 'transparent', color: tokens.content.foreground, font: 'inherit', cursor: 'pointer', mb: 0.5, p: 0 }}
+          >
+            <ArrowBackIcon fontSize="small" /> Facturas
+          </Box>
+        )}
+        <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
+          {esNotaDeVenta ? 'NOTA DE VENTA SELECCIONADA' : 'FACTURA SELECCIONADA'}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.35 }}>
+          <Typography variant="figure" sx={{ fontSize: compacto ? 26 : 32, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
+            {folio}
           </Typography>
-          <Typography variant="body1" fontWeight={800} sx={{ mx: 0.75, flexShrink: 0 }}>-</Typography>
-          <Typography variant="caption" sx={{ opacity: 0.75, textTransform: 'uppercase', fontWeight: 700, flexShrink: 0 }}>Saldo</Typography>
-          <Typography variant="body2" fontWeight={800} sx={{ ml: 0.75, color: saldo > 0 ? '#ff9a95' : '#7fe6a3', flexShrink: 0 }}>
-            {currency.format(saldo)}
-          </Typography>
-        </Stack>
+          <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>{formatDate(row.fecha_documento)}</Typography>
+          <Typography sx={{ fontSize: 12, color: tokens.content.muted }}>id {row.id}</Typography>
+        </Box>
+        <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, mt: 0.7, fontSize: 15, lineHeight: 1.3, color: tokens.content.foreground }}>
+          {row.nombre_cliente || 'Sin contacto'}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, fontSize: 12, fontWeight: 700 }}>
+            {option?.label || estatus || 'Sin estado'}
+          </Box>
+          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.content.elevated, color: tokens.content.foreground, fontSize: 12, fontWeight: 650 }}>
+            <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisual.tone) }} />
+            {estadoVisual.label}
+          </Box>
+        </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', px: 1, minHeight: 40, flexShrink: 0, gap: 0.5, overflowX: 'auto', bgcolor: 'primary.main', borderBottom: '1px solid rgba(255,255,255,0.16)' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', px: { xs: 1, md: 2.25 }, minHeight: 40, flexShrink: 0, gap: 0.5, overflowX: 'auto' }}>
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ py: 0.5, flexShrink: 0 }}>
           <Tooltip title={cartaPorteDisabled && facturaYaTimbrada ? 'Carta Porte / Viaje no disponible: factura timbrada' : cartaPorteDisabled ? 'Carta Porte / Viaje no disponible: nota de venta' : 'Carta Porte / Viaje'} arrow>
             <span>
@@ -684,7 +956,7 @@ function FacturaWorkspacePanel({
                 aria-label="Carta Porte / Viaje"
                 onClick={() => row && onCartaPorte(row)}
                 disabled={!row || cartaPorteDisabled}
-                sx={actionButtonSx}
+                sx={iconoSx(!row || cartaPorteDisabled)}
               >
                 <LocalShippingOutlinedIcon fontSize="small" />
               </IconButton>
@@ -703,7 +975,7 @@ function FacturaWorkspacePanel({
                   aria-label="Timbrar CFDI"
                   disabled={timbrarDisabled}
                   onClick={facturaYaTimbrada ? undefined : runButtonAction(timbrarAction)}
-                  sx={actionButtonSx}
+                  sx={iconoSx(timbrarDisabled)}
                 >
                   {timbrarAction.icon ?? <NotificationsActiveIcon fontSize="small" />}
                 </IconButton>
@@ -721,7 +993,7 @@ function FacturaWorkspacePanel({
                   aria-label={registrarMovimientoLabel}
                   disabled={registrarMovimientoDisabled}
                   onClick={() => onRegistrarMovimiento(row)}
-                  sx={actionButtonSx}
+                  sx={iconoSx(registrarMovimientoDisabled)}
                 >
                   <AccountBalanceWalletIcon fontSize="small" />
                 </IconButton>
@@ -742,7 +1014,10 @@ function FacturaWorkspacePanel({
                   && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
                 )}
                 onClick={(e: React.MouseEvent<HTMLElement>) => setEnviarMenuAnchor(e.currentTarget)}
-                sx={actionButtonSx}
+                sx={iconoSx(Boolean(
+                  (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
+                  && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
+                ))}
               >
                 <SendOutlinedIcon fontSize="small" />
               </IconButton>
@@ -773,17 +1048,56 @@ function FacturaWorkspacePanel({
         </Stack>
       </Box>
 
+      <Box sx={{ px: { xs: 1.5, md: 2.75 }, pb: 1.6, flexShrink: 0 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr 1.15fr', gap: 0.8 }}>
+          <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>TOTAL</Typography>
+            <Typography variant="figure" sx={{ fontSize: 22, lineHeight: 1.15, color: 'inherit' }}>{currency.format(totalDocumento)}</Typography>
+          </Box>
+          <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.applied.background, color: tokens.content.foreground }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>APLICADO</Typography>
+            <Typography variant="figure" sx={{ fontSize: 22, lineHeight: 1.15, color: 'inherit' }}>{currency.format(aplicadoDocumento)}</Typography>
+          </Box>
+          <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: saldo > 0 ? tokens.metric.blocked.background : tokens.metric.available.background, color: tokens.content.foreground }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>SALDO</Typography>
+            <Typography variant="figure" sx={{ fontSize: 22, lineHeight: 1.15, color: 'inherit' }}>{currency.format(saldo)}</Typography>
+          </Box>
+        </Box>
+        <Box sx={{ mt: 1.1, height: 4, borderRadius: 99, bgcolor: tokens.metric.track, overflow: 'hidden' }}>
+          <Box sx={{ width: `${pctDocumento}%`, height: '100%', bgcolor: saldo <= 0 ? tokens.metric.progressDone : tokens.metric.progress }} />
+        </Box>
+      </Box>
+
+      <Box sx={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        mx: { xs: 1, md: 1.75 },
+        mb: { xs: 1, md: 1.75 },
+        bgcolor: tokens.content.well,
+        borderRadius: 3,
+        border: `1px solid ${tokens.content.border}`,
+        overflow: 'hidden',
+      }}>
       <Tabs
         value={previewTab}
         onChange={(_e, v) => onPreviewTabChange(v)}
         variant="scrollable"
         scrollButtons="auto"
-        sx={{ px: 2.5, minHeight: 34, borderBottom: '1px solid #e3e5ec', '& .MuiTab-root': { minHeight: 34, textTransform: 'none', fontWeight: 700, fontSize: 12.5 } }}
+        sx={{
+          px: 1.5,
+          minHeight: 46,
+          borderBottom: `1px solid ${tokens.content.border}`,
+          '& .MuiTab-root': { minHeight: 46, textTransform: 'none', fontWeight: 650, fontSize: 14, color: tokens.content.muted },
+          '& .Mui-selected': { color: tokens.content.foreground },
+          '& .MuiTabs-indicator': { height: 2, borderRadius: 2, backgroundColor: tokens.content.foreground },
+        }}
       >
         {PREVIEW_TAB_LABELS.map((label) => <Tab key={label} label={label} />)}
       </Tabs>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 2.5 }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', p: { xs: 1.5, md: 2.25 } }}>
         {previewTab === 0 ? (
           <FacturaDocumentoResumenView
             row={row}
@@ -824,6 +1138,177 @@ function FacturaWorkspacePanel({
           <InventarioTab movimientos={detalle.data.movimientosInventario} />
         )}
       </Box>
+      </Box>
     </>
+  );
+}
+
+function PopoverFiltroFacturas({
+  ancla,
+  filtro,
+  contactos,
+  vendedores,
+  mostrarAgente,
+  etiquetaContacto,
+  onClose,
+  onChange,
+  statusOptions,
+  quickFilter,
+  onQuickFilter,
+  soloPendientes,
+  onSoloPendientes,
+  mostrarSoloPendientes,
+  resumen,
+  currency,
+}: {
+  ancla: HTMLElement | null;
+  filtro: FiltroFacturas;
+  contactos: Contacto[];
+  vendedores: Contacto[];
+  mostrarAgente: boolean;
+  etiquetaContacto: string;
+  onClose: () => void;
+  onChange: (filtro: FiltroFacturas) => void;
+  statusOptions: StatusOption[];
+  quickFilter: string;
+  onQuickFilter: (value: string) => void;
+  soloPendientes: boolean;
+  onSoloPendientes: (value: boolean) => void;
+  mostrarSoloPendientes: boolean;
+  resumen: { general: number; porEstado: Record<string, number> } | null;
+  currency: Intl.NumberFormat;
+}) {
+  const tokens = useTheme().emphasys;
+  const contacto = contactos.find((item) => item.id === filtro.clienteId) ?? null;
+  const agente = vendedores.find((item) => item.id === filtro.agenteId) ?? null;
+  const campoSx = {
+    '& .MuiInputLabel-root': { color: tokens.content.muted },
+    '& .MuiInputLabel-root.Mui-focused': { color: tokens.content.foreground },
+    '& .MuiOutlinedInput-root': {
+      color: tokens.content.foreground,
+      bgcolor: tokens.content.elevated,
+      '& fieldset': { borderColor: tokens.content.border },
+      '&:hover fieldset': { borderColor: tokens.content.foreground },
+      '&.Mui-focused fieldset': { borderColor: tokens.content.foreground },
+    },
+    '& .MuiOutlinedInput-input::placeholder': { color: tokens.content.muted, opacity: 1 },
+  };
+  return (
+    <Popover
+      open={Boolean(ancla)}
+      anchorEl={ancla}
+      onClose={onClose}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      slotProps={{
+        paper: {
+          sx: {
+            mt: 0.75,
+            p: 1.5,
+            width: 320,
+            borderRadius: 2,
+            bgcolor: tokens.content.card,
+            color: tokens.content.foreground,
+            border: `1px solid ${tokens.content.border}`,
+            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            maxHeight: 'min(70vh, 560px)',
+            overflow: 'auto',
+          },
+        },
+      }}
+    >
+      <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: tokens.content.muted }}>FILTROS</Typography>
+      <Box sx={{ display: 'grid', gap: 1.1, mt: 1.2 }}>
+        {mostrarSoloPendientes && (
+          <Box
+            component="label"
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.4, cursor: 'pointer', color: tokens.content.foreground }}
+          >
+            <Checkbox
+              size="small"
+              checked={soloPendientes}
+              onChange={(event) => onSoloPendientes(event.target.checked)}
+              sx={{ p: 0.4, color: tokens.content.muted, '&.Mui-checked': { color: tokens.content.foreground } }}
+            />
+            <Typography sx={{ fontSize: 13, fontWeight: 650 }}>Solo pendientes</Typography>
+          </Box>
+        )}
+        <Box sx={{ display: 'grid', gap: 0.35 }}>
+          {[{ value: 'todos', label: 'Todos' }, ...statusOptions].map((estado) => {
+            const activo = quickFilter === estado.value;
+            const monto = estado.value === 'todos' ? resumen?.general : resumen?.porEstado[estado.value];
+            return (
+              <Box
+                key={estado.value}
+                component="button"
+                type="button"
+                onClick={() => onQuickFilter(estado.value)}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: 1,
+                  border: 0,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  borderRadius: 1.5,
+                  px: 1,
+                  py: 0.55,
+                  font: 'inherit',
+                  color: tokens.content.foreground,
+                  bgcolor: activo ? tokens.action.wash : 'transparent',
+                  '&:hover': { bgcolor: activo ? tokens.action.wash : tokens.content.hover },
+                }}
+              >
+                <Typography sx={{ fontSize: 13, fontWeight: activo ? 750 : 600 }}>{estado.label}</Typography>
+                <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: tokens.content.secondary }}>
+                  {monto == null ? '—' : currency.format(monto)}
+                </Typography>
+              </Box>
+            );
+          })}
+        </Box>
+        <TextField size="small" type="date" label="Fecha desde" value={filtro.fechaDesde} onChange={(event) => onChange({ ...filtro, fechaDesde: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />
+        <TextField size="small" type="date" label="Fecha hasta" value={filtro.fechaHasta} onChange={(event) => onChange({ ...filtro, fechaHasta: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />
+        <Autocomplete
+          size="small"
+          options={contactos}
+          value={contacto}
+          onChange={(_, value) => onChange({ ...filtro, clienteId: value?.id ?? null })}
+          getOptionLabel={(option) => option.nombre || ''}
+          isOptionEqualToValue={(option, value) => option.id === value.id}
+          renderInput={(params) => (
+            <TextField {...(params as object)} label={etiquetaContacto} placeholder="Todos" sx={campoSx} />
+          )}
+        />
+        {mostrarAgente && (
+          <Autocomplete
+            size="small"
+            options={vendedores}
+            value={agente}
+            onChange={(_, value) => onChange({ ...filtro, agenteId: value?.id ?? null })}
+            getOptionLabel={(option) => option.nombre || ''}
+            isOptionEqualToValue={(option, value) => option.id === value.id}
+            renderInput={(params) => (
+              <TextField {...(params as object)} label="Agente de ventas" placeholder="Todos" sx={campoSx} />
+            )}
+          />
+        )}
+        <TextField size="small" type="number" label="Monto mínimo" value={filtro.montoMin} onChange={(event) => onChange({ ...filtro, montoMin: event.target.value })} inputProps={{ min: 0, step: 0.01 }} sx={campoSx} />
+        <TextField size="small" type="number" label="Monto máximo" value={filtro.montoMax} onChange={(event) => onChange({ ...filtro, montoMax: event.target.value })} inputProps={{ min: 0, step: 0.01 }} sx={campoSx} />
+        <Box
+          component="button"
+          type="button"
+          onClick={() => {
+            onChange(FILTRO_FACTURAS_VACIO);
+            onSoloPendientes(false);
+            onQuickFilter('todos');
+          }}
+          sx={{ justifySelf: 'start', border: 0, bgcolor: 'transparent', color: tokens.content.foreground, font: 'inherit', fontSize: 13, fontWeight: 750, cursor: 'pointer', p: 0 }}
+        >
+          Limpiar filtros
+        </Box>
+      </Box>
+    </Popover>
   );
 }

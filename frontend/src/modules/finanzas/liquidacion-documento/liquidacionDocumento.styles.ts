@@ -1,22 +1,30 @@
 import type { SxProps, Theme } from '@mui/material/styles';
 
-export const LIQUIDACION_NAVY = '#1d2f68';
-export const LIQUIDACION_BORDER = '#e5e7eb';
-export const LIQUIDACION_FIELD_BORDER = '#cbd5e1';
-export const LIQUIDACION_FIELD_BG = '#f8fafc';
-export const LIQUIDACION_AMBER = '#b45309';
-export const LIQUIDACION_LABEL = '#8b93a7';
+const outlinedFieldRoot = (theme: Theme) => ({
+  bgcolor: theme.emphasys.content.card,
+  backgroundColor: theme.emphasys.content.card,
+  backgroundImage: 'none',
+  borderRadius: '10px',
+  '& fieldset': { borderColor: theme.emphasys.content.border },
+  '&:hover': { backgroundColor: theme.emphasys.content.card },
+  '&:hover fieldset': { borderColor: theme.emphasys.content.foreground },
+  '&.Mui-focused': { backgroundColor: theme.emphasys.content.card },
+  '&.Mui-focused fieldset': {
+    borderColor: theme.emphasys.content.foreground,
+    borderWidth: '1px',
+  },
+});
 
-export const fieldLabelSx: SxProps<Theme> = {
+export const fieldLabelSx: SxProps<Theme> = (theme) => ({
   display: 'block',
   fontSize: 11,
-  fontWeight: 600,
+  fontWeight: 700,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
-  color: LIQUIDACION_LABEL,
+  color: theme.emphasys.content.muted,
   lineHeight: 1.2,
   mb: 0.5,
-};
+});
 
 export const valueSlotSx: SxProps<Theme> = {
   minHeight: 40,
@@ -24,33 +32,20 @@ export const valueSlotSx: SxProps<Theme> = {
   alignItems: 'center',
 };
 
-const outlinedFieldRoot = {
-  bgcolor: '#fff',
-  backgroundColor: '#fff',
-  backgroundImage: 'none',
-  borderRadius: '6px',
-  '& fieldset': { borderColor: LIQUIDACION_FIELD_BORDER },
-  '&:hover': { backgroundColor: '#fff' },
-  '&:hover fieldset': { borderColor: '#94a3b8' },
-  '&.Mui-focused': { backgroundColor: '#fff' },
-  '&.Mui-focused fieldset': {
-    borderColor: LIQUIDACION_NAVY,
-    borderWidth: '1px',
-  },
-};
-
-export const captureFieldSx: SxProps<Theme> = {
+export const captureFieldSx: SxProps<Theme> = (theme) => ({
   '& .MuiOutlinedInput-root': {
-    ...outlinedFieldRoot,
+    ...outlinedFieldRoot(theme),
     height: 40,
     fontSize: 14,
+    color: theme.emphasys.content.foreground,
   },
   '& .MuiOutlinedInput-input': {
     py: 0,
     height: 40,
     boxSizing: 'border-box',
     fontSize: 14,
-    backgroundColor: '#fff',
+    color: theme.emphasys.content.foreground,
+    backgroundColor: theme.emphasys.content.card,
   },
   '& .MuiSelect-select': {
     display: 'flex',
@@ -58,11 +53,12 @@ export const captureFieldSx: SxProps<Theme> = {
     height: 40,
     py: 0,
     boxSizing: 'border-box',
-    backgroundColor: '#fff',
+    color: theme.emphasys.content.foreground,
+    backgroundColor: theme.emphasys.content.card,
   },
-};
+});
 
-export const formaPagoFieldSx: SxProps<Theme> = {
+export const formaPagoFieldSx: SxProps<Theme> = (theme) => ({
   '& .MuiStack-root': { gap: 0 },
   '& .MuiStack-root > .MuiBox-root': {
     gridTemplateColumns: '1fr !important',
@@ -74,7 +70,7 @@ export const formaPagoFieldSx: SxProps<Theme> = {
     legend: { display: 'none', width: 0 },
   },
   '& .MuiOutlinedInput-root': {
-    ...outlinedFieldRoot,
+    ...outlinedFieldRoot(theme),
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
@@ -84,18 +80,21 @@ export const formaPagoFieldSx: SxProps<Theme> = {
     pl: 1.5,
     pr: '32px',
     fontSize: 14,
+    color: theme.emphasys.content.foreground,
   },
   '& .MuiOutlinedInput-input': {
     py: '0 !important',
     height: 40,
     boxSizing: 'border-box',
     fontSize: '14px !important',
-    backgroundColor: '#fff',
+    color: theme.emphasys.content.foreground,
+    backgroundColor: theme.emphasys.content.card,
   },
   '& .MuiAutocomplete-input': {
     fontSize: '14px !important',
     padding: '0 !important',
-    backgroundColor: '#fff',
+    color: theme.emphasys.content.foreground,
+    backgroundColor: theme.emphasys.content.card,
   },
   '& .MuiAutocomplete-root .MuiOutlinedInput-root .MuiAutocomplete-endAdornment': {
     top: 0,
@@ -113,24 +112,29 @@ export const formaPagoFieldSx: SxProps<Theme> = {
     width: 24,
     height: 24,
     margin: 0,
+    color: theme.emphasys.content.muted,
   },
-};
+});
 
-export const amountFieldSx: SxProps<Theme> = {
+export const amountFieldSx: SxProps<Theme> = (theme) => ({
   '& .MuiOutlinedInput-root': {
-    ...outlinedFieldRoot,
-    height: 48,
-    fontSize: 22,
+    ...outlinedFieldRoot(theme),
+    height: 56,
+    bgcolor: theme.emphasys.metric.amount.background,
+    backgroundColor: theme.emphasys.metric.amount.background,
+    '&:hover': { backgroundColor: theme.emphasys.metric.amount.background },
+    '&.Mui-focused': { backgroundColor: theme.emphasys.metric.amount.background },
   },
   '& .MuiOutlinedInput-input': {
     py: 0,
-    height: 48,
+    height: 56,
     boxSizing: 'border-box',
-    fontSize: 22,
-    fontWeight: 700,
-    color: LIQUIDACION_NAVY,
+    fontFamily: theme.typography.figure.fontFamily,
+    fontSize: 28,
+    fontWeight: 500,
+    color: theme.emphasys.content.foreground,
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'right',
-    backgroundColor: '#fff',
+    backgroundColor: theme.emphasys.metric.amount.background,
   },
-};
+});

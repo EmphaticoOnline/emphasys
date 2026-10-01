@@ -23,8 +23,8 @@ export default function SeccionCard({ id, titulo, subtitulo, badge, accion, rese
       variant="outlined"
       sx={{
         borderRadius: 1.5,
-        borderColor: '#e5e7eb',
-        backgroundColor: '#ffffff',
+        borderColor: (theme) => theme.emphasys.content.border,
+        backgroundColor: (theme) => theme.emphasys.content.card,
         overflow: 'hidden',
         scrollMarginTop: 12,
         ...(reservado
@@ -40,18 +40,18 @@ export default function SeccionCard({ id, titulo, subtitulo, badge, accion, rese
         direction="row"
         alignItems="center"
         justifyContent="space-between"
-        sx={{ px: 2, py: 1.25, borderBottom: '1px solid #e5e7eb' }}
+        sx={(theme) => ({ px: 2, py: 1.25, borderBottom: `1px solid ${theme.emphasys.content.border}` })}
         spacing={1}
       >
         <Box sx={{ minWidth: 0 }}>
           <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="subtitle2" fontWeight={700} color="#111827" fontSize={13.5}>
+            <Typography variant="subtitle2" fontWeight={700} fontSize={13.5} sx={{ color: (theme) => theme.emphasys.content.foreground }}>
               {titulo}
             </Typography>
             {badge}
           </Stack>
           {subtitulo && (
-            <Typography variant="caption" color="#6b7280" fontSize={11.5}>
+            <Typography variant="caption" fontSize={11.5} sx={{ color: (theme) => theme.emphasys.content.muted }}>
               {subtitulo}
             </Typography>
           )}

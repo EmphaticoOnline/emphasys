@@ -10,17 +10,6 @@ import { useSession } from '../session/useSession';
 
 type CrmTabKey = (typeof CRM_TABS)[number]['key'];
 
-const CRM_TAB_STYLE = {
-  minHeight: 0,
-  textTransform: 'none',
-  fontWeight: 600,
-  color: '#4b5563',
-  borderTop: '3px solid transparent',
-  borderRadius: '6px 6px 0 0',
-  padding: '8px 10px',
-  mr: 1,
-  alignItems: 'flex-end',
-};
 
 function getActiveTab(pathname: string): CrmTabKey {
   if (pathname === '/crm') return 'conversaciones';
@@ -68,17 +57,21 @@ export default function CRMPage() {
     }
   };
 
-  // En Conversaciones/Leads, el título "CRM" + descripción no aporta valor
-  // operativo y le resta altura útil a una pantalla que ya tiene su propio
-  // contexto (bandeja/chat/detalle) — se omite solo para esa pestaña, sin
-  // tocar Actividades ni Oportunidades. Las pestañas se conservan siempre.
-  const hideIntroForConversaciones = activeTab === 'conversaciones';
+  // Conversaciones y Actividades ya traen su propio contexto operativo.
+  // El título "CRM" se conserva en Oportunidades, que aún no se homologa.
+  const compactCrmChrome = activeTab === 'conversaciones' || activeTab === 'actividades';
+  const documentNav = theme.emphasys.documentNav;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 0,
+      ...(activeTab === 'actividades' ? { flex: 1, height: '100%', overflow: 'hidden' } : {}),
+    }}>
       {!hideChromeForMobileChat && (
-        <Box sx={{ px: { xs: 2, md: 2.5 }, pt: hideIntroForConversaciones ? 1.25 : 2.5, pb: 0.5 }}>
-          {!hideIntroForConversaciones && (
+        <Box sx={{ px: { xs: 2, md: 2.5 }, pt: compactCrmChrome ? 1.25 : 2.5, pb: 0.5, flexShrink: 0 }}>
+          {!compactCrmChrome && (
             <Box sx={{ mb: 1.5 }}>
               <Typography variant="h5" fontWeight={700} color="#1d2f68">
                 CRM
@@ -101,18 +94,28 @@ export default function CRMPage() {
               '& .MuiTabs-flexContainer': {
                 alignItems: 'flex-end',
               },
-              '& .MuiTab-root': CRM_TAB_STYLE,
+              '& .MuiTab-root': {
+                minHeight: 0,
+                textTransform: 'none',
+                fontWeight: 650,
+                color: documentNav.foreground,
+                borderTop: '3px solid transparent',
+                borderRadius: '8px 8px 0 0',
+                padding: '8px 12px',
+                mr: 0.5,
+                alignItems: 'flex-end',
+              },
               '& .Mui-selected': {
-                color: '#1d2f68',
-                backgroundColor: '#fff',
-                borderTop: '3px solid #006261',
-                borderLeft: '1px solid #e5e7eb',
-                borderRight: '1px solid #e5e7eb',
-                borderBottom: '1px solid #fff',
+                color: documentNav.selectedForeground,
+                backgroundColor: documentNav.selectedBackground,
+                borderTop: `3px solid ${documentNav.indicator}`,
+                borderLeft: `1px solid ${documentNav.border}`,
+                borderRight: `1px solid ${documentNav.border}`,
+                borderBottom: `1px solid ${documentNav.selectedBackground}`,
               },
               '& .MuiTab-root:hover': {
-                color: '#1d2f68',
-                backgroundColor: '#f1f3f6',
+                color: documentNav.hoverForeground,
+                backgroundColor: documentNav.hoverBackground,
               },
             }}
           >
@@ -123,7 +126,13 @@ export default function CRMPage() {
         </Box>
       )}
 
-      <Box sx={{ minHeight: 0, ...(hideChromeForMobileChat ? { overflow: 'hidden' } : {}) }}>{renderContent()}</Box>
+      <Box sx={{
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        ...(activeTab === 'actividades' ? { flex: 1, overflow: 'hidden' } : {}),
+        ...(hideChromeForMobileChat ? { overflow: 'hidden' } : {}),
+      }}>{renderContent()}</Box>
     </Box>
   );
 }

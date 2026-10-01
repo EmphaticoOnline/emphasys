@@ -61,9 +61,9 @@ export default function ProductosMobileView({
   return (
     <Box sx={{ width: '100%', px: 2, py: 0, display: 'flex', justifyContent: 'center' }}>
       <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5, pb: 10 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: '#eef1f4' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: (theme) => theme.emphasys.canvas.page }}>
           <Box>
-            <Typography variant="h5" fontWeight={600} color="#1d2f68">Productos</Typography>
+            <Typography variant="h5" fontWeight={600} sx={{ color: (theme) => theme.emphasys.content.foreground }}>Productos</Typography>
             <Typography variant="body2" color="#4b5563">Gestiona el catálogo básico de productos. Existencias son solo de lectura.</Typography>
           </Box>
           <TextField
@@ -128,7 +128,7 @@ export default function ProductosMobileView({
                   <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
                       <Box sx={{ minWidth: 0, pr: 0.5 }}>
-                        <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ lineHeight: 1.2 }}>
+                        <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2, color: (theme) => theme.emphasys.content.foreground }}>
                           {renderValue(producto.descripcion)}
                         </Typography>
                         {hasValue(producto.clave) ? (
@@ -184,10 +184,10 @@ export default function ProductosMobileView({
             position: 'fixed',
             right: 20,
             bottom: 20,
-            backgroundColor: '#1d2f68',
-            color: '#ffffff',
-            boxShadow: '0 10px 24px rgba(29, 47, 104, 0.28)',
-            '&:hover': { backgroundColor: '#162551' },
+            backgroundColor: (theme) => theme.emphasys.action.primary,
+            color: (theme) => theme.emphasys.action.primaryForeground,
+            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            '&:hover': { backgroundColor: (theme) => theme.emphasys.action.primaryHover },
           }}
         >
           <AddIcon />

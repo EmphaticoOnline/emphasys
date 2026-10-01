@@ -28,6 +28,64 @@ export type ConversionCotizacionesResult = {
   vendedores: ConversionCotizacionesRow[];
 };
 
+export type VentasPorVendedorParams = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  vendedor_id?: number | null;
+  contacto_id?: number | null;
+  detalle?: boolean;
+};
+
+export type VentaVendedorRow = {
+  vendedor_id: number | null;
+  vendedor: string;
+  clientes: number;
+  facturas: number;
+  ventas: number;
+  pct_participacion: number;
+};
+
+export type VentaVendedorFactura = {
+  id: number;
+  vendedor_id: number | null;
+  fecha: string;
+  folio: string;
+  cliente: string;
+  ventas: number;
+};
+
+export type VentasPorVendedorResult = {
+  fecha_inicio: string;
+  fecha_fin: string;
+  vendedores_activos: number;
+  ventas_totales: number;
+  facturas: number;
+  clientes: number;
+  vendedor_principal: string | null;
+  vendedores: VentaVendedorRow[];
+  facturas_detalle: VentaVendedorFactura[];
+};
+
+export async function fetchVentasPorVendedor(params: VentasPorVendedorParams): Promise<VentasPorVendedorResult> {
+  const qs = new URLSearchParams({ fecha_inicio: params.fecha_inicio, fecha_fin: params.fecha_fin });
+  if (params.vendedor_id != null) qs.set('vendedor_id', String(params.vendedor_id));
+  if (params.contacto_id != null) qs.set('contacto_id', String(params.contacto_id));
+  if (params.detalle) qs.set('detalle', 'true');
+  const res = await apiFetch(`${BASE}/ventas/ventas-por-vendedor?${qs.toString()}`);
+  if (!res.ok) {
+    const data = await res.json() as { message?: string };
+    throw new Error(data.message ?? 'Error al obtener ventas por vendedor');
+  }
+  return res.json() as Promise<VentasPorVendedorResult>;
+}
+
+export function buildVentasPorVendedorExportUrl(params: VentasPorVendedorParams, formato: 'excel' | 'pdf'): string {
+  const qs = new URLSearchParams({ fecha_inicio: params.fecha_inicio, fecha_fin: params.fecha_fin, formato });
+  if (params.vendedor_id != null) qs.set('vendedor_id', String(params.vendedor_id));
+  if (params.contacto_id != null) qs.set('contacto_id', String(params.contacto_id));
+  return `${BASE}/ventas/ventas-por-vendedor?${qs.toString()}`;
+}
+
 export async function fetchConversionCotizaciones(params: ConversionCotizacionesParams): Promise<ConversionCotizacionesResult> {
   const qs = new URLSearchParams({ fecha_desde: params.fecha_desde, fecha_hasta: params.fecha_hasta });
   if (params.vendedor_id != null) qs.set('vendedor_id', String(params.vendedor_id));

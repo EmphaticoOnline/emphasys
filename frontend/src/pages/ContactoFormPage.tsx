@@ -681,7 +681,7 @@ function validarRFC(rfc: string) {
                   top: 72,
                   zIndex: 2,
                   py: 1,
-                  backgroundColor: '#eef1f4',
+                  backgroundColor: (theme) => theme.emphasys.canvas.page,
                 }
               : { display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
           }
@@ -693,18 +693,18 @@ function validarRFC(rfc: string) {
             />
           ) : null}
           <Box>
-            <Typography variant="h5" fontWeight={600} color="#1d2f68">
+            <Typography variant="h5" fontWeight={600} sx={{ color: (theme) => theme.emphasys.content.foreground }}>
               {id ? 'Editar contacto' : 'Nuevo contacto'}
             </Typography>
-            <Typography variant="body2" color="#4b5563">
+            <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.secondary }}>
               Completa la información del contacto.
             </Typography>
           </Box>
         </Box>
 
         {error && (
-          <Paper sx={{ p: 2, backgroundColor: '#fff5f5', border: '1px solid #fecaca' }}>
-            <Typography color="#b91c1c">{error}</Typography>
+          <Paper sx={(theme) => ({ p: 2, backgroundColor: theme.emphasys.metric.blocked.background, border: `1px solid ${theme.emphasys.content.border}` })}>
+            <Typography sx={{ color: (theme) => theme.emphasys.action.destructive }}>{error}</Typography>
           </Paper>
         )}
 
@@ -720,7 +720,7 @@ function validarRFC(rfc: string) {
           }}
         >
           <Stack spacing={2}>
-            <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" allowScrollButtonsMobile>
+            <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" allowScrollButtonsMobile sx={(theme) => ({ '& .MuiTab-root': { textTransform: 'none', fontWeight: 650, color: theme.emphasys.content.muted }, '& .Mui-selected': { color: theme.emphasys.content.foreground }, '& .MuiTabs-indicator': { backgroundColor: theme.emphasys.content.foreground } })}>
               <Tab label="Información general" />
               <Tab label="Domicilio" />
               <Tab label="Datos fiscales" />
@@ -817,7 +817,7 @@ function validarRFC(rfc: string) {
                     ))}
                   </Select>
                 </FormControl>
-                <Typography variant="caption" color="#4b5563">
+                <Typography variant="caption" sx={{ color: (theme) => theme.emphasys.content.secondary }}>
                   Si no seleccionas una lista específica, se conservará la prioridad para derivarla desde la clasificación comercial o desde la lista predeterminada.
                 </Typography>
 
@@ -1276,9 +1276,9 @@ function validarRFC(rfc: string) {
                     <CircularProgress size={24} />
                   </Box>
                 ) : comercialError ? (
-                  <Typography color="#b91c1c">{comercialError}</Typography>
+                  <Typography sx={{ color: (theme) => theme.emphasys.action.destructive }}>{comercialError}</Typography>
                 ) : !comercialTipos.length ? (
-                  <Typography color="#4b5563">No hay catálogos configurables para contactos.</Typography>
+                  <Typography sx={{ color: (theme) => theme.emphasys.content.secondary }}>No hay catálogos configurables para contactos.</Typography>
                 ) : (
                   comercialTipos.map((tipo) => {
                     const seleccionadosIds = comercialSeleccionados[tipo.id] || [];
@@ -1287,11 +1287,11 @@ function validarRFC(rfc: string) {
                     return (
                       <Stack key={tipo.id} spacing={1}>
                         <Box>
-                          <Typography variant="subtitle1" fontWeight={600} color="#1d2f68">
+                          <Typography variant="subtitle1" fontWeight={600} sx={{ color: (theme) => theme.emphasys.content.foreground }}>
                             {tipo.nombre || 'Catálogo'}
                           </Typography>
                           {tipo.descripcion ? (
-                            <Typography variant="body2" color="#4b5563">
+                            <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.secondary }}>
                               {tipo.descripcion}
                             </Typography>
                           ) : null}
@@ -1332,6 +1332,7 @@ function validarRFC(rfc: string) {
             />
           ) : (
             <FloatingFormActions
+              appearance="graphite"
               onBack={() => navigate(returnTo)}
               backDisabled={saving}
               saveType="submit"

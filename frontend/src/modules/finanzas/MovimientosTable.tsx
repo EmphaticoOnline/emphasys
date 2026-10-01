@@ -1,5 +1,7 @@
 import React from 'react';
-import { Chip, IconButton, Paper, Stack, Typography, Tooltip, TextField, InputAdornment, Popover, List, ListItemButton, ListItemText, CircularProgress } from '@mui/material';
+import { Chip, IconButton, Box, Stack, Typography, Tooltip, TextField, InputAdornment, Popover, List, ListItemButton, ListItemText, CircularProgress } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { standardDataGridSx } from '../../components/grids/standardDataGridSx';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -96,6 +98,8 @@ export function MovimientosTable({
   onSearchChange,
   showToolbar = true,
 }: MovimientosTableProps) {
+  const theme = useTheme();
+  const tokens = theme.emphasys;
   const perfilDispositivo = useDeviceProfile();
 
   type Row = FinanzasOperacion & {
@@ -355,7 +359,7 @@ export function MovimientosTable({
         filterable: true,
         headerClassName: 'finanzas-header',
         renderCell: (params: GridRenderCellParams<Row>) => (
-          <Typography variant="body2" fontWeight={400} color="#111827">
+          <Typography variant="body2" fontWeight={400} color="text.primary">
             {params.value || '—'}
           </Typography>
         ),
@@ -370,7 +374,7 @@ export function MovimientosTable({
         headerClassName: 'finanzas-header',
         renderCell: (params: GridRenderCellParams<Row>) => (
           <Stack spacing={0.25}>
-            <Typography variant="body2" fontWeight={400} color="#1d2f68">
+            <Typography variant="body2" fontWeight={400} color="text.primary">
               {params.value || '—'}
             </Typography>
             {params.row.observaciones && (
@@ -407,7 +411,7 @@ export function MovimientosTable({
           const isDeposito = params.row.tipo_movimiento === 'Deposito';
           const display = formatter.format(isDeposito ? params.value ?? 0 : -Math.abs(params.value ?? 0));
           return (
-            <Typography variant="body2" fontWeight={700} color={isDeposito ? '#006261' : '#b91c1c'}>
+            <Typography variant="body2" fontWeight={700} color={isDeposito ? tokens.metric.applied.foreground : tokens.action.destructive}>
               {display}
             </Typography>
           );
@@ -423,7 +427,7 @@ export function MovimientosTable({
         filterable: true,
         headerClassName: 'finanzas-header',
         renderCell: (params: GridRenderCellParams<Row, number>) => (
-          <Typography variant="body2" fontWeight={700} color="#1d2f68">
+          <Typography variant="body2" fontWeight={700} color="text.primary">
             {formatter.format(params.value ?? 0)}
           </Typography>
         ),
@@ -492,11 +496,11 @@ export function MovimientosTable({
         renderCell: (params: GridRenderCellParams<Row>) => renderEstadoChip(params.value as string),
       },
     ],
-    [canViewRowDetail, columnWidths, contextMenuTriggerColumn, formatter, handleDeleteRow, handleEditRow, handleViewRow, onDelete, onEdit]
+    [canViewRowDetail, columnWidths, contextMenuTriggerColumn, formatter, handleDeleteRow, handleEditRow, handleViewRow, onDelete, onEdit, tokens.action.destructive, tokens.metric.applied.foreground]
   );
 
   return (
-    <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid #e5e7eb', background: '#fff', overflow: 'hidden' }}>
+    <Box sx={{ flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', bgcolor: tokens.content.well }}>
       <DataGrid<Row>
     rows={rows}
     columns={columns}
@@ -534,61 +538,17 @@ export function MovimientosTable({
               }
             : {}
         }
-        sx={{
-          height: '100%',
-          fontSize: 12.5,
-          '--DataGrid-overlayHeight': '200px',
-          '& .MuiDataGrid-cell': {
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: 13,
+        sx={[
+          standardDataGridSx(theme),
+          {
+            height: '100%',
+            border: 'none',
+            fontSize: 12.5,
+            '--DataGrid-overlayHeight': '200px',
+            bgcolor: tokens.content.well,
+            '& .MuiDataGrid-cell': { fontSize: 13 },
           },
-          '& .MuiDataGrid-columnHeaders': {
-            fontSize: 13,
-            minHeight: 42,
-            maxHeight: 42,
-          },
-          '& .MuiDataGrid-columnHeaderTitle': {
-            fontSize: 13,
-            fontWeight: 600,
-          },
-          '& .MuiDataGrid-row:nth-of-type(even)': {
-            backgroundColor: 'rgba(0, 120, 70, 0.05)',
-          },
-          '& .MuiDataGrid-row:hover': {
-            backgroundColor: 'rgba(15, 23, 42, 0.04)',
-          },
-          '& .MuiDataGrid-row.Mui-selected': {
-            backgroundColor: 'rgba(29, 47, 104, 0.08)',
-          },
-          '& .MuiDataGrid-row.Mui-selected:hover': {
-            backgroundColor: 'rgba(29, 47, 104, 0.12)',
-          },
-          '& .finanzas-header': {
-            backgroundColor: '#1d2f68 !important',
-            color: '#ffffff !important',
-            fontWeight: 600,
-          },
-          '& .finanzas-header .MuiDataGrid-columnHeaderTitle': {
-            color: '#ffffff !important',
-            fontWeight: 600,
-          },
-          '& .finanzas-header .MuiDataGrid-sortIcon': {
-            color: '#ffffff !important',
-          },
-          '& .finanzas-header .MuiDataGrid-menuIcon': {
-            color: '#ffffff !important',
-          },
-          '& .finanzas-header:hover .MuiDataGrid-menuIcon': {
-            color: '#ffffff !important',
-          },
-          '& .finanzas-header .MuiIconButton-root': {
-            color: '#ffffff !important',
-          },
-          '& .MuiDataGrid-columnSeparator': {
-            color: 'rgba(255,255,255,0.25) !important',
-          },
-        }}
+        ]}
         getRowId={(row) => row.id}
       />
 
@@ -618,7 +578,7 @@ export function MovimientosTable({
           )}
         </Stack>
       </Popover>
-    </Paper>
+    </Box>
   );
 }
 

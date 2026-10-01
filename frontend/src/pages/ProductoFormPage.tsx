@@ -595,14 +595,14 @@ export default function ProductoFormPage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Paper
         elevation={0}
-        sx={{ borderRadius: 1.5, border: '1px solid #e5e7eb', backgroundColor: '#ffffff', px: 2, py: 1 }}
+        sx={(theme) => ({ borderRadius: 2, border: `1px solid ${theme.emphasys.content.border}`, backgroundColor: theme.emphasys.content.card, px: 2, py: 1 })}
       >
         <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" spacing={1.5}>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ minWidth: 0 }}>
-            <Typography variant="body2" color="#6b7280" fontSize={12.5}>
+            <Typography variant="body2" fontSize={12.5} sx={{ color: (theme) => theme.emphasys.content.muted }}>
               Productos /
             </Typography>
-            <Typography variant="subtitle1" fontWeight={700} color="#111827" fontSize={14.5} noWrap>
+            <Typography variant="subtitle1" fontWeight={700} fontSize={14.5} noWrap sx={{ color: (theme) => theme.emphasys.content.foreground }}>
               {title}
             </Typography>
             {form.clave && (
@@ -612,8 +612,8 @@ export default function ProductoFormPage() {
                   fontFamily: '"Roboto Mono", monospace',
                   fontSize: 11.5,
                   fontWeight: 700,
-                  color: '#1d2f68',
-                  backgroundColor: 'rgba(29,47,104,0.08)',
+                  color: (theme) => theme.emphasys.content.foreground,
+                  backgroundColor: (theme) => theme.emphasys.metric.amount.background,
                   borderRadius: 1,
                   px: 0.75,
                   py: 0.125,
@@ -626,13 +626,13 @@ export default function ProductoFormPage() {
               <Chip label="Borrador" size="small" sx={{ height: 20, fontSize: 11 }} />
             ) : (
               <Stack direction="row" spacing={0.5} alignItems="center">
-                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: form.activo ? '#00b3ad' : '#9ca3af' }} />
-                <Typography variant="caption" color="#6b7280">{form.activo ? 'Activo' : 'Inactivo'}</Typography>
+                <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: (theme) => (form.activo ? theme.emphasys.metric.progressDone : theme.emphasys.content.muted) }} />
+                <Typography variant="caption" sx={{ color: (theme) => theme.emphasys.content.muted }}>{form.activo ? 'Activo' : 'Inactivo'}</Typography>
               </Stack>
             )}
             {isDirty && (
               <Tooltip title="Hay cambios que aún no se guardan">
-                <Typography variant="caption" color="#b45309" fontWeight={600}>
+                <Typography variant="caption" fontWeight={600} sx={{ color: (theme) => theme.emphasys.action.destructive }}>
                   Cambios sin guardar
                 </Typography>
               </Tooltip>
@@ -640,7 +640,7 @@ export default function ProductoFormPage() {
           </Stack>
 
           <Stack direction="row" spacing={1} alignItems="center">
-            <Button size="small" onClick={() => navigate('/productos')} sx={{ color: '#6b7280' }}>
+            <Button size="small" onClick={() => navigate('/productos')} sx={{ color: (theme) => theme.emphasys.content.muted }}>
               Cancelar
             </Button>
             {esFlujoAltaRef.current && (
@@ -654,7 +654,7 @@ export default function ProductoFormPage() {
               onClick={() => void handleSubmit('normal')}
               disabled={guardarDeshabilitado}
               startIcon={saving ? <CircularProgress size={14} color="inherit" /> : undefined}
-              sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
+              sx={(theme) => ({ backgroundColor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
             >
               {saving ? 'Guardando...' : 'Guardar'}
             </Button>
@@ -669,7 +669,7 @@ export default function ProductoFormPage() {
       )}
 
       {loading ? (
-        <Paper variant="outlined" sx={{ borderRadius: 1.5, borderColor: '#e5e7eb', p: 3 }}>
+        <Paper variant="outlined" sx={(theme) => ({ borderRadius: 2, borderColor: theme.emphasys.content.border, backgroundColor: theme.emphasys.content.card, p: 3 })}>
           <Stack direction="row" alignItems="center" spacing={1.5}>
             <CircularProgress size={20} />
             <Typography color="text.secondary">Cargando producto...</Typography>
@@ -704,7 +704,7 @@ export default function ProductoFormPage() {
               accion={
                 <Tooltip title="Los catálogos se administran en Configuración">
                   <span>
-                    <Typography component="span" sx={{ fontSize: 18, color: '#9ca3af', cursor: 'default', px: 0.5 }}>
+                    <Typography component="span" sx={{ fontSize: 18, color: (theme) => theme.emphasys.content.muted, cursor: 'default', px: 0.5 }}>
                       ⋯
                     </Typography>
                   </span>
@@ -716,9 +716,9 @@ export default function ProductoFormPage() {
                   <CircularProgress size={22} />
                 </Box>
               ) : comercialError ? (
-                <Typography color="#b91c1c" variant="body2">{comercialError}</Typography>
+                <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.action.destructive }}>{comercialError}</Typography>
               ) : !comercialTipos.length ? (
-                <Typography color="#6b7280" variant="body2">No hay catálogos configurables para productos.</Typography>
+                <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>No hay catálogos configurables para productos.</Typography>
               ) : (
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(12, 1fr)' }, gap: 1.5 }}>
                   {comercialTipos.map((tipo) => {
@@ -779,13 +779,13 @@ export default function ProductoFormPage() {
               id="adicionales"
               titulo="Datos adicionales"
               badge={
-                <Box component="span" sx={{ fontSize: 10.5, fontWeight: 700, color: '#6b7280', backgroundColor: '#f1f3f5', borderRadius: 1, px: 0.75, py: 0.125 }}>
+                <Box component="span" sx={{ fontSize: 10.5, fontWeight: 700, color: (theme) => theme.emphasys.content.muted, backgroundColor: (theme) => theme.emphasys.content.elevated, borderRadius: 1, px: 0.75, py: 0.125 }}>
                   Reservado
                 </Box>
               }
               reservado
             >
-              <Typography variant="body2" color="#6b7280">
+              <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
                 Espacio estructural para secciones o campos futuros. Alcance funcional aún no definido; se insertan aquí con la misma rejilla de 12 columnas.
               </Typography>
             </SeccionCard>
@@ -810,7 +810,7 @@ export default function ProductoFormPage() {
               id="especificaciones"
               titulo="Especificaciones"
               badge={
-                <Box component="span" sx={{ fontSize: 10.5, fontWeight: 700, color: '#006261', backgroundColor: 'rgba(0,98,97,0.1)', borderRadius: 1, px: 0.75, py: 0.125 }}>
+                <Box component="span" sx={{ fontSize: 10.5, fontWeight: 700, color: (theme) => theme.emphasys.metric.applied.foreground, backgroundColor: (theme) => theme.emphasys.metric.applied.background, borderRadius: 1, px: 0.75, py: 0.125 }}>
                   Se guarda al instante
                 </Box>
               }
@@ -821,7 +821,7 @@ export default function ProductoFormPage() {
                       size="small"
                       variant={especificacionesVista === 'texto' ? 'contained' : 'text'}
                       onClick={() => setEspecificacionesVista('texto')}
-                      sx={especificacionesVista === 'texto' ? { backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } } : { color: '#6b7280' }}
+                      sx={(theme) => (especificacionesVista === 'texto' ? { backgroundColor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } } : { color: theme.emphasys.content.muted })}
                     >
                       Texto del producto
                     </Button>
@@ -829,7 +829,7 @@ export default function ProductoFormPage() {
                       size="small"
                       variant={especificacionesVista === 'biblioteca' ? 'contained' : 'text'}
                       onClick={() => setEspecificacionesVista('biblioteca')}
-                      sx={especificacionesVista === 'biblioteca' ? { backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } } : { color: '#6b7280' }}
+                      sx={(theme) => (especificacionesVista === 'biblioteca' ? { backgroundColor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } } : { color: theme.emphasys.content.muted })}
                     >
                       {`Biblioteca · ${especificacionesCount}`}
                     </Button>
@@ -857,7 +857,7 @@ export default function ProductoFormPage() {
               <Box sx={{ display: !especificacionesHabilitadas || especificacionesVista === 'texto' ? 'block' : 'none' }}>
                 <Stack spacing={1}>
                   {especificacionesHabilitadas && (
-                    <Typography variant="caption" color="#6b7280">
+                    <Typography variant="caption" sx={{ color: (theme) => theme.emphasys.content.muted }}>
                       Este texto es independiente de la biblioteca de especificaciones; no se mezclan automáticamente.
                     </Typography>
                   )}

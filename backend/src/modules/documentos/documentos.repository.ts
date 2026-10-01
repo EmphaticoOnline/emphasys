@@ -16,6 +16,46 @@ import { esFacturaTimbrada, validarCamposFacturaTimbrada } from './factura-timbr
 import { assertNotaVentaEditable } from './nota-venta-editabilidad';
 import { assertNotaCreditoSinAplicacionesParaBorrador } from '../finanzas/aplicaciones-saldo.rules';
 
+type PostgresForeignKeyError = Error & {
+  code?: string;
+  constraint?: string;
+  table?: string;
+  schema?: string;
+  detail?: string;
+  hint?: string;
+  position?: string;
+  internalPosition?: string;
+  where?: string;
+  routine?: string;
+};
+
+function esErrorForeignKey(error: unknown): error is PostgresForeignKeyError {
+  return typeof error === 'object' && error !== null && (error as PostgresForeignKeyError).code === '23503';
+}
+
+function registrarErrorForeignKeyEliminacion(
+  error: PostgresForeignKeyError,
+  contexto: { documentoId: number; empresaId: number; tipoDocumento?: TipoDocumento; etapa: string },
+): void {
+  console.error('[DOCUMENTOS DELETE FK] Violación de integridad referencial durante eliminación', {
+    documento_id: contexto.documentoId,
+    empresa_id: contexto.empresaId,
+    tipo_documento: contexto.tipoDocumento,
+    etapa: contexto.etapa,
+    code: error.code,
+    constraint: error.constraint,
+    table: error.table,
+    schema: error.schema,
+    detail: error.detail,
+    message: error.message,
+    hint: error.hint,
+    position: error.position,
+    internal_position: error.internalPosition,
+    where: error.where,
+    routine: error.routine,
+  });
+}
+
 function sanitizarObservacionesPartida(observaciones: unknown): string | null {
   return typeof observaciones === 'string' && observaciones
     ? sanitizarRichTextBasico(observaciones)
@@ -507,6 +547,12 @@ async function assertFacturaEliminable(
 ) {
   if (String(tipo_documento ?? '').trim().toLowerCase() !== 'factura') return;
 
+  if (String(estatus_documento ?? '').trim().toLowerCase() !== 'borrador') {
+    throw new DocumentoDeleteValidationError(
+      'Solo se puede eliminar una factura en estado Borrador.'
+    );
+  }
+
   if (String(estatus_documento ?? '').trim().toLowerCase() === 'timbrado') {
     throw new DocumentoDeleteValidationError(
       'No se puede eliminar una factura timbrada. Utilice la cancelación fiscal (CFDI) en su lugar.'
@@ -523,20 +569,6 @@ async function assertFacturaEliminable(
     );
   }
 
-  const { rows: aplicacionesRows } = await executor.query<{ existe: boolean }>(
-    `SELECT EXISTS (
-       SELECT 1
-         FROM aplicaciones_saldo a
-        WHERE a.empresa_id = $1
-          AND (a.documento_origen_id = $2 OR a.documento_destino_id = $2)
-     ) AS existe`,
-    [empresaId, documentoId]
-  );
-  if (Boolean(aplicacionesRows[0]?.existe)) {
-    throw new DocumentoDeleteValidationError(
-      'No se puede eliminar la factura porque tiene pagos aplicados.'
-    );
-  }
 }
 
 async function assertNotaCreditoEliminable(
@@ -2563,6 +2595,7 @@ export async function reemplazarPartidasRepository(
 export async function eliminarDocumentoRepository(id: number, empresaId: number, tipoDocumento?: TipoDocumento) {
   const client = await pool.connect();
   let transactionCommitted = false;
+  let etapa = 'BEGIN';
   try {
     await client.query('BEGIN');
 
@@ -2622,12 +2655,14 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
       ? 'DELETE FROM documentos_partidas dp WHERE dp.documento_id = $1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2 AND LOWER(d.tipo_documento) = LOWER($3))'
       : 'DELETE FROM documentos_partidas dp WHERE dp.documento_id = $1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id = $1 AND d.empresa_id = $2)';
 
+    etapa = 'DELETE documentos_partidas';
     await client.query(deletePartidasSql, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
 
     const deleteDocumentoSql = tipoDocumento
       ? 'DELETE FROM documentos WHERE id = $1 AND empresa_id = $2 AND LOWER(tipo_documento) = LOWER($3)'
       : 'DELETE FROM documentos WHERE id = $1 AND empresa_id = $2';
 
+    etapa = 'DELETE documentos';
     const result = await client.query(deleteDocumentoSql, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
 
     if ((result.rowCount ?? 0) > 0 && documentoActual?.finanzas_operacion_id) {
@@ -2677,6 +2712,7 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
       const delta = operacion.tipo_movimiento === 'Deposito' ? -Number(operacion.monto) : Number(operacion.monto);
       const nuevoSaldo = Number(cuenta.saldo) + delta;
 
+      etapa = 'DELETE finanzas_operaciones';
       await client.query('DELETE FROM finanzas_operaciones WHERE id = $1 AND empresa_id = $2', [operacion.id, empresaId]);
       await client.query('UPDATE finanzas_cuentas SET saldo = $1 WHERE id = $2', [nuevoSaldo, cuenta.id]);
     }
@@ -2696,6 +2732,14 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
     }
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
+    if (esErrorForeignKey(error)) {
+      registrarErrorForeignKeyEliminacion(error, {
+        documentoId: id,
+        empresaId,
+        tipoDocumento,
+        etapa,
+      });
+    }
     if (!transactionCommitted) await client.query('ROLLBACK');
     throw error;
   } finally {

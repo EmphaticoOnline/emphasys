@@ -20,7 +20,7 @@ import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
-import FilterListIcon from '@mui/icons-material/FilterList';
+import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LinkIcon from '@mui/icons-material/Link';
@@ -31,6 +31,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
+import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
 import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
 import { fetchAplicacionesDocumento } from '../../../services/finanzasService';
 import { fetchConceptos } from '../../../services/conceptosService';
@@ -213,6 +214,7 @@ export default function NotasCreditoWorkspaceView({
   const criteriosActivos = filtrosEncendidos(filtros);
   const seleccion = rows.find((row) => row.id === selectedId) ?? null;
   const [tab, setTab] = useState(0);
+  const [menuFila, setMenuFila] = useState<{ top: number; left: number; rowId: number } | null>(null);
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [aplicaciones, setAplicaciones] = useState<AplicacionOperacion[]>([]);
   const [cargandoAplicaciones, setCargandoAplicaciones] = useState(false);
@@ -295,21 +297,16 @@ export default function NotasCreditoWorkspaceView({
     ...(fiscal ? ['Fiscal'] : []),
   ];
 
-  const iconoSx = (tono: 'neutro' | 'info' | 'destructivo', disabled: boolean) => ({
+  const iconoSx = (_tono: 'neutro' | 'info' | 'destructivo', disabled: boolean) => ({
     width: 34,
     height: 34,
     borderRadius: '10px',
-    border: '1px solid',
-    borderColor: disabled ? 'transparent' : tokens.content.border,
-    color: disabled
-      ? tokens.action.disabled
-      : tono === 'destructivo'
-        ? tokens.action.destructive
-        : tono === 'info'
-          ? tokens.action.info
-          : tokens.content.secondary,
-    '&:hover': {
-      bgcolor: disabled ? 'transparent' : tokens.content.hover,
+    bgcolor: disabled ? tokens.action.disabled : tokens.action.primary,
+    color: tokens.action.primaryForeground,
+    '&:hover': { bgcolor: disabled ? tokens.action.disabled : tokens.action.primaryHover },
+    '&.Mui-disabled': {
+      bgcolor: tokens.action.disabled,
+      color: tokens.action.primaryForeground,
     },
   });
 
@@ -467,7 +464,7 @@ export default function NotasCreditoWorkspaceView({
                   '&:hover': { bgcolor: tokens.navigation.hover },
                 }}
               >
-                <FilterListIcon sx={{ fontSize: 18 }} />
+                <FilterAltOutlinedIcon sx={{ fontSize: 18 }} />
               </IconButton>
               {criteriosActivos > 0 && (
                 <Box
@@ -559,6 +556,12 @@ export default function NotasCreditoWorkspaceView({
               onClick={() => {
                 onSelect(row);
                 setDetalleMovil(true);
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onSelect(row);
+                setMenuFila({ top: event.clientY, left: event.clientX, rowId: row.id });
               }}
               sx={{
                 px: 1.25,
@@ -728,7 +731,6 @@ export default function NotasCreditoWorkspaceView({
             { tooltip: 'Cancelar', ariaLabel: 'Cancelar' },
           )}
           {botonAccion('editar', <EditOutlinedIcon fontSize="small" />, 'neutro', razonEditar(seleccion))}
-          <Box sx={{ width: '1px', height: 18, bgcolor: tokens.content.border, mx: 0.25 }} />
           {botonAccion('eliminar', <DeleteOutlineIcon fontSize="small" />, 'destructivo', razonEliminar(seleccion))}
         </Box>
         </Box>
@@ -868,10 +870,36 @@ export default function NotasCreditoWorkspaceView({
     </Box>
   );
 
+  const itemsMenuNota: WorkspaceContextItem[] = !menuFila || !seleccion || menuFila.rowId !== seleccion.id ? [] : [
+    { id: 'aplicar-saldo', icon: <LinkIcon fontSize="small" /> },
+    { id: 'ver-pdf', icon: <PrintOutlinedIcon fontSize="small" /> },
+    { id: 'descargar-pdf', icon: <DownloadOutlinedIcon fontSize="small" /> },
+    { id: 'timbrar', icon: porId('timbrar')?.icon ?? <NotificationsActiveIcon fontSize="small" />, label: 'Timbrar CFDI', extra: razonTimbrar(seleccion) },
+    { id: 'cancelar-documento', icon: porId('cancelar-documento')?.icon ?? <CancelIcon fontSize="small" />, label: 'Cancelar' },
+    { id: 'editar', icon: <EditOutlinedIcon fontSize="small" />, extra: razonEditar(seleccion) },
+    { id: 'eliminar', icon: <DeleteOutlineIcon fontSize="small" />, extra: razonEliminar(seleccion) },
+  ].flatMap((spec): WorkspaceContextItem[] => {
+    const accion = porId(spec.id);
+    if (!accion) return [];
+    const disabled = Boolean(accion.disabled) || Boolean(spec.extra);
+    return [{
+      id: spec.id,
+      label: spec.label ?? accion.label,
+      icon: spec.icon,
+      disabled,
+      onClick: disabled ? undefined : (event) => { void accion.onClick?.(event); },
+    }];
+  });
+
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: compacto ? 'column' : 'row', overflow: 'hidden' }}>
       {panelLista}
       {contenido}
+      <WorkspaceRowContextMenu
+        anchorPosition={menuFila && seleccion && menuFila.rowId === seleccion.id ? { top: menuFila.top, left: menuFila.left } : null}
+        items={itemsMenuNota}
+        onClose={() => setMenuFila(null)}
+      />
     </Box>
   );
 }

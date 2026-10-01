@@ -20,6 +20,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkIcon from '@mui/icons-material/Link';
@@ -94,23 +95,24 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   const puedeDesaplicar = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
 
   const headerCellSx = {
-    backgroundColor: '#1d2f68',
-    color: '#fff',
+    backgroundColor: (theme: Theme) => theme.emphasys.grid.header,
+    color: (theme: Theme) => theme.emphasys.grid.headerForeground,
     fontWeight: 600,
     fontSize: '13px',
     py: '4px',
     position: 'relative' as const,
-    borderBottom: '1px solid #d6e2f0',
+    borderBottom: 'none',
     pr: '12px',
   };
 
   const bodyCellSx = {
     fontSize: '12px',
     py: '2px',
-    borderBottom: '1px solid #e5e7eb',
+    borderBottom: (theme: Theme) => `1px solid ${theme.emphasys.table.line}`,
+    color: (theme: Theme) => theme.emphasys.table.cell,
   };
 
-  const rowBaseSx = { height: 26, '&:hover': { backgroundColor: '#e8f5e9' } };
+  const rowBaseSx = { height: 26, '&:hover': { backgroundColor: (theme: Theme) => theme.emphasys.content.hover } };
   const fetchAll = async (id: number) => {
     try {
       setLoading(true);
@@ -299,7 +301,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
         }}
       >
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h6" fontWeight={700} color="#1d2f68" sx={{ fontSize: '1.05rem' }}>
+          <Typography variant="h6" fontWeight={700} color="text.primary" sx={{ fontSize: '1.05rem' }}>
             Detalle del movimiento
           </Typography>
           <IconButton onClick={onClose}>
@@ -315,7 +317,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
         )}
 
         {!loading && operacion && (
-          <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2, background: '#f8fafc' }}>
+          <Box sx={{ border: (theme: Theme) => `1px solid ${theme.emphasys.content.border}`, borderRadius: 2, p: 2, bgcolor: (theme: Theme) => theme.emphasys.metric.amount.background }}>
             <Typography variant="subtitle2" color="text.secondary">
               Resumen
             </Typography>
@@ -330,7 +332,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                 <Typography variant="body2" color="text.secondary">
                   Fecha
                 </Typography>
-                <Typography variant="body1" fontWeight={700} color="#1d2f68">
+                <Typography variant="body1" fontWeight={700} color="text.primary">
                   {formatDateShort(operacion.fecha)}
                 </Typography>
               </Stack>
@@ -338,7 +340,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                 <Typography variant="body2" color="text.secondary">
                   Monto
                 </Typography>
-                <Typography variant="body1" fontWeight={700} color="#1d2f68">
+                <Typography variant="body1" fontWeight={700} color="text.primary">
                   {formatter.format(Number(operacion.monto || 0))}
                 </Typography>
               </Stack>
@@ -347,7 +349,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                   <Typography variant="body2" color="text.secondary">
                     Disponible para aplicar
                   </Typography>
-                  <Typography variant="body1" fontWeight={700} color="#006261">
+                  <Typography variant="body1" fontWeight={700} sx={{ color: (theme: Theme) => theme.emphasys.metric.applied.foreground }}>
                     {formatter.format(Number(disponible.saldo || 0))}
                   </Typography>
                 </Stack>
@@ -359,7 +361,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
         <Divider />
 
         <Stack spacing={1}>
-          <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ fontSize: '0.98rem' }}>
+          <Typography variant="subtitle1" fontWeight={700} color="text.primary" sx={{ fontSize: '0.98rem' }}>
             Aplicaciones existentes
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
@@ -368,7 +370,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
           <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
             <TableContainer
               sx={{
-                border: '1px solid #e5e7eb',
+                border: (theme: Theme) => `1px solid ${theme.emphasys.content.border}`,
                 borderRadius: 2,
                 overflow: 'hidden',
                 boxShadow: 'none',
@@ -438,7 +440,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
         <Stack spacing={1} mt={1}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Box>
-              <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ fontSize: '0.98rem' }}>
+              <Typography variant="subtitle1" fontWeight={700} color="text.primary" sx={{ fontSize: '0.98rem' }}>
                 Facturas pendientes
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
@@ -467,7 +469,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
             <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
               <TableContainer
                 sx={{
-                  border: '1px solid #e5e7eb',
+                  border: (theme: Theme) => `1px solid ${theme.emphasys.content.border}`,
                   borderRadius: 2,
                   maxHeight: 340,
                   boxShadow: 'none',

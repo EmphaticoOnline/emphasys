@@ -23,6 +23,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
+import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/apiClient';
 import { resolverFolioVisual } from '../../utils/documentos.utils';
@@ -220,6 +221,7 @@ function buildColumns(
 
 export default function ProgramacionPagosPage() {
   const navigate = useNavigate();
+  const tokens = useTheme().emphasys;
 
   const [proveedor, setProveedor] = useState<ContactoOpcion | null>(null);
   const [opciones, setOpciones] = useState<ContactoOpcion[]>([]);
@@ -378,26 +380,29 @@ export default function ProgramacionPagosPage() {
   }, [rows]);
 
   return (
-    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {/* Breadcrumb */}
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/finanzas')}
-          sx={{ color: 'text.secondary' }}>
-          Finanzas
-        </Button>
-        <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" fontWeight={600}>Programación de Pagos</Typography>
-      </Stack>
-
+    <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', px: { xs: 1.5, md: 2.75 }, py: 1.6, display: 'flex', flexDirection: 'column', gap: 1.5, bgcolor: tokens.content.background }}>
+      <Box
+        component="button"
+        type="button"
+        onClick={() => navigate('/finanzas')}
+        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, border: 0, bgcolor: 'transparent', color: tokens.content.foreground, font: 'inherit', cursor: 'pointer', p: 0, width: 'fit-content' }}
+      >
+        <ArrowBackIcon fontSize="small" /> Tesorería
+      </Box>
       <Box>
-        <Typography variant="h6" fontWeight={700}>Programación de Pagos a Proveedores</Typography>
-        <Typography variant="caption" color="text.secondary">
-          Planifica pagos futuros sobre facturas de compra pendientes. El pago real se registra al ejecutar (Fase 3.2B).
+        <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
+          PROGRAMACIÓN
+        </Typography>
+        <Typography variant="figure" sx={{ mt: 0.35, fontSize: { xs: 26, md: 32 }, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
+          Pagos a proveedores
+        </Typography>
+        <Typography sx={{ mt: 0.7, fontSize: 13, color: tokens.content.secondary, maxWidth: 640 }}>
+          Planifica pagos futuros sobre facturas de compra pendientes. El pago real se registra al ejecutarlo.
         </Typography>
       </Box>
 
       {/* Filtros */}
-      <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
+      <Paper elevation={0} sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden', bgcolor: tokens.content.elevated, border: `1px solid ${tokens.content.border}`, borderRadius: 3 }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{
           display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap',
@@ -480,7 +485,7 @@ export default function ProgramacionPagosPage() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleNueva}
-              sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+              sx={{ textTransform: 'none', borderRadius: 999 }}
             >
               Nueva programación
             </Button>
@@ -490,7 +495,7 @@ export default function ProgramacionPagosPage() {
 
       {/* KPIs por moneda */}
       {kpisPorMoneda.length > 0 && (
-        <Paper sx={{ p: 1.5 }}>
+        <Paper elevation={0} sx={{ p: 1.5, bgcolor: tokens.content.well, border: `1px solid ${tokens.content.border}`, borderRadius: 3 }}>
           {kpisPorMoneda.map((k, idx) => (
             <Box key={k.moneda}>
               {idx > 0 && <Divider sx={{ my: 1 }} />}
@@ -500,14 +505,14 @@ export default function ProgramacionPagosPage() {
                 </Typography>
                 <Box>
                   <Typography variant="caption" color="text.secondary">Vencido</Typography>
-                  <Typography variant="body2" fontWeight={700} color="error.main">
+                  <Typography variant="body2" fontWeight={700} sx={{ color: tokens.action.destructive }}>
                     {formatMXN(k.totalVencido, k.moneda)}
                   </Typography>
                 </Box>
                 <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
                 <Box>
                   <Typography variant="caption" color="text.secondary">Pago hoy</Typography>
-                  <Typography variant="body2" fontWeight={700} color="warning.main">
+                  <Typography variant="body2" fontWeight={700} sx={{ color: tokens.metric.amount.foreground }}>
                     {formatMXN(k.totalHoy, k.moneda)}
                   </Typography>
                 </Box>
@@ -536,7 +541,7 @@ export default function ProgramacionPagosPage() {
       )}
 
       {/* Tabla */}
-      <Paper sx={{ p: 1.5 }}>
+      <Paper elevation={0} sx={{ p: 1.5, bgcolor: tokens.content.well, border: `1px solid ${tokens.content.border}`, borderRadius: 3 }}>
         {!rows.length && loading ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CircularProgress size={18} />
@@ -568,9 +573,9 @@ export default function ProgramacionPagosPage() {
                 {
                   border: '1px solid',
                   borderColor: 'divider',
-                  '& .fila-vencida': { bgcolor: '#fff5f5' },
+                  '& .fila-vencida': { bgcolor: tokens.metric.blocked.background },
                   '& .fila-cancelada': { opacity: 0.5 },
-                  '& .fila-pagada': { bgcolor: '#f0fff4' },
+                  '& .fila-pagada': { bgcolor: tokens.metric.applied.background },
                 },
               ]}
             />

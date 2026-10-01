@@ -1,5 +1,4 @@
 import React from 'react';
-import { alpha } from '@mui/material/styles';
 import {
   Alert,
   Avatar,
@@ -2894,11 +2893,11 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
             // varias filas sin relación con la selección se ven "resaltadas"
             // a la vez.
             backgroundColor: lead.id === selectedLead?.id
-              ? alpha(theme.palette.primary.main, 0.18)
-              : 'background.paper',
+              ? theme.emphasys.chat.selection
+              : 'transparent',
             '&:hover': {
               backgroundColor: lead.id === selectedLead?.id
-                ? alpha(theme.palette.primary.main, 0.24)
+                ? theme.emphasys.chat.selection
                 : 'action.hover',
             },
             '&:hover .lead-row-hover-btn': { opacity: 1 },

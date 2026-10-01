@@ -30,6 +30,8 @@ import StarIcon from '@mui/icons-material/Star';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
+import { useTheme } from '@mui/material/styles';
+import type { SxProps, Theme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/apiClient';
 import {
@@ -124,8 +126,8 @@ function SummaryCard({
 function buildColumnsResumen(ultimoPrecioLabel: string, esVentas: boolean): GridColDef<ProductoVolumen>[] {
   const columns: GridColDef<ProductoVolumen>[] = [
     { field: 'clave', headerName: 'Clave', width: 85 },
-    { field: 'descripcion', headerName: 'Descripción', flex: 1, minWidth: 180 },
-    { field: 'unidad', headerName: 'Unidad', width: 65 },
+    { field: 'descripcion', headerName: 'Descripción', flex: 1, minWidth: esVentas ? 220 : 180 },
+    ...(!esVentas ? [{ field: 'unidad', headerName: 'Unidad', width: 65 } satisfies GridColDef<ProductoVolumen>] : []),
     {
       field: 'cantidad_total',
       headerName: 'Cantidad',
@@ -158,34 +160,37 @@ function buildColumnsResumen(ultimoPrecioLabel: string, esVentas: boolean): Grid
       headerAlign: 'right',
       renderCell: (p: GridRenderCellParams<ProductoVolumen, number>) => formatMXN(p.value ?? 0),
     },
-    {
-      field: 'subtotal',
-      headerName: esVentas ? 'Venta' : 'Subtotal',
-      width: 120,
-      align: 'right',
-      headerAlign: 'right',
-      renderCell: (p: GridRenderCellParams<ProductoVolumen, number>) => formatMXN(p.value ?? 0),
-    },
-    ...(esVentas ? [{
-      field: 'iva',
-      headerName: 'Impuestos',
-      width: 118,
+    esVentas
+      ? {
+          field: 'venta',
+          headerName: 'Ventas',
+          width: 140,
+          align: 'right',
+          headerAlign: 'right',
+          renderCell: (p: GridRenderCellParams<ProductoVolumen, number>) => (
+            <Typography variant="body2" fontWeight={700}>{formatMXN(p.value ?? 0)}</Typography>
+          ),
+        }
+      : {
+          field: 'subtotal',
+          headerName: 'Subtotal',
+          width: 120,
+          align: 'right',
+          headerAlign: 'right',
+          renderCell: (p: GridRenderCellParams<ProductoVolumen, number>) => formatMXN(p.value ?? 0),
+        },
+    ...(!esVentas ? [{
+      field: 'total',
+      headerName: 'Total',
+      width: 130,
       align: 'right' as const,
       headerAlign: 'right' as const,
-      renderCell: (p: GridRenderCellParams<ProductoVolumen, number>) => formatMXN(p.value ?? 0),
-    }] : []),
-    {
-      field: 'total',
-      headerName: esVentas ? 'Total facturado' : 'Total',
-      width: 130,
-      align: 'right',
-      headerAlign: 'right',
       renderCell: (p: GridRenderCellParams<ProductoVolumen, number>) => (
         <Typography variant="body2" fontWeight={700} color="primary.main">
           {formatMXN(p.value ?? 0)}
         </Typography>
       ),
-    },
+    } satisfies GridColDef<ProductoVolumen>] : []),
     {
       field: 'ultimo_movimiento',
       headerName: 'Últ. movimiento',
@@ -225,6 +230,7 @@ function DetalleTable({
   partidas: PartidaVolumenDetalle[];
   contactoLabel: string;
 }) {
+  const tokens = useTheme().emphasys;
   const esVentas = contactoLabel === 'Cliente';
   const partidasPorGrupo = useMemo(() => {
     const m = new Map<string, PartidaVolumenDetalle[]>();
@@ -255,24 +261,24 @@ function DetalleTable({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                bgcolor: '#f1f5f9',
+                bgcolor: esVentas ? tokens.metric.amount.background : '#f1f5f9',
                 border: '1px solid',
-                borderColor: 'divider',
+                borderColor: esVentas ? tokens.content.border : 'divider',
                 borderRadius: '6px 6px 0 0',
                 px: 1.5,
                 py: 0.75,
               }}
             >
-              <Box>
+              <Box sx={{ minWidth: 0 }}>
                 <Typography variant="body2" fontWeight={700} color="text.primary">
                   {prod.clave} — {prod.descripcion}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  {prod.unidad || '—'} · {prod.cantidad_documentos} doc{prod.cantidad_documentos !== 1 ? 's' : ''} · Últ. mov.: {formatFecha(prod.ultimo_movimiento)}
+                  {esVentas ? '' : `${prod.unidad || '—'} · `}{prod.cantidad_documentos} doc{prod.cantidad_documentos !== 1 ? 's' : ''} · Últ. mov.: {formatFecha(prod.ultimo_movimiento)}
                 </Typography>
               </Box>
               <Box sx={{ textAlign: 'right', flexShrink: 0, ml: 2 }}>
-                <Typography variant="body2" fontWeight={700} color="primary.main">
+                <Typography variant="body2" fontWeight={700} color={esVentas ? tokens.content.foreground : 'primary.main'}>
                   {formatMXN(prod.venta)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -293,22 +299,21 @@ function DetalleTable({
               }}
             >
               <TableHead>
-                <TableRow sx={{ bgcolor: '#1d2f6808' }}>
+                <TableRow sx={{ bgcolor: esVentas ? tokens.table.headerBg : '#1d2f6808' }}>
                   <TableCell>Fecha</TableCell>
                   <TableCell>Folio</TableCell>
                   <TableCell>{contactoLabel}</TableCell>
                   <TableCell align="right">Cantidad</TableCell>
                   <TableCell align="right">Precio unit.</TableCell>
                   <TableCell align="right">Descuento</TableCell>
-                  <TableCell align="right">{esVentas ? 'Venta' : 'Subtotal'}</TableCell>
-                  {esVentas && <TableCell align="right">Impuestos</TableCell>}
-                  <TableCell align="right">{esVentas ? 'Total facturado' : 'Total'}</TableCell>
+                  <TableCell align="right">{esVentas ? 'Ventas' : 'Subtotal'}</TableCell>
+                  {!esVentas && <TableCell align="right">Total</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={esVentas ? 9 : 8}>
+                    <TableCell colSpan={esVentas ? 7 : 8}>
                       <Typography variant="caption" color="text.disabled">
                         Sin partidas en el período
                       </Typography>
@@ -325,24 +330,25 @@ function DetalleTable({
                       <TableCell align="right">
                         {item.descuento > 0 ? formatMXN(item.descuento) : '—'}
                       </TableCell>
-                      <TableCell align="right">{formatMXN(item.subtotal)}</TableCell>
-                      {esVentas && <TableCell align="right">{formatMXN(item.iva)}</TableCell>}
-                      <TableCell align="right" sx={{ fontWeight: 600 }}>
-                        {formatMXN(esVentas ? item.total_facturado : item.total)}
-                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: esVentas ? 700 : 400 }}>{formatMXN(item.subtotal)}</TableCell>
+                      {!esVentas && (
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>
+                          {formatMXN(item.total)}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}
                 {/* Subtotal del producto */}
-                <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                <TableRow sx={{ bgcolor: esVentas ? tokens.content.elevated : '#f8fafc' }}>
                   <TableCell
-                    colSpan={esVentas ? 8 : 7}
+                    colSpan={esVentas ? 6 : 7}
                     align="right"
                     sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.74rem' }}
                   >
-                    Total {prod.clave} — {formatCantidad(prod.cantidad_total)} {prod.unidad || 'uds'}:
+                    {esVentas ? 'Ventas' : 'Total'} {prod.clave} — {formatCantidad(prod.cantidad_total)}{esVentas ? '' : ` ${prod.unidad || 'uds'}`}:
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  <TableCell align="right" sx={{ fontWeight: 700, color: esVentas ? tokens.content.foreground : 'primary.main' }}>
                     {formatMXN(prod.venta)}
                   </TableCell>
                 </TableRow>
@@ -504,37 +510,81 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
   const totalCantidad = productos.reduce((s, p) => s + p.cantidad_total, 0);
   const precioProm    = totalCantidad > 0 ? totalSubtotal / totalCantidad : 0;
   const principal     = productos[0] ?? null;
+  const esVentas = config.contactoLabel === 'Cliente';
+  const tokens = useTheme().emphasys;
+  const campoSx: SxProps<Theme> = esVentas ? {
+    '& .MuiOutlinedInput-root': {
+      bgcolor: tokens.content.well,
+      borderRadius: 2,
+      '& fieldset': { borderColor: tokens.content.border },
+      '&:hover fieldset': { borderColor: tokens.content.muted },
+      '&.Mui-focused fieldset': { borderColor: tokens.action.info },
+    },
+    '& .MuiInputLabel-root': { color: tokens.content.muted },
+    '& .MuiInputBase-input': { color: tokens.content.foreground },
+  } : {};
+  const modernaGridSx: SxProps<Theme> = {
+    border: 'none',
+    bgcolor: tokens.content.well,
+    '& .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeader': {
+      backgroundColor: tokens.table.headerBg,
+      color: tokens.table.headerFg,
+    },
+    '& .MuiDataGrid-columnHeaderTitle, & .MuiDataGrid-sortIcon, & .MuiDataGrid-menuIcon, & .MuiDataGrid-columnHeader .MuiSvgIcon-root': {
+      color: tokens.table.headerFg,
+    },
+    '& .MuiDataGrid-columnHeaderTitle': { fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' },
+    '& .MuiDataGrid-columnSeparator': { color: tokens.table.line },
+    '& .MuiDataGrid-cell': { borderColor: tokens.table.line, fontSize: 13, fontVariantNumeric: 'tabular-nums' },
+    '& .MuiDataGrid-row:nth-of-type(even)': { backgroundColor: 'transparent' },
+    '& .MuiDataGrid-row:hover': { backgroundColor: tokens.content.hover },
+    '& .MuiDataGrid-footerContainer': { borderColor: tokens.table.line },
+  };
 
   return (
-    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {/* Breadcrumb */}
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <Button
-          size="small"
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/informes')}
-          sx={{ color: 'text.secondary' }}
-        >
-          Informes
-        </Button>
-        <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" color="text.secondary">
-          {config.categoriaLabel}
+    <Box sx={esVentas
+      ? { px: { xs: 2, md: 3 }, py: { xs: 2, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.5, width: '100%', minWidth: 0, boxSizing: 'border-box' }
+      : { p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+        {esVentas ? (
+          <Box
+            component="button"
+            type="button"
+            onClick={() => navigate('/informes')}
+            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, border: 0, bgcolor: 'transparent', p: 0, cursor: 'pointer', font: 'inherit', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted, flexShrink: 0 }}
+          >
+            <ArrowBackIcon sx={{ fontSize: 14 }} />
+            INFORMES
+          </Box>
+        ) : (
+          <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/informes')} sx={{ color: 'text.secondary' }}>
+            Informes
+          </Button>
+        )}
+        <Typography sx={esVentas ? { color: tokens.content.muted, fontSize: 11, lineHeight: 1 } : undefined} color={esVentas ? undefined : 'text.disabled'}>/</Typography>
+        <Typography variant="body2" noWrap sx={esVentas ? { fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted, minWidth: 0 } : { color: 'text.secondary' }}>
+          {esVentas ? config.categoriaLabel.toUpperCase() : config.categoriaLabel}
         </Typography>
-        <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" fontWeight={600}>
-          {config.titulo}
+        <Typography sx={esVentas ? { color: tokens.content.muted, fontSize: 11, lineHeight: 1 } : undefined} color={esVentas ? undefined : 'text.disabled'}>/</Typography>
+        <Typography variant="body2" fontWeight={600} noWrap sx={esVentas ? { fontSize: 11, letterSpacing: '0.14em', color: tokens.content.foreground, minWidth: 0 } : undefined}>
+          {esVentas ? config.titulo.toUpperCase() : config.titulo}
         </Typography>
       </Stack>
 
       <Box>
-        <Typography variant="h6" fontWeight={700}>{config.titulo}</Typography>
-        <Typography variant="caption" color="text.secondary">{config.descripcion}</Typography>
+        {esVentas ? (
+          <Typography variant="figure" sx={{ fontSize: { xs: 26, sm: 30 }, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>{config.titulo}</Typography>
+        ) : (
+          <Typography variant="h6" fontWeight={700}>{config.titulo}</Typography>
+        )}
+        <Typography variant={esVentas ? 'body2' : 'caption'} sx={esVentas ? { mt: 0.6, fontSize: 13, lineHeight: 1.45, color: tokens.content.muted, display: 'block' } : undefined} color={esVentas ? undefined : 'text.secondary'}>{config.descripcion}</Typography>
       </Box>
 
       {/* Filtros */}
-      <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
-        {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
+      <Paper elevation={0} sx={esVentas
+        ? { position: 'relative', overflow: 'hidden', px: 1.25, py: 1.25, borderRadius: 2, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.elevated, boxShadow: 'none' }
+        : { px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
+        {loading && <LinearProgress sx={esVentas ? { position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } } : { position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField
             label="Fecha inicial"
@@ -542,8 +592,8 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
             size="small"
             value={fechaInicio}
             onChange={(e) => setFechaInicio(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}
           />
           <TextField
             label="Fecha final"
@@ -551,8 +601,8 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
             size="small"
             value={fechaFin}
             onChange={(e) => setFechaFin(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}
           />
 
           {/* Autocomplete de producto */}
@@ -566,7 +616,7 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
             getOptionLabel={(o) => `${o.clave} — ${o.descripcion}`}
             getOptionKey={(o) => o.id}
             isOptionEqualToValue={(a, b) => a.id === b.id}
-            sx={{ width: 240 }}
+            sx={{ width: esVentas ? { xs: '100%', sm: 240 } : 240, ...campoSx }}
             renderOption={(props, o) => (
               <li {...props} key={o.id}>
                 <Box>
@@ -592,7 +642,7 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
             getOptionLabel={(o) => o.nombre}
             getOptionKey={(o) => o.id}
             isOptionEqualToValue={(a, b) => a.id === b.id}
-            sx={{ width: 220 }}
+            sx={{ width: esVentas ? { xs: '100%', sm: 220 } : 220, ...campoSx }}
             renderOption={(props, o) => (
               <li {...props} key={o.id}>
                 <Box>
@@ -640,14 +690,15 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
             }
           />
 
-          <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5, flexShrink: 0 }}>
+          <Box sx={{ ml: { md: 'auto' }, display: 'flex', gap: 0.5, flexShrink: 0, width: esVentas ? { xs: '100%', md: 'auto' } : undefined, justifyContent: esVentas ? { xs: 'flex-end', md: 'flex-start' } : undefined }}>
             <Button
               size="small"
               variant="outlined"
-              color="error"
+              color={esVentas ? 'inherit' : 'error'}
               disabled={!resultado || !!exportando}
-              startIcon={exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />}
+              startIcon={esVentas ? (exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : undefined) : (exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />)}
               onClick={() => void handleExportar('pdf')}
+              sx={esVentas ? { textTransform: 'none', fontWeight: 650, color: tokens.content.secondary, borderColor: tokens.content.border, borderRadius: 2, boxShadow: 'none' } : undefined}
             >
               PDF
             </Button>
@@ -655,8 +706,9 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
               size="small"
               variant="outlined"
               disabled={!resultado || !!exportando}
-              startIcon={exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : <FileDownloadIcon />}
+              startIcon={esVentas ? (exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : undefined) : (exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : <FileDownloadIcon />)}
               onClick={() => void handleExportar('excel')}
+              sx={esVentas ? { textTransform: 'none', fontWeight: 650, color: tokens.content.secondary, borderColor: tokens.content.border, borderRadius: 2, boxShadow: 'none' } : undefined}
             >
               Excel
             </Button>
@@ -666,6 +718,21 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
 
       {/* Tarjetas KPI */}
       {resultado && (
+        esVentas ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 0.8 }}>
+            {[
+              ['Artículos con movimiento', String(productos.length)],
+              [config.totalLabel, `$${formatMXN(totalGeneral)}`],
+              ['Precio prom. ponderado', totalCantidad > 0 ? `$${formatMXN(precioProm)}` : '—'],
+              ['Artículo principal', principal ? principal.clave : '—'],
+            ].map(([label, value]) => (
+              <Box key={label} sx={{ minWidth: 0, bgcolor: tokens.metric.amount.background, borderRadius: 2, px: 1.5, py: 1 }}>
+                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>{label}</Typography>
+                <Typography variant="figure" sx={{ mt: 0.15, fontSize: { xs: 20, sm: 24 }, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground, overflowWrap: 'anywhere' }}>{value}</Typography>
+              </Box>
+            ))}
+          </Box>
+        ) : (
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           <SummaryCard
             icon={InventoryIcon}
@@ -692,12 +759,13 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
             color="#b45309"
           />
         </Box>
+        )
       )}
 
       {/* Contenido */}
-      <Paper sx={{ p: 1.5 }}>
+      <Paper elevation={0} sx={esVentas ? { p: 0, borderRadius: 3, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.well, boxShadow: 'none', overflow: 'auto' } : { p: 1.5 }}>
         {!resultado && loading && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: esVentas ? 1.5 : 0 }}>
             <CircularProgress size={18} />
             <Typography variant="body2" color="text.secondary">Cargando…</Typography>
           </Box>
@@ -718,12 +786,16 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
                   ...esES.components.MuiDataGrid.defaultProps.localeText,
                   noRowsLabel: 'Sin productos con movimiento en el período indicado',
                 }}
-                sx={[standardDataGridSx, { border: '1px solid', borderColor: 'divider' }]}
+                sx={esVentas ? [standardDataGridSx, modernaGridSx] : [standardDataGridSx, { border: '1px solid', borderColor: 'divider' }]}
               />
             </Box>
             {productos.length > 0 && (
               <Box
-                sx={{
+                sx={esVentas ? {
+                  display: 'flex', gap: 3, px: 1.5, py: 1,
+                  bgcolor: tokens.metric.amount.background,
+                  justifyContent: 'flex-end', flexWrap: 'wrap',
+                } : {
                   display: 'flex', gap: 3, mt: 1.5, pt: 1.5,
                   borderTop: '2px solid', borderColor: 'primary.main',
                   justifyContent: 'flex-end', flexWrap: 'wrap',
@@ -739,7 +811,7 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="caption" color="text.secondary">{config.totalLabel}</Typography>
-                  <Typography variant="subtitle1" fontWeight={700} color="primary.main">
+                  <Typography variant={esVentas ? 'body2' : 'subtitle1'} fontWeight={700} color={esVentas ? tokens.content.foreground : 'primary.main'}>
                     ${formatMXN(totalGeneral)}
                   </Typography>
                 </Box>
@@ -749,7 +821,7 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
         )}
 
         {resultado && mostrarDetalle && (
-          <>
+          <Box sx={esVentas ? { p: 1.25 } : undefined}>
             <DetalleTable
               productos={productos}
               partidas={resultado.partidas}
@@ -757,7 +829,11 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
             />
             {productos.length > 0 && (
               <Box
-                sx={{
+                sx={esVentas ? {
+                  display: 'flex', gap: 3, mx: 0, mt: 1.5, px: 1.5, py: 1,
+                  bgcolor: tokens.metric.amount.background,
+                  justifyContent: 'flex-end', flexWrap: 'wrap',
+                } : {
                   display: 'flex', gap: 3, mt: 2, pt: 1.5,
                   borderTop: '2px solid', borderColor: 'primary.main',
                   justifyContent: 'flex-end', flexWrap: 'wrap',
@@ -773,17 +849,17 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="caption" color="text.secondary">{config.totalLabel}</Typography>
-                  <Typography variant="subtitle1" fontWeight={700} color="primary.main">
+                  <Typography variant={esVentas ? 'body2' : 'subtitle1'} fontWeight={700} color={esVentas ? tokens.content.foreground : 'primary.main'}>
                     ${formatMXN(totalGeneral)}
                   </Typography>
                 </Box>
               </Box>
             )}
-          </>
+          </Box>
         )}
 
         {resultado && productos.length === 0 && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ p: esVentas ? 1.5 : 0 }}>
             Sin productos con movimiento en el período indicado.
           </Typography>
         )}

@@ -117,7 +117,7 @@ export function ConciliacionDialog({ open, cuentaId, onClose, onSaved }: Concili
           onClick={handleSave}
           disabled={saving}
           variant="contained"
-          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+          sx={{ textTransform: 'none', borderRadius: 999 }}
         >
           {saving ? 'Guardando...' : 'Conciliar'}
         </Button>

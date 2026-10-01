@@ -10,16 +10,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { NumericFormat } from 'react-number-format';
 import type { LiquidacionConfig } from './liquidacionDocumento.copy';
 import type { LiquidacionFila } from './useLiquidacionDocumento';
 import { roundMoney } from './liquidacionDocumento.money';
 import {
-  LIQUIDACION_AMBER,
-  LIQUIDACION_BORDER,
-  LIQUIDACION_FIELD_BORDER,
-  LIQUIDACION_LABEL,
-  LIQUIDACION_NAVY,
   captureFieldSx,
   fieldLabelSx,
 } from './liquidacionDocumento.styles';
@@ -33,23 +29,9 @@ type Props = {
   onChangeAplicacion: (filaId: number, saldo: number, value: string | number | null | undefined) => void;
 };
 
-const headerCellSx = {
-  backgroundColor: LIQUIDACION_NAVY,
-  color: '#fff',
-  fontWeight: 600,
-  fontSize: 11,
-  py: '5px',
-  px: 1,
-  borderBottom: 'none',
-};
-
-const bodyCellSx = {
-  fontSize: 13,
-  py: '5px',
-  px: 1,
-  borderBottom: `1px solid ${LIQUIDACION_BORDER}`,
-  verticalAlign: 'middle',
-};
+function useLiquidacionTokens() {
+  return useTheme().emphasys;
+}
 
 function formatFecha(value: string) {
   if (!value) return '—';
@@ -69,6 +51,7 @@ function ImporteAplicar({
   onChange: (next: string | number | null | undefined) => void;
   primary?: boolean;
 }) {
+  const tokens = useLiquidacionTokens();
   return (
     <NumericFormat
       customInput={TextField}
@@ -94,14 +77,14 @@ function ImporteAplicar({
           ? {
               '& .MuiOutlinedInput-root': {
                 height: 40,
-                bgcolor: '#fff',
-                backgroundColor: '#fff',
-                borderRadius: '6px',
-                '& fieldset': { borderColor: LIQUIDACION_NAVY },
-                '&:hover': { backgroundColor: '#fff' },
-                '&:hover fieldset': { borderColor: LIQUIDACION_NAVY },
-                '&.Mui-focused': { backgroundColor: '#fff' },
-                '&.Mui-focused fieldset': { borderColor: LIQUIDACION_NAVY, borderWidth: '1px' },
+                bgcolor: tokens.metric.amount.background,
+                backgroundColor: tokens.metric.amount.background,
+                borderRadius: '10px',
+                '& fieldset': { borderColor: tokens.content.foreground },
+                '&:hover': { backgroundColor: tokens.metric.amount.background },
+                '&:hover fieldset': { borderColor: tokens.content.foreground },
+                '&.Mui-focused': { backgroundColor: tokens.metric.amount.background },
+                '&.Mui-focused fieldset': { borderColor: tokens.content.foreground, borderWidth: '1px' },
               },
               '& .MuiOutlinedInput-input': {
                 py: 0,
@@ -109,8 +92,8 @@ function ImporteAplicar({
                 boxSizing: 'border-box',
                 fontSize: 14,
                 fontWeight: 700,
-                color: LIQUIDACION_NAVY,
-                backgroundColor: '#fff',
+                color: tokens.content.foreground,
+                backgroundColor: tokens.metric.amount.background,
               },
             }
           : captureFieldSx
@@ -132,16 +115,17 @@ function RestanteTexto({
   formatter: Intl.NumberFormat;
   alignRight?: boolean;
 }) {
+  const tokens = useLiquidacionTokens();
   const restante = roundMoney(Math.max(0, fila.saldo - aplicado));
   const cubierta = restante <= 0.009 && aplicado > 0;
   return (
     <Typography
       sx={{
         fontSize: 12,
-        fontWeight: 500,
+        fontWeight: 650,
         fontVariantNumeric: 'tabular-nums',
         textAlign: alignRight ? 'right' : 'left',
-        color: cubierta ? 'success.main' : restante > 0.009 ? LIQUIDACION_AMBER : 'text.secondary',
+        color: cubierta ? tokens.metric.applied.foreground : restante > 0.009 ? tokens.status.cancellation : tokens.content.muted,
       }}
     >
       {cubierta ? config.textos.cubierta : `Resta ${formatter.format(restante)}`}
@@ -150,6 +134,7 @@ function RestanteTexto({
 }
 
 function OrigenReadOnlyEntry({ value, positive }: { value: string; positive?: boolean }) {
+  const tokens = useLiquidacionTokens();
   return (
     <Box
       sx={{
@@ -158,10 +143,10 @@ function OrigenReadOnlyEntry({ value, positive }: { value: string; positive?: bo
         alignItems: 'center',
         justifyContent: 'flex-end',
         px: 1.25,
-        border: `1px solid ${LIQUIDACION_FIELD_BORDER}`,
-        borderRadius: '6px',
-        bgcolor: '#f4f6f9',
-        color: positive ? 'success.main' : LIQUIDACION_NAVY,
+        border: `1px solid ${tokens.content.border}`,
+        borderRadius: '10px',
+        bgcolor: positive ? tokens.metric.applied.background : tokens.content.elevated,
+        color: positive ? tokens.metric.applied.foreground : tokens.content.foreground,
         fontSize: 14,
         fontWeight: positive ? 600 : 700,
         fontVariantNumeric: 'tabular-nums',
@@ -188,6 +173,7 @@ function OrigenCard({
   compact: boolean;
   onChangeAplicacion: Props['onChangeAplicacion'];
 }) {
+  const tokens = useLiquidacionTokens();
   const restante = roundMoney(Math.max(0, fila.saldo - aplicado));
   const cubierta = restante <= 0.009 && aplicado > 0;
   const restanteValue = cubierta ? config.textos.cubierta : formatter.format(restante);
@@ -197,17 +183,17 @@ function OrigenCard({
       sx={{
         display: 'grid',
         gridTemplateColumns: compact ? '1fr' : '158px minmax(0, 1fr)',
-        border: `1px solid ${LIQUIDACION_BORDER}`,
-        borderRadius: '8px',
+        border: `1px solid ${tokens.content.border}`,
+        borderRadius: 2,
         overflow: 'hidden',
-        bgcolor: '#fff',
+        bgcolor: tokens.content.card,
         minHeight: compact ? 0 : 78,
       }}
     >
       <Box
         sx={{
-          bgcolor: LIQUIDACION_NAVY,
-          color: '#fff',
+          bgcolor: tokens.grid.header,
+          color: tokens.grid.headerForeground,
           px: 1.5,
           py: { xs: 1, sm: 1.15 },
           display: 'flex',
@@ -218,7 +204,7 @@ function OrigenCard({
         }}
       >
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+          <Typography variant="figure" sx={{ fontSize: 22, lineHeight: 1.1, color: 'inherit' }}>
             {fila.folio}
           </Typography>
           <Typography
@@ -229,8 +215,9 @@ function OrigenCard({
               fontWeight: 800,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              bgcolor: 'rgba(255,255,255,0.14)',
-              border: '1px solid rgba(255,255,255,0.28)',
+              bgcolor: tokens.navigation.summary,
+              border: `1px solid ${tokens.navigation.border}`,
+              color: tokens.grid.headerForeground,
               px: 0.7,
               py: 0.2,
               borderRadius: '3px',
@@ -286,6 +273,24 @@ export default function LiquidacionAplicacionesList({
   useCards,
   onChangeAplicacion,
 }: Props) {
+  const tokens = useLiquidacionTokens();
+  const headerCellSx = {
+    backgroundColor: tokens.grid.header,
+    color: tokens.grid.headerForeground,
+    fontWeight: 650,
+    fontSize: 11,
+    py: '6px',
+    px: 1,
+    borderBottom: 'none',
+  };
+  const bodyCellSx = {
+    fontSize: 13,
+    py: '6px',
+    px: 1,
+    color: tokens.table.cell,
+    borderBottom: `1px solid ${tokens.table.line}`,
+    verticalAlign: 'middle' as const,
+  };
   const origen = filas.filter((fila) => fila.esOrigen);
   const otras = filas.filter((fila) => !fila.esOrigen);
 
@@ -310,10 +315,10 @@ export default function LiquidacionAplicacionesList({
 
       <Box>
         <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={1} sx={{ mb: 0.75 }}>
-          <Typography sx={{ color: LIQUIDACION_NAVY, fontSize: 14, fontWeight: 600 }}>
+          <Typography sx={{ color: tokens.content.foreground, fontSize: 14, fontWeight: 700 }}>
             {config.textos.otrasFacturas}
           </Typography>
-          <Typography sx={{ fontSize: 12, color: LIQUIDACION_LABEL }}>
+          <Typography sx={{ fontSize: 12, color: tokens.content.muted }}>
             Aplicación manual. Importe &gt; 0 aplica.
           </Typography>
         </Stack>
@@ -326,14 +331,14 @@ export default function LiquidacionAplicacionesList({
                 <Box
                   key={fila.id}
                   sx={{
-                    border: `1px solid ${LIQUIDACION_BORDER}`,
+                    border: `1px solid ${tokens.content.border}`,
                     borderRadius: 2,
-                    backgroundColor: '#fff',
+                    backgroundColor: tokens.content.card,
                     p: 1.5,
                   }}
                 >
                   <Stack spacing={1.25}>
-                    <Typography sx={{ fontWeight: 500, color: LIQUIDACION_NAVY, fontSize: 14 }}>
+                    <Typography variant="figure" sx={{ fontSize: 18, color: tokens.content.foreground }}>
                       {fila.folio}
                     </Typography>
                     <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
@@ -341,7 +346,7 @@ export default function LiquidacionAplicacionesList({
                     </Typography>
                     <Box>
                       <Typography sx={fieldLabelSx}>Saldo pendiente</Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: LIQUIDACION_NAVY }}>
+                      <Typography sx={{ fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: tokens.content.foreground }}>
                         {formatter.format(fila.saldo)}
                       </Typography>
                     </Box>
@@ -358,11 +363,13 @@ export default function LiquidacionAplicacionesList({
               );
             })}
             {otras.length === 0 ? (
-              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{config.textos.vacioOtras}</Typography>
+              <Box sx={{ px: 1.5, py: 2.25, textAlign: 'center', border: `1px solid ${tokens.content.border}`, borderRadius: 2, bgcolor: tokens.content.elevated }}>
+                <Typography sx={{ fontSize: 13.5, fontWeight: 650, color: tokens.content.foreground }}>{config.textos.vacioOtras}</Typography>
+              </Box>
             ) : null}
           </Stack>
         ) : (
-          <TableContainer sx={{ border: `1px solid ${LIQUIDACION_BORDER}`, borderRadius: 2, overflowX: 'hidden', bgcolor: '#fff' }}>
+          <TableContainer sx={{ border: `1px solid ${tokens.table.line}`, borderRadius: 2, overflowX: 'hidden', bgcolor: tokens.content.card }}>
             <Table size="small" sx={{ tableLayout: 'auto', width: '100%' }}>
               <TableHead>
                 <TableRow>
@@ -377,14 +384,14 @@ export default function LiquidacionAplicacionesList({
                 {otras.map((fila) => {
                   const aplicado = roundMoney(Number(aplicaciones[fila.id] ?? 0));
                   return (
-                    <TableRow key={fila.id} hover>
+                    <TableRow key={fila.id} hover sx={{ '&:hover': { bgcolor: tokens.grid.hover } }}>
                       <TableCell sx={{ ...bodyCellSx, whiteSpace: 'nowrap' }}>
-                        <Typography sx={{ fontWeight: 600, color: LIQUIDACION_NAVY, fontSize: 13 }}>
+                        <Typography sx={{ fontWeight: 700, color: tokens.content.foreground, fontSize: 13 }}>
                           {fila.folio}
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ ...bodyCellSx, whiteSpace: 'nowrap', color: 'text.secondary' }}>{formatFecha(fila.fecha)}</TableCell>
-                      <TableCell align="right" sx={{ ...bodyCellSx, fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: LIQUIDACION_NAVY, whiteSpace: 'nowrap' }}>
+                      <TableCell align="right" sx={{ ...bodyCellSx, fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: tokens.content.foreground, whiteSpace: 'nowrap' }}>
                         {formatter.format(fila.saldo)}
                       </TableCell>
                       <TableCell align="right" sx={{ ...bodyCellSx, width: 132 }}>
@@ -403,7 +410,7 @@ export default function LiquidacionAplicacionesList({
                 })}
                 {otras.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} sx={{ py: 1.1, px: 1.25, color: 'text.secondary', fontSize: 13 }}>
+                    <TableCell colSpan={5} sx={{ py: 2.5, px: 1.5, textAlign: 'center', color: tokens.content.foreground, bgcolor: tokens.content.elevated, fontSize: 13.5, fontWeight: 650, borderBottom: 'none' }}>
                       {config.textos.vacioOtras}
                     </TableCell>
                   </TableRow>

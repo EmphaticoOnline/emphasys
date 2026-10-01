@@ -12,10 +12,10 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import {
-  actualizarViaje, crearViajeDesdeDocumento, obtenerOperadoresDisponibles, obtenerPartidasImportables,
+  actualizarViaje, crearViajeDesdeDocumento, obtenerOperadoresDisponibles,
   obtenerRemolques, obtenerUbicacionesDisponibles, obtenerVehiculos, obtenerViajeAggregate, obtenerViajePorDocumento,
   validarCartaPorte,
-  type CartaPorteIssue, type CartaPorteIssueSection, type OperadorDisponible, type PartidaImportable,
+  type CartaPorteIssue, type CartaPorteIssueSection, type OperadorDisponible,
   type RemolqueTransporte, type UbicacionDisponible, type VehiculoTransporte, type ViajeAggregate,
   type ViajeMercanciaInput, type ViajePutPayload,
 } from '../../../services/transporte.api';
@@ -88,7 +88,6 @@ type MercanciaFila = {
   descripcionEmbalaje: string;
   origenSecuencia: number | null;
   destinoSecuencia: number | null;
-  fromPartidaId: number | null;
 };
 
 let filaSeq = 0;
@@ -97,24 +96,8 @@ const nuevaFila = (base: Partial<MercanciaFila> = {}): MercanciaFila => ({
   productoId: null, descripcion: '', cantidad: '', pesoKg: '', valorMercancia: '',
   unidadDescripcion: '', claveUnidadSat: '', claveBienesTransportadosSat: '',
   materialPeligroso: false, claveMaterialPeligroso: '', embalaje: '', descripcionEmbalaje: '',
-  origenSecuencia: null, destinoSecuencia: null, fromPartidaId: null,
+  origenSecuencia: null, destinoSecuencia: null,
   ...base,
-});
-
-const filaDesdePartida = (p: PartidaImportable): MercanciaFila => nuevaFila({
-  productoId: p.producto_id ?? null,
-  descripcion: p.descripcion ?? '',
-  cantidad: numStr(p.cantidad),
-  pesoKg: numStr(p.peso_sugerido),
-  valorMercancia: numStr(p.valor_mercancia),
-  unidadDescripcion: p.unidad_descripcion ?? p.unidad_partida ?? '',
-  claveUnidadSat: p.clave_unidad_sat ?? '',
-  claveBienesTransportadosSat: p.clave_bienes_transportados_sat ?? '',
-  materialPeligroso: !!p.material_peligroso,
-  claveMaterialPeligroso: p.clave_material_peligroso ?? '',
-  embalaje: p.embalaje ?? '',
-  descripcionEmbalaje: p.descripcion_embalaje ?? '',
-  fromPartidaId: p.partida_id,
 });
 
 const mergeByClave = (a: SatClaveDescripcion[], b: SatClaveDescripcion[]): SatClaveDescripcion[] => {
@@ -215,12 +198,8 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
   const [operadorId, setOperadorId] = useState<number | null>(null);
   const [mercancias, setMercancias] = useState<MercanciaFila[]>([]);
 
-  // Mercancías: catálogo de productos e importación desde factura
+  // Mercancías: catálogo de productos
   const [productos, setProductos] = useState<Producto[] | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
-  const [partidas, setPartidas] = useState<PartidaImportable[] | null>(null);
-  const [partidasSel, setPartidasSel] = useState<Set<number>>(new Set());
-  const [importLoading, setImportLoading] = useState(false);
 
   // Validación de Carta Porte
   const [validando, setValidando] = useState(false);
@@ -269,8 +248,6 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
       origenSecuencia: m.origen_secuencia ?? null,
       destinoSecuencia: m.destino_secuencia ?? null,
     })));
-    setImportOpen(false);
-    setPartidasSel(new Set());
     setAviso(null);
     setValidationResult(null);
     setTouchedSinceValidation(false);
@@ -318,9 +295,6 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
       setAggregate(null);
       setViajeId(null);
       setError(null);
-      setImportOpen(false);
-      setPartidas(null);
-      setPartidasSel(new Set());
     }
   }, [open, documentoId, cargarTodo]);
 
@@ -414,34 +388,6 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
       descripcionEmbalaje: p.descripcion_embalaje ?? '',
     });
   }, [patchFila]);
-
-  const abrirImportar = useCallback(async () => {
-    setImportOpen((v) => !v);
-    if (partidas === null && documentoId) {
-      setImportLoading(true);
-      try { setPartidas(await obtenerPartidasImportables(documentoId)); }
-      catch (e: any) { setError(e?.message || 'No se pudieron cargar las partidas de la factura.'); }
-      finally { setImportLoading(false); }
-    }
-  }, [partidas, documentoId]);
-
-  const partidaYaImportada = useCallback((p: PartidaImportable): boolean =>
-    mercancias.some((m) =>
-      (m.fromPartidaId != null && m.fromPartidaId === p.partida_id)
-      || (p.producto_id != null && m.productoId === p.producto_id)
-    ), [mercancias]);
-
-  const importarSeleccionadas = useCallback(() => {
-    if (!partidas) return;
-    const nuevas = partidas
-      .filter((p) => partidasSel.has(p.partida_id) && !partidaYaImportada(p))
-      .map(filaDesdePartida);
-    if (nuevas.length === 0) return;
-    touch();
-    setMercancias((prev) => [...prev, ...nuevas]);
-    setPartidasSel(new Set());
-    setImportOpen(false);
-  }, [partidas, partidasSel, partidaYaImportada, touch]);
 
   // El drawer modela exactamente un origen (secuencia 1) y un destino
   // (secuencia 2). Cuando ambos están definidos se asignan automáticamente a
@@ -621,7 +567,6 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
       <Box key={f.key} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 1, bgcolor: '#fbfcfe' }}>
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
           <Typography variant="caption" fontWeight={700} color="text.secondary">Mercancía {idx + 1}</Typography>
-          {f.fromPartidaId != null && <Chip size="small" label="de factura" sx={{ height: 18, fontSize: 10 }} />}
           <Box sx={{ flex: 1 }} />
           {!readOnly && (
             <IconButton size="small" onClick={() => quitarFila(f.key)} aria-label="Eliminar mercancía">
@@ -833,56 +778,8 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
               <Inventory2OutlinedIcon fontSize="small" htmlColor={AZUL} />, 'Mercancías',
               (
                 <>
-                  {!readOnly && importOpen && (
-                    <Box sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 1.5, p: 1 }}>
-                      <Typography variant="caption" fontWeight={700} color="text.secondary">Partidas de la factura</Typography>
-                      {importLoading ? (
-                        <Stack alignItems="center" sx={{ py: 1 }}><CircularProgress size={18} /></Stack>
-                      ) : !partidas || partidas.length === 0 ? (
-                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-                          La factura no tiene partidas importables.
-                        </Typography>
-                      ) : (
-                        <Stack spacing={0.25} sx={{ mt: 0.5 }}>
-                          {partidas.map((p) => {
-                            const yaImp = partidaYaImportada(p);
-                            return (
-                              <FormControlLabel
-                                key={p.partida_id}
-                                sx={{ m: 0 }}
-                                control={
-                                  <Checkbox
-                                    size="small"
-                                    checked={partidasSel.has(p.partida_id)}
-                                    disabled={yaImp}
-                                    onChange={(e) => setPartidasSel((prev) => {
-                                      const next = new Set(prev);
-                                      if (e.target.checked) next.add(p.partida_id); else next.delete(p.partida_id);
-                                      return next;
-                                    })}
-                                  />
-                                }
-                                label={
-                                  <Typography variant="caption" color={yaImp ? 'text.disabled' : 'text.primary'}>
-                                    {p.numero_partida}. {p.descripcion ?? '(sin descripción)'} · {numStr(p.cantidad) || '—'}{p.unidad_partida ? ` ${p.unidad_partida}` : ''}
-                                    {yaImp ? ' · ya importada' : ''}
-                                  </Typography>
-                                }
-                              />
-                            );
-                          })}
-                          <Button size="small" variant="contained" sx={{ alignSelf: 'flex-start', mt: 0.5 }}
-                            disabled={partidasSel.size === 0}
-                            onClick={importarSeleccionadas}>
-                            Importar {partidasSel.size > 0 ? `(${partidasSel.size})` : ''}
-                          </Button>
-                        </Stack>
-                      )}
-                    </Box>
-                  )}
-
                   {mercancias.length === 0 && (
-                    <Typography variant="caption" color="text.secondary">Sin mercancías. Importa desde la factura o agrega una.</Typography>
+                    <Typography variant="caption" color="text.secondary">Sin mercancías. Agrega una para capturarla.</Typography>
                   )}
                   {mercancias.map((f, i) => renderMercancia(f, i))}
 
@@ -896,11 +793,6 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
               {
                 anchorId: 'cp-sec-mercancias',
                 section: 'mercancias',
-                extra: !readOnly ? (
-                  <Button size="small" onClick={() => void abrirImportar()}>
-                    {importOpen ? 'Ocultar' : 'Importar desde factura'}
-                  </Button>
-                ) : undefined,
               },
             )}
 

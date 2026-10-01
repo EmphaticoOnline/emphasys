@@ -1,15 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
-  Card,
-  CardActionArea,
-  CardContent,
-  Chip,
-  Divider,
+  ButtonBase,
   Stack,
   Typography,
 } from '@mui/material';
-import BarChartIcon from '@mui/icons-material/BarChart';
+import { useTheme } from '@mui/material/styles';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
@@ -28,7 +26,6 @@ type Reporte = {
 type Categoria = {
   label: string;
   icon: SvgIconComponent;
-  color: string;
   reportes: Reporte[];
 };
 
@@ -36,12 +33,16 @@ const CATEGORIAS: Categoria[] = [
   {
     label: 'Ventas',
     icon: PointOfSaleIcon,
-    color: '#006261',
     reportes: [
       {
         label: 'Ventas por Cliente',
         descripcion: 'Volumen y participación de ventas por cliente en un período.',
         path: '/informes/ventas/ventas-por-cliente',
+      },
+      {
+        label: 'Ventas por Vendedor',
+        descripcion: 'Volumen y participación de ventas por vendedor en un período.',
+        path: '/informes/ventas/ventas-por-vendedor',
       },
       {
         label: 'Ventas por Producto',
@@ -88,7 +89,6 @@ const CATEGORIAS: Categoria[] = [
   {
     label: 'Compras',
     icon: ShoppingCartIcon,
-    color: '#1d2f68',
     reportes: [
       {
         label: 'Compras por Proveedor',
@@ -125,7 +125,6 @@ const CATEGORIAS: Categoria[] = [
   {
     label: 'Inventario',
     icon: InventoryIcon,
-    color: '#7c3aed',
     reportes: [
       {
         label: 'Existencias por Almacén',
@@ -157,7 +156,6 @@ const CATEGORIAS: Categoria[] = [
   {
     label: 'Finanzas',
     icon: AccountBalanceIcon,
-    color: '#b45309',
     reportes: [
       {
         label: 'Vencimientos de Proveedores',
@@ -199,7 +197,6 @@ const CATEGORIAS: Categoria[] = [
   {
     label: 'Contabilidad',
     icon: CalculateIcon,
-    color: '#334155',
     reportes: [
       {
         label: 'Balanza Analítica',
@@ -221,7 +218,6 @@ const CATEGORIAS: Categoria[] = [
   {
     label: 'CRM',
     icon: ForumIcon,
-    color: '#0369a1',
     reportes: [],
   },
 ];
@@ -229,7 +225,6 @@ const CATEGORIAS: Categoria[] = [
 const IA_ITEM: Categoria = {
   label: 'Consultas con IA',
   icon: PsychologyIcon,
-  color: '#6d28d9',
   reportes: [
     {
       label: 'Pregúntale a tu negocio',
@@ -241,26 +236,30 @@ const IA_ITEM: Categoria = {
 
 export default function InformesPage() {
   const navigate = useNavigate();
+  const tokens = useTheme().emphasys;
 
   return (
-    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Stack spacing={0.5}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <BarChartIcon sx={{ color: '#1d2f68', fontSize: 28 }} />
-          <Typography variant="h4" fontWeight={700} color="text.primary">
-            Informes
-          </Typography>
-        </Box>
-        <Typography variant="body2" color="text.secondary">
+    <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', px: { xs: 1.5, md: 2.75 }, py: 1.6, display: 'flex', flexDirection: 'column', gap: 2.25, bgcolor: tokens.content.background }}>
+      <Box>
+        <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
+          INFORMES
+        </Typography>
+        <Typography variant="figure" sx={{ mt: 0.35, fontSize: { xs: 26, md: 32 }, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
+          Informes
+        </Typography>
+        <Typography sx={{ mt: 0.7, fontSize: 13, color: tokens.content.secondary }}>
           Selecciona una categoría para acceder a los reportes disponibles.
         </Typography>
-      </Stack>
+      </Box>
+
+      <ResumenEjecutivoDestacado onNavigate={navigate} />
 
       <Box
         sx={{
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
-          gap: 2,
+          gap: 1.25,
+          alignItems: 'start',
         }}
       >
         {CATEGORIAS.map((cat) => (
@@ -272,6 +271,74 @@ export default function InformesPage() {
   );
 }
 
+function ResumenEjecutivoDestacado({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const tokens = useTheme().emphasys;
+
+  return (
+    <ButtonBase
+      onClick={() => onNavigate('/informes/resumen-ejecutivo')}
+      focusRipple
+      sx={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: { xs: 1.5, sm: 2 },
+        textAlign: 'left',
+        px: { xs: 1.6, sm: 1.8 },
+        py: 1.5,
+        borderRadius: 3,
+        border: 'none',
+        bgcolor: tokens.metric.amount.background,
+        transition: 'background-color 0.15s',
+        '&:hover': { bgcolor: tokens.action.hoverTint },
+        '&.Mui-focusVisible': {
+          outline: `2px solid ${tokens.content.foreground}`,
+          outlineOffset: 2,
+        },
+      }}
+    >
+      <Box
+        sx={{
+          width: 36,
+          height: 36,
+          borderRadius: '10px',
+          bgcolor: tokens.content.card,
+          color: tokens.content.foreground,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <InsightsOutlinedIcon sx={{ fontSize: 20 }} />
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>
+          Destacado
+        </Typography>
+        <Typography variant="figure" sx={{ mt: 0.15, fontSize: 22, letterSpacing: '-0.02em', lineHeight: 1.1, color: tokens.content.foreground }}>
+          Resumen ejecutivo
+        </Typography>
+        <Typography sx={{ mt: 0.35, fontSize: 13, color: tokens.content.secondary }}>
+          Una lectura inteligente de ventas, cartera y tesorería.
+        </Typography>
+      </Box>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={0.25}
+        sx={{ color: tokens.content.foreground, flexShrink: 0, display: { xs: 'none', sm: 'flex' } }}
+      >
+        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+          Ver resumen
+        </Typography>
+        <ChevronRightIcon fontSize="small" />
+      </Stack>
+      <ChevronRightIcon sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: tokens.content.foreground, flexShrink: 0 }} />
+    </ButtonBase>
+  );
+}
+
 function CategoriaCard({
   categoria,
   onNavigate,
@@ -279,73 +346,103 @@ function CategoriaCard({
   categoria: Categoria;
   onNavigate: (path: string) => void;
 }) {
+  const tokens = useTheme().emphasys;
   const Icon = categoria.icon;
   const tieneReportes = categoria.reportes.length > 0;
 
   return (
-    <Card
-      variant="outlined"
+    <Box
       sx={{
-        borderRadius: 2,
-        borderColor: 'divider',
-        '&:hover': tieneReportes ? { borderColor: categoria.color, boxShadow: 1 } : {},
-        transition: 'border-color 0.15s, box-shadow 0.15s',
+        borderRadius: 3,
+        border: `1px solid ${tokens.content.border}`,
+        bgcolor: tokens.content.card,
+        px: 1.6,
+        py: 1.5,
       }}
     >
-      <CardContent sx={{ pb: '12px !important' }}>
-        <Stack direction="row" alignItems="center" spacing={1} mb={1.5}>
+      <Stack direction="row" alignItems="center" spacing={1} mb={tieneReportes ? 1.25 : 0.75}>
+        <Box
+          sx={{
+            width: 34,
+            height: 34,
+            borderRadius: '10px',
+            bgcolor: tokens.action.tint,
+            color: tokens.content.foreground,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Icon sx={{ fontSize: 18 }} />
+        </Box>
+        <Typography variant="figure" sx={{ fontSize: 18, lineHeight: 1.15, color: tokens.content.foreground }}>
+          {categoria.label}
+        </Typography>
+        {!tieneReportes && (
           <Box
+            component="span"
             sx={{
-              width: 34,
-              height: 34,
-              borderRadius: 1.5,
-              bgcolor: `${categoria.color}18`,
-              display: 'flex',
+              ml: 'auto !important',
+              display: 'inline-flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
+              height: 22,
+              px: 0.9,
+              borderRadius: 99,
+              bgcolor: tokens.metric.blocked.background,
+              color: tokens.metric.blocked.foreground,
+              fontSize: 11,
+              fontWeight: 700,
             }}
           >
-            <Icon sx={{ color: categoria.color, fontSize: 18 }} />
+            Próximamente
           </Box>
-          <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-            {categoria.label}
-          </Typography>
-          {!tieneReportes && (
-            <Chip label="Próximamente" size="small" sx={{ fontSize: 10, height: 18, ml: 'auto' }} />
-          )}
+        )}
+      </Stack>
+
+      {tieneReportes && (
+        <Stack spacing={0.35} sx={{ borderTop: `1px solid ${tokens.content.border}`, pt: 1 }}>
+          {categoria.reportes.map((r) => (
+            <Box
+              key={r.path}
+              component="button"
+              type="button"
+              onClick={() => onNavigate(r.path)}
+              sx={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                border: 0,
+                borderRadius: 2,
+                px: 1,
+                py: 0.75,
+                bgcolor: 'transparent',
+                cursor: 'pointer',
+                font: 'inherit',
+                color: tokens.content.foreground,
+                '&:hover': { bgcolor: tokens.content.hover },
+                '&:focus-visible': {
+                  outline: `2px solid ${tokens.content.foreground}`,
+                  outlineOffset: 2,
+                },
+              }}
+            >
+              <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: tokens.content.foreground }}>
+                {r.label}
+              </Typography>
+              <Typography sx={{ mt: 0.2, fontSize: 12, color: tokens.content.muted }}>
+                {r.descripcion}
+              </Typography>
+            </Box>
+          ))}
         </Stack>
+      )}
 
-        {tieneReportes && (
-          <>
-            <Divider sx={{ mb: 1.5 }} />
-            <Stack spacing={0.5}>
-              {categoria.reportes.map((r) => (
-                <CardActionArea
-                  key={r.path}
-                  onClick={() => onNavigate(r.path)}
-                  sx={{ borderRadius: 1, px: 1, py: 0.75 }}
-                >
-                  <Stack spacing={0.25}>
-                    <Typography variant="body2" fontWeight={600} color={categoria.color}>
-                      {r.label}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {r.descripcion}
-                    </Typography>
-                  </Stack>
-                </CardActionArea>
-              ))}
-            </Stack>
-          </>
-        )}
-
-        {!tieneReportes && (
-          <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>
-            No hay reportes disponibles aún en esta categoría.
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
+      {!tieneReportes && (
+        <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>
+          No hay reportes disponibles aún en esta categoría.
+        </Typography>
+      )}
+    </Box>
   );
 }

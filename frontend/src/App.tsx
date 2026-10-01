@@ -47,12 +47,14 @@ import ActividadFormPage from './pages/ActividadFormPage';
 import OportunidadDetallePage from './pages/OportunidadDetallePage';
 import AIReportesPage from './pages/AIReportesPage';
 import InformesPage from './pages/informes/InformesPage';
+import ResumenEjecutivoPage from './pages/informes/ResumenEjecutivoPage';
 import EstadoCuentaProveedorPage from './pages/informes/compras/EstadoCuentaProveedorPage';
 import EstadoCuentaClientePage from './pages/informes/ventas/EstadoCuentaClientePage';
 import ComprasPorProveedorPage from './pages/informes/compras/ComprasPorProveedorPage';
 import ComprasPorProductoPage from './pages/informes/compras/ComprasPorProductoPage';
 import OCPendientesRecibirPage from './pages/informes/compras/OCPendientesRecibirPage';
 import VentasPorClientePage from './pages/informes/ventas/VentasPorClientePage';
+import VentasPorVendedorPage from './pages/informes/ventas/VentasPorVendedorPage';
 import VentasPorProductoPage from './pages/informes/ventas/VentasPorProductoPage';
 import VencimientosProveedoresPage from './pages/informes/finanzas/VencimientosProveedoresPage';
 import VencimientosClientesPage    from './pages/informes/finanzas/VencimientosClientesPage';
@@ -186,12 +188,14 @@ export default function App() {
               <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
               <Route path="/inventario/movimientos/nuevo" element={<InventarioMovimientoFormPage />} />
               <Route path="/informes" element={<InformesPage />} />
+              <Route path="/informes/resumen-ejecutivo" element={<ResumenEjecutivoPage />} />
               <Route path="/informes/ia" element={<AIReportesPage />} />
               <Route path="/informes/compras/compras-por-proveedor"    element={<ComprasPorProveedorPage />} />
               <Route path="/informes/compras/compras-por-producto"    element={<ComprasPorProductoPage />} />
               <Route path="/informes/compras/oc-pendientes-recibir"   element={<OCPendientesRecibirPage />} />
               <Route path="/informes/compras/estado-cuenta-proveedor" element={<EstadoCuentaProveedorPage />} />
               <Route path="/informes/ventas/ventas-por-cliente"       element={<VentasPorClientePage />} />
+              <Route path="/informes/ventas/ventas-por-vendedor"      element={<VentasPorVendedorPage />} />
               <Route path="/informes/ventas/ventas-por-producto"      element={<VentasPorProductoPage />} />
               <Route path="/informes/ventas/estado-cuenta-cliente"    element={<EstadoCuentaClientePage />} />
               <Route path="/informes/compras/historial-precios"                    element={<HistorialPreciosCompraPage />} />

@@ -20,6 +20,8 @@ export type EmphasysTokens = {
     controlForeground: string;
     controlBorder: string;
     logoFilter: string;
+    /** Texto e iconos de las opciones del menú principal. */
+    itemForeground: string;
   };
   navigation: EmphasysSurface & {
     control: string;
@@ -97,42 +99,77 @@ export type EmphasysTokens = {
     draft: string;
     cancellation: string;
   };
+  /** Hilo de CRM > Conversaciones. El recibido “Lino” vive aquí. */
+  chat: {
+    well: string;
+    header: string;
+    received: string;
+    receivedForeground: string;
+    sent: string;
+    sentForeground: string;
+    selection: string;
+    selectionBar: string;
+    reply: string;
+  };
 };
 
 const ROBOTO_FIGURE = {
   fontFamily: "Roboto, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif",
 } as const;
 
+/**
+ * Cromado del tema experimental. Fondo del sidebar y de la barra superior
+ * en todas las rutas. No es el texto de contenido (#3e3428).
+ */
+const STRUCTURAL_CHROME = '#2c3344';
+
+const structuralFrame = {
+  background: STRUCTURAL_CHROME,
+  foreground: '#f7f4ee',
+  muted: 'rgba(247,244,238,0.62)',
+  subtle: 'rgba(247,244,238,0.42)',
+  border: 'rgba(255,255,255,0.08)',
+  selection: 'rgba(255,255,255,0.10)',
+  selectionForeground: '#fbf7f1',
+  hover: 'rgba(255,255,255,0.06)',
+  accent: '#d7cbbd',
+  control: 'rgba(255,255,255,0.08)',
+  controlForeground: '#f7f4ee',
+  controlBorder: 'rgba(247,244,238,0.35)',
+  logoFilter: 'none',
+  itemForeground: '#efe6d8',
+} as const;
+
+/** Tipografía definitiva del menú principal. El resto del ERP sigue en Roboto. */
+export const MAIN_NAV_TYPE = {
+  fontFamily: '"Source Sans 3", system-ui, sans-serif',
+  fontSize: 15,
+  fontWeight: 500,
+  activeFontWeight: 700,
+  letterSpacing: '0.005em',
+  activeLetterSpacing: '0em',
+  lineHeight: 1.2,
+  iconSize: 17,
+  inactiveOpacity: 0.82,
+  iconGap: 1,
+} as const;
+
 export const EDITORIAL_FIGURE_FAMILY =
   '"Iowan Old Style", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif';
 
 export const classicTokens: EmphasysTokens = {
-  frame: {
-    background: '#1d2f68',
-    foreground: '#ffffff',
-    muted: 'rgba(255,255,255,0.65)',
-    subtle: 'rgba(255,255,255,0.45)',
-    border: 'rgba(255,255,255,0.1)',
-    selection: 'rgba(255,255,255,0.15)',
-    selectionForeground: '#ffffff',
-    hover: 'rgba(255,255,255,0.07)',
-    accent: '#006261',
-    control: 'rgba(255,255,255,0.1)',
-    controlForeground: '#ffffff',
-    controlBorder: 'rgba(255,255,255,0.5)',
-    logoFilter: 'none',
-  },
+  frame: { ...structuralFrame },
   navigation: {
     background: '#ffffff',
     foreground: '#1f2937',
     muted: '#6b7280',
     subtle: '#9ca3af',
     border: '#e5e7eb',
-    selection: 'rgba(29, 47, 104, 0.08)',
-    selectionForeground: '#1d2f68',
+    selection: 'rgba(44, 51, 68, 0.08)',
+    selectionForeground: STRUCTURAL_CHROME,
     hover: 'rgba(15, 23, 42, 0.04)',
-    accent: '#1d2f68',
-    control: '#1d2f68',
+    accent: STRUCTURAL_CHROME,
+    control: STRUCTURAL_CHROME,
     controlForeground: '#ffffff',
     summary: '#f8fafc',
     track: '#e5e7eb',
@@ -143,10 +180,10 @@ export const classicTokens: EmphasysTokens = {
     border: '#e5e7eb',
     foreground: '#4b5563',
     selectedBackground: '#ffffff',
-    selectedForeground: '#1d2f68',
+    selectedForeground: STRUCTURAL_CHROME,
     indicator: '#006261',
     hoverBackground: '#f1f3f6',
-    hoverForeground: '#1d2f68',
+    hoverForeground: STRUCTURAL_CHROME,
   },
   canvas: {
     page: '#eef1f4',
@@ -185,12 +222,12 @@ export const classicTokens: EmphasysTokens = {
     muted: '#94a3b8',
   },
   grid: {
-    header: '#1d2f68',
+    header: STRUCTURAL_CHROME,
     headerForeground: '#ffffff',
     stripe: 'rgba(0, 120, 70, 0.05)',
     hover: 'rgba(15, 23, 42, 0.04)',
-    selected: 'rgba(29, 47, 104, 0.08)',
-    selectedHover: 'rgba(29, 47, 104, 0.12)',
+    selected: 'rgba(44, 51, 68, 0.08)',
+    selectedHover: 'rgba(44, 51, 68, 0.12)',
   },
   metric: {
     amount: { background: '#f8fafc', foreground: '#1d2f68' },
@@ -207,24 +244,21 @@ export const classicTokens: EmphasysTokens = {
     draft: '#facc15',
     cancellation: '#d97706',
   },
+  chat: {
+    well: '#f8fafc',
+    header: '#ffffff',
+    received: '#f3f4f6',
+    receivedForeground: '#1f2937',
+    sent: '#1d2f68',
+    sentForeground: '#ffffff',
+    selection: 'rgba(29, 47, 104, 0.12)',
+    selectionBar: '#1d2f68',
+    reply: '#eef2ff',
+  },
 };
 
 export const experimentalTokens: EmphasysTokens = {
-  frame: {
-    background: '#2c3344',
-    foreground: '#f7f4ee',
-    muted: 'rgba(247,244,238,0.62)',
-    subtle: 'rgba(247,244,238,0.42)',
-    border: 'rgba(255,255,255,0.08)',
-    selection: 'rgba(255,255,255,0.10)',
-    selectionForeground: '#fbf7f1',
-    hover: 'rgba(255,255,255,0.06)',
-    accent: '#d7cbbd',
-    control: 'rgba(255,255,255,0.08)',
-    controlForeground: '#f7f4ee',
-    controlBorder: 'rgba(247,244,238,0.35)',
-    logoFilter: 'none',
-  },
+  frame: { ...structuralFrame },
   navigation: {
     background: '#3c4149',
     foreground: '#f4f0e8',
@@ -309,6 +343,17 @@ export const experimentalTokens: EmphasysTokens = {
   status: {
     draft: '#facc15',
     cancellation: '#d97706',
+  },
+  chat: {
+    well: '#f7f3ec',
+    header: '#f3f6f5',
+    received: '#e2dfd6',
+    receivedForeground: '#2c3138',
+    sent: '#3c4149',
+    sentForeground: '#f4f0e8',
+    selection: '#e4eef4',
+    selectionBar: '#3d5f86',
+    reply: '#e8f0f8',
   },
 };
 

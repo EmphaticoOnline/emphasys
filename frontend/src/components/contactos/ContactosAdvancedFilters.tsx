@@ -51,6 +51,7 @@ type Props = {
   onInteresInicialChange: (value: string) => void;
   onObservacionesChange: (value: string) => void;
   onClearAdvancedFilters: () => void;
+  soloPanel?: boolean;
 };
 
 export default function ContactosAdvancedFilters({
@@ -70,6 +71,7 @@ export default function ContactosAdvancedFilters({
   onInteresInicialChange,
   onObservacionesChange,
   onClearAdvancedFilters,
+  soloPanel = false,
 }: Props) {
   const hayFiltrosActivos = activeFiltersCount > 0;
   const vendedorSeleccionado = vendedores.find((item) => item.id === filters.vendedorId) ?? null;
@@ -77,14 +79,14 @@ export default function ContactosAdvancedFilters({
 
   return (
     <Stack spacing={1.25}>
-      <Stack
+      {soloPanel ? null : <Stack
         direction={{ xs: 'column', lg: 'row' }}
         spacing={1}
         alignItems={{ xs: 'stretch', lg: 'center' }}
         justifyContent="space-between"
       >
         <Box>
-          <Typography variant="body2" color="#4b5563" sx={{ fontWeight: 600 }}>
+          <Typography variant="body2" sx={(theme) => ({ fontWeight: 600, color: theme.emphasys.content.secondary })}>
             {rowCount.toLocaleString('es-MX')} registros encontrados
           </Typography>
         </Box>
@@ -95,38 +97,44 @@ export default function ContactosAdvancedFilters({
             startIcon={<FilterAltOutlinedIcon />}
             endIcon={filters.filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
             onClick={onToggleFilters}
-            sx={{
+            sx={(theme) => ({
               alignSelf: { xs: 'flex-start', lg: 'center' },
               fontWeight: 700,
               textTransform: 'none',
-              backgroundColor: filters.filtersOpen || hayFiltrosActivos ? '#1d2f68' : undefined,
-              '&:hover': {
-                backgroundColor: filters.filtersOpen || hayFiltrosActivos ? '#162551' : undefined,
-              },
-            }}
+              ...(filters.filtersOpen || hayFiltrosActivos
+                ? {
+                    backgroundColor: theme.emphasys.action.primary,
+                    color: theme.emphasys.action.primaryForeground,
+                    '&:hover': { backgroundColor: theme.emphasys.action.primaryHover },
+                  }
+                : {
+                    color: theme.emphasys.content.foreground,
+                    borderColor: theme.emphasys.content.border,
+                  }),
+            })}
           >
             Filtros avanzados
           </Button>
         </Badge>
-      </Stack>
+      </Stack>}
 
-      <Collapse in={filters.filtersOpen} timeout="auto" unmountOnExit={false}>
+      <Collapse in={soloPanel || filters.filtersOpen} timeout="auto" unmountOnExit={false}>
         <Paper
           variant="outlined"
           sx={{
             p: { xs: 1.25, sm: 1.5 },
             borderRadius: 2,
-            borderColor: '#dbe3f4',
-            backgroundColor: '#f8fafc',
+            borderColor: (theme) => theme.emphasys.content.border,
+            backgroundColor: (theme) => theme.emphasys.content.elevated,
           }}
         >
           <Stack spacing={1.25}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }}>
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>
+                <Typography variant="subtitle2" sx={(theme) => ({ fontWeight: 700, color: theme.emphasys.content.foreground })}>
                   Filtros y Resumen
                 </Typography>
-                <Typography variant="caption" color="#6b7280">
+                <Typography variant="caption" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
                   Refina la búsqueda por CRM sin filtrar localmente en el grid.
                 </Typography>
               </Box>

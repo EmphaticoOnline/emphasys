@@ -373,7 +373,7 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
       <Box sx={{ p: 3, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Box>
-            <Typography variant="h6" fontWeight={700} color="#1d2f68">
+            <Typography variant="h6" fontWeight={700} color="text.primary">
               Programar facturas pendientes
             </Typography>
             <Typography variant="caption" color="text.secondary">
@@ -578,7 +578,7 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
             onClick={handleSave}
             disabled={saving || seleccion.length === 0}
             variant="contained"
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+            sx={{ textTransform: 'none', borderRadius: 999 }}
           >
             {saving
               ? 'Guardando...'

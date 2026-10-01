@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { Box, Divider, LinearProgress, Stack, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import type { EmphasysTokens } from '../../../theme/tokens';
 import type { LiquidacionConfig } from './liquidacionDocumento.copy';
-import { LIQUIDACION_AMBER, LIQUIDACION_BORDER, LIQUIDACION_LABEL, LIQUIDACION_NAVY, fieldLabelSx } from './liquidacionDocumento.styles';
+import { fieldLabelSx } from './liquidacionDocumento.styles';
 
 type Props = {
   config: LiquidacionConfig;
@@ -16,11 +18,11 @@ type Props = {
   actions?: ReactNode;
 };
 
-function cifraColor(opts: { warning?: boolean; ok?: boolean; danger?: boolean }) {
-  if (opts.danger) return 'error.main';
-  if (opts.warning) return LIQUIDACION_AMBER;
-  if (opts.ok) return 'success.main';
-  return LIQUIDACION_NAVY;
+function cifraColor(tokens: EmphasysTokens, opts: { warning?: boolean | undefined; ok?: boolean | undefined; danger?: boolean | undefined }) {
+  if (opts.danger) return tokens.action.destructive;
+  if (opts.warning) return tokens.status.cancellation;
+  if (opts.ok) return tokens.metric.applied.foreground;
+  return tokens.content.foreground;
 }
 
 function Cifra({
@@ -36,16 +38,16 @@ function Cifra({
   ok?: boolean;
   danger?: boolean;
 }) {
+  const tokens = useTheme().emphasys;
   return (
     <Box sx={{ minWidth: 0 }}>
       <Typography sx={fieldLabelSx}>{label}</Typography>
       <Typography
+        variant="figure"
         sx={{
-          fontSize: 16,
-          fontWeight: 700,
-          lineHeight: 1.2,
-          fontVariantNumeric: 'tabular-nums',
-          color: cifraColor({ warning, ok, danger }),
+          fontSize: 20,
+          lineHeight: 1.15,
+          color: cifraColor(tokens, { warning, ok, danger }),
         }}
       >
         {value}
@@ -66,15 +68,16 @@ export default function LiquidacionResumenFooter({
   horizontalStats,
   actions,
 }: Props) {
+  const tokens = useTheme().emphasys;
   const disponible = tieneExceso ? 0 : saldoPorAplicar;
   const usoPct = monto > 0
     ? Math.min(100, Math.round((Math.min(totalAplicado, monto) / monto) * 1000) / 10)
     : 0;
   const estado = tieneExceso
-    ? { label: config.textos.estadoExceso, color: 'error.main' }
+    ? { label: config.textos.estadoExceso, color: tokens.action.destructive }
     : faltaCuenta
-      ? { label: config.textos.estadoFaltaCuenta, color: LIQUIDACION_AMBER }
-      : { label: config.textos.estadoListo, color: 'success.main' };
+      ? { label: config.textos.estadoFaltaCuenta, color: tokens.status.cancellation }
+      : { label: config.textos.estadoListo, color: tokens.metric.applied.foreground };
   const ayuda = tieneExceso
     ? config.textos.exceso(formatter.format(exceso))
     : faltaCuenta
@@ -86,8 +89,8 @@ export default function LiquidacionResumenFooter({
   return (
     <Box
       sx={{
-        bgcolor: '#fff',
-        border: `1px solid ${LIQUIDACION_BORDER}`,
+        bgcolor: tokens.content.card,
+        border: `1px solid ${tokens.content.border}`,
         borderRadius: 2,
         overflow: 'hidden',
       }}
@@ -95,9 +98,9 @@ export default function LiquidacionResumenFooter({
       <Stack
         direction="row"
         alignItems="center"
-        sx={{ px: 1.5, py: 0.85, borderBottom: `1px solid ${LIQUIDACION_BORDER}` }}
+        sx={{ px: 1.5, py: 0.85, borderBottom: `1px solid ${tokens.content.border}` }}
       >
-        <Typography sx={{ color: LIQUIDACION_NAVY, fontSize: 13, fontWeight: 600 }}>
+        <Typography sx={{ color: tokens.content.foreground, fontSize: 13, fontWeight: 700 }}>
           Liquidación
         </Typography>
         <Typography sx={{ ml: 'auto', fontSize: 12, fontWeight: 600, color: estado.color }}>
@@ -134,10 +137,10 @@ export default function LiquidacionResumenFooter({
 
         <Box>
           <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-            <Typography sx={{ fontSize: 12, color: LIQUIDACION_LABEL }}>
+            <Typography sx={{ fontSize: 12, color: tokens.metric.caption }}>
               {tieneExceso ? 'Aplicado supera el monto' : 'Uso del monto'}
             </Typography>
-            <Typography sx={{ fontSize: 12, color: LIQUIDACION_LABEL, fontVariantNumeric: 'tabular-nums' }}>
+            <Typography sx={{ fontSize: 12, color: tokens.metric.caption, fontVariantNumeric: 'tabular-nums' }}>
               {formatter.format(totalAplicado)} / {formatter.format(monto)}
             </Typography>
           </Stack>
@@ -147,10 +150,10 @@ export default function LiquidacionResumenFooter({
             sx={{
               height: 6,
               borderRadius: 999,
-              bgcolor: '#e8edf3',
+              bgcolor: tokens.metric.track,
               '& .MuiLinearProgress-bar': {
                 borderRadius: 999,
-                bgcolor: tieneExceso ? 'warning.main' : LIQUIDACION_NAVY,
+                bgcolor: tieneExceso ? tokens.action.destructive : tokens.metric.progress,
               },
             }}
           />

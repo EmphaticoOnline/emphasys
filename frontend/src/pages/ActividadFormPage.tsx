@@ -36,6 +36,7 @@ import type { Contacto, ContactoDetalle } from '../types/contactos.types';
 import type { CotizacionPartida } from '../types/cotizacion';
 import { SendWhatsappTemplateDialog } from '../components/SendWhatsappTemplateDialog';
 import RichTextEditor from '../components/RichTextEditor';
+import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx } from '../components/catalogo/catalogoSurfaces';
 
 dayjs.locale('es');
 
@@ -240,13 +241,14 @@ function formatCurrency(value: number | string | null) {
   }).format(amount);
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({ label, value, dense = false }: { label: string; value: string; dense?: boolean }) {
+  const tokens = useTheme().emphasys;
   return (
-    <Stack spacing={0.35}>
-      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, letterSpacing: 0.25 }}>
+    <Stack spacing={dense ? 0 : 0.15}>
+      <Typography variant="caption" sx={{ color: tokens.content.muted, fontWeight: 700, letterSpacing: '0.04em', fontSize: dense ? 10 : 11, lineHeight: 1.2 }}>
         {label}
       </Typography>
-      <Typography sx={{ color: '#0f172a', fontWeight: 600 }}>{value}</Typography>
+      <Typography sx={{ color: tokens.content.foreground, fontWeight: 650, fontSize: dense ? 13 : 14, lineHeight: 1.25 }}>{value}</Typography>
     </Stack>
   );
 }
@@ -309,8 +311,15 @@ function fieldValues(item: any): string[] {
   return [typeof values === 'string' ? values : JSON.stringify(values)];
 }
 
-export default function ActividadFormPage() {
-  const { id } = useParams();
+type ActividadFormPageProps = {
+  embedded?: boolean;
+  actividadId?: number | null;
+  onSaved?: () => void;
+};
+
+export default function ActividadFormPage({ embedded = false, actividadId = null, onSaved }: ActividadFormPageProps = {}) {
+  const { id: idRuta } = useParams();
+  const id = embedded ? (actividadId ? String(actividadId) : undefined) : idRuta;
   const location = useLocation();
   const navigate = useNavigate();
   const session = React.useMemo(() => loadSession(), []);
@@ -347,7 +356,29 @@ export default function ActividadFormPage() {
   const [templateOpen, setTemplateOpen] = React.useState(false);
   const [respuestasAbiertas, setRespuestasAbiertas] = React.useState(false);
   const theme = useTheme();
+  const tokens = theme.emphasys;
   const movil = useMediaQuery(theme.breakpoints.down('md'));
+  const fieldSx = {
+    '& .MuiOutlinedInput-root': {
+      backgroundColor: tokens.content.well,
+      ...(embedded ? { minHeight: 32, fontSize: 13 } : {}),
+      '& fieldset': { borderColor: tokens.content.border },
+    },
+    '& .MuiInputLabel-root': {
+      color: tokens.content.muted,
+      ...(embedded ? { fontSize: 12 } : {}),
+    },
+    '& .MuiOutlinedInput-input, & .MuiSelect-select': embedded
+      ? { fontSize: 13, py: '6px' }
+      : {},
+  };
+  const seccionSx = {
+    color: tokens.content.muted,
+    fontSize: embedded ? 11 : 12,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    lineHeight: 1.2,
+  };
 
   React.useEffect(() => {
     let mounted = true;
@@ -465,7 +496,8 @@ export default function ActividadFormPage() {
       } else {
         await crearActividad(form, Number(sessionUserId));
       }
-      navigate(returnTo, { state: { openDrawerContactoId } });
+      if (embedded) onSaved?.();
+      else navigate(returnTo, { state: { openDrawerContactoId } });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la actividad');
     } finally {
@@ -536,14 +568,22 @@ export default function ActividadFormPage() {
     : respuestasMeta;
   const notaAutomatica = Boolean(actividad?.meta_lead && esNotaAutomaticaMeta(form.observaciones));
   const etiquetaEstatus = (actividad?.estatus?.trim() || 'Sin estatus').replace(/^./, (letter) => letter.toUpperCase());
+  const estatusClave = (actividad?.estatus ?? '').trim().toLowerCase();
+  const tonoEstatus = estatusClave === 'realizada'
+    ? tokens.metric.applied
+    : estatusClave === 'cancelada'
+      ? tokens.metric.blocked
+      : estatusClave === 'pendiente'
+        ? tokens.metric.available
+        : { background: tokens.action.wash, foreground: tokens.content.foreground };
 
   if (loading) {
     return (
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
-        <Paper variant="outlined" sx={{ p: 4, borderRadius: 3, borderColor: '#dbe3ee' }}>
+      <Box sx={{ p: embedded ? 2 : { xs: 2, md: 3 }, ...(embedded ? { height: '100%', display: 'flex', alignItems: 'center' } : {}) }}>
+        <Paper variant="outlined" sx={{ p: embedded ? 2 : 4, width: embedded ? '100%' : undefined, borderRadius: 2, borderColor: tokens.content.border, backgroundColor: tokens.content.elevated }}>
           <Stack spacing={1.5} alignItems="center" justifyContent="center">
-            <CircularProgress size={30} />
-            <Typography sx={{ color: '#475569' }}>Cargando actividad...</Typography>
+            <CircularProgress size={28} sx={{ color: tokens.content.foreground }} />
+            <Typography sx={{ color: tokens.content.secondary }}>Cargando actividad...</Typography>
           </Stack>
         </Paper>
       </Box>
@@ -551,20 +591,20 @@ export default function ActividadFormPage() {
   }
 
   const seguimiento = (
-    <Stack spacing={1.5} component="form" onSubmit={handleSubmit}>
+    <Stack spacing={embedded ? 0.75 : 1.5} {...(embedded ? {} : { component: 'form' as const, onSubmit: handleSubmit })}>
       <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-        <Typography sx={{ color: '#8b93a7', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em' }}>
+        <Typography sx={seccionSx}>
           SEGUIMIENTO
         </Typography>
         {!actividad?.meta_lead && !isCreateMode ? (
-          <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: '#e8edf6', color: '#1d2f68', fontSize: 12, fontWeight: 700 }}>
+          <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: tonoEstatus.background, color: tonoEstatus.foreground, fontSize: 12, fontWeight: 700 }}>
             {etiquetaEstatus}
           </Box>
         ) : null}
       </Stack>
-      {!isCreateMode && actividad?.resultado ? <DetailRow label="Resultado" value={actividad.resultado} /> : null}
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-        <TextField select label="Tipo" value={form.tipo_actividad} onChange={handleChange('tipo_actividad')} fullWidth size="small">
+      {!isCreateMode && actividad?.resultado ? <DetailRow dense={embedded} label="Resultado" value={actividad.resultado} /> : null}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={embedded ? 0.75 : 1.5}>
+        <TextField select label="Tipo" value={form.tipo_actividad} onChange={handleChange('tipo_actividad')} fullWidth size="small" sx={fieldSx}>
           {TIPO_OPTIONS.map((option) => (
             <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
           ))}
@@ -582,16 +622,18 @@ export default function ActividadFormPage() {
             format="DD/MM/YYYY HH:mm"
             ampm
             slotProps={{
-              textField: { fullWidth: true, size: 'small' },
+              textField: { fullWidth: true, size: 'small', sx: fieldSx },
               popper: { placement: 'bottom-start' },
             }}
           />
         </LocalizationProvider>
       </Stack>
-      <Stack direction="row" spacing={2} alignItems="center">
+      <Stack direction="row" spacing={1} alignItems="center">
         <FormControlLabel
+          sx={embedded ? { m: 0, '& .MuiFormControlLabel-label': { fontSize: 13 } } : undefined}
           control={(
             <Checkbox
+              size={embedded ? 'small' : 'medium'}
               checked={form.recordatorio}
               onChange={(event) => {
                 const checked = event.target.checked;
@@ -601,7 +643,7 @@ export default function ActividadFormPage() {
                   recordatorio_minutos: checked ? prev.recordatorio_minutos : '',
                 }));
               }}
-              sx={{ color: '#1d2f68', '&.Mui-checked': { color: '#1d2f68' } }}
+              sx={{ color: tokens.content.muted, '&.Mui-checked': { color: tokens.content.foreground } }}
             />
           )}
           label="Recordatorio"
@@ -614,54 +656,56 @@ export default function ActividadFormPage() {
             type="number"
             size="small"
             inputProps={{ min: 1 }}
-            sx={{ width: 120 }}
+            sx={{ width: 140, ...fieldSx }}
           />
         ) : null}
       </Stack>
       <TextField
         label="Descripción"
         multiline
-        minRows={3}
+        minRows={embedded ? 2 : 3}
         value={form.descripcion}
         onChange={handleChange('descripcion')}
         inputProps={{ maxLength: 240 }}
         fullWidth
-        sx={{ '& .MuiInputBase-input': { fontSize: 13 } }}
+        sx={{ ...fieldSx, '& .MuiInputBase-input': { fontSize: 13 } }}
       />
-      <Typography variant="caption" color="text.secondary">Observaciones</Typography>
-      <RichTextEditor content={form.observaciones} onChange={(html) => setForm((prev) => ({ ...prev, observaciones: html }))} minHeight={140} maxHeight={360} />
-      <Stack direction="row" spacing={1} justifyContent="flex-end">
-        <Button type="button" color="inherit" onClick={() => navigate(returnTo, { state: { openDrawerContactoId } })}>
-          Cancelar
-        </Button>
-        <Button type="submit" variant="contained" disabled={saving}>
-          {saving ? 'Guardando...' : 'Guardar'}
-        </Button>
-      </Stack>
+      <Typography variant="caption" sx={{ color: tokens.content.muted, fontSize: embedded ? 11 : 12, fontWeight: 700, letterSpacing: '0.04em' }}>Observaciones</Typography>
+      <RichTextEditor content={form.observaciones} onChange={(html) => setForm((prev) => ({ ...prev, observaciones: html }))} minHeight={embedded ? 72 : 140} maxHeight={embedded ? 160 : 360} denseToolbar={embedded} />
+      {embedded ? null : (
+        <Stack direction="row" spacing={1} justifyContent="flex-end">
+          <Button type="button" onClick={() => navigate(returnTo, { state: { openDrawerContactoId } })} sx={catalogoOutlinedButtonSx}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="contained" disabled={saving} sx={catalogoPrimaryButtonSx}>
+            {saving ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </Stack>
+      )}
     </Stack>
   );
 
   const origen = actividad?.meta_lead ? (
     <Stack spacing={1}>
       <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-        <Typography sx={{ color: '#8b93a7', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em' }}>
+        <Typography sx={seccionSx}>
           ORIGEN
         </Typography>
-        <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: '#e8edf6', color: '#1d2f68', fontSize: 12, fontWeight: 700 }}>
+        <Box sx={{ px: 1, py: 0.25, borderRadius: 999, bgcolor: tonoEstatus.background, color: tonoEstatus.foreground, fontSize: 12, fontWeight: 700 }}>
           {etiquetaEstatus}
         </Box>
       </Stack>
-      <Typography sx={{ color: '#0f172a', fontWeight: 700, fontSize: 16 }}>
+      <Typography sx={{ color: tokens.content.foreground, fontWeight: 700, fontSize: embedded ? 14 : 16, lineHeight: 1.25 }}>
         Meta · {actividad.meta_lead.form_name?.trim() || 'Formulario no disponible'}
       </Typography>
-      {metaRequestDate ? <Typography sx={{ color: '#64748b' }}>Llegó el {metaRequestDate}</Typography> : null}
-      {actividad.meta_lead.campaign_name?.trim() ? <DetailRow label="Campaña" value={actividad.meta_lead.campaign_name} /> : null}
+      {metaRequestDate ? <Typography sx={{ color: tokens.content.secondary }}>Llegó el {metaRequestDate}</Typography> : null}
+      {actividad.meta_lead.campaign_name?.trim() ? <DetailRow dense={embedded} label="Campaña" value={actividad.meta_lead.campaign_name} /> : null}
       {resumenMeta.map((item) => (
         <Stack key={`${item.key}-resumen`} direction={movil ? 'column' : 'row'} spacing={movil ? 0.25 : 1.5}>
-          <Typography sx={{ color: '#8b93a7', fontSize: 13, width: movil ? 'auto' : 168, flexShrink: 0 }}>
+          <Typography sx={{ color: tokens.content.muted, fontSize: 13, width: movil ? 'auto' : 168, flexShrink: 0 }}>
             {item.key === 'phone_number' || item.key === 'telefono' || item.key === 'phone' ? 'Teléfono en la solicitud' : item.label}
           </Typography>
-          <Typography sx={{ color: '#0f172a', fontWeight: 600 }}>{item.value}</Typography>
+          <Typography sx={{ color: tokens.content.foreground, fontWeight: 600 }}>{item.value}</Typography>
         </Stack>
       ))}
       {respuestasMeta.length ? (
@@ -671,7 +715,7 @@ export default function ActividadFormPage() {
             type="button"
             underline="hover"
             onClick={() => setRespuestasAbiertas((open) => !open)}
-            sx={{ fontWeight: 700, fontSize: 13 }}
+            sx={{ fontWeight: 700, fontSize: 13, color: tokens.content.foreground }}
           >
             {respuestasAbiertas ? 'Ocultar respuestas del formulario' : `Ver respuestas del formulario (${respuestasMeta.length})`}
           </Link>
@@ -679,8 +723,8 @@ export default function ActividadFormPage() {
             <Stack spacing={0.75} sx={{ pt: 1 }}>
               {respuestasMeta.map((item) => (
                 <Stack key={`${item.key}-completa`} direction={movil ? 'column' : 'row'} spacing={movil ? 0 : 1.5}>
-                  <Typography sx={{ color: '#8b93a7', fontSize: 13, width: movil ? 'auto' : 168, flexShrink: 0 }}>{item.label}</Typography>
-                  <Typography sx={{ color: '#0f172a', fontSize: 13 }}>{item.value}</Typography>
+                  <Typography sx={{ color: tokens.content.muted, fontSize: 13, width: movil ? 'auto' : 168, flexShrink: 0 }}>{item.label}</Typography>
+                  <Typography sx={{ color: tokens.content.foreground, fontSize: 13 }}>{item.value}</Typography>
                 </Stack>
               ))}
             </Stack>
@@ -691,36 +735,36 @@ export default function ActividadFormPage() {
   ) : null;
 
   const whatsappButton = actividad?.meta_lead ? (
-    <Button variant="contained" disabled={!canStartWhatsapp} onClick={handleWhatsappAction} fullWidth sx={{ fontWeight: 700 }}>
+    <Button variant="contained" size={embedded ? 'small' : 'medium'} disabled={!canStartWhatsapp} onClick={handleWhatsappAction} fullWidth={!embedded} sx={catalogoPrimaryButtonSx}>
       {actividad.whatsapp_conversacion ? 'Abrir conversación' : 'Iniciar WhatsApp'}
     </Button>
   ) : null;
 
   const persona = actividad?.contacto ? (
-    <Stack spacing={2}>
-      <Stack spacing={0.5}>
-        <Typography sx={{ color: '#0f172a', fontWeight: 700, fontSize: 22, lineHeight: 1.15 }}>
+    <Stack spacing={embedded ? 0.75 : 2}>
+      <Stack spacing={0.25}>
+        <Typography sx={{ color: tokens.content.foreground, fontWeight: 700, fontSize: embedded ? 15 : 22, lineHeight: 1.15 }}>
           {personaNombre}
         </Typography>
-        {mostrarEmpresa ? <Typography sx={{ color: '#64748b' }}>{empresaNombre}</Typography> : null}
+        {mostrarEmpresa ? <Typography sx={{ color: tokens.content.secondary }}>{empresaNombre}</Typography> : null}
       </Stack>
       {actividad.contacto.vendedor_nombre ? (
         <Stack spacing={0.25}>
-          <Typography sx={{ color: '#8b93a7', fontSize: 12 }}>Atiende</Typography>
-          <Typography sx={{ color: '#0f172a', fontWeight: 600 }}>{actividad.contacto.vendedor_nombre}</Typography>
+          <Typography sx={{ color: tokens.content.muted, fontSize: 12 }}>Atiende</Typography>
+          <Typography sx={{ color: tokens.content.foreground, fontWeight: 600 }}>{actividad.contacto.vendedor_nombre}</Typography>
         </Stack>
       ) : null}
-      <Stack spacing={1}>
-        {actividad.contacto.telefono ? <DetailRow label="Teléfono" value={actividad.contacto.telefono} /> : null}
-        {actividad.contacto.telefono_secundario ? <DetailRow label="Teléfono secundario" value={actividad.contacto.telefono_secundario} /> : null}
-        {actividad.contacto.email ? <DetailRow label="Email" value={actividad.contacto.email} /> : null}
+      <Stack spacing={embedded ? 0.5 : 1}>
+        {actividad.contacto.telefono ? <DetailRow dense={embedded} label="Teléfono" value={actividad.contacto.telefono} /> : null}
+        {actividad.contacto.telefono_secundario ? <DetailRow dense={embedded} label="Teléfono secundario" value={actividad.contacto.telefono_secundario} /> : null}
+        {actividad.contacto.email ? <DetailRow dense={embedded} label="Email" value={actividad.contacto.email} /> : null}
       </Stack>
       <Link
         component="button"
         type="button"
         underline="hover"
         onClick={() => navigate(`/contactos/${actividad.contacto!.id}`)}
-        sx={{ fontWeight: 700, fontSize: 13, alignSelf: 'flex-start' }}
+        sx={{ fontWeight: 700, fontSize: 13, alignSelf: 'flex-start', color: tokens.content.foreground }}
       >
         Abrir contacto
       </Link>
@@ -729,47 +773,49 @@ export default function ActividadFormPage() {
   ) : null;
 
   const oportunidadPanel = oportunidad ? (
-    <Stack spacing={1.5}>
-      <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3, borderColor: '#dbe3ee' }}>
-        <Stack spacing={2}>
-          <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>Detalle de la oportunidad</Typography>
+    <Stack spacing={embedded ? 0.75 : 1.5}>
+      <Paper variant="outlined" sx={{ p: embedded ? 1.25 : 2.25, borderRadius: 2, borderColor: tokens.content.border, backgroundColor: tokens.content.elevated }}>
+        <Stack spacing={embedded ? 0.75 : 2}>
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+            <Typography sx={{ fontSize: embedded ? 13 : 18, fontWeight: 700, color: tokens.content.foreground }}>Detalle de la oportunidad</Typography>
             <Button
               variant="outlined"
               startIcon={<PrintOutlinedIcon />}
+              size={embedded ? 'small' : 'medium'}
               onClick={handlePrintPdf}
               disabled={!oportunidad.cotizacion_principal_id || downloadingPdf || loading}
+              sx={catalogoOutlinedButtonSx}
             >
               {downloadingPdf ? 'Generando...' : 'PDF'}
             </Button>
           </Stack>
-          <DetailRow label="Folio" value={oportunidad.folio || 'Sin folio'} />
-          <DetailRow label="Cliente" value={oportunidad.contacto_nombre || 'Sin cliente'} />
-          <DetailRow label="Vendedor" value={oportunidad.vendedor_nombre || 'Sin vendedor'} />
-          <DetailRow label="Estatus" value={oportunidad.estatus || 'Sin estatus'} />
-          <DetailRow label="Monto" value={formatCurrency(oportunidad.monto_oportunidad)} />
-          <DetailRow label="Fecha de cotización" value={formatDate(oportunidad.fecha_cotizacion)} />
-          <DetailRow label="Fecha estimada de cierre" value={formatDate(oportunidad.fecha_estimada_cierre)} />
-          {oportunidad.comentarios_no_cierre ? <DetailRow label="Comentarios" value={oportunidad.comentarios_no_cierre} /> : null}
+          <DetailRow dense={embedded} label="Folio" value={oportunidad.folio || 'Sin folio'} />
+          <DetailRow dense={embedded} label="Cliente" value={oportunidad.contacto_nombre || 'Sin cliente'} />
+          <DetailRow dense={embedded} label="Vendedor" value={oportunidad.vendedor_nombre || 'Sin vendedor'} />
+          <DetailRow dense={embedded} label="Estatus" value={oportunidad.estatus || 'Sin estatus'} />
+          <DetailRow dense={embedded} label="Monto" value={formatCurrency(oportunidad.monto_oportunidad)} />
+          <DetailRow dense={embedded} label="Fecha de cotización" value={formatDate(oportunidad.fecha_cotizacion)} />
+          <DetailRow dense={embedded} label="Fecha estimada de cierre" value={formatDate(oportunidad.fecha_estimada_cierre)} />
+          {oportunidad.comentarios_no_cierre ? <DetailRow dense={embedded} label="Comentarios" value={oportunidad.comentarios_no_cierre} /> : null}
           {actividad?.oportunidad_id ? (
-            <Link component="button" type="button" underline="hover" onClick={() => navigate(`/crm/oportunidades/${actividad.oportunidad_id}`)} sx={{ fontWeight: 700, alignSelf: 'flex-start' }}>
+            <Link component="button" type="button" underline="hover" onClick={() => navigate(`/crm/oportunidades/${actividad.oportunidad_id}`)} sx={{ fontWeight: 700, alignSelf: 'flex-start', color: tokens.content.foreground }}>
               Abrir oportunidad
             </Link>
           ) : null}
         </Stack>
       </Paper>
-      <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 3, borderColor: '#dbe3ee' }}>
-        <Stack spacing={1.5}>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>Partidas de la cotización</Typography>
+      <Paper variant="outlined" sx={{ p: embedded ? 1.25 : 2.25, borderRadius: 2, borderColor: tokens.content.border, backgroundColor: tokens.content.elevated }}>
+        <Stack spacing={embedded ? 0.75 : 1.5}>
+          <Typography sx={{ fontSize: embedded ? 13 : 18, fontWeight: 700, color: tokens.content.foreground }}>Partidas de la cotización</Typography>
           {partidas.length ? (
             <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Producto</TableCell>
-                    <TableCell align="right">Cantidad</TableCell>
-                    <TableCell align="right">Precio</TableCell>
-                    <TableCell align="right">Importe</TableCell>
+                    <TableCell sx={{ color: tokens.table.headerFg, fontWeight: 700, borderColor: tokens.table.line }}>Producto</TableCell>
+                    <TableCell align="right" sx={{ color: tokens.table.headerFg, fontWeight: 700, borderColor: tokens.table.line }}>Cantidad</TableCell>
+                    <TableCell align="right" sx={{ color: tokens.table.headerFg, fontWeight: 700, borderColor: tokens.table.line }}>Precio</TableCell>
+                    <TableCell align="right" sx={{ color: tokens.table.headerFg, fontWeight: 700, borderColor: tokens.table.line }}>Importe</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -785,35 +831,35 @@ export default function ActividadFormPage() {
               </Table>
             </TableContainer>
           ) : (
-            <Typography sx={{ color: '#64748b' }}>Esta cotización no tiene partidas registradas.</Typography>
+            <Typography sx={{ color: tokens.content.muted }}>Esta cotización no tiene partidas registradas.</Typography>
           )}
         </Stack>
       </Paper>
     </Stack>
   ) : null;
 
-  return (
-    <Box sx={{ p: { xs: 2, md: 3 }, width: '100%', maxWidth: 920, mx: 'auto' }}>
-      <Stack spacing={2}>
+  const cuerpo = (
+    <Box sx={{ p: embedded ? 0 : { xs: 2, md: 3 }, width: '100%', maxWidth: embedded ? 'none' : 920, mx: 'auto' }}>
+      <Stack spacing={embedded ? 1 : 2}>
         {isCreateMode ? (
-          <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a' }}>Nueva actividad</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: tokens.content.foreground }}>Nueva actividad</Typography>
         ) : null}
         {contacto && isCreateMode ? (
-          <Typography sx={{ color: '#64748b' }}>{contacto.nombre}</Typography>
+          <Typography sx={{ color: tokens.content.secondary }}>{contacto.nombre}</Typography>
         ) : null}
         {error ? <Alert severity="error">{error}</Alert> : null}
         {isCreateMode ? (
-          <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, borderColor: '#dbe3ee' }}>{seguimiento}</Paper>
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: tokens.content.border, backgroundColor: tokens.content.elevated }}>{seguimiento}</Paper>
         ) : (
-          <Paper variant="outlined" sx={{ borderRadius: 3, borderColor: '#dbe3ee', overflow: 'hidden' }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '272px minmax(0, 1fr)' } }}>
-              <Box sx={{ bgcolor: '#f7f8fb', p: '20px 18px 16px', borderRight: { md: '1px solid #dbe3ee' }, borderBottom: { xs: '1px solid #dbe3ee', md: 'none' } }}>
+          <Paper variant="outlined" sx={{ borderRadius: 2, borderColor: tokens.content.border, backgroundColor: tokens.content.elevated, overflow: 'hidden' }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: embedded ? '1fr' : { xs: '1fr', md: '272px minmax(0, 1fr)' } }}>
+              <Box sx={{ bgcolor: tokens.content.hover, p: embedded ? '10px 12px' : '20px 18px 16px', borderRight: embedded ? 'none' : { md: `1px solid ${tokens.content.border}` }, borderBottom: embedded ? `1px solid ${tokens.content.border}` : { xs: `1px solid ${tokens.content.border}`, md: 'none' } }}>
                 {persona}
                 {movil ? <Box sx={{ mt: persona ? 2 : 0 }}>{whatsappButton}</Box> : null}
               </Box>
-              <Stack spacing={2} sx={{ p: '18px 20px 16px' }}>
+              <Stack spacing={embedded ? 1 : 2} sx={{ p: embedded ? '10px 12px' : '18px 20px 16px' }}>
                 {origen}
-                {origen ? <Box sx={{ borderTop: '1px solid #dbe3ee' }} /> : null}
+                {origen ? <Box sx={{ borderTop: `1px solid ${tokens.content.border}` }} /> : null}
                 {seguimiento}
               </Stack>
             </Box>
@@ -832,6 +878,36 @@ export default function ActividadFormPage() {
           onSuccess={(plantillaNombre, result) => { void handleTemplateSuccess(plantillaNombre, result); }}
         />
       ) : null}
+    </Box>
+  );
+
+  if (!embedded) return cuerpo;
+
+  return (
+    <Box sx={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box
+        component="form"
+        id="actividad-detalle-form"
+        onSubmit={handleSubmit}
+        sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 1.25, py: 1 }}
+      >
+        {cuerpo}
+      </Box>
+      <Box sx={{
+        flexShrink: 0,
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 1,
+        px: 1.25,
+        py: 0.75,
+        borderTop: `1px solid ${tokens.content.border}`,
+        bgcolor: tokens.content.elevated,
+      }}>
+        <Button type="submit" form="actividad-detalle-form" variant="contained" size="small" disabled={saving || loading} sx={catalogoPrimaryButtonSx}>
+          {saving ? 'Guardando...' : 'Guardar'}
+        </Button>
+      </Box>
     </Box>
   );
 }

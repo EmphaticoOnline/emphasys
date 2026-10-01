@@ -8,6 +8,7 @@ import type {
   GridRowParams,
   GridSortModel,
 } from '@mui/x-data-grid';
+import type { ReactNode } from 'react';
 import type { Producto } from '../../types/producto';
 import type { GridContextMenuAction } from '../grids/GridContextMenu';
 
@@ -49,6 +50,8 @@ export interface ProductosDesktopViewProps extends ProductosViewCommonProps {
   onSelectProducto: (productoId: number) => void;
   onEditProducto: (productoId: number) => void;
   onDeleteProducto: (producto: Producto) => void;
+  headerExtra?: ReactNode;
+  onOpenBiblioteca?: () => void;
 }
 
 export interface ProductosMobileViewProps extends ProductosViewCommonProps {

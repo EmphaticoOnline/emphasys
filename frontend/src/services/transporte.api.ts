@@ -68,27 +68,6 @@ export type ViajeAggregate = {
 };
 export const obtenerViajeAggregate = (viajeId: number) => apiFetch<ViajeAggregate>(`/api/transporte/viajes/${viajeId}`);
 
-// Partidas de la factura disponibles para importarse como mercancías del Viaje.
-export type PartidaImportable = {
-  partida_id:number;
-  numero_partida:number;
-  producto_id:number|null;
-  descripcion:string|null;
-  cantidad:string|number|null;
-  unidad_partida:string|null;
-  unidad_descripcion:string|null;
-  clave_unidad_sat:string|null;
-  clave_bienes_transportados_sat:string|null;
-  material_peligroso:boolean;
-  clave_material_peligroso:string|null;
-  embalaje:string|null;
-  descripcion_embalaje:string|null;
-  valor_mercancia:string|number|null;
-  peso_sugerido:string|number|null;
-};
-export const obtenerPartidasImportables = (documentoId: number) =>
-  apiFetch<PartidaImportable[]>(`/api/transporte/documentos/${documentoId}/partidas-importables`);
-
 export type ViajeMercanciaInput = {
   productoId:number|null;
   descripcion:string|null;

@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-09-24T02:49:35.806Z
+-- Generated at: 2026-09-30T22:55:56.779Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict EpMmdn1oOXoRkaOF49u8SoQTuGageuv6k98ExPcZa6X1bB6muTW1QZ1lcul5lHR
+\restrict X86r9o0ynwykgHghhwUjhIemCFpaPCaC1xWhWFVh1c8icnVcG7lLNrSRefvRynD
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -666,6 +666,33 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: validar_adjunto_entidad_tenant(); Type: FUNCTION; Schema: documentacion; Owner: -
+--
+
+CREATE FUNCTION documentacion.validar_adjunto_entidad_tenant() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE tenant_id integer; entidad_tenant integer;
+BEGIN
+  SELECT empresa_id INTO tenant_id FROM documentacion.adjuntos WHERE id = NEW.adjunto_id FOR UPDATE;
+  IF tenant_id IS NULL THEN RAISE EXCEPTION 'Adjunto % no encontrado', NEW.adjunto_id; END IF;
+  IF NEW.empresa_documentada_id IS NOT NULL THEN
+    IF NEW.empresa_documentada_id <> tenant_id THEN RAISE EXCEPTION 'Empresa documentada cross-tenant'; END IF;
+  ELSIF NEW.documento_id IS NOT NULL THEN
+    SELECT empresa_id INTO entidad_tenant FROM public.documentos WHERE id = NEW.documento_id;
+    IF entidad_tenant IS DISTINCT FROM tenant_id THEN RAISE EXCEPTION 'Documento cross-tenant'; END IF;
+  ELSIF NEW.contacto_id IS NOT NULL THEN
+    SELECT empresa_id INTO entidad_tenant FROM public.contactos WHERE id = NEW.contacto_id;
+    IF entidad_tenant IS DISTINCT FROM tenant_id THEN RAISE EXCEPTION 'Contacto cross-tenant'; END IF;
+  ELSIF NEW.finanzas_operacion_id IS NOT NULL THEN
+    SELECT empresa_id INTO entidad_tenant FROM public.finanzas_operaciones WHERE id = NEW.finanzas_operacion_id;
+    IF entidad_tenant IS DISTINCT FROM tenant_id THEN RAISE EXCEPTION 'Operacion financiera cross-tenant'; END IF;
+  END IF;
+  RETURN NEW;
+END $$;
 
 
 --
@@ -1692,8 +1719,7 @@ CREATE TABLE contabilidad.configuracion_cuentas_contables (
     producto_tipo character varying(30),
     uso_contable character varying(60) NOT NULL,
     activa boolean DEFAULT true NOT NULL,
-    descripcion text,
-    observaciones text,
+    notas text,
     creado_en timestamp with time zone DEFAULT now() NOT NULL,
     actualizado_en timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_config_cuentas_una_sola_entidad CHECK (((((((((((((contacto_id IS NOT NULL))::integer + ((producto_id IS NOT NULL))::integer) + ((almacen_id IS NOT NULL))::integer) + ((finanzas_cuenta_id IS NOT NULL))::integer) + ((concepto_id IS NOT NULL))::integer) + ((impuesto_id IS NOT NULL))::integer) + ((producto_familia IS NOT NULL))::integer) + ((producto_linea IS NOT NULL))::integer) + ((producto_clasificacion IS NOT NULL))::integer) + ((producto_tipo IS NOT NULL))::integer) <= 1)),
@@ -6020,7 +6046,7 @@ CREATE TABLE crm.actividades (
     oportunidad_id integer,
     tipo_actividad character varying(30) NOT NULL,
     fecha_programada timestamp without time zone NOT NULL,
-    notas text,
+    observaciones text,
     estatus character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
     fecha_realizacion timestamp without time zone,
     resultado text,
@@ -6036,7 +6062,8 @@ CREATE TABLE crm.actividades (
     recordatorio_push_claimed_at timestamp without time zone,
     recordatorio_push_entregado_at timestamp without time zone,
     recordatorio_push_ultimo_intento_at timestamp without time zone,
-    recordatorio_push_error text
+    recordatorio_push_error text,
+    descripcion text
 );
 
 
@@ -6097,11 +6124,10 @@ COMMENT ON COLUMN crm.actividades.fecha_programada IS 'Fecha y hora en que debe 
 
 
 --
--- Name: COLUMN actividades.notas; Type: COMMENT; Schema: crm; Owner: -
+-- Name: COLUMN actividades.observaciones; Type: COMMENT; Schema: crm; Owner: -
 --
 
-COMMENT ON COLUMN crm.actividades.descripcion IS 'Descripción breve y operativa de la actividad.';
-COMMENT ON COLUMN crm.actividades.observaciones IS 'Observaciones y contexto de la actividad.';
+COMMENT ON COLUMN crm.actividades.observaciones IS 'Notas o instrucciones capturadas para el seguimiento.';
 
 
 --
@@ -6927,7 +6953,8 @@ CREATE TABLE crm.meta_leads (
     actividad_id integer,
     recibido_at timestamp without time zone DEFAULT now() NOT NULL,
     procesado_at timestamp without time zone,
-    actualizado_at timestamp without time zone DEFAULT now() NOT NULL
+    actualizado_at timestamp without time zone DEFAULT now() NOT NULL,
+    field_data jsonb DEFAULT '[]'::jsonb NOT NULL
 );
 
 
@@ -7177,15 +7204,30 @@ COMMENT ON COLUMN crm.reglas_seguimiento.tiempo_maximo_sin_respuesta_despues_de_
 CREATE TABLE documentacion.adjuntos (
     id integer NOT NULL,
     empresa_id integer NOT NULL,
-    tipo_id integer NOT NULL,
-    archivo_url text NOT NULL,
+    tipo_id integer,
     nombre_original character varying(255) NOT NULL,
-    fecha_subida timestamp with time zone DEFAULT now() NOT NULL,
     fecha_vencimiento date,
-    vigente boolean DEFAULT true NOT NULL,
     comentarios text,
-    usuario_subio_id integer,
-    documento_id integer
+    mime_type character varying(120) NOT NULL,
+    tamano bigint NOT NULL,
+    storage_key text NOT NULL,
+    creado_por integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: adjuntos_entidades; Type: TABLE; Schema: documentacion; Owner: -
+--
+
+CREATE TABLE documentacion.adjuntos_entidades (
+    adjunto_id integer NOT NULL,
+    empresa_documentada_id integer,
+    documento_id integer,
+    contacto_id integer,
+    finanzas_operacion_id integer,
+    CONSTRAINT adjuntos_entidades_unico_propietario CHECK ((num_nonnulls(empresa_documentada_id, documento_id, contacto_id, finanzas_operacion_id) = 1))
 );
 
 
@@ -7207,6 +7249,51 @@ CREATE SEQUENCE documentacion.adjuntos_id_seq
 --
 
 ALTER SEQUENCE documentacion.adjuntos_id_seq OWNED BY documentacion.adjuntos.id;
+
+
+--
+-- Name: adjuntos_tipos; Type: TABLE; Schema: documentacion; Owner: -
+--
+
+CREATE TABLE documentacion.adjuntos_tipos (
+    id integer NOT NULL,
+    nombre character varying(120) NOT NULL,
+    descripcion text,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: adjuntos_tipos_entidades; Type: TABLE; Schema: documentacion; Owner: -
+--
+
+CREATE TABLE documentacion.adjuntos_tipos_entidades (
+    tipo_id integer NOT NULL,
+    entidad_tipo character varying(40) NOT NULL,
+    CONSTRAINT adjuntos_tipos_entidades_entidad_tipo_check CHECK (((entidad_tipo)::text = ANY ((ARRAY['empresa'::character varying, 'documento'::character varying, 'contacto'::character varying, 'finanzas_operacion'::character varying])::text[])))
+);
+
+
+--
+-- Name: adjuntos_tipos_id_seq; Type: SEQUENCE; Schema: documentacion; Owner: -
+--
+
+CREATE SEQUENCE documentacion.adjuntos_tipos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: adjuntos_tipos_id_seq; Type: SEQUENCE OWNED BY; Schema: documentacion; Owner: -
+--
+
+ALTER SEQUENCE documentacion.adjuntos_tipos_id_seq OWNED BY documentacion.adjuntos_tipos.id;
 
 
 --
@@ -8550,7 +8637,7 @@ CREATE TABLE public.cfdi_intentos_timbrado (
     empresa_id integer NOT NULL,
     documento_id integer NOT NULL,
     proveedor character varying(50) NOT NULL,
-    proveedor_cfdi_id character varying(100) NOT NULL,
+    proveedor_cfdi_id character varying(100),
     endpoint text NOT NULL,
     estado character varying(40) NOT NULL,
     uuid character varying(36),
@@ -8561,7 +8648,7 @@ CREATE TABLE public.cfdi_intentos_timbrado (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     cfdi_pac_config_id integer,
-    CONSTRAINT cfdi_intentos_timbrado_estado_check CHECK (((estado)::text = ANY ((ARRAY['aceptado_pendiente_descarga'::character varying, 'xml_recuperado'::character varying, 'persistido'::character varying, 'error_descarga'::character varying, 'error_validacion'::character varying, 'reconciliado'::character varying])::text[])))
+    CONSTRAINT cfdi_intentos_timbrado_estado_check CHECK (((estado)::text = ANY ((ARRAY['aceptado_pendiente_descarga'::character varying, 'xml_recuperado'::character varying, 'persistido'::character varying, 'error_descarga'::character varying, 'error_validacion'::character varying, 'error_previo_pac'::character varying, 'reconciliado'::character varying])::text[])))
 );
 
 
@@ -10029,7 +10116,7 @@ CREATE TABLE public.documentos_relaciones (
     fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
     fecha_modificacion timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT documentos_relaciones_documentos_distintos CHECK ((documento_origen_id <> documento_destino_id)),
-    CONSTRAINT documentos_relaciones_tipo_relacion_check CHECK (((tipo_relacion)::text = ANY ((ARRAY['derivacion_operativa'::character varying, 'regeneracion'::character varying, 'correccion'::character varying, 'sustitucion_fiscal'::character varying, 'duplicacion'::character varying, 'referencia_interna'::character varying])::text[])))
+    CONSTRAINT documentos_relaciones_tipo_relacion_check CHECK (((tipo_relacion)::text = ANY ((ARRAY['derivacion_operativa'::character varying, 'regeneracion'::character varying, 'correccion'::character varying, 'sustitucion_fiscal'::character varying, 'duplicacion'::character varying, 'referencia_interna'::character varying, 'origen_nota_credito'::character varying])::text[])))
 );
 
 
@@ -13090,8 +13177,8 @@ CREATE TABLE whatsapp.plantillas (
     creado_en timestamp with time zone DEFAULT now() NOT NULL,
     actualizado_en timestamp with time zone,
     contenido text,
-    configuracion_parametros jsonb
-    ,imagen_url text
+    configuracion_parametros jsonb,
+    imagen_url text
 );
 
 
@@ -13184,6 +13271,13 @@ COMMENT ON COLUMN whatsapp.plantillas.contenido IS 'Cuerpo del mensaje de la pla
 --
 
 COMMENT ON COLUMN whatsapp.plantillas.configuracion_parametros IS 'Configuración de variables de la plantilla. Array JSON con estructura: [{variable: number, label: string, origen: "manual"|"contacto.nombre"|"contacto.telefono"|"contacto.empresa"}]. NULL = todas las variables son manuales.';
+
+
+--
+-- Name: COLUMN plantillas.imagen_url; Type: COMMENT; Schema: whatsapp; Owner: -
+--
+
+COMMENT ON COLUMN whatsapp.plantillas.imagen_url IS 'URL pública opcional de la imagen predeterminada administrada localmente por Emphasys.';
 
 
 --
@@ -13628,6 +13722,13 @@ ALTER TABLE ONLY crm.oportunidades_venta ALTER COLUMN id SET DEFAULT nextval('cr
 --
 
 ALTER TABLE ONLY documentacion.adjuntos ALTER COLUMN id SET DEFAULT nextval('documentacion.adjuntos_id_seq'::regclass);
+
+
+--
+-- Name: adjuntos_tipos id; Type: DEFAULT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_tipos ALTER COLUMN id SET DEFAULT nextval('documentacion.adjuntos_tipos_id_seq'::regclass);
 
 
 --
@@ -14372,7 +14473,7 @@ ALTER TABLE ONLY contabilidad.polizas
 -- Name: CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero ON polizas; Type: COMMENT; Schema: contabilidad; Owner: -
 --
 
-COMMENT ON CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero ON contabilidad.polizas IS 'Evita duplicar números de p��liza por empresa, tipo, ejercicio y periodo.';
+COMMENT ON CONSTRAINT uq_polizas_empresa_tipo_ejercicio_periodo_numero ON contabilidad.polizas IS 'Evita duplicar números de póliza por empresa, tipo, ejercicio y periodo.';
 
 
 --
@@ -15005,11 +15106,43 @@ ALTER TABLE ONLY crm.conversacion_etiquetas
 
 
 --
+-- Name: adjuntos_entidades adjuntos_entidades_pkey; Type: CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_entidades
+    ADD CONSTRAINT adjuntos_entidades_pkey PRIMARY KEY (adjunto_id);
+
+
+--
 -- Name: adjuntos adjuntos_pkey; Type: CONSTRAINT; Schema: documentacion; Owner: -
 --
 
 ALTER TABLE ONLY documentacion.adjuntos
     ADD CONSTRAINT adjuntos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: adjuntos_tipos_entidades adjuntos_tipos_entidades_pkey; Type: CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_tipos_entidades
+    ADD CONSTRAINT adjuntos_tipos_entidades_pkey PRIMARY KEY (tipo_id, entidad_tipo);
+
+
+--
+-- Name: adjuntos_tipos adjuntos_tipos_nombre_key; Type: CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_tipos
+    ADD CONSTRAINT adjuntos_tipos_nombre_key UNIQUE (nombre);
+
+
+--
+-- Name: adjuntos_tipos adjuntos_tipos_pkey; Type: CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_tipos
+    ADD CONSTRAINT adjuntos_tipos_pkey PRIMARY KEY (id);
 
 
 --
@@ -17528,31 +17661,52 @@ COMMENT ON INDEX crm.ux_whatsapp_etiquetas_empresa_nombre IS 'Evita duplicados d
 
 
 --
--- Name: adjuntos_empresa_documento_idx; Type: INDEX; Schema: documentacion; Owner: -
+-- Name: adjuntos_empresa_idx; Type: INDEX; Schema: documentacion; Owner: -
 --
 
-CREATE INDEX adjuntos_empresa_documento_idx ON documentacion.adjuntos USING btree (empresa_id, documento_id);
-
-
---
--- Name: adjuntos_empresa_fecha_idx; Type: INDEX; Schema: documentacion; Owner: -
---
-
-CREATE INDEX adjuntos_empresa_fecha_idx ON documentacion.adjuntos USING btree (empresa_id, fecha_subida DESC);
+CREATE INDEX adjuntos_empresa_idx ON documentacion.adjuntos USING btree (empresa_id, created_at DESC);
 
 
 --
--- Name: adjuntos_empresa_tipo_idx; Type: INDEX; Schema: documentacion; Owner: -
+-- Name: adjuntos_entidades_contacto_idx; Type: INDEX; Schema: documentacion; Owner: -
 --
 
-CREATE INDEX adjuntos_empresa_tipo_idx ON documentacion.adjuntos USING btree (empresa_id, tipo_id);
+CREATE INDEX adjuntos_entidades_contacto_idx ON documentacion.adjuntos_entidades USING btree (contacto_id) WHERE (contacto_id IS NOT NULL);
 
 
 --
--- Name: adjuntos_empresa_vigente_idx; Type: INDEX; Schema: documentacion; Owner: -
+-- Name: adjuntos_entidades_documento_idx; Type: INDEX; Schema: documentacion; Owner: -
 --
 
-CREATE INDEX adjuntos_empresa_vigente_idx ON documentacion.adjuntos USING btree (empresa_id, vigente);
+CREATE INDEX adjuntos_entidades_documento_idx ON documentacion.adjuntos_entidades USING btree (documento_id) WHERE (documento_id IS NOT NULL);
+
+
+--
+-- Name: adjuntos_entidades_empresa_idx; Type: INDEX; Schema: documentacion; Owner: -
+--
+
+CREATE INDEX adjuntos_entidades_empresa_idx ON documentacion.adjuntos_entidades USING btree (empresa_documentada_id) WHERE (empresa_documentada_id IS NOT NULL);
+
+
+--
+-- Name: adjuntos_entidades_finanzas_idx; Type: INDEX; Schema: documentacion; Owner: -
+--
+
+CREATE INDEX adjuntos_entidades_finanzas_idx ON documentacion.adjuntos_entidades USING btree (finanzas_operacion_id) WHERE (finanzas_operacion_id IS NOT NULL);
+
+
+--
+-- Name: adjuntos_storage_key_uq; Type: INDEX; Schema: documentacion; Owner: -
+--
+
+CREATE UNIQUE INDEX adjuntos_storage_key_uq ON documentacion.adjuntos USING btree (storage_key);
+
+
+--
+-- Name: adjuntos_tipo_idx; Type: INDEX; Schema: documentacion; Owner: -
+--
+
+CREATE INDEX adjuntos_tipo_idx ON documentacion.adjuntos USING btree (tipo_id);
 
 
 --
@@ -19271,6 +19425,13 @@ CREATE TRIGGER trg_actividades_updated_at BEFORE UPDATE ON crm.actividades FOR E
 
 
 --
+-- Name: adjuntos_entidades adjuntos_entidades_tenant_trg; Type: TRIGGER; Schema: documentacion; Owner: -
+--
+
+CREATE TRIGGER adjuntos_entidades_tenant_trg BEFORE INSERT OR UPDATE ON documentacion.adjuntos_entidades FOR EACH ROW EXECUTE FUNCTION documentacion.validar_adjunto_entidad_tenant();
+
+
+--
 -- Name: etapas trg_produccion_etapas_updated_at; Type: TRIGGER; Schema: produccion; Owner: -
 --
 
@@ -19659,7 +19820,7 @@ ALTER TABLE ONLY contabilidad.contabilizaciones
 --
 
 ALTER TABLE ONLY contabilidad.contabilizaciones
-    ADD CONSTRAINT contabilizaciones_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT contabilizaciones_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
 
 
 --
@@ -20086,7 +20247,7 @@ ALTER TABLE ONLY core.cfdi_sat_bitacora
 --
 
 ALTER TABLE ONLY core.cfdi_sat_comprobantes
-    ADD CONSTRAINT cfdi_sat_comprobantes_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT cfdi_sat_comprobantes_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
 
 
 --
@@ -20721,11 +20882,11 @@ ALTER TABLE ONLY crm.mensajes
 
 
 --
--- Name: adjuntos adjuntos_documento_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+-- Name: adjuntos adjuntos_creado_por_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
 --
 
 ALTER TABLE ONLY documentacion.adjuntos
-    ADD CONSTRAINT adjuntos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
+    ADD CONSTRAINT adjuntos_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES core.usuarios(id);
 
 
 --
@@ -20737,19 +20898,59 @@ ALTER TABLE ONLY documentacion.adjuntos
 
 
 --
+-- Name: adjuntos_entidades adjuntos_entidades_adjunto_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_entidades
+    ADD CONSTRAINT adjuntos_entidades_adjunto_id_fkey FOREIGN KEY (adjunto_id) REFERENCES documentacion.adjuntos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: adjuntos_entidades adjuntos_entidades_contacto_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_entidades
+    ADD CONSTRAINT adjuntos_entidades_contacto_id_fkey FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: adjuntos_entidades adjuntos_entidades_documento_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_entidades
+    ADD CONSTRAINT adjuntos_entidades_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: adjuntos_entidades adjuntos_entidades_empresa_documentada_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_entidades
+    ADD CONSTRAINT adjuntos_entidades_empresa_documentada_id_fkey FOREIGN KEY (empresa_documentada_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: adjuntos_entidades adjuntos_entidades_finanzas_operacion_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+--
+
+ALTER TABLE ONLY documentacion.adjuntos_entidades
+    ADD CONSTRAINT adjuntos_entidades_finanzas_operacion_id_fkey FOREIGN KEY (finanzas_operacion_id) REFERENCES public.finanzas_operaciones(id) ON DELETE CASCADE;
+
+
+--
 -- Name: adjuntos adjuntos_tipo_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
 --
 
 ALTER TABLE ONLY documentacion.adjuntos
-    ADD CONSTRAINT adjuntos_tipo_id_fkey FOREIGN KEY (tipo_id) REFERENCES documentacion.documentos_empresa_tipos(id);
+    ADD CONSTRAINT adjuntos_tipo_id_fkey FOREIGN KEY (tipo_id) REFERENCES documentacion.adjuntos_tipos(id);
 
 
 --
--- Name: adjuntos adjuntos_usuario_subio_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
+-- Name: adjuntos_tipos_entidades adjuntos_tipos_entidades_tipo_id_fkey; Type: FK CONSTRAINT; Schema: documentacion; Owner: -
 --
 
-ALTER TABLE ONLY documentacion.adjuntos
-    ADD CONSTRAINT adjuntos_usuario_subio_id_fkey FOREIGN KEY (usuario_subio_id) REFERENCES core.usuarios(id);
+ALTER TABLE ONLY documentacion.adjuntos_tipos_entidades
+    ADD CONSTRAINT adjuntos_tipos_entidades_tipo_id_fkey FOREIGN KEY (tipo_id) REFERENCES documentacion.adjuntos_tipos(id) ON DELETE CASCADE;
 
 
 --
@@ -20773,7 +20974,7 @@ ALTER TABLE ONLY inventario.existencias
 --
 
 ALTER TABLE ONLY inventario.movimientos
-    ADD CONSTRAINT fk_inv_mov_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT fk_inv_mov_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
 
 
 --
@@ -20885,7 +21086,7 @@ ALTER TABLE ONLY public.autorizaciones_reglas
 --
 
 ALTER TABLE ONLY public.autorizaciones_solicitudes
-    ADD CONSTRAINT autorizaciones_solicitudes_documento_origen_id_fkey FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT autorizaciones_solicitudes_documento_origen_id_fkey FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -20917,7 +21118,7 @@ ALTER TABLE ONLY public.autorizaciones_solicitudes
 --
 
 ALTER TABLE ONLY public.cfdi_intentos_timbrado
-    ADD CONSTRAINT cfdi_intentos_timbrado_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT cfdi_intentos_timbrado_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -20957,7 +21158,7 @@ ALTER TABLE ONLY public.contactos_documentacion
 --
 
 ALTER TABLE ONLY public.documentos_cancelacion_intentos
-    ADD CONSTRAINT documentos_cancelacion_intentos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT documentos_cancelacion_intentos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21021,7 +21222,7 @@ ALTER TABLE ONLY public.documentos_partidas_especificaciones
 --
 
 ALTER TABLE ONLY public.documentos_relaciones
-    ADD CONSTRAINT documentos_relaciones_documento_destino_id_fkey FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT documentos_relaciones_documento_destino_id_fkey FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21029,7 +21230,7 @@ ALTER TABLE ONLY public.documentos_relaciones
 --
 
 ALTER TABLE ONLY public.documentos_relaciones
-    ADD CONSTRAINT documentos_relaciones_documento_origen_id_fkey FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT documentos_relaciones_documento_origen_id_fkey FOREIGN KEY (documento_origen_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21109,7 +21310,7 @@ ALTER TABLE ONLY public.finanzas_programacion_pagos
 --
 
 ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle
-    ADD CONSTRAINT finanzas_programacion_pagos_detalle_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT finanzas_programacion_pagos_detalle_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21125,7 +21326,7 @@ ALTER TABLE ONLY public.finanzas_programacion_pagos_detalle
 --
 
 ALTER TABLE ONLY public.finanzas_programacion_pagos
-    ADD CONSTRAINT finanzas_programacion_pagos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT finanzas_programacion_pagos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21157,7 +21358,7 @@ ALTER TABLE ONLY public.finanzas_programacion_pagos
 --
 
 ALTER TABLE ONLY public.aplicaciones_saldo
-    ADD CONSTRAINT fk_aplicaciones_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT fk_aplicaciones_doc_destino FOREIGN KEY (documento_destino_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21477,7 +21678,7 @@ ALTER TABLE ONLY public.documentos_partidas_campos
 --
 
 ALTER TABLE ONLY public.finanzas_aplicaciones
-    ADD CONSTRAINT fk_fa_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT fk_fa_documento FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21845,7 +22046,7 @@ ALTER TABLE ONLY public.operaciones_entregas
 --
 
 ALTER TABLE ONLY public.operaciones_entregas
-    ADD CONSTRAINT operaciones_entregas_full_documento_id_fkey FOREIGN KEY (full_documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT operaciones_entregas_full_documento_id_fkey FOREIGN KEY (full_documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21861,7 +22062,7 @@ ALTER TABLE ONLY public.operaciones_entregas
 --
 
 ALTER TABLE ONLY public.operaciones_entregas_partidas
-    ADD CONSTRAINT operaciones_entregas_partidas_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT operaciones_entregas_partidas_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -21877,7 +22078,7 @@ ALTER TABLE ONLY public.operaciones_entregas_partidas
 --
 
 ALTER TABLE ONLY public.operaciones_entregas_partidas
-    ADD CONSTRAINT operaciones_entregas_partidas_partida_id_fkey FOREIGN KEY (partida_id) REFERENCES public.documentos_partidas(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT operaciones_entregas_partidas_partida_id_fkey FOREIGN KEY (partida_id) REFERENCES public.documentos_partidas(id) ON DELETE CASCADE;
 
 
 --
@@ -21901,7 +22102,7 @@ ALTER TABLE ONLY public.operaciones_entregas
 --
 
 ALTER TABLE ONLY transporte.cartas_porte
-    ADD CONSTRAINT cartas_porte_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT cartas_porte_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE SET NULL;
 
 
 --
@@ -22085,7 +22286,7 @@ ALTER TABLE ONLY transporte.vehiculos
 --
 
 ALTER TABLE ONLY transporte.viaje_documentos
-    ADD CONSTRAINT viaje_documentos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id);
+    ADD CONSTRAINT viaje_documentos_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES public.documentos(id) ON DELETE CASCADE;
 
 
 --
@@ -22148,4 +22349,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict EpMmdn1oOXoRkaOF49u8SoQTuGageuv6k98ExPcZa6X1bB6muTW1QZ1lcul5lHR
+\unrestrict X86r9o0ynwykgHghhwUjhIemCFpaPCaC1xWhWFVh1c8icnVcG7lLNrSRefvRynD
+

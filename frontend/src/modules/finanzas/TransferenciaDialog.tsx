@@ -206,7 +206,7 @@ export function TransferenciaDialog({ open, cuentas, defaultOrigenId, transferen
           onClick={handleSave}
           disabled={saving}
           variant="contained"
-          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#006261', '&:hover': { bgcolor: '#014c4c' } }}
+          sx={{ textTransform: 'none', borderRadius: 999 }}
         >
           {saving ? 'Guardando...' : transferencia ? 'Actualizar' : 'Registrar'}
         </Button>

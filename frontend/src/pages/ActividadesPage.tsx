@@ -1,26 +1,29 @@
 import * as React from 'react';
 import AddIcon from '@mui/icons-material/Add';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Fab,
   IconButton,
   MenuItem,
   Paper,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx } from '../components/catalogo/catalogoSurfaces';
+import ActividadesWorkspaceView from '../components/crm/ActividadesWorkspaceView';
+import { guardarActividadesWorkspacePreferencia, resolveActividadesWorkspaceEnabled } from '../modules/crm/actividadesWorkspaceFlag';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import ActivityCard, { type ActividadResumen } from '../components/ActivityCard';
 import { apiFetch } from '../services/apiFetch';
@@ -31,10 +34,12 @@ import type { Usuario } from '../types/usuario';
 
 type GrupoActividadKey = 'atrasadas' | 'hoy' | 'futuro' | 'completadas';
 
+type GrupoTono = 'atrasada' | 'hoy' | 'futuro' | 'completada';
+
 type GrupoActividad = {
   key: GrupoActividadKey;
   titulo: string;
-  contadorColor: string;
+  tono: GrupoTono;
   defaultOpen: boolean;
   actividades: ActividadResumen[];
 };
@@ -72,10 +77,10 @@ type ActividadDetalle = {
 };
 
 const GRUPOS_BASE: Omit<GrupoActividad, 'actividades'>[] = [
-  { key: 'atrasadas', titulo: 'Atrasadas', contadorColor: '#dc2626', defaultOpen: true },
-  { key: 'hoy', titulo: 'Hoy', contadorColor: '#16a34a', defaultOpen: true },
-  { key: 'futuro', titulo: 'Futuro', contadorColor: '#7c3aed', defaultOpen: false },
-  { key: 'completadas', titulo: 'Completadas', contadorColor: '#64748b', defaultOpen: false },
+  { key: 'atrasadas', titulo: 'Atrasadas', tono: 'atrasada', defaultOpen: true },
+  { key: 'hoy', titulo: 'Hoy', tono: 'hoy', defaultOpen: true },
+  { key: 'futuro', titulo: 'Futuro', tono: 'futuro', defaultOpen: false },
+  { key: 'completadas', titulo: 'Completadas', tono: 'completada', defaultOpen: false },
 ];
 
 function buildInitialExpandedState() {
@@ -83,10 +88,6 @@ function buildInitialExpandedState() {
     acc[grupo.key] = grupo.defaultOpen;
     return acc;
   }, {} as Record<GrupoActividadKey, boolean>);
-}
-
-function getGrupoContadorLabel(titulo: string, count: number) {
-  return `${titulo} (${count})`;
 }
 
 function getStartOfDay(date: Date) {
@@ -196,11 +197,15 @@ async function actualizarActividad(actividadId: number, actividad: ActividadDeta
 }
 
 export default function ActividadesPage() {
+  const tokens = useTheme().emphasys;
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useSession();
   const esAdmin = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
+  const [workspaceEnabled, setWorkspaceEnabled] = React.useState(() =>
+    resolveActividadesWorkspaceEnabled(session.empresaActivaId, session.user?.id ?? null)
+  );
   const usuarioDesdeUrl = React.useMemo(() => {
     const raw = searchParams.get('usuario');
     if (!raw) return null;
@@ -425,84 +430,286 @@ export default function ActividadesPage() {
     console.info('Crear nueva actividad');
   };
 
+  const cambiarVistaWorkspace = (valor: boolean) => {
+    setWorkspaceEnabled(valor);
+    guardarActividadesWorkspacePreferencia(session.empresaActivaId, session.user?.id ?? null, valor);
+    const next = new URLSearchParams(searchParams);
+    next.delete('vistaActividades');
+    setSearchParams(next, { replace: true });
+  };
+
+  const handleUsuarioChange = (nextId: number | null) => {
+    setUsuarioSeleccionadoId(nextId);
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextId === null) nextParams.delete('usuario');
+    else nextParams.set('usuario', String(nextId));
+    setSearchParams(nextParams);
+  };
+
+  const colorGrupo = (tono: GrupoTono) => {
+    if (tono === 'atrasada') return tokens.action.destructive;
+    if (tono === 'hoy') return tokens.metric.applied.foreground;
+    if (tono === 'futuro') return '#6a5a86';
+    return tokens.content.muted;
+  };
+
   const selectorUsuario = esAdmin ? (
-    <TextField
-      select
-      size="small"
-      label="Usuario"
-      value={usuarioSeleccionadoId === null ? '' : String(usuarioSeleccionadoId)}
-      onChange={(event) => {
-        const value = event.target.value;
-        const nextId = value === '' ? null : Number(value);
-        setUsuarioSeleccionadoId(nextId);
-        const nextParams = new URLSearchParams(searchParams);
-        if (nextId === null) nextParams.delete('usuario');
-        else nextParams.set('usuario', String(nextId));
-        setSearchParams(nextParams);
+    <Box
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.75,
+        height: 32,
+        minWidth: 0,
+        maxWidth: { xs: 240, sm: 320 },
+        pl: 1.25,
+        pr: 0.75,
+        borderRadius: 2,
+        border: `1px solid ${tokens.content.border}`,
+        backgroundColor: tokens.content.elevated,
       }}
-      disabled={usuariosLoading}
-      sx={{ minWidth: { xs: '100%', sm: 260 } }}
     >
-      <MenuItem value="">Mis actividades</MenuItem>
-      {usuariosEmpresa.map((usuario) => (
-        <MenuItem key={usuario.id} value={String(usuario.id)}>
-          {usuario.nombre}
-        </MenuItem>
-      ))}
-    </TextField>
+      <Typography
+        component="span"
+        sx={{
+          flexShrink: 0,
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.08em',
+          lineHeight: '16px',
+          textTransform: 'uppercase',
+          color: tokens.content.muted,
+        }}
+      >
+        Bandeja
+      </Typography>
+      <TextField
+        select
+        value={usuarioSeleccionadoId === null ? '' : String(usuarioSeleccionadoId)}
+        onChange={(event) => handleUsuarioChange(event.target.value === '' ? null : Number(event.target.value))}
+        disabled={usuariosLoading}
+        variant="standard"
+        sx={{
+          m: 0,
+          minWidth: 0,
+          flex: 1,
+          '& .MuiInputBase-root': {
+            margin: 0,
+            padding: 0,
+            fontSize: 13,
+            fontWeight: 650,
+            lineHeight: '16px',
+            color: tokens.content.foreground,
+          },
+          '& .MuiSelect-select': {
+            padding: '0 22px 0 0 !important',
+            minHeight: '0 !important',
+            height: 16,
+            lineHeight: '16px',
+            display: 'flex',
+            alignItems: 'center',
+          },
+          '& .MuiSelect-icon': {
+            right: 0,
+            top: 'calc(50% - 0.5em)',
+            color: tokens.content.muted,
+          },
+          '& .MuiInput-underline:before, & .MuiInput-underline:after': { display: 'none' },
+        }}
+      >
+        <MenuItem value="">Mis actividades</MenuItem>
+        {usuariosEmpresa.map((usuario) => (
+          <MenuItem key={usuario.id} value={String(usuario.id)}>
+            {usuario.nombre}
+          </MenuItem>
+        ))}
+      </TextField>
+    </Box>
   ) : null;
+
+  const accionNueva = (
+    <Tooltip title="Nueva actividad">
+      <IconButton
+        aria-label="Nueva actividad"
+        onClick={handleCrearActividad}
+        sx={{
+          width: 34,
+          height: 34,
+          flexShrink: 0,
+          backgroundColor: tokens.action.primary,
+          color: tokens.action.primaryForeground,
+          '&:hover': { backgroundColor: tokens.action.primaryHover },
+        }}
+      >
+        <AddIcon sx={{ fontSize: 20 }} />
+      </IconButton>
+    </Tooltip>
+  );
+
+  const encabezado = (
+    <Stack
+      direction="row"
+      spacing={1.25}
+      justifyContent="space-between"
+      alignItems="center"
+      sx={{
+        px: { xs: 1.5, md: 2 },
+        py: 1.25,
+        flexShrink: 0,
+        borderBottom: `1px solid ${tokens.content.border}`,
+        backgroundColor: tokens.content.background,
+      }}
+    >
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+        <Typography sx={{ fontSize: 20, fontWeight: 700, lineHeight: '32px', color: tokens.content.foreground, letterSpacing: '-0.01em', flexShrink: 0 }}>
+          Actividades
+        </Typography>
+        {selectorUsuario}
+      </Stack>
+      <Button
+        size="small"
+        onClick={() => cambiarVistaWorkspace(true)}
+        sx={{ textTransform: 'none', fontSize: 12, color: tokens.content.secondary, flexShrink: 0 }}
+      >
+        Workspace
+      </Button>
+      {accionNueva}
+    </Stack>
+  );
+
+  if (workspaceEnabled) {
+    return (
+      <>
+        <ActividadesWorkspaceView
+          grupos={grupos}
+          expanded={expanded}
+          onToggleGrupo={(key) => toggleGrupo(key as GrupoActividadKey)}
+          loading={loading}
+          error={error}
+          esAdmin={esAdmin}
+          usuarios={usuariosEmpresa}
+          usuariosLoading={usuariosLoading}
+          usuarioSeleccionadoId={usuarioSeleccionadoId}
+          onUsuarioChange={handleUsuarioChange}
+          onCrear={handleCrearActividad}
+          onCompletar={handleCompletar}
+          onReprogramar={handleReprogramar}
+          onCancelar={handleCancelar}
+          onGuardado={() => { void loadActividades(); }}
+          onVistaClasica={() => cambiarVistaWorkspace(false)}
+        />
+        <Dialog open={cancelarDialogOpen} onClose={handleCloseCancelarDialog} fullWidth maxWidth="xs">
+          <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Cancelar actividad</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 0.5 }}>
+              <Typography sx={{ color: tokens.content.secondary }}>
+                ¿Estás seguro de que deseas cancelar esta actividad? Esta acción no se puede deshacer.
+              </Typography>
+              {cancelarError ? <Alert severity="error">{cancelarError}</Alert> : null}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2, gap: 1, borderTop: `1px solid ${tokens.content.border}` }}>
+            <Button onClick={handleCloseCancelarDialog} disabled={canceling} sx={catalogoOutlinedButtonSx}>
+              Volver
+            </Button>
+            <Button
+              onClick={handleConfirmCancelar}
+              variant="contained"
+              disabled={canceling}
+              sx={[
+                catalogoPrimaryButtonSx,
+                { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: '#743f39' } },
+              ]}
+            >
+              {canceling ? 'Cancelando...' : 'Cancelar actividad'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog open={completarDialogOpen} onClose={handleCloseCompletarDialog} fullWidth maxWidth="sm">
+          <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Completar actividad</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ pt: 0.5 }}>
+              <Typography sx={{ color: tokens.content.secondary }}>
+                Captura un resultado corto para marcar la actividad como realizada.
+              </Typography>
+              <TextField
+                label="Resultado"
+                value={resultadoCompletar}
+                onChange={(event) => setResultadoCompletar(event.target.value)}
+                fullWidth
+                multiline
+                minRows={3}
+                autoFocus
+                disabled={completing}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: tokens.content.well,
+                    '& fieldset': { borderColor: tokens.content.border },
+                  },
+                }}
+              />
+              {completarError ? <Alert severity="error">{completarError}</Alert> : null}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2, gap: 1, borderTop: `1px solid ${tokens.content.border}` }}>
+            <Button onClick={handleCloseCompletarDialog} disabled={completing} sx={catalogoOutlinedButtonSx}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmCompletar} variant="contained" disabled={completing} sx={catalogoPrimaryButtonSx}>
+              {completing ? 'Guardando...' : 'Completar'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </>
+    );
+  }
 
   if (loading) {
     return (
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
-        <Paper variant="outlined" sx={{ p: 4, borderRadius: 3, borderColor: '#dbe3ee' }}>
-          <Stack spacing={1.5} alignItems="center" justifyContent="center">
-            <CircularProgress size={30} />
-            <Typography sx={{ color: '#475569' }}>Cargando actividades...</Typography>
-          </Stack>
-        </Paper>
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        {encabezado}
+        <Stack spacing={1.5} alignItems="center" justifyContent="center" sx={{ flex: 1, color: tokens.content.secondary }}>
+          <CircularProgress size={28} sx={{ color: tokens.content.foreground }} />
+          <Typography sx={{ color: tokens.content.secondary }}>Cargando actividades...</Typography>
+        </Stack>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
-        <Alert severity="error">{error}</Alert>
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        {encabezado}
+        <Box sx={{ p: 2 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
       </Box>
     );
   }
 
   if (actividadesVisibles.length === 0) {
     return (
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
-        <Stack spacing={1.5} sx={{ mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
-            Actividades
-          </Typography>
-          {selectorUsuario}
-        </Stack>
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        {encabezado}
         <Paper
           variant="outlined"
           sx={{
+            m: 2,
             p: { xs: 3, md: 4 },
-            borderRadius: 3,
-            borderColor: '#dbe3ee',
+            borderRadius: 2,
+            borderColor: tokens.content.border,
+            backgroundColor: tokens.content.elevated,
             textAlign: 'center',
             maxWidth: 520,
-            mx: 'auto',
           }}
         >
-          <Stack spacing={2} alignItems="center">
-            <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a' }}>
+          <Stack spacing={1.5} alignItems="center">
+            <Typography sx={{ fontSize: 18, fontWeight: 700, color: tokens.content.foreground }}>
               No tienes actividades hoy
             </Typography>
-            <Typography sx={{ color: '#475569', maxWidth: 360 }}>
+            <Typography sx={{ color: tokens.content.secondary, maxWidth: 360 }}>
               Crea una nueva actividad para empezar a organizar tu seguimiento comercial.
             </Typography>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={handleCrearActividad}>
-              Crear actividad
-            </Button>
           </Stack>
         </Paper>
       </Box>
@@ -510,52 +717,32 @@ export default function ActividadesPage() {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, position: 'relative' }}>
-      <Stack spacing={3}>
-        <Box>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
-                Actividades
-              </Typography>
-              <Typography sx={{ color: '#475569', mt: 0.75 }}>
-                Revisa primero lo urgente y avanza tu bandeja de trabajo sin salir de CRM.
-              </Typography>
-            </Box>
-            {selectorUsuario}
-          </Stack>
-        </Box>
-
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', backgroundColor: tokens.content.background }}>
+      {encabezado}
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', px: { xs: 1, md: 1.5 }, py: 1 }}>
         {grupos.map((grupo) => {
           const isExpanded = expanded[grupo.key];
           const count = grupo.actividades.length;
+          const tono = colorGrupo(grupo.tono);
 
           return (
-            <Paper
-              key={grupo.key}
-              variant="outlined"
-              sx={{
-                borderRadius: 3,
-                borderColor: '#dbe3ee',
-                overflow: 'hidden',
-                backgroundColor: '#fff',
-              }}
-            >
+            <Box key={grupo.key} sx={{ mb: 1.25 }}>
               <Box
                 sx={{
-                  px: { xs: 2, md: 2.5 },
-                  py: 1.5,
+                  px: 0.5,
+                  py: 0.45,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 1,
-                  backgroundColor: '#f8fafc',
-                  borderBottom: isExpanded ? '1px solid #e5e7eb' : 'none',
+                  gap: 0.75,
+                  width: '100%',
                   cursor: 'pointer',
                   userSelect: 'none',
+                  borderRadius: 1.5,
+                  '&:hover': { backgroundColor: tokens.content.hover },
                 }}
                 role="button"
                 tabIndex={0}
+                aria-expanded={isExpanded}
                 aria-label={isExpanded ? `Colapsar ${grupo.titulo}` : `Expandir ${grupo.titulo}`}
                 onClick={() => toggleGrupo(grupo.key)}
                 onKeyDown={(event) => {
@@ -565,42 +752,27 @@ export default function ActividadesPage() {
                   }
                 }}
               >
-                <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-                  <Chip
-                    label={count}
-                    size="small"
-                    sx={{
-                      fontWeight: 700,
-                      color: '#fff',
-                      backgroundColor: grupo.contadorColor,
-                      minWidth: 34,
-                    }}
-                  />
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>
-                    {getGrupoContadorLabel(grupo.titulo, count)}
-                  </Typography>
-                </Stack>
-
-                <IconButton
-                  size="small"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleGrupo(grupo.key);
-                  }}
-                  aria-label={isExpanded ? `Colapsar ${grupo.titulo}` : `Expandir ${grupo.titulo}`}
-                >
-                  {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                </IconButton>
+                <Box sx={{ display: 'inline-flex', color: tokens.content.foreground, flexShrink: 0 }}>
+                  {isExpanded ? <ExpandMoreIcon sx={{ fontSize: 18 }} /> : <ChevronRightIcon sx={{ fontSize: 18 }} />}
+                </Box>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: tono, flexShrink: 0 }} />
+                <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.content.foreground }}>
+                  {grupo.titulo}
+                </Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: tono, fontVariantNumeric: 'tabular-nums' }}>
+                  {count}
+                </Typography>
               </Box>
 
               <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2 }}>
+                <Box sx={{ pt: 0.25, pb: 0.5 }}>
                   {count > 0 ? (
-                    <Stack spacing={1.25}>
-                      {grupo.actividades.map((actividad) => (
+                    <Stack spacing={0.35}>
+                      {grupo.actividades.map((actividad, indice) => (
                         <ActivityCard
                           key={actividad.id}
                           actividad={actividad}
+                          indice={indice}
                           onCompletar={handleCompletar}
                           onReprogramar={handleReprogramar}
                           onCancelar={handleCancelar}
@@ -609,60 +781,52 @@ export default function ActividadesPage() {
                       ))}
                     </Stack>
                   ) : (
-                    <Typography sx={{ color: '#64748b' }}>
+                    <Typography sx={{ px: 1, py: 0.75, color: tokens.content.muted, fontSize: 13 }}>
                       No hay actividades en esta sección.
                     </Typography>
                   )}
                 </Box>
               </Collapse>
-            </Paper>
+            </Box>
           );
         })}
-      </Stack>
-
-      <Fab
-        color="primary"
-        aria-label="Nueva actividad"
-        onClick={handleCrearActividad}
-        sx={{
-          position: 'sticky',
-          bottom: 24,
-          ml: 'auto',
-          mt: 3,
-          display: 'flex',
-        }}
-      >
-        <AddIcon />
-      </Fab>
+      </Box>
 
       <Dialog open={cancelarDialogOpen} onClose={handleCloseCancelarDialog} fullWidth maxWidth="xs">
-        <DialogTitle>Cancelar actividad</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Cancelar actividad</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Typography sx={{ color: '#475569' }}>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
+            <Typography sx={{ color: tokens.content.secondary }}>
               ¿Estás seguro de que deseas cancelar esta actividad? Esta acción no se puede deshacer.
             </Typography>
             {cancelarError ? <Alert severity="error">{cancelarError}</Alert> : null}
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCancelarDialog} color="inherit" disabled={canceling}>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1, borderTop: `1px solid ${tokens.content.border}` }}>
+          <Button onClick={handleCloseCancelarDialog} disabled={canceling} sx={catalogoOutlinedButtonSx}>
             Volver
           </Button>
-          <Button onClick={handleConfirmCancelar} variant="contained" color="error" disabled={canceling}>
+          <Button
+            onClick={handleConfirmCancelar}
+            variant="contained"
+            disabled={canceling}
+            sx={[
+              catalogoPrimaryButtonSx,
+              { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: '#743f39' } },
+            ]}
+          >
             {canceling ? 'Cancelando...' : 'Cancelar actividad'}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={completarDialogOpen} onClose={handleCloseCompletarDialog} fullWidth maxWidth="sm">
-        <DialogTitle>Completar actividad</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Completar actividad</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Typography sx={{ color: '#475569' }}>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
+            <Typography sx={{ color: tokens.content.secondary }}>
               Captura un resultado corto para marcar la actividad como realizada.
             </Typography>
-
             <TextField
               label="Resultado"
               value={resultadoCompletar}
@@ -672,16 +836,21 @@ export default function ActividadesPage() {
               minRows={3}
               autoFocus
               disabled={completing}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: tokens.content.well,
+                  '& fieldset': { borderColor: tokens.content.border },
+                },
+              }}
             />
-
             {completarError ? <Alert severity="error">{completarError}</Alert> : null}
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseCompletarDialog} color="inherit" disabled={completing}>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1, borderTop: `1px solid ${tokens.content.border}` }}>
+          <Button onClick={handleCloseCompletarDialog} disabled={completing} sx={catalogoOutlinedButtonSx}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirmCompletar} variant="contained" disabled={completing}>
+          <Button onClick={handleConfirmCompletar} variant="contained" disabled={completing} sx={catalogoPrimaryButtonSx}>
             {completing ? 'Guardando...' : 'Completar'}
           </Button>
         </DialogActions>

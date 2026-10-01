@@ -33,6 +33,8 @@ import InventoryIcon         from '@mui/icons-material/Inventory';
 import TrendingUpIcon        from '@mui/icons-material/TrendingUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon   from '@mui/icons-material/KeyboardArrowUp';
+import { useTheme } from '@mui/material/styles';
+import type { SxProps, Theme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/apiClient';
 import type {
@@ -122,7 +124,7 @@ function KpiCard({
 
 // ── Gráfica de barras SVG ─────────────────────────────────────────────────────
 
-function PeriodosChart({ periodos, color }: { periodos: PeriodoResumen[]; color: string }) {
+function PeriodosChart({ periodos, color, campo = 'total' }: { periodos: PeriodoResumen[]; color: string; campo?: 'total' | 'subtotal' }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerW, setContainerW] = useState(640);
 
@@ -146,7 +148,8 @@ function PeriodosChart({ periodos, color }: { periodos: PeriodoResumen[]; color:
   const chartW     = Math.max(1, containerW - PAD_LEFT - PAD_RIGHT);
 
   const n        = periodos.length;
-  const maxTotal = Math.max(...periodos.map((p) => p.total), 1);
+  const monto = (p: PeriodoResumen) => p[campo];
+  const maxTotal = Math.max(...periodos.map(monto), 1);
 
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => maxTotal * f);
 
@@ -177,14 +180,14 @@ function PeriodosChart({ periodos, color }: { periodos: PeriodoResumen[]; color:
         })}
 
         {periodos.map((p, i) => {
-          const barH   = Math.max(2, CHART_H * p.total / maxTotal);
+          const barH   = Math.max(2, CHART_H * monto(p) / maxTotal);
           const bx     = PAD_LEFT + i * barSpacing + (barSpacing - barW) / 2;
           const by     = PAD_TOP + CHART_H - barH;
           const labelX = PAD_LEFT + i * barSpacing + barSpacing / 2;
           const labelY = PAD_TOP + CHART_H + 10;
           return (
             <g key={p.periodo_key}>
-              <title>{`${p.periodo_label}: $${formatMXN(p.total)}`}</title>
+              <title>{`${p.periodo_label}: $${formatMXN(monto(p))}`}</title>
               <rect x={bx} y={by} width={barW} height={barH} fill={color} rx={2} opacity={0.9} />
               {rotate ? (
                 <text x={labelX} y={labelY} fontSize={8} fill="#6b7280"
@@ -216,26 +219,25 @@ function PeriodoRow({
   docs,
   contactoLabel,
   mostrarCantidad,
+  esVentas,
 }: {
   periodo:         PeriodoResumen;
   docs:            DocumentoPeriodo[];
   contactoLabel:   string;
   mostrarCantidad: boolean;
+  esVentas:        boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const tokens = useTheme().emphasys;
 
-  // Número total de columnas visibles (incluye el botón expander + Período)
-  // base: expander + Período + Documentos + Contactos + Subtotal + IVA + Total = 7
-  // con cantidad: +1 = 8
-  const totalCols = mostrarCantidad ? 8 : 7;
-
-  const totalDocsPeriodo = docs.reduce((s, d) => s + d.total, 0);
+  const totalCols = (esVentas ? 5 : 7) + (mostrarCantidad ? 1 : 0);
+  const ventasPeriodo = docs.reduce((s, d) => s + (esVentas ? d.subtotal : d.total), 0);
 
   return (
     <>
       <TableRow
         hover
-        sx={{ cursor: docs.length > 0 ? 'pointer' : 'default', '& > td': { py: 0.75 } }}
+        sx={{ cursor: docs.length > 0 ? 'pointer' : 'default', '& > td': { py: 0.75, borderColor: esVentas ? tokens.table.line : undefined }, '&:hover': esVentas ? { bgcolor: tokens.content.hover } : undefined }}
         onClick={() => docs.length > 0 && setOpen((o) => !o)}
       >
         <TableCell sx={{ width: 36, pr: 0 }}>
@@ -246,7 +248,7 @@ function PeriodoRow({
           )}
         </TableCell>
         <TableCell>
-          <Typography variant="body2" fontWeight={600} color="primary.main">
+          <Typography variant="body2" fontWeight={600} color={esVentas ? tokens.content.foreground : 'primary.main'}>
             {periodo.periodo_label}
           </Typography>
         </TableCell>
@@ -261,17 +263,25 @@ function PeriodoRow({
             <Typography variant="body2">{formatCant(periodo.cantidad_total)}</Typography>
           </TableCell>
         )}
-        <TableCell align="right">
-          <Typography variant="body2">{formatMXN(periodo.subtotal)}</Typography>
-        </TableCell>
-        <TableCell align="right">
-          <Typography variant="body2">{formatMXN(periodo.iva)}</Typography>
-        </TableCell>
-        <TableCell align="right">
-          <Typography variant="body2" fontWeight={700} color="primary.main">
-            ${formatMXN(periodo.total)}
-          </Typography>
-        </TableCell>
+        {esVentas ? (
+          <TableCell align="right">
+            <Typography variant="body2" fontWeight={700}>{formatMXN(periodo.subtotal)}</Typography>
+          </TableCell>
+        ) : (
+          <>
+            <TableCell align="right">
+              <Typography variant="body2">{formatMXN(periodo.subtotal)}</Typography>
+            </TableCell>
+            <TableCell align="right">
+              <Typography variant="body2">{formatMXN(periodo.iva)}</Typography>
+            </TableCell>
+            <TableCell align="right">
+              <Typography variant="body2" fontWeight={700} color="primary.main">
+                ${formatMXN(periodo.total)}
+              </Typography>
+            </TableCell>
+          </>
+        )}
       </TableRow>
 
       {/* Detalle de documentos */}
@@ -279,17 +289,17 @@ function PeriodoRow({
         <TableRow>
           <TableCell colSpan={totalCols} sx={{ p: 0, borderBottom: 0 }}>
             <Collapse in={open} timeout="auto" unmountOnExit>
-              <Box sx={{ pl: 5, pr: 1, pb: 1, bgcolor: '#f8fafc' }}>
+              <Box sx={{ pl: 5, pr: 1, pb: 1, bgcolor: esVentas ? tokens.content.elevated : '#f8fafc' }}>
                 <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.76rem', py: 0.4 } }}>
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#1d2f6810' }}>
+                    <TableRow sx={{ bgcolor: esVentas ? tokens.table.headerBg : '#1d2f6810' }}>
                       <TableCell>Fecha</TableCell>
                       <TableCell>Documento</TableCell>
                       <TableCell>{contactoLabel}</TableCell>
                       {mostrarCantidad && <TableCell align="right">Cantidad</TableCell>}
-                      <TableCell align="right">Subtotal</TableCell>
-                      <TableCell align="right">IVA</TableCell>
-                      <TableCell align="right">Total</TableCell>
+                      <TableCell align="right">{esVentas ? 'Ventas' : 'Subtotal'}</TableCell>
+                      {!esVentas && <TableCell align="right">IVA</TableCell>}
+                      {!esVentas && <TableCell align="right">Total</TableCell>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -301,23 +311,25 @@ function PeriodoRow({
                         {mostrarCantidad && (
                           <TableCell align="right">{formatCant(d.cantidad_total)}</TableCell>
                         )}
-                        <TableCell align="right">{formatMXN(d.subtotal)}</TableCell>
-                        <TableCell align="right">{formatMXN(d.iva)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          ${formatMXN(d.total)}
-                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: esVentas ? 700 : 400 }}>{formatMXN(d.subtotal)}</TableCell>
+                        {!esVentas && <TableCell align="right">{formatMXN(d.iva)}</TableCell>}
+                        {!esVentas && (
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>
+                            ${formatMXN(d.total)}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
-                    <TableRow sx={{ bgcolor: '#f1f5f9' }}>
+                    <TableRow sx={{ bgcolor: esVentas ? tokens.metric.amount.background : '#f1f5f9' }}>
                       <TableCell
-                        colSpan={mostrarCantidad ? 6 : 5}
+                        colSpan={(esVentas ? 3 : 5) + (mostrarCantidad ? 1 : 0)}
                         align="right"
                         sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.73rem' }}
                       >
-                        Subtotal {periodo.periodo_label}:
+                        {esVentas ? 'Ventas' : 'Subtotal'} {periodo.periodo_label}:
                       </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                        ${formatMXN(totalDocsPeriodo)}
+                      <TableCell align="right" sx={{ fontWeight: 700, color: esVentas ? tokens.content.foreground : 'primary.main' }}>
+                        ${formatMXN(ventasPeriodo)}
                       </TableCell>
                     </TableRow>
                   </TableBody>
@@ -483,40 +495,72 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
   const totalCant     = periodos.reduce((s, p) => s + p.cantidad_total, 0);
 
   // Número de columnas del encabezado principal (para colSpan en estado vacío)
-  const totalColsHeader = mostrarCantidad ? 8 : 7;
+  const esVentas = config.contactoLabel === 'Cliente';
+  const tokens = useTheme().emphasys;
+  const totalColsHeader = (esVentas ? 5 : 7) + (mostrarCantidad ? 1 : 0);
+  const ventas = totalSubtotal;
+  const ticket = totalDocs > 0 ? (esVentas ? ventas / totalDocs : (kpis?.ticket_promedio ?? 0)) : 0;
+  const campoSx: SxProps<Theme> = esVentas ? {
+    '& .MuiOutlinedInput-root': {
+      bgcolor: tokens.content.well,
+      borderRadius: 2,
+      '& fieldset': { borderColor: tokens.content.border },
+      '&:hover fieldset': { borderColor: tokens.content.muted },
+      '&.Mui-focused fieldset': { borderColor: tokens.action.info },
+    },
+    '& .MuiInputLabel-root': { color: tokens.content.muted },
+    '& .MuiInputBase-input': { color: tokens.content.foreground },
+  } : {};
 
   return (
-    <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {/* Breadcrumb */}
-      <Stack direction="row" alignItems="center" spacing={1}>
-        <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/informes')}
-          sx={{ color: 'text.secondary' }}>
-          Informes
-        </Button>
-        <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" color="text.secondary">{config.categoriaLabel}</Typography>
-        <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" fontWeight={600}>{config.titulo}</Typography>
+    <Box sx={esVentas
+      ? { px: { xs: 2, md: 3 }, py: { xs: 2, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.5, width: '100%', minWidth: 0, boxSizing: 'border-box' }
+      : { p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+        {esVentas ? (
+          <Box component="button" type="button" onClick={() => navigate('/informes')} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, border: 0, bgcolor: 'transparent', p: 0, cursor: 'pointer', font: 'inherit', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted, flexShrink: 0 }}>
+            <ArrowBackIcon sx={{ fontSize: 14 }} />
+            INFORMES
+          </Box>
+        ) : (
+          <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/informes')} sx={{ color: 'text.secondary' }}>
+            Informes
+          </Button>
+        )}
+        <Typography sx={esVentas ? { color: tokens.content.muted, fontSize: 11, lineHeight: 1 } : undefined} color={esVentas ? undefined : 'text.disabled'}>/</Typography>
+        <Typography variant="body2" noWrap sx={esVentas ? { fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted, minWidth: 0 } : { color: 'text.secondary' }}>
+          {esVentas ? config.categoriaLabel.toUpperCase() : config.categoriaLabel}
+        </Typography>
+        <Typography sx={esVentas ? { color: tokens.content.muted, fontSize: 11, lineHeight: 1 } : undefined} color={esVentas ? undefined : 'text.disabled'}>/</Typography>
+        <Typography variant="body2" fontWeight={600} noWrap sx={esVentas ? { fontSize: 11, letterSpacing: '0.14em', color: tokens.content.foreground, minWidth: 0 } : undefined}>
+          {esVentas ? config.titulo.toUpperCase() : config.titulo}
+        </Typography>
       </Stack>
 
       <Box>
-        <Typography variant="h6" fontWeight={700}>{config.titulo}</Typography>
-        <Typography variant="caption" color="text.secondary">{config.descripcion}</Typography>
+        {esVentas ? (
+          <Typography variant="figure" sx={{ fontSize: { xs: 26, sm: 30 }, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>{config.titulo}</Typography>
+        ) : (
+          <Typography variant="h6" fontWeight={700}>{config.titulo}</Typography>
+        )}
+        <Typography variant={esVentas ? 'body2' : 'caption'} sx={esVentas ? { mt: 0.6, fontSize: 13, lineHeight: 1.45, color: tokens.content.muted, display: 'block', maxWidth: 640 } : undefined} color={esVentas ? undefined : 'text.secondary'}>{config.descripcion}</Typography>
       </Box>
 
       {/* Filtros */}
-      <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
-        {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
+      <Paper elevation={0} sx={esVentas
+        ? { position: 'relative', overflow: 'hidden', px: 1.25, py: 1.25, borderRadius: 2, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.elevated, boxShadow: 'none' }
+        : { px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
+        {loading && <LinearProgress sx={esVentas ? { position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } } : { position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField
             label="Fecha inicial" type="date" size="small"
             value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
-            InputLabelProps={{ shrink: true }} sx={{ width: 155 }}
+            slotProps={{ inputLabel: { shrink: true } }} sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}
           />
           <TextField
             label="Fecha final" type="date" size="small"
             value={fechaFin} onChange={(e) => setFechaFin(e.target.value)}
-            InputLabelProps={{ shrink: true }} sx={{ width: 155 }}
+            slotProps={{ inputLabel: { shrink: true } }} sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}
           />
 
           <Autocomplete<ContactoOpcion>
@@ -529,7 +573,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             getOptionLabel={(o) => o.nombre}
             getOptionKey={(o) => o.id}
             isOptionEqualToValue={(a, b) => a.id === b.id}
-            sx={{ width: 210 }}
+            sx={{ width: esVentas ? { xs: '100%', sm: 210 } : 210, ...campoSx }}
             renderOption={(props, o) => (
               <li {...props} key={o.id}>
                 <Box>
@@ -554,7 +598,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             getOptionLabel={(o) => `${o.clave} — ${o.descripcion}`}
             getOptionKey={(o) => o.id}
             isOptionEqualToValue={(a, b) => a.id === b.id}
-            sx={{ width: 230 }}
+            sx={{ width: esVentas ? { xs: '100%', sm: 230 } : 230, ...campoSx }}
             renderOption={(props, o) => (
               <li {...props} key={o.id}>
                 <Box>
@@ -572,10 +616,17 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
           {config.tiposContacto.includes('cliente') && <Autocomplete<OrigenContacto>
             options={origenes} value={origen} onChange={(_, val) => setOrigen(val)}
             getOptionLabel={(o) => o.descripcion} getOptionKey={(o) => o.id}
-            isOptionEqualToValue={(a,b) => a.id === b.id} sx={{ width: 190 }}
+            isOptionEqualToValue={(a,b) => a.id === b.id} sx={{ width: esVentas ? { xs: '100%', sm: 190 } : 190, ...campoSx }}
             renderInput={(p) => <TextField {...p} label="Origen de contacto (todos)" size="small" />}
           />}
 
+          {esVentas ? (
+            <TextField select label="Agrupación" size="small" value={agrupacion} onChange={(e) => setAgrupacion(e.target.value as Agrupacion)} sx={{ width: { xs: '100%', sm: 130 }, ...campoSx }}>
+              {AGRUPACIONES.map((a) => (
+                <MenuItem key={a.value} value={a.value}>{a.label}</MenuItem>
+              ))}
+            </TextField>
+          ) : (
           <Tooltip title="Agrupar por">
             <Select
               size="small"
@@ -588,23 +639,26 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
               ))}
             </Select>
           </Tooltip>
+          )}
 
           <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
-          <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5, flexShrink: 0 }}>
+          <Box sx={{ ml: { md: 'auto' }, display: 'flex', gap: 0.5, flexShrink: 0, width: esVentas ? { xs: '100%', md: 'auto' } : undefined, justifyContent: esVentas ? { xs: 'flex-end', md: 'flex-start' } : undefined }}>
             <Button
-              size="small" variant="outlined" color="error"
+              size="small" variant="outlined" color={esVentas ? 'inherit' : 'error'}
               disabled={!resultado || !!exportando}
-              startIcon={exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />}
+              startIcon={esVentas ? (exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : undefined) : (exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />)}
               onClick={() => void handleExportar('pdf')}
+              sx={esVentas ? { textTransform: 'none', fontWeight: 650, color: tokens.content.secondary, borderColor: tokens.content.border, borderRadius: 2, boxShadow: 'none' } : undefined}
             >
               PDF
             </Button>
             <Button
               size="small" variant="outlined"
               disabled={!resultado || !!exportando}
-              startIcon={exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : <FileDownloadIcon />}
+              startIcon={esVentas ? (exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : undefined) : (exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : <FileDownloadIcon />)}
               onClick={() => void handleExportar('excel')}
+              sx={esVentas ? { textTransform: 'none', fontWeight: 650, color: tokens.content.secondary, borderColor: tokens.content.border, borderRadius: 2, boxShadow: 'none' } : undefined}
             >
               Excel
             </Button>
@@ -614,6 +668,22 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
 
       {/* KPIs */}
       {kpis && (
+        esVentas ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: mostrarCantidad ? 'repeat(5, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))' }, gap: 0.8 }}>
+            {[
+              [config.montoLabel ?? 'Total vendido', `$${formatMXN(ventas)}`],
+              ['Documentos', kpis.cantidad_documentos.toLocaleString('es-MX')],
+              [`${config.contactoLabel}s`, kpis.cantidad_contactos.toLocaleString('es-MX')],
+              ...(mostrarCantidad ? [[config.cantidadLabel ?? 'Cantidad vendida', formatCant(kpis.cantidad_total)] as [string, string]] : []),
+              ['Ticket promedio', totalDocs > 0 ? `$${formatMXN(ticket)}` : '—'],
+            ].map(([label, value]) => (
+              <Box key={label} sx={{ minWidth: 0, bgcolor: tokens.metric.amount.background, borderRadius: 2, px: 1.5, py: 1 }}>
+                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>{label}</Typography>
+                <Typography variant="figure" sx={{ mt: 0.15, fontSize: { xs: 20, sm: 24 }, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground, overflowWrap: 'anywhere' }}>{value}</Typography>
+              </Box>
+            ))}
+          </Box>
+        ) : (
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           <KpiCard icon={AttachMoneyIcon} label={config.montoLabel ?? 'Total comprado'}
             value={`$${formatMXN(kpis.total)}`} color="#1d2f68" />
@@ -621,7 +691,6 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             value={kpis.cantidad_documentos.toLocaleString('es-MX')} color="#006261" />
           <KpiCard icon={GroupIcon} label={`${config.contactoLabel}s`}
             value={kpis.cantidad_contactos.toLocaleString('es-MX')} color="#7c3aed" />
-          {/* Cantidad sólo válida cuando hay un único producto — unidades homogéneas */}
           {mostrarCantidad && (
             <KpiCard icon={InventoryIcon} label={config.cantidadLabel ?? 'Cantidad comprada'}
               value={formatCant(kpis.cantidad_total)} color="#b45309" />
@@ -630,20 +699,30 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             value={kpis.cantidad_documentos > 0 ? `$${formatMXN(kpis.ticket_promedio)}` : '—'}
             color="#0369a1" />
         </Box>
+        )
       )}
 
       {/* Gráfica */}
       {periodos.length > 0 && (
-        <Paper sx={{ p: 1.5 }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.5}>
-            Evolución — {AGRUPACIONES.find((a) => a.value === agrupacion)?.label}
-          </Typography>
-          <PeriodosChart periodos={periodos} color="#1d2f68" />
+        <Paper elevation={0} sx={esVentas ? { px: { xs: 1.5, sm: 2 }, py: 1.25, borderRadius: 3, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.well, boxShadow: 'none' } : { p: 1.5 }}>
+          {esVentas ? (
+            <>
+              <Typography sx={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.content.muted }}>Evolución</Typography>
+              <Typography sx={{ mt: 0.2, mb: 0.75, fontSize: 13, color: tokens.content.secondary }}>
+                Evolución — {AGRUPACIONES.find((a) => a.value === agrupacion)?.label}
+              </Typography>
+            </>
+          ) : (
+            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.5}>
+              Evolución — {AGRUPACIONES.find((a) => a.value === agrupacion)?.label}
+            </Typography>
+          )}
+          <PeriodosChart periodos={periodos} color={esVentas ? tokens.action.info : '#1d2f68'} campo={esVentas ? 'subtotal' : 'total'} />
         </Paper>
       )}
 
       {/* Tabla principal */}
-      <Paper sx={{ p: 1.5 }}>
+      <Paper elevation={0} sx={esVentas ? { p: 0, borderRadius: 3, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.well, boxShadow: 'none', overflow: 'auto' } : { p: 1.5 }}>
         {!resultado && loading && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CircularProgress size={18} />
@@ -654,15 +733,21 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
         {resultado && (
           <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.82rem' } }}>
             <TableHead>
-              <TableRow sx={{ bgcolor: '#1d2f68', '& .MuiTableCell-root': { color: '#fff', fontWeight: 700, fontSize: '0.78rem', py: 0.75 } }}>
+              <TableRow sx={esVentas
+                ? { bgcolor: tokens.table.headerBg, '& .MuiTableCell-root': { color: tokens.table.headerFg, fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', py: 1, borderColor: tokens.table.line, whiteSpace: 'nowrap' } }
+                : { bgcolor: '#1d2f68', '& .MuiTableCell-root': { color: '#fff', fontWeight: 700, fontSize: '0.78rem', py: 0.75 } }}>
                 <TableCell sx={{ width: 36 }} />
                 <TableCell>Período</TableCell>
                 <TableCell align="right">Documentos</TableCell>
                 <TableCell align="right">{config.contactoLabel}s</TableCell>
                 {mostrarCantidad && <TableCell align="right">Cantidad</TableCell>}
-                <TableCell align="right">Subtotal</TableCell>
-                <TableCell align="right">IVA</TableCell>
-                <TableCell align="right">Total</TableCell>
+                {esVentas ? <TableCell align="right">Ventas</TableCell> : (
+                  <>
+                    <TableCell align="right">Subtotal</TableCell>
+                    <TableCell align="right">IVA</TableCell>
+                    <TableCell align="right">Total</TableCell>
+                  </>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -682,6 +767,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
                     docs={docsPorPeriodo.get(p.periodo_key) ?? []}
                     contactoLabel={config.contactoLabel}
                     mostrarCantidad={mostrarCantidad}
+                    esVentas={esVentas}
                   />
                 ))
               )}
@@ -691,7 +777,11 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
 
         {/* Totales */}
         {periodos.length > 0 && (
-          <Box sx={{
+          <Box sx={esVentas ? {
+            display: 'flex', gap: 3, px: 1.5, py: 1,
+            bgcolor: tokens.metric.amount.background,
+            justifyContent: 'flex-end', flexWrap: 'wrap',
+          } : {
             display: 'flex', gap: 3, mt: 1.5, pt: 1.5,
             borderTop: '2px solid', borderColor: 'primary.main',
             justifyContent: 'flex-end', flexWrap: 'wrap',
@@ -706,20 +796,31 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
                 <Typography variant="body2" fontWeight={700}>{formatCant(totalCant)}</Typography>
               </Box>
             )}
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" color="text.secondary">Subtotal</Typography>
-              <Typography variant="body2" fontWeight={700}>{formatMXN(totalSubtotal)}</Typography>
-            </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" color="text.secondary">IVA</Typography>
-              <Typography variant="body2" fontWeight={700}>{formatMXN(totalIva)}</Typography>
-            </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" color="text.secondary">Total</Typography>
-              <Typography variant="subtitle1" fontWeight={700} color="primary.main">
-                ${formatMXN(totalTotal)}
-              </Typography>
-            </Box>
+            {esVentas ? (
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="caption" color="text.secondary">Ventas</Typography>
+                <Typography variant="body2" fontWeight={700} color={tokens.content.foreground}>
+                  ${formatMXN(ventas)}
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" color="text.secondary">Subtotal</Typography>
+                  <Typography variant="body2" fontWeight={700}>{formatMXN(totalSubtotal)}</Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" color="text.secondary">IVA</Typography>
+                  <Typography variant="body2" fontWeight={700}>{formatMXN(totalIva)}</Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" color="text.secondary">Total</Typography>
+                  <Typography variant="subtitle1" fontWeight={700} color="primary.main">
+                    ${formatMXN(totalTotal)}
+                  </Typography>
+                </Box>
+              </>
+            )}
           </Box>
         )}
       </Paper>

@@ -140,8 +140,11 @@ import {
 } from '../modules/documentos/documentoNavigation';
 import DocumentosDesktopView from '../components/documentos/DocumentosDesktopView';
 import DocumentosMobileView from '../components/documentos/DocumentosMobileView';
+import { catalogoHeaderIconSx, catalogoOutlinedButtonSx, catalogoPrimaryButtonSx } from '../components/catalogo/catalogoSurfaces';
 import FacturasWorkspaceView from '../components/documentos/facturas/FacturasWorkspaceView';
 import NotasCreditoWorkspaceView, { FILTRO_NOTAS_VACIO, type FiltroNotas } from '../components/documentos/nota-credito/NotasCreditoWorkspaceView';
+import PagosWorkspaceView from '../components/documentos/pagos/PagosWorkspaceView';
+import AjustesSaldoWorkspaceView from '../components/documentos/ajustes-saldo/AjustesSaldoWorkspaceView';
 import CartaPorteViajeDrawer from '../components/documentos/facturas/CartaPorteViajeDrawer';
 import { guardarFacturasWorkspacePreferencia, resolveFacturasWorkspaceEnabled } from '../modules/documentos/facturasWorkspaceFlag';
 import FacturaGlobalDialog from '../modules/documentos/FacturaGlobalDialog';
@@ -461,7 +464,7 @@ const getCotizacionEstatusEditableOptions = (value: unknown): StatusOption[] => 
 // cotizaciones. Se reutiliza en el chip de "Seguimiento" para que ambas columnas
 // queden visualmente consistentes.
 const ESTATUS_CHIP_BASE_SX = {
-  borderRadius: 1,
+  borderRadius: 999,
   fontWeight: 700,
   fontSize: 11,
   height: 22,
@@ -843,7 +846,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const abrirCartaPorte = useCallback((row: CotizacionListado) => {
     const documentoId = Number(row.id);
     setCartaPorteDrawer({ open: true, documentoId, folio: resolverFolioVisual(row, tipoDocumento) || String(documentoId) });
-  }, [tipoDocumento]);
+  }, [rows, setError, tipoDocumento]);
 
   const abrirAplicarSaldoNotaCredito = useCallback((row: CotizacionListado) => {
     setAplicarSaldoNcDrawer({ open: false, documentoId: null, contactoId: null, saldo: 0, tipoDocumento: null });
@@ -1968,6 +1971,14 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     : null;
 
   const handleRequestDelete = useCallback(async (rowId: number) => {
+    if (tipoDocumento === 'factura') {
+      const row = rows.find((item) => Number(item.id) === rowId);
+      if (normalizeDocumentoEstatus(row?.estatus_documento) !== 'borrador') {
+        setError('Solo se puede eliminar una factura en estado Borrador.');
+        return;
+      }
+    }
+
     if (tipoDocumento !== 'cotizacion') {
       setPendingDeleteId(rowId);
       setConfirmOpen(true);
@@ -2492,7 +2503,12 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           <IconButton
             size="small"
             color="error"
-            disabled={deletingId === params.row.id || loading}
+            disabled={
+              deletingId === params.row.id
+              || loading
+              || (tipoDocumento === 'factura'
+                && normalizeDocumentoEstatus(params.row.estatus_documento) !== 'borrador')
+            }
             onClick={async (e) => {
               e.stopPropagation();
               await handleRequestDelete(params.row.id as number);
@@ -3244,7 +3260,10 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         icon: <DeleteIcon fontSize="small" />,
         shortcut: 'Del',
         destructive: true,
-        disabled: deletingId === contextMenuRow.id || loading,
+        disabled:
+          deletingId === contextMenuRow.id
+          || loading
+          || (tipoDocumento === 'factura' && !facturaEnBorrador),
         onClick: () => {
           void handleRequestDelete(rowId);
         },
@@ -3426,6 +3445,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
           {[{ value: 'todos', label: 'Todos' }, ...statusOptions].map((item) => {
             const selected = quickFilter === item.value;
+            const semantico = esCotizacion && 'color' in item ? item : null;
             return (
               <Chip
                 key={item.value}
@@ -3434,7 +3454,30 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                 onClick={() => setQuickFilter(item.value)}
                 size="small"
                 variant={selected ? 'filled' : 'outlined'}
-                sx={{
+                sx={esCotizacion ? {
+                  height: 28,
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: selected ? 700 : 600,
+                  px: 0.35,
+                  color: selected
+                    ? (semantico?.textColor || theme.emphasys.content.foreground)
+                    : theme.emphasys.content.secondary,
+                  backgroundColor: selected
+                    ? (semantico?.color || theme.emphasys.action.wash)
+                    : theme.emphasys.content.card,
+                  borderColor: selected
+                    ? (semantico?.textColor || theme.emphasys.content.border)
+                    : theme.emphasys.content.border,
+                  '&:hover': {
+                    backgroundColor: selected
+                      ? (semantico?.color || theme.emphasys.action.tint)
+                      : theme.emphasys.content.hover,
+                  },
+                  '& .MuiChip-label': {
+                    px: 1.2,
+                  },
+                } : {
                   height: 28,
                   borderRadius: 1.5,
                   fontSize: 12,
@@ -3461,16 +3504,26 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             startIcon={<FilterAltOutlinedIcon />}
             endIcon={filtersOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
             onClick={() => setFiltersOpen((prev) => !prev)}
-            sx={{
-              alignSelf: { xs: 'flex-start', lg: 'center' },
-              minWidth: 132,
-              fontWeight: 700,
-              textTransform: 'none',
-              backgroundColor: filtersOpen || hayFiltrosActivos ? 'primary.main' : undefined,
-              '&:hover': {
-                backgroundColor: filtersOpen || hayFiltrosActivos ? 'primary.dark' : undefined,
-              },
-            }}
+            sx={esCotizacion
+              ? (buttonTheme) => ({
+                  ...(typeof catalogoPrimaryButtonSx === 'function' && (filtersOpen || hayFiltrosActivos)
+                    ? catalogoPrimaryButtonSx(buttonTheme)
+                    : typeof catalogoOutlinedButtonSx === 'function'
+                      ? catalogoOutlinedButtonSx(buttonTheme)
+                      : {}),
+                  alignSelf: { xs: 'flex-start', lg: 'center' },
+                  minWidth: 132,
+                })
+              : {
+                  alignSelf: { xs: 'flex-start', lg: 'center' },
+                  minWidth: 132,
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  backgroundColor: filtersOpen || hayFiltrosActivos ? 'primary.main' : undefined,
+                  '&:hover': {
+                    backgroundColor: filtersOpen || hayFiltrosActivos ? 'primary.dark' : undefined,
+                  },
+                }}
           >
             Filtrar
           </Button>
@@ -3480,7 +3533,12 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       <Collapse in={filtersOpen} timeout="auto" unmountOnExit={false}>
         <Paper
           variant="outlined"
-          sx={{
+          sx={esCotizacion ? {
+            p: { xs: 1.25, sm: 1.5 },
+            borderRadius: 2,
+            borderColor: theme.emphasys.content.border,
+            backgroundColor: theme.emphasys.content.elevated,
+          } : {
             p: { xs: 1.25, sm: 1.5 },
             borderRadius: 2,
             borderColor: '#dbe3f4',
@@ -3488,7 +3546,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           }}
         >
           <Stack spacing={1.25}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1f2937' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: esCotizacion ? theme.emphasys.content.foreground : '#1f2937' }}>
               Filtros avanzados
             </Typography>
 
@@ -3658,10 +3716,18 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             </Grid>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
-              <Button variant="text" onClick={handleLimpiarFiltros}>
+              <Button
+                variant="text"
+                onClick={handleLimpiarFiltros}
+                {...(esCotizacion ? { sx: { textTransform: 'none' as const, fontWeight: 700, color: theme.emphasys.content.foreground } } : {})}
+              >
                 Limpiar
               </Button>
-              <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}>
+              <Button
+                variant="contained"
+                onClick={handleAplicarFiltros}
+                sx={esCotizacion ? catalogoPrimaryButtonSx : { backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
+              >
                 Aplicar filtros
               </Button>
             </Stack>
@@ -3690,21 +3756,22 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     >
       {(() => {
         const totalColor = '#2563eb';
+        const total = theme.emphasys.metric.amount;
         return esCotizacion
           ? [
               {
                 label: 'Total general',
                 value: resumenTotales.general,
-                color: totalColor,
-                bgColor: alpha(totalColor, 0.1),
-                borderColor: alpha(totalColor, 0.35),
+                color: total.foreground,
+                bgColor: total.background,
+                borderColor: theme.emphasys.content.border,
               },
               ...statusOptions.map((status) => ({
                 label: status.label,
                 value: Number(resumenTotales.porEstado[status.value] ?? 0),
-                color: status.textColor || '#374151',
-                bgColor: status.color || '#f8fafc',
-                borderColor: alpha(status.textColor || '#94a3b8', 0.35),
+                color: status.textColor || theme.emphasys.content.foreground,
+                bgColor: status.color || theme.emphasys.content.card,
+                borderColor: alpha(status.textColor || theme.emphasys.content.muted, 0.28),
               })),
             ]
           : [
@@ -3722,10 +3789,10 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           key={item.label}
           variant="outlined"
           sx={esCotizacion ? {
-            px: 0.75,
-            py: 0.3,
-            borderRadius: 1.5,
-            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+            px: 1.1,
+            py: 0.7,
+            borderRadius: 2,
+            boxShadow: 'none',
             backgroundColor: item.bgColor,
             borderColor: item.borderColor,
           } : {
@@ -3735,10 +3802,10 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
           }}
         >
-          <Typography sx={esCotizacion ? { fontSize: 10, fontWeight: 800, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.4, lineHeight: 1.1 } : { color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
+          <Typography sx={esCotizacion ? { fontSize: 10, fontWeight: 700, color: theme.emphasys.metric.caption, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.15 } : { color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
             {item.label}
           </Typography>
-          <Typography sx={esCotizacion ? { mt: 0.1, fontSize: 14, lineHeight: 1.02, fontWeight: 800, color: item.color } : { color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
+          <Typography sx={esCotizacion ? { mt: 0.35, fontSize: 16, lineHeight: 1.05, fontWeight: 500, fontFamily: theme.typography.figure.fontFamily, fontVariantNumeric: 'tabular-nums', color: item.color } : { color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
             {currency.format(item.value)}
           </Typography>
         </Paper>
@@ -3749,7 +3816,18 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   const selectionContent = canBulkDuplicate && selectedDocumentIds.length > 0 ? (
     <Paper
       variant="outlined"
-      sx={{
+      sx={esCotizacion ? {
+        borderRadius: 2,
+        px: 2,
+        py: 1.25,
+        display: 'flex',
+        alignItems: { xs: 'stretch', sm: 'center' },
+        justifyContent: 'space-between',
+        gap: 1,
+        flexDirection: { xs: 'column', sm: 'row' },
+        borderColor: theme.emphasys.content.border,
+        backgroundColor: theme.emphasys.content.elevated,
+      } : {
         borderRadius: 2,
         px: 2,
         py: 1.25,
@@ -3760,7 +3838,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         flexDirection: { xs: 'column', sm: 'row' },
       }}
     >
-      <Typography variant="body2" sx={{ fontWeight: 700, color: '#1f2937' }}>
+      <Typography variant="body2" sx={{ fontWeight: 700, color: esCotizacion ? theme.emphasys.content.foreground : '#1f2937' }}>
         {selectedDocumentIds.length} documento{selectedDocumentIds.length === 1 ? '' : 's'} seleccionado{selectedDocumentIds.length === 1 ? '' : 's'}
       </Typography>
       <Stack direction="row" spacing={1}>
@@ -3785,7 +3863,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             void handleDuplicarSeleccionados();
           }}
           disabled={bulkDuplicating}
-          sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
+          sx={esCotizacion ? catalogoPrimaryButtonSx : { backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
         >
           Duplicar seleccionados
         </Button>
@@ -3834,7 +3912,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             aria-label="Abrir guía de ayuda"
             size="small"
             onClick={() => window.open('/docs/guia-cotizaciones.html', '_blank')}
-            sx={{ color: '#64748b' }}
+            sx={catalogoHeaderIconSx}
           >
             <HelpOutlineIcon fontSize="small" />
           </IconButton>
@@ -3863,6 +3941,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
         onClick={() => void handleExport()}
         disabled={exportLoading}
+        {...(esCotizacion ? { sx: catalogoOutlinedButtonSx } : {})}
       >
         Exportar
       </Button>
@@ -3898,6 +3977,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         </Button>
       ) : null}
       extraActionsContent={extraActionsContent}
+      surface={esCotizacion ? 'catalog' : 'legacy'}
       rows={filteredRows}
       columns={orderedColumns}
       canBulkDuplicate={canBulkDuplicate}
@@ -3997,7 +4077,6 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   const notasCreditoWorkspaceVisible = Boolean(documentoTypeConfig?.features?.vistaWorkspace);
 
   const facturasWorkspaceView = facturasWorkspaceVisible ? (
-    <Container maxWidth={false} sx={{ py: 2 }}>
       <FacturasWorkspaceView
         rows={filteredRows}
         isLoading={loading || loadingPreferences}
@@ -4009,11 +4088,15 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         onQuickFilterChange={setQuickFilter}
         statusOptions={statusOptions}
         resumenTotales={resumenTotales}
-        filtersContent={filtersContent}
-        filtersOpen={filtersOpen}
-        onFiltersOpenChange={setFiltersOpen}
-        hayFiltrosActivos={hayFiltrosActivos}
-        filtrosActivosCount={filtrosActivosCount}
+        filtros={filtrosCotizacion}
+        onFiltrosChange={setFiltrosCotizacion}
+        contactos={contactos}
+        vendedores={vendedores}
+        mostrarAgente={showAgentFilter}
+        etiquetaContacto={contactoLabel}
+        soloPendientes={soloPendientes}
+        onSoloPendientes={setSoloPendientes}
+        mostrarSoloPendientes={isFacturaConSaldo}
         sortModel={sortModel as GridSortModel}
         onSortModelChange={setSortModel}
         extraActionsContent={extraActionsContent}
@@ -4047,7 +4130,6 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           }
         }}
       />
-    </Container>
   ) : null;
 
   const mobileView = (
@@ -4067,6 +4149,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       summaryContent={summaryContent}
       selectionContent={selectionContent}
       extraActionsContent={extraActionsContent}
+      surface={esCotizacion ? 'catalog' : 'legacy'}
       rows={filteredRows}
       tipoDocumento={tipoDocumento}
       indicatorsByDocumentId={indicadoresFacturaPorId}
@@ -4089,6 +4172,89 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       currency={currency}
     />
   );
+
+  const pagosWorkspaceView = tipoDocumento === 'pago_cliente' && modulo === 'ventas' ? (
+    <PagosWorkspaceView
+      rows={filteredRows}
+      isLoading={loading || loadingPreferences}
+      selectedId={focusedDocumentId}
+      highlightedId={highlightedDocumentId}
+      onSelect={selectGridRow}
+      search={search}
+      onSearch={setSearch}
+      onCreate={() => navigate(`${basePath}/nuevo`)}
+      onExport={() => { void handleExport(); }}
+      exportLoading={exportLoading}
+      actions={gridContextMenuActions}
+      onOpenEstatus={handleOpenEstatusMenu}
+      onDownloadXml={(id) => {
+        descargarComplementoPagoXml(id).catch((err) => {
+          setError(err?.message || 'No se pudo descargar el XML');
+        });
+      }}
+      tipoDocumento={tipoDocumento}
+      formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
+      formatDate={formatCivilDate}
+      currency={currency}
+      quickFilter={quickFilter}
+      onQuickFilter={setQuickFilter}
+      statusOptions={statusOptions}
+      soloPendientes={soloPendientes}
+      onSoloPendientes={setSoloPendientes}
+      filtros={filtrosCotizacion}
+      onFiltrosChange={setFiltrosCotizacion}
+      contactos={contactos}
+      etiquetaContacto={contactoLabel}
+      resumen={resumenTotales}
+      total={rowCount}
+      page={page}
+      pageSize={pageSize}
+      onPageChange={setPage}
+      selectedIds={selectedDocumentIds}
+      onSelectedIdsChange={setSelectedDocumentIds}
+      onDuplicateSelected={() => { void handleDuplicarSeleccionados(); }}
+      duplicating={bulkDuplicating}
+    />
+  ) : null;
+
+  const ajustesSaldoWorkspaceView = tipoDocumento === 'ajuste_cliente' && modulo === 'ventas' ? (
+    <AjustesSaldoWorkspaceView
+      rows={filteredRows}
+      isLoading={loading || loadingPreferences}
+      selectedId={focusedDocumentId}
+      highlightedId={highlightedDocumentId}
+      onSelect={selectGridRow}
+      search={search}
+      onSearch={setSearch}
+      onCreate={() => navigate(`${basePath}/nuevo`)}
+      onExport={() => { void handleExport(); }}
+      exportLoading={exportLoading}
+      actions={gridContextMenuActions}
+      onOpenEstatus={handleOpenEstatusMenu}
+      tipoDocumento={tipoDocumento}
+      formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
+      formatDate={formatCivilDate}
+      currency={currency}
+      quickFilter={quickFilter}
+      onQuickFilter={setQuickFilter}
+      statusOptions={statusOptions}
+      soloPendientes={soloPendientes}
+      onSoloPendientes={setSoloPendientes}
+      filtros={filtrosCotizacion}
+      onFiltrosChange={setFiltrosCotizacion}
+      contactos={contactos}
+      etiquetaContacto={contactoLabel}
+      resumen={resumenTotales}
+      total={rowCount}
+      page={page}
+      pageSize={pageSize}
+      onPageChange={setPage}
+      selectedIds={selectedDocumentIds}
+      onSelectedIdsChange={setSelectedDocumentIds}
+      onDuplicateSelected={() => { void handleDuplicarSeleccionados(); }}
+      duplicating={bulkDuplicating}
+    />
+  ) : null;
 
   const notasCreditoWorkspaceView = notasCreditoWorkspaceVisible ? (
     <NotasCreditoWorkspaceView
@@ -4122,7 +4288,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
 
   return (
     <>
-      {notasCreditoWorkspaceView ? notasCreditoWorkspaceView : !isMobile && facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
+      {notasCreditoWorkspaceView ? notasCreditoWorkspaceView : pagosWorkspaceView ? pagosWorkspaceView : ajustesSaldoWorkspaceView ? ajustesSaldoWorkspaceView : facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
         <Container maxWidth={false} sx={{ py: 2 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             {mobileView}

@@ -1,10 +1,6 @@
-import { Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
+import { Box, IconButton, InputAdornment, TextField } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import DownloadIcon from '@mui/icons-material/Download';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import ViewListOutlinedIcon from '@mui/icons-material/ViewListOutlined';
-import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import { GridContextMenu } from '../grids/GridContextMenu';
 import { EmphasysDataGrid } from '../grids/EmphasysDataGrid';
 import {
@@ -16,6 +12,7 @@ import type { ContactosDesktopViewProps } from './ContactosView.types';
 import ContactosAdvancedFilters from './ContactosAdvancedFilters';
 import ContactosListaCompacta from './ContactosListaCompacta';
 import ContactoWorkspace from './ContactoWorkspace';
+import CatalogoModuloToolbar from '../catalogo/CatalogoModuloToolbar';
 
 export default function ContactosDesktopView({
   contactos,
@@ -72,15 +69,16 @@ export default function ContactosDesktopView({
   vendedorNombre,
 }: ContactosDesktopViewProps) {
   return (
-    <Box sx={{ width: '100%', px: 3, pt: 2, pb: 0, display: 'flex', justifyContent: 'center' }}>
-      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+    <Box sx={(theme) => ({ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', bgcolor: theme.emphasys.canvas.page, ...(viewMode === 'lista' ? { overflow: 'hidden' } : {}) })}>
+      {viewMode === 'tabla' ? (
+      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5, px: { xs: 1.5, md: 2 }, pt: 1.5, pb: 1.5, flexShrink: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <TextField
             size="small"
             placeholder="Buscar por empresa, contacto, email, teléfono, interés u observaciones..."
             value={searchTerm}
             onChange={(event) => onSearchTermChange(event.target.value)}
-            sx={{ flex: 1 }}
+            sx={(theme) => ({ flex: 1, '& .MuiOutlinedInput-root': { backgroundColor: theme.emphasys.content.card, borderRadius: 2, '& fieldset': { borderColor: theme.emphasys.content.border } } })}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -96,58 +94,14 @@ export default function ContactosDesktopView({
               ) : null,
             }}
           />
-          <Stack direction="row" spacing={1}>
-            <ToggleButtonGroup
-              size="small"
-              exclusive
-              value={viewMode}
-              onChange={(_, value) => {
-                if (value) onViewModeChange(value);
-              }}
-            >
-              <ToggleButton value="lista" aria-label="Vista de lista">
-                <Tooltip title="Vista de lista">
-                  <ViewListOutlinedIcon fontSize="small" />
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="tabla" aria-label="Vista de tabla">
-                <Tooltip title="Vista de tabla">
-                  <TableChartOutlinedIcon fontSize="small" />
-                </Tooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
-            <Tooltip title="Guía de ayuda">
-              <IconButton
-                aria-label="Abrir guía de ayuda"
-                size="small"
-                onClick={() => window.open('/docs/guia-contactos.html', '_blank')}
-                sx={{ color: '#64748b' }}
-              >
-                <HelpOutlineIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Button
-              variant="outlined"
-              startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
-              onClick={onExport}
-              disabled={Boolean(exportLoading)}
-            >
-              Exportar
-            </Button>
-            <Button
-              variant="contained"
-              onClick={onCreateContacto}
-              sx={{
-                textTransform: 'uppercase',
-                fontWeight: 700,
-                backgroundColor: '#1d2f68',
-                color: '#ffffff',
-                '&:hover': { backgroundColor: '#162551' },
-              }}
-            >
-              + Nuevo
-            </Button>
-          </Stack>
+          <CatalogoModuloToolbar
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+            helpHref="/docs/guia-contactos.html"
+            onExport={onExport}
+            exportLoading={Boolean(exportLoading)}
+            onCreate={onCreateContacto}
+          />
         </Box>
 
         <ContactosAdvancedFilters
@@ -170,7 +124,7 @@ export default function ContactosDesktopView({
         />
 
         {viewMode === 'tabla' ? (
-          <Box sx={{ width: '100%', backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+          <Box sx={(theme) => ({ width: '100%', backgroundColor: theme.emphasys.content.card, borderRadius: 1, border: `1px solid ${theme.emphasys.content.border}`, overflow: 'hidden' })}>
             <EmphasysDataGrid
               rows={contactos}
               columns={orderedColumns}
@@ -219,8 +173,11 @@ export default function ContactosDesktopView({
               onClose={onCloseContextMenu}
             />
           </Box>
-        ) : (
-          <Box sx={{ width: '100%', display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+        ) : null}
+      </Box>
+      ) : null}
+      {viewMode === 'lista' ? (
+          <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 0, overflow: 'hidden' }}>
             <ContactosListaCompacta
               contactos={contactos}
               rowCount={rowCount}
@@ -233,6 +190,37 @@ export default function ContactosDesktopView({
               onDeleteContacto={onDeleteContacto}
               onViewActividades={onViewActividades}
               vendedorNombre={vendedorNombre}
+              searchTerm={searchTerm}
+              onSearchTermChange={onSearchTermChange}
+              onClearSearch={onClearSearch}
+              onCreate={onCreateContacto}
+              onExport={onExport}
+              exportLoading={Boolean(exportLoading)}
+              filtrosActivos={advancedFiltersCount}
+              panelFiltros={(
+                <ContactosAdvancedFilters
+                  rowCount={rowCount}
+                  vendedores={vendedores}
+                  origenOptions={origenOptions}
+                  tiposOpciones={tiposOpciones}
+                  filters={advancedFilters}
+                  activeFiltersCount={advancedFiltersCount}
+                  onToggleFilters={onToggleFilters}
+                  onSelectedTiposChange={onSelectedTiposChange}
+                  onOrigenContactoIdChange={onOrigenContactoIdChange}
+                  onVendedorIdChange={onVendedorIdChange}
+                  onActivoChange={onActivoChange}
+                  onFechaAltaDesdeChange={onFechaAltaDesdeChange}
+                  onFechaAltaHastaChange={onFechaAltaHastaChange}
+                  onInteresInicialChange={onInteresInicialChange}
+                  onObservacionesChange={onObservacionesChange}
+                  onClearAdvancedFilters={onClearAdvancedFilters}
+                  soloPanel
+                />
+              )}
+              viewMode={viewMode}
+              onViewModeChange={onViewModeChange}
+              helpHref="/docs/guia-contactos.html"
             />
             <ContactoWorkspace
               contactoId={selectedContactoId}
@@ -242,8 +230,7 @@ export default function ContactosDesktopView({
               onVerActividades={onViewActividades}
             />
           </Box>
-        )}
-      </Box>
+      ) : null}
     </Box>
   );
 }

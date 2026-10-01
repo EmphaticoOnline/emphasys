@@ -17,7 +17,6 @@ import {
   ListItemButton,
   Menu,
   MenuItem,
-  Paper,
   Popover,
   Select,
   Slider,
@@ -927,11 +926,14 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
     <Box
       ref={rootRef}
       sx={{
-        p: 2,
+        px: 2,
+        pt: 1.25,
+        pb: 0,
         height: anchoredHeight != null ? `${anchoredHeight}px` : '100vh',
         display: 'flex',
         flexDirection: 'column',
-        gap: 2,
+        gap: 1,
+        bgcolor: 'background.default',
       }}
     >
       <Menu
@@ -1041,6 +1043,13 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             fullWidth
+            sx={(theme) => ({
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: theme.emphasys.content.elevated,
+                borderRadius: 2,
+                '& fieldset': { borderColor: theme.emphasys.content.border },
+              },
+            })}
             InputProps={{
               endAdornment: searchTerm ? (
                 <InputAdornment position="end">
@@ -1174,9 +1183,12 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
         sx={{
           display: 'flex',
           flexDirection: 'row',
-          gap: 2,
+          gap: 0,
           flex: 1,
           minHeight: 0,
+          borderTop: 1,
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
         }}
       >
         <Box
@@ -1188,7 +1200,9 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 1.5,
+            gap: 0,
+            borderRight: 1,
+            borderColor: 'divider',
           }}
         >
           {/* Título, contador, buscador, alcance (Mis leads/Todos) y
@@ -1350,12 +1364,12 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                       label={opt.label}
                       variant={whatsappWindowFilter === opt.key ? 'filled' : 'outlined'}
                       onClick={() => setWhatsappWindowFilter(opt.key)}
-                      sx={{
+                      sx={(theme) => ({
                         fontWeight: 700,
-                        color: whatsappWindowFilter === opt.key ? '#ffffff' : '#0f766e',
-                        backgroundColor: whatsappWindowFilter === opt.key ? '#0f766e' : '#f0fdfa',
-                        borderColor: '#99f6e4',
-                      }}
+                        color: whatsappWindowFilter === opt.key ? theme.emphasys.action.primaryForeground : theme.emphasys.content.secondary,
+                        backgroundColor: whatsappWindowFilter === opt.key ? theme.emphasys.action.primary : 'transparent',
+                        borderColor: theme.emphasys.content.border,
+                      })}
                     />
                   ))}
                 </Stack>
@@ -1381,24 +1395,12 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                       color="default"
                       variant={opportunityFilter === opt.key ? 'filled' : 'outlined'}
                       onClick={() => setOpportunityFilter(opt.key)}
-                      sx={{
+                      sx={(theme) => ({
                         fontWeight: 700,
-                        color: opportunityFilter === opt.key ? '#ffffff' : '#0f766e',
-                        backgroundColor: opportunityFilter === opt.key ? '#0f766e' : '#f0fdfa',
-                        borderColor: '#99f6e4',
-                        '&.MuiChip-filled': {
-                          backgroundColor: '#0f766e',
-                          color: '#ffffff',
-                        },
-                        '&.MuiChip-outlined': {
-                          backgroundColor: '#f0fdfa',
-                          color: '#0f766e',
-                          borderColor: '#99f6e4',
-                        },
-                        '&:hover': {
-                          backgroundColor: opportunityFilter === opt.key ? '#115e59' : '#ccfbf1',
-                        },
-                      }}
+                        color: opportunityFilter === opt.key ? theme.emphasys.action.primaryForeground : theme.emphasys.content.secondary,
+                        backgroundColor: opportunityFilter === opt.key ? theme.emphasys.action.primary : 'transparent',
+                        borderColor: theme.emphasys.content.border,
+                      })}
                     />
                   ))}
                   <Chip
@@ -1425,23 +1427,38 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
               exclusiva encima de la lista. */}
 
           <Stack direction="row" sx={{ minHeight: 28, alignItems: 'center', justifyContent: 'center' }}>
-            <Stack direction="row" spacing={0.25} sx={{ p: 0.25, borderRadius: 1, bgcolor: 'action.hover' }}>
-              {([['priority', 'Prioridad'], ['recent', 'Recientes']] as const).map(([mode, label]) => (
-                <Button
-                  key={mode}
-                  size="small"
-                  onClick={() => onConversationViewModeChange(mode)}
-                  variant={conversationViewMode === mode ? 'contained' : 'text'}
-                  sx={{ minHeight: 24, py: 0, px: 1.25, fontSize: 11, textTransform: 'none', boxShadow: 'none' }}
-                >
-                  {label}
-                </Button>
-              ))}
+            <Stack direction="row" spacing={0.25} sx={(theme) => ({ p: 0.25, borderRadius: 2, bgcolor: theme.emphasys.action.wash })}>
+              {([['priority', 'Prioridad'], ['recent', 'Recientes']] as const).map(([mode, label]) => {
+                const active = conversationViewMode === mode;
+                return (
+                  <Button
+                    key={mode}
+                    size="small"
+                    onClick={() => onConversationViewModeChange(mode)}
+                    variant="text"
+                    sx={(theme) => ({
+                      minHeight: 26,
+                      py: 0,
+                      px: 1.5,
+                      fontSize: 12,
+                      fontWeight: 650,
+                      textTransform: 'none',
+                      boxShadow: 'none',
+                      borderRadius: 1.5,
+                      color: active ? theme.emphasys.content.foreground : theme.emphasys.content.muted,
+                      bgcolor: active ? theme.emphasys.content.elevated : 'transparent',
+                      '&:hover': { bgcolor: active ? theme.emphasys.content.elevated : theme.emphasys.content.hover },
+                    })}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
             </Stack>
           </Stack>
 
           {/* Columna central: lista de leads */}
-          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, flex: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minHeight: 0, flex: 1 }}>
             <Stack spacing={1.5} sx={{ overflow: 'auto', pr: 0.5, flex: 1, minHeight: 0 }}>
               {leadsFiltradosOrdenados.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ px: 1 }}>
@@ -1456,7 +1473,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     const timeLabel = validStamp ? (sameDay ? stamp!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : stamp!.toLocaleDateString([], { day: '2-digit', month: '2-digit' })) : '';
                     return (
                       <ListItem disablePadding key={conversationLead.id}>
-                        <ListItemButton className="temperature-conversation-row" selected={conversationLead.id === selectedLead?.id} onClick={() => onSelectLead(conversationLead.id)} sx={{ alignItems: 'flex-start', gap: 1, px: 1.25, '&:hover .temperature-score-button, &:focus-within .temperature-score-button': { opacity: 1, pointerEvents: 'auto' } }}>
+                        <ListItemButton className="temperature-conversation-row" selected={conversationLead.id === selectedLead?.id} onClick={() => onSelectLead(conversationLead.id)} sx={(theme) => ({ alignItems: 'flex-start', gap: 1, px: 1.25, borderLeft: '2px solid transparent', '&.Mui-selected': { bgcolor: theme.emphasys.chat.selection, borderLeftColor: theme.emphasys.chat.selectionBar }, '&.Mui-selected:hover': { bgcolor: theme.emphasys.chat.selection }, '&:hover .temperature-score-button, &:focus-within .temperature-score-button': { opacity: 1, pointerEvents: 'auto' } })}>
                           <Avatar sx={{ width: 32, height: 32, fontSize: 12, bgcolor: getLeadAvatarColor(conversationLead.id) }}>{getLeadInitials(conversationLead.name)}</Avatar>
                           <Stack minWidth={0} flex={1} spacing={0.25}>
                             <Stack direction="row" justifyContent="space-between" spacing={1}>
@@ -1503,7 +1520,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         />
                         <Tooltip title={riesgoTooltip} arrow>
                           <Typography variant="subtitle2" fontWeight={700} color="error.main">
-                            🔴 Riesgo de perder ({leadsRiesgo.length})
+                            Riesgo de perder ({leadsRiesgo.length})
                           </Typography>
                         </Tooltip>
                       </Stack>
@@ -1536,7 +1553,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         />
                         <Tooltip title={seguimientoTooltip} arrow>
                           <Typography variant="subtitle2" fontWeight={700} color="warning.main">
-                            🟡 Requiere seguimiento ({leadsSeguimiento.length})
+                            Requiere seguimiento ({leadsSeguimiento.length})
                           </Typography>
                         </Tooltip>
                       </Stack>
@@ -1569,7 +1586,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         />
                         <Tooltip title={actividadTooltip} arrow>
                           <Typography variant="subtitle2" fontWeight={700} color="success.main">
-                            🟢 Actividad reciente ({leadsActividad.length})
+                            Actividad reciente ({leadsActividad.length})
                           </Typography>
                         </Tooltip>
                       </Stack>
@@ -1583,7 +1600,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                 </>
               )}
             </Stack>
-          </Paper>
+          </Box>
         </Box>
 
         {/* Panel de detalle: columna fija en desktop (>=1200px), Drawer
@@ -1601,6 +1618,10 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
+            borderLeft: 1,
+            borderColor: 'divider',
+            px: 1.5,
+            py: 1.25,
           }}
         >
           {detailContent}
@@ -1637,7 +1658,8 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 1.5,
+            gap: 0,
+            bgcolor: (theme) => theme.emphasys.chat.well,
           }}
         >
           {/* Header fijo y compacto de la conversación. Persiste aunque no
@@ -1651,16 +1673,15 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
           <Box
             sx={{
               flexShrink: 0,
-              minHeight: 56,
+              minHeight: 60,
               display: 'flex',
               alignItems: 'center',
-              gap: 1,
-              px: 1.5,
-              py: 1,
-              border: '1px solid',
+              gap: 1.25,
+              px: 1.75,
+              py: 1.25,
+              borderBottom: 1,
               borderColor: 'divider',
-              borderRadius: 1,
-              bgcolor: 'background.paper',
+              bgcolor: (theme) => theme.emphasys.chat.header,
             }}
           >
             {selectedLead ? (
@@ -1823,10 +1844,9 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                 </Stack>
               )}
               <Stack spacing={1} sx={{ flex: 1, minHeight: 0 }}>
-                <Paper
-                  variant="outlined"
+                <Box
                   ref={conversationScrollRef}
-                  sx={{ p: 1.25, flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}
+                  sx={{ p: 1.5, flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', bgcolor: 'transparent' }}
                 >
                   {conversationSearchMode === 'files' ? (
                     <Stack spacing={1} sx={{ p: 0.5 }}>
@@ -1959,10 +1979,10 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         sx={{
                           maxWidth: '68%',
                           px: 1.25,
-                          py: 0.6,
-                          borderRadius: 1.5,
-                          bgcolor: msg.from === 'me' ? 'primary.main' : 'grey.100',
-                          color: msg.from === 'me' ? 'primary.contrastText' : 'text.primary',
+                          py: 0.75,
+                          borderRadius: msg.from === 'me' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                          bgcolor: (theme) => msg.from === 'me' ? theme.emphasys.chat.sent : theme.emphasys.chat.received,
+                          color: (theme) => msg.from === 'me' ? theme.emphasys.chat.sentForeground : theme.emphasys.chat.receivedForeground,
                           transition: 'background-color 0.3s ease, box-shadow 0.3s ease',
                           ...(highlightedMessageId === msg.id
                             ? {
@@ -1987,8 +2007,8 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                             }}
                             sx={{
                               borderLeft: '3px solid',
-                              borderColor: msg.from === 'me' ? 'rgba(255,255,255,0.6)' : 'primary.main',
-                              bgcolor: msg.from === 'me' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)',
+                              borderColor: (theme) => msg.from === 'me' ? 'rgba(255,255,255,0.6)' : theme.emphasys.action.info,
+                              bgcolor: (theme) => msg.from === 'me' ? 'rgba(255,255,255,0.15)' : theme.emphasys.chat.reply,
                               borderRadius: 0.75,
                               px: 1,
                               py: 0.5,
@@ -2213,9 +2233,9 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     return (
                       <React.Fragment key={msg.id}>
                         {showDateSeparator && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 1 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, my: 1.25, mx: 2 }}>
                             <Divider sx={{ flex: 1 }} />
-                            <Typography variant="caption" color="text.secondary" sx={{ px: 1, whiteSpace: 'nowrap' }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, whiteSpace: 'nowrap', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 650, fontSize: 11 }}>
                               {dayLabel}
                             </Typography>
                             <Divider sx={{ flex: 1 }} />
@@ -2247,10 +2267,10 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     );
                   })}
                   <Box ref={conversationEndRef} />
-                </Paper>
+                </Box>
               </Stack>
 
-              <Paper variant="outlined" sx={{ p: 1 }}>
+              <Box sx={{ p: 1.25, borderTop: 1, borderColor: 'divider', bgcolor: 'transparent' }}>
                 {/* Franja de contexto compacta: respuesta activa, adjunto
                     pendiente y errores de subida, todo agrupado encima del
                     textarea (antes el adjunto/error vivían debajo). Mismo
@@ -2268,13 +2288,13 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                           px: 1,
                           py: 0.5,
                           borderRadius: 1,
-                          bgcolor: 'grey.100',
-                          borderLeft: '3px solid',
-                          borderColor: 'primary.main',
+                          bgcolor: (theme) => theme.emphasys.chat.reply,
+                          borderLeft: '2px solid',
+                          borderColor: (theme) => theme.emphasys.action.info,
                         }}
                       >
                         <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', display: 'block' }}>
+                          <Typography variant="caption" sx={(theme) => ({ fontWeight: 700, color: theme.emphasys.action.info, display: 'block' })}>
                             {replyingTo.from === 'me' ? 'Tú' : (selectedLead.name || 'Contacto')}
                           </Typography>
                           <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
@@ -2426,7 +2446,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     </Tooltip>
                   </Stack>
                 </Box>
-              </Paper>
+              </Box>
               <Dialog
                 open={isCompleteContactOpen}
                 onClose={closeCompleteContactDialog}

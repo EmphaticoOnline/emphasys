@@ -377,6 +377,7 @@ export default function ProductosPage() {
       onSelectProducto={setSelectedProductoId}
       onEditProducto={(productoId) => navigate(`/productos/${productoId}`)}
       onDeleteProducto={(producto) => void handleDelete(producto)}
+      {...(especificacionesHabilitadas ? { onOpenBiblioteca: () => setGlobalSpecsOpen(true) } : {})}
     />
   );
 
@@ -394,10 +395,12 @@ export default function ProductosPage() {
     />
   );
 
+  const bibliotecaGlobal = especificacionesHabilitadas ? (
+    <Button variant="outlined" onClick={() => setGlobalSpecsOpen(true)} sx={(theme) => ({ textTransform: 'none', fontWeight: 700, color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border, bgcolor: theme.emphasys.content.card, '&:hover': { borderColor: theme.emphasys.content.foreground, bgcolor: theme.emphasys.content.hover } })}>Biblioteca global</Button>
+  ) : null;
+
   return <Box sx={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-    {especificacionesHabilitadas && <Box sx={{ px: 3, pt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-      <Button variant="outlined" onClick={() => setGlobalSpecsOpen(true)}>Biblioteca global de especificaciones</Button>
-    </Box>}
+    {bibliotecaGlobal && (isMobile || viewMode !== 'lista') ? <Box sx={{ px: 3, pt: 2, display: 'flex', justifyContent: 'flex-end' }}>{bibliotecaGlobal}</Box> : null}
     {isMobile ? mobileView : desktopView}
     <Dialog open={globalSpecsOpen} onClose={() => setGlobalSpecsOpen(false)} fullWidth maxWidth="md">
       <DialogTitle>Biblioteca global de especificaciones</DialogTitle>

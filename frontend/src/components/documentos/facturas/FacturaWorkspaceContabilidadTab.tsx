@@ -12,6 +12,7 @@ import {
   TableHead,
   TableRow,
   Typography,
+  useTheme,
 } from '@mui/material';
 import type { DocumentoAccountingIndicatorModel } from '../indicadores/documentosIndicators.types';
 import type { DocumentoPolizaRelacionadaDto } from '../../../services/facturaVentaContabilizacionService';
@@ -41,6 +42,7 @@ type Props = {
 };
 
 export default function FacturaWorkspaceContabilidadTab({ accounting }: Props) {
+  const tokens = useTheme().emphasys;
   const policies = accounting?.policies ?? [];
   const [details, setDetails] = useState<Record<number, PolizaConMovimientos | null>>({});
   const [loading, setLoading] = useState(false);
@@ -142,7 +144,7 @@ export default function FacturaWorkspaceContabilidadTab({ accounting }: Props) {
             {loading && !loaded ? (
               <Stack alignItems="center" py={2}><CircularProgress size={22} /></Stack>
             ) : movimientos.length > 0 ? (
-              <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1 }}>
+              <TableContainer sx={{ border: `1px solid ${tokens.table.line}`, borderRadius: 1 }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>

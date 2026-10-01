@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Avatar,
   Box,
   Chip,
   CircularProgress,
@@ -12,6 +11,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { catalogoTabsSx } from '../catalogo/catalogoSurfaces';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
@@ -78,10 +78,10 @@ function getInitials(nombre: string) {
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2, py: 0.75 }}>
-      <Typography variant="body2" color="#6b7280">
+      <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
         {label}
       </Typography>
-      <Typography variant="body2" color="#111827" fontWeight={600} sx={{ textAlign: 'right', wordBreak: 'break-word' }}>
+      <Typography variant="body2" fontWeight={600} sx={{ textAlign: 'right', wordBreak: 'break-word', color: (theme) => theme.emphasys.content.foreground }}>
         {value || value === 0 ? value : '—'}
       </Typography>
     </Box>
@@ -96,18 +96,17 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
         display: 'flex',
         alignItems: 'center',
         gap: 1.25,
-        border: '1px solid #e5e7eb',
         borderRadius: 2,
         p: 1.5,
-        backgroundColor: '#fff',
+        backgroundColor: (theme) => theme.emphasys.metric.amount.background,
       }}
     >
-      <Box sx={{ color: '#1d2f68', display: 'flex' }}>{icon}</Box>
+      <Box sx={{ color: (theme) => theme.emphasys.content.foreground, display: 'flex' }}>{icon}</Box>
       <Box sx={{ minWidth: 0 }}>
-        <Typography variant="caption" color="#6b7280" sx={{ display: 'block', letterSpacing: 0.4, textTransform: 'uppercase' }}>
+        <Typography variant="caption" sx={{ display: 'block', letterSpacing: 0.4, textTransform: 'uppercase', color: (theme) => theme.emphasys.content.muted }}>
           {label}
         </Typography>
-        <Typography variant="subtitle1" fontWeight={700} color="#111827" noWrap>
+        <Typography variant="subtitle1" fontWeight={700} noWrap sx={{ color: (theme) => theme.emphasys.content.foreground }}>
           {value}
         </Typography>
       </Box>
@@ -144,7 +143,7 @@ function DocumentosMiniLista({
   if (documentos.length === 0) {
     return (
       <Box sx={{ py: 4, textAlign: 'center' }}>
-        <Typography variant="body2" color="#6b7280">
+        <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
           {emptyLabel}
         </Typography>
       </Box>
@@ -170,26 +169,26 @@ function DocumentosMiniLista({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 1.5,
-            border: '1px solid #e5e7eb',
+            border: (theme) => `1px solid ${theme.emphasys.content.border}`,
             borderRadius: 1.5,
             px: 1.5,
             py: 1,
             cursor: 'pointer',
             color: 'inherit',
-            '&:hover': { backgroundColor: '#f8fafc' },
+            '&:hover': { backgroundColor: (theme) => theme.emphasys.content.elevated },
           }}
         >
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={700} color="#1d2f68">
+            <Typography variant="body2" fontWeight={700} sx={{ color: (theme) => theme.emphasys.content.foreground }}>
               {doc.serie ? `${doc.serie}-${doc.numero ?? ''}` : `#${doc.numero ?? doc.id}`}
             </Typography>
-            <Typography variant="caption" color="#6b7280">
+            <Typography variant="caption" sx={{ color: (theme) => theme.emphasys.content.muted }}>
               {formatDate(doc.fecha_documento) || ''}
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} alignItems="center">
             <EstatusChip estatus={doc.estatus_documento} />
-            <Typography variant="body2" fontWeight={700} color="#111827">
+            <Typography variant="body2" fontWeight={700} sx={{ color: (theme) => theme.emphasys.content.foreground }}>
               {formatCurrency(doc.total) || ''}
             </Typography>
           </Stack>
@@ -317,21 +316,20 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
+          minHeight: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: '1px solid #e5e7eb',
-          borderRadius: 2,
-          backgroundColor: '#fff',
-          minHeight: 400,
+          backgroundColor: (theme) => theme.emphasys.content.background,
         }}
       >
         <Box sx={{ textAlign: 'center', px: 3 }}>
-          <PersonOutlineOutlinedIcon sx={{ fontSize: 40, color: '#cbd5e1', mb: 1 }} />
-          <Typography variant="body1" color="#4b5563" fontWeight={600}>
+          <PersonOutlineOutlinedIcon sx={{ fontSize: 40, color: (theme) => theme.emphasys.content.muted, mb: 1 }} />
+          <Typography variant="body1" fontWeight={600} sx={{ color: (theme) => theme.emphasys.content.secondary }}>
             Selecciona un contacto
           </Typography>
-          <Typography variant="body2" color="#9ca3af">
+          <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
             Elige un contacto de la lista para ver su información.
           </Typography>
         </Box>
@@ -344,13 +342,12 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
+          minHeight: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: '1px solid #e5e7eb',
-          borderRadius: 2,
-          backgroundColor: '#fff',
-          minHeight: 400,
+          backgroundColor: (theme) => theme.emphasys.content.background,
         }}
       >
         {error ? (
@@ -375,83 +372,67 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
   const ultimaActualizacion = formatDate(contacto.updated_at);
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>
-      {/* Header */}
-      <Box sx={{ p: 2.5, backgroundColor: '#091D5A', color: '#fff' }}>
-        <Stack direction="row" spacing={2} alignItems="flex-start" justifyContent="space-between">
-          <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
-            <Avatar sx={{ bgcolor: '#fff', color: '#091D5A', fontWeight: 700 }}>{getInitials(contacto.nombre)}</Avatar>
-            <Box sx={{ minWidth: 0 }}>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                <Typography variant="h6" fontWeight={700} color="#fff" sx={{ lineHeight: 1.2 }}>
-                  {contacto.nombre}
-                </Typography>
-                {contacto.tipo_contacto ? (
-                  <Chip
-                    size="small"
-                    label={contacto.tipo_contacto.toUpperCase()}
-                    sx={{ fontWeight: 700, backgroundColor: 'rgba(255,255,255,0.16)', color: '#fff' }}
-                  />
-                ) : null}
-              </Stack>
-              <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                {contacto.nombre_contacto ? (
-                  <Typography variant="body2" color="rgba(255,255,255,0.85)">
-                    {contacto.nombre_contacto}
-                  </Typography>
-                ) : null}
-                {contacto.telefono ? (
-                  <Typography variant="body2" color="rgba(255,255,255,0.85)">
-                    {formatearTelefonoParaMostrar(contacto.telefono)}
-                  </Typography>
-                ) : null}
-                {vendedorAsignado ? (
-                  <Typography variant="body2" color="rgba(255,255,255,0.85)">
-                    {vendedorAsignado}
-                  </Typography>
-                ) : null}
-              </Stack>
+    <Box sx={(theme) => ({ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', bgcolor: theme.emphasys.content.background, overflow: 'hidden' })}>
+      <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: 1.6, pb: 1.4, display: 'flex', gap: 1.5, justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={(theme) => ({ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: theme.emphasys.content.muted })}>
+            CONTACTO SELECCIONADO
+          </Typography>
+          <Typography variant="figure" sx={(theme) => ({ display: 'block', mt: 0.35, fontSize: 32, letterSpacing: '-0.02em', lineHeight: 1, color: theme.emphasys.content.foreground })}>
+            {contacto.nombre}
+          </Typography>
+          <Typography variant="figure" sx={(theme) => ({ display: 'block', mt: 0.7, fontSize: 15, lineHeight: 1.3, color: theme.emphasys.content.foreground })}>
+            {[contacto.nombre_contacto, formatearTelefonoParaMostrar(contacto.telefono), vendedorAsignado].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
+          </Typography>
+          <Stack direction="row" spacing={0.7} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+            {contacto.tipo_contacto ? (
+              <Box component="span" sx={(theme) => ({ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: theme.emphasys.metric.amount.background, color: theme.emphasys.content.foreground, fontSize: 12, fontWeight: 700 })}>
+                {contacto.tipo_contacto}
+              </Box>
+            ) : null}
+            <Box component="span" sx={(theme) => ({ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: theme.emphasys.content.elevated, color: theme.emphasys.content.foreground, fontSize: 12, fontWeight: 700 })}>
+              {contacto.activo ? 'Activo' : 'Inactivo'}
             </Box>
           </Stack>
-          <Stack direction="row" spacing={0.5}>
-            <Tooltip title="Ver actividades">
-              <IconButton
-                size="small"
-                sx={{ color: '#fff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }}
-                onClick={() =>
-                  onVerActividades({
-                    ...(contacto as ContactoRow),
-                    vendedor_nombre: vendedorAsignado ?? null,
-                  })
-                }
-              >
-                <EventNoteOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Editar contacto">
-              <IconButton
-                size="small"
-                sx={{ color: '#fff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }}
-                onClick={() => onEditar(contacto.id)}
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Eliminar contacto">
-              <IconButton
-                size="small"
-                sx={{ color: '#ff8a80', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }}
-                onClick={() => onEliminar(contacto.id)}
-              >
-                <DeleteOutlineIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
+        </Box>
+        <Stack direction="row" spacing={0.5}>
+          <Tooltip title="Ver actividades">
+            <IconButton
+              size="small"
+              sx={(theme) => ({ width: 34, height: 34, borderRadius: '10px', bgcolor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
+              onClick={() =>
+                onVerActividades({
+                  ...(contacto as ContactoRow),
+                  vendedor_nombre: vendedorAsignado ?? null,
+                })
+              }
+            >
+              <EventNoteOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Editar contacto">
+            <IconButton
+              size="small"
+              sx={(theme) => ({ width: 34, height: 34, borderRadius: '10px', bgcolor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
+              onClick={() => onEditar(contacto.id)}
+            >
+              <EditIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Eliminar contacto">
+            <IconButton
+              size="small"
+              sx={(theme) => ({ width: 34, height: 34, borderRadius: '10px', bgcolor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
+              onClick={() => onEliminar(contacto.id)}
+            >
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Stack>
       </Box>
 
-      <Box sx={{ borderBottom: '1px solid #e5e7eb' }}>
-        <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto">
+      <Box sx={(theme) => ({ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', mx: { xs: 1, md: 1.75 }, mb: { xs: 1, md: 1.75 }, bgcolor: theme.emphasys.content.well, borderRadius: 3, border: `1px solid ${theme.emphasys.content.border}`, overflow: 'hidden' })}>
+        <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto" sx={catalogoTabsSx}>
           <Tab label="Datos generales" />
           <Tab label={`Domicilios${tieneDomicilio ? ' (1)' : ''}`} />
           <Tooltip title="Función en desarrollo">
@@ -462,9 +443,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
           <Tab label={cotizacionesTotal !== null ? `Cotizaciones (${cotizacionesTotal})` : 'Cotizaciones'} />
           <Tab label={facturasTotal !== null ? `Facturas (${facturasTotal})` : 'Facturas'} />
         </Tabs>
-      </Box>
-
-      <Box sx={{ p: 2.5, overflowY: 'auto', flex: 1 }}>
+      <Box sx={{ p: { xs: 1.5, md: 2.25 }, overflowY: 'auto', flex: 1 }}>
         {tab === 0 && (
           <Stack spacing={2.5}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
@@ -490,7 +469,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
               }}
             >
               <Box>
-                <Typography variant="subtitle2" fontWeight={700} color="#374151" sx={{ mb: 0.5, letterSpacing: 0.4 }}>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5, letterSpacing: 0.4, color: (theme) => theme.emphasys.content.foreground }}>
                   INFORMACIÓN FISCAL
                 </Typography>
                 <InfoRow label="Razón social" value={contacto.nombre} />
@@ -501,7 +480,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
               </Box>
 
               <Box>
-                <Typography variant="subtitle2" fontWeight={700} color="#374151" sx={{ mb: 0.5, letterSpacing: 0.4 }}>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5, letterSpacing: 0.4, color: (theme) => theme.emphasys.content.foreground }}>
                   SEGUIMIENTO COMERCIAL
                 </Typography>
                 <InfoRow label="Vendedor asignado" value={vendedorAsignado} />
@@ -519,7 +498,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
               }}
             >
               <Box>
-                <Typography variant="subtitle2" fontWeight={700} color="#374151" sx={{ mb: 0.5, letterSpacing: 0.4 }}>
+                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5, letterSpacing: 0.4, color: (theme) => theme.emphasys.content.foreground }}>
                   CONTACTO PRINCIPAL
                 </Typography>
                 <InfoRow label="Nombre" value={contacto.nombre_contacto} />
@@ -530,11 +509,11 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
 
               {contacto.observaciones ? (
                 <Box>
-                  <Typography variant="subtitle2" fontWeight={700} color="#374151" sx={{ mb: 0.5, letterSpacing: 0.4 }}>
+                  <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5, letterSpacing: 0.4, color: (theme) => theme.emphasys.content.foreground }}>
                     OBSERVACIONES
                   </Typography>
-                  <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, p: 1.5, backgroundColor: '#f8fafc' }}>
-                    <Typography variant="body2" color="#374151" sx={{ whiteSpace: 'pre-wrap' }}>
+                  <Box sx={{ border: (theme) => `1px solid ${theme.emphasys.content.border}`, borderRadius: 1.5, p: 1.5, backgroundColor: (theme) => theme.emphasys.content.elevated }}>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: (theme) => theme.emphasys.content.foreground }}>
                       {contacto.observaciones}
                     </Typography>
                   </Box>
@@ -547,7 +526,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
         {tab === 1 && (
           <Box>
             {tieneDomicilio ? (
-              <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, p: 2, maxWidth: 480 }}>
+              <Box sx={{ border: (theme) => `1px solid ${theme.emphasys.content.border}`, borderRadius: 1.5, p: 2, maxWidth: 480 }}>
                 <InfoRow label="Calle y número" value={[domicilio_principal?.calle, domicilio_principal?.numero_exterior].filter(Boolean).join(' ')} />
                 <InfoRow label="Colonia" value={domicilio_principal?.colonia} />
                 <InfoRow label="Ciudad" value={domicilio_principal?.ciudad} />
@@ -556,7 +535,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
                 <InfoRow label="País" value={domicilio_principal?.pais} />
               </Box>
             ) : (
-              <Typography variant="body2" color="#6b7280">
+              <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
                 Este contacto no tiene un domicilio registrado.
               </Typography>
             )}
@@ -564,7 +543,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
         )}
 
         {tab === 2 && (
-          <Typography variant="body2" color="#6b7280">
+          <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
             La gestión de contactos adicionales estará disponible próximamente.
           </Typography>
         )}
@@ -576,6 +555,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
         {tab === 4 && (
           <DocumentosMiniLista loading={facturasLoading} documentos={facturas} emptyLabel="Sin facturas registradas." codigo="factura" />
         )}
+      </Box>
       </Box>
     </Box>
   );

@@ -23,7 +23,9 @@
 // generales, totales, fiscales) es de altura fija y compacta; solo la lista
 // de Partidas es flexible y con scroll interno propio cuando hay muchas.
 import React, { useMemo } from 'react';
-import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
+import { estadoVisualDocumento } from '../estadoVisualDocumento';
+import { getStatusToneColor } from '../../status/status.semantics';
 import type { CotizacionDocumento, CotizacionListado, CotizacionPartida } from '../../../types/cotizacion';
 import { useSession } from '../../../session/useSession';
 import { summarizeDocumentTaxes } from '../../../utils/documentTaxSummary';
@@ -42,20 +44,6 @@ interface FacturaDocumentoResumenViewProps {
   reconciling?: boolean;
 }
 
-const field = (label: string, value: React.ReactNode) => (
-  <Box sx={{ minWidth: 0 }}>
-    <Typography
-      component="span"
-      sx={{ display: 'block', fontSize: 9, lineHeight: 1.3, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.3 }}
-    >
-      {label}
-    </Typography>
-    <Typography sx={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.35, overflowWrap: 'break-word' }}>
-      {value ?? '—'}
-    </Typography>
-  </Box>
-);
-
 export default function FacturaDocumentoResumenView({
   row,
   documento,
@@ -66,7 +54,22 @@ export default function FacturaDocumentoResumenView({
   onReconcile,
   reconciling = false,
 }: FacturaDocumentoResumenViewProps) {
+  const theme = useTheme();
+  const tokens = theme.emphasys;
   const { session } = useSession();
+  const field = (label: string, value: React.ReactNode) => (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography
+        component="span"
+        sx={{ display: 'block', fontSize: 9, lineHeight: 1.3, color: tokens.content.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}
+      >
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.35, overflowWrap: 'break-word', color: tokens.content.foreground }}>
+        {value ?? '—'}
+      </Typography>
+    </Box>
+  );
   const emisorNombre = useMemo(
     () => session.empresas?.find((e) => e.id === session.empresaActivaId)?.nombre ?? null,
     [session.empresas, session.empresaActivaId]
@@ -102,22 +105,20 @@ export default function FacturaDocumentoResumenView({
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ border: '1px solid #e3e5ec', borderRadius: 2, p: 1.75, bgcolor: '#fff', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ border: `1px solid ${tokens.content.border}`, borderRadius: 2, p: 1.75, bgcolor: tokens.content.card, color: tokens.content.foreground, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
 
-        {/* Encabezado — una sola línea */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} sx={{ pb: 1, mb: 1, borderBottom: '2px solid #1d2f68', flexShrink: 0 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} sx={{ pb: 1, mb: 1, borderBottom: `2px solid ${tokens.content.foreground}`, flexShrink: 0 }}>
           <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 800 }} noWrap>{esNotaDeVenta ? `Nota de venta · ${folio}` : folio}</Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>
+            <Typography variant="figure" sx={{ fontSize: 18, color: tokens.content.foreground }} noWrap>{esNotaDeVenta ? `Nota de venta · ${folio}` : folio}</Typography>
+            <Typography variant="caption" sx={{ color: tokens.content.muted }} noWrap>
               {row.fecha_documento ? new Date(row.fecha_documento).toLocaleDateString('es-MX') : '—'}
             </Typography>
           </Stack>
           {statusOption ? (
-            <Chip
-              label={statusOption.label}
-              size="small"
-              sx={{ height: 20, fontSize: 10.5, fontWeight: 700, bgcolor: statusOption.color || '#f3f4f6', color: statusOption.textColor || '#374151' }}
-            />
+            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, height: 22, px: 1, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, fontSize: 11, fontWeight: 700 }}>
+              <Box component="span" sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisualDocumento(row).tone) }} />
+              {statusOption.label}
+            </Box>
           ) : null}
         </Stack>
 
@@ -135,7 +136,7 @@ export default function FacturaDocumentoResumenView({
             gap: 1,
             py: 1,
             mb: 1,
-            borderBottom: '1px solid #eef0f3',
+            borderBottom: `1px solid ${tokens.content.border}`,
             flexShrink: 0,
           }}
         >
@@ -167,7 +168,7 @@ export default function FacturaDocumentoResumenView({
 
         {/* Partidas — única zona con scroll interno */}
         <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: 'primary.main', textTransform: 'uppercase', letterSpacing: 0.3, mb: 0.5, flexShrink: 0 }}>
+          <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: tokens.content.muted, textTransform: 'uppercase', letterSpacing: 0.3, mb: 0.5, flexShrink: 0 }}>
             Partidas
           </Typography>
           {partidasLoading ? (
@@ -178,7 +179,7 @@ export default function FacturaDocumentoResumenView({
           ) : !partidas || partidas.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>Sin partidas.</Typography>
           ) : (
-            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid #eef0f3', borderRadius: 1 }}>
+            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', border: `1px solid ${tokens.content.border}`, borderRadius: 1 }}>
               {partidas.map((p, idx) => (
                 <Stack
                   key={p.id}
@@ -186,7 +187,7 @@ export default function FacturaDocumentoResumenView({
                   justifyContent="space-between"
                   alignItems="flex-start"
                   spacing={2}
-                  sx={{ px: 1, py: 0.5, borderBottom: idx < partidas.length - 1 ? '1px solid #f0f1f5' : 'none' }}
+                  sx={{ px: 1, py: 0.5, borderBottom: idx < partidas.length - 1 ? `1px solid ${tokens.content.border}` : 'none' }}
                 >
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontSize: 12.5 }} noWrap>{p.producto_descripcion || p.descripcion_alterna || '—'}</Typography>
@@ -204,12 +205,12 @@ export default function FacturaDocumentoResumenView({
         </Box>
 
         {/* Cancelación y totales: ambas columnas permanecen ancladas en la franja inferior. */}
-        <Stack direction="row" alignItems="flex-end" justifyContent="space-between" spacing={2} sx={{ pt: 1, mt: 1, borderTop: '1px solid #eef0f3', flexShrink: 0 }}>
+        <Stack direction="row" alignItems="flex-end" justifyContent="space-between" spacing={2} sx={{ pt: 1, mt: 1, borderTop: `1px solid ${tokens.content.border}`, flexShrink: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             {cancelacionRelevante ? (
               <Box sx={{ maxWidth: 360, pr: 1 }}>
-                <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: '#92400e', textTransform: 'uppercase' }}>CANCELACIÓN CFDI</Typography>
-                <Typography sx={{ fontSize: 13, fontWeight: 800, color: '#92400e' }}>Estado: {cancelacionLabel}</Typography>
+                <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: tokens.status.cancellation, textTransform: 'uppercase' }}>CANCELACIÓN CFDI</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 800, color: tokens.metric.blocked.foreground }}>Estado: {cancelacionLabel}</Typography>
                 {cancelacionError ? (
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>El estado de la cancelación necesita volver a consultarse.</Typography>
                 ) : cancelacionEstado === 'cancelada' || cancelacionEstado === 'rechazada' ? null : (
@@ -217,7 +218,7 @@ export default function FacturaDocumentoResumenView({
                 )}
                 {documento?.cfdi_cancelacion_proveedor_status ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Estado proveedor: {documento.cfdi_cancelacion_proveedor_status}</Typography> : null}
                 {puedeReconciliar && onReconcile ? (
-                  <Button size="small" variant="outlined" onClick={() => { void onReconcile(); }} disabled={reconciling} startIcon={reconciling ? <CircularProgress size={14} /> : undefined} sx={{ mt: 0.75, color: '#92400e', borderColor: '#d97706' }}>
+                  <Button size="small" variant="outlined" onClick={() => { void onReconcile(); }} disabled={reconciling} startIcon={reconciling ? <CircularProgress size={14} /> : undefined} sx={{ mt: 0.75, color: tokens.metric.blocked.foreground, borderColor: tokens.status.cancellation }}>
                     {reconciling ? 'Reconciliando…' : 'Reconciliar estado'}
                   </Button>
                 ) : null}
@@ -243,20 +244,20 @@ export default function FacturaDocumentoResumenView({
                 <Typography variant="caption">{impuesto.tipo === 'retencion' ? '-' : ''}{currency.format(impuesto.monto)}</Typography>
               </Stack>
             ))}
-            <Stack direction="row" justifyContent="space-between" sx={{ pt: 0.25, mt: 0.25, borderTop: '2px solid #e3e5ec' }}>
-              <Typography sx={{ fontSize: 13.5, fontWeight: 800 }} color="primary">Total</Typography>
-              <Typography sx={{ fontSize: 13.5, fontWeight: 800 }} color="primary">{currency.format(total)}</Typography>
+            <Stack direction="row" justifyContent="space-between" sx={{ pt: 0.25, mt: 0.25, borderTop: `2px solid ${tokens.content.border}` }}>
+              <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: tokens.content.foreground }}>Total</Typography>
+              <Typography variant="figure" sx={{ fontSize: 16, color: tokens.content.foreground }}>{currency.format(total)}</Typography>
             </Stack>
             <Stack direction="row" justifyContent="space-between">
-              <Typography variant="caption" fontWeight={700} color="text.secondary">Saldo pendiente</Typography>
-              <Typography variant="caption" fontWeight={700} color={saldo > 0 ? 'error.main' : 'success.main'}>{currency.format(saldo)}</Typography>
+              <Typography variant="caption" fontWeight={700} sx={{ color: tokens.content.muted }}>Saldo pendiente</Typography>
+              <Typography variant="caption" fontWeight={700} sx={{ color: saldo > 0 ? tokens.metric.blocked.foreground : tokens.metric.applied.foreground }}>{currency.format(saldo)}</Typography>
             </Stack>
           </Box>
         </Stack>
 
         {documento?.observaciones ? (
-          <Box sx={{ pt: 1, mt: 1, borderTop: '1px solid #eef0f3', flexShrink: 0 }}>
-            <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: 'primary.main', textTransform: 'uppercase', letterSpacing: 0.3, mb: 0.25 }}>
+          <Box sx={{ pt: 1, mt: 1, borderTop: `1px solid ${tokens.content.border}`, flexShrink: 0 }}>
+            <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: tokens.content.muted, textTransform: 'uppercase', letterSpacing: 0.3, mb: 0.25 }}>
               Observaciones
             </Typography>
             <Typography variant="body2" whiteSpace="pre-wrap">{documento.observaciones}</Typography>

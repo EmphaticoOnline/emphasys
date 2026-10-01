@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Box, Divider, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
 import FormatItalicIcon from '@mui/icons-material/FormatItalic';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
@@ -26,6 +27,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
   { content, onChange, placeholder, minHeight = 260, maxHeight = 480, contentFontSize, denseToolbar = false },
   ref
 ) {
+  const tokens = useTheme().emphasys;
   const lastExternalContent = useRef(content);
   const editor = useEditor({
     extensions: [
@@ -65,7 +67,9 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
   return (
     <Box
       sx={{
-        border: '1px solid #dbe3ee',
+        border: `1px solid ${tokens.content.border}`,
+        backgroundColor: tokens.content.elevated,
+        color: tokens.content.foreground,
         borderRadius: 2,
         overflow: 'hidden',
       }}
@@ -75,7 +79,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
         sx={{
           p: denseToolbar ? 0.5 : 1,
           gap: denseToolbar ? 0.25 : 0.5,
-          backgroundColor: '#f8fafc',
+          backgroundColor: tokens.content.hover,
           ...(denseToolbar && {
             '& .MuiToggleButton-root': { p: 0.4 },
             '& .MuiSvgIcon-root': { fontSize: 16 },
@@ -129,7 +133,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
           },
           '& .ProseMirror p.is-editor-empty:first-of-type::before': {
             content: 'attr(data-placeholder)',
-            color: '#94a3b8',
+            color: tokens.content.muted,
             float: 'left',
             height: 0,
             pointerEvents: 'none',

@@ -36,12 +36,29 @@ import {
 import { buildAssetUrl } from '../../services/empresasAssetsService';
 import EspecificacionesBibliotecaEditor from './EspecificacionesBibliotecaEditor';
 
+export async function alternarActivoDeProducto(producto: Producto): Promise<Producto> {
+  const payload: ProductoBasico = {
+    clave: producto.clave,
+    descripcion: producto.descripcion,
+    clasificacion: producto.clasificacion,
+    tipo_producto: producto.tipo_producto,
+    activo: !producto.activo,
+    clave_producto_sat: producto.clave_producto_sat,
+    unidad_venta_id: producto.unidad_venta_id,
+    unidad_inventario_id: producto.unidad_inventario_id,
+    especificaciones: producto.especificaciones,
+  };
+  return updateProducto(producto.id, payload);
+}
+
 type ProductoWorkspaceProps = {
   productoId: number | null;
   esAdmin: boolean;
   onEditar: (productoId: number) => void;
   onEliminar: (producto: Producto) => void;
   onChanged?: () => void;
+  onAlternarActivo?: (producto: Producto) => Promise<Producto | void>;
+  alternando?: boolean;
 };
 
 const dateFormatter = new Intl.DateTimeFormat('es-MX', { year: 'numeric', month: 'short', day: '2-digit' });
@@ -90,14 +107,13 @@ function valorCatalogoPorNombre(catalogos: CatalogoConfigurablesProductoRespuest
 function InfoRow({ label, value, compact }: { label: string; value: React.ReactNode; compact?: boolean }) {
   return (
     <Box>
-      <Typography variant="caption" color="#6b7280" sx={{ display: 'block', mb: 0.25 }}>
+      <Typography variant="caption" sx={{ display: 'block', mb: 0.25, color: (theme) => theme.emphasys.content.muted }}>
         {label}
       </Typography>
       <Typography
         variant="body2"
         fontWeight={compact ? 500 : 600}
-        color="#111827"
-        sx={{ wordBreak: 'break-word', ...(compact ? { fontSize: 13 } : {}) }}
+        sx={{ color: (theme) => theme.emphasys.content.foreground, wordBreak: 'break-word', ...(compact ? { fontSize: 13 } : {}) }}
       >
         {value || value === 0 ? value : '—'}
       </Typography>
@@ -115,12 +131,12 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff' }}>
+    <Box sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2, backgroundColor: theme.emphasys.content.card })}>
       <Box
         sx={{
           px: 1.75,
           py: 1.25,
-          borderBottom: '1px solid #f1f3f5',
+          borderBottom: (theme) => `1px solid ${theme.emphasys.content.border}`,
           display: 'flex',
           alignItems: 'center',
           gap: 1,
@@ -129,8 +145,7 @@ function SectionCard({
         <Typography
           variant="caption"
           fontWeight={700}
-          color="#374151"
-          sx={{ letterSpacing: 0.4, textTransform: 'uppercase' }}
+          sx={{ letterSpacing: '0.08em', textTransform: 'uppercase', color: (theme) => theme.emphasys.content.muted }}
         >
           {title}
         </Typography>
@@ -149,12 +164,12 @@ function PendingCard({ title, message }: { title: string; message: string }) {
         <Chip
           label="Requiere integración"
           size="small"
-          sx={{ height: 18, fontSize: 10.5, fontWeight: 600, backgroundColor: '#fef3c7', color: '#92400e' }}
+          sx={(theme) => ({ height: 22, fontSize: 11, fontWeight: 700, backgroundColor: theme.emphasys.metric.amount.background, color: theme.emphasys.content.foreground })}
         />
       }
     >
       <Box sx={{ textAlign: 'center', py: 1.5 }}>
-        <Typography variant="body2" color="#6b7280" sx={{ maxWidth: 420, mx: 'auto', lineHeight: 1.5 }}>
+        <Typography variant="body2" sx={(theme) => ({ maxWidth: 420, mx: 'auto', lineHeight: 1.5, color: theme.emphasys.content.muted })}>
           {message}
         </Typography>
       </Box>
@@ -165,7 +180,7 @@ function PendingCard({ title, message }: { title: string; message: string }) {
 const TABS = ['resumen', 'comercial', 'inventario', 'archivos', 'especificaciones', 'relacionados'] as const;
 type TabId = (typeof TABS)[number];
 
-export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEliminar, onChanged }: ProductoWorkspaceProps) {
+export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEliminar, onChanged, onAlternarActivo, alternando = false }: ProductoWorkspaceProps) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [producto, setProducto] = React.useState<Producto | null>(null);
@@ -223,7 +238,18 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
   }, [productoId]);
 
   const handleToggleActivo = async () => {
-    if (!producto) return;
+    if (!producto || toggling || alternando) return;
+    if (onAlternarActivo) {
+      try {
+        const actualizado = await onAlternarActivo(producto);
+        if (actualizado && productoIdRef.current === producto.id) setProducto(actualizado);
+      } catch (err) {
+        if (productoIdRef.current === producto.id) {
+          setError(err instanceof Error ? err.message : 'No se pudo actualizar el estado del producto');
+        }
+      }
+      return;
+    }
     const startedForId = producto.id;
     setToggling(true);
     try {
@@ -308,22 +334,21 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
+          minHeight: 0,
           height: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: '1px solid #e5e7eb',
-          borderRadius: 2,
-          backgroundColor: '#fff',
-          minHeight: 400,
+          backgroundColor: (theme) => theme.emphasys.content.background,
         }}
       >
         <Box sx={{ textAlign: 'center', px: 3 }}>
-          <Inventory2OutlinedIcon sx={{ fontSize: 40, color: '#cbd5e1', mb: 1 }} />
-          <Typography variant="body1" color="#4b5563" fontWeight={600}>
+          <Inventory2OutlinedIcon sx={{ fontSize: 40, color: (theme) => theme.emphasys.content.muted, mb: 1 }} />
+          <Typography variant="body1" fontWeight={600} sx={{ color: (theme) => theme.emphasys.content.foreground }}>
             Selecciona un producto
           </Typography>
-          <Typography variant="body2" color="#9ca3af">
+          <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
             Elige un producto de la lista para ver su información.
           </Typography>
         </Box>
@@ -336,14 +361,13 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
+          minHeight: 0,
           height: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: '1px solid #e5e7eb',
-          borderRadius: 2,
-          backgroundColor: '#fff',
-          minHeight: 400,
+          backgroundColor: (theme) => theme.emphasys.content.background,
         }}
       >
         {error ? (
@@ -386,9 +410,8 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
   ];
 
   return (
-    <Box sx={{ flex: 1, height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', minWidth: 0, border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>
-      {/* Header */}
-      <Box sx={{ p: 2.5, backgroundColor: '#091D5A', color: '#fff' }}>
+    <Box sx={(theme) => ({ flex: 1, height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', minWidth: 0, bgcolor: theme.emphasys.content.background, overflow: 'hidden' })}>
+      <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: 1.6, pb: 1.4 }}>
         <Stack direction="row" spacing={1.75} alignItems="flex-start" justifyContent="space-between">
           <Stack direction="row" spacing={1.75} alignItems="flex-start" sx={{ minWidth: 0 }}>
             <Box
@@ -397,8 +420,8 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
                 height: 56,
                 flexShrink: 0,
                 borderRadius: 1.5,
-                border: '1px solid rgba(255,255,255,0.18)',
-                backgroundColor: 'rgba(255,255,255,0.06)',
+                border: (theme) => `1px solid ${theme.emphasys.content.border}`,
+                backgroundColor: (theme) => theme.emphasys.content.elevated,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -412,43 +435,46 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (
-                <ImageOutlinedIcon sx={{ color: 'rgba(255,255,255,0.35)' }} />
+                <ImageOutlinedIcon sx={{ color: (theme) => theme.emphasys.content.muted }} />
               )}
             </Box>
             <Box sx={{ minWidth: 0 }}>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+              <Typography sx={(theme) => ({ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: theme.emphasys.content.muted })}>
+                PRODUCTO SELECCIONADO
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mt: 0.35 }}>
                 <Typography
                   variant="caption"
                   fontWeight={700}
-                  color="#8fb7ff"
-                  sx={{ fontFamily: '"Roboto Mono", monospace', letterSpacing: 0.4 }}
+                  sx={(theme) => ({ fontSize: 11, letterSpacing: '0.14em', color: theme.emphasys.content.muted })}
                 >
                   {producto.clave}
                 </Typography>
                 <Chip
                   size="small"
                   label={producto.activo ? 'Activo' : 'Inactivo'}
-                  sx={{
+                  sx={(theme) => ({
                     height: 19,
                     fontSize: 11,
                     fontWeight: 700,
-                    backgroundColor: producto.activo ? 'rgba(0,179,173,0.20)' : 'rgba(255,255,255,0.12)',
-                    color: producto.activo ? '#7ff0e8' : 'rgba(255,255,255,0.85)',
-                  }}
+                    backgroundColor: producto.activo ? theme.emphasys.metric.applied.background : theme.emphasys.content.elevated,
+                    color: producto.activo ? theme.emphasys.metric.applied.foreground : theme.emphasys.content.muted,
+                  })}
                 />
                 {producto.tipo_producto ? (
                   <Chip
                     size="small"
                     label={producto.tipo_producto}
-                    sx={{ height: 19, fontSize: 11, fontWeight: 600, backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}
+                    sx={(theme) => ({ height: 26, px: 0.4, fontSize: 12, fontWeight: 700, borderRadius: 99, backgroundColor: theme.emphasys.metric.amount.background, color: theme.emphasys.content.foreground })}
                   />
                 ) : null}
               </Stack>
               <Typography
                 fontWeight={600}
-                color="#fff"
                 sx={{
-                  fontSize: 15,
+                  color: (theme) => theme.emphasys.content.foreground,
+                  fontSize: 28,
+                  fontFamily: (theme) => theme.typography.figure.fontFamily,
                   lineHeight: 1.35,
                   mt: 0.5,
                   display: '-webkit-box',
@@ -462,18 +488,18 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
               </Typography>
               <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 0.5 }}>
                 {familiaCatalogo ? (
-                  <Typography variant="body2" color="rgba(255,255,255,0.62)">
-                    Familia: <Typography component="span" variant="body2" color="#fff" fontWeight={500}>{familiaCatalogo}</Typography>
+                  <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.secondary })}>
+                    Familia: <Typography component="span" variant="body2" sx={{ color: 'inherit' }} fontWeight={500}>{familiaCatalogo}</Typography>
                   </Typography>
                 ) : null}
                 {producto.unidad_venta_clave ? (
-                  <Typography variant="body2" color="rgba(255,255,255,0.62)">
-                    Unidad: <Typography component="span" variant="body2" color="#fff" fontWeight={500}>{producto.unidad_venta_clave}</Typography>
+                  <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.secondary })}>
+                    Unidad: <Typography component="span" variant="body2" sx={{ color: 'inherit' }} fontWeight={500}>{producto.unidad_venta_clave}</Typography>
                   </Typography>
                 ) : null}
                 {producto.clave_producto_sat ? (
-                  <Typography variant="body2" color="rgba(255,255,255,0.62)">
-                    SAT: <Typography component="span" variant="body2" color="#fff" fontWeight={500}>{producto.clave_producto_sat}</Typography>
+                  <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.secondary })}>
+                    SAT: <Typography component="span" variant="body2" sx={{ color: 'inherit' }} fontWeight={500}>{producto.clave_producto_sat}</Typography>
                   </Typography>
                 ) : null}
               </Stack>
@@ -481,7 +507,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
           </Stack>
           <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
             <Tooltip title="Editar producto">
-              <IconButton size="small" sx={{ color: '#fff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }} onClick={() => onEditar(producto.id)}>
+              <IconButton size="small" sx={(theme) => ({ width: 34, height: 34, borderRadius: '10px', bgcolor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })} onClick={() => onEditar(producto.id)}>
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -489,15 +515,15 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
               <span>
                 <IconButton
                   size="small"
-                  disabled={toggling}
-                  sx={{ color: '#fff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }}
+                  disabled={toggling || alternando}
+                  sx={(theme) => ({ width: 34, height: 34, borderRadius: '10px', bgcolor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { bgcolor: theme.emphasys.action.primaryHover }, '&.Mui-disabled': { bgcolor: theme.emphasys.action.disabled, color: theme.emphasys.action.primaryForeground } })}
                   onClick={() => void handleToggleActivo()}
                 >
                   <PowerSettingsNewIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
-            <IconButton size="small" sx={{ color: '#fff', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } }} onClick={(e) => setMenuAnchor(e.currentTarget)}>
+            <IconButton size="small" sx={(theme) => ({ width: 34, height: 34, borderRadius: '10px', bgcolor: theme.emphasys.action.primary, color: theme.emphasys.action.primaryForeground, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })} onClick={(e) => setMenuAnchor(e.currentTarget)}>
               <MoreHorizIcon fontSize="small" />
             </IconButton>
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
@@ -506,7 +532,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
                   setMenuAnchor(null);
                   onEliminar(producto);
                 }}
-                sx={{ color: '#b91c1c' }}
+                sx={{ color: (theme) => theme.emphasys.action.destructive }}
               >
                 <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} /> Eliminar
               </MenuItem>
@@ -514,18 +540,21 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
           </Stack>
         </Stack>
 
+      </Box>
+      <Box sx={(theme) => ({ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', mx: { xs: 1, md: 1.75 }, mb: { xs: 1, md: 1.75 }, bgcolor: theme.emphasys.content.well, borderRadius: 3, border: `1px solid ${theme.emphasys.content.border}`, overflow: 'hidden' })}>
         <Tabs
           value={tab}
           onChange={(_, value) => setTab(value)}
           variant="scrollable"
           scrollButtons="auto"
-          sx={{
-            mt: 1.25,
-            minHeight: 28,
-            '& .MuiTab-root': { minHeight: 28, py: 0.25, color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'none' },
-            '& .Mui-selected': { color: '#fff !important' },
-            '& .MuiTabs-indicator': { backgroundColor: '#fff' },
-          }}
+          sx={(theme) => ({
+            px: 1.5,
+            minHeight: 46,
+            borderBottom: `1px solid ${theme.emphasys.content.border}`,
+            '& .MuiTab-root': { minHeight: 46, textTransform: 'none', fontWeight: 650, fontSize: 14, color: theme.emphasys.content.muted },
+            '& .Mui-selected': { color: theme.emphasys.content.foreground },
+            '& .MuiTabs-indicator': { height: 2, borderRadius: 2, backgroundColor: theme.emphasys.content.foreground },
+          })}
         >
           <Tab value="resumen" label="Resumen" />
           <Tab value="comercial" label={esAdmin ? 'Comercial y precios' : 'Comercial'} />
@@ -534,10 +563,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
           <Tab value="especificaciones" label="Especificaciones" />
           <Tab value="relacionados" label="Relacionados" />
         </Tabs>
-      </Box>
-
-      {/* Body */}
-      <Box sx={{ p: 2, overflowY: 'auto', flex: 1, backgroundColor: '#eef1f4' }}>
+      <Box sx={{ p: { xs: 1.5, md: 2.25 }, overflowY: 'auto', flex: 1 }}>
         {tab === 'resumen' && (
           <Stack spacing={1.5}>
             <SectionCard title="Datos generales">
@@ -581,21 +607,21 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
                   <Chip
                     label="Restringido"
                     size="small"
-                    sx={{ height: 18, fontSize: 10.5, fontWeight: 600, backgroundColor: '#eef1f6', color: '#1d2f68' }}
+                    sx={(theme) => ({ height: 18, fontSize: 10.5, fontWeight: 600, backgroundColor: theme.emphasys.metric.amount.background, color: theme.emphasys.metric.amount.foreground })}
                   />
                 }
               >
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5 }}>
-                  <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, p: 1.25 }}>
-                    <Typography variant="caption" color="#6b7280" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>Costo</Typography>
+                  <Box sx={{ border: (theme) => `1px solid ${theme.emphasys.content.border}`, borderRadius: 1.5, p: 1.25 }}>
+                    <Typography variant="caption" sx={{ color: (theme) => theme.emphasys.content.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>Costo</Typography>
                     <Typography variant="h6" fontWeight={700}>{formatCurrency(costoBase) ?? '—'}</Typography>
                   </Box>
                   {nivelesPrecio.filter((n) => n.valor !== null && n.valor !== undefined).map((n) => (
-                    <Box key={n.nivel} sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, p: 1.25 }}>
-                      <Typography variant="caption" color="#6b7280" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>Precio {n.nivel}</Typography>
-                      <Typography variant="h6" fontWeight={700} color="#006261">{formatCurrency(n.valor)}</Typography>
+                    <Box key={n.nivel} sx={{ border: (theme) => `1px solid ${theme.emphasys.content.border}`, borderRadius: 1.5, p: 1.25 }}>
+                      <Typography variant="caption" sx={{ color: (theme) => theme.emphasys.content.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>Precio {n.nivel}</Typography>
+                      <Typography variant="h6" fontWeight={700} sx={{ color: (theme) => theme.emphasys.content.foreground }}>{formatCurrency(n.valor)}</Typography>
                       {costoBase && n.valor ? (
-                        <Typography variant="caption" color="#6b7280">
+                        <Typography variant="caption" sx={{ color: (theme) => theme.emphasys.content.muted }}>
                           margen {(((Number(n.valor) - Number(costoBase)) / Number(n.valor)) * 100).toFixed(1)}%
                         </Typography>
                       ) : null}
@@ -622,7 +648,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
                   ))}
                 </Box>
               ) : (
-                <Typography variant="body2" color="#6b7280">Este producto no tiene catálogos comerciales asignados.</Typography>
+                <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>Este producto no tiene catálogos comerciales asignados.</Typography>
               )}
             </SectionCard>
 
@@ -639,20 +665,20 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
               <>
                 <SectionCard title="Precios propios del producto">
                   <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', backgroundColor: '#1d2f68', color: '#fff', fontSize: 11, fontWeight: 600, px: 1.75, py: 1, borderRadius: 1 }}>
+                    <Box sx={(theme) => ({ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', backgroundColor: theme.emphasys.grid.header, color: theme.emphasys.grid.headerForeground, fontSize: 11, fontWeight: 600, px: 1.75, py: 1, borderRadius: 1 })}>
                       <span>Nivel de precio</span><span style={{ textAlign: 'right' }}>Margen</span><span style={{ textAlign: 'right' }}>Precio</span>
                     </Box>
                     {nivelesPrecio.filter((n) => n.valor !== null && n.valor !== undefined).map((n) => (
-                      <Box key={n.nivel} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', px: 1.75, py: 1, fontSize: 13, borderBottom: '1px solid #f1f3f5' }}>
+                      <Box key={n.nivel} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', px: 1.75, py: 1, fontSize: 13, borderBottom: (theme) => `1px solid ${theme.emphasys.content.border}` }}>
                         <span>{n.nivel}</span>
-                        <span style={{ textAlign: 'right', color: '#6b7280' }}>
+                        <span style={{ textAlign: 'right' }}>
                           {costoBase && n.valor ? `${(((Number(n.valor) - Number(costoBase)) / Number(n.valor)) * 100).toFixed(1)}%` : '—'}
                         </span>
                         <span style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(n.valor)}</span>
                       </Box>
                     ))}
                     {nivelesPrecio.every((n) => n.valor === null || n.valor === undefined) && (
-                      <Typography variant="body2" color="#6b7280" sx={{ py: 2 }}>Este producto no tiene precios propios capturados.</Typography>
+                      <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted, py: 2 }}>Este producto no tiene precios propios capturados.</Typography>
                     )}
                   </Box>
                 </SectionCard>
@@ -706,28 +732,28 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
                   label="Subir imagen"
                   size="small"
                   onClick={() => fileInputRef.current?.click()}
-                  sx={{ cursor: 'pointer', height: 24, fontWeight: 600, color: '#1d2f68', border: '1px solid #e5e7eb' }}
+                  sx={(theme) => ({ cursor: 'pointer', height: 24, fontWeight: 600, color: theme.emphasys.content.foreground, border: `1px solid ${theme.emphasys.content.border}`, bgcolor: theme.emphasys.content.card })}
                   variant="outlined"
                 />
               </>
             }
           >
             {archivos.length === 0 ? (
-              <Typography variant="body2" color="#6b7280">Este producto no tiene imágenes cargadas.</Typography>
+              <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>Este producto no tiene imágenes cargadas.</Typography>
             ) : (
               <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 1.5 }}>
                 {archivos.map((archivo) => (
-                  <Box key={archivo.id} sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, overflow: 'hidden', position: 'relative' }}>
+                  <Box key={archivo.id} sx={{ border: (theme) => `1px solid ${theme.emphasys.content.border}`, borderRadius: 1.5, overflow: 'hidden', position: 'relative' }}>
                     <Box component="img" src={buildAssetUrl(archivo.archivo)} alt={archivo.descripcion ?? ''} sx={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
                     <Stack direction="row" spacing={0.25} sx={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 1 }}>
                       <Tooltip title={archivo.principal ? 'Imagen principal' : 'Marcar como principal'}>
                         <IconButton size="small" onClick={() => void handleMarcarPrincipal(archivo.id)}>
-                          {archivo.principal ? <StarIcon fontSize="small" sx={{ color: '#f59e0b' }} /> : <StarBorderIcon fontSize="small" />}
+                          {archivo.principal ? <StarIcon fontSize="small" sx={{ color: (theme) => theme.emphasys.content.foreground }} /> : <StarBorderIcon fontSize="small" />}
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Eliminar">
                         <IconButton size="small" onClick={() => void handleEliminarArchivo(archivo.id)}>
-                          <DeleteOutlineIcon fontSize="small" sx={{ color: '#b91c1c' }} />
+                          <DeleteOutlineIcon fontSize="small" sx={{ color: (theme) => theme.emphasys.action.destructive }} />
                         </IconButton>
                       </Tooltip>
                     </Stack>
@@ -744,7 +770,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
             {producto.especificaciones ? (
               <SectionCard title="Notas y descripción extendida">
                 <Box
-                  sx={{ fontSize: 13, lineHeight: 1.6, color: '#374151' }}
+                  sx={{ fontSize: 13, lineHeight: 1.6, color: (theme) => theme.emphasys.content.foreground }}
                   dangerouslySetInnerHTML={{ __html: producto.especificaciones }}
                 />
               </SectionCard>
@@ -758,6 +784,7 @@ export default function ProductoWorkspace({ productoId, esAdmin, onEditar, onEli
             message="Cotizaciones, pedidos, facturas y órdenes de compra donde participa este producto aparecerán aquí cuando este workspace se conecte al módulo de Documentos."
           />
         )}
+      </Box>
       </Box>
     </Box>
   );

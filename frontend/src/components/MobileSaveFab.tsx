@@ -34,12 +34,12 @@ export default function MobileSaveFab({
         type={type}
         disabled={disabled}
         onClick={onClick}
-        sx={{
-          backgroundColor: '#1d2f68',
-          color: '#ffffff',
-          boxShadow: '0 12px 28px rgba(29, 47, 104, 0.28)',
-          '&:hover': { backgroundColor: '#162551' },
-        }}
+        sx={(theme) => ({
+          backgroundColor: theme.emphasys.action.primary,
+          color: theme.emphasys.action.primaryForeground,
+          boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+          '&:hover': { backgroundColor: theme.emphasys.action.primaryHover },
+        })}
       >
         {loading ? <CircularProgress size={22} color="inherit" /> : <SaveIcon />}
       </Fab>

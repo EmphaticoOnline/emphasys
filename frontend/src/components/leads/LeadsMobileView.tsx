@@ -679,8 +679,8 @@ function MessageBubble({
           px: 1.25,
           py: 0.75,
           borderRadius: 1.5,
-          bgcolor: isMine ? 'primary.main' : 'grey.100',
-          color: isMine ? 'primary.contrastText' : 'text.primary',
+          bgcolor: (theme) => isMine ? theme.emphasys.chat.sent : theme.emphasys.chat.received,
+          color: (theme) => isMine ? theme.emphasys.chat.sentForeground : theme.emphasys.chat.receivedForeground,
           // pan-y: deja que el navegador maneje el scroll vertical nativo
           // (no lo bloquea) mientras Pointer Events sigue recibiendo los
           // eventos necesarios para detectar/cancelar la pulsación
@@ -716,7 +716,7 @@ function MessageBubble({
             }}
             sx={{
               borderLeft: '3px solid',
-              borderColor: isMine ? 'rgba(255,255,255,0.6)' : 'primary.main',
+              borderColor: (theme) => isMine ? 'rgba(255,255,255,0.6)' : theme.emphasys.action.info,
               bgcolor: isMine ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)',
               borderRadius: 1,
               px: 1,
@@ -1577,13 +1577,13 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                 px: 1,
                 py: 0.5,
                 borderRadius: 1,
-                bgcolor: 'grey.100',
-                borderLeft: '3px solid',
-                borderColor: 'primary.main',
+                bgcolor: (theme) => theme.emphasys.chat.reply,
+                borderLeft: '2px solid',
+                borderColor: (theme) => theme.emphasys.action.info,
               }}
             >
               <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', display: 'block' }}>
+                <Typography variant="caption" sx={(theme) => ({ fontWeight: 700, color: theme.emphasys.action.info, display: 'block' })}>
                   {replyingTo.from === 'me' ? 'Tú' : (selectedLead.name || 'Contacto')}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>

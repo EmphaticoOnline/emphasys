@@ -3,7 +3,7 @@ import { createTrip, createTripFromDocument, getTrip, getTripByDocument, updateT
 import { TransporteError } from './transporte.types';
 import { getCurrentCartaPorte, materializeCartaPorte } from './carta-porte.service';
 import { vincularFacturaViaje } from './carta-porte-timbrado.service';
-import { listAvailableLocations, listAvailableOperators, listImportablePartidas } from './transporte.repository';
+import { listAvailableLocations, listAvailableOperators } from './transporte.repository';
 import pool from '../../config/database';
 import { obtenerLogoEmpresaPath } from '../documentos/documentos.pdf';
 import { mapCartaPortePrintModel } from './carta-porte-print.mapper';
@@ -89,11 +89,6 @@ export async function getViajeDeDocumento(req: Request, res: Response) {
 
 export async function postViajeDeDocumento(req: Request, res: Response) {
   try { const { empresaId, usuarioId } = requestContext(req); const id = Number(req.params.documentoId); if (!Number.isInteger(id) || id <= 0) throw new TransporteError('El id del documento no es válido.'); return res.status(201).json(await createTripFromDocument(empresaId, usuarioId, id)); }
-  catch (error) { return respondError(res, error); }
-}
-
-export async function getPartidasImportables(req: Request, res: Response) {
-  try { const { empresaId } = requestContext(req); const id = Number(req.params.documentoId); if (!Number.isInteger(id) || id <= 0) throw new TransporteError('El id del documento no es válido.'); return res.json(await listImportablePartidas(empresaId, id)); }
   catch (error) { return respondError(res, error); }
 }
 
