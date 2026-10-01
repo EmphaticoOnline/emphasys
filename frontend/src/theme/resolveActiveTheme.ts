@@ -39,7 +39,7 @@ const EXPERIMENTAL_PATH_PREFIXES = [
   '/informes/ventas/conversion-cotizaciones',
   '/informes/ventas/ventas-por-cliente',
   '/informes/ventas/ventas-por-vendedor',
-  '/evaluacion-vendedores',
+  '/informes/crm/evaluacion-vendedores',
   '/finanzas',
   '/contactos',
   '/productos',

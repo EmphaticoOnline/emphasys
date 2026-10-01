@@ -170,7 +170,7 @@ export default function App() {
               <Route path="/crm/oportunidades" element={<CRMPage />} />
               <Route path="/crm/oportunidades/:id" element={<OportunidadDetallePage />} />
               <Route path="/crm/conversaciones" element={<CRMPage />} />
-              <Route path="/evaluacion-vendedores" element={<EvaluacionVendedoresPage />} />
+              <Route path="/evaluacion-vendedores" element={<Navigate to="/informes/crm/evaluacion-vendedores" replace />} />
               <Route path="/leads" element={<Navigate to="/crm/conversaciones" replace />} />
               <Route path="/oportunidades" element={<Navigate to="/crm/oportunidades" replace />} />
 
@@ -221,6 +221,7 @@ export default function App() {
               <Route path="/informes/contabilidad/balanza-analitica"        element={<BalanzaAnaliticaPage />} />
               <Route path="/informes/contabilidad/estado-resultados"       element={<EstadoResultadosPage />} />
               <Route path="/informes/contabilidad/balance-general"         element={<BalanceGeneralPage />} />
+              <Route path="/informes/crm/evaluacion-vendedores"             element={<EvaluacionVendedoresPage />} />
 
               {/* Configuración */}
               <Route path="/configuracion" element={<ConfiguracionPage />} />

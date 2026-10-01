@@ -81,10 +81,12 @@ export default function EvaluacionVendedoresPage() {
   if (!puedeAcceder) return <Alert severity="warning" sx={{ m: 2 }}>No tienes permisos para consultar la evaluación de vendedores.</Alert>;
   return <Stack spacing={1.5} sx={{ px: { xs: 2, md: 3 }, py: { xs: 2, md: 2.5 }, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
     <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
-      <Box component="button" type="button" onClick={() => navigate('/crm')} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, border: 0, bgcolor: 'transparent', p: 0, cursor: 'pointer', font: 'inherit', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted, flexShrink: 0 }}>
+      <Box component="button" type="button" onClick={() => navigate('/informes')} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, border: 0, bgcolor: 'transparent', p: 0, cursor: 'pointer', font: 'inherit', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted, flexShrink: 0 }}>
         <ArrowBackIcon sx={{ fontSize: 14 }} />
-        CRM
+        INFORMES
       </Box>
+      <Typography sx={{ color: tokens.content.muted, fontSize: 11, lineHeight: 1 }}>/</Typography>
+      <Typography noWrap sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted }}>CRM</Typography>
       <Typography sx={{ color: tokens.content.muted, fontSize: 11, lineHeight: 1 }}>/</Typography>
       <Typography noWrap sx={{ fontSize: 11, letterSpacing: '0.14em', color: tokens.content.foreground, minWidth: 0 }}>EVALUACIÓN DE VENDEDORES</Typography>
     </Stack>

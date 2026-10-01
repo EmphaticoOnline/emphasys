@@ -218,7 +218,13 @@ const CATEGORIAS: Categoria[] = [
   {
     label: 'CRM',
     icon: ForumIcon,
-    reportes: [],
+    reportes: [
+      {
+        label: 'Evaluación de vendedores',
+        descripcion: 'Conversaciones, respuestas evaluables, tiempos de respuesta y pendientes por vendedor.',
+        path: '/informes/crm/evaluacion-vendedores',
+      },
+    ],
   },
 ];
 

@@ -5,8 +5,6 @@ import ActividadesPage from './ActividadesPage';
 import LeadsPage from './LeadsPage';
 import OportunidadesPage from './OportunidadesPage';
 import { CRM_TABS } from '../components/crmNavigation';
-import { esRolAdmin } from '../session/rolScope';
-import { useSession } from '../session/useSession';
 
 type CrmTabKey = (typeof CRM_TABS)[number]['key'];
 
@@ -22,8 +20,7 @@ function getActiveTab(pathname: string): CrmTabKey {
 export default function CRMPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { session } = useSession();
-  const tabsVisibles = CRM_TABS.filter((tab) => tab.key !== 'evaluacion-vendedores' || esRolAdmin(session.roles));
+  const tabsVisibles = CRM_TABS;
   const activeTab = getActiveTab(location.pathname);
   // Mismo patrón de detección responsiva usado en el resto del proyecto.
   const theme = useTheme();
