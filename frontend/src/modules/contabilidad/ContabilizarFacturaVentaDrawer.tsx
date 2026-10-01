@@ -34,6 +34,7 @@ import {
 import { fetchPoliza } from '../../services/polizasService';
 import { fetchTiposPoliza } from '../../services/tiposPolizaService';
 import { fetchConfiguracionTiposAutomaticos } from '../../services/contabilidadService';
+import { botonPrimarioSx, cajonPaperSx, tituloVistaSx } from './contabilidadVisual';
 
 interface ContabilizarFacturaVentaDrawerProps {
   open: boolean;
@@ -211,25 +212,31 @@ export default function ContabilizarFacturaVentaDrawer({
     }
   };
 
-  const headerCellSx = {
-    backgroundColor: '#1d2f68',
-    color: '#fff',
-    fontWeight: 600,
+  const headerCellSx = (theme: { emphasys: { grid: { header: string; headerForeground: string } } }) => ({
+    backgroundColor: theme.emphasys.grid.header,
+    color: theme.emphasys.grid.headerForeground,
+    fontWeight: 650,
     fontSize: '13px',
     py: '6px',
-  };
-  const bodyCellSx = { fontSize: '13px', py: '6px', borderBottom: '1px solid #e5e7eb' };
+  });
+  const bodyCellSx = (theme: { emphasys: { content: { border: string; foreground: string } } }) => ({
+    fontSize: '13px',
+    py: '6px',
+    borderBottom: `1px solid ${theme.emphasys.content.border}`,
+    color: theme.emphasys.content.foreground,
+    fontVariantNumeric: 'tabular-nums' as const,
+  });
 
   return (
     <Drawer
       anchor="right"
       open={open}
       onClose={onClose}
-      sx={{ '& .MuiDrawer-paper': { width: { xs: '100%', md: 640 }, maxWidth: '100%' } }}
+      sx={(theme) => ({ '& .MuiDrawer-paper': { width: { xs: '100%', md: 640 }, maxWidth: '100%', ...cajonPaperSx(theme) } })}
     >
       <Box sx={{ p: 3, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="h6" fontWeight={700} color="#1d2f68">
+          <Typography sx={tituloVistaSx}>
             {polizaVista ? 'Póliza contable de factura' : 'Contabilizar factura'} {folio || `#${documentoId}`}
           </Typography>
           <IconButton onClick={onClose}>
@@ -264,7 +271,7 @@ export default function ContabilizarFacturaVentaDrawer({
         )}
 
         {!loading && asiento && (
-          <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+          <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 1 })}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -338,7 +345,7 @@ export default function ContabilizarFacturaVentaDrawer({
         {polizaVista && (
           <Stack spacing={2}>
             {polizaRecienContabilizada && <Alert severity="success">La factura se contabilizó correctamente.</Alert>}
-            <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2 }}>
+            <Box sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 1, p: 2, backgroundColor: theme.emphasys.content.elevated })}>
               <Stack direction="row" spacing={1} alignItems="center" mb={1}>
                 <Typography variant="body2" color="text.secondary">Póliza:</Typography>
                 <Chip

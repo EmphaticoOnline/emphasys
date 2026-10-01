@@ -37,13 +37,13 @@ import PaqueteZipView from './PaqueteZipView';
 import BitacoraView from './BitacoraView';
 import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService';
 import { fetchValidacionesEContabilidad } from '../../services/eContabilidadService';
+import { botonPrimarioSx, panelSx, textoEstadoSx, tituloVistaSx } from './contabilidadVisual';
 import type {
   NivelValidacionEContabilidad,
   SeccionValidacionEContabilidad,
   ValidacionEContabilidadResultado,
 } from '../../types/eContabilidad';
 
-const BRAND = '#1d2f68';
 
 const COLUMNA_ETIQUETAS: Record<string, string> = {
   cuenta: 'Cuenta',
@@ -164,16 +164,13 @@ function SeccionValidacionAccordion({ seccion }: { seccion: SeccionValidacionECo
   );
 }
 
-function ResumenTarjeta({ etiqueta, valor, color }: { etiqueta: string; valor: number; color: string }) {
+function ResumenTarjeta({ etiqueta, valor, tono }: { etiqueta: string; valor: number; tono: 'ok' | 'warn' | 'error' | 'neutral' }) {
   return (
-    <Paper
-      variant="outlined"
-      sx={{ px: 2.5, py: 1.5, minWidth: 140, borderRadius: 2, borderColor: 'divider' }}
-    >
+    <Paper variant="outlined" sx={(theme) => ({ px: 2, py: 1.25, minWidth: 140, ...panelSx(theme) })}>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
         {etiqueta}
       </Typography>
-      <Typography variant="h5" fontWeight={700} sx={{ color }}>
+      <Typography sx={(theme) => ({ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', ...textoEstadoSx(theme, tono) })}>
         {valor}
       </Typography>
     </Paper>
@@ -236,7 +233,7 @@ export default function EContabilidadTab() {
   return (
     <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
       <Box>
-        <Typography variant="h6" fontWeight={700} sx={{ color: BRAND }}>
+        <Typography sx={tituloVistaSx}>
           Contabilidad electrónica
         </Typography>
         <Typography variant="body2" color="text.secondary">
@@ -250,14 +247,15 @@ export default function EContabilidadTab() {
       <Tabs
         value={subVista}
         onChange={(_e, value) => setSubVista(value)}
-        sx={{
+        variant="scrollable"
+        allowScrollButtonsMobile
+        sx={(theme) => ({
           minHeight: 32,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          '& .MuiTab-root': { minHeight: 32, textTransform: 'none', fontWeight: 600, fontSize: 13, py: 0.5 },
-          '& .Mui-selected': { color: BRAND },
-          '& .MuiTabs-indicator': { backgroundColor: BRAND },
-        }}
+          borderBottom: `1px solid ${theme.emphasys.content.border}`,
+          '& .MuiTab-root': { minHeight: 32, textTransform: 'none', fontWeight: 650, fontSize: 13, py: 0.5, color: theme.emphasys.content.muted },
+          '& .Mui-selected': { color: theme.emphasys.content.foreground },
+          '& .MuiTabs-indicator': { backgroundColor: theme.emphasys.action.info },
+        })}
       >
         <Tab value="validaciones" label="Validaciones" />
         <Tab value="catalogo-sat" label="Catálogo de cuentas SAT" />
@@ -352,9 +350,9 @@ export default function EContabilidadTab() {
             variant="contained"
             onClick={handleValidar}
             disabled={!ejercicio || cargando}
-            sx={{ bgcolor: BRAND, '&:hover': { bgcolor: '#16224d' } }}
+            sx={botonPrimarioSx}
           >
-            {cargando ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : 'Validar periodo'}
+            {cargando ? <CircularProgress size={20} sx={{ color: 'inherit' }} /> : 'Validar periodo'}
           </Button>
         </Box>
       </Paper>
@@ -364,10 +362,10 @@ export default function EContabilidadTab() {
       {resultado && (
         <>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            <ResumenTarjeta etiqueta="Errores" valor={resultado.resumen.errores} color="#b91c1c" />
-            <ResumenTarjeta etiqueta="Advertencias" valor={resultado.resumen.advertencias} color="#b45309" />
-            <ResumenTarjeta etiqueta="Cuentas revisadas" valor={resultado.resumen.cuentas_revisadas} color={BRAND} />
-            <ResumenTarjeta etiqueta="Pólizas revisadas" valor={resultado.resumen.polizas_revisadas} color={BRAND} />
+            <ResumenTarjeta etiqueta="Errores" valor={resultado.resumen.errores} tono="error" />
+            <ResumenTarjeta etiqueta="Advertencias" valor={resultado.resumen.advertencias} tono="warn" />
+            <ResumenTarjeta etiqueta="Cuentas revisadas" valor={resultado.resumen.cuentas_revisadas} tono="neutral" />
+            <ResumenTarjeta etiqueta="Pólizas revisadas" valor={resultado.resumen.polizas_revisadas} tono="neutral" />
           </Box>
 
           {listoParaEContabilidad ? (
@@ -378,7 +376,7 @@ export default function EContabilidadTab() {
             <Box>
               {seccionesError.length > 0 && (
                 <>
-                  <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, color: '#b91c1c' }}>
+                  <Typography variant="subtitle2" fontWeight={700} sx={(theme) => ({ mb: 1, ...textoEstadoSx(theme, 'error') })}>
                     Errores ({seccionesError.reduce((acc, s) => acc + s.total, 0)})
                   </Typography>
                   {seccionesError.map((s) => (
@@ -388,7 +386,7 @@ export default function EContabilidadTab() {
               )}
               {seccionesAdvertencia.length > 0 && (
                 <>
-                  <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, mb: 1, color: '#b45309' }}>
+                  <Typography variant="subtitle2" fontWeight={700} sx={(theme) => ({ mt: 2, mb: 1, ...textoEstadoSx(theme, 'warn') })}>
                     Advertencias ({seccionesAdvertencia.reduce((acc, s) => acc + s.total, 0)})
                   </Typography>
                   {seccionesAdvertencia.map((s) => (

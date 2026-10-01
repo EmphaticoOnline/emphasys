@@ -32,8 +32,8 @@ import {
 import { fetchCodigosAgrupadores, fetchSugerenciasCodigosAgrupadores } from '../../services/eContabilidadService';
 import { fetchRangosCuentas } from '../../services/rangosCuentasService';
 import { CUENTAS_GRID_ROW_HEIGHT, cuentasGridDensidadSx, cuentasSinFocoDeCeldaSx } from './cuentasGridEstilos';
+import { botonPrimarioSx, chipEstadoSx, codigoCuentaSx, descripcionJerarquiaSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 
-const BRAND = '#1d2f68';
 
 type Estado = 'sin_codigo' | 'invalido' | 'correcto' | 'no_requerido';
 type Filtro = 'todas' | 'afectables' | 'sin-codigo' | 'invalido' | 'correctas' | 'inactivas' | 'con-sugerencia';
@@ -364,7 +364,7 @@ export default function CatalogoCuentasSatView({ onIrAValidaciones }: CatalogoCu
         headerAlign: 'center',
         headerClassName: 'finanzas-header',
         renderCell: (params) => (
-          <Box sx={{ color: params.row.afectable ? BRAND : 'text.secondary', fontWeight: params.row.afectable ? 600 : 400 }}>
+          <Box sx={(theme) => codigoCuentaSx(theme, Boolean(params.row.afectable))}>
             {params.value}
           </Box>
         ),
@@ -378,14 +378,7 @@ export default function CatalogoCuentasSatView({ onIrAValidaciones }: CatalogoCu
         headerClassName: 'finanzas-header',
         renderCell: (params) => (
           <Box
-            sx={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              width: '100%',
-              color: params.row.afectable ? BRAND : 'text.secondary',
-              fontWeight: params.row.afectable ? 600 : 400,
-            }}
+            sx={(theme) => descripcionJerarquiaSx(theme, params.row.nivel, params.row.afectable)}
             title={`${params.value} · Naturaleza: ${naturalezaDeCuenta(params.row)}`}
           >
             {params.value}
@@ -687,10 +680,10 @@ export default function CatalogoCuentasSatView({ onIrAValidaciones }: CatalogoCu
           variant="contained"
           disabled={totalPendientes === 0 || guardandoLote}
           onClick={() => void handleGuardarTodo()}
-          sx={{ bgcolor: BRAND, '&:hover': { bgcolor: '#16224d' }, textTransform: 'none', whiteSpace: 'nowrap' }}
+          sx={[botonPrimarioSx, { whiteSpace: 'nowrap' }]}
         >
           {guardandoLote ? (
-            <CircularProgress size={16} sx={{ color: '#fff' }} />
+            <CircularProgress size={16} sx={{ color: 'inherit' }} />
           ) : (
             `Guardar cambios pendientes${totalPendientes > 0 ? ` (${totalPendientes})` : ''}`
           )}

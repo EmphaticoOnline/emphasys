@@ -32,8 +32,8 @@ import type { ParametrosPaqueteZip } from '../../services/eContabilidadService';
 import type { ArchivoPaqueteZip, ClaveArchivoPaquete, PaqueteZipPreviewResultado } from '../../types/paqueteZip';
 import type { TipoEnvioBalanza } from '../../types/balanzaXml';
 import type { TipoSolicitudPolizas } from '../../types/polizasXml';
+import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 
-const BRAND = '#1d2f68';
 
 type EstadoFila = 'listo' | 'con_advertencias' | 'con_errores' | 'no_seleccionado';
 
@@ -46,7 +46,7 @@ const ESTADO_CONFIG: Record<EstadoFila, { label: string; color: string; bg: stri
 
 function CeldaEstado({ value }: { value: EstadoFila }) {
   const config = ESTADO_CONFIG[value];
-  return <Chip label={config.label} size="small" sx={{ bgcolor: config.bg, color: config.color, fontWeight: 600, fontSize: 11 }} />;
+  return <Chip label={config.label} size="small" sx={(theme) => chipEstadoSx(theme, tonoDeClave(String(value)))} />;
 }
 
 interface FilaArchivo {
@@ -352,16 +352,16 @@ export default function PaqueteZipView({
               startIcon={<PreviewIcon fontSize="small" />}
               onClick={handlePrevalidar}
               disabled={!ejercicio || cargando || faltaDato}
-              sx={{ textTransform: 'none', bgcolor: BRAND, '&:hover': { bgcolor: '#162551' } }}
+              sx={botonPrimarioSx}
             >
-              {cargando ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Prevalidar paquete'}
+              {cargando ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Prevalidar paquete'}
             </Button>
             <Button
               variant="outlined"
               startIcon={<DownloadIcon fontSize="small" />}
               onClick={handleDescargar}
               disabled={!resultado?.ok || descargando}
-              sx={{ textTransform: 'none', color: BRAND, borderColor: BRAND }}
+              sx={(theme) => ({ textTransform: 'none', color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border })}
             >
               {descargando ? 'Generando...' : 'Descargar ZIP'}
             </Button>
@@ -420,7 +420,7 @@ export default function PaqueteZipView({
         <TableContainer>
           <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: 12.5, py: 0.75 } }}>
             <TableHead>
-              <TableRow sx={{ '& .MuiTableCell-root': { bgcolor: BRAND, color: '#fff', fontWeight: 700 } }}>
+              <TableRow sx={encabezadoTablaSx}>
                 <TableCell>Archivo</TableCell>
                 <TableCell>Nombre XML</TableCell>
                 <TableCell align="center">Estado</TableCell>

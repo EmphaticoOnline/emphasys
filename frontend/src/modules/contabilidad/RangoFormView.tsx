@@ -19,6 +19,7 @@ import type { RangoCuenta } from '../../types/rangosCuentas';
 import { GRUPOS_RANGO_CUENTA, SUBGRUPOS_RESULTADOS, SUBGRUPOS_NO_RESULTADOS, subgruposValidosParaGrupo } from '../../types/rangosCuentas';
 import { crearRangoCuenta, actualizarRangoCuenta } from '../../services/rangosCuentasService';
 import FloatingFormActions from '../../components/FloatingFormActions';
+import { campoCompactoSx, formularioPaperSx, tituloVistaSx } from './contabilidadVisual';
 
 const TODOS_LOS_SUBGRUPOS = [...SUBGRUPOS_RESULTADOS, ...SUBGRUPOS_NO_RESULTADOS];
 
@@ -123,13 +124,13 @@ export default function RangoFormView({
   };
 
   return (
-    <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.5 }}>
-      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+    <Box sx={(theme) => ({ px: { xs: 2, md: 2.5 }, py: 2, color: theme.emphasys.content.foreground })}>
+      <Typography sx={[tituloVistaSx, { mb: 1.5 }]}>
         {isEdit ? 'Editar rango' : 'Nuevo rango'}
       </Typography>
 
-      <Paper sx={{ p: 3, pb: '96px', maxWidth: 640 }}>
-        <Stack spacing={2}>
+      <Paper sx={(theme) => ({ ...formularioPaperSx(theme), pb: '96px', maxWidth: 640 })}>
+        <Stack spacing={2} sx={campoCompactoSx}>
           <FormControl>
             <FormLabel id="naturaleza-saldo-label">Naturaleza del saldo</FormLabel>
             <RadioGroup
@@ -214,6 +215,7 @@ export default function RangoFormView({
       </Paper>
 
       <FloatingFormActions
+        appearance="graphite"
         onBack={onCancel}
         backDisabled={saving}
         onSave={handleSave}

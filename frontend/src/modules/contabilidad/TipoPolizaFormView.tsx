@@ -3,6 +3,7 @@ import { Box, FormControlLabel, Paper, Stack, Switch, TextField, Typography } fr
 import type { TipoPoliza } from '../../types/tiposPoliza';
 import { crearTipoPoliza, actualizarTipoPoliza } from '../../services/tiposPolizaService';
 import FloatingFormActions from '../../components/FloatingFormActions';
+import { campoCompactoSx, formularioPaperSx, tituloVistaSx } from './contabilidadVisual';
 
 interface FormState {
   identificador: string;
@@ -71,13 +72,13 @@ export default function TipoPolizaFormView({
   };
 
   return (
-    <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.5 }}>
-      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+    <Box sx={(theme) => ({ px: { xs: 2, md: 2.5 }, py: 2, color: theme.emphasys.content.foreground })}>
+      <Typography sx={[tituloVistaSx, { mb: 1.5 }]}>
         {isEdit ? 'Editar tipo de póliza' : 'Nuevo tipo de póliza'}
       </Typography>
 
-      <Paper sx={{ p: 3, pb: '96px', maxWidth: 480 }}>
-        <Stack spacing={2}>
+      <Paper sx={(theme) => ({ ...formularioPaperSx(theme), pb: '96px', maxWidth: 480 })}>
+        <Stack spacing={2} sx={campoCompactoSx}>
           <TextField
             label="Identificador"
             required
@@ -114,6 +115,7 @@ export default function TipoPolizaFormView({
       </Paper>
 
       <FloatingFormActions
+        appearance="graphite"
         onBack={onCancel}
         backDisabled={saving}
         onSave={handleSave}

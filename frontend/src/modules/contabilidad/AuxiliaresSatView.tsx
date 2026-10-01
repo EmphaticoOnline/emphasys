@@ -35,6 +35,7 @@ import {
   fetchAuxiliarCuentasPreview,
   descargarAuxiliarCuentas,
 } from '../../services/eContabilidadService';
+import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 import type {
   AuxiliarCuentasResultado,
   AuxiliarFoliosResultado,
@@ -42,7 +43,6 @@ import type {
   TipoSolicitudPolizas,
 } from '../../types/auxiliaresSat';
 
-const BRAND = '#1d2f68';
 
 interface FilaProblema {
   tipo: string;
@@ -88,7 +88,7 @@ const ESTADO_CONFIG: Record<EstadoFolioXml, { label: string; color: string; bg: 
 
 function CeldaEstadoFolio({ value }: { value: EstadoFolioXml }) {
   const config = ESTADO_CONFIG[value];
-  return <Chip label={config.label} size="small" sx={{ bgcolor: config.bg, color: config.color, fontWeight: 600, fontSize: 11 }} />;
+  return <Chip label={config.label} size="small" sx={(theme) => chipEstadoSx(theme, tonoDeClave(String(value)))} />;
 }
 
 function formatearImporte(valor: number): string {
@@ -436,9 +436,9 @@ export default function AuxiliaresSatView({
               startIcon={<PreviewIcon fontSize="small" />}
               onClick={handlePrevisualizar}
               disabled={!ejercicio || cargando || faltaDato}
-              sx={{ textTransform: 'none', bgcolor: BRAND, '&:hover': { bgcolor: '#162551' } }}
+              sx={botonPrimarioSx}
             >
-              {cargando ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Previsualizar / Validar auxiliar'}
+              {cargando ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Previsualizar / Validar auxiliar'}
             </Button>
 
             <Button
@@ -446,7 +446,7 @@ export default function AuxiliaresSatView({
               startIcon={<DownloadIcon fontSize="small" />}
               onClick={handleDescargar}
               disabled={!resultado?.ok || descargando}
-              sx={{ textTransform: 'none', color: BRAND, borderColor: BRAND }}
+              sx={(theme) => ({ textTransform: 'none', color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border })}
             >
               {descargando ? 'Generando...' : 'Descargar XML'}
             </Button>
@@ -520,7 +520,7 @@ export default function AuxiliaresSatView({
           </Paper>
 
           {resultado.errores.length > 0 && (
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, borderColor: '#fecaca', bgcolor: '#fef2f2' }}>
+            <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'error')}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
                 <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
                   Errores ({resultado.errores.length})
@@ -539,7 +539,7 @@ export default function AuxiliaresSatView({
           )}
 
           {resultado.advertencias.length > 0 && (
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, borderColor: '#fde68a', bgcolor: '#fffbeb' }}>
+            <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'warn')}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
                 <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>
                   Advertencias ({resultado.advertencias.length})

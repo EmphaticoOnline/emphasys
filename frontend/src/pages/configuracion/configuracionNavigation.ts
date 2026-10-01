@@ -146,3 +146,77 @@ export const CONFIGURACION_OPTIONS: ConfiguracionNavigationOption[] = [
 		path: '/configuracion/autorizaciones-reglas',
 	},
 ];
+
+export type ConfiguracionGrupo = {
+	id: string;
+	titulo: string;
+	paths: string[];
+};
+
+/** Agrupación visual del índice. El filtro de visibilidad sigue en la página. */
+export const CONFIGURACION_GRUPOS: ConfiguracionGrupo[] = [
+	{
+		id: 'empresa',
+		titulo: 'Empresa',
+		paths: [
+			'/configuracion/empresas',
+			'/configuracion/horarios-laborales',
+			'/configuracion/unidades',
+			'/domicilios-propios',
+		],
+	},
+	{
+		id: 'usuarios',
+		titulo: 'Usuarios y seguridad',
+		paths: ['/configuracion/usuarios', '/configuracion/roles'],
+	},
+	{
+		id: 'ventas',
+		titulo: 'Ventas y precios',
+		paths: [
+			'/configuracion/listas-precios',
+			'/configuracion/precios',
+			'/configuracion/empresa/impuestos-default',
+			'/configuracion/series-documento',
+		],
+	},
+	{
+		id: 'documentos',
+		titulo: 'Documentos',
+		paths: [
+			'/configuracion/documentos',
+			'/configuracion/formatos-impresion',
+			'/configuracion/autorizaciones-reglas',
+		],
+	},
+	{
+		id: 'carta-porte',
+		titulo: 'Carta porte / transporte',
+		paths: ['/vehiculos', '/remolques', '/operadores'],
+	},
+	{
+		id: 'catalogos',
+		titulo: 'Catálogos y datos',
+		paths: [
+			'/configuracion/catalogos',
+			'/configuracion/campos',
+			'/configuracion/conceptos',
+			'/configuracion/parametros-opciones',
+			'/configuracion/metodos-pago',
+			'/configuracion/produccion-etapas',
+			'/configuracion/campos-obligatorios',
+		],
+	},
+	{
+		id: 'sistema',
+		titulo: 'Sistema e integraciones',
+		paths: [
+			'/configuracion/parametros',
+			'/configuracion/correo',
+			'/configuracion/cfdi-pac',
+			'/configuracion/cfdi-sat',
+			'/configuracion/whatsapp-etiquetas',
+			'/configuracion/whatsapp-plantillas',
+		],
+	},
+];

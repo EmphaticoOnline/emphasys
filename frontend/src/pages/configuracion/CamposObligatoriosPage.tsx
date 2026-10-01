@@ -14,6 +14,7 @@ import {
   Paper,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
+import { useTheme } from "@mui/material/styles";
 import {
   fetchCamposObligatorios,
   crearCampoObligatorio,
@@ -22,6 +23,7 @@ import {
 import { CONTACTOS_CAMPOS } from "../../definitions/contactos.fields";
 import type { DefinicionCampo } from "../../definitions/contactos.fields";
 import { PRODUCTOS_CAMPOS } from "../../definitions/productos.fields";
+import { ConfigPageHeader } from "../../components/configuracion/configVisual";
 
 type DefinicionContexto = {
   valor: string;
@@ -60,6 +62,7 @@ const ENTIDADES: DefinicionEntidad[] = [
 ];
 
 export default function CamposObligatoriosPage() {
+  const tokens = useTheme().emphasys;
   const [entidadSeleccionada, setEntidadSeleccionada] = useState<string>(
     ENTIDADES[0]!.entidad
   );
@@ -142,14 +145,11 @@ export default function CamposObligatoriosPage() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 700 }}>
-      <Typography variant="h5" fontWeight={600} color="#1d2f68" mb={1}>
-        Campos obligatorios
-      </Typography>
-      <Typography variant="body2" color="#4b5563" mb={3}>
-        Configura qué campos son obligatorios por entidad y contexto. Los campos no
-        marcados se consideran opcionales.
-      </Typography>
+    <Box sx={{ p: { xs: 1.5, md: 2.75 }, py: 1.6, maxWidth: 760, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <ConfigPageHeader
+        title="Campos obligatorios"
+        description="Configura qué campos son obligatorios por entidad y contexto. Los campos no marcados se consideran opcionales."
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -191,8 +191,7 @@ export default function CamposObligatoriosPage() {
         </FormControl>
       </Stack>
 
-      <Paper variant="outlined">
-        {/* Encabezado */}
+      <Paper variant="outlined" sx={{ borderColor: tokens.content.border, bgcolor: tokens.content.elevated, borderRadius: 2.5, overflow: "hidden" }}>
         <Box
           sx={{
             display: "flex",
@@ -200,14 +199,14 @@ export default function CamposObligatoriosPage() {
             justifyContent: "space-between",
             px: 2,
             py: 1,
-            backgroundColor: "#f8fafc",
-            borderBottom: "1px solid #e5e7eb",
+            backgroundColor: tokens.table.headerBg,
+            borderBottom: `1px solid ${tokens.table.line}`,
           }}
         >
-          <Typography variant="subtitle2" color="#374151" fontWeight={600}>
+          <Typography variant="subtitle2" color={tokens.table.headerFg} fontWeight={600}>
             Campo
           </Typography>
-          <Typography variant="subtitle2" color="#374151" fontWeight={600}>
+          <Typography variant="subtitle2" color={tokens.table.headerFg} fontWeight={600}>
             Obligatorio
           </Typography>
         </Box>
@@ -230,10 +229,10 @@ export default function CamposObligatoriosPage() {
                 }}
               >
                 <Box>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="body2" fontWeight={500} color={tokens.content.foreground}>
                     {def.etiqueta}
                   </Typography>
-                  <Typography variant="caption" color="#9ca3af">
+                  <Typography variant="caption" color={tokens.content.muted}>
                     {def.campo}
                   </Typography>
                 </Box>

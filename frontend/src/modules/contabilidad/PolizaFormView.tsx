@@ -34,6 +34,18 @@ import {
   crearPoliza,
   actualizarPoliza,
 } from '../../services/polizasService';
+import {
+  bandaCapturaSx,
+  botonPrimarioSx,
+  botonSecundarioSx,
+  encabezadoTablaSx,
+  filaTotalesTablaSx,
+  iconoPeligroSx,
+  panelSx,
+  seccionLabelSx,
+  tablaCapturaSx,
+  tituloVistaSx,
+} from './contabilidadVisual';
 
 // Fecha civil de "hoy" sin pasar por toISOString() (que se calcula en UTC y
 // puede desfasar un día según la zona horaria del navegador). Mismo patrón
@@ -75,8 +87,8 @@ const bandaInputSx = {
 // disableUnderline) para que Cargo/Abono/UUID/RFC se sientan celdas de hoja
 // de cálculo y no inputs de formulario.
 const celdaInputSx = {
-  '& .MuiInputBase-root': { fontSize: 12, minHeight: 0 },
-  '& .MuiInputBase-input': { padding: '6px 4px' },
+  '& .MuiInputBase-root': { fontSize: 13, minHeight: 0 },
+  '& .MuiInputBase-input': { padding: '6px 4px', fontVariantNumeric: 'tabular-nums' },
 };
 
 // Autocomplete agrega su propio padding interno y botones de flecha/limpiar
@@ -92,20 +104,7 @@ const celdaAutocompleteSx = {
   },
 };
 
-// Fuente y altura de fila fijas (32px) para toda la tabla de movimientos, de
-// modo que ningún control interno pueda inflar la fila por encima del máximo
-// pedido (36px), tipo hoja de trabajo contable (Aspel COI / CONTPAQi).
-// Color: zebra muy sutil + hover tenue + selección azul claro. El orden de
-// las reglas importa: las de mayor especificidad "empatan" en CSS y ganan
-// por orden de aparición, así que hover y selección van después de la zebra.
-const compactTableSx = {
-  '& .MuiTableCell-root': { padding: '2px 4px', fontSize: 12, lineHeight: 1.2 },
-  '& tbody .MuiTableRow-root': { height: 32 },
-  '& tbody .MuiTableRow-root:nth-of-type(even)': { backgroundColor: 'rgba(29, 47, 104, 0.03)' },
-  '& tbody .MuiTableRow-root:hover': { backgroundColor: 'rgba(15, 23, 42, 0.05)' },
-  '& tbody .MuiTableRow-root.Mui-selected': { backgroundColor: '#dbeafe' },
-  '& tbody .MuiTableRow-root.Mui-selected:hover': { backgroundColor: '#cfe0fb' },
-};
+const compactTableSx = tablaCapturaSx;
 
 // Leyenda fija (no label flotante) arriba de cada campo de la banda de
 // encabezado: evita el problema de labels de MUI montándose sobre el borde
@@ -122,14 +121,7 @@ function CampoBanda({
   return (
     <Box sx={{ width, minWidth: width, flex: width ? '0 0 auto' : 1, display: 'flex', flexDirection: 'column' }}>
       <Typography
-        sx={{
-          fontSize: 10,
-          fontWeight: 600,
-          color: 'text.secondary',
-          textTransform: 'uppercase',
-          letterSpacing: 0.3,
-          lineHeight: 1.4,
-        }}
+        sx={seccionLabelSx}
       >
         {label}
       </Typography>
@@ -428,13 +420,13 @@ export default function PolizaFormView({
 
   return (
     <Box sx={{ px: { xs: 1, md: 1.5 }, py: 1, pb: '56px' }}>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#1d2f68', mb: 0.5 }}>
+      <Typography sx={tituloVistaSx}>
         {isEdit ? 'Editar póliza' : 'Nueva póliza'}
       </Typography>
 
-      <Paper variant="outlined" sx={{ borderRadius: 1, overflow: 'hidden' }}>
+      <Paper variant="outlined" sx={panelSx}>
         {/* Banda de encabezado: una sola tira de captura, no una card. */}
-        <Box sx={{ px: 1, py: 0.75, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+        <Box sx={bandaCapturaSx}>
           <Stack direction="row" spacing={2} sx={{ mb: 0.5 }}>
             <CampoBanda label="Tipo de póliza" width={150}>
               <Select
@@ -493,16 +485,20 @@ export default function PolizaFormView({
                 fullWidth
                 value={form.estatus}
                 onChange={(e) => handleChangeForm('estatus', e.target.value)}
-                sx={{
+                sx={(theme) => ({
                   ...bandaInputSx,
                   '& .MuiSelect-select': {
                     ...bandaInputSx['& .MuiSelect-select'],
-                    fontWeight: 600,
+                    fontWeight: 650,
                     borderRadius: 0.5,
-                    bgcolor: form.estatus === 'aplicada' ? 'rgba(22, 163, 74, 0.12)' : 'rgba(245, 158, 11, 0.14)',
-                    color: form.estatus === 'aplicada' ? '#166534' : '#92400e',
+                    bgcolor: form.estatus === 'aplicada'
+                      ? theme.emphasys.metric.applied.background
+                      : theme.emphasys.metric.amount.background,
+                    color: form.estatus === 'aplicada'
+                      ? theme.emphasys.metric.applied.foreground
+                      : theme.emphasys.metric.amount.foreground,
                   },
-                }}
+                })}
               >
                 <MenuItem value="borrador" sx={{ fontSize: 13 }}>Borrador</MenuItem>
                 <MenuItem value="aplicada" sx={{ fontSize: 13 }}>Aplicada</MenuItem>
@@ -544,10 +540,10 @@ export default function PolizaFormView({
             justifyContent: 'space-between',
             px: 1,
             py: 0.375,
-            borderBottom: '1px solid #e2e8f0',
+            borderBottom: (theme) => `1px solid ${theme.emphasys.content.border}`,
           }}
         >
-          <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#1d2f68', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <Typography sx={seccionLabelSx}>
             Movimientos
           </Typography>
           <Stack direction="row" spacing={0.5}>
@@ -555,7 +551,7 @@ export default function PolizaFormView({
               size="small"
               startIcon={<AddIcon sx={{ fontSize: 14 }} />}
               onClick={handleAgregarMovimiento}
-              sx={{ textTransform: 'none', fontSize: 11, py: 0, minHeight: 0, px: 1, color: '#475569' }}
+              sx={botonSecundarioSx}
             >
               Agregar
             </Button>
@@ -563,7 +559,7 @@ export default function PolizaFormView({
               size="small"
               variant="outlined"
               onClick={handleCuadrar}
-              sx={{ textTransform: 'none', fontSize: 11, py: 0, minHeight: 0, px: 1, color: '#475569', borderColor: '#94a3b8' }}
+              sx={botonSecundarioSx}
             >
               Cuadrar
             </Button>
@@ -571,9 +567,9 @@ export default function PolizaFormView({
         </Box>
 
         <TableContainer sx={{ maxHeight: 'calc(100vh - 320px)', overflowX: 'auto' }}>
-          <Table size="small" stickyHeader sx={{ ...compactTableSx, minWidth: 950 }}>
+          <Table size="small" stickyHeader sx={[compactTableSx, { minWidth: 950 }]}>
             <TableHead>
-              <TableRow sx={{ '& th': { fontWeight: 700, fontSize: 11, color: '#ffffff', bgcolor: '#1d2f68', textTransform: 'uppercase', borderBottom: 'none' } }}>
+              <TableRow sx={encabezadoTablaSx}>
                 <TableCell width={28}>#</TableCell>
                 <TableCell width={220}>Cuenta</TableCell>
                 <TableCell width={320}>Concepto</TableCell>
@@ -641,9 +637,9 @@ export default function PolizaFormView({
                         setCampoImporteEnfocado((prev) => (prev === `${mov.id}-cargo` ? null : prev))
                       }
                       onChange={(e) => actualizarMovimiento(mov.id, { cargo: e.target.value.replace(/[^0-9.]/g, '') })}
-                      inputProps={{ style: { textAlign: 'right', color: '#1d2f68', fontWeight: 600 } }}
+                      inputProps={{ style: { textAlign: 'right', fontWeight: 650, fontVariantNumeric: 'tabular-nums' } }}
                       InputProps={{ disableUnderline: true }}
-                      sx={celdaInputSx}
+                      sx={[celdaInputSx, (theme) => ({ '& .MuiInputBase-input': { color: theme.emphasys.content.foreground } })]}
                     />
                   </TableCell>
                   <TableCell align="right">
@@ -659,9 +655,9 @@ export default function PolizaFormView({
                         setCampoImporteEnfocado((prev) => (prev === `${mov.id}-abono` ? null : prev))
                       }
                       onChange={(e) => actualizarMovimiento(mov.id, { abono: e.target.value.replace(/[^0-9.]/g, '') })}
-                      inputProps={{ style: { textAlign: 'right', color: '#166534', fontWeight: 600 } }}
+                      inputProps={{ style: { textAlign: 'right', fontWeight: 650, fontVariantNumeric: 'tabular-nums' } }}
                       InputProps={{ disableUnderline: true }}
-                      sx={celdaInputSx}
+                      sx={[celdaInputSx, (theme) => ({ '& .MuiInputBase-input': { color: theme.emphasys.metric.applied.foreground } })]}
                     />
                   </TableCell>
                   <TableCell>
@@ -690,7 +686,7 @@ export default function PolizaFormView({
                   </TableCell>
                   <TableCell align="center">
                     <Tooltip title="Eliminar renglón">
-                      <IconButton size="small" onClick={() => handleEliminarMovimiento(mov.id)} sx={{ color: '#b91c1c', p: 0.25 }}>
+                      <IconButton size="small" onClick={() => handleEliminarMovimiento(mov.id)} sx={[iconoPeligroSx, { p: 0.25 }]}>
                         <DeleteOutlineIcon sx={{ fontSize: 16 }} />
                       </IconButton>
                     </Tooltip>
@@ -709,18 +705,25 @@ export default function PolizaFormView({
               {/* Renglón resumen alineado por columnas: Cargo y Abono quedan
                   exactamente bajo su columna; el estado de cuadre ocupa el
                   ancho combinado de UUID CFDI + RFC + Acciones. */}
-              <TableRow sx={{ bgcolor: '#f8fafc', '& .MuiTableCell-root': { borderTop: '2px solid #e2e8f0', borderBottom: 'none' } }}>
+              <TableRow sx={filaTotalesTablaSx}>
                 <TableCell />
                 <TableCell />
-                <TableCell sx={{ fontWeight: 700, color: '#1e293b' }}>Totales</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                <TableCell>Totales</TableCell>
+                <TableCell align="right">
                   {formatMoneda(totalCargos)}
                 </TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                <TableCell align="right">
                   {formatMoneda(totalAbonos)}
                 </TableCell>
-                <TableCell colSpan={3} align="right" sx={{ fontWeight: 700 }}>
-                  <Typography component="span" sx={{ fontSize: 12, fontWeight: 700 }} color={cuadrada ? 'success.main' : 'error.main'}>
+                <TableCell colSpan={3} align="right">
+                  <Typography
+                    component="span"
+                    sx={(theme) => ({
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: cuadrada ? theme.emphasys.metric.applied.foreground : theme.emphasys.action.destructive,
+                    })}
+                  >
                     {cuadrada
                       ? 'Póliza cuadrada'
                       : diferencia > 0
@@ -742,23 +745,26 @@ export default function PolizaFormView({
 
       <Paper
         elevation={6}
-        sx={{
+          sx={(theme) => ({
           position: 'fixed',
           right: 24,
           bottom: 16,
-          zIndex: (theme) => theme.zIndex.fab,
+          zIndex: theme.zIndex.fab,
           display: 'flex',
           gap: 0.5,
           p: 0.5,
-          borderRadius: 2,
-        }}
+          borderRadius: 1,
+          backgroundColor: theme.emphasys.content.elevated,
+          border: `1px solid ${theme.emphasys.content.border}`,
+          boxShadow: 'none',
+        })}
       >
         <Button
           size="small"
           variant="text"
           onClick={onCancel}
           disabled={saving}
-          sx={{ textTransform: 'none', fontSize: 12, py: 0.25, minHeight: 0, color: 'text.secondary' }}
+          sx={botonSecundarioSx}
         >
           Volver
         </Button>
@@ -767,7 +773,7 @@ export default function PolizaFormView({
           variant="outlined"
           onClick={() => handleGuardar('borrador')}
           disabled={saving}
-          sx={{ textTransform: 'none', fontSize: 12, py: 0.25, minHeight: 0, color: '#1d2f68', borderColor: '#1d2f68' }}
+          sx={botonSecundarioSx}
         >
           {saving && form.estatus === 'borrador' ? 'Guardando...' : 'Guardar borrador'}
         </Button>
@@ -776,7 +782,7 @@ export default function PolizaFormView({
           variant="contained"
           onClick={() => handleGuardar('aplicada')}
           disabled={saving || !cuadrada || movimientos.length < 2}
-          sx={{ textTransform: 'none', fontSize: 12, py: 0.25, minHeight: 0, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+          sx={botonPrimarioSx}
         >
           {saving && form.estatus === 'aplicada' ? 'Guardando...' : 'Aplicar'}
         </Button>

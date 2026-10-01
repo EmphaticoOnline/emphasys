@@ -22,6 +22,7 @@ import {
 } from '../../services/facturaVentaContabilizacionService';
 import { fetchTiposPoliza } from '../../services/tiposPolizaService';
 import { fetchConfiguracionTiposAutomaticos } from '../../services/contabilidadService';
+import { botonPrimarioSx, tituloVistaSx } from './contabilidadVisual';
 
 interface ContabilizarFacturasVentaLoteDialogProps {
   open: boolean;
@@ -123,7 +124,7 @@ export default function ContabilizarFacturasVentaLoteDialog({
       <DialogContent>
         <Stack spacing={2} mt={1}>
           <Stack spacing={1}>
-            <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+            <Typography sx={tituloVistaSx}>
               Modo
             </Typography>
             <ToggleButtonGroup
@@ -199,7 +200,7 @@ export default function ContabilizarFacturasVentaLoteDialog({
           )}
 
           <Stack spacing={1}>
-            <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+            <Typography sx={tituloVistaSx}>
               Agrupación
             </Typography>
             <ToggleButtonGroup
@@ -217,7 +218,7 @@ export default function ContabilizarFacturasVentaLoteDialog({
           {error && <Alert severity="error">{error}</Alert>}
 
           {resultado && resumen && (
-            <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2 }}>
+            <Box sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 1, p: 2, backgroundColor: theme.emphasys.content.elevated })}>
               <Typography variant="body2" fontWeight={700} gutterBottom>
                 {modo === 'seleccion' ? (
                   <>

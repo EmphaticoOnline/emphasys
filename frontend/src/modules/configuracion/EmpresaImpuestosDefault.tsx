@@ -31,6 +31,7 @@ import {
   fetchEmpresaImpuestosDefault,
   fetchImpuestosCatalogo,
 } from '../../services/impuestosService';
+import { useTheme } from '@mui/material/styles';
 import { useSession } from '../../session/useSession';
 
 function ordenarItems(items: EmpresaImpuestoDefault[]): EmpresaImpuestoDefault[] {
@@ -51,6 +52,7 @@ function formatImpuesto(impuesto?: ImpuestoCatalogo | null): string {
 }
 
 export default function EmpresaImpuestosDefault() {
+  const tokens = useTheme().emphasys;
   const { session } = useSession();
   const empresaId = session?.empresaActivaId;
 
@@ -189,7 +191,7 @@ export default function EmpresaImpuestosDefault() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
         <Box>
-          <Typography variant="h6" fontWeight={700} color="#1d2f68">
+          <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.content.foreground }}>
             Impuestos default de la empresa
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -216,7 +218,7 @@ export default function EmpresaImpuestosDefault() {
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+      <Paper elevation={0} sx={{ p: 2, borderRadius: 2, bgcolor: tokens.content.well, border: `1px solid ${tokens.content.border}` }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'flex-end' }}>
           <Autocomplete
             options={opcionesDisponibles}
@@ -244,22 +246,22 @@ export default function EmpresaImpuestosDefault() {
             startIcon={<AddIcon />}
             onClick={() => void handleAgregar()}
             disabled={loading || !empresaId}
-            sx={{ textTransform: 'none', bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+            sx={{ textTransform: 'none', bgcolor: tokens.action.primary, color: tokens.action.primaryForeground, '&:hover': { bgcolor: tokens.action.primaryHover } }}
           >
             Agregar impuesto
           </Button>
         </Stack>
       </Paper>
 
-      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+      <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.well }}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ backgroundColor: '#1d2f68' }}>
-              <TableCell sx={{ color: 'white', fontWeight: 700 }}>Impuesto</TableCell>
-              <TableCell sx={{ color: 'white', fontWeight: 700 }} width={140}>
+            <TableRow sx={{ backgroundColor: tokens.grid.header }}>
+              <TableCell sx={{ color: tokens.grid.headerForeground, fontWeight: 700 }}>Impuesto</TableCell>
+              <TableCell sx={{ color: tokens.grid.headerForeground, fontWeight: 700 }} width={140}>
                 Orden
               </TableCell>
-              <TableCell sx={{ color: 'white', fontWeight: 700 }} align="right" width={140}>
+              <TableCell sx={{ color: tokens.grid.headerForeground, fontWeight: 700 }} align="right" width={140}>
                 Acciones
               </TableCell>
             </TableRow>
@@ -293,7 +295,7 @@ export default function EmpresaImpuestosDefault() {
               return (
                 <TableRow key={item.id} hover>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={600} color="#111827">
+                    <Typography variant="body2" fontWeight={600} color={tokens.content.foreground}>
                       {formatImpuesto(item.impuesto)}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">

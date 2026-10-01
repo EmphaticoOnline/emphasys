@@ -1,7 +1,9 @@
 import * as React from 'react';
 import { Box, Paper, Tab, Tabs, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CONTABILIDAD_TABS } from '../components/contabilidadNavigation';
+import { pestanasModuloSx } from '../modules/contabilidad/contabilidadVisual';
 import CuentasTab from '../modules/contabilidad/CuentasTab';
 import ConfiguracionTab from '../modules/contabilidad/ConfiguracionTab';
 import RangosTab from '../modules/contabilidad/RangosTab';
@@ -10,18 +12,6 @@ import PolizasTab from '../modules/contabilidad/PolizasTab';
 import EContabilidadTab from '../modules/contabilidad/EContabilidadTab';
 
 type ContabilidadTabKey = (typeof CONTABILIDAD_TABS)[number]['key'];
-
-const CONTABILIDAD_TAB_STYLE = {
-  minHeight: 0,
-  textTransform: 'none',
-  fontWeight: 600,
-  color: '#4b5563',
-  borderTop: '3px solid transparent',
-  borderRadius: '6px 6px 0 0',
-  padding: '8px 10px',
-  mr: 1,
-  alignItems: 'flex-end',
-};
 
 function getActiveTab(pathname: string): ContabilidadTabKey {
   const match = CONTABILIDAD_TABS.find((tab) => tab.path === pathname);
@@ -44,6 +34,7 @@ function TabPlaceholder({ title, description }: { title: string; description: st
 }
 
 export default function ContabilidadPage() {
+  const theme = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const activeTab = getActiveTab(location.pathname);
@@ -57,8 +48,17 @@ export default function ContabilidadPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 1, pb: 0.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, color: theme.emphasys.content.foreground }}>
+      <Box
+        sx={{
+          px: { xs: 1.5, md: 2 },
+          pt: 1,
+          pb: 0,
+          flexShrink: 0,
+          backgroundColor: theme.emphasys.documentNav.background,
+          borderBottom: `1px solid ${theme.emphasys.documentNav.border}`,
+        }}
+      >
         <Tabs
           value={activeTab}
           onChange={handleTabChange}
@@ -66,25 +66,7 @@ export default function ContabilidadPage() {
           allowScrollButtonsMobile
           textColor="inherit"
           TabIndicatorProps={{ style: { display: 'none' } }}
-          sx={{
-            minHeight: 0,
-            '& .MuiTabs-flexContainer': {
-              alignItems: 'flex-end',
-            },
-            '& .MuiTab-root': CONTABILIDAD_TAB_STYLE,
-            '& .Mui-selected': {
-              color: '#1d2f68',
-              backgroundColor: '#fff',
-              borderTop: '3px solid #006261',
-              borderLeft: '1px solid #e5e7eb',
-              borderRight: '1px solid #e5e7eb',
-              borderBottom: '1px solid #fff',
-            },
-            '& .MuiTab-root:hover': {
-              color: '#1d2f68',
-              backgroundColor: '#f1f3f6',
-            },
-          }}
+          sx={pestanasModuloSx}
         >
           {CONTABILIDAD_TABS.map((tab) => (
             <Tab key={tab.key} value={tab.key} label={tab.label} />

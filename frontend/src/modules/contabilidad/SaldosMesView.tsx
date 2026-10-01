@@ -19,6 +19,7 @@ import {
   cuentasGridDensidadSx,
   cuentasSinFocoDeCeldaSx,
 } from './cuentasGridEstilos';
+import { codigoCuentaSx, descripcionJerarquiaSx, importeSx, panelSx } from './contabilidadVisual';
 
 const normalizeFilterLookup = (value: string) =>
   value
@@ -35,7 +36,7 @@ function formatMoneda(valor: number): string {
 // visualmente en las columnas monetarias de la grilla.
 function celdaMoneda(valor: number) {
   return (
-    <Box component="span" sx={{ color: valor < 0 ? 'error.main' : 'inherit' }}>
+    <Box component="span" sx={(theme) => importeSx(theme, valor < 0)}>
       {formatMoneda(valor)}
     </Box>
   );
@@ -161,7 +162,7 @@ export default function SaldosMesView({
       headerAlign: 'center',
       headerClassName: 'finanzas-header',
       renderCell: (params) => (
-        <Box sx={{ color: params.row.afectable ? '#1d2f68' : 'text.secondary', fontWeight: params.row.afectable ? 600 : 400 }}>
+        <Box sx={(theme) => codigoCuentaSx(theme, params.row.afectable)}>
           {params.value}
         </Box>
       ),
@@ -175,15 +176,7 @@ export default function SaldosMesView({
       headerClassName: 'finanzas-header',
       renderCell: (params) => (
         <Box
-          sx={{
-            pl: `${Math.max(0, params.row.nivel - 1) * 24}px`,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            width: '100%',
-            color: params.row.afectable ? '#1d2f68' : 'text.secondary',
-            fontWeight: params.row.afectable ? 600 : 400,
-          }}
+          sx={(theme) => descripcionJerarquiaSx(theme, params.row.nivel, params.row.afectable)}
           title={params.value}
         >
           {params.value}
@@ -269,7 +262,7 @@ export default function SaldosMesView({
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <Paper variant="outlined" sx={panelSx}>
         <DataGrid
           apiRef={apiRef}
           rows={filasFiltradas}

@@ -40,6 +40,7 @@ import type { FinanzasCuenta } from '../../types/finanzas';
 import type { Concepto } from '../../types/finanzas';
 import type { ImpuestoCatalogo } from '../../types/impuestos';
 import FloatingFormActions from '../../components/FloatingFormActions';
+import { campoCompactoSx, formularioPaperSx, tituloVistaSx } from './contabilidadVisual';
 
 type OpcionContacto = { id: number; nombre: string };
 type OpcionProducto = { id: number; clave: string; descripcion: string };
@@ -351,13 +352,13 @@ export default function ConfiguracionCuentaContableFormView({ configuracion, onC
   };
 
   return (
-    <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.5 }}>
-      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+    <Box sx={(theme) => ({ px: { xs: 2, md: 2.5 }, py: 2, color: theme.emphasys.content.foreground })}>
+      <Typography sx={[tituloVistaSx, { mb: 1.5 }]}>
         {isEdit ? 'Editar configuración contable' : 'Nueva configuración contable'}
       </Typography>
 
-      <Paper sx={{ p: 3, pb: '96px', maxWidth: 560 }}>
-        <Stack spacing={2}>
+      <Paper sx={(theme) => ({ ...formularioPaperSx(theme), pb: '96px', maxWidth: 560 })}>
+        <Stack spacing={2} sx={campoCompactoSx}>
           <TextField
             select
             label="Uso contable"
@@ -524,7 +525,7 @@ export default function ConfiguracionCuentaContableFormView({ configuracion, onC
         </Stack>
       </Paper>
 
-      <FloatingFormActions onBack={onCancel} backDisabled={saving} onSave={handleSave} saving={saving} saveDisabled={saving} />
+      <FloatingFormActions appearance="graphite" onBack={onCancel} backDisabled={saving} onSave={handleSave} saving={saving} saveDisabled={saving} />
     </Box>
   );
 }

@@ -1,36 +1,51 @@
-import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import {
+  AlternateEmailRounded,
+  BadgeRounded,
   BusinessRounded,
   CategoryRounded,
+  CloudDownloadRounded,
   CloudRounded,
-  ReceiptLongRounded,
+  DirectionsCarRounded,
+  ForumRounded,
+  GridViewRounded,
   GroupRounded,
+  HomeWorkRounded,
+  LabelRounded,
+  LocalShippingRounded,
+  PaymentsRounded,
+  PercentRounded,
+  PictureAsPdfRounded,
+  FormatListBulletedRounded,
+  ReceiptLongRounded,
+  ScheduleRounded,
   SchemaRounded,
   SettingsRounded,
   ShieldRounded,
-  TuneRounded,
-  PercentRounded,
-  PictureAsPdfRounded,
-  LabelRounded,
-  AlternateEmailRounded,
-  ViewListRounded,
-  GridViewRounded,
   TagRounded,
+  TuneRounded,
   VerifiedUserRounded,
-  PaymentsRounded,
-  DirectionsCarRounded,
-  ScheduleRounded,
+  ViewListRounded,
+  type SvgIconComponent,
 } from '@mui/icons-material';
-import { CONFIGURACION_OPTIONS } from './configuracion/configuracionNavigation';
+import {
+  CONFIGURACION_GRUPOS,
+  CONFIGURACION_OPTIONS,
+  type ConfiguracionNavigationOption,
+} from './configuracion/configuracionNavigation';
+import { ConfigNavRow, ConfigPageFrame, ConfigPageHeader, ConfigSection } from '../components/configuracion/configVisual';
 import { esRolAdmin } from '../session/rolScope';
 import { useSession } from '../session/useSession';
 
-const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
+const ICONOS_POR_TITULO: Record<string, SvgIconComponent> = {
   Empresas: BusinessRounded,
+  'Horarios laborales': ScheduleRounded,
+  Unidades: CategoryRounded,
+  'Domicilios propios': HomeWorkRounded,
   Vehículos: DirectionsCarRounded,
-  Remolques: DirectionsCarRounded,
+  Remolques: LocalShippingRounded,
+  Operadores: BadgeRounded,
   Usuarios: GroupRounded,
   Roles: ShieldRounded,
   'Catálogos configurables': CategoryRounded,
@@ -39,90 +54,106 @@ const ICONOS_POR_TITULO: Record<string, React.ComponentType<any>> = {
   'Administración de precios': GridViewRounded,
   'Documentos y flujo': SchemaRounded,
   'Parámetros del sistema': SettingsRounded,
-  'Opciones de parámetros': SettingsRounded,
+  'Opciones de parámetros': FormatListBulletedRounded,
   Conceptos: ReceiptLongRounded,
   'Impuestos por default': PercentRounded,
   'Formatos de impresión': PictureAsPdfRounded,
   'Series de documentos': TagRounded,
   'Correo SMTP': AlternateEmailRounded,
   'PAC CFDI': CloudRounded,
+  'Descarga de CFDIs del SAT': CloudDownloadRounded,
   'Etiquetas de WhatsApp': LabelRounded,
+  'Plantillas de WhatsApp': ForumRounded,
   'Etapas de producción': SchemaRounded,
   'Campos obligatorios': TuneRounded,
   'Métodos de pago': PaymentsRounded,
   'Políticas de autorización': VerifiedUserRounded,
-  Unidades: CategoryRounded,
-  'Horarios laborales': ScheduleRounded,
 };
+
+const GRUPOS_ANCHO_COMPLETO = new Set(['catalogos', 'sistema']);
+
+function opcionVisible(
+  opcion: ConfiguracionNavigationOption,
+  isSuperadmin: boolean,
+  puedeHorarios: boolean,
+) {
+  return (!opcion.soloSuperadmin || isSuperadmin) && (opcion.titulo !== 'Horarios laborales' || puedeHorarios);
+}
 
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
   const { session } = useSession();
-  const isSuperadmin = Boolean((window.localStorage.getItem('emphasys.session') && JSON.parse(window.localStorage.getItem('emphasys.session') || '{}')?.user?.es_superadmin));
-
+  const isSuperadmin = Boolean(
+    window.localStorage.getItem('emphasys.session') &&
+      JSON.parse(window.localStorage.getItem('emphasys.session') || '{}')?.user?.es_superadmin,
+  );
   const puedeHorarios = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
-  const opcionesVisibles = CONFIGURACION_OPTIONS.filter((opcion) => (!opcion.soloSuperadmin || isSuperadmin) && (opcion.titulo !== 'Horarios laborales' || puedeHorarios));
+
+  const opcionesVisibles = CONFIGURACION_OPTIONS.filter((opcion) => opcionVisible(opcion, isSuperadmin, puedeHorarios));
+  const porPath = new Map(opcionesVisibles.map((opcion) => [opcion.path, opcion]));
+  const asignadas = new Set<string>();
+
+  const grupos = CONFIGURACION_GRUPOS.map((grupo) => {
+    const opciones = grupo.paths.flatMap((path) => {
+      const opcion = porPath.get(path);
+      if (!opcion) return [];
+      asignadas.add(path);
+      return [opcion];
+    });
+    return { ...grupo, opciones };
+  }).filter((grupo) => grupo.opciones.length > 0);
+
+  const sueltas = opcionesVisibles.filter((opcion) => !asignadas.has(opcion.path));
+  if (sueltas.length) {
+    grupos.push({ id: 'otros', titulo: 'Otras opciones', paths: sueltas.map((opcion) => opcion.path), opciones: sueltas });
+  }
+
+  const columnas = grupos.filter((grupo) => !GRUPOS_ANCHO_COMPLETO.has(grupo.id));
+  const anchoCompleto = grupos.filter((grupo) => GRUPOS_ANCHO_COMPLETO.has(grupo.id));
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h5" fontWeight={700} color="#1d2f68">
-          Configuración del sistema
-        </Typography>
-        <Typography variant="body2" color="#4b5563">
-          Administra los elementos clave del ERP. Selecciona una opción para continuar.
-        </Typography>
-      </Stack>
+    <ConfigPageFrame>
+      <ConfigPageHeader
+        title="Configuración del sistema"
+        description="Administra los elementos clave del ERP. Selecciona una opción para continuar."
+      />
 
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: {
-            xs: 'repeat(1, minmax(0, 1fr))',
-            sm: 'repeat(2, minmax(0, 1fr))',
-            md: 'repeat(3, minmax(0, 1fr))',
-          },
-          gap: 2,
+          gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
+          gap: 1.25,
+          alignItems: 'start',
         }}
       >
-        {opcionesVisibles.map((opcion) => {
-          const Icono = ICONOS_POR_TITULO[opcion.titulo] ?? SchemaRounded;
-
-          return (
-            <Card
-              key={opcion.titulo}
-              elevation={0}
-              sx={{ border: '1px solid #e5e7eb', borderRadius: 2, height: '100%' }}
-            >
-              <CardActionArea sx={{ height: '100%' }} onClick={opcion.path ? () => navigate(opcion.path) : undefined}>
-                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                  <Stack direction="row" alignItems="center" spacing={1.5}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 1,
-                        display: 'grid',
-                        placeItems: 'center',
-                        backgroundColor: '#eef2ff',
-                        color: '#1d2f68',
-                      }}
-                    >
-                      <Icono fontSize="small" />
-                    </Box>
-                    <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-                      {opcion.titulo}
-                    </Typography>
-                  </Stack>
-                  <Typography variant="body2" color="#4b5563">
-                    {opcion.descripcion}
-                  </Typography>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          );
-        })}
+        {columnas.map((grupo) => (
+          <ConfigSection key={grupo.id} title={grupo.titulo}>
+            {grupo.opciones.map((opcion) => (
+              <ConfigNavRow
+                key={opcion.path}
+                icon={ICONOS_POR_TITULO[opcion.titulo] ?? SchemaRounded}
+                title={opcion.titulo}
+                description={opcion.descripcion}
+                onClick={() => navigate(opcion.path)}
+              />
+            ))}
+          </ConfigSection>
+        ))}
       </Box>
-    </Box>
+
+      {anchoCompleto.map((grupo) => (
+        <ConfigSection key={grupo.id} title={grupo.titulo} columns={2}>
+          {grupo.opciones.map((opcion) => (
+            <ConfigNavRow
+              key={opcion.path}
+              icon={ICONOS_POR_TITULO[opcion.titulo] ?? SchemaRounded}
+              title={opcion.titulo}
+              description={opcion.descripcion}
+              onClick={() => navigate(opcion.path)}
+            />
+          ))}
+        </ConfigSection>
+      ))}
+    </ConfigPageFrame>
   );
 }

@@ -29,8 +29,8 @@ import { CUENTAS_GRID_ROW_HEIGHT, cuentasGridDensidadSx, cuentasSinFocoDeCeldaSx
 import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService';
 import { fetchBalanzaXmlPreview, descargarBalanzaXml } from '../../services/eContabilidadService';
 import type { BalanzaComprobacionXmlResultado, CuentaBalanzaXml, TipoEnvioBalanza } from '../../types/balanzaXml';
+import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 
-const BRAND = '#1d2f68';
 
 interface FilaProblema {
   tipo: string;
@@ -258,9 +258,9 @@ export default function BalanzaXmlView({
             startIcon={<PreviewIcon fontSize="small" />}
             onClick={handlePrevisualizar}
             disabled={!ejercicio || cargando || fechaRequeridaYFaltante}
-            sx={{ textTransform: 'none', bgcolor: BRAND, '&:hover': { bgcolor: '#162551' } }}
+            sx={botonPrimarioSx}
           >
-            {cargando ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Previsualizar / Validar balanza'}
+            {cargando ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Previsualizar / Validar balanza'}
           </Button>
 
           <Button
@@ -268,7 +268,7 @@ export default function BalanzaXmlView({
             startIcon={<DownloadIcon fontSize="small" />}
             onClick={handleDescargar}
             disabled={!resultado?.ok || descargando}
-            sx={{ textTransform: 'none', color: BRAND, borderColor: BRAND }}
+            sx={(theme) => ({ textTransform: 'none', color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border })}
           >
             {descargando ? 'Generando...' : 'Descargar XML'}
           </Button>
@@ -324,7 +324,7 @@ export default function BalanzaXmlView({
           </Paper>
 
           {resultado.errores.length > 0 && (
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, borderColor: '#fecaca', bgcolor: '#fef2f2' }}>
+            <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'error')}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
                 <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
                   Errores ({resultado.errores.length})
@@ -346,7 +346,7 @@ export default function BalanzaXmlView({
           )}
 
           {resultado.advertencias.length > 0 && (
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, borderColor: '#fde68a', bgcolor: '#fffbeb' }}>
+            <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'warn')}>
               <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#92400e', mb: 1 }}>
                 Advertencias ({resultado.advertencias.length})
               </Typography>

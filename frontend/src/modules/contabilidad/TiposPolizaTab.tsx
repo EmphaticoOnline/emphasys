@@ -31,6 +31,7 @@ import {
   standardDataGridSx,
 } from '../../components/grids/standardDataGridSx';
 import TipoPolizaFormView from './TipoPolizaFormView';
+import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 
 type Vista = 'lista' | 'formulario';
 
@@ -151,7 +152,7 @@ export default function TiposPolizaTab() {
       renderCell: (params) => (
         <Stack direction="row" spacing={0.5} justifyContent="flex-end" width="100%">
           <Tooltip title="Editar">
-            <IconButton size="small" onClick={() => handleEditar(params.row)} sx={{ color: '#1d2f68' }}>
+            <IconButton size="small" onClick={() => handleEditar(params.row)} sx={iconoAccionSx}>
               <EditIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -165,7 +166,7 @@ export default function TiposPolizaTab() {
             </IconButton>
           </Tooltip>
           <Tooltip title="Eliminar">
-            <IconButton size="small" onClick={() => handlePedirEliminar(params.row)} sx={{ color: '#b91c1c' }}>
+            <IconButton size="small" onClick={() => handlePedirEliminar(params.row)} sx={iconoPeligroSx}>
               <DeleteOutlineIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -185,7 +186,7 @@ export default function TiposPolizaTab() {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleNuevo}
-          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+          sx={botonPrimarioSx}
         >
           Nuevo tipo de póliza
         </Button>

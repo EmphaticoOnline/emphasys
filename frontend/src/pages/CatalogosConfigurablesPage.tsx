@@ -1,14 +1,16 @@
-import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Alert, Box, Card, CardActionArea, CardContent, CircularProgress, Stack, Typography } from '@mui/material';
+import { Alert, Box, CircularProgress, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { fetchCatalogosConfigurables, type CatalogoConfigurableGrupo } from '../services/catalogosConfigurablesService';
+import { ConfigNavRow, ConfigPageFrame, ConfigPageHeader, ConfigSection } from '../components/configuracion/configVisual';
 
 export default function CatalogosConfigurablesPage() {
   const [grupos, setGrupos] = useState<CatalogoConfigurableGrupo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const tokens = useTheme().emphasys;
 
   useEffect(() => {
     const load = async () => {
@@ -31,7 +33,7 @@ export default function CatalogosConfigurablesPage() {
     if (loading) {
       return (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 6 }}>
-          <CircularProgress size={28} />
+          <CircularProgress size={28} sx={{ color: tokens.content.foreground }} />
         </Box>
       );
     }
@@ -41,74 +43,60 @@ export default function CatalogosConfigurablesPage() {
     }
 
     if (!grupos.length) {
-      return <Alert severity="info">No hay catálogos configurables disponibles.</Alert>;
+      return (
+        <Box
+          sx={{
+            borderRadius: 2.5,
+            border: `1px dashed ${tokens.content.border}`,
+            bgcolor: tokens.content.elevated,
+            px: 2,
+            py: 3,
+          }}
+        >
+          <Typography sx={{ fontSize: 13.5, fontWeight: 650, color: tokens.content.foreground }}>
+            No hay catálogos configurables
+          </Typography>
+          <Typography sx={{ mt: 0.4, fontSize: 13, color: tokens.content.muted }}>
+            Cuando existan catálogos por tipo de entidad, aparecerán aquí.
+          </Typography>
+        </Box>
+      );
     }
 
     return (
-      <Stack spacing={3}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {grupos.map((grupo) => (
-          <Box key={grupo.entidad_tipo_id} sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            <Box>
-              <Typography variant="h6" fontWeight={700} color="#1d2f68">
-                {grupo.entidad_nombre || 'Entidad'}
+          <ConfigSection
+            key={grupo.entidad_tipo_id}
+            title={grupo.entidad_nombre || 'Entidad'}
+            columns={grupo.catalogos.length > 4 ? 2 : 1}
+          >
+            {grupo.entidad_descripcion ? (
+              <Typography sx={{ gridColumn: '1 / -1', px: 0.75, pb: 0.4, fontSize: 12, color: tokens.content.secondary }}>
+                {grupo.entidad_descripcion}
               </Typography>
-              {grupo.entidad_descripcion ? (
-                <Typography variant="body2" color="#4b5563">
-                  {grupo.entidad_descripcion}
-                </Typography>
-              ) : null}
-            </Box>
-
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: 'repeat(1, minmax(0, 1fr))',
-                  sm: 'repeat(2, minmax(0, 1fr))',
-                  md: 'repeat(3, minmax(0, 1fr))',
-                },
-                gap: 2,
-              }}
-            >
-              {grupo.catalogos.map((catalogo) => (
-                <Card
-                  key={catalogo.id}
-                  elevation={0}
-                  sx={{ border: '1px solid #e5e7eb', borderRadius: 2, height: '100%' }}
-                >
-                  <CardActionArea sx={{ height: '100%' }} onClick={() => navigate(`/configuracion/catalogos/${catalogo.id}`)}>
-                    <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                      <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-                        {catalogo.nombre || 'Catálogo'}
-                      </Typography>
-                      {catalogo.descripcion ? (
-                        <Typography variant="body2" color="#4b5563">
-                          {catalogo.descripcion}
-                        </Typography>
-                      ) : null}
-                    </CardContent>
-                  </CardActionArea>
-                </Card>
-              ))}
-            </Box>
-          </Box>
+            ) : null}
+            {grupo.catalogos.map((catalogo) => (
+              <ConfigNavRow
+                key={catalogo.id}
+                title={catalogo.nombre || 'Catálogo'}
+                description={catalogo.descripcion}
+                onClick={() => navigate(`/configuracion/catalogos/${catalogo.id}`)}
+              />
+            ))}
+          </ConfigSection>
         ))}
-      </Stack>
+      </Box>
     );
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h5" fontWeight={700} color="#1d2f68">
-          Catálogos configurables
-        </Typography>
-        <Typography variant="body2" color="#4b5563">
-          Consulta los catálogos agrupados por tipo de entidad para su configuración.
-        </Typography>
-      </Stack>
-
+    <ConfigPageFrame>
+      <ConfigPageHeader
+        title="Catálogos configurables"
+        description="Consulta los catálogos agrupados por tipo de entidad para su configuración."
+      />
       {renderContenido()}
-    </Box>
+    </ConfigPageFrame>
   );
 }

@@ -16,6 +16,7 @@ import { standardDataGridSx } from '../../components/grids/standardDataGridSx';
 import { reordenarColumnas } from '../../components/grids/gridColumnOrder';
 import { useDeviceProfile } from '../../hooks/useDeviceProfile';
 import { useGridPreferences } from '../../hooks/useGridPreferences';
+import { botonSecundarioSx, cajonPaperSx, grillaCompactaSx, iconoAccionSx, importeSx, panelSx } from './contabilidadVisual';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2 });
@@ -44,7 +45,7 @@ const auxiliarHeaderSx = {
     minHeight: `${HEADER_H}px !important`,
     maxHeight: `${HEADER_H}px !important`,
   },
-  '& .MuiDataGrid-columnHeadersInner': { backgroundColor: '#1d2f68' },
+  '& .MuiDataGrid-columnHeadersInner': { backgroundColor: 'inherit' },
   '& .MuiDataGrid-columnHeader': {
     borderBottom: 'none',
     height: `${HEADER_H}px !important`,
@@ -90,7 +91,11 @@ const columnasBase: GridColDef<AuxiliarMovimiento & { id: string }>[] = [
     align: 'right',
     headerAlign: 'center',
     headerClassName: 'finanzas-header',
-    renderCell: ({ value }) => (Number(value) ? formatMoneda(Number(value)) : ''),
+    renderCell: ({ value }) => {
+      const numero = Number(value);
+      if (!numero) return '';
+      return <Box component="span" sx={(theme) => importeSx(theme, numero < 0)}>{formatMoneda(numero)}</Box>;
+    },
   },
   {
     field: 'abono',
@@ -101,7 +106,11 @@ const columnasBase: GridColDef<AuxiliarMovimiento & { id: string }>[] = [
     align: 'right',
     headerAlign: 'center',
     headerClassName: 'finanzas-header',
-    renderCell: ({ value }) => (Number(value) ? formatMoneda(Number(value)) : ''),
+    renderCell: ({ value }) => {
+      const numero = Number(value);
+      if (!numero) return '';
+      return <Box component="span" sx={(theme) => importeSx(theme, numero < 0)}>{formatMoneda(numero)}</Box>;
+    },
   },
   {
     field: 'referencia',
@@ -121,13 +130,26 @@ const columnasBase: GridColDef<AuxiliarMovimiento & { id: string }>[] = [
   },
 ];
 
-function EstadisticaResumen({ label, value, color }: { label: string; value: string; color: string }) {
+function EstadisticaResumen({ label, value, tono }: { label: string; value: string; tono: 'cargo' | 'abono' | 'neutral' }) {
   return (
     <Box sx={{ flex: 1, px: 2, py: 1, textAlign: 'center' }}>
-      <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: 'text.secondary' }}>
+      <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'text.secondary' }}>
         {label}
       </Typography>
-      <Typography sx={{ fontSize: 16, fontWeight: 700, color }}>{value}</Typography>
+      <Typography
+        sx={(theme) => ({
+          fontSize: 16,
+          fontWeight: 700,
+          fontVariantNumeric: 'tabular-nums',
+          color: tono === 'abono'
+            ? theme.emphasys.metric.applied.foreground
+            : tono === 'cargo'
+              ? theme.emphasys.content.foreground
+              : theme.emphasys.content.secondary,
+        })}
+      >
+        {value}
+      </Typography>
     </Box>
   );
 }
@@ -193,11 +215,11 @@ export default function AuxiliarCuentaDrawer({
       anchor="right"
       open={open}
       onClose={onClose}
-      sx={{ '& .MuiDrawer-paper': { width: { xs: '100%', sm: '85%', md: 760 } } }}
+      sx={(theme) => ({ '& .MuiDrawer-paper': { width: { xs: '100%', sm: '85%', md: 760 }, ...cajonPaperSx(theme) } })}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 2, py: 1.5, borderBottom: '1px solid #e5e7eb' }}>
-          <Typography sx={{ fontSize: 15, fontWeight: 700, color: '#1d2f68' }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={(theme) => ({ px: 2, py: 1.25, borderBottom: `1px solid ${theme.emphasys.content.border}`, backgroundColor: theme.emphasys.content.elevated })}>
+          <Typography sx={(theme) => ({ fontSize: 15, fontWeight: 700, color: theme.emphasys.content.foreground })}>
             Auxiliar de cuenta
           </Typography>
           <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -207,7 +229,7 @@ export default function AuxiliarCuentaDrawer({
                   size="small"
                   onClick={() => handleDescargar('pdf')}
                   disabled={!data || descargando !== null}
-                  sx={{ color: '#1d2f68' }}
+                  sx={iconoAccionSx}
                 >
                   <PictureAsPdfIcon fontSize="small" />
                 </IconButton>
@@ -219,7 +241,7 @@ export default function AuxiliarCuentaDrawer({
                   size="small"
                   onClick={() => handleDescargar('excel')}
                   disabled={!data || descargando !== null}
-                  sx={{ color: '#166534' }}
+                  sx={(theme) => ({ color: theme.emphasys.metric.applied.foreground })}
                 >
                   <GridOnIcon fontSize="small" />
                 </IconButton>
@@ -230,7 +252,7 @@ export default function AuxiliarCuentaDrawer({
               size="small"
               startIcon={<CloseIcon fontSize="small" />}
               onClick={onClose}
-              sx={{ textTransform: 'none', color: '#1d2f68' }}
+              sx={botonSecundarioSx}
             >
               Cerrar
             </Button>
@@ -256,22 +278,22 @@ export default function AuxiliarCuentaDrawer({
               {/* Encabezado tipo "hero": cuenta/descripción en banda azul
                   institucional, seguida de tarjetas de resumen (cargos,
                   abonos, movimientos) con acento de color por dato. */}
-              <Box sx={{ borderRadius: 1.5, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                <Box sx={{ bgcolor: '#1d2f68', color: '#ffffff', px: 2, py: 1.25 }}>
-                  <Typography sx={{ fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase', opacity: 0.75 }}>
+              <Box sx={(theme) => ({ ...panelSx(theme), border: `1px solid ${theme.emphasys.content.border}` })}>
+                <Box sx={(theme) => ({ bgcolor: theme.emphasys.grid.header, color: theme.emphasys.grid.headerForeground, px: 2, py: 1.25 })}>
+                  <Typography sx={{ fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', opacity: 0.75 }}>
                     Cuenta contable
                   </Typography>
                   <Stack direction="row" alignItems="baseline" spacing={1.5} flexWrap="wrap">
-                    <Typography sx={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace' }}>
+                    <Typography sx={{ fontSize: 18, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                       {data.cuenta.cuenta}
                     </Typography>
                     <Typography sx={{ fontSize: 13, opacity: 0.85 }}>{data.cuenta.descripcion}</Typography>
                   </Stack>
                 </Box>
-                <Stack direction="row" divider={<Divider orientation="vertical" flexItem />} sx={{ bgcolor: '#f8fafc' }}>
-                  <EstadisticaResumen label="Cargos" value={formatMoneda(data.resumen.cargos)} color="#1d2f68" />
-                  <EstadisticaResumen label="Abonos" value={formatMoneda(data.resumen.abonos)} color="#166534" />
-                  <EstadisticaResumen label="Movimientos" value={String(data.resumen.numero_movimientos)} color="#334155" />
+                <Stack direction="row" divider={<Divider orientation="vertical" flexItem />} sx={(theme) => ({ bgcolor: theme.emphasys.content.elevated })}>
+                  <EstadisticaResumen label="Cargos" value={formatMoneda(data.resumen.cargos)} tono="cargo" />
+                  <EstadisticaResumen label="Abonos" value={formatMoneda(data.resumen.abonos)} tono="abono" />
+                  <EstadisticaResumen label="Movimientos" value={String(data.resumen.numero_movimientos)} tono="neutral" />
                 </Stack>
               </Box>
 
@@ -280,7 +302,7 @@ export default function AuxiliarCuentaDrawer({
                   No hay movimientos aplicados para esta cuenta en el periodo seleccionado.
                 </Alert>
               ) : (
-                <Box sx={{ flex: 1, minHeight: 0, border: '1px solid #e2e8f0', borderRadius: 1, overflow: 'hidden' }}>
+                <Box sx={(theme) => ({ flex: 1, minHeight: 0, ...panelSx(theme) })}>
                   <DataGrid
                     rows={filas}
                     columns={columnas}
@@ -307,12 +329,8 @@ export default function AuxiliarCuentaDrawer({
                     sx={[
                       standardDataGridSx,
                       auxiliarHeaderSx,
-                      {
-                        height: '100%',
-                        border: 'none',
-                        fontSize: 12,
-                        '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' },
-                      },
+                      grillaCompactaSx,
+                      { height: '100%', '& .MuiDataGrid-row': { cursor: 'default' } },
                     ]}
                     hideFooterPagination
                     hideFooterSelectedRowCount

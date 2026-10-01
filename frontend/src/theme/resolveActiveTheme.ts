@@ -19,11 +19,11 @@ export type ThemeResolutionContext = {
  * Política vigente: estas rutas usan el tema experimental.
  * No es una propiedad del tema ni de un módulo de UI.
  *
- * Las rutas exactas no se propagan a sus hijos. `/informes` no puede ser
- * prefijo: los reportes que se abren desde el índice conservan su tema
- * hasta que cada uno se homologue por separado.
+ * Las rutas exactas no se propagan a sus hijos. `/informes` y `/configuracion`
+ * no pueden ser prefijo: las pantallas que se abren desde el índice conservan
+ * su tema hasta que cada una se homologue por separado.
  */
-const EXPERIMENTAL_EXACT_PATHS = ['/informes', '/crm'] as const;
+const EXPERIMENTAL_EXACT_PATHS = ['/informes', '/crm', '/configuracion'] as const;
 
 const EXPERIMENTAL_PATH_PREFIXES = [
   '/ventas/nota_credito',
@@ -41,6 +41,7 @@ const EXPERIMENTAL_PATH_PREFIXES = [
   '/informes/ventas/ventas-por-vendedor',
   '/informes/crm/evaluacion-vendedores',
   '/finanzas',
+  '/contabilidad',
   '/contactos',
   '/productos',
   '/crm/conversaciones',

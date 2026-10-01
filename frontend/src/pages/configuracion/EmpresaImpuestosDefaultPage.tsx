@@ -1,22 +1,30 @@
 import React from 'react';
-import { Box, Paper, Stack, Typography } from '@mui/material';
+import { Paper } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import EmpresaImpuestosDefault from '../../modules/configuracion/EmpresaImpuestosDefault';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
 
 export default function EmpresaImpuestosDefaultPage() {
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h5" fontWeight={700} color="#1d2f68">
-          Impuestos por default
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Administra los impuestos predeterminados que se aplican cuando un producto no tiene impuestos configurados.
-        </Typography>
-      </Stack>
+  const tokens = useTheme().emphasys;
 
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: 2 }}>
+  return (
+    <ConfigPageFrame>
+      <ConfigPageHeader
+        title="Impuestos por default"
+        description="Administra los impuestos predeterminados que se aplican cuando un producto no tiene impuestos configurados."
+      />
+
+      <Paper
+        elevation={0}
+        sx={{
+          p: { xs: 1.5, md: 2 },
+          borderRadius: 2.5,
+          bgcolor: tokens.content.elevated,
+          border: `1px solid ${tokens.content.border}`,
+        }}
+      >
         <EmpresaImpuestosDefault />
       </Paper>
-    </Box>
+    </ConfigPageFrame>
   );
 }

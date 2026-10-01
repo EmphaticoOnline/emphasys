@@ -22,8 +22,8 @@ import { EmphasysDataGrid } from '../../components/grids/EmphasysDataGrid';
 import type { SaldoInicialCuenta } from '../../types/saldosIniciales';
 import { fetchSaldosIniciales, actualizarSaldosInicialesLote } from '../../services/saldosInicialesService';
 import { CUENTAS_GRID_ROW_HEIGHT, cuentasGridDensidadSx, cuentasSinFocoDeCeldaSx } from './cuentasGridEstilos';
+import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 
-const BRAND = '#1d2f68';
 
 type Filtro = 'todas' | 'sin-saldo' | 'con-saldo';
 
@@ -341,7 +341,7 @@ export default function SaldosInicialesView() {
         width: 140,
         headerAlign: 'center',
         headerClassName: 'finanzas-header',
-        renderCell: (params) => <Box sx={{ color: BRAND, fontWeight: 600 }}>{params.value}</Box>,
+        renderCell: (params) => <Box sx={{ fontWeight: 650 }}>{params.value}</Box>,
       },
       {
         field: 'descripcion',
@@ -543,10 +543,10 @@ export default function SaldosInicialesView() {
           variant="contained"
           disabled={totalPendientes === 0 || guardandoLote}
           onClick={() => void handleGuardarTodo()}
-          sx={{ bgcolor: BRAND, '&:hover': { bgcolor: '#16224d' }, textTransform: 'none', whiteSpace: 'nowrap' }}
+          sx={[botonPrimarioSx, { whiteSpace: 'nowrap' }]}
         >
           {guardandoLote ? (
-            <CircularProgress size={16} sx={{ color: '#fff' }} />
+            <CircularProgress size={16} sx={{ color: 'inherit' }} />
           ) : (
             `Guardar cambios pendientes${totalPendientes > 0 ? ` (${totalPendientes})` : ''}`
           )}

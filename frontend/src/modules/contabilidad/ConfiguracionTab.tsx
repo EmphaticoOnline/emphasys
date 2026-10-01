@@ -25,8 +25,8 @@ import { fetchTiposPoliza } from '../../services/tiposPolizaService';
 import type { TipoPoliza } from '../../types/tiposPoliza';
 import { SECCIONES_TIPOS_AUTOMATICOS, type ClaveMovimientoTipoAutomatico } from '../../types/tiposAutomaticos';
 import ConfiguracionCuentasContablesView from './ConfiguracionCuentasContablesView';
+import { botonPrimarioSx, campoCompactoSx, formularioPaperSx, tituloVistaSx } from './contabilidadVisual';
 
-const BRAND = '#1d2f68';
 
 type Seccion = 'estructura-cuentas' | 'cuentas-automaticas' | 'tipos-automaticos';
 
@@ -108,9 +108,9 @@ function EstructuraCuentasSection() {
   };
 
   return (
-    <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.5 }}>
-      <Paper sx={{ p: 3, maxWidth: 520 }}>
-        <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>
+    <Box sx={(theme) => ({ px: { xs: 2, md: 2.5 }, py: 2, color: theme.emphasys.content.foreground })}>
+      <Paper sx={formularioPaperSx}>
+        <Typography sx={tituloVistaSx}>
           Estructura de cuentas
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -123,7 +123,7 @@ function EstructuraCuentasSection() {
           </Alert>
         )}
 
-        <Stack spacing={2}>
+        <Stack spacing={2} sx={campoCompactoSx}>
           <TextField
             label="Estructura de cuentas"
             placeholder="3-4-3"
@@ -158,7 +158,7 @@ function EstructuraCuentasSection() {
               onClick={handleSave}
               disabled={saving || loading}
               variant="contained"
-              sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+              sx={botonPrimarioSx}
             >
               {saving ? 'Guardando...' : 'Guardar'}
             </Button>
@@ -323,7 +323,7 @@ function TiposAutomaticosSection() {
       >
         {SECCIONES_TIPOS_AUTOMATICOS.map((seccion) => (
           <Paper key={seccion.titulo} variant="outlined" sx={{ p: 1.5 }}>
-            <Typography variant="subtitle2" fontWeight={700} color={BRAND} sx={{ fontSize: 13, mb: seccion.descripcion ? 0.25 : 0.75 }}>
+            <Typography variant="subtitle2" fontWeight={700} sx={(theme) => ({ fontSize: 13, mb: seccion.descripcion ? 0.25 : 0.75, color: theme.emphasys.content.foreground })}>
               {seccion.titulo}
             </Typography>
             {seccion.descripcion && (
@@ -394,7 +394,7 @@ function TiposAutomaticosSection() {
           onClick={handleSave}
           disabled={saving || loading}
           variant="contained"
-          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+          sx={botonPrimarioSx}
         >
           {saving ? 'Guardando...' : 'Guardar'}
         </Button>
@@ -441,14 +441,13 @@ export default function ConfiguracionTab() {
         <Tabs
           value={seccion}
           onChange={handleChangeSeccion}
-          sx={{
+          sx={(theme) => ({
             minHeight: 32,
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            '& .MuiTab-root': { minHeight: 32, textTransform: 'none', fontWeight: 600, fontSize: 13, py: 0.5 },
-            '& .Mui-selected': { color: BRAND },
-            '& .MuiTabs-indicator': { backgroundColor: BRAND },
-          }}
+            borderBottom: `1px solid ${theme.emphasys.content.border}`,
+            '& .MuiTab-root': { minHeight: 32, textTransform: 'none', fontWeight: 650, fontSize: 13, py: 0.5, color: theme.emphasys.content.muted },
+            '& .Mui-selected': { color: theme.emphasys.content.foreground },
+            '& .MuiTabs-indicator': { backgroundColor: theme.emphasys.action.info },
+          })}
         >
           <Tab value="estructura-cuentas" label="Estructura de cuentas" />
           <Tab value="cuentas-automaticas" label="Cuentas automáticas" />

@@ -28,8 +28,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService';
 import { fetchBitacoraPaquetes } from '../../services/eContabilidadService';
 import type { ItemBitacoraPaquete } from '../../types/bitacora';
+import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 
-const BRAND = '#1d2f68';
 
 function formatearFechaHora(iso: string): string {
   const fecha = new Date(iso);
@@ -223,9 +223,9 @@ export default function BitacoraView() {
             startIcon={<SearchIcon fontSize="small" />}
             onClick={handleBuscar}
             disabled={cargando}
-            sx={{ textTransform: 'none', bgcolor: BRAND, '&:hover': { bgcolor: '#162551' } }}
+            sx={botonPrimarioSx}
           >
-            {cargando ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Buscar'}
+            {cargando ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Buscar'}
           </Button>
         </Stack>
       </Paper>
@@ -240,7 +240,7 @@ export default function BitacoraView() {
         <TableContainer>
           <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: 12.5, py: 0.75 } }}>
             <TableHead>
-              <TableRow sx={{ '& .MuiTableCell-root': { bgcolor: BRAND, color: '#fff', fontWeight: 700 } }}>
+              <TableRow sx={encabezadoTablaSx}>
                 <TableCell />
                 <TableCell>Fecha/hora</TableCell>
                 <TableCell align="center">Ejercicio</TableCell>

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { FormControl, InputLabel, MenuItem, Select, Stack, TextField } from '@mui/material';
 import { SubVistaSaldosToggle, BotonNuevaCuenta } from './cuentaAcciones';
 import type { SubVista } from './CuentasTab';
+import { campoCompactoSx } from './contabilidadVisual';
 
 interface CuentasFiltrosBarProps {
   ejercicio: number | null;
@@ -39,7 +40,7 @@ export default function CuentasFiltrosBar({
       justifyContent="space-between"
     >
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-        <FormControl size="small" sx={{ minWidth: 110 }}>
+        <FormControl size="small" sx={(theme) => ({ minWidth: 110, ...campoCompactoSx(theme) })}>
           <InputLabel id="ejercicio-cuentas-label" sx={{ fontSize: 13 }}>Ejercicio</InputLabel>
           <Select
             labelId="ejercicio-cuentas-label"
@@ -62,7 +63,7 @@ export default function CuentasFiltrosBar({
           size="small"
           value={localizarCuenta}
           onChange={(e) => onLocalizarCuentaChange(e.target.value)}
-          sx={{ minWidth: 190, '& .MuiInputBase-input': { fontSize: 13, py: 0.65 }, '& .MuiInputLabel-root': { fontSize: 13 } }}
+          sx={(theme) => ({ minWidth: 190, ...campoCompactoSx(theme), '& .MuiInputBase-input': { py: 0.65 } })}
         />
         <TextField
           label="Buscar descripción"
@@ -70,7 +71,7 @@ export default function CuentasFiltrosBar({
           size="small"
           value={buscarDescripcion}
           onChange={(e) => onBuscarDescripcionChange(e.target.value)}
-          sx={{ minWidth: 190, '& .MuiInputBase-input': { fontSize: 13, py: 0.65 }, '& .MuiInputLabel-root': { fontSize: 13 } }}
+          sx={(theme) => ({ minWidth: 190, ...campoCompactoSx(theme), '& .MuiInputBase-input': { py: 0.65 } })}
         />
       </Stack>
 

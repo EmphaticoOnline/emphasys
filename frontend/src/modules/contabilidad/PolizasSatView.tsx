@@ -27,8 +27,8 @@ import { CUENTAS_GRID_ROW_HEIGHT, cuentasGridDensidadSx, cuentasSinFocoDeCeldaSx
 import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService';
 import { fetchPolizasSatPreview } from '../../services/eContabilidadService';
 import type { EstadoMovimientoPolizaSat, MovimientoPolizaSat, PolizasSatResultado } from '../../types/polizasSat';
+import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 
-const BRAND = '#1d2f68';
 
 interface FilaProblema {
   tipo: string;
@@ -81,7 +81,7 @@ function CeldaEstado({ value }: { value: EstadoMovimientoPolizaSat }) {
     <Chip
       label={config.label}
       size="small"
-      sx={{ bgcolor: config.bg, color: config.color, fontWeight: 600, fontSize: 11 }}
+      sx={(theme) => chipEstadoSx(theme, tonoDeClave(String(value)))}
     />
   );
 }
@@ -266,9 +266,9 @@ export default function PolizasSatView({ onIrAValidaciones }: { onIrAValidacione
             startIcon={<SearchIcon fontSize="small" />}
             onClick={handleRevisar}
             disabled={!ejercicio || cargando}
-            sx={{ textTransform: 'none', bgcolor: BRAND, '&:hover': { bgcolor: '#162551' } }}
+            sx={botonPrimarioSx}
           >
-            {cargando ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Revisar pólizas SAT'}
+            {cargando ? <CircularProgress size={18} sx={{ color: 'inherit' }} /> : 'Revisar pólizas SAT'}
           </Button>
         </Stack>
       </Paper>
@@ -321,7 +321,7 @@ export default function PolizasSatView({ onIrAValidaciones }: { onIrAValidacione
           </Paper>
 
           {resultado.errores.length > 0 && (
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, borderColor: '#fecaca', bgcolor: '#fef2f2' }}>
+            <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'error')}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
                 <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
                   Errores ({resultado.errores.length})
@@ -335,7 +335,7 @@ export default function PolizasSatView({ onIrAValidaciones }: { onIrAValidacione
           )}
 
           {resultado.advertencias.length > 0 && (
-            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, borderColor: '#fde68a', bgcolor: '#fffbeb' }}>
+            <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'warn')}>
               <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#92400e', mb: 1 }}>
                 Advertencias ({resultado.advertencias.length})
               </Typography>

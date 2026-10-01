@@ -31,6 +31,7 @@ import {
   cuentasGridDensidadSx,
   cuentasSinFocoDeCeldaSx,
 } from './cuentasGridEstilos';
+import { descripcionJerarquiaSx, encabezadoTablaSx, filaTotalesTablaSx, importeSx, panelSx } from './contabilidadVisual';
 
 const normalizeFilterLookup = (value: string) =>
   value
@@ -47,7 +48,7 @@ function formatMoneda(valor: number): string {
 // visualmente en las columnas monetarias de la tabla.
 function celdaMoneda(valor: number) {
   return (
-    <Box component="span" sx={{ color: valor < 0 ? 'error.main' : 'inherit' }}>
+    <Box component="span" sx={(theme) => importeSx(theme, valor < 0)}>
       {formatMoneda(valor)}
     </Box>
   );
@@ -156,15 +157,7 @@ export default function SaldosAnioView({
       headerClassName: 'finanzas-header',
       renderCell: (params) => (
         <Box
-          sx={{
-            pl: `${Math.max(0, params.row.nivel - 1) * 24}px`,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            width: '100%',
-            color: params.row.afectable ? '#1d2f68' : 'text.secondary',
-            fontWeight: params.row.afectable ? 600 : 400,
-          }}
+          sx={(theme) => descripcionJerarquiaSx(theme, params.row.nivel, params.row.afectable)}
           title={params.value}
         >
           {params.value}
@@ -209,7 +202,7 @@ export default function SaldosAnioView({
             </Alert>
           )}
 
-          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+          <Paper variant="outlined" sx={panelSx}>
             <DataGrid
               apiRef={apiRef}
               rows={filasFiltradas}
@@ -268,7 +261,7 @@ export default function SaldosAnioView({
           )}
 
           {cuentaSeleccionadaId && resultado && (
-            <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+            <Paper variant="outlined" sx={panelSx}>
               <Box sx={{ p: 2, pb: 0 }}>
                 <Typography variant="subtitle1" fontWeight={600}>
                   {resultado.cuenta} — {resultado.descripcion}
@@ -280,7 +273,7 @@ export default function SaldosAnioView({
               <TableContainer sx={{ mt: 1 }}>
                 <Table size="small">
                   <TableHead>
-                    <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: '#f1f3f6' } }}>
+                    <TableRow sx={encabezadoTablaSx}>
                       <TableCell>Mes</TableCell>
                       <TableCell align="right">Cargos</TableCell>
                       <TableCell align="right">Abonos</TableCell>
@@ -298,7 +291,7 @@ export default function SaldosAnioView({
                     ))}
                   </TableBody>
                   <TableFooter>
-                    <TableRow sx={{ '& td': { fontWeight: 700, borderTop: '2px solid #d1d5db' } }}>
+                    <TableRow sx={filaTotalesTablaSx}>
                       <TableCell>Totales</TableCell>
                       <TableCell align="right">{celdaMoneda(resultado.totales.cargos)}</TableCell>
                       <TableCell align="right">{celdaMoneda(resultado.totales.abonos)}</TableCell>

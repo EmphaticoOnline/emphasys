@@ -20,6 +20,7 @@ import { crearCuenta, actualizarCuenta, validarNuevaCuenta, fetchConfiguracionCo
 import { fetchCodigosAgrupadores } from '../../services/eContabilidadService';
 import { fetchRangosCuentas } from '../../services/rangosCuentasService';
 import FloatingFormActions from '../../components/FloatingFormActions';
+import { campoCompactoSx, formularioPaperSx, tituloVistaSx } from './contabilidadVisual';
 import {
   limpiarCuentaInput,
   parseEstructuraCuentas,
@@ -266,13 +267,13 @@ export default function CuentaFormView({
   };
 
   return (
-    <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.5 }}>
-      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+    <Box sx={(theme) => ({ px: { xs: 2, md: 2.5 }, py: 2, color: theme.emphasys.content.foreground })}>
+      <Typography sx={[tituloVistaSx, { mb: 1.5 }]}>
         {isEdit ? 'Editar cuenta' : 'Nueva cuenta'}
       </Typography>
 
-      <Paper sx={{ p: 3, pb: '96px', maxWidth: 640 }}>
-        <Stack spacing={2}>
+      <Paper sx={(theme) => ({ ...formularioPaperSx(theme), pb: '96px', maxWidth: 640 })}>
+        <Stack spacing={2} sx={campoCompactoSx}>
           <TextField
             label="Cuenta"
             required
@@ -415,6 +416,7 @@ export default function CuentaFormView({
       </Paper>
 
       <FloatingFormActions
+        appearance="graphite"
         onBack={onCancel}
         backDisabled={saving}
         onSave={handleSave}

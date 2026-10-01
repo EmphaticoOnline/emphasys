@@ -6,6 +6,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import type { Cuenta } from '../../types/contabilidad';
 import type { SubVista } from './CuentasTab';
+import { botonPrimarioSx, iconoAccionSx, iconoPeligroSx, mesesToggleSx } from './contabilidadVisual';
 
 // Acciones de cuenta (Auxiliares/Editar/Eliminar) y el botón "Nueva cuenta":
 // antes vivían solo en la subtab Catálogo (ya eliminada); ahora se reutilizan
@@ -47,7 +48,7 @@ export function AccionesCuentaCell({
         <Slot>
           {cuenta.afectable ? (
             <Tooltip title="Ver auxiliares">
-              <IconButton size="small" onClick={() => onVerAuxiliar(cuenta)} sx={{ color: '#1d2f68' }}>
+              <IconButton size="small" onClick={() => onVerAuxiliar(cuenta)} sx={iconoAccionSx}>
                 <ManageSearchIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -58,14 +59,14 @@ export function AccionesCuentaCell({
       )}
       <Slot>
         <Tooltip title="Editar">
-          <IconButton size="small" onClick={() => onEditar(cuenta)} sx={{ color: '#1d2f68' }}>
+          <IconButton size="small" onClick={() => onEditar(cuenta)} sx={iconoAccionSx}>
             <EditIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       </Slot>
       <Slot>
         <Tooltip title="Eliminar">
-          <IconButton size="small" onClick={() => onPedirEliminar(cuenta)} sx={{ color: '#b91c1c' }}>
+          <IconButton size="small" onClick={() => onPedirEliminar(cuenta)} sx={iconoPeligroSx}>
             <DeleteOutlineIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -90,14 +91,7 @@ export function SubVistaSaldosToggle({
       exclusive
       size="small"
       onChange={(_e, value: SubVista | null) => value && onChange(value)}
-      sx={{
-        '& .MuiToggleButton-root': {
-          textTransform: 'none',
-          px: 1.5,
-          py: 0.4,
-          fontSize: 13,
-        },
-      }}
+      sx={(theme) => mesesToggleSx(theme, 30, 13)}
     >
       <ToggleButton value="saldos-mes">Saldos por mes</ToggleButton>
       <ToggleButton value="saldos-anio">Saldos por año</ToggleButton>
@@ -109,9 +103,10 @@ export function BotonNuevaCuenta({ onClick }: { onClick: () => void }) {
   return (
     <Button
       variant="contained"
-      startIcon={<AddIcon />}
+      size="small"
+      startIcon={<AddIcon fontSize="small" />}
       onClick={onClick}
-      sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+      sx={botonPrimarioSx}
     >
       Nueva cuenta
     </Button>
