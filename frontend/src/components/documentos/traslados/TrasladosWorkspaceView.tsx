@@ -1,19 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Paper, Stack, TextField, Tooltip, Typography, useMediaQuery, useTheme,
+  Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
-import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { Contacto } from '../../../types/contactos.types';
 import type { Producto } from '../../../types/producto';
 import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
+import { estadoVisualDocumento } from '../estadoVisualDocumento';
+import { getStatusToneColor } from '../../status/status.semantics';
 import { timbrarDocumentoCfdi, updateDocumento, replacePartidas } from '../../../services/documentosService';
 import { fetchProductos } from '../../../services/productosService';
 import { obtenerViajePorDocumento, obtenerViajeAggregate } from '../../../services/transporte.api';
@@ -42,6 +46,47 @@ const estadoLabel = (value: unknown) => {
   if (normalized === 'cancelado' || normalized === 'cancelada') return 'Cancelado';
   return 'Borrador';
 };
+
+function AccionIcono({
+  caption,
+  icon,
+  disabled,
+  onClick,
+}: {
+  caption: string;
+  icon: ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  const tokens = useTheme().emphasys;
+  const apagado = Boolean(disabled);
+  return (
+    <Tooltip title={caption} arrow>
+      <Box component="span" sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 0.35, minWidth: 58, flexShrink: 0 }}>
+        <IconButton
+          size="small"
+          aria-label={caption}
+          disabled={apagado}
+          onClick={onClick}
+          sx={{
+            width: 34,
+            height: 34,
+            borderRadius: '10px',
+            bgcolor: apagado ? tokens.action.disabled : tokens.action.primary,
+            color: tokens.action.primaryForeground,
+            '&:hover': { bgcolor: apagado ? tokens.action.disabled : tokens.action.primaryHover },
+            '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+          }}
+        >
+          {icon}
+        </IconButton>
+        <Typography sx={{ fontSize: 10.5, lineHeight: 1.15, fontWeight: 650, color: tokens.content.secondary, textAlign: 'center' }}>
+          {caption}
+        </Typography>
+      </Box>
+    </Tooltip>
+  );
+}
 
 export default function TrasladosWorkspaceView({
   rows, isLoading, selectedId, onSelect, search, onSearch, onCreate, onDelete, onCartaPorte, onPdf, onUpdate, formatFolio, formatDate, contactos,
@@ -199,83 +244,355 @@ export default function TrasladosWorkspaceView({
   };
 
   const listaVisible = !compacto || !detalleMovil;
+  const campoSx = {
+    '& .MuiInputLabel-root': { color: tokens.content.muted },
+    '& .MuiInputLabel-root.Mui-focused': { color: tokens.content.foreground },
+    '& .MuiOutlinedInput-root': {
+      color: tokens.content.foreground,
+      bgcolor: tokens.content.elevated,
+      '& fieldset': { borderColor: tokens.content.border },
+      '&:hover fieldset': { borderColor: tokens.content.foreground },
+      '&.Mui-focused fieldset': { borderColor: tokens.content.foreground },
+    },
+  };
+  const encabezadoCelda = {
+    bgcolor: tokens.table.headerBg,
+    color: tokens.table.headerFg,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase' as const,
+    borderBottom: `1px solid ${tokens.table.line}`,
+    py: 0.9,
+    px: 1.5,
+  };
+  const celda = {
+    color: tokens.table.cell,
+    fontSize: 13,
+    borderBottom: `1px solid ${tokens.table.line}`,
+    py: 0.9,
+    px: 1.5,
+    minWidth: 0,
+  };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: compacto ? 'column' : 'row', height: 'calc(100dvh - 96px)', minHeight: 560, overflow: 'hidden', bgcolor: tokens.content.background }}>
-      <Box sx={{ width: compacto ? '100%' : 380, display: listaVisible ? 'flex' : 'none', flexDirection: 'column', minHeight: 0, bgcolor: tokens.navigation.background, color: tokens.navigation.foreground, borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}` }}>
-        <Box sx={{ p: 2 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
-            <Box>
-              <Typography sx={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', color: tokens.navigation.muted }}>TRASLADOS</Typography>
-              <Typography sx={{ mt: 0.4, fontSize: 13, color: tokens.navigation.subtle }}>{rows.length} en vista</Typography>
+    <Box sx={{ display: 'flex', flexDirection: compacto ? 'column' : 'row', height: compacto ? 'calc(100dvh - 112px)' : 'calc(100dvh - 96px)', minHeight: compacto ? 0 : 560, overflow: 'hidden', bgcolor: tokens.content.background }}>
+      <Box sx={{
+        width: compacto ? '100%' : 372,
+        flexShrink: 0,
+        display: listaVisible ? 'flex' : 'none',
+        flexDirection: 'column',
+        minHeight: 0,
+        flex: compacto ? 1 : undefined,
+        bgcolor: tokens.navigation.background,
+        color: tokens.navigation.foreground,
+        borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}`,
+      }}>
+        <Box sx={{ px: 1.75, pt: 1.7, pb: 1.1, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.navigation.muted }}>
+                TRASLADOS
+              </Typography>
+              <Typography sx={{ mt: 0.35, fontSize: 13, color: tokens.navigation.subtle }} noWrap>
+                {rows.length} en vista
+              </Typography>
             </Box>
-            <Tooltip title="Nuevo Traslado"><IconButton onClick={() => { setNuevoContactoId(null); setNuevoAbierto(true); }} sx={{ bgcolor: tokens.navigation.control, color: tokens.navigation.controlForeground, '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground } }}><AddIcon /></IconButton></Tooltip>
-          </Stack>
+            <Tooltip title="Nuevo Traslado" arrow>
+              <IconButton
+                size="small"
+                aria-label="Nuevo Traslado"
+                onClick={() => { setNuevoContactoId(null); setNuevoAbierto(true); }}
+                sx={{
+                  width: 34,
+                  height: 34,
+                  bgcolor: tokens.navigation.control,
+                  color: tokens.navigation.controlForeground,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                  '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground },
+                }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
           <TextField
-            fullWidth size="small" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Buscar folio o cliente…"
-            InputProps={{ startAdornment: <SearchIcon sx={{ mr: 0.75, fontSize: 18, color: tokens.navigation.muted }} /> }}
-            sx={{ mt: 1.5, '& .MuiOutlinedInput-root': { color: tokens.navigation.foreground, bgcolor: tokens.navigation.summary, borderRadius: 2, '& fieldset': { borderColor: 'transparent' } }, '& input': { fontSize: 13 } }}
+            fullWidth
+            size="small"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder="Buscar folio o cliente…"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: tokens.navigation.muted }} />
+                </InputAdornment>
+              ),
+              endAdornment: search ? (
+                <IconButton size="small" aria-label="Limpiar búsqueda" onClick={() => onSearch('')} sx={{ color: tokens.navigation.muted }}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              ) : null,
+            }}
+            sx={{
+              mt: 1.35,
+              '& .MuiOutlinedInput-root': {
+                color: tokens.navigation.foreground,
+                bgcolor: tokens.navigation.summary,
+                borderRadius: 2,
+                '& fieldset': { borderColor: 'transparent' },
+              },
+              '& .MuiOutlinedInput-input': { fontSize: 13, py: 0.9 },
+              '& .MuiOutlinedInput-input::placeholder': { color: tokens.navigation.muted, opacity: 1 },
+            }}
           />
         </Box>
-        <Box sx={{ overflowY: 'auto', flex: 1, px: 1, pb: 1 }}>
-          {isLoading ? <Box sx={{ display: 'grid', placeItems: 'center', py: 6 }}><CircularProgress size={24} /></Box> : rows.map((row) => {
+        <Box sx={{
+          flex: 1,
+          overflowY: 'auto',
+          px: 1,
+          pb: 1.2,
+          scrollbarWidth: 'thin',
+          scrollbarColor: `${tokens.navigation.progress} ${tokens.navigation.background}`,
+        }}>
+          {isLoading && rows.length === 0 ? (
+            <Stack alignItems="center" py={4}><CircularProgress size={24} sx={{ color: tokens.navigation.foreground }} /></Stack>
+          ) : rows.length === 0 ? (
+            <Typography sx={{ px: 1.5, py: 3, fontSize: 13, color: tokens.navigation.muted, textAlign: 'center' }}>
+              {search ? 'Ningún traslado coincide con la búsqueda.' : 'Sin traslados en esta vista.'}
+            </Typography>
+          ) : rows.map((row) => {
             const active = Number(row.id) === Number(selectedRow?.id);
+            const estado = estadoLabel(row.estatus_documento);
+            const estadoVisual = estadoVisualDocumento(row);
             return (
-              <Box key={row.id} onClick={() => selectRow(row)} sx={{ p: 1.4, mb: 0.6, borderRadius: 1.5, cursor: 'pointer', bgcolor: active ? tokens.navigation.selected : 'transparent', border: `1px solid ${active ? tokens.navigation.border : 'transparent'}`, '&:hover': { bgcolor: tokens.navigation.hover } }}>
-                <Stack direction="row" justifyContent="space-between" gap={1}>
-                  <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{formatFolio(row)}</Typography>
-                  <Typography sx={{ fontSize: 11, color: tokens.navigation.muted }}>{estadoLabel(row.estatus_documento)}</Typography>
-                </Stack>
-                <Typography sx={{ mt: 0.35, fontSize: 12, color: tokens.navigation.subtle }}>{formatDate(row.fecha_documento)}</Typography>
-                <Typography sx={{ mt: 0.35, fontSize: 12.5, color: tokens.navigation.foreground }} noWrap>{row.nombre_cliente || 'Empresa activa'}</Typography>
+              <Box
+                key={row.id}
+                onClick={() => selectRow(row)}
+                sx={{
+                  px: 1.15,
+                  py: 1.05,
+                  mb: 0.45,
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  bgcolor: active ? tokens.navigation.selection : 'transparent',
+                  color: active ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
+                  boxShadow: active ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                  '&:hover': { bgcolor: active ? tokens.navigation.selection : tokens.navigation.hover },
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline' }}>
+                  <Typography variant="figure" sx={{ fontSize: 16, color: 'inherit', lineHeight: 1.1 }}>{formatFolio(row)}</Typography>
+                  <Typography sx={{ fontSize: 11, color: active ? tokens.navigation.selectionForeground : tokens.navigation.muted }}>{formatDate(row.fecha_documento)}</Typography>
+                </Box>
+                <Typography variant="figure" sx={{ fontSize: 14, mt: 0.25, color: active ? tokens.navigation.selectionForeground : tokens.navigation.foreground, lineHeight: 1.2 }} noWrap>
+                  {row.nombre_cliente || 'Empresa activa'}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', mt: 0.35 }}>
+                  <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: 'inherit' }}>{estado}</Typography>
+                  <Tooltip title={estado} arrow>
+                    <Box component="span" aria-label={estado} sx={{ width: 8, height: 8, flex: '0 0 8px', borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisual.tone), display: 'inline-block' }} />
+                  </Tooltip>
+                </Box>
               </Box>
             );
           })}
-          {!isLoading && rows.length === 0 && <Typography sx={{ p: 2, color: tokens.navigation.muted, fontSize: 13 }}>No hay Traslados.</Typography>}
         </Box>
       </Box>
 
-      <Box sx={{ flex: 1, minWidth: 0, display: listaVisible ? (compacto ? 'none' : 'flex') : 'flex', flexDirection: 'column', overflow: 'auto', p: { xs: 1.5, md: 2.5 } }}>
+      <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: compacto && listaVisible ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden', bgcolor: tokens.content.background }}>
         {selectedRow ? (
           <>
-            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={2} sx={{ mb: 2 }}>
-              <Stack direction="row" alignItems="center" gap={1}>
-                {compacto && <IconButton onClick={() => setDetalleMovil(false)}><ArrowBackIcon /></IconButton>}
-                <Box><Typography variant="overline" sx={{ color: tokens.content.muted, letterSpacing: '0.14em' }}>TRASLADO</Typography><Typography variant="h5" sx={{ fontWeight: 800, color: tokens.content.foreground }}>{formatFolio(selectedRow)}</Typography></Box>
+            <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: compacto ? 1 : 1.6, pb: 1.2, flexShrink: 0 }}>
+              {compacto && (
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => setDetalleMovil(false)}
+                  sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, border: 0, bgcolor: 'transparent', color: tokens.content.foreground, font: 'inherit', cursor: 'pointer', mb: 0.5, p: 0 }}
+                >
+                  <ArrowBackIcon fontSize="small" /> Traslados
+                </Box>
+              )}
+              <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
+                TRASLADO SELECCIONADO
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.35 }}>
+                <Typography variant="figure" sx={{ fontSize: compacto ? 26 : 32, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
+                  {formatFolio(selectedRow)}
+                </Typography>
+                <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>{formatDate(selectedRow.fecha_documento)}</Typography>
+                <Typography sx={{ fontSize: 12, color: tokens.content.muted }}>id {selectedRow.id}</Typography>
+              </Box>
+              <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, mt: 0.7, fontSize: 15, lineHeight: 1.3, color: tokens.content.foreground }}>
+                {selectedRow.nombre_cliente || 'Empresa activa'}
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, fontSize: 12, fontWeight: 700 }}>
+                  <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisualDocumento(selectedRow).tone) }} />
+                  {estadoLabel(selectedRow.estatus_documento)}
+                </Box>
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', px: { xs: 1, md: 2.25 }, minHeight: 40, flexShrink: 0, gap: 0.5, overflowX: 'auto' }}>
+              <Stack direction="row" spacing={0.75} alignItems="flex-start" sx={{ py: 0.5, flexShrink: 0 }}>
+                <AccionIcono caption="Carta Porte" icon={<LocalShippingOutlinedIcon fontSize="small" />} onClick={() => onCartaPorte(selectedRow)} />
+                {esBorrador && (
+                  <AccionIcono
+                    caption={timbrando ? 'Timbrando…' : 'Timbrar'}
+                    icon={timbrando || viajeLoading ? <CircularProgress size={16} sx={{ color: tokens.action.primaryForeground }} /> : <NotificationsActiveOutlinedIcon fontSize="small" />}
+                    disabled={timbrando || viajeLoading || !viajeListo || yaTimbrado}
+                    onClick={() => void timbrar()}
+                  />
+                )}
+                <AccionIcono caption="PDF" icon={<PrintOutlinedIcon fontSize="small" />} onClick={() => onPdf(selectedRow)} />
               </Stack>
-              <Stack direction="row" spacing={0.75} flexWrap="wrap" justifyContent="flex-end">
-                <Button size="small" variant="contained" startIcon={<LocalShippingOutlinedIcon />} onClick={() => onCartaPorte(selectedRow)}>Carta Porte</Button>
-                {esBorrador && <Button size="small" variant="contained" color="success" startIcon={timbrando ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveOutlinedIcon />} disabled={timbrando || viajeLoading || !viajeListo || yaTimbrado} onClick={() => void timbrar()}>{timbrando ? 'Timbrando…' : 'Timbrar'}</Button>}
-                {esBorrador && !editando && <Button size="small" variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => setEditando(true)}>Editar</Button>}
-                {esBorrador && editando && <Button size="small" variant="contained" disabled={guardando} onClick={() => void guardar()}>Guardar</Button>}
-                <Button size="small" variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => onPdf(selectedRow)}>PDF</Button>
-                {estadoLabel(selectedRow.estatus_documento) === 'Borrador' && <Button size="small" color="error" variant="outlined" startIcon={<DeleteOutlineIcon />} onClick={() => onDelete(selectedRow)}>Eliminar</Button>}
+              <Box sx={{ flex: 1, minWidth: 12 }} />
+              <Stack direction="row" spacing={0.75} alignItems="flex-start" sx={{ py: 0.5, flexShrink: 0, ml: 'auto' }}>
+                {esBorrador && !editando && (
+                  <AccionIcono caption="Editar" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditando(true)} />
+                )}
+                {esBorrador && editando && (
+                  <AccionIcono
+                    caption={guardando ? 'Guardando…' : 'Guardar'}
+                    icon={guardando ? <CircularProgress size={16} sx={{ color: tokens.action.primaryForeground }} /> : <SaveOutlinedIcon fontSize="small" />}
+                    disabled={guardando}
+                    onClick={() => void guardar()}
+                  />
+                )}
+                {estadoLabel(selectedRow.estatus_documento) === 'Borrador' && (
+                  <AccionIcono caption="Eliminar" icon={<DeleteOutlineIcon fontSize="small" />} onClick={() => onDelete(selectedRow)} />
+                )}
               </Stack>
-            </Stack>
-            {errorEdicion && <Typography color="error" sx={{ mb: 1 }}>{errorEdicion}</Typography>}
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mb: 2 }}>
-              <Paper variant="outlined" sx={{ p: 1.4, flex: 1, borderRadius: 1.5 }}><Typography variant="caption" color="text.secondary">Estatus</Typography><Typography sx={{ mt: 0.35, fontWeight: 700, fontSize: 13 }}>{estadoLabel(selectedRow.estatus_documento)}</Typography></Paper>
-              <Paper variant="outlined" sx={{ p: 1.4, flex: 1, borderRadius: 1.5 }}>{editando ? <TextField fullWidth size="small" type="date" label="Fecha" value={fecha} onChange={(e) => setFecha(e.target.value)} InputLabelProps={{ shrink: true }} /> : <><Typography variant="caption" color="text.secondary">Fecha</Typography><Typography sx={{ mt: 0.35, fontWeight: 700, fontSize: 13 }}>{formatDate(selectedRow.fecha_documento)}</Typography></>}</Paper>
-              <Paper variant="outlined" sx={{ p: 1.4, flex: 1, borderRadius: 1.5 }}>{editando ? <Autocomplete options={contactos} value={contactos.find((c) => c.id === contactoId) ?? null} getOptionLabel={(c) => c.nombre} onChange={(_, value) => setContactoId(value?.id ?? null)} renderInput={(params) => <TextField {...params} size="small" label="Contacto operativo" />} /> : <><Typography variant="caption" color="text.secondary">Contacto operativo</Typography><Typography sx={{ mt: 0.35, fontWeight: 700, fontSize: 13 }}>{selectedRow.nombre_cliente || 'Empresa activa'}</Typography></>}</Paper>
-              <Paper variant="outlined" sx={{ p: 1.4, flex: 1, borderRadius: 1.5 }}>{editando ? <TextField fullWidth size="small" label="Observaciones" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} /> : <><Typography variant="caption" color="text.secondary">Observaciones</Typography><Typography sx={{ mt: 0.35, fontWeight: 700, fontSize: 13 }} noWrap>{observaciones || '—'}</Typography></>}</Paper>
-            </Stack>
-            <Paper variant="outlined" sx={{ borderRadius: 1.5, overflow: 'hidden' }}>
-              <Box sx={{ px: 2, py: 1.3, borderBottom: `1px solid ${tokens.content.border}` }}><Typography sx={{ fontWeight: 800 }}>Mercancías</Typography></Box>
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 120px', gap: 1, px: 2, py: 1, bgcolor: tokens.content.subtle }}><Typography variant="caption">Producto</Typography><Typography variant="caption">Descripción</Typography><Typography variant="caption" textAlign="right">Cantidad</Typography></Box>
-              {partidas.map((partida, index) => <Box key={String(partida.id ?? index)} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1.5fr 120px' }, gap: 1, px: 2, py: 1.25, borderTop: `1px solid ${tokens.content.border}` }}>
-                {editando ? <Autocomplete options={productos} value={productos.find((p) => p.id === Number(partida.producto_id)) ?? null} getOptionLabel={(p) => `${p.clave ?? ''} — ${p.descripcion ?? ''}`} onChange={(_, value) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, producto_id: value?.id ?? null, producto_nombre: value?.descripcion ?? '' } : item))} renderInput={(params) => <TextField {...params} size="small" label="Producto" />} /> : <Typography variant="body2">{String(partida.producto_nombre ?? partida.producto_id ?? '—')}</Typography>}
-                {editando ? <TextField size="small" label="Descripción" value={partida.descripcion_alterna ?? ''} onChange={(e) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, descripcion_alterna: e.target.value } : item))} /> : <Typography variant="body2">{String(partida.descripcion_alterna ?? partida.descripcion ?? '—')}</Typography>}
-                {editando ? <TextField size="small" type="number" label="Cantidad" value={partida.cantidad ?? 0} onChange={(e) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, cantidad: Number(e.target.value) } : item))} /> : <Typography variant="body2" textAlign="right">{String(partida.cantidad ?? 0)}</Typography>}
-              </Box>)}
-              {partidas.length === 0 && <Typography sx={{ p: 2 }} color="text.secondary">Sin mercancías capturadas.</Typography>}
-            </Paper>
+            </Box>
+
+            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 1.5, md: 2.75 }, pb: { xs: 1.5, md: 2 } }}>
+              {errorEdicion && (
+                <Typography sx={{ mb: 1, fontSize: 13, color: tokens.action.destructive }}>{errorEdicion}</Typography>
+              )}
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 0.8 }}>
+                <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>ESTATUS</Typography>
+                  <Typography sx={{ mt: 0.35, fontSize: 14, fontWeight: 650, lineHeight: 1.3 }}>{estadoLabel(selectedRow.estatus_documento)}</Typography>
+                </Box>
+                <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.applied.background, color: tokens.content.foreground, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>FECHA</Typography>
+                  {editando ? (
+                    <TextField fullWidth size="small" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} sx={{ mt: 0.6, ...campoSx }} />
+                  ) : (
+                    <Typography sx={{ mt: 0.35, fontSize: 14, fontWeight: 650, lineHeight: 1.3 }}>{formatDate(selectedRow.fecha_documento)}</Typography>
+                  )}
+                </Box>
+                <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.available.background, color: tokens.content.foreground, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>CONTACTO</Typography>
+                  {editando ? (
+                    <Autocomplete
+                      options={contactos}
+                      value={contactos.find((c) => c.id === contactoId) ?? null}
+                      getOptionLabel={(c) => c.nombre}
+                      onChange={(_, value) => setContactoId(value?.id ?? null)}
+                      renderInput={(params) => <TextField {...params} size="small" placeholder="Contacto operativo" sx={campoSx} />}
+                      sx={{ mt: 0.6 }}
+                    />
+                  ) : (
+                    <Typography sx={{ mt: 0.35, fontSize: 14, fontWeight: 650, lineHeight: 1.3 }} noWrap>{selectedRow.nombre_cliente || 'Empresa activa'}</Typography>
+                  )}
+                </Box>
+                <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.content.elevated, color: tokens.content.foreground, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>OBSERVACIONES</Typography>
+                  {editando ? (
+                    <TextField fullWidth size="small" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} sx={{ mt: 0.6, ...campoSx }} />
+                  ) : (
+                    <Typography sx={{ mt: 0.35, fontSize: 14, fontWeight: 650, lineHeight: 1.3 }} noWrap>{observaciones || '—'}</Typography>
+                  )}
+                </Box>
+              </Box>
+
+              <Box sx={{
+                mt: 1.25,
+                bgcolor: tokens.content.well,
+                borderRadius: 3,
+                border: `1px solid ${tokens.content.border}`,
+                overflow: 'hidden',
+              }}>
+                <Box sx={{ px: 1.75, py: 1.05, borderBottom: `1px solid ${tokens.content.border}` }}>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.content.foreground }}>Mercancías</Typography>
+                </Box>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1.5fr 120px' }, ...encabezadoCelda }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: tokens.table.headerFg }}>PRODUCTO</Typography>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: tokens.table.headerFg, display: { xs: 'none', sm: 'block' } }}>DESCRIPCIÓN</Typography>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: tokens.table.headerFg, textAlign: { xs: 'left', sm: 'right' }, display: { xs: 'none', sm: 'block' } }}>CANTIDAD</Typography>
+                </Box>
+                {partidas.map((partida, index) => (
+                  <Box
+                    key={String(partida.id ?? index)}
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1.5fr 120px' },
+                      gap: { xs: 0.75, sm: 1 },
+                      alignItems: 'center',
+                      ...celda,
+                      bgcolor: index % 2 === 1 ? tokens.grid.stripe : 'transparent',
+                    }}
+                  >
+                    {editando ? (
+                      <Autocomplete options={productos} value={productos.find((p) => p.id === Number(partida.producto_id)) ?? null} getOptionLabel={(p) => `${p.clave ?? ''} — ${p.descripcion ?? ''}`} onChange={(_, value) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, producto_id: value?.id ?? null, producto_nombre: value?.descripcion ?? '' } : item))} renderInput={(params) => <TextField {...params} size="small" label="Producto" sx={campoSx} />} />
+                    ) : (
+                      <Typography sx={{ fontSize: 13, color: tokens.table.cell }}>{String(partida.producto_nombre ?? partida.producto_id ?? '—')}</Typography>
+                    )}
+                    {editando ? (
+                      <TextField size="small" label="Descripción" value={partida.descripcion_alterna ?? ''} onChange={(e) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, descripcion_alterna: e.target.value } : item))} sx={campoSx} />
+                    ) : (
+                      <Typography sx={{ fontSize: 13, color: tokens.table.cell }}>{String(partida.descripcion_alterna ?? partida.descripcion ?? '—')}</Typography>
+                    )}
+                    {editando ? (
+                      <TextField size="small" type="number" label="Cantidad" value={partida.cantidad ?? 0} onChange={(e) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, cantidad: Number(e.target.value) } : item))} sx={{ ...campoSx, '& input': { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }} />
+                    ) : (
+                      <Typography sx={{ fontSize: 13, color: tokens.table.cell, textAlign: { xs: 'left', sm: 'right' }, fontVariantNumeric: 'tabular-nums' }}>{String(partida.cantidad ?? 0)}</Typography>
+                    )}
+                  </Box>
+                ))}
+                {partidas.length === 0 && (
+                  <Typography sx={{ px: 2, py: 3, fontSize: 13, color: tokens.content.muted, textAlign: 'center' }}>
+                    Sin mercancías capturadas.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
           </>
-        ) : <Typography color="text.secondary">Selecciona un Traslado.</Typography>}
+        ) : (
+          <Stack alignItems="center" justifyContent="center" sx={{ flex: 1, px: 3, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.content.foreground }}>
+              {rows.length > 0 ? 'Selecciona un traslado' : 'Sin traslados en esta vista'}
+            </Typography>
+            <Typography sx={{ mt: 0.6, fontSize: 13, color: tokens.content.muted, maxWidth: 360 }}>
+              {rows.length > 0
+                ? 'El documento, su contacto y sus mercancías aparecen aquí.'
+                : 'Ajusta la búsqueda o crea un traslado nuevo.'}
+            </Typography>
+          </Stack>
+        )}
       </Box>
-      <Dialog open={nuevoAbierto} onClose={() => setNuevoAbierto(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Nuevo Traslado</DialogTitle>
+      <Dialog
+        open={nuevoAbierto}
+        onClose={() => setNuevoAbierto(false)}
+        fullWidth
+        maxWidth="sm"
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: tokens.content.card,
+              color: tokens.content.foreground,
+              border: `1px solid ${tokens.content.border}`,
+              borderRadius: 2,
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700, color: tokens.content.foreground }}>Nuevo Traslado</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography sx={{ mb: 2, fontSize: 13, color: tokens.content.muted }}>
             Selecciona el contacto operativo antes de crear el borrador.
           </Typography>
           <Autocomplete
@@ -283,15 +600,22 @@ export default function TrasladosWorkspaceView({
             getOptionLabel={(contacto) => contacto.nombre || ''}
             value={contactos.find((contacto) => Number(contacto.id) === Number(nuevoContactoId)) ?? null}
             onChange={(_, contacto) => setNuevoContactoId(contacto?.id ? Number(contacto.id) : null)}
-            renderInput={(params) => <TextField {...params} label="Contacto operativo" required />}
+            renderInput={(params) => <TextField {...params} label="Contacto operativo" required sx={campoSx} />}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setNuevoAbierto(false)}>Cancelar</Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setNuevoAbierto(false)} sx={{ textTransform: 'none', color: tokens.content.foreground }}>Cancelar</Button>
           <Button
             variant="contained"
             disabled={!nuevoContactoId}
             onClick={() => { const contactoId = nuevoContactoId; if (!contactoId) return; setNuevoAbierto(false); void onCreate(contactoId); }}
+            sx={{
+              textTransform: 'none',
+              bgcolor: tokens.action.primary,
+              color: tokens.action.primaryForeground,
+              '&:hover': { bgcolor: tokens.action.primaryHover },
+              '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+            }}
           >Crear Traslado</Button>
         </DialogActions>
       </Dialog>
