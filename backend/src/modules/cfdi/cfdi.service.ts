@@ -492,7 +492,28 @@ export class CfdiService {
     }
     ensure(comprobante, 'El XML timbrado del Traslado no contiene Comprobante.');
     ensure(String(comprobante.TipoDeComprobante ?? '') === 'T', 'Facturama devolvió un CFDI que no es tipo Traslado.');
-    ensure(String(comprobante.Moneda ?? '') === 'MXN', 'El CFDI Traslado timbrado no conserva Moneda MXN.');
+    const monedaRecibida = comprobante.Moneda == null ? null : String(comprobante.Moneda);
+    if (monedaRecibida !== 'MXN') {
+      const complemento = comprobante.Complemento ?? comprobante['cfdi:Complemento'];
+      const cartaPorte = complemento?.CartaPorte31 ?? complemento?.['cartaporte31:CartaPorte'];
+      const timbre = complemento?.TimbreFiscalDigital ?? complemento?.['tfd:TimbreFiscalDigital'];
+      console.warn('[CFDI][Traslado] Validación post-timbrado rechazada por moneda', {
+        tipoDeComprobante: comprobante.TipoDeComprobante ?? null,
+        moneda: monedaRecibida,
+        tipoCambio: comprobante.TipoCambio == null ? null : String(comprobante.TipoCambio),
+        tipoCambioPresente: comprobante.TipoCambio != null,
+        subtotal: comprobante.SubTotal ?? null,
+        total: comprobante.Total ?? null,
+        uuid: timbre?.UUID ?? null,
+        cartaPorteVersion: cartaPorte?.Version ?? null,
+        idCcp: cartaPorte?.IdCCP ?? null,
+      });
+      throw new CfdiValidationError(
+        monedaRecibida === null
+          ? 'El CFDI Traslado devuelto por Facturama no contiene Moneda; se esperaba "MXN".'
+          : `El CFDI Traslado devuelto por Facturama contiene Moneda="${monedaRecibida}"; se esperaba "MXN".`,
+      );
+    }
     ensure(Number(comprobante.SubTotal) === 0, 'El CFDI Traslado timbrado no conserva SubTotal cero.');
     ensure(Number(comprobante.Total) === 0, 'El CFDI Traslado timbrado no conserva Total cero.');
     ensure(comprobante.FormaPago === undefined, 'El CFDI Traslado timbrado contiene FormaPago.');
