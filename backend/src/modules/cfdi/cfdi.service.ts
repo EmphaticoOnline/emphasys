@@ -492,7 +492,7 @@ export class CfdiService {
     }
     ensure(comprobante, 'El XML timbrado del Traslado no contiene Comprobante.');
     ensure(String(comprobante.TipoDeComprobante ?? '') === 'T', 'Facturama devolvió un CFDI que no es tipo Traslado.');
-    ensure(String(comprobante.Moneda ?? '') === 'XXX', 'El CFDI Traslado timbrado no conserva Moneda XXX.');
+    ensure(String(comprobante.Moneda ?? '') === 'MXN', 'El CFDI Traslado timbrado no conserva Moneda MXN.');
     ensure(Number(comprobante.SubTotal) === 0, 'El CFDI Traslado timbrado no conserva SubTotal cero.');
     ensure(Number(comprobante.Total) === 0, 'El CFDI Traslado timbrado no conserva Total cero.');
     ensure(comprobante.FormaPago === undefined, 'El CFDI Traslado timbrado contiene FormaPago.');

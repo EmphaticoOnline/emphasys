@@ -333,7 +333,7 @@ export class CfdiBuilder {
       Serie: data.documento.serie || undefined,
       Folio: data.documento.numero ? String(data.documento.numero) : undefined,
       Fecha: options.fechaEmision ?? formatFecha(data.documento.fecha_documento),
-      Moneda: 'XXX',
+      Moneda: 'MXN',
       TipoDeComprobante: 'T',
       Exportacion: '01',
       SubTotal: '0.00',
