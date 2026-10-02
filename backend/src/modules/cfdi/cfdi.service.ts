@@ -493,15 +493,23 @@ export class CfdiService {
     ensure(comprobante, 'El XML timbrado del Traslado no contiene Comprobante.');
     ensure(String(comprobante.TipoDeComprobante ?? '') === 'T', 'Facturama devolvió un CFDI que no es tipo Traslado.');
     const monedaRecibida = comprobante.Moneda == null ? null : String(comprobante.Moneda);
-    if (monedaRecibida !== 'MXN') {
+    const tipoCambioPresente = comprobante.TipoCambio != null;
+    const tipoCambio = tipoCambioPresente ? Number(comprobante.TipoCambio) : null;
+    const monedaValida = monedaRecibida === 'MXN' || monedaRecibida === 'XXX';
+    const tipoCambioValido = monedaRecibida === 'MXN'
+      ? (!tipoCambioPresente || tipoCambio === 1)
+      : monedaRecibida === 'XXX'
+        ? !tipoCambioPresente
+        : false;
+    if (!monedaValida || !tipoCambioValido) {
       const complemento = comprobante.Complemento ?? comprobante['cfdi:Complemento'];
       const cartaPorte = complemento?.CartaPorte31 ?? complemento?.['cartaporte31:CartaPorte'];
       const timbre = complemento?.TimbreFiscalDigital ?? complemento?.['tfd:TimbreFiscalDigital'];
       console.warn('[CFDI][Traslado] Validación post-timbrado rechazada por moneda', {
         tipoDeComprobante: comprobante.TipoDeComprobante ?? null,
         moneda: monedaRecibida,
-        tipoCambio: comprobante.TipoCambio == null ? null : String(comprobante.TipoCambio),
-        tipoCambioPresente: comprobante.TipoCambio != null,
+        tipoCambio: tipoCambioPresente ? String(comprobante.TipoCambio) : null,
+        tipoCambioPresente,
         subtotal: comprobante.SubTotal ?? null,
         total: comprobante.Total ?? null,
         uuid: timbre?.UUID ?? null,
@@ -510,8 +518,12 @@ export class CfdiService {
       });
       throw new CfdiValidationError(
         monedaRecibida === null
-          ? 'El CFDI Traslado devuelto por Facturama no contiene Moneda; se esperaba "MXN".'
-          : `El CFDI Traslado devuelto por Facturama contiene Moneda="${monedaRecibida}"; se esperaba "MXN".`,
+          ? 'El CFDI Traslado devuelto por Facturama no contiene Moneda; se esperaba "MXN" o "XXX".'
+          : !monedaValida
+            ? `El CFDI Traslado devuelto por Facturama contiene Moneda="${monedaRecibida}"; se esperaba "MXN" o "XXX".`
+            : monedaRecibida === 'XXX'
+              ? 'El CFDI Traslado con Moneda="XXX" no debe contener TipoCambio.'
+              : 'El CFDI Traslado con Moneda="MXN" sólo puede contener TipoCambio ausente o igual a 1.',
       );
     }
     ensure(Number(comprobante.SubTotal) === 0, 'El CFDI Traslado timbrado no conserva SubTotal cero.');
