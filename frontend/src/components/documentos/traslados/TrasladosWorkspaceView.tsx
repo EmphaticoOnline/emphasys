@@ -8,13 +8,15 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { Contacto } from '../../../types/contactos.types';
 import type { Producto } from '../../../types/producto';
 import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
-import { updateDocumento, replacePartidas } from '../../../services/documentosService';
+import { timbrarDocumentoCfdi, updateDocumento, replacePartidas } from '../../../services/documentosService';
 import { fetchProductos } from '../../../services/productosService';
+import { obtenerViajePorDocumento, obtenerViajeAggregate } from '../../../services/transporte.api';
 
 type Props = {
   rows: CotizacionListado[];
@@ -56,10 +58,71 @@ export default function TrasladosWorkspaceView({
   const [observaciones, setObservaciones] = useState('');
   const [partidasEditables, setPartidasEditables] = useState<Array<Record<string, any>>>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [timbrando, setTimbrando] = useState(false);
+  const [viajeLoading, setViajeLoading] = useState(false);
+  const [viajeListo, setViajeListo] = useState(false);
   const selectedRow = useMemo(() => rows.find((row) => Number(row.id) === Number(selectedId)) ?? rows[0] ?? null, [rows, selectedId]);
   const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, 'traslado', Boolean(selectedRow), refreshKey);
   const partidas = partidasEditables;
   const esBorrador = estadoLabel(selectedRow?.estatus_documento) === 'Borrador';
+  const yaTimbrado = String(selectedRow?.estatus_documento ?? '').toLowerCase() === 'timbrado' || Boolean((selectedRow as any)?.cfdi_uuid);
+
+  useEffect(() => {
+    let activo = true;
+    const cargarEstadoFiscal = async () => {
+      if (!selectedRow?.id || yaTimbrado) {
+        setViajeListo(false);
+        return;
+      }
+      setViajeLoading(true);
+      try {
+        const viaje = await obtenerViajePorDocumento(Number(selectedRow.id));
+        if (!viaje?.viaje_id) {
+          if (activo) setViajeListo(false);
+          return;
+        }
+        const aggregate = await obtenerViajeAggregate(Number(viaje.viaje_id));
+        if (activo) {
+          setViajeListo(
+            String(aggregate.viaje?.estatus ?? '').toLowerCase() === 'validado'
+              && String(aggregate.cartaPorte?.estatus ?? '').toLowerCase() === 'validado',
+          );
+        }
+      } catch {
+        if (activo) setViajeListo(false);
+      } finally {
+        if (activo) setViajeLoading(false);
+      }
+    };
+    void cargarEstadoFiscal();
+    return () => { activo = false; };
+  }, [selectedRow?.id, yaTimbrado, refreshKey]);
+
+  const timbrar = async () => {
+    if (!selectedRow || !esBorrador || yaTimbrado || !viajeListo || timbrando) return;
+    const folio = formatFolio(selectedRow);
+    const confirmado = window.confirm(`¿Timbrar el CFDI de Traslado ${folio}?\n\nSe utilizará la Carta Porte validada asociada.`);
+    if (!confirmado) return;
+    setTimbrando(true);
+    setErrorEdicion(null);
+    try {
+      const resultado: any = await timbrarDocumentoCfdi(Number(selectedRow.id), 'traslado');
+      const uuid = resultado?.timbre?.uuid ?? resultado?.timbre?.UUID ?? resultado?.uuid ?? null;
+      const updatedRow = {
+        ...selectedRow,
+        estatus_documento: 'Timbrado',
+        ...(uuid ? { cfdi_uuid: uuid } : {}),
+      } as CotizacionListado;
+      onUpdate(updatedRow);
+      setEditando(false);
+      setRefreshKey((value) => value + 1);
+      onSelect(updatedRow);
+    } catch (error: any) {
+      setErrorEdicion(error?.message || 'No se pudo timbrar el CFDI de Traslado.');
+    } finally {
+      setTimbrando(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedRow) onSelect(selectedRow);
@@ -175,6 +238,7 @@ export default function TrasladosWorkspaceView({
               </Stack>
               <Stack direction="row" spacing={0.75} flexWrap="wrap" justifyContent="flex-end">
                 <Button size="small" variant="contained" startIcon={<LocalShippingOutlinedIcon />} onClick={() => onCartaPorte(selectedRow)}>Carta Porte</Button>
+                {esBorrador && <Button size="small" variant="contained" color="success" startIcon={timbrando ? <CircularProgress size={16} color="inherit" /> : <NotificationsActiveOutlinedIcon />} disabled={timbrando || viajeLoading || !viajeListo || yaTimbrado} onClick={() => void timbrar()}>{timbrando ? 'Timbrando…' : 'Timbrar'}</Button>}
                 {esBorrador && !editando && <Button size="small" variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => setEditando(true)}>Editar</Button>}
                 {esBorrador && editando && <Button size="small" variant="contained" disabled={guardando} onClick={() => void guardar()}>Guardar</Button>}
                 <Button size="small" variant="outlined" startIcon={<PrintOutlinedIcon />} onClick={() => onPdf(selectedRow)}>PDF</Button>

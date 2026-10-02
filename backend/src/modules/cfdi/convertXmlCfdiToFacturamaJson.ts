@@ -29,6 +29,7 @@ export type FacturamaLiteJson = {
   CfdiType: string;
   ExpeditionPlace: string;
   Currency: string;
+  CurrencyExchangeRate?: number;
   Subtotal: number;
   Total: number;
   PaymentForm: string | undefined;
@@ -198,6 +199,13 @@ export function convertXmlCfdiToFacturamaJson(
     },
     Items: items,
   };
+
+  const tipoCambio = comprobante.TipoCambio;
+  if (tipoCambio !== undefined && tipoCambio !== null && String(tipoCambio).trim() !== '') {
+    result.CurrencyExchangeRate = Number(tipoCambio);
+  } else if (result.CfdiType === 'T' && result.Currency === 'XXX') {
+    result.CurrencyExchangeRate = 1;
+  }
 
   if (options?.complemento !== undefined) {
     result.Complemento = options.complemento;
