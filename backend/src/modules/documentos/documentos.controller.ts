@@ -326,7 +326,7 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
       logoPathFactura = logoPath;
     },
   });
-  if (tipo !== 'factura') {
+  if (tipo !== 'factura' && tipo !== 'traslado') {
     return { buffer: pdfFactura, filename: construirNombrePdf(result.documento, documentoId), documento: result.documento };
   }
 
@@ -371,7 +371,7 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
     return { buffer: await combinarPDFs(pdfFactura, pdfCarta), filename: construirNombrePdf(result.documento, documentoId), documento: result.documento };
   } catch (error) {
     console.error('[pdf] XML Carta Porte detectado pero no se pudo anexar la representación', { documentoId, empresaId, error });
-    throw buildHttpError(422, 'La factura contiene Carta Porte, pero no fue posible generar su representación impresa.');
+    throw buildHttpError(422, 'El documento contiene Carta Porte, pero no fue posible generar su representación impresa.');
   }
 }
 

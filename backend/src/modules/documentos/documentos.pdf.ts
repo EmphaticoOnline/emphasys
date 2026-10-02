@@ -253,6 +253,7 @@ export const normalizarColorHex = (color?: string | null): string | undefined =>
 const tituloPorTipo = (tipo: string | null | undefined) => {
   const t = (tipo || '').toString().toLowerCase();
   if (t === 'factura') return 'FACTURA';
+  if (t === 'traslado') return 'CFDI DE TRASLADO';
   if (t === 'nota_credito') return 'NOTA DE CRÉDITO';
   if (t === 'nota_credito_compra') return 'NOTA DE CRÉDITO DE COMPRA';
   if (t === 'orden_servicio') return 'ORDEN DE SERVICIO';
@@ -622,6 +623,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
   const estaTimbrado = !!timbre?.uuid;
   const tipoDocumentoNormalizado = (documento?.tipo_documento ?? '').toString().toLowerCase();
   const esCotizacion = tipoDocumentoNormalizado === 'cotizacion';
+  const esTraslado = tipoDocumentoNormalizado === 'traslado';
   const esOrdenServicio = tipoDocumentoNormalizado === 'orden_servicio';
   const esNotaCredito = tipoDocumentoNormalizado === 'nota_credito' || tipoDocumentoNormalizado === 'nota_credito_compra';
   const esNotaCreditoComercial = esNotaCredito && (documento?.motivo_nc ?? null) === 'otro';
@@ -946,7 +948,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       ? 'ninguna'
       : (layout.posicionImagenPartida ?? 'debajo');
     const imagenPartidaVisible = showImagenPartida && posicionImagenPartida !== 'ninguna';
-    const imagenPartidaEnColumna = imagenPartidaVisible && posicionImagenPartida === 'columna';
+    const imagenPartidaEnColumna = !esTraslado && imagenPartidaVisible && posicionImagenPartida === 'columna';
     const imagenPartidaGap = 10;
     // Ancho moderado y fijo para la columna de imagen: maxAnchoImagenPartida actúa como
     // tope, no como valor objetivo, para que la columna no le robe espacio a la tabla.
@@ -954,7 +956,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
     const imageColumnContentWidth = Math.min(maxAnchoImagenPartida ?? imageColumnCap, imageColumnCap);
     const imageColumnWidth = imageColumnContentWidth + 12;
 
-    const numericColumnsWidth = 58 + 76 + 68 + 68; // Cantidad + Precio unitario + Desc. + Importe
+    const numericColumnsWidth = esTraslado ? 58 : 58 + 76 + 68 + 68; // Traslado sólo muestra cantidad
 
     let columnWidths: number[];
     let headers: string[];
@@ -965,13 +967,17 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       // Layout especial: Imagen | Producto/Descripción combinado | Cantidad | Precio unitario | Desc. | Importe
       const combinedWidth = tableWidth - imageColumnWidth - numericColumnsWidth;
       columnWidths = [imageColumnWidth, combinedWidth, 58, 76, 68, 68];
-      headers = esNotaCreditoComercial
+      headers = esTraslado
+        ? ['Imagen', 'Producto / Descripción', 'Cantidad']
+        : esNotaCreditoComercial
         ? ['Imagen', 'Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe']
         : ['Imagen', 'Producto / Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe'];
       descripcionIndex = 1;
       imagenColumnIndex = 0;
     } else {
-      columnWidths = esNotaCreditoComercial
+      columnWidths = esTraslado
+        ? [84, tableWidth - (84 + 58), 58]
+        : esNotaCreditoComercial
         ? [
             tableWidth - numericColumnsWidth, // Descripción absorbe el espacio del producto oculto
             58, // Cantidad
@@ -987,7 +993,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
             68, // Desc.
             68, // Importe (alineado a margen derecho)
           ];
-      headers = esNotaCreditoComercial
+      headers = esTraslado
+        ? ['Producto', 'Descripción', 'Cantidad']
+        : esNotaCreditoComercial
         ? ['Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe']
         : ['Producto', 'Descripción', 'Cantidad', 'Precio unitario', 'Desc.', 'Importe'];
       descripcionIndex = esNotaCreditoComercial ? 0 : 1;
@@ -1025,7 +1033,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       const uuid = documento?.timbre?.uuid || 'N/D';
       const fechaEmision = formatDate(documento?.fecha_documento) || 'N/D';
   const tipoComp = tituloPorTipo(documento?.tipo_documento);
-  const tituloLayout = layout.titulo ?? tipoComp;
+  const tituloLayout = esTraslado ? tipoComp : (layout.titulo ?? tipoComp);
   const colorPrimarioLayout = normalizarColorHex(layout.colorPrimario) ?? primaryColor;
       const titleFontSize = esOrdenServicio ? 10 : 13;
       const titleGapBottom = esOrdenServicio ? 1 : 4;
@@ -1048,7 +1056,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       if (esCotizacion && documento?.agente_nombre) {
         boxData.push(['Agente', documento.agente_nombre]);
       }
-      if (!esCotizacion && estaTimbrado) {
+      if (!esCotizacion && !esTraslado && estaTimbrado) {
         boxData.push(
           ['Fecha timbrado', fechaTimbrado],
           ['Método Pago', mapMetodoPago(documento?.metodo_pago)],
@@ -1583,7 +1591,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
         const subtotalBruto = cantidad * precioUnitario;
         const descuento = Math.max(0, subtotalBruto - subtotalNeto);
         const descripcionPartida = obtenerDescripcionPartidaPdf(p as PartidaCotizacion);
-        const values = imagenPartidaEnColumna
+        const values = esTraslado
+          ? [p.producto_clave || '', descripcionPartida, cantidad.toFixed(2)]
+          : imagenPartidaEnColumna
           ? [
               '', // Imagen: se dibuja aparte, no como texto
               esNotaCreditoComercial
@@ -1653,19 +1663,24 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       });
       const ocultarIvaPorTratamiento = String(documento?.tratamiento_impuestos ?? 'normal').toLowerCase() === 'sin_iva';
       // Totales se renderizarán en el pie de página
-      const totalRows: Array<[string, number | null | undefined]> = [
-        ['Subtotal bruto', subtotalBrutoDocumento],
-        ['Descuentos', descuentoTotalDocumento],
-        ['Subtotal neto', subtotalNetoDocumento],
-        ...(ocultarIvaPorTratamiento ? [] : [
-          ['IVA trasladado', documento?.iva] as [string, number | null | undefined],
-          ...(retencionesDocumento > 0
-            ? [['Retenciones', -retencionesDocumento] as [string, number | null | undefined]]
-            : []),
-          ...impuestosAdicionalesDocumento.map((impuesto) => [impuesto.nombre, impuesto.monto] as [string, number]),
-        ]),
-        ['Total', documento?.total],
-      ];
+      const totalRows: Array<[string, number | null | undefined]> = esTraslado
+        ? [
+          ['Subtotal', Number(documento?.subtotal ?? 0)],
+          ['Total', Number(documento?.total ?? 0)],
+        ]
+        : [
+          ['Subtotal bruto', subtotalBrutoDocumento],
+          ['Descuentos', descuentoTotalDocumento],
+          ['Subtotal neto', subtotalNetoDocumento],
+          ...(ocultarIvaPorTratamiento ? [] : [
+            ['IVA trasladado', documento?.iva] as [string, number | null | undefined],
+            ...(retencionesDocumento > 0
+              ? [['Retenciones', -retencionesDocumento] as [string, number | null | undefined]]
+              : []),
+            ...impuestosAdicionalesDocumento.map((impuesto) => [impuesto.nombre, impuesto.monto] as [string, number]),
+          ]),
+          ['Total', documento?.total],
+        ];
 
       doc.moveDown(0.4);
 
