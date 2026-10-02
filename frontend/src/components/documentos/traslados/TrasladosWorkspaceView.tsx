@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Autocomplete, Box, Button, CircularProgress, IconButton, Paper, Stack, TextField, Tooltip, Typography, useMediaQuery, useTheme,
+  Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Paper, Stack, TextField, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -25,7 +25,7 @@ type Props = {
   onSelect: (row: CotizacionListado) => void;
   search: string;
   onSearch: (value: string) => void;
-  onCreate: () => void | Promise<void>;
+  onCreate: (contactoId: number) => void | Promise<void>;
   onDelete: (row: CotizacionListado) => void;
   onCartaPorte: (row: CotizacionListado) => void;
   onPdf: (row: CotizacionListado) => void;
@@ -61,6 +61,8 @@ export default function TrasladosWorkspaceView({
   const [timbrando, setTimbrando] = useState(false);
   const [viajeLoading, setViajeLoading] = useState(false);
   const [viajeListo, setViajeListo] = useState(false);
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
+  const [nuevoContactoId, setNuevoContactoId] = useState<number | null>(null);
   const selectedRow = useMemo(() => rows.find((row) => Number(row.id) === Number(selectedId)) ?? rows[0] ?? null, [rows, selectedId]);
   const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, 'traslado', Boolean(selectedRow), refreshKey);
   const partidas = partidasEditables;
@@ -144,6 +146,10 @@ export default function TrasladosWorkspaceView({
 
   const guardar = async () => {
     if (!selectedRow) return;
+    if (!contactoId) {
+      setErrorEdicion('Selecciona un contacto operativo para guardar el Traslado.');
+      return;
+    }
     setGuardando(true);
     setErrorEdicion(null);
     try {
@@ -202,7 +208,7 @@ export default function TrasladosWorkspaceView({
               <Typography sx={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', color: tokens.navigation.muted }}>TRASLADOS</Typography>
               <Typography sx={{ mt: 0.4, fontSize: 13, color: tokens.navigation.subtle }}>{rows.length} en vista</Typography>
             </Box>
-            <Tooltip title="Nuevo Traslado"><IconButton onClick={() => void onCreate()} sx={{ bgcolor: tokens.navigation.control, color: tokens.navigation.controlForeground, '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground } }}><AddIcon /></IconButton></Tooltip>
+            <Tooltip title="Nuevo Traslado"><IconButton onClick={() => { setNuevoContactoId(null); setNuevoAbierto(true); }} sx={{ bgcolor: tokens.navigation.control, color: tokens.navigation.controlForeground, '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground } }}><AddIcon /></IconButton></Tooltip>
           </Stack>
           <TextField
             fullWidth size="small" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Buscar folio o cliente…"
@@ -265,6 +271,29 @@ export default function TrasladosWorkspaceView({
           </>
         ) : <Typography color="text.secondary">Selecciona un Traslado.</Typography>}
       </Box>
+      <Dialog open={nuevoAbierto} onClose={() => setNuevoAbierto(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Nuevo Traslado</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Selecciona el contacto operativo antes de crear el borrador.
+          </Typography>
+          <Autocomplete
+            options={contactos}
+            getOptionLabel={(contacto) => contacto.nombre || ''}
+            value={contactos.find((contacto) => Number(contacto.id) === Number(nuevoContactoId)) ?? null}
+            onChange={(_, contacto) => setNuevoContactoId(contacto?.id ? Number(contacto.id) : null)}
+            renderInput={(params) => <TextField {...params} label="Contacto operativo" required />}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNuevoAbierto(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            disabled={!nuevoContactoId}
+            onClick={() => { const contactoId = nuevoContactoId; if (!contactoId) return; setNuevoAbierto(false); void onCreate(contactoId); }}
+          >Crear Traslado</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

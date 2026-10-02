@@ -1906,6 +1906,16 @@ export async function crearDocumentoRepository(
   const tipoDocumentoDb = tipoDocumentoNormalizado;
 
   if (isTraslado(tipoDocumentoDb)) {
+    if (!dataConDefaults.contacto_principal_id) {
+      throw new Error('VALIDATION_ERROR: Un Traslado requiere un contacto operativo.');
+    }
+    const { rows: contactoOperativoRows } = await executor.query(
+      `SELECT id FROM contactos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+      [dataConDefaults.contacto_principal_id, empresaId],
+    );
+    if (!contactoOperativoRows[0]) {
+      throw new Error('VALIDATION_ERROR: El contacto operativo no pertenece a la empresa activa.');
+    }
     const partidasConImpuestos = Array.isArray((dataConDefaults as any).partidas)
       && (dataConDefaults as any).partidas.some((p: any) => Array.isArray(p?.impuestos) && p.impuestos.length > 0);
     if (partidasConImpuestos || Number(dataConDefaults.iva ?? 0) !== 0) {
@@ -2072,6 +2082,18 @@ export async function actualizarDocumentoRepository(
 
   const tipoActual = String(current.tipo_documento ?? '').trim().toLowerCase();
   if (isTraslado(tipoActual)) {
+    if (Object.prototype.hasOwnProperty.call(data, 'contacto_principal_id') && !data.contacto_principal_id) {
+      throw new Error('VALIDATION_ERROR: Un Traslado requiere un contacto operativo.');
+    }
+    if (data.contacto_principal_id != null) {
+      const { rows: contactoOperativoRows } = await executor.query(
+        `SELECT id FROM contactos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+        [data.contacto_principal_id, empresaId],
+      );
+      if (!contactoOperativoRows[0]) {
+        throw new Error('VALIDATION_ERROR: El contacto operativo no pertenece a la empresa activa.');
+      }
+    }
     const partidasConImpuestos = Array.isArray((data as any).partidas)
       && (data as any).partidas.some((p: any) => Array.isArray(p?.impuestos) && p.impuestos.length > 0);
     if (partidasConImpuestos || Number((data as any).iva ?? 0) !== 0) {

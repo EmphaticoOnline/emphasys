@@ -4093,9 +4093,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   const facturasWorkspaceVisible =
     tipoDocumento === 'factura' && modulo === 'ventas' && facturasWorkspaceEnabled;
 
-  const crearTrasladoWorkspace = async () => {
+  const crearTrasladoWorkspace = async (contactoId: number) => {
     const fecha = new Date().toISOString().slice(0, 10);
-    const creado = await createDocumento('traslado', { tipo_documento: 'traslado', empresa_id: empresaId, fecha_documento: fecha, subtotal: 0, iva: 0, total: 0, saldo: 0 } as any);
+    const creado = await createDocumento('traslado', { tipo_documento: 'traslado', empresa_id: empresaId, fecha_documento: fecha, contacto_principal_id: contactoId, subtotal: 0, iva: 0, total: 0, saldo: 0 } as any);
     setFocusedDocumentId(Number((creado as any).id));
     await load();
   };
