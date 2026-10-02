@@ -81,6 +81,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import ModeEditOutlineOutlinedIcon from '@mui/icons-material/ModeEditOutlineOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
@@ -98,7 +99,7 @@ import type { DocumentoAnticiposDisponibles } from '../types/finanzas';
 import type { TipoDocumentoEmpresa } from '../services/tiposDocumentoService';
 import { fetchTiposDocumentoHabilitados } from '../services/tiposDocumentoService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
-import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, descargarComplementoPagoXml, descargarDocumentoPdfEnNavegador, descargarFacturaCfdiEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarComplementoPago, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, getDocumentosPaginados, prevalidarCancelacionDocumento, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento, type PrevalidacionCancelacionDocumento } from '../services/documentosService';
+import { abrirDocumentoPdfEnNuevaVentana, cancelarDocumento, createDocumento, descargarComplementoPagoXml, descargarDocumentoPdfEnNavegador, descargarFacturaCfdiEnNavegador, deleteDocumento, duplicateDocumento, duplicateDocumentos, enviarComplementoPago, enviarCotizacionPorCorreo, exportarDocumentos, getDocumentos, getDocumentosPaginados, prevalidarCancelacionDocumento, timbrarDocumentoCfdi, updateDocumento, validateDeleteDocumento, type PrevalidacionCancelacionDocumento } from '../services/documentosService';
 import { fetchAnticiposDisponiblesDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { enviarFactura } from '../services/facturasService';
 import { createSeguimientoProduccion, getSeguimientoProduccionPorDocumento, type SeguimientoProduccionHistorialRow } from '../services/produccionService';
@@ -142,6 +143,7 @@ import DocumentosDesktopView from '../components/documentos/DocumentosDesktopVie
 import DocumentosMobileView from '../components/documentos/DocumentosMobileView';
 import { catalogoHeaderIconSx, catalogoOutlinedButtonSx, catalogoPrimaryButtonSx } from '../components/catalogo/catalogoSurfaces';
 import FacturasWorkspaceView from '../components/documentos/facturas/FacturasWorkspaceView';
+import TrasladosWorkspaceView from '../components/documentos/traslados/TrasladosWorkspaceView';
 import NotasCreditoWorkspaceView, { FILTRO_NOTAS_VACIO, type FiltroNotas } from '../components/documentos/nota-credito/NotasCreditoWorkspaceView';
 import PagosWorkspaceView from '../components/documentos/pagos/PagosWorkspaceView';
 import AjustesSaldoWorkspaceView from '../components/documentos/ajustes-saldo/AjustesSaldoWorkspaceView';
@@ -598,6 +600,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const modulo = location.pathname.startsWith('/compras') ? 'compras' : 'ventas';
   const esCotizacion = tipoDocumento === 'cotizacion';
   const esNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
+  const esTraslado = tipoDocumento === 'traslado';
   const esFacturaVentas = tipoDocumento === 'factura' && modulo === 'ventas';
   const [openFacturaGlobal, setOpenFacturaGlobal] = useState(false);
   const [tiposDocumento, setTiposDocumento] = useState<TipoDocumentoEmpresa[]>([]);
@@ -2108,39 +2111,41 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             },
           }] as GridColDef[])
         : []),
-      {
-        field: 'subtotal',
-        headerName: 'Subtotal',
-        width: 140,
-        type: 'number',
-        sortComparator: compareNumericGridValues,
-        align: 'right',
-        headerAlign: 'right',
-        headerClassName: 'finanzas-header',
-        renderCell: (params: any) => currency.format(Number(params.row.subtotal ?? 0)),
-      },
-      {
-        field: 'iva',
-        headerName: 'IVA',
-        width: 120,
-        type: 'number',
-        sortComparator: compareNumericGridValues,
-        align: 'right',
-        headerAlign: 'right',
-        headerClassName: 'finanzas-header',
-        renderCell: (params: any) => currency.format(Number(params.row.iva ?? 0)),
-      },
-      {
-        field: 'total',
-        headerName: 'Total',
-        width: 140,
-        type: 'number',
-        sortComparator: compareNumericGridValues,
-        align: 'right',
-        headerAlign: 'right',
-        headerClassName: 'finanzas-header',
-        renderCell: (params: any) => currency.format(Number(params.row.total ?? 0)),
-      },
+      ...(!esTraslado ? ([
+        {
+          field: 'subtotal',
+          headerName: 'Subtotal',
+          width: 140,
+          type: 'number',
+          sortComparator: compareNumericGridValues,
+          align: 'right',
+          headerAlign: 'right',
+          headerClassName: 'finanzas-header',
+          renderCell: (params: any) => currency.format(Number(params.row.subtotal ?? 0)),
+        },
+        {
+          field: 'iva',
+          headerName: 'IVA',
+          width: 120,
+          type: 'number',
+          sortComparator: compareNumericGridValues,
+          align: 'right',
+          headerAlign: 'right',
+          headerClassName: 'finanzas-header',
+          renderCell: (params: any) => currency.format(Number(params.row.iva ?? 0)),
+        },
+        {
+          field: 'total',
+          headerName: 'Total',
+          width: 140,
+          type: 'number',
+          sortComparator: compareNumericGridValues,
+          align: 'right',
+          headerAlign: 'right',
+          headerClassName: 'finanzas-header',
+          renderCell: (params: any) => currency.format(Number(params.row.total ?? 0)),
+        },
+      ] as GridColDef[]) : []),
       ...(esCotizacion
         ? ([{
             field: 'seguimiento_actividad',
@@ -2282,29 +2287,29 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             },
           }] as GridColDef[])
         : []),
-      {
-        field: 'estado_autorizacion',
-        headerName: 'Autorización',
-        width: 130,
-        sortable: false,
-        headerClassName: 'finanzas-header',
-        renderCell: (params: any) => {
-          const estado = params.row?.estado_autorizacion as string | null | undefined;
-          if (!estado || estado === 'no_requerida') return null;
-          const MAP: Record<string, { label: string; bgcolor: string; color: string }> = {
-            pendiente: { label: 'Pendiente auth.', bgcolor: '#fef3c7', color: '#92400e' },
-            aprobada:  { label: 'Autorizado',      bgcolor: '#dcfce7', color: '#166534' },
-            rechazada: { label: 'Rechazado',        bgcolor: '#fee2e2', color: '#991b1b' },
-          };
-          const cfg = MAP[estado];
-          if (!cfg) return null;
-          return (
-            <Chip label={cfg.label} size="small"
-              sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5,
-                    bgcolor: cfg.bgcolor, color: cfg.color, fontWeight: 700 }} />
-          );
-        },
-      },
+      ...(!esTraslado ? ([{
+          field: 'estado_autorizacion',
+          headerName: 'Autorización',
+          width: 130,
+          sortable: false,
+          headerClassName: 'finanzas-header',
+          renderCell: (params: any) => {
+            const estado = params.row?.estado_autorizacion as string | null | undefined;
+            if (!estado || estado === 'no_requerida') return null;
+            const MAP: Record<string, { label: string; bgcolor: string; color: string }> = {
+              pendiente: { label: 'Pendiente auth.', bgcolor: '#fef3c7', color: '#92400e' },
+              aprobada:  { label: 'Autorizado',      bgcolor: '#dcfce7', color: '#166534' },
+              rechazada: { label: 'Rechazado',        bgcolor: '#fee2e2', color: '#991b1b' },
+            };
+            const cfg = MAP[estado];
+            if (!cfg) return null;
+            return (
+              <Chip label={cfg.label} size="small"
+                sx={{ height: 22, fontSize: '0.72rem', px: 0.75, borderRadius: 1.5,
+                      bgcolor: cfg.bgcolor, color: cfg.color, fontWeight: 700 }} />
+            );
+          },
+        }] as GridColDef[]) : []),
       ...(!esFacturaVentas ? ([{
         field: 'estatus_documento',
         headerName: esCotizacion ? 'Estado' : 'Estatus',
@@ -2580,6 +2585,20 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   <NoteAddIcon fontSize="small" />
                 </IconButton>
               </span>
+            </Tooltip>
+          )}
+          {esTraslado && (
+            <Tooltip title="Carta Porte">
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  abrirCartaPorte(params.row as CotizacionListado);
+                }}
+              >
+                <LocalShippingIcon fontSize="small" />
+              </IconButton>
             </Tooltip>
           )}
           <Tooltip title="Ver / Imprimir PDF">
@@ -3737,7 +3756,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     </Stack>
   ) : null;
 
-  const summaryContent = enableFilters && resumenTotales ? (
+  const summaryContent = !esTraslado && enableFilters && resumenTotales ? (
     <Box
       sx={{
         display: 'grid',
@@ -4074,6 +4093,38 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   const facturasWorkspaceVisible =
     tipoDocumento === 'factura' && modulo === 'ventas' && facturasWorkspaceEnabled;
 
+  const crearTrasladoWorkspace = async () => {
+    const fecha = new Date().toISOString().slice(0, 10);
+    const creado = await createDocumento('traslado', { tipo_documento: 'traslado', empresa_id: empresaId, fecha_documento: fecha, subtotal: 0, iva: 0, total: 0, saldo: 0 } as any);
+    setFocusedDocumentId(Number((creado as any).id));
+    await load();
+  };
+
+  const trasladosWorkspaceView = tipoDocumento === 'traslado' ? (
+    <TrasladosWorkspaceView
+      rows={filteredRows}
+      isLoading={loading || loadingPreferences}
+      selectedId={focusedDocumentId}
+      onSelect={selectGridRow}
+      onUpdate={(updatedRow) => {
+        setRows((currentRows) => currentRows.map((row) => (
+          Number(row.id) === Number(updatedRow.id) ? { ...row, ...updatedRow } : row
+        )));
+      }}
+      search={search}
+      onSearch={setSearch}
+      onCreate={crearTrasladoWorkspace}
+      onDelete={(row) => { void handleRequestDelete(Number(row.id)); }}
+      onCartaPorte={abrirCartaPorte}
+      onPdf={(row) => {
+        abrirDocumentoPdfEnNuevaVentana(Number(row.id), tipoDocumento).catch((err) => setError(err?.message || 'No se pudo generar el PDF'));
+      }}
+      formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
+      formatDate={formatCivilDate}
+      contactos={contactos}
+    />
+  ) : null;
+
   const notasCreditoWorkspaceVisible = Boolean(documentoTypeConfig?.features?.vistaWorkspace);
 
   const facturasWorkspaceView = facturasWorkspaceVisible ? (
@@ -4288,7 +4339,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
 
   return (
     <>
-      {notasCreditoWorkspaceView ? notasCreditoWorkspaceView : pagosWorkspaceView ? pagosWorkspaceView : ajustesSaldoWorkspaceView ? ajustesSaldoWorkspaceView : facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
+      {trasladosWorkspaceView ? trasladosWorkspaceView : notasCreditoWorkspaceView ? notasCreditoWorkspaceView : pagosWorkspaceView ? pagosWorkspaceView : ajustesSaldoWorkspaceView ? ajustesSaldoWorkspaceView : facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
         <Container maxWidth={false} sx={{ py: 2 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             {mobileView}
@@ -4516,6 +4567,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         open={cartaPorteDrawer.open}
         documentoId={cartaPorteDrawer.documentoId}
         folio={cartaPorteDrawer.folio}
+        tipoDocumento={tipoDocumento === 'traslado' ? 'traslado' : 'factura'}
         onClose={() => setCartaPorteDrawer((p) => ({ ...p, open: false }))}
       />
 

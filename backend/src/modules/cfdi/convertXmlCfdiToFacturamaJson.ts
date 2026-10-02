@@ -28,6 +28,9 @@ export type FacturamaLiteJson = {
   Folio?: string;
   CfdiType: string;
   ExpeditionPlace: string;
+  Currency: string;
+  Subtotal: number;
+  Total: number;
   PaymentForm: string | undefined;
   PaymentMethod: string | undefined;
   Issuer: {
@@ -176,6 +179,9 @@ export function convertXmlCfdiToFacturamaJson(
     Folio: comprobante.Folio,
     CfdiType: comprobante.TipoDeComprobante || 'I',
     ExpeditionPlace: requireNonEmptyString(comprobante.LugarExpedicion, 'ExpeditionPlace'),
+    Currency: requireNonEmptyString(comprobante.Moneda, 'Currency'),
+    Subtotal: toNumber(comprobante.SubTotal),
+    Total: toNumber(comprobante.Total),
     PaymentForm: comprobante.FormaPago,
     PaymentMethod: comprobante.MetodoPago,
     Issuer: {

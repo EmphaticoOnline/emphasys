@@ -82,6 +82,7 @@ export interface CfdiGlobalInformation {
 export interface CfdiBuildOptions {
   fechaEmision?: string;
   cfdiType?: string;
+  complemento?: Record<string, unknown>;
   relations?: CfdiRelationsData;
   globalInformation?: CfdiGlobalInformation;
 }

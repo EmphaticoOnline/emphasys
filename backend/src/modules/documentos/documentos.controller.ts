@@ -43,6 +43,7 @@ import { timbrarFacturaConTransporte } from '../transporte/carta-porte-timbrado.
 import { mapCartaPortePrintModel } from '../transporte/carta-porte-print.mapper';
 import { generarCartaPortePDF } from '../transporte/carta-porte-print.pdf';
 import { combinarPDFs } from '../transporte/pdf-composer';
+import { isTraslado } from './documento-policy.registry';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -69,6 +70,7 @@ function construirNombrePdf(documento: any, fallbackId: number): string {
 }
 
 const nombreDocumento: Record<TipoDocumento, string> = {
+  traslado: 'traslado',
   cotizacion: 'cotización',
   factura: 'factura',
   nota_credito: 'nota de crédito',
@@ -565,6 +567,9 @@ const buildCrearHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =>
     if (!empresaId) return res.status(400).json({ message: 'empresaId no disponible en contexto' });
 
     const tipo = forzarTipo ? tipoPorDefecto : resolverTipoDocumentoRequest(req, tipoPorDefecto);
+    if (isTraslado(tipo) && (Array.isArray(req.body?.aplicaciones_documento) && req.body.aplicaciones_documento.length > 0 || req.body?.cuenta_financiera_id != null || req.body?.finanzas_operacion_id != null)) {
+      return res.status(400).json({ message: 'Un Traslado no acepta pagos ni aplicaciones de saldo' });
+    }
 
     const payload = {
       ...(req.body || {}),
@@ -751,8 +756,10 @@ export const actualizarCotizacion = async (req: Request, res: Response) => {
     if (message.startsWith('VALIDATION_ERROR')) {
       return res.status(400).json({ ok: false, error: message.replace('VALIDATION_ERROR:', '').trim() || 'Error de validación' });
     }
-    console.error('Error al actualizar cotización', error);
-    return res.status(500).json({ message: 'Error al actualizar cotización' });
+    const tipo = resolverTipoDocumentoRequest(req, 'cotizacion');
+    const etiqueta = tipo === 'cotizacion' ? 'cotización' : (nombreDocumento[tipo] ?? tipo);
+    console.error(`Error al actualizar ${etiqueta}`, error);
+    return res.status(500).json({ message: `Error al actualizar ${etiqueta}` });
   }
 };
 export const eliminarCotizacion = async (req: Request, res: Response) => {

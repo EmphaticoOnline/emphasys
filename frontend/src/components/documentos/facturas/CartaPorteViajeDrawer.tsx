@@ -25,7 +25,7 @@ import {
 } from '../../../services/satCatalogos.api';
 import type { Producto } from '../../../types/producto';
 
-type Props = { open: boolean; documentoId: number | null; folio: string; onClose: () => void };
+type Props = { open: boolean; documentoId: number | null; folio: string; tipoDocumento?: 'factura' | 'traslado'; onClose: () => void };
 
 const AZUL = '#1d2f68';
 
@@ -172,7 +172,7 @@ function SatClaveField({ label, catalogo, value, onChange, disabled }: {
   );
 }
 
-export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClose }: Props) {
+export default function CartaPorteViajeDrawer({ open, documentoId, folio, tipoDocumento = 'factura', onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -644,7 +644,7 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
           <Box>
             <Typography variant="subtitle1" fontWeight={700} color={AZUL}>Carta Porte / Viaje</Typography>
             <Typography variant="caption" color="text.secondary">
-              Factura {folio}{viajeId ? ` · Viaje #${viajeId}` : ''}{aggregate?.viaje?.estatus ? ` · ${aggregate.viaje.estatus}` : ''}
+              {tipoDocumento === 'traslado' ? 'Traslado' : 'Factura'} {folio}{viajeId ? ` · Viaje #${viajeId}` : ''}{aggregate?.viaje?.estatus ? ` · ${aggregate.viaje.estatus}` : ''}
             </Typography>
           </Box>
           <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
@@ -657,7 +657,7 @@ export default function CartaPorteViajeDrawer({ open, documentoId, folio, onClos
           <Alert severity="error">{error}</Alert>
         ) : !viajeId ? (
           <Stack spacing={1.5} sx={{ py: 2 }}>
-            <Typography variant="body2" color="text.secondary">Esta factura aún no tiene Viaje relacionado.</Typography>
+            <Typography variant="body2" color="text.secondary">Este {tipoDocumento === 'traslado' ? 'traslado' : 'factura'} aún no tiene Viaje relacionado.</Typography>
             <Button variant="contained" size="small" onClick={() => void crearViaje()}>Crear viaje</Button>
           </Stack>
         ) : (

@@ -92,17 +92,20 @@ export function buildCartaPorteStampHooks(plan: CartaPorteStampPlan): CfdiTimbra
   };
 }
 
-type CfdiFacturaStamper = Pick<CfdiService, 'timbrarFactura'>;
+type CfdiDocumentStamper = Pick<CfdiService, 'timbrarFactura'> & {
+  timbrarDocumento?: CfdiService['timbrarDocumento'];
+};
 
 export function executeCartaPorteStampPlan(
   documentoId: number,
   empresaId: number,
   plan: CartaPorteStampPlan | null,
-  cfdi: CfdiFacturaStamper
+  cfdi: CfdiDocumentStamper
 ) {
+  const timbrar = cfdi.timbrarDocumento?.bind(cfdi) ?? cfdi.timbrarFactura.bind(cfdi);
   return plan
-    ? cfdi.timbrarFactura(documentoId, empresaId, plan.options, buildCartaPorteStampHooks(plan))
-    : cfdi.timbrarFactura(documentoId, empresaId);
+    ? timbrar(documentoId, empresaId, plan.options, buildCartaPorteStampHooks(plan))
+    : timbrar(documentoId, empresaId);
 }
 
 export async function timbrarFacturaConTransporte(documentoId: number, empresaId: number, cfdi = new CfdiService()) {

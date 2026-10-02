@@ -240,16 +240,56 @@ export async function createTripFromDocument(empresaId: number, usuarioId: numbe
     const existing = await findTripByDocument(client, empresaId, documentoId);
     if (existing) return getTripAggregate(client, empresaId, Number(existing.viaje_id));
     const { rows } = await client.query(
-      `SELECT id, contacto_principal_id FROM public.documentos
-        WHERE id=$1 AND empresa_id=$2 AND LOWER(tipo_documento)='factura' FOR UPDATE`, [documentoId, empresaId]);
+      `SELECT id, tipo_documento, contacto_principal_id FROM public.documentos
+        WHERE id=$1 AND empresa_id=$2 AND LOWER(tipo_documento) IN ('factura', 'traslado') FOR UPDATE`, [documentoId, empresaId]);
     const documento = rows[0];
-    if (!documento) throw new TransporteError('Factura no encontrada en la empresa activa.', 404);
-    const input = { folioInterno: `FAC-${documentoId}`, clienteContactoId: Number(documento.contacto_principal_id), estatus: 'borrador' as const,
+    if (!documento) throw new TransporteError('Documento no encontrado en la empresa activa.', 404);
+    const tipoRelacion = String(documento.tipo_documento).toLowerCase() === 'traslado' ? 'traslado' : 'factura_servicio';
+    const input = { folioInterno: `${tipoRelacion === 'traslado' ? 'TRS' : 'FAC'}-${documentoId}`, clienteContactoId: Number(documento.contacto_principal_id), estatus: 'borrador' as const,
       fechaProgramada: null, fechaInicio: null, fechaFin: null, vehiculoId: null, referenciaCliente: null, observaciones: null,
       ubicaciones: [], mercancias: [], figuras: [], remolques: [] } as ViajeInput;
     await validateHeaderMasters(client, empresaId, input);
     const viajeId = await insertTrip(client, empresaId, usuarioId, input);
-    await client.query(`INSERT INTO transporte.viaje_documentos (empresa_id, viaje_id, documento_id, tipo_relacion, principal) VALUES ($1,$2,$3,'factura_servicio',true)`, [empresaId, viajeId, documentoId]);
+    await client.query(`INSERT INTO transporte.viaje_documentos (empresa_id, viaje_id, documento_id, tipo_relacion, principal) VALUES ($1,$2,$3,$4,true)`, [empresaId, viajeId, documentoId, tipoRelacion]);
+    if (tipoRelacion === 'traslado') {
+      const { rows: partidas } = await client.query<{
+        producto_id: number | null;
+        descripcion_alterna: string | null;
+        cantidad: string | number | null;
+      }>(
+        `SELECT producto_id, descripcion_alterna, cantidad
+           FROM public.documentos_partidas
+          WHERE documento_id = $1
+            AND COALESCE(cantidad, 0) > 0
+          ORDER BY numero_partida, id`,
+        [documentoId]
+      );
+
+      for (const partida of partidas) {
+        const producto = partida.producto_id
+          ? await findProductMerchandise(client, empresaId, Number(partida.producto_id))
+          : null;
+        const snapshot = producto ? buildMerchandiseSnapshot(producto) : null;
+        await insertMerchandise(client, [
+          empresaId,
+          viajeId,
+          partida.producto_id,
+          (partida.descripcion_alterna?.trim() || snapshot?.descripcion || '').trim() || null,
+          snapshot?.claveBienesTransportadosSat ?? null,
+          snapshot?.claveUnidadSat ?? null,
+          snapshot?.unidadDescripcion ?? null,
+          partida.cantidad,
+          null,
+          null,
+          snapshot?.materialPeligroso ?? false,
+          snapshot?.claveMaterialPeligroso ?? null,
+          snapshot?.embalaje ?? null,
+          snapshot?.descripcionEmbalaje ?? null,
+          null,
+          null,
+        ]);
+      }
+    }
     await getTripAggregate(client, empresaId, viajeId);
     return findTripByDocument(client, empresaId, documentoId);
   });

@@ -31,6 +31,34 @@ const sanitize = <T extends Record<string, any>>(obj: T): Partial<T> => {
   return out;
 };
 
+const requiredText = (value: unknown, field: string): string => {
+  const text = String(value ?? '').trim();
+  if (!text) throw new Error(`CFDI Traslado: ${field} es requerido.`);
+  return text;
+};
+
+const positiveNumber = (value: unknown, field: string): number => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) throw new Error(`CFDI Traslado: ${field} debe ser mayor a cero.`);
+  return number;
+};
+
+function appendXmlObject(parent: any, name: string, value: unknown): void {
+  if (!value || typeof value !== 'object') return;
+  const node = parent.ele(name);
+  Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+    if (child === undefined || child === null || child === '') return;
+    if (Array.isArray(child)) {
+      child.forEach((item) => appendXmlObject(node, key, item));
+    } else if (typeof child === 'object') {
+      appendXmlObject(node, key, child);
+    } else {
+      node.att(key, String(child));
+    }
+  });
+  node.up();
+}
+
 export function ajustarDomicilioFiscalReceptor(
   rfc: string | null,
   domicilioFiscalReceptor: string | null,
@@ -60,6 +88,10 @@ function resolveImporte(partida: CfdiPartida): { base: number; importeIva: numbe
 
 export class CfdiBuilder {
   build(data: CfdiInvoiceData, options: CfdiBuildOptions = {}): CfdiBuildResult {
+    if (String(options.cfdiType || '').toUpperCase() === 'T') {
+      return this.buildTraslado(data, options);
+    }
+
     if (!data.partidas.length) {
       throw new Error('La factura no tiene partidas.');
     }
@@ -279,5 +311,72 @@ export class CfdiBuilder {
       totalImpuestosTrasladados,
       total,
     };
+  }
+
+  private buildTraslado(data: CfdiInvoiceData, options: CfdiBuildOptions): CfdiBuildResult {
+    const empresaRfc = requiredText(data.empresa.rfc, 'RFC del emisor');
+    const empresaNombre = requiredText(data.empresa.razon_social, 'razón social del emisor');
+    const empresaRegimen = requiredText(data.empresa.regimen_fiscal, 'régimen fiscal del emisor');
+    const empresaCp = requiredText(data.empresa.codigo_postal_id, 'LugarExpedicion');
+    const carta = (options.complemento?.CartaPorte31 ?? null) as any;
+    if (!carta || carta.Version !== '3.1') throw new Error('CFDI Traslado: Carta Porte 3.1 validada es requerida.');
+    if (!requiredText(carta.IdCCP, 'IdCCP')) throw new Error('CFDI Traslado: IdCCP es requerido.');
+
+    const mercancias = Array.isArray(carta.Mercancias?.Mercancia) ? carta.Mercancias.Mercancia : [];
+    if (!mercancias.length) throw new Error('CFDI Traslado: se requiere al menos una mercancía de Carta Porte.');
+
+    const xml = create({ version: '1.0', encoding: 'UTF-8' }).ele('cfdi:Comprobante', sanitize({
+      'xmlns:cfdi': CFDI_NAMESPACE,
+      'xmlns:xsi': CFDI_XSI,
+      'xsi:schemaLocation': CFDI_SCHEMA_LOCATION,
+      Version: '4.0',
+      Serie: data.documento.serie || undefined,
+      Folio: data.documento.numero ? String(data.documento.numero) : undefined,
+      Fecha: options.fechaEmision ?? formatFecha(data.documento.fecha_documento),
+      Moneda: 'XXX',
+      TipoDeComprobante: 'T',
+      Exportacion: '01',
+      SubTotal: '0.00',
+      Total: '0.00',
+      LugarExpedicion: empresaCp,
+    }));
+
+    xml.ele('cfdi:Emisor', { Rfc: empresaRfc, Nombre: empresaNombre, RegimenFiscal: empresaRegimen }).up();
+    xml.ele('cfdi:Receptor', {
+      Rfc: empresaRfc,
+      Nombre: empresaNombre,
+      DomicilioFiscalReceptor: empresaCp,
+      RegimenFiscalReceptor: empresaRegimen,
+      UsoCFDI: 'S01',
+    }).up();
+
+    const conceptosNode = xml.ele('cfdi:Conceptos');
+    mercancias.forEach((mercancia: any, index: number) => {
+      const bienes = requiredText(mercancia.BienesTransp, `BienesTransp de mercancía ${index + 1}`);
+      const descripcion = requiredText(mercancia.Descripcion, `descripción de mercancía ${index + 1}`);
+      const unidad = requiredText(mercancia.ClaveUnidad, `ClaveUnidad de mercancía ${index + 1}`);
+      const cantidad = positiveNumber(mercancia.Cantidad, `cantidad de mercancía ${index + 1}`);
+      const concepto = conceptosNode.ele('cfdi:Concepto', {
+        ClaveProdServ: bienes,
+        Cantidad: formatRate(cantidad),
+        ClaveUnidad: unidad,
+        ...(mercancia.Unidad ? { Unidad: String(mercancia.Unidad) } : {}),
+        Descripcion: descripcion,
+        ValorUnitario: '0.00',
+        Importe: '0.00',
+        ObjetoImp: '01',
+      });
+      concepto.up();
+    });
+    conceptosNode.up();
+
+    const complemento = xml.ele('cfdi:Complemento');
+    appendXmlObject(complemento, 'cartaporte31:CartaPorte', {
+      'xmlns:cartaporte31': 'http://www.sat.gob.mx/CartaPorte31',
+      ...carta,
+    });
+    complemento.up();
+
+    return { xml: xml.end({ prettyPrint: true }), subtotal: 0, totalImpuestosTrasladados: 0, total: 0 };
   }
 }

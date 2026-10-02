@@ -13,7 +13,7 @@ const validRow = {
   documento_id: 9, carta_porte_estatus: 'validado', id_ccp: snapshot.IdCCP,
   snapshot_json: snapshot,
 };
-const cfdiXml = `<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" LugarExpedicion="45000" TipoDeComprobante="I"><cfdi:Emisor Rfc="AAA010101AAA" Nombre="Emisor" RegimenFiscal="601"/><cfdi:Receptor Rfc="BBB010101BBB"/><cfdi:Conceptos><cfdi:Concepto ClaveProdServ="1" Descripcion="X" ClaveUnidad="H87" Cantidad="1" ValorUnitario="1" ObjetoImp="01"/></cfdi:Conceptos></cfdi:Comprobante>`;
+const cfdiXml = `<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" LugarExpedicion="45000" TipoDeComprobante="I" Moneda="MXN" SubTotal="1" Total="1"><cfdi:Emisor Rfc="AAA010101AAA" Nombre="Emisor" RegimenFiscal="601"/><cfdi:Receptor Rfc="BBB010101BBB"/><cfdi:Conceptos><cfdi:Concepto ClaveProdServ="1" Descripcion="X" ClaveUnidad="H87" Cantidad="1" ValorUnitario="1" Importe="1" ObjetoImp="01"/></cfdi:Conceptos></cfdi:Comprobante>`;
 const stampedXml = `<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:cartaporte31="http://www.sat.gob.mx/CartaPorte31"><cfdi:Complemento><cartaporte31:CartaPorte Version="3.1" IdCCP="${snapshot.IdCCP}"/></cfdi:Complemento></cfdi:Comprobante>`;
 
 async function main() {

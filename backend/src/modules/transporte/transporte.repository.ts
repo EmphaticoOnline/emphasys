@@ -263,7 +263,7 @@ export interface ReinsertableMercancia {
   clave_unidad_sat: string | null;
   unidad_descripcion: string | null;
   cantidad: string | number;
-  peso_kg: string | number;
+  peso_kg: string | number | null;
   valor_mercancia: string | number | null;
   material_peligroso: boolean;
   clave_material_peligroso: string | null;
@@ -365,7 +365,8 @@ export async function getTripByDocument(client: DbClient, empresaId: number, doc
               ORDER BY cp.id DESC LIMIT 1) AS carta_porte
        FROM transporte.viaje_documentos vd
        JOIN transporte.viajes v ON v.id=vd.viaje_id AND v.empresa_id=vd.empresa_id
-      WHERE vd.empresa_id=$1 AND vd.documento_id=$2 AND vd.tipo_relacion='factura_servicio' AND vd.principal=true
+      WHERE vd.empresa_id=$1 AND vd.documento_id=$2
+        AND vd.tipo_relacion IN ('factura_servicio', 'traslado') AND vd.principal=true
       ORDER BY vd.id DESC LIMIT 1`, [empresaId, documentoId]);
   return rows[0] ?? null;
 }
@@ -417,7 +418,7 @@ export async function findPrincipalTripDocument(client: DbClient, empresaId: num
   const { rows } = await client.query<{ documento_id: number }>(
     `SELECT documento_id
        FROM transporte.viaje_documentos
-      WHERE empresa_id=$1 AND viaje_id=$2 AND tipo_relacion='factura_servicio'
+      WHERE empresa_id=$1 AND viaje_id=$2 AND tipo_relacion IN ('factura_servicio', 'traslado')
       ORDER BY principal DESC, id ASC
       LIMIT 1`,
     [empresaId, viajeId]
@@ -489,38 +490,39 @@ export async function linkPrincipalDocument(
 ) {
   const trip = await lockTrip(client, empresaId, viajeId);
   if (!trip) return null;
-  const { rows: documents } = await client.query(
-    `SELECT id FROM public.documentos
-      WHERE id=$1 AND empresa_id=$2 AND LOWER(tipo_documento)='factura'
+  const { rows: documents } = await client.query<{ id: number; tipo_documento: string }>(
+    `SELECT id, LOWER(tipo_documento) AS tipo_documento FROM public.documentos
+      WHERE id=$1 AND empresa_id=$2 AND LOWER(tipo_documento) IN ('factura', 'traslado')
       FOR UPDATE`,
     [documentoId, empresaId]
   );
-  if (!documents[0]) throw new TransporteError('La factura no existe o no pertenece a la empresa activa.');
+  if (!documents[0]) throw new TransporteError('El documento no existe o no pertenece a la empresa activa.');
+  const tipoRelacion = documents[0].tipo_documento === 'traslado' ? 'traslado' : 'factura_servicio';
   const { rows: existingDocumentLinks } = await client.query(
     `SELECT viaje_id FROM transporte.viaje_documentos
       WHERE empresa_id=$1 AND documento_id=$2
-        AND tipo_relacion='factura_servicio' AND principal=true
+        AND tipo_relacion=$3 AND principal=true
       FOR UPDATE`,
-    [empresaId, documentoId]
+    [empresaId, documentoId, tipoRelacion]
   );
   if (existingDocumentLinks.some((row: any) => Number(row.viaje_id) !== viajeId)) {
-    throw new TransporteError('La factura ya está vinculada como principal a otro viaje.', 409, 'FACTURA_VIAJE_DUPLICADA');
+    throw new TransporteError('El documento ya está vinculado como principal a otro viaje.', 409, 'DOCUMENTO_VIAJE_DUPLICADA');
   }
   const carta = await lockCurrentCartaPorte(client, empresaId, viajeId);
   if (carta?.timbrado_at || carta?.estatus === 'timbrado') {
-    throw new TransporteError('No puede cambiarse la factura de una Carta Porte timbrada.', 409, 'CARTA_PORTE_TIMBRADA');
+    throw new TransporteError('No puede cambiarse el documento de una Carta Porte timbrada.', 409, 'CARTA_PORTE_TIMBRADA');
   }
   await client.query(
     `DELETE FROM transporte.viaje_documentos
-      WHERE empresa_id=$1 AND viaje_id=$2 AND tipo_relacion='factura_servicio'`,
-    [empresaId, viajeId]
+      WHERE empresa_id=$1 AND viaje_id=$2 AND tipo_relacion=$3`,
+    [empresaId, viajeId, tipoRelacion]
   );
   const { rows } = await client.query(
     `INSERT INTO transporte.viaje_documentos
        (empresa_id, viaje_id, documento_id, tipo_relacion, principal)
-     VALUES ($1,$2,$3,'factura_servicio',true)
+     VALUES ($1,$2,$3,$4,true)
      RETURNING id, viaje_id, documento_id, tipo_relacion, principal, created_at`,
-    [empresaId, viajeId, documentoId]
+    [empresaId, viajeId, documentoId, tipoRelacion]
   );
   if (carta) {
     await client.query(
@@ -532,7 +534,11 @@ export async function linkPrincipalDocument(
   return rows[0];
 }
 
-export async function findCartaPorteStampContext(documentoId: number, empresaId: number) {
+export async function findCartaPorteStampContext(
+  documentoId: number,
+  empresaId: number,
+  tipoRelacion?: 'factura_servicio' | 'traslado',
+) {
   const { rows } = await pool.query(
     `SELECT v.id AS viaje_id, v.estatus AS viaje_estatus,
             cp.id AS carta_porte_id, cp.documento_id, cp.estatus AS carta_porte_estatus,
@@ -541,9 +547,10 @@ export async function findCartaPorteStampContext(documentoId: number, empresaId:
        JOIN transporte.viajes v ON v.id=vd.viaje_id AND v.empresa_id=vd.empresa_id
        LEFT JOIN transporte.cartas_porte cp ON cp.viaje_id=v.id AND cp.empresa_id=v.empresa_id
       WHERE vd.documento_id=$1 AND vd.empresa_id=$2
-        AND vd.tipo_relacion='factura_servicio' AND vd.principal=true
+        AND vd.tipo_relacion = COALESCE($3, vd.tipo_relacion)
+        AND vd.tipo_relacion IN ('factura_servicio', 'traslado') AND vd.principal=true
       ORDER BY cp.id DESC NULLS LAST LIMIT 1`,
-    [documentoId, empresaId]
+    [documentoId, empresaId, tipoRelacion ?? null]
   );
   return rows[0] ?? null;
 }

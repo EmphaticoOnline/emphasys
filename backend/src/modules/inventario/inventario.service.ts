@@ -5,6 +5,7 @@ import {
   obtenerMovimientoDetalleRepository,
   MovimientoDetalle,
 } from './inventario.repository';
+import { isTraslado } from '../documentos/documento-policy.registry';
 import type { PoolClient } from 'pg';
 
 type TipoMovimiento = 'entrada' | 'salida' | 'transferencia';
@@ -412,6 +413,9 @@ export async function aplicarInventarioDesdeDocumentoEnTransaccion(
   }
 
   const afectaInventario = (documento.afecta_inventario || 'none').toLowerCase();
+  if (isTraslado(documento.tipo_documento)) {
+    throw buildError('TRASLADO_NO_AFECTA_INVENTARIO', 'Un Traslado no puede generar movimientos de inventario');
+  }
   if (afectaInventario === 'none') {
     throw buildError('TIPO_NO_AFECTA_INVENTARIO', 'El tipo de documento no afecta inventario');
   }

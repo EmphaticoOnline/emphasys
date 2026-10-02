@@ -382,6 +382,7 @@ type DocumentosFormPageProps = {
 };
 
 const DESCRIPCIONES_FORMULARIO: Record<string, string> = {
+  traslado: 'Captura los bienes propios que serán trasladados.',
   cotizacion: 'Captura el encabezado y las partidas de la cotización.',
   factura: 'Captura el encabezado y las partidas de la factura.',
   nota_credito: 'Captura una nota de crédito comercial o por devolución.',
@@ -578,6 +579,7 @@ export default function DocumentosFormPage({
   const documentoActualId = documentoPersistidoId ?? routeDocumentoId;
   const isCotizacion = tipoDocumento === 'cotizacion';
   const isNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
+  const isTraslado = tipoDocumento === 'traslado';
   const isEdit = Boolean(documentoActualId);
   const basePath = resolveDocumentosListPath(tipoDocumento, moduloDocumento);
   const showFiscalTab = widgetFiscalTab;
@@ -914,6 +916,7 @@ export default function DocumentosFormPage({
     immediate: boolean = false,
     descuentoGlobalActual?: number | null
   ) => {
+    if (isTraslado) return;
     console.log('[impuestos] runPreview caller stack', new Error().stack);
     console.log('[impuestos] debounce fired -> runPreview', {
       index,
@@ -1230,6 +1233,10 @@ export default function DocumentosFormPage({
     if (!usaPartidas) {
       return;
     }
+    if (isTraslado) {
+      setForm((prev) => ({ ...prev, subtotal: 0, descuento: 0, iva: 0, total: 0 }));
+      return;
+    }
     if (isNotaCredito && !partidasList.some((partida) => !esPartidaPlaceholder(partida))) {
       setForm((prev) => {
         const subtotal = Number(prev.subtotal ?? 0);
@@ -1461,6 +1468,20 @@ export default function DocumentosFormPage({
 
   const calcularPartida = (partida: PartidaForm, descuentoGlobalOverride?: number | null): PartidaForm => {
     const cantidad = Number(partida.cantidad) || 0;
+    if (isTraslado) {
+      return {
+        ...partida,
+        cantidad,
+        precio_unitario: 0,
+        descuento: 0,
+        descuento_tipo: 'porcentaje',
+        descuento_monto: 0,
+        subtotal_partida: 0,
+        total_partida: 0,
+        impuestos: [],
+        impuestos_calculados: [],
+      };
+    }
     const precio = Number(partida.precio_unitario) || 0;
     const baseBruta = cantidad * precio;
     const esMonto = esDescuentoPartidaPorMonto(partida);
@@ -1543,6 +1564,7 @@ export default function DocumentosFormPage({
     tratamientoOverride?: TratamientoImpuestos | null,
     immediate: boolean = false
   ) => {
+    if (isTraslado) return;
     if (suppressPreviewRef.current) {
       console.log('[impuestos] preview suppressed during tratamiento change');
       return;
@@ -1590,7 +1612,7 @@ export default function DocumentosFormPage({
 
       next[index] = updated;
       recalcTotales(next, descuentoGlobalRef.current);
-      if (!isChangingTratamientoRef.current) {
+      if (!isTraslado && !isChangingTratamientoRef.current) {
         scheduleImpuestosPreview(index, updated);
       }
 
@@ -2079,7 +2101,7 @@ export default function DocumentosFormPage({
       setMontosAplicacionMonetaria({});
       return;
     }
-    if (!form.contacto_principal_id) {
+    if (!isTraslado && !form.contacto_principal_id) {
       setDocumentosCargoMonetarios([]);
       setMontosAplicacionMonetaria({});
       return;
@@ -2688,13 +2710,13 @@ export default function DocumentosFormPage({
       return false;
     }
 
-    const requiereDatosFiscales = ['factura', 'nota_credito'].includes(tipoDocumento) && form.tratamiento_impuestos !== 'sin_iva';
+    const requiereDatosFiscales = !isTraslado && (['factura', 'nota_credito'].includes(tipoDocumento) && form.tratamiento_impuestos !== 'sin_iva');
     if (requiereDatosFiscales) {
       if (!form.rfc_receptor || !validarRFC(form.rfc_receptor)) {
         setSnackbar({ open: true, message: 'RFC receptor es obligatorio y debe ser válido', severity: 'error' });
         return false;
       }
-      if (!form.regimen_fiscal_receptor || !form.uso_cfdi || !form.forma_pago || !form.metodo_pago || !form.codigo_postal_receptor) {
+      if (!form.regimen_fiscal_receptor || !form.codigo_postal_receptor || (!isTraslado && (!form.uso_cfdi || !form.forma_pago || !form.metodo_pago))) {
         setSnackbar({ open: true, message: 'Completa los datos fiscales requeridos', severity: 'error' });
         return false;
       }
@@ -2744,11 +2766,11 @@ export default function DocumentosFormPage({
         tipo_documento: tipoDocumento,
         producto_resumen: form.producto_resumen ?? null,
         serie: form.serie?.trim() || null,
-        subtotal: isNotaCreditoManual ? (calculoNotaCreditoManual?.subtotal ?? form.subtotal ?? 0) : (form.subtotal || 0),
+        subtotal: isTraslado ? 0 : (isNotaCreditoManual ? (calculoNotaCreditoManual?.subtotal ?? form.subtotal ?? 0) : (form.subtotal || 0)),
         descuento_global: form.descuento_global || 0,
         descuento: form.descuento || 0,
-        iva: isNotaCreditoManual ? (calculoNotaCreditoManual?.iva ?? form.iva ?? 0) : (form.iva || 0),
-        total: isNotaCreditoManual ? (calculoNotaCreditoManual?.total ?? totalNotaCreditoManual) : (form.total || 0),
+        iva: isTraslado ? 0 : (isNotaCreditoManual ? (calculoNotaCreditoManual?.iva ?? form.iva ?? 0) : (form.iva || 0)),
+        total: isTraslado ? 0 : (isNotaCreditoManual ? (calculoNotaCreditoManual?.total ?? totalNotaCreditoManual) : (form.total || 0)),
         empresa_id: getEmpresaActivaId(),
         conversacion_id: conversacionId ? Number(conversacionId) : null,
         usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
@@ -2757,7 +2779,7 @@ export default function DocumentosFormPage({
         cuenta_financiera_id: form.cuenta_financiera_id ?? null,
         finanzas_operacion_id: form.finanzas_operacion_id ?? null,
         aplicaciones_documento: aplicacionesDocumento,
-        tratamiento_impuestos: TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL.has(tipoDocumento) ? form.tratamiento_impuestos || 'normal' : 'normal',
+        tratamiento_impuestos: isTraslado ? 'sin_iva' : (TIPOS_DOCUMENTO_CON_TRATAMIENTO_FISCAL.has(tipoDocumento) ? form.tratamiento_impuestos || 'normal' : 'normal'),
         rfc_receptor: form.rfc_receptor?.trim() || null,
         nombre_receptor: form.nombre_receptor?.trim() || null,
         regimen_fiscal_receptor: form.regimen_fiscal_receptor?.trim() || null,
@@ -2854,15 +2876,15 @@ export default function DocumentosFormPage({
         producto_id: p.producto_id,
       descripcion_alterna: p.descripcion_alterna ?? null,
         cantidad: p.cantidad ?? 0,
-        precio_unitario: p.precio_unitario ?? 0,
+        precio_unitario: isTraslado ? 0 : (p.precio_unitario ?? 0),
         precio_lista_id: p.precio_lista_id ?? null,
         precio_editado_manual: p.precio_editado_manual === true,
         precio_origen: p.precio_origen ?? null,
-        descuento: p.descuento ?? 0,
+        descuento: isTraslado ? 0 : (p.descuento ?? 0),
         descuento_tipo: p.descuento_tipo === 'monto' ? 'monto' : 'porcentaje',
-        descuento_monto: p.descuento_monto ?? 0,
-        subtotal_partida: p.subtotal_partida ?? 0,
-        total_partida: p.total_partida ?? 0,
+        descuento_monto: isTraslado ? 0 : (p.descuento_monto ?? 0),
+        subtotal_partida: isTraslado ? 0 : (p.subtotal_partida ?? 0),
+        total_partida: isTraslado ? 0 : (p.total_partida ?? 0),
         ...(partidasMostrarEsParteOportunidad
           ? {
               es_parte_oportunidad: p.es_parte_oportunidad ?? true,
@@ -2876,7 +2898,7 @@ export default function DocumentosFormPage({
           : {}),
         observaciones: p.observaciones ?? '',
         especificaciones: p.especificaciones ?? [],
-        impuestos: (p.impuestos_calculados ?? p.impuestos ?? []).map((imp: any) => ({
+        impuestos: isTraslado ? [] : (p.impuestos_calculados ?? p.impuestos ?? []).map((imp: any) => ({
           impuesto_id: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? imp.id,
           nombre: imp.nombre ?? null,
           tipo: imp.tipo ?? null,
@@ -4743,11 +4765,11 @@ export default function DocumentosFormPage({
                             <Box />
                             <Typography sx={headerCellSx}>Producto o servicio</Typography>
                             <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Cant.</Typography>
-                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>P. unitario</Typography>
-                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Desc.</Typography>
-                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Importe</Typography>
-                            <Typography sx={{ ...headerCellSx, textAlign: 'right', pr: '14px' }}>Impuestos</Typography>
-                            <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Total</Typography>
+                            {!isTraslado && <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>P. unitario</Typography>}
+                            {!isTraslado && <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Desc.</Typography>}
+                            {!isTraslado && <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Importe</Typography>}
+                            {!isTraslado && <Typography sx={{ ...headerCellSx, textAlign: 'right', pr: '14px' }}>Impuestos</Typography>}
+                            {!isTraslado && <Typography sx={{ ...headerCellSx, textAlign: 'right' }}>Total</Typography>}
                             <Box />
                           </Box>
 
@@ -4834,6 +4856,7 @@ export default function DocumentosFormPage({
                                   disabled={trazabilidadActiva}
                                 />
 
+                                {!isTraslado && (<>
                                 <TextField
                                   variant="standard"
                                   type="text"
@@ -5029,6 +5052,7 @@ export default function DocumentosFormPage({
                                 >
                                   {formatter.format(partida.total_partida ?? 0)}
                                 </Typography>
+                                </>)}
 
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
                                   {partidasMostrarImagenes && (
@@ -5240,6 +5264,7 @@ export default function DocumentosFormPage({
                                 sx={{ flex: '0 1 80px', minWidth: 72 }}
                               />
 
+                              {!isTraslado && (<>
                               <TextField
                                 label="Precio"
                                 type="text"
@@ -5362,6 +5387,7 @@ export default function DocumentosFormPage({
                               <Typography sx={{ flex: '0 1 100px', minWidth: 88, fontSize: 13.5, fontWeight: 700, textAlign: 'right', fontFamily: 'monospace' }}>
                                 {formatter.format(partida.total_partida ?? 0)}
                               </Typography>
+                              </>)}
 
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, ml: 'auto' }}>
                                 {partidasMostrarImagenes && (
@@ -5413,7 +5439,7 @@ export default function DocumentosFormPage({
 
             {!isMobile && railFacturaAbierto && (
               <Box sx={{ width: 340, flexShrink: 0, alignSelf: 'flex-start', position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {railContenido}
+                {!isTraslado && railContenido}
 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
                   <Tooltip title="Volver">
@@ -5445,7 +5471,7 @@ export default function DocumentosFormPage({
             )}
           </Box>
 
-          {!isMobile && !railFacturaAbierto && (
+          {!isTraslado && !isMobile && !railFacturaAbierto && (
             <FacturaResumenFlotante
               containerRef={workspaceFacturaRef}
               position={floatFacturaPos}
@@ -5469,7 +5495,7 @@ export default function DocumentosFormPage({
 
           {isMobile && (
             <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {railContenido}
+              {!isTraslado && railContenido}
             </Box>
           )}
         </Box>
@@ -8145,9 +8171,9 @@ export default function DocumentosFormPage({
               </Stack>
               )}
 
-              {mostrarResumenFinanciero && usaPartidas && <Divider />}
+              {!isTraslado && mostrarResumenFinanciero && usaPartidas && <Divider />}
 
-              {mostrarResumenFinanciero && usaPartidas && (
+              {!isTraslado && mostrarResumenFinanciero && usaPartidas && (
               useCompactMobilePartidas ? (
                 <Paper variant="outlined" sx={{ borderRadius: 1.5, borderColor: '#dbe3f0', overflow: 'hidden' }}>
                   <ButtonBase

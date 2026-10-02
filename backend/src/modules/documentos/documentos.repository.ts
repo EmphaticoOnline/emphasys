@@ -15,6 +15,7 @@ import { obtenerConfiguracionEspecificaciones } from '../productos/especificacio
 import { esFacturaTimbrada, validarCamposFacturaTimbrada } from './factura-timbrada-edicion';
 import { assertNotaVentaEditable } from './nota-venta-editabilidad';
 import { assertNotaCreditoSinAplicacionesParaBorrador } from '../finanzas/aplicaciones-saldo.rules';
+import { isTraslado } from './documento-policy.registry';
 
 type PostgresForeignKeyError = Error & {
   code?: string;
@@ -1904,7 +1905,34 @@ export async function crearDocumentoRepository(
   const estatus = dataConDefaults.estatus_documento || 'Borrador';
   const tipoDocumentoDb = tipoDocumentoNormalizado;
 
-  if (dataConDefaults.tratamiento_impuestos === undefined || dataConDefaults.tratamiento_impuestos === null) {
+  if (isTraslado(tipoDocumentoDb)) {
+    const partidasConImpuestos = Array.isArray((dataConDefaults as any).partidas)
+      && (dataConDefaults as any).partidas.some((p: any) => Array.isArray(p?.impuestos) && p.impuestos.length > 0);
+    if (partidasConImpuestos || Number(dataConDefaults.iva ?? 0) !== 0) {
+      throw new Error('VALIDATION_ERROR: Un Traslado no puede contener impuestos');
+    }
+    const { rows: empresaRows } = await executor.query(
+      `SELECT rfc, razon_social, regimen_fiscal_id, codigo_postal_id
+         FROM core.empresas WHERE id = $1 LIMIT 1`,
+      [empresaId]
+    );
+    const empresa = empresaRows[0];
+    if (!empresa) throw new Error('VALIDATION_ERROR: Empresa activa no encontrada');
+    Object.assign(dataConDefaults, {
+      estatus_documento: 'Borrador',
+      agente_id: null,
+      forma_pago: null,
+      metodo_pago: null,
+      subtotal: 0,
+      iva: 0,
+      total: 0,
+      tratamiento_impuestos: 'sin_iva',
+      rfc_receptor: empresa.rfc,
+      nombre_receptor: empresa.razon_social,
+      regimen_fiscal_receptor: empresa.regimen_fiscal_id,
+      codigo_postal_receptor: empresa.codigo_postal_id,
+    });
+  } else if (dataConDefaults.tratamiento_impuestos === undefined || dataConDefaults.tratamiento_impuestos === null) {
     throw new Error('VALIDATION_ERROR: El tratamiento de impuestos es obligatorio');
   }
 
@@ -2043,6 +2071,34 @@ export async function actualizarDocumentoRepository(
   if (!current) return null;
 
   const tipoActual = String(current.tipo_documento ?? '').trim().toLowerCase();
+  if (isTraslado(tipoActual)) {
+    const partidasConImpuestos = Array.isArray((data as any).partidas)
+      && (data as any).partidas.some((p: any) => Array.isArray(p?.impuestos) && p.impuestos.length > 0);
+    if (partidasConImpuestos || Number((data as any).iva ?? 0) !== 0) {
+      throw new Error('VALIDATION_ERROR: Un Traslado no puede contener impuestos');
+    }
+    const { rows: empresaRows } = await executor.query(
+      `SELECT rfc, razon_social, regimen_fiscal_id, codigo_postal_id
+         FROM core.empresas WHERE id = $1 LIMIT 1`,
+      [empresaId]
+    );
+    const empresa = empresaRows[0];
+    if (!empresa) throw new Error('VALIDATION_ERROR: Empresa activa no encontrada');
+    data = {
+      ...data,
+      agente_id: null,
+      forma_pago: null,
+      metodo_pago: null,
+      subtotal: 0,
+      iva: 0,
+      total: 0,
+      tratamiento_impuestos: 'sin_iva',
+      rfc_receptor: empresa.rfc,
+      nombre_receptor: empresa.razon_social,
+      regimen_fiscal_receptor: empresa.regimen_fiscal_id,
+      codigo_postal_receptor: empresa.codigo_postal_id,
+    };
+  }
   if (
     (tipoActual === 'nota_credito' || tipoActual === 'nota_credito_compra')
     && String(data.estatus_documento ?? '').trim().toLowerCase() === 'borrador'

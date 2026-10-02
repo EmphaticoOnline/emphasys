@@ -4,6 +4,19 @@ import { calcularImpuestosPartida } from '../impuestos/impuestos.service';
 import { actualizarTotales } from './documentos.service';
 import { esFacturaTimbrada } from './factura-timbrada-edicion';
 import { assertNotaVentaEditable } from './nota-venta-editabilidad';
+import { isTraslado } from './documento-policy.registry';
+
+async function assertTrasladoSinImpuestos(documentoId: number, empresaId: number, data?: PartidaInput | PartidaInput[]): Promise<void> {
+  const { rows } = await pool.query<{ tipo_documento: string }>(
+    `SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+    [documentoId, empresaId]
+  );
+  if (!isTraslado(rows[0]?.tipo_documento)) return;
+  const partidas = Array.isArray(data) ? data : data ? [data] : [];
+  if (partidas.some((p: any) => Array.isArray(p?.impuestos) && p.impuestos.length > 0)) {
+    throw new Error('VALIDATION_ERROR: Un Traslado no puede contener impuestos');
+  }
+}
 
 async function assertPartidasFacturaTimbrada(documentoId: number, empresaId: number, client: Pick<import('pg').PoolClient, 'query'>): Promise<void> {
   const { rows } = await client.query(
@@ -26,7 +39,14 @@ export async function agregarPartidaService(documentoId: number, data: PartidaIn
     await client.query('BEGIN');
     await assertNotaVentaEditable(documentoId, empresaId, client);
     await assertPartidasFacturaTimbrada(documentoId, empresaId, client);
-    const partida = await agregarPartidaRepository(documentoId, data, empresaId, client);
+    await assertTrasladoSinImpuestos(documentoId, empresaId, data);
+    const { rows: trasladoRows } = await client.query<{ tipo_documento: string }>(
+      `SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`, [documentoId, empresaId]
+    );
+    const partidaData = isTraslado(trasladoRows[0]?.tipo_documento)
+      ? { ...data, precio_unitario: 0, descuento: 0, descuento_monto: 0, subtotal_partida: 0, total_partida: 0 }
+      : data;
+    const partida = await agregarPartidaRepository(documentoId, partidaData, empresaId, client);
     console.log('[BACK IVA DEBUG] agregarPartidaService partida creada', partida ? { id: partida.id, producto_id: partida.producto_id, subtotal: partida.subtotal_partida, total: partida.total_partida } : null);
     if (partida?.id) {
       console.log('[impuestos] Calculando impuestos para partida creada (id DB)', partida.id);
@@ -55,7 +75,14 @@ export async function reemplazarPartidasService(
     await client.query('BEGIN');
     await assertNotaVentaEditable(documentoId, empresaId, client);
     await assertPartidasFacturaTimbrada(documentoId, empresaId, client);
-  const inserted = await reemplazarPartidasRepository(documentoId, partidas, empresaId, client);
+    await assertTrasladoSinImpuestos(documentoId, empresaId, partidas);
+  const { rows: trasladoRows } = await client.query<{ tipo_documento: string }>(
+    `SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`, [documentoId, empresaId]
+  );
+  const partidasPersistir = isTraslado(trasladoRows[0]?.tipo_documento)
+    ? partidas.map((p) => ({ ...p, precio_unitario: 0, descuento: 0, descuento_monto: 0, subtotal_partida: 0, total_partida: 0 }))
+    : partidas;
+  const inserted = await reemplazarPartidasRepository(documentoId, partidasPersistir, empresaId, client);
   console.log('[BACK IVA DEBUG] reemplazarPartidasService inserted', inserted?.map((p) => ({ id: p?.id, producto_id: p?.producto_id, subtotal: p?.subtotal_partida, total: p?.total_partida })));
 
     // Con trazabilidad activa, reemplazarPartidasRepository solo actualizó la imagen de

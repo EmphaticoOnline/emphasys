@@ -102,12 +102,31 @@ export class CfdiService {
     await assertDocumentoSinTimbradoPendiente(documentoId, empresaId);
 
     const data = await this.obtenerDocumentoTimbrable(documentoId, empresaId);
-    this.validarDatos(data);
+    const esTraslado = String(data.documento.tipo_documento || '').trim().toLowerCase() === 'traslado';
+    if (esTraslado) {
+      await this.validarTrasladoAntesDeTimbrar(documentoId, empresaId, data);
+    } else {
+      this.validarDatos(data);
+    }
 
     await this.assertDocumentoNoTimbrado(documentoId, empresaId);
     await this.assertNoCfdi(documentoId);
 
-    const buildOptions = await this.resolverBuildOptions(data, empresaId);
+    const transporte = esTraslado ? await import('../transporte/carta-porte-timbrado.service') : null;
+    let plan: import('../transporte/carta-porte-timbrado.service').CartaPorteStampPlan | null = null;
+    if (transporte) {
+      const transporteRepository = await import('../transporte/transporte.repository');
+      plan = transporte.buildCartaPorteStampPlan(
+        await transporteRepository.findCartaPorteStampContext(documentoId, empresaId, 'traslado'),
+        documentoId,
+      );
+    }
+    if (esTraslado && !plan) {
+      throw new CfdiValidationError('El Traslado no tiene una Carta Porte validada asociada.');
+    }
+    const buildOptions = esTraslado
+      ? { cfdiType: 'T' as const, complemento: plan!.options.complemento }
+      : await this.resolverBuildOptions(data, empresaId);
     const { xml } = this.builder.build(data, buildOptions);
 
     const facturama = await FacturamaClient.forEmpresa(empresaId);
@@ -125,7 +144,7 @@ export class CfdiService {
           serie: data.documento.serie,
           folio: data.documento.numero,
         },
-        options
+      esTraslado ? { ...plan!.options, ...options, complemento: plan!.options.complemento } : options
       );
       xmlTimbrado = stamped.xmlTimbrado;
       response = stamped.response;
@@ -153,6 +172,19 @@ export class CfdiService {
         throw error instanceof CfdiValidationError
           ? error
           : new CfdiValidationError(error instanceof Error ? error.message : 'XML timbrado inconsistente.');
+      }
+    }
+
+    if (esTraslado) {
+      try {
+        this.validarXmlTimbradoTraslado(xmlTimbrado, data.empresa.rfc);
+      } catch (error) {
+        if (intentoId) {
+          await actualizarIntentoTimbrado(intentoId, 'error_validacion', {
+            errorMensaje: error instanceof Error ? error.message : 'XML de Traslado inconsistente',
+          });
+        }
+        throw error;
       }
     }
 
@@ -224,7 +256,8 @@ export class CfdiService {
 
     const persistido = await this.guardarTimbrado(
       documentoId, empresaId, xmlTimbrado, timbre, response,
-      facturama.configId, facturama.pac, intentoId, hooks
+      facturama.configId, facturama.pac, intentoId,
+      esTraslado ? transporte!.buildCartaPorteStampHooks(plan!) : hooks
     );
 
     return {
@@ -246,7 +279,7 @@ export class CfdiService {
          JOIN core.empresas e ON e.id = d.empresa_id
         WHERE d.id = $1
           AND d.empresa_id = $2
-          AND LOWER(d.tipo_documento) IN ('factura', 'nota_credito')
+          AND LOWER(d.tipo_documento) IN ('factura', 'nota_credito', 'traslado')
         LIMIT 1`,
       [documentoId, empresaId]
     );
@@ -257,8 +290,8 @@ export class CfdiService {
     }
 
     const tipoDocumento = String(documento.tipo_documento || '').trim().toLowerCase();
-    if (tipoDocumento !== 'factura' && tipoDocumento !== 'nota_credito') {
-      throw new CfdiValidationError('Solo se permite timbrar facturas y notas de crédito.');
+    if (tipoDocumento !== 'factura' && tipoDocumento !== 'nota_credito' && tipoDocumento !== 'traslado') {
+      throw new CfdiValidationError('Solo se permite timbrar facturas, notas de crédito y traslados.');
     }
 
     const tratamiento = String(documento.tratamiento_impuestos || '').trim().toLowerCase();
@@ -416,6 +449,57 @@ export class CfdiService {
     return {
       cfdiType: 'I',
     };
+  }
+
+  private async validarTrasladoAntesDeTimbrar(
+    documentoId: number,
+    empresaId: number,
+    data: CfdiInvoiceData,
+  ): Promise<void> {
+    const { rows } = await pool.query(
+      `SELECT estatus_documento
+         FROM public.documentos
+        WHERE id = $1 AND empresa_id = $2
+        LIMIT 1`,
+      [documentoId, empresaId],
+    );
+    const estatus = String(rows[0]?.estatus_documento ?? '').trim().toLowerCase();
+    ensure(estatus === 'borrador', 'Un Traslado sólo puede timbrarse cuando está en estado Borrador.');
+    ensure(String(data.empresa.id) === String(empresaId), 'El emisor no corresponde a la empresa activa.');
+    ensure(data.empresa.rfc, 'RFC del emisor es requerido.');
+    ensure(data.empresa.razon_social, 'Razón social del emisor es requerida.');
+    ensure(data.empresa.regimen_fiscal, 'Régimen fiscal del emisor es requerido.');
+    ensure(data.empresa.codigo_postal_id, 'Lugar de expedición es requerido.');
+    ensure(data.documento.subtotal === 0, 'El SubTotal del Traslado debe ser cero.');
+    ensure(data.documento.total === 0, 'El Total del Traslado debe ser cero.');
+    ensure(!data.documento.forma_pago, 'Un Traslado no puede tener FormaPago.');
+    ensure(!data.documento.metodo_pago, 'Un Traslado no puede tener MetodoPago.');
+    ensure(!data.partidas.some((partida) => partida.impuestos?.length), 'Un Traslado no puede tener impuestos comerciales.');
+  }
+
+  private validarXmlTimbradoTraslado(xml: string, emisorRfc: string): void {
+    let comprobante: any;
+    try {
+      const parsed = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '',
+        removeNSPrefix: true,
+        trimValues: true,
+      }).parse(xml);
+      comprobante = parsed?.Comprobante ?? parsed?.['cfdi:Comprobante'];
+    } catch {
+      throw new CfdiValidationError('El XML timbrado del Traslado no es XML válido.');
+    }
+    ensure(comprobante, 'El XML timbrado del Traslado no contiene Comprobante.');
+    ensure(String(comprobante.TipoDeComprobante ?? '') === 'T', 'Facturama devolvió un CFDI que no es tipo Traslado.');
+    ensure(String(comprobante.Moneda ?? '') === 'XXX', 'El CFDI Traslado timbrado no conserva Moneda XXX.');
+    ensure(Number(comprobante.SubTotal) === 0, 'El CFDI Traslado timbrado no conserva SubTotal cero.');
+    ensure(Number(comprobante.Total) === 0, 'El CFDI Traslado timbrado no conserva Total cero.');
+    ensure(comprobante.FormaPago === undefined, 'El CFDI Traslado timbrado contiene FormaPago.');
+    ensure(comprobante.MetodoPago === undefined, 'El CFDI Traslado timbrado contiene MetodoPago.');
+    ensure(comprobante.Impuestos === undefined, 'El CFDI Traslado timbrado contiene impuestos globales.');
+    const emisor = comprobante.Emisor ?? comprobante['cfdi:Emisor'];
+    ensure(String(emisor?.Rfc ?? '').toUpperCase() === String(emisorRfc).toUpperCase(), 'El RFC emisor del Traslado timbrado no coincide.');
   }
 
   private async resolverNcRelations(notaCreditoId: number, empresaId: number) {
@@ -656,7 +740,7 @@ export class CfdiService {
       await client.query(
         `UPDATE public.documentos
             SET estatus_documento = 'Timbrado',
-                saldo = COALESCE(total, 0)
+                saldo = CASE WHEN LOWER(tipo_documento) = 'traslado' THEN 0 ELSE COALESCE(total, 0) END
           WHERE id = $1 AND empresa_id = $2`,
         [documentoId, empresaId]
       );

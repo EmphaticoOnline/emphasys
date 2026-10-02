@@ -1,4 +1,5 @@
 export type TipoDocumento =
+  | 'traslado'
   | 'cotizacion'
   | 'factura'
   | 'nota_credito'

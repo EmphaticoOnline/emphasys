@@ -48,7 +48,7 @@ export type ViajeMercancia = {
   clave_unidad_sat:string|null;
   unidad_descripcion:string|null;
   cantidad:string|number;
-  peso_kg:string|number;
+  peso_kg:string|number|null;
   valor_mercancia:string|number|null;
   material_peligroso:boolean;
   clave_material_peligroso:string|null;

@@ -7,6 +7,7 @@ import { OPORTUNIDAD_ESTADOS_CERRADOS, OPORTUNIDAD_ESTADOS_SEGUIMIENTO, normaliz
 import { actualizarDocumentoRepository, crearDocumentoRepository, obtenerDocumentoRepository, reemplazarPartidasRepository, type PartidaInput } from './documentos.repository';
 import { aplicarInventarioDesdeDocumentoEnTransaccion } from '../inventario/inventario.service';
 import { registrarRelacionDocumento } from './documentos-dependencias-cancelacion';
+import { isTraslado } from './documento-policy.registry';
 
 const INVENTARIO_SILENCEABLE = new Set([
   'TIPO_NO_AFECTA_INVENTARIO',
@@ -29,6 +30,13 @@ export async function aplicarInventarioPostEmision(
 ): Promise<void> {
   if (estatusResultante !== 'emitido' && estatusResultante !== 'enviado') return;
   if (!usuarioId) return;
+  const { rows } = await client.query<{ tipo_documento: string }>(
+    `SELECT tipo_documento FROM public.documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+    [documentoId, empresaId]
+  );
+  if (isTraslado(rows[0]?.tipo_documento)) {
+    throw new Error('VALIDATION_ERROR: Un Traslado no puede afectar inventario');
+  }
   try {
     await aplicarInventarioDesdeDocumentoEnTransaccion(client, documentoId, empresaId, Number(usuarioId));
   } catch (invErr: any) {
@@ -513,6 +521,9 @@ export async function crearDocumentoService(
   empresaId: number,
   tipoDocumento: TipoDocumento
 ) {
+  if (isTraslado(tipoDocumento) && (Array.isArray(payload.aplicaciones_documento) && payload.aplicaciones_documento.length > 0 || payload.cuenta_financiera_id != null || payload.finanzas_operacion_id != null)) {
+    throw new Error('VALIDATION_ERROR: Un Traslado no acepta pagos ni aplicaciones de saldo');
+  }
   const client = await pool.connect();
   const data = { ...payload, conversacion_id: payload.conversacion_id ?? null };
   try {
@@ -560,6 +571,9 @@ export async function actualizarDocumentoService(
   empresaId: number,
   tipoDocumento: TipoDocumento
 ) {
+  if (isTraslado(tipoDocumento) && (Array.isArray(payload.aplicaciones_documento) && payload.aplicaciones_documento.length > 0 || payload.cuenta_financiera_id != null || payload.finanzas_operacion_id != null)) {
+    throw new Error('VALIDATION_ERROR: Un Traslado no acepta pagos ni aplicaciones de saldo');
+  }
   const client = await pool.connect();
 
   try {

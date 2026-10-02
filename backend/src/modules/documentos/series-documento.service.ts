@@ -6,6 +6,7 @@ import type { TratamientoImpuestos } from '../impuestos/impuestos.types';
 type QueryExecutor = Pick<PoolClient, 'query'>;
 
 export const SERIES_DEFAULTS: Record<TipoDocumento, string> = {
+  traslado: 'TRS',
   cotizacion: 'COT',
   factura: 'FAC',
   nota_credito: 'NCR',
