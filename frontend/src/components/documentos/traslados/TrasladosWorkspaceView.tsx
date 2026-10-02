@@ -37,7 +37,8 @@ type Props = {
 
 const estadoLabel = (value: unknown) => {
   const normalized = String(value ?? '').toLowerCase();
-  if (normalized === 'timbrado' || normalized === 'emitido') return 'Emitido';
+  if (normalized === 'timbrado') return 'Timbrado';
+  if (normalized === 'emitido') return 'Emitido';
   if (normalized === 'cancelado' || normalized === 'cancelada') return 'Cancelado';
   return 'Borrador';
 };
