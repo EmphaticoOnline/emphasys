@@ -111,4 +111,6 @@ export interface CartaPorteBuildSource {
   figuras: Array<Record<string, any>>;
   remolques: Array<Record<string, any>>;
   vehiculo: Record<string, any> | null;
+  documentos?: Array<Record<string, any>>;
+  zonaHoraria?: string;
 }

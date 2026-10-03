@@ -53,6 +53,7 @@ import { apiFetch } from '../../api/apiClient';
 import type { RolResumen } from '../../session/sessionTypes';
 import { esRolAdmin, esRolVendedor } from '../../session/rolScope';
 import { MAIN_NAV_TYPE } from '../../theme/tokens';
+import { moduleTabBarSx, moduleTabStripSx } from './moduleTabBar';
 
 type DocumentoTabDef = { label: string; value: string; icon: string | null };
 
@@ -475,11 +476,10 @@ export default function SidebarLayout() {
   }, [docModulo, docTab, documentTabs, navigate]);
 
   const frame = theme.emphasys.frame;
-  const documentNav = theme.emphasys.documentNav;
   const canvas = theme.emphasys.canvas;
 
   const documentTabBar = documentTabs.length > 0 ? (
-    <Box sx={{ background: documentNav.background, borderBottom: `1px solid ${documentNav.border}`, px: 2.5, pt: 1.5, pb: 0, flexShrink: 0 }}>
+    <Box sx={moduleTabStripSx()}>
       <Tabs
         value={docTab}
         onChange={handleDocumentTabChange}
@@ -487,33 +487,7 @@ export default function SidebarLayout() {
         allowScrollButtonsMobile
         textColor="inherit"
         TabIndicatorProps={{ style: { display: 'none' } }}
-        sx={{
-          minHeight: 0,
-          '& .MuiTabs-flexContainer': { alignItems: 'flex-end' },
-          '& .MuiTab-root': {
-            minHeight: 0,
-            textTransform: 'none',
-            fontWeight: 600,
-            color: documentNav.foreground,
-            borderTop: '3px solid transparent',
-            borderRadius: '6px 6px 0 0',
-            padding: '8px 10px',
-            mr: 1,
-            alignItems: 'flex-end',
-          },
-          '& .Mui-selected': {
-            color: documentNav.selectedForeground,
-            backgroundColor: documentNav.selectedBackground,
-            borderTop: `3px solid ${documentNav.indicator}`,
-            borderLeft: `1px solid ${documentNav.border}`,
-            borderRight: `1px solid ${documentNav.border}`,
-            borderBottom: `1px solid ${documentNav.selectedBackground}`,
-          },
-          '& .MuiTab-root:hover': {
-            color: documentNav.hoverForeground,
-            backgroundColor: documentNav.hoverBackground,
-          },
-        }}
+        sx={moduleTabBarSx()}
       >
         {documentTabs.map((tab) => {
           const Icon = tab.icon ? DOC_ICON_MAP[tab.icon] : null;

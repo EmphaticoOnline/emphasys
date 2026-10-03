@@ -799,10 +799,14 @@ export async function cancelarDocumentoService(input: CancelarDocumentoInput) {
     const tipoDocumento = String(documento.tipo_documento ?? '').trim().toLowerCase();
     const estatusDocumento = String(documento.estatus_documento ?? '').trim().toLowerCase();
     if (
-      (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra' || tipoDocumento === 'factura')
+      (tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra' || tipoDocumento === 'factura' || tipoDocumento === 'traslado')
       && estatusDocumento === 'borrador'
     ) {
-      const nombreDocumento = tipoDocumento === 'factura' ? 'factura' : 'nota de crédito';
+      const nombreDocumento = tipoDocumento === 'factura'
+        ? 'factura'
+        : tipoDocumento === 'traslado'
+          ? 'traslado'
+          : 'nota de crédito';
       throw new DocumentoCancelValidationError(
         `No se puede cancelar ${nombreDocumento} en borrador. Elimínelo si ya no lo necesita.`
       );

@@ -12,6 +12,7 @@ import { heightOfRichTextBasicoPdf, renderRichTextBasicoPdf, richTextBasicoEstaV
 import { obtenerCondicionesImpresionSerie } from '../configuracion/series-documento/series-documento.repository';
 import { obtenerCamposConfigurablesPartidasParaImpresion } from './documentos-campos.repository';
 import { obtenerRutaPdfPreview } from '../../services/pdfPreviewImage.service';
+import { XMLParser } from 'fast-xml-parser';
 import {
   ordenarCamposConfigurablesPartida,
   calcularAlturaCamposConfigurablesPartida,
@@ -101,6 +102,397 @@ export type GenerarDocumentoPdfOptions = {
   onLayoutResolved?: (layout: DocumentLayout) => void;
   onLogoResolved?: (logoPath: string) => void;
 };
+
+type TrasladoPdfXmlInput = {
+  xmlTimbrado: string;
+  documento?: DocumentoCotizacion & { empresa_id?: number | null };
+  empresaId?: number;
+  cadenaOriginal?: string | null;
+  estadoSat?: string | null;
+};
+
+const asArray = <T,>(value: T | T[] | null | undefined): T[] =>
+  value == null ? [] : Array.isArray(value) ? value : [value];
+
+const textoXml = (value: unknown): string => String(value ?? '').trim();
+
+const moneda = (value: unknown): string => {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+};
+
+/** Representación fiscal compacta y aislada para un CFDI T timbrado. */
+export async function generarTrasladoPDFDesdeXml(input: TrasladoPdfXmlInput): Promise<Buffer> {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '',
+    removeNSPrefix: true,
+    trimValues: true,
+    parseTagValue: false,
+  });
+  const parsed = parser.parse(input.xmlTimbrado) as any;
+  const comprobante = parsed?.Comprobante ?? {};
+  const emisor = comprobante.Emisor ?? {};
+  const receptor = comprobante.Receptor ?? {};
+  const conceptos = asArray(comprobante.Conceptos?.Concepto);
+  const complemento = comprobante.Complemento ?? {};
+  const tfd = complemento.TimbreFiscalDigital ?? {};
+  const uuid = textoXml(tfd.UUID || input.documento?.timbre?.uuid);
+  const rfcEmisor = textoXml(emisor.Rfc || input.documento?.timbre?.rfc_emisor);
+  const rfcReceptor = textoXml(receptor.Rfc || input.documento?.timbre?.rfc_receptor);
+  const total = Number(comprobante.Total ?? input.documento?.timbre?.total ?? 0);
+  const selloCfdi = textoXml(comprobante.Sello || input.documento?.timbre?.sello_cfdi);
+  const qrBuffer = uuid
+    ? await generarImagenQR({ uuid, rfc_emisor: rfcEmisor, rfc_receptor: rfcReceptor, total, sello_cfdi: selloCfdi })
+        .then((dataUrl) => Buffer.from(dataUrl.split(',')[1] || '', 'base64'))
+        .catch(() => null)
+    : null;
+
+  const logoPath = await obtenerLogoEmpresaPath(input.documento?.empresa_id ?? input.empresaId);
+  const backendRoot = path.resolve(__dirname, '..', '..', '..');
+  const defaultLogoPath = path.resolve(backendRoot, '..', 'frontend', 'public', 'logos', 'logo-emphasys.jpg');
+  const resolvedLogo = logoPath && fs.existsSync(logoPath) ? logoPath : defaultLogoPath;
+
+  return new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'LETTER', margins: { top: 26, bottom: 24, left: 36, right: 36 } });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    doc.on('error', reject);
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+    const BLUE = '#1d2f68';
+    const INK = '#172033';
+    const MUTED = '#5b6472';
+    const LINE = '#d9dee8';
+    const LIGHT = '#f2f4f8';
+    const assetsFontsPath = path.resolve(__dirname, '..', '..', '..', 'assets', 'fonts');
+    const registerFont = (name: string, fileName: string) => {
+      const filePath = path.join(assetsFontsPath, fileName);
+      if (!fs.existsSync(filePath)) return false;
+      doc.registerFont(name, filePath);
+      return true;
+    };
+    const FONT = registerFont('TrasladoSans', 'TREBUC.TTF') ? 'TrasladoSans' : 'Helvetica';
+    const BOLD = registerFont('TrasladoSans-Bold', 'TREBUCBD.TTF') ? 'TrasladoSans-Bold' : 'Helvetica-Bold';
+    const LEFT = doc.page.margins.left;
+    const CONTENT_W = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const BOTTOM = doc.page.height - 26;
+    const numeroDocumento = Number(input.documento?.numero);
+    const folioVisual = Number.isFinite(numeroDocumento)
+      ? formatearFolioDocumento(String(input.documento?.serie ?? ''), numeroDocumento)
+      : 'N/D';
+    const fechaTimbrado = textoXml(tfd.FechaTimbrado || input.documento?.timbre?.fecha_timbrado) || 'N/D';
+
+    let y = 24;
+
+    const paint = (
+      value: string,
+      x: number,
+      yPos: number,
+      opts: { font?: string; size?: number; color?: string; width: number; align?: 'left' | 'center' | 'right'; lineGap?: number }
+    ) => {
+      const font = opts.font || FONT;
+      const size = opts.size ?? 8;
+      const lineGap = opts.lineGap ?? 0;
+      doc.font(font).fontSize(size).fillColor(opts.color || INK);
+      const height = doc.heightOfString(value, { width: opts.width, lineGap, align: opts.align });
+      doc.text(value, x, yPos, { width: opts.width, align: opts.align, lineGap, height: height + 1.5 });
+      return height;
+    };
+
+    const continuation = () => {
+      doc.addPage();
+      y = doc.page.margins.top;
+      paint('CFDI DE TRASLADO', LEFT, y, { font: BOLD, size: 8, color: BLUE, width: 150 });
+      paint(`${folioVisual}   ·   ${uuid || 'Sin UUID'}`, LEFT + 150, y, {
+        size: 7, color: MUTED, width: CONTENT_W - 150, align: 'right',
+      });
+      y += 12;
+      doc.save();
+      doc.moveTo(LEFT, y).lineTo(LEFT + CONTENT_W, y).lineWidth(0.6).strokeColor(LINE).stroke();
+      doc.restore();
+      y += 8;
+    };
+
+    const ensure = (needed: number) => {
+      if (y + needed > BOTTOM) continuation();
+    };
+
+    const drawSection = (title: string) => {
+      ensure(18);
+      doc.roundedRect(LEFT, y, CONTENT_W, 15, 2).fill(LIGHT);
+      doc.font(BOLD).fontSize(8).fillColor(BLUE).text(title, LEFT + 8, y + 3.5, {
+        width: CONTENT_W - 16, height: 10, lineBreak: false,
+      });
+      y += 19;
+    };
+
+    const hasLogo = fs.existsSync(resolvedLogo);
+    const headerTop = 22;
+    if (!hasLogo) {
+      paint('CFDI DE TRASLADO', LEFT, headerTop, { font: BOLD, size: 13, color: BLUE, width: CONTENT_W, align: 'left' });
+      paint('Representación impresa de CFDI 4.0', LEFT, 40, { size: 7.5, color: MUTED, width: CONTENT_W, align: 'left' });
+      y = 62;
+    } else {
+      const logoMaxWidth = 200;
+      const logoMaxHeight = 122 * 0.7;
+      let naturalWidth = logoMaxWidth;
+      let naturalHeight = logoMaxHeight;
+      try {
+        const logoInfo = (doc as any).openImage(resolvedLogo) as { width: number; height: number };
+        naturalWidth = logoInfo.width;
+        naturalHeight = logoInfo.height;
+      } catch (error) {
+        console.warn('[pdf] No se pudieron leer las dimensiones del logo de traslado', {
+          logoPath: resolvedLogo,
+          error: (error as Error)?.message,
+        });
+      }
+      const logoAspect = naturalWidth / naturalHeight;
+      const boxAspect = logoMaxWidth / logoMaxHeight;
+      const logoHeight = logoAspect > boxAspect ? logoMaxWidth / logoAspect : logoMaxHeight;
+      const logoWidth = logoAspect > boxAspect ? logoMaxWidth : logoMaxHeight * logoAspect;
+      doc.image(resolvedLogo, LEFT, headerTop, { fit: [logoMaxWidth, logoMaxHeight] });
+      const titleX = LEFT + logoWidth + 14;
+      const titleW = CONTENT_W - (titleX - LEFT);
+      const titleBlockH = 30;
+      const titleY = headerTop + Math.max(0, (logoHeight - titleBlockH) / 2);
+      paint('CFDI DE TRASLADO', titleX, titleY, { font: BOLD, size: 13, color: BLUE, width: titleW, align: 'right' });
+      paint('Representación impresa de CFDI 4.0', titleX, titleY + 18, { size: 7.5, color: MUTED, width: titleW, align: 'right' });
+      y = headerTop + logoHeight + 10;
+    }
+
+    const meta = [
+      ['Folio', folioVisual],
+      ['Fecha de emisión', textoXml(comprobante.Fecha) || 'N/D'],
+      ['Lugar de expedición', textoXml(comprobante.LugarExpedicion) || 'N/D'],
+      ['Tipo / Moneda', `${textoXml(comprobante.TipoDeComprobante) || 'N/D'} / ${textoXml(comprobante.Moneda) || 'N/D'}`],
+    ];
+    doc.roundedRect(LEFT, y, CONTENT_W, 30, 3).fill(LIGHT);
+    const metaW = CONTENT_W / meta.length;
+    meta.forEach(([label, value], index) => {
+      const x = LEFT + metaW * index + 8;
+      const w = metaW - 14;
+      doc.font(BOLD).fontSize(6).fillColor(MUTED).text(label.toUpperCase(), x, y + 5, { width: w, height: 8, lineBreak: false });
+      doc.font(FONT).fontSize(8).fillColor(INK).text(value, x, y + 15, { width: w, height: 11, lineBreak: false });
+    });
+    y += 38;
+
+    type PartyLine = { text: string; bold?: boolean };
+    const drawParty = (title: string, lines: PartyLine[], x: number, width: number, top: number) => {
+      doc.roundedRect(x, top, width, 14, 2).fill(LIGHT);
+      doc.font(BOLD).fontSize(7.5).fillColor(BLUE).text(title, x + 6, top + 3, { width: width - 12, height: 10, lineBreak: false });
+      let cursor = top + 18;
+      lines.forEach((line) => {
+        doc.font(line.bold ? BOLD : FONT).fontSize(line.bold ? 8 : 7.5).fillColor(INK);
+        const height = doc.heightOfString(line.text, { width: width - 12, lineGap: 0 });
+        doc.text(line.text, x + 6, cursor, { width: width - 12, height: height + 1, lineGap: 0 });
+        cursor += height + 1.5;
+      });
+      return cursor - top;
+    };
+    const partyGap = 12;
+    const partyW = (CONTENT_W - partyGap) / 2;
+    const emisorLines: PartyLine[] = [
+      { text: textoXml(emisor.Nombre) || 'N/D', bold: true },
+      { text: `RFC   ${textoXml(emisor.Rfc) || 'N/D'}` },
+      { text: `Régimen fiscal   ${textoXml(emisor.RegimenFiscal) || 'N/D'}` },
+    ];
+    const receptorLines: PartyLine[] = [
+      { text: textoXml(receptor.Nombre) || 'N/D', bold: true },
+      { text: `RFC   ${textoXml(receptor.Rfc) || 'N/D'}` },
+      { text: `Régimen fiscal   ${textoXml(receptor.RegimenFiscalReceptor) || 'N/D'}` },
+      { text: `CP fiscal   ${textoXml(receptor.DomicilioFiscalReceptor) || 'N/D'}      Uso CFDI   ${textoXml(receptor.UsoCFDI) || 'N/D'}` },
+    ];
+    const partyTop = y;
+    const emisorH = drawParty('EMISOR', emisorLines, LEFT, partyW, partyTop);
+    const receptorH = drawParty('RECEPTOR', receptorLines, LEFT + partyW + partyGap, partyW, partyTop);
+    y = partyTop + Math.max(emisorH, receptorH) + 8;
+
+    const fixedConceptWidths = [76, 56, 58, 42, 64, 66];
+    const conceptCols: Array<{ title: string; width: number; align: 'left' | 'center' | 'right' }> = [
+      { title: 'ClaveProdServ', width: fixedConceptWidths[0], align: 'left' },
+      { title: 'Descripción', width: CONTENT_W - fixedConceptWidths.reduce((sum, width) => sum + width, 0), align: 'left' },
+      { title: 'Cantidad', width: fixedConceptWidths[1], align: 'right' },
+      { title: 'Unidad', width: fixedConceptWidths[2], align: 'left' },
+      { title: 'Obj.Imp', width: fixedConceptWidths[3], align: 'center' },
+      { title: 'Valor unit.', width: fixedConceptWidths[4], align: 'right' },
+      { title: 'Importe', width: fixedConceptWidths[5], align: 'right' },
+    ];
+    const conceptValues = (concepto: any): string[] => {
+      const claveUnidad = textoXml(concepto?.ClaveUnidad);
+      const unidad = textoXml(concepto?.Unidad);
+      const unidadTexto = claveUnidad && unidad && claveUnidad.toUpperCase() !== unidad.toUpperCase()
+        ? `${claveUnidad} / ${unidad}`
+        : (unidad || claveUnidad || 'N/D');
+      const cantidadRaw = textoXml(concepto?.Cantidad);
+      const cantidadNumero = Number(cantidadRaw);
+      const cantidadTexto = cantidadRaw && Number.isFinite(cantidadNumero) ? moneda(cantidadNumero) : (cantidadRaw || 'N/D');
+      return [
+        textoXml(concepto?.ClaveProdServ) || 'N/D',
+        textoXml(concepto?.Descripcion) || 'N/D',
+        cantidadTexto,
+        unidadTexto,
+        textoXml(concepto?.ObjetoImp) || 'N/D',
+        `$${moneda(concepto?.ValorUnitario)}`,
+        `$${moneda(concepto?.Importe)}`,
+      ];
+    };
+    const measureRow = (values: string[]) => {
+      doc.font(FONT).fontSize(7.5);
+      const tallest = Math.max(...values.map((value, index) => doc.heightOfString(value, { width: conceptCols[index].width - 8, lineGap: 0 })));
+      return Math.max(16, tallest + 7);
+    };
+    const drawConceptHeader = () => {
+      doc.rect(LEFT, y, CONTENT_W, 15).fill(BLUE);
+      let x = LEFT;
+      conceptCols.forEach((col) => {
+        doc.font(BOLD).fontSize(6.5).fillColor('#ffffff').text(col.title, x + 4, y + 4, {
+          width: col.width - 8, height: 9, align: col.align, lineBreak: false,
+        });
+        x += col.width;
+      });
+      y += 15;
+    };
+    const totalsHeight = 30;
+    const drawTotals = () => {
+      const amountW = 78;
+      const labelW = 68;
+      const x = LEFT + CONTENT_W - labelW - amountW;
+      doc.save();
+      doc.moveTo(x, y + 1).lineTo(LEFT + CONTENT_W, y + 1).lineWidth(0.6).strokeColor(LINE).stroke();
+      doc.restore();
+      const rows: Array<[string, string, boolean]> = [
+        ['Subtotal', `$${moneda(comprobante.SubTotal)}`, false],
+        ['Total', `$${moneda(comprobante.Total)}`, true],
+      ];
+      let cursor = y + 5;
+      rows.forEach(([label, amount, strong]) => {
+        doc.font(strong ? BOLD : FONT).fontSize(strong ? 8.5 : 7.5).fillColor(strong ? BLUE : MUTED)
+          .text(label, x, cursor, { width: labelW, height: 11, lineBreak: false });
+        doc.font(strong ? BOLD : FONT).fontSize(strong ? 8.5 : 8).fillColor(INK)
+          .text(amount, x + labelW, cursor, { width: amountW, height: 11, align: 'right', lineBreak: false });
+        cursor += strong ? 13 : 11;
+      });
+      y = cursor + 4;
+    };
+
+    ensure(19 + 15 + (conceptos.length ? measureRow(conceptValues(conceptos[0])) : 16) + (conceptos.length <= 1 ? totalsHeight : 0));
+    drawSection('CONCEPTOS');
+    if (!conceptos.length) {
+      paint('El XML timbrado no contiene conceptos fiscales.', LEFT, y, { size: 8, color: '#b91c1c', width: CONTENT_W });
+      y += 16;
+    } else {
+      drawConceptHeader();
+      conceptos.forEach((concepto, index) => {
+        const values = conceptValues(concepto);
+        const rowH = measureRow(values);
+        const needed = rowH + (index === conceptos.length - 1 ? totalsHeight : 0);
+        if (y + needed > BOTTOM && y > doc.page.margins.top + 28) {
+          continuation();
+          drawConceptHeader();
+        }
+        if (index % 2 === 0) doc.rect(LEFT, y, CONTENT_W, rowH).fill('#f7f8fb');
+        doc.save();
+        doc.rect(LEFT, y, CONTENT_W, rowH).lineWidth(0.4).strokeColor(LINE).stroke();
+        doc.restore();
+        let x = LEFT;
+        values.forEach((value, colIndex) => {
+          const col = conceptCols[colIndex];
+          paint(value, x + 4, y + 3, { size: 7.5, width: col.width - 8, align: col.align, lineGap: 0 });
+          x += col.width;
+        });
+        y += rowH;
+      });
+    }
+    if (y + totalsHeight > BOTTOM) {
+      continuation();
+      drawSection('CONCEPTOS');
+    }
+    drawTotals();
+
+    const certFields: Array<[string, string]> = [
+      ['UUID', uuid || 'N/D'],
+      ['Fecha de timbrado', fechaTimbrado],
+      ['RFC del PAC', textoXml(tfd.RfcProvCertif || input.documento?.timbre?.rfc_proveedor_certificacion) || 'N/D'],
+      ['No. certificado emisor', textoXml(comprobante.NoCertificado) || 'N/D'],
+      ['No. certificado SAT', textoXml(tfd.NoCertificadoSAT || input.documento?.timbre?.no_certificado_sat) || 'N/D'],
+    ];
+    const qrSize = 84;
+    const certBody = Math.max(qrSize, certFields.length * 12);
+    ensure(19 + certBody + 4);
+    drawSection('CERTIFICACIÓN FISCAL');
+    const certTop = y;
+    const certTextW = CONTENT_W - (qrBuffer ? qrSize + 14 : 0);
+    const certLabelW = 124;
+    const fieldsHeight = certFields.length * 12;
+    const fieldsTop = certTop + Math.max(0, (certBody - fieldsHeight) / 2);
+    certFields.forEach(([label, value], index) => {
+      const fieldY = fieldsTop + index * 12;
+      doc.font(BOLD).fontSize(7).fillColor(MUTED).text(label, LEFT, fieldY, { width: certLabelW, height: 10, lineBreak: false });
+      doc.font(FONT).fontSize(7.5).fillColor(INK).text(value, LEFT + certLabelW, fieldY, {
+        width: certTextW - certLabelW, height: 10, lineBreak: false,
+      });
+    });
+    if (qrBuffer) doc.image(qrBuffer, LEFT + CONTENT_W - qrSize, certTop, { fit: [qrSize, qrSize] });
+    y = certTop + certBody + 8;
+
+    const wrapTechnical = (value: string) => {
+      doc.font(FONT).fontSize(6.5);
+      const source = value.trim() ? value : 'No disponible';
+      const maxWidth = CONTENT_W - 2;
+      const lines: string[] = [];
+      let current = '';
+      for (const char of source) {
+        if (char === '\n') {
+          lines.push(current);
+          current = '';
+          continue;
+        }
+        const next = current + char;
+        if (current && doc.widthOfString(next) > maxWidth) {
+          lines.push(current);
+          current = char === ' ' ? '' : char;
+        } else {
+          current = next;
+        }
+      }
+      if (current) lines.push(current);
+      return lines.length ? lines : ['No disponible'];
+    };
+    const drawTechnical = (title: string, value: string) => {
+      const lines = wrapTechnical(value);
+      const lineH = 7.7;
+      const titleH = 10;
+      if (y + titleH + lineH * Math.min(lines.length, 2) > BOTTOM) continuation();
+      doc.font(BOLD).fontSize(6.5).fillColor(BLUE).text(title, LEFT, y, { width: CONTENT_W, height: 9, lineBreak: false });
+      y += titleH;
+      let carried = false;
+      lines.forEach((line) => {
+        if (y + lineH > BOTTOM) {
+          continuation();
+          doc.font(BOLD).fontSize(6.5).fillColor(BLUE).text(`${title} (continúa)`, LEFT, y, { width: CONTENT_W, height: 9, lineBreak: false });
+          y += titleH;
+          carried = true;
+        }
+        doc.font(FONT).fontSize(6.5).fillColor('#1f2937').text(line, LEFT, y, { width: CONTENT_W + 1, height: lineH, lineBreak: false });
+        y += lineH;
+      });
+      y += carried ? 4 : 5;
+    };
+    drawTechnical('CADENA ORIGINAL', input.cadenaOriginal || 'Cadena original no disponible');
+    drawTechnical('SELLO DIGITAL DEL CFDI', textoXml(comprobante.Sello) || 'Sello no disponible');
+    drawTechnical('SELLO DEL SAT', textoXml(tfd.SelloSAT || input.documento?.timbre?.sello_sat) || 'Sello no disponible');
+
+    if (y + 12 > BOTTOM) continuation();
+    y += 2;
+    paint('Este documento es una representación impresa de un CFDI.', LEFT, y, {
+      size: 6.5, color: MUTED, width: CONTENT_W, align: 'center',
+    });
+
+    doc.end();
+  });
+}
 
 function dibujarMarcaCancelado(doc: PDFKit.PDFDocument): void {
   const width = 92;

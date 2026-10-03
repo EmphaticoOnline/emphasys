@@ -30,6 +30,42 @@ async function assertPartidasFacturaTimbrada(documentoId: number, empresaId: num
   }
 }
 
+async function assertProductosFactura(
+  tipoDocumento: string | null | undefined,
+  partidas: PartidaInput | PartidaInput[],
+  empresaId: number,
+  client: Pick<import('pg').PoolClient, 'query'>,
+): Promise<void> {
+  if (String(tipoDocumento ?? '').trim().toLowerCase() !== 'factura') return;
+
+  const lista = Array.isArray(partidas) ? partidas : [partidas];
+  const productoIds = [...new Set(
+    lista
+      .map((partida) => partida.producto_id)
+      .filter((id): id is number => id != null),
+  )];
+  if (!productoIds.length) return;
+
+  const { rows } = await client.query<{ id: number; clave_producto_sat: string | null }>(
+    `SELECT id, clave_producto_sat
+       FROM public.productos
+      WHERE empresa_id = $1
+        AND id = ANY($2::int[])`,
+    [empresaId, productoIds],
+  );
+  const productos = new Map(rows.map((row) => [Number(row.id), row]));
+
+  for (const productoId of productoIds) {
+    const producto = productos.get(Number(productoId));
+    if (!producto) {
+      throw new Error(`VALIDATION_ERROR: El producto ${productoId} no existe o no pertenece a la empresa activa.`);
+    }
+    if (!String(producto.clave_producto_sat ?? '').trim()) {
+      throw new Error(`VALIDATION_ERROR: El producto ${productoId} no tiene ClaveProdServ SAT configurada.`);
+    }
+  }
+}
+
 /**
  * Orquesta el flujo de creación de partidas asegurando cálculo de impuestos después de cada cambio.
  */
@@ -43,6 +79,7 @@ export async function agregarPartidaService(documentoId: number, data: PartidaIn
     const { rows: trasladoRows } = await client.query<{ tipo_documento: string }>(
       `SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`, [documentoId, empresaId]
     );
+    await assertProductosFactura(trasladoRows[0]?.tipo_documento, data, empresaId, client);
     const partidaData = isTraslado(trasladoRows[0]?.tipo_documento)
       ? { ...data, precio_unitario: 0, descuento: 0, descuento_monto: 0, subtotal_partida: 0, total_partida: 0 }
       : data;
@@ -79,6 +116,7 @@ export async function reemplazarPartidasService(
   const { rows: trasladoRows } = await client.query<{ tipo_documento: string }>(
     `SELECT tipo_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`, [documentoId, empresaId]
   );
+  await assertProductosFactura(trasladoRows[0]?.tipo_documento, partidas, empresaId, client);
   const partidasPersistir = isTraslado(trasladoRows[0]?.tipo_documento)
     ? partidas.map((p) => ({ ...p, precio_unitario: 0, descuento: 0, descuento_monto: 0, subtotal_partida: 0, total_partida: 0 }))
     : partidas;

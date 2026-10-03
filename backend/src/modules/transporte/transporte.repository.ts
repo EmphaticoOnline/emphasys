@@ -557,12 +557,21 @@ export async function findCartaPorteStampContext(
 
 export async function markTransportCancelledForDocument(client: DbClient, documentoId: number, empresaId: number) {
   return client.query(
-    `WITH cartas AS (
+    `WITH relacion AS (
+       SELECT CASE
+                WHEN LOWER(d.tipo_documento) = 'traslado' THEN 'traslado'
+                ELSE 'factura_servicio'
+              END AS tipo_relacion
+         FROM public.documentos d
+        WHERE d.id = $1 AND d.empresa_id = $2
+     ),
+     cartas AS (
        UPDATE transporte.cartas_porte cp
           SET estatus='cancelado', updated_at=now()
          FROM transporte.viaje_documentos vd
+         JOIN relacion r ON r.tipo_relacion = vd.tipo_relacion
         WHERE vd.documento_id=$1 AND vd.empresa_id=$2
-          AND vd.tipo_relacion='factura_servicio' AND vd.principal=true
+          AND vd.principal=true
           AND cp.viaje_id=vd.viaje_id AND cp.empresa_id=vd.empresa_id
         RETURNING cp.viaje_id, cp.empresa_id
      )

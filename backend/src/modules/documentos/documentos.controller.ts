@@ -13,7 +13,7 @@ import {
   eliminarDocumentoRepository,
   obtenerRecepcionResumenRepository,
 } from './documentos.repository';
-import { generarDocumentoPDF, normalizarColorHex, obtenerLogoEmpresaPath } from './documentos.pdf';
+import { generarDocumentoPDF, generarTrasladoPDFDesdeXml, normalizarColorHex, obtenerLogoEmpresaPath } from './documentos.pdf';
 import { generarComplementoPagoPdfDesdeXml } from './complemento-pago.pdf';
 import type { TipoDocumento } from '../../types/documentos';
 import { cfdiService, CfdiValidationError } from '../cfdi/cfdi.service';
@@ -287,7 +287,7 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
 
   try {
     const { rows } = await pool.query(
-      `SELECT uuid, fecha_timbrado, rfc_proveedor_certificacion, no_certificado_sat, sello_cfdi, sello_sat, cadena_original, rfc_emisor, rfc_receptor, total, estado_sat, cancelacion_estado
+      `SELECT uuid, fecha_timbrado, rfc_proveedor_certificacion, no_certificado_sat, sello_cfdi, sello_sat, cadena_original, rfc_emisor, rfc_receptor, total, estado_sat, cancelacion_estado, xml_timbrado
          FROM documentos_cfdi
         WHERE documento_id = $1
         LIMIT 1`,
@@ -305,6 +305,7 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
         sello_cfdi: timbre.sello_cfdi,
         sello_sat: timbre.sello_sat,
         cadena_original: timbre.cadena_original,
+        xml_timbrado: timbre.xml_timbrado,
         rfc_emisor: timbre.rfc_emisor,
         rfc_receptor: timbre.rfc_receptor,
         total: timbre.total,
@@ -314,6 +315,57 @@ async function obtenerDocumentoPdfData(documentoId: number, empresaId: number, t
     }
   } catch (err) {
     console.error('Error al consultar timbre CFDI para PDF', err);
+  }
+
+  if (tipo === 'traslado' && (result.documento as any)?.timbre?.uuid) {
+    const xmlTimbrado = (result.documento as any)?.timbre?.xml_timbrado;
+    if (xmlTimbrado) {
+      const pdfTraslado = await generarTrasladoPDFDesdeXml({
+        xmlTimbrado: String(xmlTimbrado),
+        documento: result.documento as any,
+        empresaId,
+        cadenaOriginal: (result.documento as any)?.timbre?.cadena_original,
+        estadoSat: (result.documento as any)?.timbre?.estado_sat,
+      });
+      const { rows: cartaRows } = await pool.query(
+        `SELECT dc.xml_timbrado, dc.uuid, dc.fecha_timbrado, dc.sello_cfdi, dc.total,
+                dc.estado_sat, dc.cancelacion_estado,
+                dc.rfc_emisor, dc.rfc_receptor,
+                (SELECT v.observaciones
+                   FROM transporte.viaje_documentos vd
+                   JOIN transporte.viajes v ON v.id = vd.viaje_id AND v.empresa_id = vd.empresa_id
+                  WHERE vd.documento_id = dc.documento_id AND vd.empresa_id = d.empresa_id AND vd.principal = true
+                  LIMIT 1) AS viaje_observaciones,
+                e.nombre, e.razon_social, e.rfc AS empresa_rfc, e.regimen_fiscal_id
+           FROM public.documentos_cfdi dc
+           JOIN public.documentos d ON d.id = dc.documento_id
+           LEFT JOIN core.empresas e ON e.id = d.empresa_id
+          WHERE dc.documento_id = $1 AND d.empresa_id = $2
+          LIMIT 1`,
+        [documentoId, empresaId]
+      );
+      const cartaRow = cartaRows[0];
+      if (cartaRow?.xml_timbrado && String(cartaRow.xml_timbrado).includes('CartaPorte')) {
+        try {
+          const cartaModel = await mapCartaPortePrintModel({
+            documentoId, serie: result.documento?.serie, folio: result.documento?.numero,
+            fecha: result.documento?.fecha_documento,
+            uuid: cartaRow.uuid, fechaTimbrado: cartaRow.fecha_timbrado?.toISOString?.() ?? cartaRow.fecha_timbrado,
+            rfcEmisor: cartaRow.rfc_emisor, rfcReceptor: cartaRow.rfc_receptor,
+            selloCfdi: cartaRow.sello_cfdi, total: cartaRow.total,
+            viajeObservaciones: cartaRow.viaje_observaciones,
+            branding: { logoPath: undefined, nombre: cartaRow.nombre, razonSocial: cartaRow.razon_social, rfc: cartaRow.empresa_rfc, regimenFiscal: cartaRow.regimen_fiscal_id },
+            cancelado: String(cartaRow.estado_sat ?? '').toLowerCase() === 'cancelado'
+              || String(cartaRow.cancelacion_estado ?? '').toLowerCase() === 'cancelada',
+          }, String(cartaRow.xml_timbrado));
+          return { buffer: await combinarPDFs(pdfTraslado, await generarCartaPortePDF(cartaModel)), filename: construirNombrePdf(result.documento, documentoId), documento: result.documento };
+        } catch (error) {
+          console.error('[pdf] No se pudo anexar Carta Porte al CFDI Traslado', { documentoId, empresaId, error });
+          throw buildHttpError(422, 'El documento contiene Carta Porte, pero no fue posible generar su representación impresa.');
+        }
+      }
+      return { buffer: pdfTraslado, filename: construirNombrePdf(result.documento, documentoId), documento: result.documento };
+    }
   }
 
   let colorTablaHeaderFactura: string | undefined;

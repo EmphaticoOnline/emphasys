@@ -7,7 +7,6 @@ import {
   findTrailer,
   findVehicle,
   getTripAggregate,
-  getTripAggregateFromPool,
   getReinsertableMercancias,
   getTripByDocument as findTripByDocument,
   inTransaction,
@@ -25,6 +24,7 @@ import {
 } from './transporte.repository';
 import { TransporteError, type ViajeInput } from './transporte.types';
 import { parseViajeInput } from './transporte.validation';
+import { horaParedAInstante, presentarHorasUbicacion, zonaEmpresa } from './transporte.time';
 import {
   buildLocationSnapshot,
   buildMerchandiseSnapshot,
@@ -50,6 +50,7 @@ async function validateAndWriteChildren(
   input: ViajeInput,
   options: { skipMercancias?: boolean } = {}
 ): Promise<Map<number, number>> {
+  const zona = await zonaEmpresa(client, empresaId);
   const locationIdsBySequence = new Map<number, number>();
 
   for (const item of input.ubicaciones) {
@@ -64,7 +65,9 @@ async function validateAndWriteChildren(
     const snapshot = buildLocationSnapshot(master);
     const insertedId = await insertLocation(client, [
       empresaId, viajeId, domicilioId, item.tipo, item.secuencia, snapshot.nombre, snapshot.rfc,
-      item.fechaHoraProgramada, item.fechaHoraReal, item.distanciaRecorrida,
+      horaParedAInstante(item.fechaHoraProgramada, zona),
+      horaParedAInstante(item.fechaHoraReal, zona),
+      item.distanciaRecorrida,
       snapshot.domicilio, snapshot.coordenadas,
     ]);
     locationIdsBySequence.set(item.secuencia, insertedId);
@@ -185,7 +188,8 @@ export async function createTrip(empresaId: number, usuarioId: number, raw: unkn
     await validateHeaderMasters(client, empresaId, input);
     const viajeId = await insertTrip(client, empresaId, usuarioId, input);
     await validateAndWriteChildren(client, empresaId, viajeId, input);
-    return getTripAggregate(client, empresaId, viajeId);
+    const aggregate = await getTripAggregate(client, empresaId, viajeId);
+    return aggregate ? presentarHorasUbicacion(aggregate, await zonaEmpresa(client, empresaId)) : aggregate;
   });
 }
 
@@ -197,13 +201,21 @@ export async function updateTripAggregate(empresaId: number, viajeId: number, ra
     !!raw && typeof raw === 'object' && !Array.isArray(raw) &&
     (raw as Record<string, unknown>).mercancias === undefined;
 
-  const input = parseViajeInput(raw);
   return inTransaction(async (client) => {
     const current = await lockTrip(client, empresaId, viajeId);
     if (!current) throw new TransporteError('Viaje no encontrado.', 404, 'TRANSPORTE_NOT_FOUND');
     if (current.estatus === 'timbrado' || current.estatus === 'cancelado') {
       throw new TransporteError(`No se puede editar un viaje ${current.estatus}.`, 409, 'TRANSPORTE_LOCKED');
     }
+    const { rows: relaciones } = await client.query<{ tipo_relacion: string }>(
+      `SELECT tipo_relacion
+         FROM transporte.viaje_documentos
+        WHERE empresa_id = $1 AND viaje_id = $2 AND principal = true
+        ORDER BY id
+        LIMIT 1`,
+      [empresaId, viajeId],
+    );
+    const input = parseViajeInput(raw, { productoObligatorio: relaciones[0]?.tipo_relacion === 'traslado' });
     await validateHeaderMasters(client, empresaId, input);
     await invalidateCurrentCartaPorteForEdit(client, empresaId, viajeId);
 
@@ -220,14 +232,17 @@ export async function updateTripAggregate(empresaId: number, viajeId: number, ra
     if (mercanciasOmitidas && mercanciasPreservadas.length > 0) {
       await reinsertPreservedMercancias(client, empresaId, viajeId, mercanciasPreservadas, locationIdsBySequence);
     }
-    return getTripAggregate(client, empresaId, viajeId);
+    const aggregate = await getTripAggregate(client, empresaId, viajeId);
+    return aggregate ? presentarHorasUbicacion(aggregate, await zonaEmpresa(client, empresaId)) : aggregate;
   });
 }
 
 export async function getTrip(empresaId: number, viajeId: number) {
-  const aggregate = await getTripAggregateFromPool(empresaId, viajeId);
-  if (!aggregate) throw new TransporteError('Viaje no encontrado.', 404, 'TRANSPORTE_NOT_FOUND');
-  return aggregate;
+  return inTransaction(async (client) => {
+    const aggregate = await getTripAggregate(client, empresaId, viajeId);
+    if (!aggregate) throw new TransporteError('Viaje no encontrado.', 404, 'TRANSPORTE_NOT_FOUND');
+    return presentarHorasUbicacion(aggregate, await zonaEmpresa(client, empresaId));
+  });
 }
 
 export async function getTripByDocument(empresaId: number, documentoId: number) {

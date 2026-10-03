@@ -30,6 +30,7 @@ const EXPERIMENTAL_PATH_PREFIXES = [
   '/ventas/pago_cliente',
   '/ventas/ajuste_cliente',
   '/ventas/factura',
+  '/ventas/traslado',
   '/ventas/cotizacion',
   '/compras/nota_credito_compra',
   '/informes/resumen-ejecutivo',

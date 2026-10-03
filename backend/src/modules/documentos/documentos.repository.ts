@@ -1906,28 +1906,40 @@ export async function crearDocumentoRepository(
   const tipoDocumentoDb = tipoDocumentoNormalizado;
 
   if (isTraslado(tipoDocumentoDb)) {
-    if (!dataConDefaults.contacto_principal_id) {
-      throw new Error('VALIDATION_ERROR: Un Traslado requiere un contacto operativo.');
-    }
-    const { rows: contactoOperativoRows } = await executor.query(
-      `SELECT id FROM contactos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
-      [dataConDefaults.contacto_principal_id, empresaId],
-    );
-    if (!contactoOperativoRows[0]) {
-      throw new Error('VALIDATION_ERROR: El contacto operativo no pertenece a la empresa activa.');
-    }
     const partidasConImpuestos = Array.isArray((dataConDefaults as any).partidas)
       && (dataConDefaults as any).partidas.some((p: any) => Array.isArray(p?.impuestos) && p.impuestos.length > 0);
     if (partidasConImpuestos || Number(dataConDefaults.iva ?? 0) !== 0) {
       throw new Error('VALIDATION_ERROR: Un Traslado no puede contener impuestos');
     }
     const { rows: empresaRows } = await executor.query(
-      `SELECT rfc, razon_social, regimen_fiscal_id, codigo_postal_id
-         FROM core.empresas WHERE id = $1 LIMIT 1`,
+      `SELECT id, contacto_id, nombre, rfc, razon_social, regimen_fiscal_id, codigo_postal_id, email, telefono
+         FROM core.empresas WHERE id = $1 FOR UPDATE`,
       [empresaId]
     );
     const empresa = empresaRows[0];
     if (!empresa) throw new Error('VALIDATION_ERROR: Empresa activa no encontrada');
+    let contactoId = Number(empresa.contacto_id) || null;
+    if (contactoId) {
+      const { rows } = await executor.query(
+        `SELECT id FROM public.contactos WHERE id = $1 AND empresa_id = $2`,
+        [contactoId, empresaId],
+      );
+      if (!rows[0]) throw new Error('INTEGRITY_ERROR: El contacto interno de la empresa no pertenece a la empresa.');
+    } else {
+      const { rows } = await executor.query(
+      `INSERT INTO public.contactos
+           (empresa_id, tipo_contacto, nombre, observaciones)
+         VALUES ($1, 'Varios'::public.tipo_contacto_enum, $2,
+                 'Contacto interno técnico de la propia empresa')
+         RETURNING id`,
+        [empresaId, empresa.razon_social || empresa.nombre],
+      );
+      contactoId = Number(rows[0].id);
+      await executor.query(
+        `UPDATE core.empresas SET contacto_id = $1 WHERE id = $2`,
+        [contactoId, empresaId],
+      );
+    }
     Object.assign(dataConDefaults, {
       estatus_documento: 'Borrador',
       agente_id: null,
@@ -1941,6 +1953,7 @@ export async function crearDocumentoRepository(
       nombre_receptor: empresa.razon_social,
       regimen_fiscal_receptor: empresa.regimen_fiscal_id,
       codigo_postal_receptor: empresa.codigo_postal_id,
+      contacto_principal_id: contactoId,
     });
   } else if (dataConDefaults.tratamiento_impuestos === undefined || dataConDefaults.tratamiento_impuestos === null) {
     throw new Error('VALIDATION_ERROR: El tratamiento de impuestos es obligatorio');

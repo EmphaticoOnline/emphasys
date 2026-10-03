@@ -5,6 +5,7 @@ import ActividadesPage from './ActividadesPage';
 import LeadsPage from './LeadsPage';
 import OportunidadesPage from './OportunidadesPage';
 import { CRM_TABS } from '../components/crmNavigation';
+import { moduleTabBarSx, moduleTabStripSx } from '../components/layout/moduleTabBar';
 
 type CrmTabKey = (typeof CRM_TABS)[number]['key'];
 
@@ -57,7 +58,6 @@ export default function CRMPage() {
   // Conversaciones y Actividades ya traen su propio contexto operativo.
   // El título "CRM" se conserva en Oportunidades, que aún no se homologa.
   const compactCrmChrome = activeTab === 'conversaciones' || activeTab === 'actividades';
-  const documentNav = theme.emphasys.documentNav;
 
   return (
     <Box sx={{
@@ -67,60 +67,33 @@ export default function CRMPage() {
       ...(activeTab === 'actividades' ? { flex: 1, height: '100%', overflow: 'hidden' } : {}),
     }}>
       {!hideChromeForMobileChat && (
-        <Box sx={{ px: { xs: 2, md: 2.5 }, pt: compactCrmChrome ? 1.25 : 2.5, pb: 0.5, flexShrink: 0 }}>
+        <>
           {!compactCrmChrome && (
-            <Box sx={{ mb: 1.5 }}>
+            <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 2.5, flexShrink: 0 }}>
               <Typography variant="h5" fontWeight={700} color="#1d2f68">
                 CRM
               </Typography>
-              <Typography variant="body2" color="#4b5563" sx={{ mt: 0.5 }}>
+              <Typography variant="body2" color="#4b5563" sx={{ mt: 0.5, mb: 1.5 }}>
                 Gestiona actividades, oportunidades y conversaciones desde un solo módulo.
               </Typography>
             </Box>
           )}
-
-          <Tabs
-            value={activeTab}
-            onChange={handleTabChange}
-            variant="scrollable"
-            allowScrollButtonsMobile
-            textColor="inherit"
-            TabIndicatorProps={{ style: { display: 'none' } }}
-            sx={{
-              minHeight: 0,
-              '& .MuiTabs-flexContainer': {
-                alignItems: 'flex-end',
-              },
-              '& .MuiTab-root': {
-                minHeight: 0,
-                textTransform: 'none',
-                fontWeight: 650,
-                color: documentNav.foreground,
-                borderTop: '3px solid transparent',
-                borderRadius: '8px 8px 0 0',
-                padding: '8px 12px',
-                mr: 0.5,
-                alignItems: 'flex-end',
-              },
-              '& .Mui-selected': {
-                color: documentNav.selectedForeground,
-                backgroundColor: documentNav.selectedBackground,
-                borderTop: `3px solid ${documentNav.indicator}`,
-                borderLeft: `1px solid ${documentNav.border}`,
-                borderRight: `1px solid ${documentNav.border}`,
-                borderBottom: `1px solid ${documentNav.selectedBackground}`,
-              },
-              '& .MuiTab-root:hover': {
-                color: documentNav.hoverForeground,
-                backgroundColor: documentNav.hoverBackground,
-              },
-            }}
-          >
-            {tabsVisibles.map((tab) => (
-              <Tab key={tab.key} value={tab.key} label={tab.label} />
-            ))}
-          </Tabs>
-        </Box>
+          <Box sx={moduleTabStripSx()}>
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
+              variant="scrollable"
+              allowScrollButtonsMobile
+              textColor="inherit"
+              TabIndicatorProps={{ style: { display: 'none' } }}
+              sx={moduleTabBarSx()}
+            >
+              {tabsVisibles.map((tab) => (
+                <Tab key={tab.key} value={tab.key} label={tab.label} disableRipple />
+              ))}
+            </Tabs>
+          </Box>
+        </>
       )}
 
       <Box sx={{

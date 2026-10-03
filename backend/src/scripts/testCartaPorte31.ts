@@ -5,6 +5,7 @@ import {
   generateIdCcp,
   isValidIdCcp,
 } from '../modules/transporte/carta-porte.builder';
+import { horaParedAInstante, instanteAHoraPared } from '../modules/transporte/transporte.time';
 import type { CartaPorteBuildSource } from '../modules/transporte/carta-porte.types';
 
 const source: CartaPorteBuildSource = {
@@ -67,6 +68,13 @@ assert.equal(
   formatCartaPorteDateTime(new Date('2026-08-20T14:00:00.000Z'), 'fecha de prueba'),
   '2026-08-20T08:00:00'
 );
+for (const wall of ['2026-10-02T16:00', '2026-10-02T23:00']) {
+  const instant = horaParedAInstante(wall, 'America/Mexico_City');
+  assert.ok(instant);
+  assert.equal(instanteAHoraPared(instant, 'America/Mexico_City'), wall);
+  assert.equal(formatCartaPorteDateTime(instant, 'fecha'), `${wall}:00`);
+  assert.equal(instanteAHoraPared(instant, 'America/Mexico_City')?.slice(0, 10), wall.slice(0, 10));
+}
 assert.equal(carta.Mercancias.NumTotalMercancias, 1);
 assert.equal(carta.Mercancias.PesoBrutoTotal, 25_000);
 assert.equal(carta.Mercancias.UnidadPeso, 'KGM');

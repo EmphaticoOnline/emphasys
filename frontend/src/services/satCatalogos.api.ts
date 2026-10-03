@@ -2,8 +2,13 @@ import { apiFetch } from './apiFetch';
 
 export type SatClaveDescripcion = { clave: string; descripcion: string };
 
-const buscar = async (path: string, q: string): Promise<SatClaveDescripcion[]> => {
-  const data = await apiFetch<{ items: SatClaveDescripcion[] }>(
+export type SatMaterialPeligroso = SatClaveDescripcion & {
+  clase_division?: string | null;
+  nombre_tecnico?: string | null;
+};
+
+const buscar = async <T extends SatClaveDescripcion = SatClaveDescripcion>(path: string, q: string): Promise<T[]> => {
+  const data = await apiFetch<{ items: T[] }>(
     `/api/catalogos/sat/${path}?q=${encodeURIComponent(q)}&limit=50`,
   );
   return data.items ?? [];
@@ -14,3 +19,9 @@ export const buscarBienesTransportadosSat = (q: string) => buscar('bienes-transp
 
 /** Catálogo SAT de unidades de medida (c_ClaveUnidad). */
 export const buscarUnidadesSat = (q: string) => buscar('unidades', q);
+
+/** Catálogo SAT de material peligroso. */
+export const buscarMaterialesPeligrososSat = (q: string) => buscar<SatMaterialPeligroso>('materiales-peligrosos', q);
+
+/** Catálogo SAT de tipos de embalaje. */
+export const buscarTiposEmbalajeSat = (q: string) => buscar('tipos-embalaje', q);

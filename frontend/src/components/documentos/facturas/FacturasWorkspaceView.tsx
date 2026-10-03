@@ -923,129 +923,128 @@ function FacturaWorkspacePanel({
             <ArrowBackIcon fontSize="small" /> Facturas
           </Box>
         )}
-        <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
-          {esNotaDeVenta ? 'NOTA DE VENTA SELECCIONADA' : 'FACTURA SELECCIONADA'}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.35 }}>
-          <Typography variant="figure" sx={{ fontSize: compacto ? 26 : 32, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
-            {folio}
-          </Typography>
-          <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>{formatDate(row.fecha_documento)}</Typography>
-          <Typography sx={{ fontSize: 12, color: tokens.content.muted }}>id {row.id}</Typography>
-        </Box>
-        <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, mt: 0.7, fontSize: 15, lineHeight: 1.3, color: tokens.content.foreground }}>
-          {row.nombre_cliente || 'Sin contacto'}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, fontSize: 12, fontWeight: 700 }}>
-            {option?.label || estatus || 'Sin estado'}
+        <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'space-between', alignItems: 'flex-start', flexDirection: compacto ? 'column' : 'row' }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
+              {esNotaDeVenta ? 'NOTA DE VENTA SELECCIONADA' : 'FACTURA SELECCIONADA'}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.35 }}>
+              <Typography variant="figure" sx={{ fontSize: compacto ? 26 : 32, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
+                {folio}
+              </Typography>
+              <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>{formatDate(row.fecha_documento)}</Typography>
+              <Typography sx={{ fontSize: 12, color: tokens.content.muted }}>id {row.id}</Typography>
+            </Box>
+            <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, mt: 0.7, fontSize: 15, lineHeight: 1.3, color: tokens.content.foreground }}>
+              {row.nombre_cliente || 'Sin contacto'}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, fontSize: 12, fontWeight: 700 }}>
+                {option?.label || estatus || 'Sin estado'}
+              </Box>
+              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.content.elevated, color: tokens.content.foreground, fontSize: 12, fontWeight: 650 }}>
+                <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisual.tone) }} />
+                {estadoVisual.label}
+              </Box>
+            </Box>
           </Box>
-          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.content.elevated, color: tokens.content.foreground, fontSize: 12, fontWeight: 650 }}>
-            <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisual.tone) }} />
-            {estadoVisual.label}
+          <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
+            <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap flexWrap="wrap" sx={{ justifyContent: 'flex-end' }}>
+              <Tooltip title={cartaPorteDisabled && facturaYaTimbrada ? 'Carta Porte / Viaje no disponible: factura timbrada' : cartaPorteDisabled ? 'Carta Porte / Viaje no disponible: nota de venta' : 'Carta Porte / Viaje'} arrow>
+                <span>
+                  <IconButton
+                    size="small"
+                    aria-label="Carta Porte / Viaje"
+                    onClick={() => row && onCartaPorte(row)}
+                    disabled={!row || cartaPorteDisabled}
+                    sx={iconoSx(!row || cartaPorteDisabled)}
+                  >
+                    <LocalShippingOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              {renderActionButton(verPdfAction, 'Imprimir', { icon: <PrintOutlinedIcon fontSize="small" /> })}
+              {renderActionButton(descargarCfdiAction, 'Descargar CFDI', {
+                disabled: !row.cfdi_uuid,
+                icon: <FileDownloadOutlinedIcon fontSize="small" />,
+              })}
+              {timbrarAction && !timbrarAction.hidden ? (
+                <Tooltip title={timbrarDisabled ? 'CFDI ya timbrado' : 'Timbrar CFDI'} arrow>
+                  <span>
+                    <IconButton
+                      size="small"
+                      aria-label="Timbrar CFDI"
+                      disabled={timbrarDisabled}
+                      onClick={facturaYaTimbrada ? undefined : runButtonAction(timbrarAction)}
+                      sx={iconoSx(timbrarDisabled)}
+                    >
+                      {timbrarAction.icon ?? <NotificationsActiveIcon fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              ) : null}
+              {onRegistrarMovimiento ? (
+                <Tooltip
+                  title={registrarMovimientoTooltip}
+                  arrow
+                >
+                  <span>
+                    <IconButton
+                      size="small"
+                      aria-label={registrarMovimientoLabel}
+                      disabled={registrarMovimientoDisabled}
+                      onClick={() => onRegistrarMovimiento(row)}
+                      sx={iconoSx(registrarMovimientoDisabled)}
+                    >
+                      <AccountBalanceWalletIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              ) : null}
+              {renderActionButton(generarNotaCreditoAction, 'Generar Nota de crédito', {
+                icon: <AssignmentReturnOutlinedIcon fontSize="small" />,
+              })}
+              <Tooltip title="Enviar" arrow>
+                <span>
+                  <IconButton
+                    size="small"
+                    aria-label="Enviar"
+                    disabled={Boolean(
+                      (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
+                      && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
+                    )}
+                    onClick={(e: React.MouseEvent<HTMLElement>) => setEnviarMenuAnchor(e.currentTarget)}
+                    sx={iconoSx(Boolean(
+                      (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
+                      && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
+                    ))}
+                  >
+                    <SendOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Menu anchorEl={enviarMenuAnchor} open={Boolean(enviarMenuAnchor)} onClose={() => setEnviarMenuAnchor(null)}>
+                {enviarCorreoAction && !enviarCorreoAction.hidden ? (
+                  <MenuItem disabled={Boolean(enviarCorreoAction.disabled)} onClick={runMenuItemAction(enviarCorreoAction, () => setEnviarMenuAnchor(null))}>
+                    Enviar por correo
+                  </MenuItem>
+                ) : null}
+                {enviarWhatsappAction && !enviarWhatsappAction.hidden ? (
+                  <MenuItem disabled={Boolean(enviarWhatsappAction.disabled)} onClick={runMenuItemAction(enviarWhatsappAction, () => setEnviarMenuAnchor(null))}>
+                    Enviar por WhatsApp
+                  </MenuItem>
+                ) : null}
+              </Menu>
+              {renderActionButton(contabilizarAction, 'Contabilizar factura')}
+            </Stack>
+            <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap flexWrap="wrap" sx={{ justifyContent: 'flex-end' }}>
+              {renderActionButton(cancelarAction, 'Cancelar')}
+              {renderActionButton(emitirAction, 'Emitir', { icon: <CheckCircleIcon fontSize="small" /> })}
+              {renderActionButton(editarAction, 'Editar')}
+              {renderActionButton(eliminarAction, 'Eliminar', { disabled: !facturaEliminable })}
+            </Stack>
           </Box>
         </Box>
-      </Box>
-
-      <Box sx={{ display: 'flex', alignItems: 'center', px: { xs: 1, md: 2.25 }, minHeight: 40, flexShrink: 0, gap: 0.5, overflowX: 'auto' }}>
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ py: 0.5, flexShrink: 0 }}>
-          <Tooltip title={cartaPorteDisabled && facturaYaTimbrada ? 'Carta Porte / Viaje no disponible: factura timbrada' : cartaPorteDisabled ? 'Carta Porte / Viaje no disponible: nota de venta' : 'Carta Porte / Viaje'} arrow>
-            <span>
-              <IconButton
-                size="small"
-                aria-label="Carta Porte / Viaje"
-                onClick={() => row && onCartaPorte(row)}
-                disabled={!row || cartaPorteDisabled}
-                sx={iconoSx(!row || cartaPorteDisabled)}
-              >
-                <LocalShippingOutlinedIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-          {renderActionButton(verPdfAction, 'Imprimir', { icon: <PrintOutlinedIcon fontSize="small" /> })}
-          {renderActionButton(descargarCfdiAction, 'Descargar CFDI', {
-            disabled: !row.cfdi_uuid,
-            icon: <FileDownloadOutlinedIcon fontSize="small" />,
-          })}
-          {timbrarAction && !timbrarAction.hidden ? (
-            <Tooltip title={timbrarDisabled ? 'CFDI ya timbrado' : 'Timbrar CFDI'} arrow>
-              <span>
-                <IconButton
-                  size="small"
-                  aria-label="Timbrar CFDI"
-                  disabled={timbrarDisabled}
-                  onClick={facturaYaTimbrada ? undefined : runButtonAction(timbrarAction)}
-                  sx={iconoSx(timbrarDisabled)}
-                >
-                  {timbrarAction.icon ?? <NotificationsActiveIcon fontSize="small" />}
-                </IconButton>
-              </span>
-            </Tooltip>
-          ) : null}
-          {onRegistrarMovimiento ? (
-            <Tooltip
-              title={registrarMovimientoTooltip}
-              arrow
-            >
-              <span>
-                <IconButton
-                  size="small"
-                  aria-label={registrarMovimientoLabel}
-                  disabled={registrarMovimientoDisabled}
-                  onClick={() => onRegistrarMovimiento(row)}
-                  sx={iconoSx(registrarMovimientoDisabled)}
-                >
-                  <AccountBalanceWalletIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-          ) : null}
-          {renderActionButton(generarNotaCreditoAction, 'Generar Nota de crédito', {
-            icon: <AssignmentReturnOutlinedIcon fontSize="small" />,
-          })}
-
-          <Tooltip title="Enviar" arrow>
-            <span>
-              <IconButton
-                size="small"
-                aria-label="Enviar"
-                disabled={Boolean(
-                  (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
-                  && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
-                )}
-                onClick={(e: React.MouseEvent<HTMLElement>) => setEnviarMenuAnchor(e.currentTarget)}
-                sx={iconoSx(Boolean(
-                  (!enviarCorreoAction || enviarCorreoAction.hidden || enviarCorreoAction.disabled)
-                  && (!enviarWhatsappAction || enviarWhatsappAction.hidden || enviarWhatsappAction.disabled)
-                ))}
-              >
-                <SendOutlinedIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
-          <Menu anchorEl={enviarMenuAnchor} open={Boolean(enviarMenuAnchor)} onClose={() => setEnviarMenuAnchor(null)}>
-            {enviarCorreoAction && !enviarCorreoAction.hidden ? (
-              <MenuItem disabled={Boolean(enviarCorreoAction.disabled)} onClick={runMenuItemAction(enviarCorreoAction, () => setEnviarMenuAnchor(null))}>
-                Enviar por correo
-              </MenuItem>
-            ) : null}
-            {enviarWhatsappAction && !enviarWhatsappAction.hidden ? (
-              <MenuItem disabled={Boolean(enviarWhatsappAction.disabled)} onClick={runMenuItemAction(enviarWhatsappAction, () => setEnviarMenuAnchor(null))}>
-                Enviar por WhatsApp
-              </MenuItem>
-            ) : null}
-          </Menu>
-          {renderActionButton(contabilizarAction, 'Contabilizar factura')}
-        </Stack>
-
-        <Box sx={{ flex: 1, minWidth: 12 }} />
-
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ py: 0.5, flexShrink: 0, ml: 'auto' }}>
-          {renderActionButton(cancelarAction, 'Cancelar')}
-          {renderActionButton(emitirAction, 'Emitir', { icon: <CheckCircleIcon fontSize="small" /> })}
-          {renderActionButton(editarAction, 'Editar')}
-          {renderActionButton(eliminarAction, 'Eliminar', { disabled: !facturaEliminable })}
-        </Stack>
       </Box>
 
       <Box sx={{ px: { xs: 1.5, md: 2.75 }, pb: 1.6, flexShrink: 0 }}>

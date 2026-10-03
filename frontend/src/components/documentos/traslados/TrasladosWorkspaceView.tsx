@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography, useMediaQuery, useTheme,
+  Box, Button, CircularProgress, Dialog, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import CancelIcon from '@mui/icons-material/Cancel';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -10,17 +11,18 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { Contacto } from '../../../types/contactos.types';
 import type { Producto } from '../../../types/producto';
+import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
 import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
-import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
-import { timbrarDocumentoCfdi, updateDocumento, replacePartidas } from '../../../services/documentosService';
+import type { StatusTone } from '../../status/status.types';
+import { prevalidarCancelacionDocumento, timbrarDocumentoCfdi } from '../../../services/documentosService';
 import { fetchProductos } from '../../../services/productosService';
-import { obtenerViajePorDocumento, obtenerViajeAggregate } from '../../../services/transporte.api';
+import { obtenerViajePorDocumento, obtenerViajeAggregate, validarCartaPorte, type CartaPorteIssue, type ViajeMercancia } from '../../../services/transporte.api';
+import CartaPorteIssuesDialog from '../facturas/CartaPorteIssuesDialog';
 
 type Props = {
   rows: CotizacionListado[];
@@ -29,14 +31,16 @@ type Props = {
   onSelect: (row: CotizacionListado) => void;
   search: string;
   onSearch: (value: string) => void;
-  onCreate: (contactoId: number) => void | Promise<void>;
+  onCreate: () => void | Promise<void>;
   onDelete: (row: CotizacionListado) => void;
   onCartaPorte: (row: CotizacionListado) => void;
   onPdf: (row: CotizacionListado) => void;
+  onCancelar: (row: CotizacionListado) => void;
   onUpdate: (row: CotizacionListado) => void;
   formatFolio: (row: CotizacionListado) => string;
   formatDate: (value: unknown) => string;
   contactos: Contacto[];
+  viajeRevision?: number;
 };
 
 const estadoLabel = (value: unknown) => {
@@ -47,126 +51,145 @@ const estadoLabel = (value: unknown) => {
   return 'Borrador';
 };
 
-function AccionIcono({
-  caption,
-  icon,
-  disabled,
-  onClick,
-}: {
-  caption: string;
-  icon: ReactNode;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  const tokens = useTheme().emphasys;
-  const apagado = Boolean(disabled);
-  return (
-    <Tooltip title={caption} arrow>
-      <Box component="span" sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 0.35, minWidth: 58, flexShrink: 0 }}>
-        <IconButton
-          size="small"
-          aria-label={caption}
-          disabled={apagado}
-          onClick={onClick}
-          sx={{
-            width: 34,
-            height: 34,
-            borderRadius: '10px',
-            bgcolor: apagado ? tokens.action.disabled : tokens.action.primary,
-            color: tokens.action.primaryForeground,
-            '&:hover': { bgcolor: apagado ? tokens.action.disabled : tokens.action.primaryHover },
-            '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
-          }}
-        >
-          {icon}
-        </IconButton>
-        <Typography sx={{ fontSize: 10.5, lineHeight: 1.15, fontWeight: 650, color: tokens.content.secondary, textAlign: 'center' }}>
-          {caption}
-        </Typography>
-      </Box>
-    </Tooltip>
-  );
-}
+/** Mismos tonos que el punto de FacturasWorkspace: Timbrado success, Borrador draft, Cancelado error. */
+const tonoEstatusDocumento = (value: unknown): StatusTone => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'cancelado' || normalized === 'cancelada') return 'error';
+  if (normalized === 'timbrado') return 'success';
+  return 'draft';
+};
+
+const formatearCantidad = (value: unknown): string => {
+  const numero = Number(value);
+  if (!Number.isFinite(numero)) return '—';
+  return numero.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 export default function TrasladosWorkspaceView({
-  rows, isLoading, selectedId, onSelect, search, onSearch, onCreate, onDelete, onCartaPorte, onPdf, onUpdate, formatFolio, formatDate, contactos,
+  rows, isLoading, selectedId, onSelect, search, onSearch, onCreate, onDelete, onCartaPorte, onPdf, onCancelar, onUpdate, formatFolio, formatDate,
+  viajeRevision = 0,
 }: Props) {
   const theme = useTheme();
   const tokens = theme.emphasys;
   const compacto = useMediaQuery(theme.breakpoints.down('md'));
   const [detalleMovil, setDetalleMovil] = useState(false);
-  const [editando, setEditando] = useState(false);
-  const [guardando, setGuardando] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [fecha, setFecha] = useState('');
-  const [contactoId, setContactoId] = useState<number | null>(null);
-  const [observaciones, setObservaciones] = useState('');
-  const [partidasEditables, setPartidasEditables] = useState<Array<Record<string, any>>>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [timbrando, setTimbrando] = useState(false);
+  const [pasoTimbre, setPasoTimbre] = useState<'validando' | 'timbrando'>('timbrando');
+  const [trasladoATimbrar, setTrasladoATimbrar] = useState<CotizacionListado | null>(null);
+  const [erroresCartaPorte, setErroresCartaPorte] = useState<CartaPorteIssue[] | null>(null);
   const [viajeLoading, setViajeLoading] = useState(false);
-  const [viajeListo, setViajeListo] = useState(false);
-  const [nuevoAbierto, setNuevoAbierto] = useState(false);
-  const [nuevoContactoId, setNuevoContactoId] = useState<number | null>(null);
+  const [mercanciasViaje, setMercanciasViaje] = useState<ViajeMercancia[]>([]);
+  const [cancelacionPermitida, setCancelacionPermitida] = useState(false);
+  const [cancelacionRevisando, setCancelacionRevisando] = useState(false);
+  const [menuFila, setMenuFila] = useState<{ top: number; left: number; rowId: number } | null>(null);
   const selectedRow = useMemo(() => rows.find((row) => Number(row.id) === Number(selectedId)) ?? rows[0] ?? null, [rows, selectedId]);
   const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, 'traslado', Boolean(selectedRow), refreshKey);
-  const partidas = partidasEditables;
+  const partidas = detalle.data?.partidas ?? [];
+  const observaciones = String(detalle.data?.documento?.observaciones ?? selectedRow?.observaciones ?? '');
   const esBorrador = estadoLabel(selectedRow?.estatus_documento) === 'Borrador';
-  const yaTimbrado = String(selectedRow?.estatus_documento ?? '').toLowerCase() === 'timbrado' || Boolean((selectedRow as any)?.cfdi_uuid);
+  const esCancelado = estadoLabel(selectedRow?.estatus_documento) === 'Cancelado';
+  const esTimbrado = estadoLabel(selectedRow?.estatus_documento) === 'Timbrado';
+  const yaTimbrado = esTimbrado || Boolean((selectedRow as any)?.cfdi_uuid);
+  const cartaPorteDeshabilitada = !selectedRow;
+  const imprimirDeshabilitado = !selectedRow;
+  const timbrarDeshabilitado = !selectedRow || !esBorrador || yaTimbrado || viajeLoading || timbrando;
+  const editarDeshabilitado = !selectedRow || !esBorrador;
+  const eliminarDeshabilitado = !selectedRow || !esBorrador;
+  const cancelarDeshabilitado = !selectedRow || !esTimbrado || esCancelado || cancelacionRevisando || !cancelacionPermitida;
+
+  useEffect(() => {
+    if (!selectedRow?.id || !esTimbrado) {
+      setCancelacionPermitida(false);
+      setCancelacionRevisando(false);
+      return;
+    }
+    let activo = true;
+    setCancelacionRevisando(true);
+    prevalidarCancelacionDocumento(Number(selectedRow.id))
+      .then((resultado) => {
+        if (activo) setCancelacionPermitida(Boolean(resultado.puedeSolicitarCancelacion));
+      })
+      .catch(() => {
+        if (activo) setCancelacionPermitida(false);
+      })
+      .finally(() => {
+        if (activo) setCancelacionRevisando(false);
+      });
+    return () => { activo = false; };
+  }, [selectedRow?.id, esTimbrado, selectedRow?.cfdi_cancelacion_estado, refreshKey]);
 
   useEffect(() => {
     let activo = true;
     const cargarEstadoFiscal = async () => {
-      if (!selectedRow?.id || yaTimbrado) {
-        setViajeListo(false);
+      if (!selectedRow?.id) {
+        setMercanciasViaje([]);
         return;
       }
       setViajeLoading(true);
       try {
         const viaje = await obtenerViajePorDocumento(Number(selectedRow.id));
         if (!viaje?.viaje_id) {
-          if (activo) setViajeListo(false);
+          if (activo) setMercanciasViaje([]);
           return;
         }
         const aggregate = await obtenerViajeAggregate(Number(viaje.viaje_id));
-        if (activo) {
-          setViajeListo(
-            String(aggregate.viaje?.estatus ?? '').toLowerCase() === 'validado'
-              && String(aggregate.cartaPorte?.estatus ?? '').toLowerCase() === 'validado',
-          );
-        }
+        if (activo) setMercanciasViaje(aggregate.mercancias ?? []);
       } catch {
-        if (activo) setViajeListo(false);
+        if (activo) setMercanciasViaje([]);
       } finally {
         if (activo) setViajeLoading(false);
       }
     };
     void cargarEstadoFiscal();
     return () => { activo = false; };
-  }, [selectedRow?.id, yaTimbrado, refreshKey]);
+  }, [selectedRow?.id, refreshKey, viajeRevision]);
+
+  const solicitarTimbrado = () => {
+    if (!selectedRow || !esBorrador || yaTimbrado || viajeLoading || timbrando) return;
+    setTrasladoATimbrar(selectedRow);
+  };
 
   const timbrar = async () => {
-    if (!selectedRow || !esBorrador || yaTimbrado || !viajeListo || timbrando) return;
-    const folio = formatFolio(selectedRow);
-    const confirmado = window.confirm(`¿Timbrar el CFDI de Traslado ${folio}?\n\nSe utilizará la Carta Porte validada asociada.`);
-    if (!confirmado) return;
+    const row = trasladoATimbrar;
+    if (!row || timbrando) return;
     setTimbrando(true);
+    setPasoTimbre('validando');
     setErrorEdicion(null);
     try {
-      const resultado: any = await timbrarDocumentoCfdi(Number(selectedRow.id), 'traslado');
+      const viaje = await obtenerViajePorDocumento(Number(row.id));
+      if (!viaje?.viaje_id) {
+        setErroresCartaPorte([{ section: 'generales', message: 'Este traslado aún no tiene un Viaje asociado.' }]);
+        setTrasladoATimbrar(null);
+        return;
+      }
+      try {
+        await validarCartaPorte(Number(viaje.viaje_id));
+      } catch (error: any) {
+        const issues: CartaPorteIssue[] = Array.isArray(error?.payload?.issues) ? error.payload.issues : [];
+        setErroresCartaPorte(issues.length
+          ? issues
+          : [{ section: 'generales', message: error?.message || 'No se pudo validar la Carta Porte.' }]);
+        setTrasladoATimbrar(null);
+        return;
+      }
+      setPasoTimbre('timbrando');
+      const resultado: any = await timbrarDocumentoCfdi(Number(row.id), 'traslado');
       const uuid = resultado?.timbre?.uuid ?? resultado?.timbre?.UUID ?? resultado?.uuid ?? null;
       const updatedRow = {
-        ...selectedRow,
+        ...row,
         estatus_documento: 'Timbrado',
         ...(uuid ? { cfdi_uuid: uuid } : {}),
       } as CotizacionListado;
       onUpdate(updatedRow);
-      setEditando(false);
       setRefreshKey((value) => value + 1);
       onSelect(updatedRow);
+      setTrasladoATimbrar(null);
     } catch (error: any) {
       setErrorEdicion(error?.message || 'No se pudo timbrar el CFDI de Traslado.');
+      setTrasladoATimbrar(null);
     } finally {
       setTimbrando(false);
     }
@@ -177,66 +200,12 @@ export default function TrasladosWorkspaceView({
   }, [onSelect, selectedRow]);
 
   useEffect(() => {
-    if (!selectedRow || !detalle.data) return;
-    setFecha(String(detalle.data.documento?.fecha_documento ?? selectedRow.fecha_documento ?? '').slice(0, 10));
-    setContactoId(Number(detalle.data.documento?.contacto_principal_id ?? selectedRow.contacto_principal_id ?? 0) || null);
-    setObservaciones(String(detalle.data.documento?.observaciones ?? selectedRow.observaciones ?? ''));
-    setPartidasEditables((detalle.data.partidas ?? []).map((partida: any) => ({ ...partida, cantidad: Number(partida.cantidad ?? 0), descripcion_alterna: partida.descripcion_alterna ?? partida.descripcion ?? '' })));
-    setEditando(false);
     setErrorEdicion(null);
-  }, [detalle.data, selectedRow]);
+  }, [selectedRow?.id]);
 
   useEffect(() => {
     void fetchProductos().then(setProductos).catch(() => setProductos([]));
   }, []);
-
-  const guardar = async () => {
-    if (!selectedRow) return;
-    if (!contactoId) {
-      setErrorEdicion('Selecciona un contacto operativo para guardar el Traslado.');
-      return;
-    }
-    setGuardando(true);
-    setErrorEdicion(null);
-    try {
-      const updatedDocumento = await updateDocumento(Number(selectedRow.id), 'traslado', {
-        fecha_documento: fecha,
-        contacto_principal_id: contactoId,
-        observaciones,
-        subtotal: 0,
-        iva: 0,
-        total: 0,
-        saldo: 0,
-      } as any);
-      await replacePartidas(Number(selectedRow.id), 'traslado', partidasEditables.map((partida) => ({
-        producto_id: partida.producto_id ? Number(partida.producto_id) : null,
-        descripcion_alterna: partida.descripcion_alterna ?? '',
-        cantidad: Number(partida.cantidad ?? 0),
-        precio_unitario: 0,
-        descuento: 0,
-        descuento_monto: 0,
-        subtotal_partida: 0,
-        total_partida: 0,
-        impuestos: [],
-      })) as any);
-      const updatedRow = {
-        ...selectedRow,
-        ...(updatedDocumento as Partial<CotizacionListado>),
-        fecha_documento: fecha,
-        contacto_principal_id: contactoId,
-        observaciones,
-        nombre_cliente: contactos.find((c) => c.id === contactoId)?.nombre ?? selectedRow.nombre_cliente,
-      } as CotizacionListado;
-      onUpdate(updatedRow);
-      setEditando(false);
-      setRefreshKey((value) => value + 1);
-      onSelect(updatedRow);
-    } catch (error: any) {
-      setErrorEdicion(error?.message || 'No se pudo guardar el Traslado.');
-    } finally {
-      setGuardando(false);
-    }
-  };
 
   const selectRow = (row: CotizacionListado) => {
     onSelect(row);
@@ -244,46 +213,68 @@ export default function TrasladosWorkspaceView({
   };
 
   const listaVisible = !compacto || !detalleMovil;
-  const campoSx = {
-    '& .MuiInputLabel-root': { color: tokens.content.muted },
-    '& .MuiInputLabel-root.Mui-focused': { color: tokens.content.foreground },
-    '& .MuiOutlinedInput-root': {
-      color: tokens.content.foreground,
-      bgcolor: tokens.content.elevated,
-      '& fieldset': { borderColor: tokens.content.border },
-      '&:hover fieldset': { borderColor: tokens.content.foreground },
-      '&.Mui-focused fieldset': { borderColor: tokens.content.foreground },
+  const itemsMenuTraslado: WorkspaceContextItem[] = !menuFila || !selectedRow || Number(menuFila.rowId) !== Number(selectedRow.id) ? [] : [
+    {
+      id: 'carta-porte',
+      label: 'Carta Porte / Viaje',
+      icon: <LocalShippingOutlinedIcon fontSize="small" />,
+      disabled: cartaPorteDeshabilitada,
+      onClick: cartaPorteDeshabilitada ? undefined : () => onCartaPorte(selectedRow),
     },
-  };
-  const encabezadoCelda = {
-    bgcolor: tokens.table.headerBg,
-    color: tokens.table.headerFg,
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase' as const,
-    borderBottom: `1px solid ${tokens.table.line}`,
-    py: 0.9,
-    px: 1.5,
-  };
-  const celda = {
-    color: tokens.table.cell,
-    fontSize: 13,
-    borderBottom: `1px solid ${tokens.table.line}`,
-    py: 0.9,
-    px: 1.5,
-    minWidth: 0,
-  };
+    {
+      id: 'imprimir',
+      label: 'Imprimir',
+      icon: <PrintOutlinedIcon fontSize="small" />,
+      disabled: imprimirDeshabilitado,
+      onClick: imprimirDeshabilitado ? undefined : () => onPdf(selectedRow),
+    },
+    {
+      id: 'timbrar',
+      label: 'Timbrar',
+      icon: <NotificationsActiveOutlinedIcon fontSize="small" />,
+      disabled: timbrarDeshabilitado,
+      onClick: timbrarDeshabilitado ? undefined : solicitarTimbrado,
+    },
+    {
+      id: 'cancelar',
+      label: 'Cancelar',
+      icon: <CancelIcon fontSize="small" />,
+      disabled: cancelarDeshabilitado,
+      onClick: cancelarDeshabilitado || !selectedRow ? undefined : () => onCancelar(selectedRow),
+    },
+    {
+      id: 'editar',
+      label: 'Editar',
+      icon: <EditOutlinedIcon fontSize="small" />,
+      disabled: editarDeshabilitado,
+      onClick: editarDeshabilitado || !selectedRow ? undefined : () => onCartaPorte(selectedRow),
+    },
+    {
+      id: 'eliminar',
+      label: 'Eliminar',
+      icon: <DeleteOutlineIcon fontSize="small" />,
+      disabled: eliminarDeshabilitado,
+      onClick: eliminarDeshabilitado ? undefined : () => onDelete(selectedRow),
+    },
+  ];
+  const iconoSx = (disabled: boolean) => ({
+    width: 34,
+    height: 34,
+    borderRadius: '10px',
+    bgcolor: disabled ? tokens.action.disabled : tokens.action.primary,
+    color: tokens.action.primaryForeground,
+    '&:hover': { bgcolor: disabled ? tokens.action.disabled : tokens.action.primaryHover },
+    '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+  });
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: compacto ? 'column' : 'row', height: compacto ? 'calc(100dvh - 112px)' : 'calc(100dvh - 96px)', minHeight: compacto ? 0 : 560, overflow: 'hidden', bgcolor: tokens.content.background }}>
+    <Box sx={{ flex: 1, minHeight: compacto ? 'calc(100dvh - 112px)' : 0, display: 'flex', flexDirection: compacto ? 'column' : 'row', overflow: 'hidden' }}>
       <Box sx={{
         width: compacto ? '100%' : 372,
         flexShrink: 0,
         display: listaVisible ? 'flex' : 'none',
         flexDirection: 'column',
         minHeight: 0,
-        flex: compacto ? 1 : undefined,
         bgcolor: tokens.navigation.background,
         color: tokens.navigation.foreground,
         borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}`,
@@ -302,7 +293,7 @@ export default function TrasladosWorkspaceView({
               <IconButton
                 size="small"
                 aria-label="Nuevo Traslado"
-                onClick={() => { setNuevoContactoId(null); setNuevoAbierto(true); }}
+                onClick={() => { void onCreate(); }}
                 sx={{
                   width: 34,
                   height: 34,
@@ -316,36 +307,37 @@ export default function TrasladosWorkspaceView({
               </IconButton>
             </Tooltip>
           </Box>
-          <TextField
-            fullWidth
-            size="small"
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-            placeholder="Buscar folio o cliente…"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18, color: tokens.navigation.muted }} />
-                </InputAdornment>
-              ),
-              endAdornment: search ? (
-                <IconButton size="small" aria-label="Limpiar búsqueda" onClick={() => onSearch('')} sx={{ color: tokens.navigation.muted }}>
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              ) : null,
-            }}
-            sx={{
-              mt: 1.35,
-              '& .MuiOutlinedInput-root': {
-                color: tokens.navigation.foreground,
-                bgcolor: tokens.navigation.summary,
-                borderRadius: 2,
-                '& fieldset': { borderColor: 'transparent' },
-              },
-              '& .MuiOutlinedInput-input': { fontSize: 13, py: 0.9 },
-              '& .MuiOutlinedInput-input::placeholder': { color: tokens.navigation.muted, opacity: 1 },
-            }}
-          />
+          <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 1.35 }}>
+            <TextField
+              size="small"
+              placeholder="Buscar folio o cliente…"
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: tokens.navigation.muted }} />
+                  </InputAdornment>
+                ),
+                endAdornment: search ? (
+                  <IconButton size="small" aria-label="Limpiar búsqueda" onClick={() => onSearch('')} sx={{ color: tokens.navigation.muted }}>
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                ) : null,
+              }}
+              sx={{
+                flex: 1,
+                '& .MuiOutlinedInput-root': {
+                  color: tokens.navigation.foreground,
+                  bgcolor: tokens.navigation.summary,
+                  borderRadius: 2,
+                  '& fieldset': { borderColor: 'transparent' },
+                },
+                '& .MuiOutlinedInput-input': { fontSize: 13, py: 0.9 },
+                '& .MuiOutlinedInput-input::placeholder': { color: tokens.navigation.muted, opacity: 1 },
+              }}
+            />
+          </Stack>
         </Box>
         <Box sx={{
           flex: 1,
@@ -364,13 +356,19 @@ export default function TrasladosWorkspaceView({
           ) : rows.map((row) => {
             const active = Number(row.id) === Number(selectedRow?.id);
             const estado = estadoLabel(row.estatus_documento);
-            const estadoVisual = estadoVisualDocumento(row);
+            const tono = tonoEstatusDocumento(row.estatus_documento);
             return (
               <Box
                 key={row.id}
                 onClick={() => selectRow(row)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  selectRow(row);
+                  setMenuFila({ top: event.clientY, left: event.clientX, rowId: Number(row.id) });
+                }}
                 sx={{
-                  px: 1.15,
+                  px: 1,
                   py: 1.05,
                   mb: 0.45,
                   borderRadius: 2,
@@ -381,29 +379,38 @@ export default function TrasladosWorkspaceView({
                   '&:hover': { bgcolor: active ? tokens.navigation.selection : tokens.navigation.hover },
                 }}
               >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline' }}>
-                  <Typography variant="figure" sx={{ fontSize: 16, color: 'inherit', lineHeight: 1.1 }}>{formatFolio(row)}</Typography>
-                  <Typography sx={{ fontSize: 11, color: active ? tokens.navigation.selectionForeground : tokens.navigation.muted }}>{formatDate(row.fecha_documento)}</Typography>
-                </Box>
-                <Typography variant="figure" sx={{ fontSize: 14, mt: 0.25, color: active ? tokens.navigation.selectionForeground : tokens.navigation.foreground, lineHeight: 1.2 }} noWrap>
-                  {row.nombre_cliente || 'Empresa activa'}
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', mt: 0.35 }}>
-                  <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: 'inherit' }}>{estado}</Typography>
-                  <Tooltip title={estado} arrow>
-                    <Box component="span" aria-label={estado} sx={{ width: 8, height: 8, flex: '0 0 8px', borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisual.tone), display: 'inline-block' }} />
-                  </Tooltip>
+                <Box sx={{ minWidth: 0, flex: 1 }}>
+                  <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, fontSize: 16, color: 'inherit', lineHeight: 1.15 }}>
+                    {formatFolio(row)}
+                  </Typography>
+                  <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, mt: 0.35, fontSize: 14, color: tokens.navigation.foreground, lineHeight: 1.25 }} noWrap>
+                    {row.nombre_cliente || 'Sin contacto'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', mt: 0.45 }}>
+                    <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.navigation.foreground }}>{estado}</Typography>
+                      <Tooltip title={estado} arrow>
+                        <Box component="span" aria-label={estado} sx={{ width: 8, height: 8, flex: '0 0 8px', borderRadius: '50%', bgcolor: getStatusToneColor(theme, tono), display: 'inline-block' }} />
+                      </Tooltip>
+                    </Box>
+                    <Typography sx={{ fontSize: 11, color: tokens.navigation.muted, flexShrink: 0 }}>{formatDate(row.fecha_documento)}</Typography>
+                  </Box>
                 </Box>
               </Box>
             );
           })}
         </Box>
+        <WorkspaceRowContextMenu
+          anchorPosition={menuFila && selectedRow && Number(menuFila.rowId) === Number(selectedRow.id) ? { top: menuFila.top, left: menuFila.left } : null}
+          items={itemsMenuTraslado}
+          onClose={() => setMenuFila(null)}
+        />
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: compacto && listaVisible ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden', bgcolor: tokens.content.background }}>
         {selectedRow ? (
           <>
-            <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: compacto ? 1 : 1.6, pb: 1.2, flexShrink: 0 }}>
+            <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: compacto ? 1 : 1.6, pb: 1.4, flexShrink: 0 }}>
               {compacto && (
                 <Box
                   component="button"
@@ -414,148 +421,199 @@ export default function TrasladosWorkspaceView({
                   <ArrowBackIcon fontSize="small" /> Traslados
                 </Box>
               )}
-              <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
-                TRASLADO SELECCIONADO
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.35 }}>
-                <Typography variant="figure" sx={{ fontSize: compacto ? 26 : 32, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
-                  {formatFolio(selectedRow)}
-                </Typography>
-                <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>{formatDate(selectedRow.fecha_documento)}</Typography>
-                <Typography sx={{ fontSize: 12, color: tokens.content.muted }}>id {selectedRow.id}</Typography>
-              </Box>
-              <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, mt: 0.7, fontSize: 15, lineHeight: 1.3, color: tokens.content.foreground }}>
-                {selectedRow.nombre_cliente || 'Empresa activa'}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, fontSize: 12, fontWeight: 700 }}>
-                  <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusToneColor(theme, estadoVisualDocumento(selectedRow).tone) }} />
-                  {estadoLabel(selectedRow.estatus_documento)}
-                </Box>
-              </Box>
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', px: { xs: 1, md: 2.25 }, minHeight: 40, flexShrink: 0, gap: 0.5, overflowX: 'auto' }}>
-              <Stack direction="row" spacing={0.75} alignItems="flex-start" sx={{ py: 0.5, flexShrink: 0 }}>
-                <AccionIcono caption="Carta Porte" icon={<LocalShippingOutlinedIcon fontSize="small" />} onClick={() => onCartaPorte(selectedRow)} />
-                {esBorrador && (
-                  <AccionIcono
-                    caption={timbrando ? 'Timbrando…' : 'Timbrar'}
-                    icon={timbrando || viajeLoading ? <CircularProgress size={16} sx={{ color: tokens.action.primaryForeground }} /> : <NotificationsActiveOutlinedIcon fontSize="small" />}
-                    disabled={timbrando || viajeLoading || !viajeListo || yaTimbrado}
-                    onClick={() => void timbrar()}
-                  />
-                )}
-                <AccionIcono caption="PDF" icon={<PrintOutlinedIcon fontSize="small" />} onClick={() => onPdf(selectedRow)} />
-              </Stack>
-              <Box sx={{ flex: 1, minWidth: 12 }} />
-              <Stack direction="row" spacing={0.75} alignItems="flex-start" sx={{ py: 0.5, flexShrink: 0, ml: 'auto' }}>
-                {esBorrador && !editando && (
-                  <AccionIcono caption="Editar" icon={<EditOutlinedIcon fontSize="small" />} onClick={() => setEditando(true)} />
-                )}
-                {esBorrador && editando && (
-                  <AccionIcono
-                    caption={guardando ? 'Guardando…' : 'Guardar'}
-                    icon={guardando ? <CircularProgress size={16} sx={{ color: tokens.action.primaryForeground }} /> : <SaveOutlinedIcon fontSize="small" />}
-                    disabled={guardando}
-                    onClick={() => void guardar()}
-                  />
-                )}
-                {estadoLabel(selectedRow.estatus_documento) === 'Borrador' && (
-                  <AccionIcono caption="Eliminar" icon={<DeleteOutlineIcon fontSize="small" />} onClick={() => onDelete(selectedRow)} />
-                )}
-              </Stack>
-            </Box>
-
-            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 1.5, md: 2.75 }, pb: { xs: 1.5, md: 2 } }}>
-              {errorEdicion && (
-                <Typography sx={{ mb: 1, fontSize: 13, color: tokens.action.destructive }}>{errorEdicion}</Typography>
-              )}
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, minmax(0, 1fr))' }, gap: 0.8 }}>
-                <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>ESTATUS</Typography>
-                  <Typography sx={{ mt: 0.35, fontSize: 14, fontWeight: 650, lineHeight: 1.3 }}>{estadoLabel(selectedRow.estatus_documento)}</Typography>
-                </Box>
-                <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.applied.background, color: tokens.content.foreground, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>FECHA</Typography>
-                  {editando ? (
-                    <TextField fullWidth size="small" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} sx={{ mt: 0.6, ...campoSx }} />
-                  ) : (
-                    <Typography sx={{ mt: 0.35, fontSize: 14, fontWeight: 650, lineHeight: 1.3 }}>{formatDate(selectedRow.fecha_documento)}</Typography>
-                  )}
-                </Box>
-                <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.metric.available.background, color: tokens.content.foreground, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>CONTACTO</Typography>
-                  {editando ? (
-                    <Autocomplete
-                      options={contactos}
-                      value={contactos.find((c) => c.id === contactoId) ?? null}
-                      getOptionLabel={(c) => c.nombre}
-                      onChange={(_, value) => setContactoId(value?.id ?? null)}
-                      renderInput={(params) => <TextField {...params} size="small" placeholder="Contacto operativo" sx={campoSx} />}
-                      sx={{ mt: 0.6 }}
-                    />
-                  ) : (
-                    <Typography sx={{ mt: 0.35, fontSize: 14, fontWeight: 650, lineHeight: 1.3 }} noWrap>{selectedRow.nombre_cliente || 'Empresa activa'}</Typography>
-                  )}
-                </Box>
-                <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.content.elevated, color: tokens.content.foreground, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>OBSERVACIONES</Typography>
-                  {editando ? (
-                    <TextField fullWidth size="small" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} sx={{ mt: 0.6, ...campoSx }} />
-                  ) : (
-                    <Typography sx={{ mt: 0.35, fontSize: 14, fontWeight: 650, lineHeight: 1.3 }} noWrap>{observaciones || '—'}</Typography>
-                  )}
-                </Box>
-              </Box>
-
-              <Box sx={{
-                mt: 1.25,
-                bgcolor: tokens.content.well,
-                borderRadius: 3,
-                border: `1px solid ${tokens.content.border}`,
-                overflow: 'hidden',
-              }}>
-                <Box sx={{ px: 1.75, py: 1.05, borderBottom: `1px solid ${tokens.content.border}` }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.content.foreground }}>Mercancías</Typography>
-                </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1.5fr 120px' }, ...encabezadoCelda }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: tokens.table.headerFg }}>PRODUCTO</Typography>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: tokens.table.headerFg, display: { xs: 'none', sm: 'block' } }}>DESCRIPCIÓN</Typography>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: tokens.table.headerFg, textAlign: { xs: 'left', sm: 'right' }, display: { xs: 'none', sm: 'block' } }}>CANTIDAD</Typography>
-                </Box>
-                {partidas.map((partida, index) => (
-                  <Box
-                    key={String(partida.id ?? index)}
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1.5fr 120px' },
-                      gap: { xs: 0.75, sm: 1 },
-                      alignItems: 'center',
-                      ...celda,
-                      bgcolor: index % 2 === 1 ? tokens.grid.stripe : 'transparent',
-                    }}
-                  >
-                    {editando ? (
-                      <Autocomplete options={productos} value={productos.find((p) => p.id === Number(partida.producto_id)) ?? null} getOptionLabel={(p) => `${p.clave ?? ''} — ${p.descripcion ?? ''}`} onChange={(_, value) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, producto_id: value?.id ?? null, producto_nombre: value?.descripcion ?? '' } : item))} renderInput={(params) => <TextField {...params} size="small" label="Producto" sx={campoSx} />} />
-                    ) : (
-                      <Typography sx={{ fontSize: 13, color: tokens.table.cell }}>{String(partida.producto_nombre ?? partida.producto_id ?? '—')}</Typography>
-                    )}
-                    {editando ? (
-                      <TextField size="small" label="Descripción" value={partida.descripcion_alterna ?? ''} onChange={(e) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, descripcion_alterna: e.target.value } : item))} sx={campoSx} />
-                    ) : (
-                      <Typography sx={{ fontSize: 13, color: tokens.table.cell }}>{String(partida.descripcion_alterna ?? partida.descripcion ?? '—')}</Typography>
-                    )}
-                    {editando ? (
-                      <TextField size="small" type="number" label="Cantidad" value={partida.cantidad ?? 0} onChange={(e) => setPartidasEditables((prev) => prev.map((item, i) => i === index ? { ...item, cantidad: Number(e.target.value) } : item))} sx={{ ...campoSx, '& input': { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }} />
-                    ) : (
-                      <Typography sx={{ fontSize: 13, color: tokens.table.cell, textAlign: { xs: 'left', sm: 'right' }, fontVariantNumeric: 'tabular-nums' }}>{String(partida.cantidad ?? 0)}</Typography>
-                    )}
+              <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'space-between', alignItems: 'flex-start', flexDirection: compacto ? 'column' : 'row' }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
+                    TRASLADO SELECCIONADO
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.35 }}>
+                    <Typography variant="figure" sx={{ fontSize: compacto ? 26 : 32, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
+                      {formatFolio(selectedRow)}
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>{formatDate(selectedRow.fecha_documento)}</Typography>
+                    <Typography sx={{ fontSize: 12, color: tokens.content.muted }}>id {selectedRow.id}</Typography>
                   </Box>
-                ))}
-                {partidas.length === 0 && (
+                  <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, mt: 0.7, fontSize: 15, lineHeight: 1.3, color: tokens.content.foreground }}>
+                    {selectedRow.nombre_cliente || 'Empresa activa'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, fontSize: 12, fontWeight: 700 }}>
+                      {estadoLabel(selectedRow.estatus_documento)}
+                    </Box>
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
+                  <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap flexWrap="wrap" sx={{ justifyContent: 'flex-end' }}>
+                    <Tooltip title="Carta Porte" arrow>
+                      <span>
+                        <IconButton size="small" aria-label="Carta Porte" disabled={cartaPorteDeshabilitada} onClick={() => onCartaPorte(selectedRow)} sx={iconoSx(cartaPorteDeshabilitada)}>
+                          <LocalShippingOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title={timbrando ? (pasoTimbre === 'validando' ? 'Validando…' : 'Timbrando…') : 'Timbrar'} arrow>
+                      <span>
+                        <IconButton
+                          size="small"
+                          aria-label={timbrando ? (pasoTimbre === 'validando' ? 'Validando…' : 'Timbrando…') : 'Timbrar'}
+                          disabled={timbrarDeshabilitado}
+                          onClick={solicitarTimbrado}
+                          sx={iconoSx(timbrarDeshabilitado)}
+                        >
+                          {timbrando || viajeLoading ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : <NotificationsActiveOutlinedIcon fontSize="small" />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="PDF" arrow>
+                      <span>
+                        <IconButton size="small" aria-label="PDF" disabled={imprimirDeshabilitado} onClick={() => onPdf(selectedRow)} sx={iconoSx(imprimirDeshabilitado)}>
+                          <PrintOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                  <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap flexWrap="wrap" sx={{ justifyContent: 'flex-end' }}>
+                    <Tooltip title="Cancelar" arrow>
+                      <span>
+                        <IconButton size="small" aria-label="Cancelar" disabled={cancelarDeshabilitado} onClick={() => selectedRow && onCancelar(selectedRow)} sx={iconoSx(cancelarDeshabilitado)}>
+                          <CancelIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Editar" arrow>
+                      <span>
+                        <IconButton size="small" aria-label="Editar" disabled={editarDeshabilitado} onClick={() => selectedRow && onCartaPorte(selectedRow)} sx={iconoSx(editarDeshabilitado)}>
+                          <EditOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Eliminar" arrow>
+                      <span>
+                        <IconButton size="small" aria-label="Eliminar" disabled={eliminarDeshabilitado} onClick={() => onDelete(selectedRow)} sx={iconoSx(eliminarDeshabilitado)}>
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                </Box>
+              </Box>
+            </Box>
+
+            {errorEdicion && (
+              <Typography sx={{ px: { xs: 1.5, md: 2.75 }, pb: 1, fontSize: 13, color: tokens.action.destructive }}>{errorEdicion}</Typography>
+            )}
+            <Box sx={{ px: { xs: 1.5, md: 2.75 }, pb: 1.6, flexShrink: 0 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : 'minmax(0, 0.7fr) minmax(0, 0.85fr) minmax(180px, 1.7fr)', gap: 0.8 }}>
+                <Box sx={{ px: 1.4, py: 1.15, borderRadius: 2, bgcolor: tokens.metric.amount.background, color: tokens.content.foreground, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: tokens.metric.caption }}>ESTATUS</Typography>
+                  <Typography variant="figure" sx={{ display: 'block', mt: 0.45, fontSize: 18, fontWeight: 400, lineHeight: 1.25, letterSpacing: '-0.01em', color: 'inherit' }}>{estadoLabel(selectedRow.estatus_documento)}</Typography>
+                </Box>
+                <Box sx={{ px: 1.4, py: 1.15, borderRadius: 2, bgcolor: tokens.metric.applied.background, color: tokens.content.foreground, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: tokens.metric.caption }}>FECHA</Typography>
+                  <Typography variant="figure" sx={{ display: 'block', mt: 0.45, fontSize: 18, fontWeight: 400, lineHeight: 1.25, letterSpacing: '-0.01em', color: 'inherit' }}>{formatDate(selectedRow.fecha_documento)}</Typography>
+                </Box>
+                <Box sx={{ px: 1.4, py: 1.15, borderRadius: 2, bgcolor: tokens.metric.available.background, color: tokens.content.foreground, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: tokens.metric.caption }}>CONTACTO</Typography>
+                  <Typography variant="figure" sx={{ display: 'block', mt: 0.45, fontSize: 18, fontWeight: 400, lineHeight: 1.3, letterSpacing: '-0.01em', color: 'inherit', overflowWrap: 'anywhere' }}>{selectedRow.nombre_cliente || 'Sin contacto'}</Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            <Box sx={{
+              mx: { xs: 1, md: 1.75 },
+              mb: 1,
+              px: 1.5,
+              py: 1.15,
+              borderRadius: 2,
+              border: `1px solid ${tokens.content.border}`,
+              bgcolor: tokens.content.elevated,
+              flexShrink: 0,
+            }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: tokens.metric.caption }}>OBSERVACIONES</Typography>
+              {observaciones.trim() ? (
+                <Typography sx={{ mt: 0.45, fontSize: 14, lineHeight: 1.45, color: tokens.content.secondary, whiteSpace: 'pre-wrap' }}>
+                  {observaciones}
+                </Typography>
+              ) : null}
+            </Box>
+
+            <Box sx={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              mx: { xs: 1, md: 1.75 },
+              mb: { xs: 1, md: 1.75 },
+              bgcolor: tokens.content.well,
+              borderRadius: 3,
+              border: `1px solid ${tokens.content.border}`,
+              overflow: 'hidden',
+            }}>
+              <Box sx={{ px: 2.25, minHeight: 48, display: 'flex', alignItems: 'center', borderBottom: `1px solid ${tokens.content.border}`, flexShrink: 0 }}>
+                <Typography sx={{ fontWeight: 650, fontSize: 14, letterSpacing: '-0.01em', color: tokens.content.foreground }}>Mercancías</Typography>
+              </Box>
+              <Box sx={{ flex: 1, overflowY: 'auto' }}>
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: 'minmax(0, 0.95fr) minmax(0, 1.5fr) minmax(72px, 0.7fr) 112px', md: 'minmax(148px, 0.9fr) minmax(0, 1.7fr) minmax(96px, 0.6fr) 132px' },
+                  columnGap: 2.5,
+                  alignItems: 'center',
+                  px: 2.5,
+                  py: 1.2,
+                  bgcolor: tokens.table.headerBg,
+                  borderBottom: `1px solid ${tokens.table.line}`,
+                }}>
+                  <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: tokens.table.headerFg }}>PRODUCTO</Typography>
+                  <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: tokens.table.headerFg }}>DESCRIPCIÓN</Typography>
+                  <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: tokens.table.headerFg }}>UNIDAD</Typography>
+                  <Typography sx={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', color: tokens.table.headerFg, textAlign: 'right' }}>CANTIDAD</Typography>
+                </Box>
+                {(mercanciasViaje.length > 0 ? mercanciasViaje : partidas).map((fila, index) => {
+                  const esViaje = mercanciasViaje.length > 0;
+                  const mercancia = esViaje ? mercanciasViaje[index] : null;
+                  const partida = esViaje ? null : partidas[index];
+                  const productoCatalogo = mercancia?.producto_id
+                    ? productos.find((p) => p.id === mercancia.producto_id)
+                    : (partida?.producto_id ? productos.find((p) => p.id === Number(partida.producto_id)) : null);
+                  const claveProducto = productoCatalogo?.clave?.trim() || '';
+                  const descripcionProducto = (productoCatalogo?.descripcion || mercancia?.descripcion_snapshot || String(partida?.descripcion_alterna ?? partida?.descripcion ?? '')).trim();
+                  const unidad = (mercancia?.unidad_descripcion || productoCatalogo?.unidad_venta_descripcion || '').trim();
+                  const cantidadTexto = formatearCantidad(mercancia ? mercancia.cantidad : partida?.cantidad);
+                  const celdaTexto = { fontSize: 13.5, fontWeight: 400, lineHeight: 1.4, color: tokens.content.foreground, overflowWrap: 'anywhere' as const };
+                  return (
+                    <Box
+                      key={String((mercancia?.id ?? partida?.id) ?? index)}
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'minmax(0, 0.95fr) minmax(0, 1.5fr) minmax(72px, 0.7fr) 112px', md: 'minmax(148px, 0.9fr) minmax(0, 1.7fr) minmax(96px, 0.6fr) 132px' },
+                        columnGap: 2.5,
+                        alignItems: 'center',
+                        px: 2.5,
+                        py: 1.65,
+                        borderBottom: `1px solid ${tokens.table.line}`,
+                        bgcolor: index % 2 === 1 ? tokens.grid.stripe : 'transparent',
+                        transition: 'background-color 120ms ease',
+                        '&:hover': { bgcolor: tokens.content.hover },
+                        '&:last-of-type': { borderBottom: 'none' },
+                      }}
+                    >
+                      <Typography sx={celdaTexto}>{claveProducto || '—'}</Typography>
+                      <Typography sx={{ ...celdaTexto, color: tokens.content.secondary }}>{descripcionProducto || '—'}</Typography>
+                      <Typography sx={{ ...celdaTexto, color: tokens.content.secondary }}>{unidad || '—'}</Typography>
+                      <Typography variant="figure" sx={{ fontSize: 16, fontWeight: 400, lineHeight: 1, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: tokens.content.foreground }}>
+                        {cantidadTexto}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+                {!viajeLoading && mercanciasViaje.length === 0 && partidas.length === 0 && (
                   <Typography sx={{ px: 2, py: 3, fontSize: 13, color: tokens.content.muted, textAlign: 'center' }}>
                     Sin mercancías capturadas.
+                  </Typography>
+                )}
+                {viajeLoading && mercanciasViaje.length === 0 && partidas.length === 0 && (
+                  <Typography sx={{ px: 2, py: 3, fontSize: 13, color: tokens.content.muted, textAlign: 'center' }}>
+                    Cargando mercancías…
                   </Typography>
                 )}
               </Box>
@@ -575,50 +633,69 @@ export default function TrasladosWorkspaceView({
         )}
       </Box>
       <Dialog
-        open={nuevoAbierto}
-        onClose={() => setNuevoAbierto(false)}
+        open={trasladoATimbrar != null}
+        onClose={() => { if (!timbrando) setTrasladoATimbrar(null); }}
         fullWidth
-        maxWidth="sm"
-        slotProps={{
-          paper: {
-            sx: {
-              bgcolor: tokens.content.card,
-              color: tokens.content.foreground,
-              border: `1px solid ${tokens.content.border}`,
-              borderRadius: 2,
-            },
+        maxWidth="xs"
+        PaperProps={{
+          sx: {
+            bgcolor: tokens.content.elevated,
+            backgroundImage: 'none',
+            color: tokens.content.foreground,
+            border: `1px solid ${tokens.content.border}`,
+            borderRadius: 2,
+            boxShadow: '0 18px 48px rgba(62, 52, 40, 0.16)',
           },
         }}
       >
-        <DialogTitle sx={{ fontSize: 16, fontWeight: 700, color: tokens.content.foreground }}>Nuevo Traslado</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ mb: 2, fontSize: 13, color: tokens.content.muted }}>
-            Selecciona el contacto operativo antes de crear el borrador.
+        <Box sx={{ px: 3, pt: 2.75, pb: 2.5 }}>
+          <Typography sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: tokens.content.foreground }}>
+            Timbrar CFDI de Traslado
           </Typography>
-          <Autocomplete
-            options={contactos}
-            getOptionLabel={(contacto) => contacto.nombre || ''}
-            value={contactos.find((contacto) => Number(contacto.id) === Number(nuevoContactoId)) ?? null}
-            onChange={(_, contacto) => setNuevoContactoId(contacto?.id ? Number(contacto.id) : null)}
-            renderInput={(params) => <TextField {...params} label="Contacto operativo" required sx={campoSx} />}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setNuevoAbierto(false)} sx={{ textTransform: 'none', color: tokens.content.foreground }}>Cancelar</Button>
-          <Button
-            variant="contained"
-            disabled={!nuevoContactoId}
-            onClick={() => { const contactoId = nuevoContactoId; if (!contactoId) return; setNuevoAbierto(false); void onCreate(contactoId); }}
-            sx={{
-              textTransform: 'none',
-              bgcolor: tokens.action.primary,
-              color: tokens.action.primaryForeground,
-              '&:hover': { bgcolor: tokens.action.primaryHover },
-              '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
-            }}
-          >Crear Traslado</Button>
-        </DialogActions>
+          <Typography sx={{ mt: 1.75, fontSize: 15, lineHeight: 1.45, color: tokens.content.foreground }}>
+            ¿Timbrar el CFDI de Traslado {trasladoATimbrar ? formatFolio(trasladoATimbrar) : ''}?
+          </Typography>
+          <Typography sx={{ mt: 0.75, fontSize: 14, lineHeight: 1.45, color: tokens.content.secondary }}>
+            Se validará la Carta Porte y, si está completa, el CFDI se timbra de inmediato.
+          </Typography>
+          <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 3 }}>
+            <Button
+              onClick={() => setTrasladoATimbrar(null)}
+              disabled={timbrando}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                borderRadius: '10px',
+                color: tokens.content.foreground,
+                px: 1.75,
+                bgcolor: 'transparent',
+                border: `1px solid ${tokens.content.foreground}`,
+                '&:hover': { bgcolor: tokens.content.hover, borderColor: tokens.content.foreground },
+                '&.Mui-disabled': { color: tokens.content.foreground, borderColor: tokens.content.foreground },
+              }}
+            >
+              No timbrar
+            </Button>
+            <Button
+              onClick={() => void timbrar()}
+              disabled={timbrando}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 700,
+                borderRadius: '10px',
+                px: 2,
+                bgcolor: tokens.action.primary,
+                color: tokens.action.primaryForeground,
+                '&:hover': { bgcolor: tokens.action.primaryHover },
+                '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+              }}
+            >
+              {timbrando ? (pasoTimbre === 'validando' ? 'Validando…' : 'Timbrando…') : 'Timbrar'}
+            </Button>
+          </Stack>
+        </Box>
       </Dialog>
+      <CartaPorteIssuesDialog issues={erroresCartaPorte} onClose={() => setErroresCartaPorte(null)} />
     </Box>
   );
 }

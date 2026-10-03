@@ -67,6 +67,8 @@ async function main() {
   let cancellationSql = '';
   await markTransportCancelledForDocument({ async query(sql: string) { cancellationSql = sql; return { rows: [], rowCount: 1 } as any; } } as DbClient, 9, 1);
   assert.match(cancellationSql, /cartas_porte[\s\S]*estatus='cancelado'[\s\S]*viajes[\s\S]*estatus='cancelado'/);
+  assert.match(cancellationSql, /tipo_documento\) = 'traslado' THEN 'traslado'/);
+  assert.match(cancellationSql, /'factura_servicio'/);
   console.log('Integración Carta Porte/CFDI: casos A-G OK, sin Facturama real.');
 }
 

@@ -539,6 +539,25 @@ export async function crearDocumentoService(
 
     const created = await crearDocumentoRepository(data, empresaId, tipoDocumento, client);
 
+    if (tipoDocumento === 'traslado' && created?.id) {
+      const contactoId = Number(created.contacto_principal_id);
+      const usuarioId = Number(data.usuario_creacion_id ?? 0) || null;
+      if (!contactoId || !usuarioId) throw new Error('VALIDATION_ERROR: No se pudo determinar el usuario del Viaje.');
+      const viaje = await client.query<{ id: number }>(
+        `INSERT INTO transporte.viajes
+           (empresa_id, folio_interno, cliente_contacto_id, estatus, creado_por)
+         VALUES ($1, $2, $3, 'borrador', $4)
+         RETURNING id`,
+        [empresaId, `TRS-${created.id}`, contactoId, usuarioId],
+      );
+      await client.query(
+        `INSERT INTO transporte.viaje_documentos
+           (empresa_id, viaje_id, documento_id, tipo_relacion, principal)
+         VALUES ($1, $2, $3, 'traslado', true)`,
+        [empresaId, viaje.rows[0].id, created.id],
+      );
+    }
+
   await sincronizarDocumentoMonetarioConTesoreria(created, data, empresaId, tipoDocumento, client);
 
     if (tipoDocumento === 'cotizacion' && created?.id) {

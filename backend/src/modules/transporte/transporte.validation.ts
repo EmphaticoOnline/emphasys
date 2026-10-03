@@ -91,7 +91,7 @@ export function validateViajeBusinessRules(input: ViajeInput): void {
   }
 }
 
-export function parseViajeInput(value: unknown): ViajeInput {
+export function parseViajeInput(value: unknown, options?: { productoObligatorio?: boolean }): ViajeInput {
   const body = object(value);
   const folioInterno = String(body.folioInterno ?? '').trim();
   if (!folioInterno) throw new TransporteError('folioInterno es requerido.');
@@ -140,6 +140,9 @@ export function parseViajeInput(value: unknown): ViajeInput {
       const valorMercancia = optionalNumber(item.valorMercancia, `mercancias[${index}].valorMercancia`);
       if (valorMercancia !== null && valorMercancia < 0) throw new TransporteError(`mercancias[${index}].valorMercancia no puede ser negativo.`);
       const productoId = optionalPositiveInteger(item.productoId, `mercancias[${index}].productoId`);
+      if (options?.productoObligatorio && !productoId) {
+        throw new TransporteError(`mercancias[${index}].productoId es requerido.`);
+      }
       if (!productoId && !optionalText(item.descripcion)) {
         throw new TransporteError(`mercancias[${index}] requiere productoId o descripcion para mercancía libre.`);
       }

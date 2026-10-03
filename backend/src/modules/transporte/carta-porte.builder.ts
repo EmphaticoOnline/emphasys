@@ -9,6 +9,7 @@ import {
   type CartaPorteIssue,
 } from './carta-porte.types';
 import { TransporteError } from './transporte.types';
+import { instanteAHoraPared, ZONA_HORARIA_FALLBACK } from './transporte.time';
 
 const requiredText = (value: unknown, field: string): string => {
   const text = String(value ?? '').trim();
@@ -47,15 +48,11 @@ const optionalNumber = (value: unknown): number | undefined => {
 export const formatCartaPorteDateTime = (
   value: unknown,
   field: string,
-  timeZone = 'America/Mexico_City'
+  timeZone = ZONA_HORARIA_FALLBACK
 ): string => {
-  const text = value instanceof Date ? value.toISOString() : requiredText(value, field);
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) throw new TransporteError(`Carta Porte: ${field} no es una fecha válida.`);
-  return date
-    .toLocaleString('sv-SE', { timeZone, hourCycle: 'h23' })
-    .replace(' ', 'T')
-    .slice(0, 19);
+  const pared = instanteAHoraPared(value, timeZone);
+  if (!pared) throw new TransporteError(`Carta Porte: ${field} no es una fecha válida.`);
+  return `${pared}:00`;
 };
 
 const rfc = (value: unknown, field: string): string => {
@@ -126,7 +123,8 @@ export function buildCartaPorte31(source: CartaPorteBuildSource, idCcp = generat
       NombreRemitenteDestinatario: requiredText(item.remitente_destinatario_nombre, `nombre de ubicación ${item.secuencia}`),
       FechaHoraSalidaLlegada: formatCartaPorteDateTime(
         item.fecha_hora_real ?? item.fecha_hora_programada,
-        `fecha de ubicación ${item.secuencia}`
+        `fecha de ubicación ${item.secuencia}`,
+        source.zonaHoraria || ZONA_HORARIA_FALLBACK,
       ),
       Domicilio: address(item.domicilio_snapshot, `domicilio de ubicación ${item.secuencia}`),
       ...(item.tipo === 'destino' ? { DistanciaRecorrida: positiveNumber(distance, `distancia del destino ${item.secuencia}`) } : {}),
@@ -289,8 +287,12 @@ export function collectCartaPorteIssues(source: CartaPorteBuildSource): CartaPor
   if (source.mercancias.length === 0) {
     add('mercancias', 'Agrega al menos una mercancía.');
   }
+  const esTraslado = (source.documentos ?? []).some((documento) => String(documento.tipo_relacion ?? '') === 'traslado');
   source.mercancias.forEach((m, i) => {
     const n = i + 1;
+    if (esTraslado && !(Number(m.producto_id) > 0)) {
+      add('mercancias', `La mercancía ${n} debe estar ligada a un producto.`, n);
+    }
     if (!origenIds.has(Number(m.origen_viaje_ubicacion_id)) || !destinoIds.has(Number(m.destino_viaje_ubicacion_id))) {
       add('mercancias', `La mercancía ${n} no tiene origen y destino del viaje asignados.`, n);
     }

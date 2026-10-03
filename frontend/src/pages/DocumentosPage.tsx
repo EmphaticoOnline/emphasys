@@ -147,7 +147,9 @@ import TrasladosWorkspaceView from '../components/documentos/traslados/Traslados
 import NotasCreditoWorkspaceView, { FILTRO_NOTAS_VACIO, type FiltroNotas } from '../components/documentos/nota-credito/NotasCreditoWorkspaceView';
 import PagosWorkspaceView from '../components/documentos/pagos/PagosWorkspaceView';
 import AjustesSaldoWorkspaceView from '../components/documentos/ajustes-saldo/AjustesSaldoWorkspaceView';
-import CartaPorteViajeDrawer from '../components/documentos/facturas/CartaPorteViajeDrawer';
+import CartaPorteIssuesDialog from '../components/documentos/facturas/CartaPorteIssuesDialog';
+import CartaPorteViajeModal from '../components/documentos/facturas/CartaPorteViajeModal';
+import { obtenerViajePorDocumento, validarCartaPorte, type CartaPorteIssue } from '../services/transporte.api';
 import { guardarFacturasWorkspacePreferencia, resolveFacturasWorkspaceEnabled } from '../modules/documentos/facturasWorkspaceFlag';
 import FacturaGlobalDialog from '../modules/documentos/FacturaGlobalDialog';
 import { StatusAction, StatusIndicator, type StatusIconComponent, type StatusTone } from '../components/status';
@@ -845,6 +847,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     documentoId: null,
   });
   const [cartaPorteDrawer, setCartaPorteDrawer] = useState<{ open: boolean; documentoId: number | null; folio: string }>({ open: false, documentoId: null, folio: '' });
+  const [erroresCartaPorte, setErroresCartaPorte] = useState<CartaPorteIssue[] | null>(null);
 
   const abrirCartaPorte = useCallback((row: CotizacionListado) => {
     const documentoId = Number(row.id);
@@ -922,6 +925,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [filtrosNotas, setFiltrosNotas] = useState<FiltroNotas>(FILTRO_NOTAS_VACIO);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [focusedDocumentId, setFocusedDocumentId] = useState<number | null>(null);
+  const [trasladoProvisionalId, setTrasladoProvisionalId] = useState<number | null>(null);
+  const [trasladoProvisionalConfirmado, setTrasladoProvisionalConfirmado] = useState(false);
+  const [trasladoViajeRevision, setTrasladoViajeRevision] = useState(0);
   const [highlightedDocumentId, setHighlightedDocumentId] = useState<number | null>(null);
   const gridContainerRef = React.useRef<HTMLDivElement | null>(null);
   const consumedFocusNonceRef = React.useRef<string | null>(null);
@@ -1825,7 +1831,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     // Timbrada se evalúa por documento (no por tipo de documento en
     // general): una factura puede soportar CFDI y aun así no estar timbrada
     // todavía, en cuyo caso el modal debe ser el de cancelación interna.
-    const timbrada = puedeTimbrarCfdiDocumento(tipoDocumento, row) && isFacturaTimbrada(row.estatus_documento);
+    const timbrada = (puedeTimbrarCfdiDocumento(tipoDocumento, row) || tipoDocumento === 'traslado') && isFacturaTimbrada(row.estatus_documento);
     const contabilizada = estadoContableVentas[Number(row.id)]?.estado === 'contabilizada';
     setCancelarDialog({
       open: true,
@@ -2007,6 +2013,56 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       });
     }
   }, [tipoDocumento]);
+
+  const timbrarDesdeListado = useCallback(async (row: CotizacionListado) => {
+    const rowId = Number(row.id);
+    try {
+      setTimbrandoId(rowId);
+      if (tipoDocumento === 'factura') {
+        const viaje = await obtenerViajePorDocumento(rowId);
+        if (viaje?.viaje_id) {
+          try {
+            await validarCartaPorte(Number(viaje.viaje_id));
+          } catch (validationError: any) {
+            const issues: CartaPorteIssue[] = Array.isArray(validationError?.payload?.issues)
+              ? validationError.payload.issues
+              : [];
+            setErroresCartaPorte(issues.length
+              ? issues
+              : [{ section: 'generales', message: validationError?.message || 'No se pudo validar la Carta Porte.' }]);
+            return;
+          }
+        }
+      }
+      await timbrarDocumentoCfdi(rowId, tipoDocumento);
+      await load();
+      setSnackbar({
+        open: true,
+        message: tipoDocumento === 'pago_cliente'
+          ? 'Complemento de pago timbrado correctamente.'
+          : 'CFDI timbrado correctamente.',
+        severity: 'success',
+      });
+      if (tipoDocumento === 'factura' || tipoDocumento === 'pago_cliente') {
+        const emailInicial = obtenerEmailDocumento(row);
+        setEnviarDialog({
+          open: true,
+          id: rowId,
+          email: emailInicial,
+          enviando: false,
+          error: emailInicial ? null : 'El cliente no tiene correo registrado. Puede descargar el XML y PDF o enviar después.',
+        });
+      }
+    } catch (err: any) {
+      if (err?.status === 409 && err?.payload?.estado_reconciliacion) {
+        setTimbradoPendienteIds((prev) => new Set(prev).add(rowId));
+      }
+      setErrorDialogTitle(obtenerTituloErrorTimbrado(tipoDocumento));
+      setError(err?.message || 'No se pudo timbrar el documento');
+    } finally {
+      setTimbrandoId(null);
+    }
+  }, [load, obtenerEmailDocumento, tipoDocumento]);
 
   const handleDuplicarCotizacion = async (rowId: number) => {
     try {
@@ -2743,38 +2799,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                     timbrandoId === params.row.id ||
                     timbradoPendienteIds.has(Number(params.row.id))
                   }
-                  onClick={async (e) => {
+                  onClick={(e) => {
                     e.stopPropagation();
-                    try {
-                      setTimbrandoId(params.row.id as number);
-                      await timbrarDocumentoCfdi(Number(params.row.id), tipoDocumento);
-                      await load();
-                      setSnackbar({
-                        open: true,
-                        message: tipoDocumento === 'pago_cliente'
-                          ? 'Complemento de pago timbrado correctamente.'
-                          : 'CFDI timbrado correctamente.',
-                        severity: 'success',
-                      });
-                      if (tipoDocumento === 'factura' || tipoDocumento === 'pago_cliente') {
-                        const emailInicial = obtenerEmailDocumento(params.row);
-                        setEnviarDialog({
-                          open: true,
-                          id: Number(params.row.id),
-                          email: emailInicial,
-                          enviando: false,
-                          error: emailInicial ? null : 'El cliente no tiene correo registrado. Puede descargar el XML y PDF o enviar después.',
-                        });
-                      }
-                    } catch (err: any) {
-                      if (err?.status === 409 && err?.payload?.estado_reconciliacion) {
-                        setTimbradoPendienteIds((prev) => new Set(prev).add(Number(params.row.id)));
-                      }
-                      setErrorDialogTitle(obtenerTituloErrorTimbrado(tipoDocumento));
-                      setError(err?.message || 'No se pudo timbrar el documento');
-                    } finally {
-                      setTimbrandoId(null);
-                    }
+                    void timbrarDesdeListado(params.row as CotizacionListado);
                   }}
                 >
                   <ReceiptLongIcon fontSize="small" />
@@ -2916,6 +2943,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     navigate,
     basePath,
     obtenerEmailDocumento,
+    timbrarDesdeListado,
     deletingId,
     load,
     setError,
@@ -3228,37 +3256,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         icon: <NotificationsActiveIcon fontSize="small" />,
         hidden: !(hasAction('timbrar') && documentoPuedeTimbrarCfdi),
         disabled: loading || timbrandoId === contextMenuRow.id || timbradoPendienteIds.has(rowId),
-        onClick: async () => {
-          try {
-            setTimbrandoId(rowId);
-            await timbrarDocumentoCfdi(rowId, tipoDocumento);
-            await load();
-            setSnackbar({
-              open: true,
-              message: tipoDocumento === 'pago_cliente'
-                ? 'Complemento de pago timbrado correctamente.'
-                : 'CFDI timbrado correctamente.',
-              severity: 'success',
-            });
-            if (tipoDocumento === 'factura' || tipoDocumento === 'pago_cliente') {
-              const emailInicial = obtenerEmailDocumento(contextMenuRow);
-              setEnviarDialog({
-                open: true,
-                id: rowId,
-                email: emailInicial,
-                enviando: false,
-                error: emailInicial ? null : 'El cliente no tiene correo registrado. Puede descargar el XML y PDF o enviar después.',
-              });
-            }
-          } catch (err: any) {
-            if (err?.status === 409 && err?.payload?.estado_reconciliacion) {
-              setTimbradoPendienteIds((prev) => new Set(prev).add(rowId));
-            }
-            setErrorDialogTitle(obtenerTituloErrorTimbrado(tipoDocumento));
-            setError(err?.message || 'No se pudo timbrar el documento');
-          } finally {
-            setTimbrandoId(null);
-          }
+        onClick: () => {
+          void timbrarDesdeListado(contextMenuRow);
         },
       },
       {
@@ -3309,6 +3308,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     navigate,
     abrirDialogoCancelar,
     obtenerEmailDocumento,
+    timbrarDesdeListado,
     setError,
     setDetalleDrawer,
     timbrandoId,
@@ -4093,12 +4093,32 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   const facturasWorkspaceVisible =
     tipoDocumento === 'factura' && modulo === 'ventas' && facturasWorkspaceEnabled;
 
-  const crearTrasladoWorkspace = async (contactoId: number) => {
+  const crearTrasladoWorkspace = async () => {
     const fecha = new Date().toISOString().slice(0, 10);
-    const creado = await createDocumento('traslado', { tipo_documento: 'traslado', empresa_id: empresaId, fecha_documento: fecha, contacto_principal_id: contactoId, subtotal: 0, iva: 0, total: 0, saldo: 0 } as any);
-    setFocusedDocumentId(Number((creado as any).id));
+    const creado = await createDocumento('traslado', { tipo_documento: 'traslado', empresa_id: empresaId, fecha_documento: fecha, subtotal: 0, iva: 0, total: 0, saldo: 0 } as any);
+    const documentoId = Number((creado as any).id);
     await load();
+    // `load` reemplaza las filas de forma asíncrona; fijar la selección después
+    // garantiza que el Workspace ya pueda resolver el nuevo renglón.
+    setFocusedDocumentId(documentoId);
+    setTrasladoProvisionalId(documentoId);
+    setTrasladoProvisionalConfirmado(false);
+    const creadoRow = creado as { serie?: string | null; numero?: number | null };
+    abrirCartaPorte({ id: documentoId, serie: creadoRow.serie, numero: creadoRow.numero } as CotizacionListado);
   };
+
+  const cerrarCartaPorteTraslado = useCallback(async () => {
+    const documentoId = trasladoProvisionalId;
+    const eliminarProvisional = documentoId !== null && !trasladoProvisionalConfirmado;
+    setCartaPorteDrawer((p) => ({ ...p, open: false }));
+    setTrasladoViajeRevision((value) => value + 1);
+    setTrasladoProvisionalId(null);
+    setTrasladoProvisionalConfirmado(false);
+    if (!eliminarProvisional || documentoId === null) return;
+    await deleteDocumento(documentoId, 'traslado');
+    setRows((prev) => prev.filter((row) => Number(row.id) !== documentoId));
+    setFocusedDocumentId((current) => (current === documentoId ? null : current));
+  }, [trasladoProvisionalConfirmado, trasladoProvisionalId]);
 
   const trasladosWorkspaceView = tipoDocumento === 'traslado' ? (
     <TrasladosWorkspaceView
@@ -4119,9 +4139,11 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       onPdf={(row) => {
         abrirDocumentoPdfEnNuevaVentana(Number(row.id), tipoDocumento).catch((err) => setError(err?.message || 'No se pudo generar el PDF'));
       }}
+      onCancelar={abrirDialogoCancelar}
       formatFolio={(row) => resolverFolioVisual(row, tipoDocumento) || String(row.id)}
       formatDate={formatCivilDate}
       contactos={contactos}
+      viajeRevision={trasladoViajeRevision}
     />
   ) : null;
 
@@ -4563,13 +4585,25 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           tipoDocumento={aplicarSaldoNcDrawer.tipoDocumento}
         />
       ) : null}
-      <CartaPorteViajeDrawer
-        open={cartaPorteDrawer.open}
-        documentoId={cartaPorteDrawer.documentoId}
-        folio={cartaPorteDrawer.folio}
-        tipoDocumento={tipoDocumento === 'traslado' ? 'traslado' : 'factura'}
-        onClose={() => setCartaPorteDrawer((p) => ({ ...p, open: false }))}
-      />
+      {tipoDocumento === 'traslado' ? (
+        <CartaPorteViajeModal
+          open={cartaPorteDrawer.open}
+          documentoId={cartaPorteDrawer.documentoId}
+          folio={cartaPorteDrawer.folio}
+          tipoDocumento="traslado"
+          onClose={() => { void cerrarCartaPorteTraslado(); }}
+          onFirstSave={() => setTrasladoProvisionalConfirmado(true)}
+        />
+      ) : tipoDocumento === 'factura' ? (
+        <CartaPorteViajeModal
+          open={cartaPorteDrawer.open}
+          documentoId={cartaPorteDrawer.documentoId}
+          folio={cartaPorteDrawer.folio}
+          tipoDocumento="factura"
+          onClose={() => setCartaPorteDrawer((p) => ({ ...p, open: false }))}
+        />
+      ) : null}
+      <CartaPorteIssuesDialog issues={erroresCartaPorte} onClose={() => setErroresCartaPorte(null)} />
 
       <DocumentoDetalleDrawer
         open={detalleDrawer.open}

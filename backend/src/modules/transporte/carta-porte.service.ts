@@ -11,6 +11,7 @@ import {
   findLocation,
 } from './transporte.repository';
 import { TransporteError } from './transporte.types';
+import { zonaEmpresa } from './transporte.time';
 
 async function validarDomiciliosSat(client: any, empresaId: number, source: any): Promise<void> {
   for (const ubicacion of source.ubicaciones ?? []) {
@@ -45,6 +46,7 @@ export async function materializeCartaPorte(viajeId: number, empresaId: number) 
 
     const source = await getCartaPorteBuildSource(client, empresaId, viajeId);
     if (!source) throw new TransporteError('Viaje no encontrado.', 404, 'TRANSPORTE_NOT_FOUND');
+    const zonaHoraria = await zonaEmpresa(client, empresaId);
     await validarDomiciliosSat(client, empresaId, source);
 
     // Reporte agrupado de faltantes para la UX. buildCartaPorte31 sigue siendo
@@ -59,7 +61,7 @@ export async function materializeCartaPorte(viajeId: number, empresaId: number) 
       );
     }
 
-    const snapshot = buildCartaPorte31(source, generateIdCcp());
+    const snapshot = buildCartaPorte31({ ...source, zonaHoraria }, generateIdCcp());
     const documentoId = await findPrincipalTripDocument(client, empresaId, viajeId);
     const materialization = await saveCartaPorteMaterialization(client, {
       currentId: current?.id ?? null,
