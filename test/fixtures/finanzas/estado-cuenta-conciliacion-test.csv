@@ -1,0 +1,10 @@
+Fecha,Concepto,Referencia,Cargo,Abono,Saldo
+2026-10-01,Cobro prueba exacto,TEST-BANK-001,,15000,115000
+2026-10-03,Cobro prueba menos un dia,TEST-BANK-002,,15000,130000
+2026-10-05,Cobro prueba menos dos dias,TEST-BANK-003,,15000,145000
+2026-10-07,Cobro prueba menos tres dias,TEST-BANK-004,,15000,160000
+2026-10-09,Cobro prueba fuera de ventana,TEST-BANK-005,,15000,175000
+2026-10-11,Deposito contrario a retiro,TEST-BANK-006,,3000,178000
+2026-10-13,Cobro con dos candidatos,TEST-BANK-007,,12000,190000
+2026-10-15,Cobro con referencia,TEST-BANK-008 TEST-CONC-008,,7500,197500
+2026-10-17,Comision bancaria sin operacion,TEST-BANK-009,350,,197150

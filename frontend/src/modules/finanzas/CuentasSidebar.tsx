@@ -22,6 +22,7 @@ interface CuentasSidebarProps {
   cuentas: FinanzasCuenta[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  onSelectTodas: () => void;
   onNew: () => void;
   onEdit: (cuenta: FinanzasCuenta) => void;
   onDelete: (cuenta: FinanzasCuenta) => void;
@@ -30,7 +31,7 @@ interface CuentasSidebarProps {
   onRecalcularSaldos?: (() => void) | undefined;
 }
 
-export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, onDelete, loading, onRecalcularSaldos }: CuentasSidebarProps) {
+export function CuentasSidebar({ cuentas, selectedId, onSelect, onSelectTodas, onNew, onEdit, onDelete, loading, onRecalcularSaldos }: CuentasSidebarProps) {
   const theme = useTheme();
   const tokens = theme.emphasys;
   const [menuAnchor, setMenuAnchor] = React.useState<HTMLElement | null>(null);
@@ -47,7 +48,7 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
   return (
     <Box
       sx={{
-        width: { xs: '100%', md: 300 },
+        width: { xs: '100%', md: 236 },
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -131,7 +132,12 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
                 <Skeleton width="40%" height={16} sx={{ bgcolor: tokens.navigation.hover }} />
               </Box>
             ))
-          : cuentas.map((cuenta) => {
+          : <>
+            <Box onClick={onSelectTodas} sx={{ px: 1.25, py: 1.05, mb: 0.45, borderRadius: 2, cursor: 'pointer', bgcolor: selectedId === null ? tokens.navigation.selection : 'transparent', color: selectedId === null ? tokens.navigation.selectionForeground : tokens.navigation.foreground, '&:hover': { bgcolor: selectedId === null ? tokens.navigation.selection : tokens.navigation.hover } }}>
+              <Typography variant="figure" sx={{ fontSize: 16, color: 'inherit', lineHeight: 1.15 }}>Todas las cuentas</Typography>
+              <Typography sx={{ mt: 0.35, fontSize: 13, color: 'inherit', opacity: 0.78 }}>Vista consolidada</Typography>
+            </Box>
+            {cuentas.map((cuenta) => {
               const selected = cuenta.id === selectedId;
               return (
                 <Box
@@ -173,7 +179,7 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Eliminar" arrow>
-                        <IconButton size="small" onClick={() => onDelete(cuenta)} sx={{ color: tokens.action.destructive }} aria-label={`Eliminar ${cuenta.identificador}`}>
+                        <IconButton size="small" onClick={() => onDelete(cuenta)} sx={{ color: tokens.navigation.foreground }} aria-label={`Eliminar ${cuenta.identificador}`}>
                           <DeleteIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                       </Tooltip>
@@ -182,6 +188,7 @@ export function CuentasSidebar({ cuentas, selectedId, onSelect, onNew, onEdit, o
                 </Box>
               );
             })}
+          </>}
 
         {!loading && cuentas.length === 0 && (
           <Typography sx={{ px: 1.5, py: 3, fontSize: 13, color: tokens.navigation.muted }}>

@@ -42,9 +42,20 @@ import {
   cotejarMovimientos,
   ejecutarCierreConciliacion,
   listarHistorialConciliaciones,
+  obtenerMovimientosPorConciliacion,
   deshacerConciliacion,
 } from './finanzas.repository';
 import { obtenerRolesDeUsuarioEnEmpresa } from '../auth/auth.service';
+import {
+  importarEstadoCuenta,
+  listarImportacionesEstadosCuenta,
+  listarMovimientosEstadoCuenta,
+  previsualizarEstadoCuenta,
+  generarCandidatosEstadoCuenta,
+  listarCandidatosEstadoCuenta,
+  actualizarCandidatoEstadoCuenta,
+  aceptarCoincidenciasClaras,
+} from './estadoCuentaImportado.service';
 
 export async function getReporteAging(req: Request, res: Response) {
   const empresaId = req.context?.empresaId as number;
@@ -56,6 +67,71 @@ export async function getReporteAging(req: Request, res: Response) {
   } catch (err: any) {
     res.status(400).json({ message: err.message || 'No se pudo obtener el reporte aging' });
   }
+}
+
+export async function postPrevisualizarEstadoCuenta(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  const cuentaId = Number(req.body?.cuenta_id);
+  if (!empresaId || !Number.isInteger(cuentaId) || !req.file) return res.status(400).json({ message: 'cuenta_id y archivo son requeridos' });
+  try { return res.json(await previsualizarEstadoCuenta(req.file.buffer, cuentaId, empresaId)); }
+  catch (err: any) { return res.status(err?.status ?? 400).json({ message: err.message || 'No se pudo previsualizar el archivo' }); }
+}
+
+export async function postImportarEstadoCuenta(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  const cuentaId = Number(req.body?.cuenta_id);
+  if (!empresaId || !Number.isInteger(cuentaId) || !req.file) return res.status(400).json({ message: 'cuenta_id y archivo son requeridos' });
+  try { return res.status(201).json(await importarEstadoCuenta(req.file.buffer, cuentaId, empresaId, req.auth?.userId ?? null, req.file.originalname)); }
+  catch (err: any) { return res.status(err?.status ?? 400).json({ message: err.message || 'No se pudo importar el archivo' }); }
+}
+
+export async function getImportacionesEstadosCuenta(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  const cuentaId = req.query.cuenta_id ? Number(req.query.cuenta_id) : null;
+  if (!empresaId || (cuentaId !== null && !Number.isInteger(cuentaId))) return res.status(400).json({ message: 'Cuenta inválida' });
+  try { return res.json(await listarImportacionesEstadosCuenta(cuentaId, empresaId)); }
+  catch (err: any) { return res.status(400).json({ message: err.message || 'No se pudieron listar las importaciones' }); }
+}
+
+export async function getMovimientosEstadoCuenta(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  const id = Number(req.params.importacionId);
+  if (!empresaId || !Number.isInteger(id)) return res.status(400).json({ message: 'Importación inválida' });
+  try { return res.json(await listarMovimientosEstadoCuenta(id, empresaId)); }
+  catch (err: any) { return res.status(400).json({ message: err.message || 'No se pudieron listar los movimientos' }); }
+}
+
+export async function postGenerarCandidatosEstadoCuenta(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  const id = Number(req.params.importacionId);
+  if (!empresaId || !Number.isInteger(id)) return res.status(400).json({ message: 'Importación inválida' });
+  try { return res.json(await generarCandidatosEstadoCuenta(id, empresaId)); }
+  catch (err: any) { return res.status(err?.status ?? 400).json({ message: err.message || 'No se pudieron generar candidatos' }); }
+}
+
+export async function postAceptarCoincidenciasClaras(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  const id = Number(req.params.importacionId);
+  if (!empresaId || !Number.isInteger(id)) return res.status(400).json({ message: 'Importación inválida' });
+  try { return res.json(await aceptarCoincidenciasClaras(id, empresaId, req.auth?.userId ?? null)); }
+  catch (err: any) { return res.status(err?.status ?? 400).json({ message: err.message || 'No se pudieron aceptar las coincidencias claras' }); }
+}
+
+export async function getCandidatosEstadoCuenta(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  const id = Number(req.params.importacionId);
+  if (!empresaId || !Number.isInteger(id)) return res.status(400).json({ message: 'Importación inválida' });
+  try { return res.json(await listarCandidatosEstadoCuenta(id, empresaId)); }
+  catch (err: any) { return res.status(err?.status ?? 400).json({ message: err.message || 'No se pudieron listar candidatos' }); }
+}
+
+export async function putCandidatoEstadoCuenta(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number;
+  const id = Number(req.params.relacionId);
+  const estado = req.body?.estado;
+  if (!empresaId || !Number.isInteger(id) || !['confirmada', 'anulada'].includes(estado)) return res.status(400).json({ message: 'Relación o estado inválido' });
+  try { return res.json(await actualizarCandidatoEstadoCuenta(id, estado, empresaId, req.auth?.userId ?? null)); }
+  catch (err: any) { return res.status(err?.status ?? 400).json({ message: err.message || 'No se pudo actualizar la relación' }); }
 }
 
 export async function getReporteAgingResumen(req: Request, res: Response) {
@@ -711,6 +787,17 @@ export async function getHistorialConciliaciones(req: Request, res: Response) {
     return res.json(result);
   } catch (err: any) {
     return res.status(err?.status ?? 400).json({ message: err.message || 'Error al obtener historial de conciliaciones' });
+  }
+}
+
+export async function getMovimientosConciliacionPorId(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    const id = Number(req.params.id);
+    if (!empresaId || !Number.isFinite(id) || id <= 0) return res.status(400).json({ message: 'ID de conciliación inválido' });
+    return res.json(await obtenerMovimientosPorConciliacion(id, empresaId));
+  } catch (err: any) {
+    return res.status(err?.status ?? 400).json({ message: err.message || 'Error al obtener movimientos de conciliación' });
   }
 }
 

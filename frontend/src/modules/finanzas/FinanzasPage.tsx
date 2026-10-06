@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -9,57 +9,82 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
-  InputAdornment,
+  InputLabel,
+  MenuItem,
+  Select,
   Snackbar,
   Stack,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AddIcon from '@mui/icons-material/Add';
-import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/DeleteOutline';
-import SearchIcon from '@mui/icons-material/Search';
-import CloseIcon from '@mui/icons-material/Close';
 import { CuentasSidebar } from './CuentasSidebar';
 import { MovimientosTable } from './MovimientosTable';
+import { BuscadorMovimientos } from './BuscadorMovimientos';
+import { movimientoEditableEnLinea, type CapturaInline } from './FilaCapturaMovimiento';
+import { movimientoDuplicable, movimientoEliminable, movimientoMovible, netoSeleccion, todasCumplen } from './seleccionMovimientos';
 import { OperacionDialog } from './OperacionDialog';
-import { TransferenciaDialog } from './TransferenciaDialog';
 import { ConciliacionDialog } from './ConciliacionDialog';
 import { NuevaCuentaDialog } from './NuevaCuentaDialog';
 import { OperacionDetalleDrawer } from './OperacionDetalleDrawer';
+import { TesoreriaMobileView } from './TesoreriaMobileView';
+import { useTesoreriaAccounts } from './useTesoreriaAccounts';
+import { useTesoreriaMovements } from './useTesoreriaMovements';
+import { useDeviceProfile } from '../../hooks/useDeviceProfile';
 import { useSession } from '../../session/useSession';
-import type { FinanzasCuenta, FinanzasOperacion, TransferenciaUpdatePayload } from '../../types/finanzas';
+import type { FinanzasCuenta, FinanzasOperacion } from '../../types/finanzas';
 import {
-  actualizarCuenta,
+  actualizarOperacion,
+  cotejarMovimientosSvc,
+  crearOperacion,
   eliminarCuenta,
   eliminarOperacion,
   eliminarTransferencia,
-  fetchCuentas,
-  fetchOperaciones,
   recalcularSaldos,
 } from '../../services/finanzasService';
+import { validarOperacionGeneral } from './capturaMovimientoLogica';
 
 export function FinanzasPage() {
   const navigate = useNavigate();
   const theme = useTheme();
   const tokens = theme.emphasys;
   const compacto = useMediaQuery(theme.breakpoints.down('md'));
+  const esMovil = useDeviceProfile() === 'mobile';
   const { session } = useSession();
   const esAdmin = Boolean(session.user?.es_superadmin);
-  const [cuentas, setCuentas] = useState<FinanzasCuenta[]>([]);
-  const [selectedCuentaId, setSelectedCuentaId] = useState<number | null>(null);
-  const [operaciones, setOperaciones] = useState<FinanzasOperacion[]>([]);
-  const [loadingCuentas, setLoadingCuentas] = useState(true);
-  const [loadingOps, setLoadingOps] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    cuentas,
+    selectedCuentaId,
+    selectedCuenta,
+    loadingCuentas,
+    error,
+    setError,
+    monedaCuenta,
+    formatoMoneda,
+    aplicarCuenta,
+    loadCuentas,
+    searchParams,
+  } = useTesoreriaAccounts();
+  const {
+    operaciones,
+    loadingOps,
+    loadOperaciones,
+    movQuery,
+    setMovQuery,
+    movFiltros,
+    setMovFiltros,
+    operacionesVisibles,
+  } = useTesoreriaMovements(selectedCuentaId, setError);
+  const [vistaMovil, setVistaMovil] = useState<'cuentas' | 'cuenta'>(() => {
+    const cuentaEnUrl = Number(searchParams.get('cuenta_id'));
+    return Number.isFinite(cuentaEnUrl) && cuentaEnUrl > 0 ? 'cuenta' : 'cuentas';
+  });
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'success' }
   );
@@ -67,22 +92,35 @@ export function FinanzasPage() {
   const [operacionDialog, setOperacionDialog] = useState<{ open: boolean; operacion?: FinanzasOperacion | null }>(
     { open: false, operacion: null }
   );
-  const [transferenciaOpen, setTransferenciaOpen] = useState(false);
-  const [transferenciaEdit, setTransferenciaEdit] = useState<TransferenciaUpdatePayload | null>(null);
   const [conciliacionOpen, setConciliacionOpen] = useState(false);
   const [cuentaDialog, setCuentaDialog] = useState<{ open: boolean; cuenta?: FinanzasCuenta | null }>({ open: false, cuenta: null });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; operacion: FinanzasOperacion | null }>({ open: false, operacion: null });
+  const [captura, setCaptura] = useState<CapturaInline | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; operaciones: FinanzasOperacion[] }>({ open: false, operaciones: [] });
+  const [seleccionadas, setSeleccionadas] = useState<FinanzasOperacion[]>([]);
+  const [moverDialog, setMoverDialog] = useState<{ open: boolean; operaciones: FinanzasOperacion[]; cuentaId: number | '' }>({ open: false, operaciones: [], cuentaId: '' });
+  const [accionSeleccion, setAccionSeleccion] = useState(false);
   const [detalleOperacionId, setDetalleOperacionId] = useState<number | null>(null);
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [recalcularDialogOpen, setRecalcularDialogOpen] = useState(false);
   const [recalculando, setRecalculando] = useState(false);
 
-  const selectedCuenta = useMemo(() => cuentas.find((c) => c.id === selectedCuentaId) || null, [cuentas, selectedCuentaId]);
-  const monedaCuenta = selectedCuenta?.moneda || 'MXN';
-  const formatoMoneda = useMemo(
-    () => new Intl.NumberFormat('es-MX', { style: 'currency', currency: monedaCuenta }),
-    [monedaCuenta],
+  useEffect(() => {
+    setCaptura(null);
+    setSeleccionadas([]);
+  }, [selectedCuentaId]);
+
+  const alCambiarSeleccion = useCallback((filas: FinanzasOperacion[]) => {
+    setSeleccionadas(filas);
+  }, []);
+  const netoSeleccionado = useMemo(() => netoSeleccion(seleccionadas), [seleccionadas]);
+  const colorSeleccionado = netoSeleccionado > 0
+    ? tokens.metric.applied.foreground
+    : netoSeleccionado < 0
+      ? tokens.action.destructive
+      : tokens.action.primary;
+  const cuentasDestino = useMemo(
+    () => cuentas.filter((cuenta) => cuenta.id !== selectedCuentaId && !cuenta.cuenta_cerrada && cuenta.moneda === monedaCuenta),
+    [cuentas, monedaCuenta, selectedCuentaId],
   );
   const resumenMovimientos = useMemo(() => {
     let depositos = 0;
@@ -94,51 +132,18 @@ export function FinanzasPage() {
     }
     return { depositos, retiros, total: operaciones.length };
   }, [operaciones]);
-
-  const loadCuentas = async () => {
-    try {
-      setLoadingCuentas(true);
-      const data = await fetchCuentas();
-      setCuentas(data);
-      if (!selectedCuentaId && data.length > 0) {
-        setSelectedCuentaId(data[0]?.id ?? null);
-      } else if (selectedCuentaId && !data.some((c) => c.id === selectedCuentaId)) {
-        setSelectedCuentaId(data[0]?.id ?? null);
-      }
-      setError(null);
-    } catch (err: any) {
-      setError(err?.message || 'No se pudieron cargar las cuentas');
-    } finally {
-      setLoadingCuentas(false);
-    }
-  };
-
-  const loadOperaciones = async (cuentaId: number | null) => {
-    if (!cuentaId) return;
-    try {
-      setLoadingOps(true);
-      const data = await fetchOperaciones(cuentaId);
-      setOperaciones(data);
-    } catch (err: any) {
-      setError(err?.message || 'No se pudieron cargar los movimientos');
-    } finally {
-      setLoadingOps(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadCuentas();
-  }, []);
-
-  useEffect(() => {
-    void loadOperaciones(selectedCuentaId);
-  }, [selectedCuentaId]);
+  const todasLasCuentas = selectedCuentaId === null;
+  const saldoTotal = useMemo(
+    () => cuentas.reduce((total, cuenta) => total + Number(cuenta.saldo ?? 0), 0),
+    [cuentas],
+  );
 
   const handleDeleteCuenta = async (cuenta: FinanzasCuenta) => {
     const confirmed = window.confirm(`¿Eliminar la cuenta "${cuenta.identificador}"?`);
     if (!confirmed) return;
     try {
       await eliminarCuenta(cuenta.id);
+      if (cuenta.id === selectedCuentaId) setVistaMovil('cuentas');
       setSnackbar({ open: true, message: 'Cuenta eliminada', severity: 'success' });
       await loadCuentas();
     } catch (err: any) {
@@ -146,35 +151,144 @@ export function FinanzasPage() {
     }
   };
 
-  const requestDeleteOperacion = (operacion: FinanzasOperacion) => {
-    setConfirmDelete({ open: true, operacion });
+  const recargarMovimientos = async () => {
+    await loadOperaciones(selectedCuentaId);
+    await loadCuentas();
   };
 
-  const handleDeleteOperacion = async (operacion: FinanzasOperacion) => {
-    try {
-      if (operacion.es_transferencia && operacion.transferencia_id) {
-        await eliminarTransferencia(operacion.transferencia_id);
-        setSnackbar({ open: true, message: 'Transferencia eliminada', severity: 'success' });
-      } else {
-        await eliminarOperacion(operacion.id);
-        setSnackbar({ open: true, message: 'Operación eliminada', severity: 'success' });
-      }
-      await loadOperaciones(selectedCuentaId);
-      await loadCuentas();
-    } catch (err: any) {
-      setSnackbar({ open: true, message: err?.message || 'No se pudo eliminar la operación', severity: 'error' });
-    }
+  const requestDeleteOperacion = (operacion: FinanzasOperacion) => {
+    if (!movimientoEliminable(operacion)) return;
+    setConfirmDelete({ open: true, operaciones: [operacion] });
+  };
+
+  const requestDeleteSeleccion = (filas: FinanzasOperacion[]) => {
+    if (!todasCumplen(filas, movimientoEliminable)) return;
+    setConfirmDelete({ open: true, operaciones: filas });
   };
 
   const confirmDeleteOperacion = async () => {
-    if (!confirmDelete.operacion) return;
-    await handleDeleteOperacion(confirmDelete.operacion);
-    setConfirmDelete({ open: false, operacion: null });
+    const pendientes = confirmDelete.operaciones;
+    if (!pendientes.length || !todasCumplen(pendientes, movimientoEliminable)) {
+      setConfirmDelete({ open: false, operaciones: [] });
+      return;
+    }
+    const transferencias = new Set<number>();
+    setAccionSeleccion(true);
+    try {
+      for (const operacion of pendientes) {
+        if (operacion.es_transferencia && operacion.transferencia_id) {
+          if (transferencias.has(operacion.transferencia_id)) continue;
+          transferencias.add(operacion.transferencia_id);
+          await eliminarTransferencia(operacion.transferencia_id);
+        } else {
+          await eliminarOperacion(operacion.id);
+        }
+      }
+      setSnackbar({
+        open: true,
+        message: pendientes.length === 1 ? 'Movimiento eliminado' : `${pendientes.length} movimientos eliminados`,
+        severity: 'success',
+      });
+      setConfirmDelete({ open: false, operaciones: [] });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'No se pudo eliminar', severity: 'error' });
+      setConfirmDelete({ open: false, operaciones: [] });
+    } finally {
+      setAccionSeleccion(false);
+      await recargarMovimientos();
+    }
+  };
+
+  const duplicarSeleccion = async (filas: FinanzasOperacion[]) => {
+    if (!todasCumplen(filas, movimientoDuplicable) || accionSeleccion) return;
+    setAccionSeleccion(true);
+    let hechas = 0;
+    try {
+      for (const operacion of filas) {
+        const resultado = validarOperacionGeneral(operacion);
+        if (!resultado.ok) throw new Error(resultado.mensaje);
+        await crearOperacion(resultado.payload);
+        hechas += 1;
+      }
+      setSnackbar({
+        open: true,
+        message: hechas === 1 ? 'Movimiento duplicado' : `${hechas} movimientos duplicados`,
+        severity: 'success',
+      });
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: hechas
+          ? `Se duplicaron ${hechas}. ${err?.message || 'No se pudo continuar.'}`
+          : err?.message || 'No se pudo duplicar',
+        severity: 'error',
+      });
+    } finally {
+      setAccionSeleccion(false);
+      await recargarMovimientos();
+    }
+  };
+
+  const abrirMoverSeleccion = (filas: FinanzasOperacion[]) => {
+    const destino = cuentasDestino[0];
+    if (!todasCumplen(filas, movimientoMovible) || !destino) return;
+    setMoverDialog({ open: true, operaciones: filas, cuentaId: destino.id });
+  };
+
+  const confirmarMoverSeleccion = async () => {
+    if (!moverDialog.cuentaId || !todasCumplen(moverDialog.operaciones, movimientoMovible) || accionSeleccion) return;
+    setAccionSeleccion(true);
+    let hechas = 0;
+    try {
+      for (const operacion of moverDialog.operaciones) {
+        const resultado = validarOperacionGeneral(operacion, Number(moverDialog.cuentaId));
+        if (!resultado.ok) throw new Error(resultado.mensaje);
+        await actualizarOperacion(operacion.id, resultado.payload);
+        hechas += 1;
+      }
+      setSnackbar({
+        open: true,
+        message: hechas === 1 ? 'Movimiento movido de cuenta' : `${hechas} movimientos movidos de cuenta`,
+        severity: 'success',
+      });
+      setMoverDialog({ open: false, operaciones: [], cuentaId: '' });
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: hechas
+          ? `Se movieron ${hechas}. ${err?.message || 'No se pudo continuar.'}`
+          : err?.message || 'No se pudo mover',
+        severity: 'error',
+      });
+    } finally {
+      setAccionSeleccion(false);
+      await recargarMovimientos();
+    }
+  };
+
+  const marcarSeleccion = async (filas: FinanzasOperacion[], estado: 'pendiente' | 'cotejado') => {
+    const origen = estado === 'cotejado' ? 'pendiente' : 'cotejado';
+    if (!todasCumplen(filas, (fila) => String(fila.estado_conciliacion || 'pendiente').toLowerCase() === origen) || accionSeleccion) return;
+    setAccionSeleccion(true);
+    try {
+      await cotejarMovimientosSvc(filas.map((fila) => fila.id), estado);
+      setSnackbar({
+        open: true,
+        message: estado === 'cotejado' ? 'Marcados como encontrados en banco' : 'Marcados como pendientes',
+        severity: 'success',
+      });
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err?.message || 'No se pudo actualizar el estado', severity: 'error' });
+    } finally {
+      setAccionSeleccion(false);
+      await recargarMovimientos();
+    }
   };
 
   const handleCuentaGuardada = async (cuenta: FinanzasCuenta) => {
     await loadCuentas();
-    setSelectedCuentaId(cuenta.id);
+    aplicarCuenta(cuenta.id);
+    setVistaMovil('cuenta');
     setSnackbar({ open: true, message: cuentaDialog.cuenta ? 'Cuenta actualizada' : 'Cuenta creada', severity: 'success' });
     setCuentaDialog({ open: false, cuenta: null });
   };
@@ -189,11 +303,26 @@ export function FinanzasPage() {
     setSnackbar({ open: true, message: 'Operación registrada', severity: 'success' });
   };
 
-  const handleTransferenciaGuardada = async () => {
+  const abrirNuevaOperacion = () => {
+    setOperacionDialog({ open: false, operacion: null });
+    setCaptura({ tipo: 'nueva', token: Date.now() });
+  };
+
+  const abrirEdicionOperacion = (op: FinanzasOperacion) => {
+    if (!movimientoEditableEnLinea(op)) return;
+    setOperacionDialog({ open: false, operacion: null });
+    setCaptura({ tipo: 'edicion', operacion: op });
+  };
+
+  const handleCapturaGuardada = async (detalle?: { transferencia: boolean }) => {
+    const edicion = captura?.tipo === 'edicion';
+    setCaptura(null);
     await loadOperaciones(selectedCuentaId);
     await loadCuentas();
-    setSnackbar({ open: true, message: transferenciaEdit ? 'Transferencia actualizada' : 'Transferencia registrada', severity: 'success' });
-    setTransferenciaEdit(null);
+    const mensaje = detalle?.transferencia
+      ? (edicion ? 'Transferencia actualizada' : 'Transferencia registrada')
+      : (edicion ? 'Operación actualizada' : 'Operación registrada');
+    setSnackbar({ open: true, message: mensaje, severity: 'success' });
   };
 
   const handleConciliacionGuardada = async () => {
@@ -224,14 +353,13 @@ export function FinanzasPage() {
     }
   };
 
-  const accionSx = { textTransform: 'none', borderRadius: '10px' } as const;
-
-  return (
+  const vistaEscritorio = (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: compacto ? 'column' : 'row', overflow: 'hidden' }}>
       <CuentasSidebar
         cuentas={cuentas}
         selectedId={selectedCuentaId}
-        onSelect={setSelectedCuentaId}
+        onSelect={aplicarCuenta}
+        onSelectTodas={() => { aplicarCuenta(null); setVistaMovil('cuentas'); }}
         onNew={() => setCuentaDialog({ open: true, cuenta: null })}
         onEdit={handleEditarCuenta}
         onDelete={handleDeleteCuenta}
@@ -240,95 +368,75 @@ export function FinanzasPage() {
       />
 
       <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', bgcolor: tokens.content.background, overflow: 'hidden' }}>
-        <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: 1.6, pb: 1.4 }}>
+        <Box sx={{ px: { xs: 1.25, md: 1.75 }, pt: 1, pb: 0.75 }}>
           <Typography sx={{ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: tokens.content.muted }}>
             TESORERÍA
           </Typography>
           <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'space-between', alignItems: 'flex-start', flexDirection: compacto ? 'column' : 'row', mt: 0.35 }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="figure" sx={{ fontSize: { xs: 26, md: 32 }, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
-                {selectedCuenta?.identificador || 'Sin cuenta'}
+                {selectedCuenta?.identificador || 'Todas las cuentas'}
               </Typography>
-              <Typography sx={{ mt: 0.7, fontSize: 13, color: tokens.content.secondary }}>
+              <Typography sx={{ mt: 0.4, fontSize: 12, color: tokens.content.secondary }}>
                 {selectedCuenta
                   ? 'Movimientos, saldo y conciliación de la cuenta seleccionada.'
-                  : 'Selecciona o registra una cuenta para ver sus movimientos.'}
+                  : 'Movimientos consolidados de todas las cuentas.'}
               </Typography>
               {selectedCuenta && (
-                <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap' }}>
-                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.metric.amount.foreground, fontSize: 12, fontWeight: 700 }}>
+                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.6, flexWrap: 'wrap' }}>
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 20, px: 0.8, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.metric.amount.foreground, fontSize: 11, fontWeight: 700 }}>
                     {selectedCuenta.moneda || 'MXN'}
                   </Box>
-                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.content.elevated, color: tokens.content.foreground, fontSize: 12, fontWeight: 700, border: `1px solid ${tokens.content.border}` }}>
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 20, px: 0.8, borderRadius: 99, bgcolor: tokens.content.elevated, color: tokens.content.foreground, fontSize: 11, fontWeight: 700, border: `1px solid ${tokens.content.border}` }}>
                     {selectedCuenta.tipo_cuenta}
                   </Box>
                   {selectedCuenta.cuenta_cerrada && (
-                    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.blocked.background, color: tokens.metric.blocked.foreground, fontSize: 12, fontWeight: 700 }}>
+                    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 20, px: 0.8, borderRadius: 99, bgcolor: tokens.metric.blocked.background, color: tokens.metric.blocked.foreground, fontSize: 11, fontWeight: 700 }}>
                       Cerrada
                     </Box>
                   )}
                 </Box>
               )}
             </Box>
-            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ justifyContent: 'flex-end' }}>
-              <Tooltip title="Volver a cargar cuentas y movimientos" arrow>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<RefreshIcon />}
-                  onClick={() => {
-                    void loadCuentas();
-                    void loadOperaciones(selectedCuentaId);
-                  }}
-                  sx={accionSx}
-                >
-                  Actualizar
-                </Button>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+              <Tooltip title="Nueva operación" arrow>
+                <span>
+                  <IconButton
+                    aria-label="Nueva operación"
+                    onClick={abrirNuevaOperacion}
+                    disabled={cuentas.length === 0}
+                    sx={iconoAccionSx(tokens, !selectedCuentaId)}
+                  >
+                    <AddIcon fontSize="small" />
+                  </IconButton>
+                </span>
               </Tooltip>
-              <Button
-                variant="contained"
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={() => setOperacionDialog({ open: true, operacion: null })}
-                disabled={!selectedCuentaId}
-                sx={accionSx}
-              >
-                Nueva operación
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<CompareArrowsIcon />}
-                onClick={() => setTransferenciaOpen(true)}
-                disabled={cuentas.length < 2}
-                sx={accionSx}
-              >
-                Transferencia
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<CalendarMonthIcon />}
-                onClick={() => navigate('/finanzas/programacion-pagos')}
-                sx={accionSx}
-              >
-                Programación
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<CheckCircleIcon />}
-                onClick={() => {
-                  const url = selectedCuentaId
-                    ? `/finanzas/conciliacion-bancaria?cuenta_id=${selectedCuentaId}`
-                    : '/finanzas/conciliacion-bancaria';
-                  navigate(url);
-                }}
-                disabled={!selectedCuentaId}
-                sx={accionSx}
-              >
-                Conciliar
-              </Button>
+              <Tooltip title="Programación de pagos" arrow>
+                <span>
+                  <IconButton
+                    aria-label="Programación de pagos"
+                    onClick={() => navigate('/finanzas/programacion-pagos')}
+                    sx={iconoAccionSx(tokens, false)}
+                  >
+                    <CalendarMonthIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Conciliar" arrow>
+                <span>
+                  <IconButton
+                    aria-label="Conciliar"
+                    onClick={() => {
+                      if (!selectedCuentaId) return;
+                      navigate(`/finanzas/conciliacion-bancaria?cuenta_id=${selectedCuentaId}`);
+                    }}
+                    disabled={!selectedCuentaId}
+                    sx={iconoAccionSx(tokens, !selectedCuentaId)}
+                  >
+                    <CheckCircleIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
             </Stack>
           </Box>
 
@@ -338,30 +446,35 @@ export function FinanzasPage() {
             </Alert>
           )}
 
-          <Box sx={{ mt: 1.7, display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1.15fr 1fr 1fr', gap: 0.8 }}>
-            <Box sx={{ bgcolor: tokens.metric.amount.background, borderRadius: 2, px: 1.4, py: 1.05 }}>
-              <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Saldo actual</Typography>
-              <Typography variant="figure" sx={{ mt: 0.25, fontSize: 26, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
-                {formatoMoneda.format(Number(selectedCuenta?.saldo || 0))}
-              </Typography>
-              <Typography sx={{ mt: 0.3, fontSize: 12, color: tokens.metric.caption }}>
-                {selectedCuenta ? selectedCuenta.identificador : 'Sin cuenta seleccionada'}
+          <Box sx={{ mt: 1, display: 'grid', gridTemplateColumns: compacto ? '1fr 1fr' : '1.15fr 1fr 1fr 1fr', gap: 0.6 }}>
+            <Box sx={{ bgcolor: tokens.metric.amount.background, borderRadius: 1.5, px: 1.1, py: 0.7 }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>{todasLasCuentas ? 'Saldo total' : 'Saldo actual'}</Typography>
+              <Typography variant="figure" sx={{ mt: 0.15, fontSize: 22, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
+                {formatoMoneda.format(todasLasCuentas ? saldoTotal : Number(selectedCuenta?.saldo || 0))}
               </Typography>
             </Box>
-            <Box sx={{ bgcolor: tokens.metric.applied.background, borderRadius: 2, px: 1.4, py: 1.05 }}>
-              <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Depósitos</Typography>
-              <Typography variant="figure" sx={{ mt: 0.25, fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
+            <Box sx={{ bgcolor: tokens.metric.applied.background, borderRadius: 1.5, px: 1.1, py: 0.7 }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Depósitos</Typography>
+              <Typography variant="figure" sx={{ mt: 0.15, fontSize: 18, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
                 {formatoMoneda.format(resumenMovimientos.depositos)}
               </Typography>
-              <Typography sx={{ mt: 0.3, fontSize: 12, color: tokens.metric.caption }}>En los movimientos cargados</Typography>
             </Box>
-            <Box sx={{ bgcolor: tokens.metric.blocked.background, borderRadius: 2, px: 1.4, py: 1.05 }}>
-              <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Retiros</Typography>
-              <Typography variant="figure" sx={{ mt: 0.25, fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
+            <Box sx={{ bgcolor: tokens.metric.blocked.background, borderRadius: 1.5, px: 1.1, py: 0.7 }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Retiros</Typography>
+              <Typography variant="figure" sx={{ mt: 0.15, fontSize: 18, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
                 {formatoMoneda.format(resumenMovimientos.retiros)}
               </Typography>
-              <Typography sx={{ mt: 0.3, fontSize: 12, color: tokens.metric.caption }}>
+              <Typography sx={{ mt: 0.15, fontSize: 11, color: tokens.metric.caption }}>
                 {resumenMovimientos.total === 1 ? '1 movimiento' : `${resumenMovimientos.total} movimientos`}
+              </Typography>
+            </Box>
+            <Box sx={{ bgcolor: tokens.content.elevated, border: `1px solid ${tokens.content.border}`, borderRadius: 1.5, px: 1.1, py: 0.7 }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Seleccionado</Typography>
+              <Typography variant="figure" sx={{ mt: 0.15, fontSize: 18, letterSpacing: '-0.02em', lineHeight: 1.05, color: colorSeleccionado }}>
+                {formatoMoneda.format(netoSeleccionado)}
+              </Typography>
+              <Typography sx={{ mt: 0.15, fontSize: 11, color: tokens.metric.caption }}>
+                {seleccionadas.length === 1 ? '1 movimiento' : `${seleccionadas.length} movimientos`}
               </Typography>
             </Box>
           </Box>
@@ -372,51 +485,27 @@ export function FinanzasPage() {
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          mx: { xs: 1, md: 1.75 },
-          mb: { xs: 1, md: 1.75 },
+          mx: { xs: 1, md: 1.25 },
+          mb: { xs: 1, md: 1 },
           bgcolor: tokens.content.well,
           borderRadius: 3,
           border: `1px solid ${tokens.content.border}`,
           overflow: 'hidden',
         }}>
-          <Box sx={{ px: 1.5, py: 1.1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap', borderBottom: `1px solid ${tokens.content.border}` }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: tokens.content.foreground }}>
+          <Box sx={{ px: 1.1, py: 0.6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', borderBottom: `1px solid ${tokens.content.border}` }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.content.foreground }}>
               Movimientos
             </Typography>
-            <TextField
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar contacto, concepto, referencia o monto"
-              size="small"
-              onKeyDown={(event) => event.stopPropagation()}
-              sx={{
-                minWidth: { xs: '100%', sm: 280 },
-                maxWidth: 360,
-                '& .MuiOutlinedInput-root': {
-                  bgcolor: tokens.content.elevated,
-                  borderRadius: 2,
-                  '& fieldset': { borderColor: tokens.content.border },
-                },
-                '& .MuiOutlinedInput-input': { fontSize: 13, py: 0.85 },
-              }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 18, color: tokens.content.muted }} />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setSearchTerm('')} aria-label="Limpiar búsqueda" disabled={!searchTerm}>
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
+            <BuscadorMovimientos
+              operaciones={operaciones}
+              query={movQuery}
+              setQuery={setMovQuery}
+              filtros={movFiltros}
+              setFiltros={setMovFiltros}
             />
           </Box>
           <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            {!selectedCuentaId && !loadingCuentas ? (
+            {!selectedCuentaId && cuentas.length === 0 && !loadingCuentas ? (
               <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', px: 3, textAlign: 'center' }}>
                 <Typography sx={{ color: tokens.content.muted, fontSize: 14 }}>
                   No hay una cuenta seleccionada.
@@ -424,38 +513,82 @@ export function FinanzasPage() {
               </Box>
             ) : (
               <MovimientosTable
-                operaciones={operaciones}
+                operaciones={operacionesVisibles}
+                omitirBusquedaInterna
                 loading={loadingOps}
                 moneda={monedaCuenta}
-                onEdit={(op) => setOperacionDialog({ open: true, operacion: op })}
-                onDelete={requestDeleteOperacion}
-                onEditTransferencia={(op) => {
-                  if (op.transferencia_id) {
-                    setTransferenciaEdit({
-                      id: op.transferencia_id,
-                      cuenta_origen_id: op.transferencia_cuenta_origen || op.cuenta_id,
-                      cuenta_destino_id: op.transferencia_cuenta_destino || op.cuenta_id,
-                      monto: Number(op.monto),
-                      fecha: op.fecha,
-                      referencia: op.referencia || null,
-                      observaciones: op.observaciones || null,
-                    });
-                    setTransferenciaOpen(true);
-                  }
+                cuentaId={selectedCuentaId}
+                cuentas={cuentas}
+                mostrarCuenta={todasLasCuentas}
+                captura={captura}
+                onCapturaGuardada={handleCapturaGuardada}
+                onCapturaCancelada={() => setCaptura(null)}
+                onCapturaError={(mensaje) => setSnackbar({ open: true, message: mensaje, severity: 'error' })}
+                onEdit={abrirEdicionOperacion}
+                onEdicionAvanzada={(op) => {
+                  setCaptura(null);
+                  setOperacionDialog({ open: true, operacion: op });
                 }}
-                onDeleteTransferencia={(op) => requestDeleteOperacion(op)}
+                onAdjuntosActualizados={() => { void loadOperaciones(selectedCuentaId); }}
+                onDelete={requestDeleteOperacion}
+                onSeleccionChange={alCambiarSeleccion}
+                onEliminarSeleccion={requestDeleteSeleccion}
+                onDuplicarSeleccion={(filas) => { void duplicarSeleccion(filas); }}
+                onMoverSeleccion={abrirMoverSeleccion}
+                onMarcarSeleccion={(filas, estado) => { void marcarSeleccion(filas, estado); }}
+                hayOtraCuenta={cuentasDestino.length > 0}
                 onView={(op) => {
                   setDetalleOperacionId(op.id);
                   setDetalleOpen(true);
                 }}
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
                 showToolbar={false}
               />
             )}
           </Box>
         </Box>
       </Box>
+    </Box>
+  );
+
+  return (
+    <>
+      {esMovil ? (
+        <TesoreriaMobileView
+          vista={vistaMovil}
+          onVista={setVistaMovil}
+          cuentas={cuentas}
+          loadingCuentas={loadingCuentas}
+          selectedCuenta={selectedCuenta}
+          operaciones={operaciones}
+          operacionesVisibles={operacionesVisibles}
+          loadingOps={loadingOps}
+          formatoMoneda={formatoMoneda}
+          error={error}
+          onDismissError={() => setError(null)}
+          onSelectCuenta={aplicarCuenta}
+          onSelectTodas={() => { aplicarCuenta(null); setVistaMovil('cuenta'); }}
+          onNuevaCuenta={() => setCuentaDialog({ open: true, cuenta: null })}
+          onEditarCuenta={handleEditarCuenta}
+          onEliminarCuenta={(cuenta) => { void handleDeleteCuenta(cuenta); }}
+          onRecalcularSaldos={esAdmin ? () => setRecalcularDialogOpen(true) : undefined}
+          onProgramacionPagos={() => navigate('/finanzas/programacion-pagos')}
+          onOpenDetalle={(operacion) => {
+            setDetalleOperacionId(operacion.id);
+            setDetalleOpen(true);
+          }}
+          onOpenOrigen={(ruta) => navigate(ruta)}
+          onRefresh={async (cuentaId) => {
+            if (cuentaId > 0 && cuentaId !== selectedCuentaId) aplicarCuenta(cuentaId);
+            await loadOperaciones(cuentaId > 0 ? cuentaId : selectedCuentaId);
+            await loadCuentas();
+          }}
+          onAviso={(message, severity) => setSnackbar({ open: true, message, severity })}
+          query={movQuery}
+          setQuery={setMovQuery}
+          filtros={movFiltros}
+          setFiltros={setMovFiltros}
+        />
+      ) : vistaEscritorio}
 
       <OperacionDialog
         open={operacionDialog.open}
@@ -464,18 +597,6 @@ export function FinanzasPage() {
         operacion={operacionDialog.operacion ?? null}
         onClose={() => setOperacionDialog({ open: false, operacion: null })}
         onSaved={handleOperacionGuardada}
-      />
-
-      <TransferenciaDialog
-        open={transferenciaOpen}
-        cuentas={cuentas}
-        defaultOrigenId={selectedCuentaId}
-        transferencia={transferenciaEdit}
-        onClose={() => {
-          setTransferenciaOpen(false);
-          setTransferenciaEdit(null);
-        }}
-        onSaved={handleTransferenciaGuardada}
       />
 
       <ConciliacionDialog
@@ -500,27 +621,75 @@ export function FinanzasPage() {
 
       <Dialog
         open={confirmDelete.open}
-        onClose={() => setConfirmDelete({ open: false, operacion: null })}
+        onClose={() => { if (!accionSeleccion) setConfirmDelete({ open: false, operaciones: [] }); }}
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle sx={{ pb: 1 }}>¿Eliminar la operación?</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>
+          {confirmDelete.operaciones.length > 1 ? `¿Eliminar ${confirmDelete.operaciones.length} movimientos?` : '¿Eliminar la operación?'}
+        </DialogTitle>
         <DialogContent sx={{ pb: 0 }}>
           <Typography variant="body2" color="text.secondary">
-            Esta acción eliminará {confirmDelete.operacion?.es_transferencia ? 'la transferencia y sus movimientos asociados' : 'el movimiento seleccionado'}.
+            {confirmDelete.operaciones.length > 1
+              ? `Se eliminarán ${confirmDelete.operaciones.length} movimientos.`
+              : 'Esta acción eliminará el movimiento seleccionado.'}
+            {confirmDelete.operaciones.some((op) => op.es_transferencia) ? ' Las transferencias se eliminan completas, en las dos cuentas.' : ''}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
-          <Button onClick={() => setConfirmDelete({ open: false, operacion: null })} sx={{ textTransform: 'none' }}>
+          <Button onClick={() => setConfirmDelete({ open: false, operaciones: [] })} disabled={accionSeleccion} sx={{ textTransform: 'none' }}>
             No eliminar
           </Button>
           <Button
             variant="contained"
             color="error"
-            onClick={confirmDeleteOperacion}
+            onClick={() => { void confirmDeleteOperacion(); }}
+            disabled={accionSeleccion}
             sx={{ textTransform: 'none', borderRadius: 999 }}
           >
             Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={moverDialog.open}
+        onClose={() => { if (!accionSeleccion) setMoverDialog({ open: false, operaciones: [], cuentaId: '' }); }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 1 }}>Mover a otra cuenta</DialogTitle>
+        <DialogContent sx={{ pb: 0 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            {moverDialog.operaciones.length === 1
+              ? 'El movimiento conservará fecha, monto, contacto y referencia. Quedará en la cuenta destino de esta empresa.'
+              : `${moverDialog.operaciones.length} movimientos conservarán sus datos y pasarán a la cuenta destino.`}
+          </Typography>
+          <FormControl fullWidth size="small">
+            <InputLabel id="cuenta-destino-label">Cuenta destino</InputLabel>
+            <Select
+              labelId="cuenta-destino-label"
+              label="Cuenta destino"
+              value={moverDialog.cuentaId}
+              onChange={(event) => setMoverDialog((prev) => ({ ...prev, cuentaId: Number(event.target.value) }))}
+            >
+              {cuentasDestino.map((cuenta) => (
+                <MenuItem key={cuenta.id} value={cuenta.id}>{cuenta.identificador}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
+          <Button onClick={() => setMoverDialog({ open: false, operaciones: [], cuentaId: '' })} disabled={accionSeleccion} sx={{ textTransform: 'none' }}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => { void confirmarMoverSeleccion(); }}
+            disabled={accionSeleccion || !moverDialog.cuentaId}
+            sx={{ textTransform: 'none', borderRadius: 999 }}
+          >
+            Mover
           </Button>
         </DialogActions>
       </Dialog>
@@ -533,7 +702,7 @@ export function FinanzasPage() {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle sx={{ pb: 1 }}>Recalcular saldos de Finanzas</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>Recalcular saldos de Tesorería</DialogTitle>
         <DialogContent sx={{ pb: 0 }}>
           <Typography variant="body2" color="text.secondary">
             Esta operación volverá a calcular el saldo histórico de todas las operaciones financieras y el saldo
@@ -571,8 +740,20 @@ export function FinanzasPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </>
   );
+}
+
+function iconoAccionSx(tokens: { action: { disabled: string; primary: string; primaryForeground: string; primaryHover: string } }, disabled: boolean) {
+  return {
+    width: 34,
+    height: 34,
+    borderRadius: '10px',
+    bgcolor: disabled ? tokens.action.disabled : tokens.action.primary,
+    color: tokens.action.primaryForeground,
+    '&:hover': { bgcolor: disabled ? tokens.action.disabled : tokens.action.primaryHover },
+    '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+  };
 }
 
 export default FinanzasPage;

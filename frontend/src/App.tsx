@@ -107,7 +107,9 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route element={<AppThemeGate />}>
+          <Route path="/login" element={<LoginPage />} />
+        </Route>
         <Route path="/dev/mockups/liquidacion-factura-origen" element={<LiquidacionFacturaOrigenMockupPage />} />
         <Route path="/dev/mockups/nota-credito" element={<NotaCreditoMockupPage />} />
         <Route path="/dev/mockups/notas-credito" element={<NotasCreditoWorkspaceMockupPage />} />

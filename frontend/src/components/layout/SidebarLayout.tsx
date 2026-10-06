@@ -42,7 +42,7 @@ import logo from '../../assets/emphasys-w.png';
 import colibri from '../../assets/emphasys-colibri-w.png';
 import EmpresaSelector from '../EmpresaSelector';
 import RuntimeEnvironmentIndicator from '../RuntimeEnvironmentIndicator';
-import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '../layoutConstants';
+import { MOBILE_APPBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '../layoutConstants';
 import { useSession } from '../../session/useSession';
 import ChangePasswordDialog from '../ChangePasswordDialog';
 import NotificationsSettingsDialog from '../NotificationsSettingsDialog';
@@ -95,7 +95,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'CRM',           path: '/crm',                   icon: ForumIcon },
   { label: 'Ventas',        path: '/ventas/cotizacion',      icon: PointOfSaleIcon },
   { label: 'Compras',       path: '/compras/orden_compra',   icon: ShoppingCartIcon },
-  { label: 'Finanzas',      path: '/finanzas',              icon: AccountBalanceIcon },
+  { label: 'Tesorería',     path: '/finanzas',              icon: AccountBalanceIcon },
   { label: 'Contabilidad',  path: '/contabilidad',          icon: CalculateIcon },
   { label: 'Inventarios',   path: '/inventario/movimientos', icon: InventoryIcon },
   { label: 'Almacenes',     path: '/almacenes',             icon: WarehouseIcon },
@@ -116,12 +116,13 @@ function getBreadcrumbs(pathname: string): string[] {
   if (pathname.startsWith('/compass'))       return ['Compass', 'Frentes'];
   if (pathname.startsWith('/ventas'))        return ['Ventas'];
   if (pathname.startsWith('/compras'))       return ['Compras'];
-  if (pathname.startsWith('/finanzas'))      return ['Finanzas'];
+  if (pathname.startsWith('/finanzas'))      return ['Tesorería'];
   if (pathname.startsWith('/inventario'))    return ['Inventarios'];
   if (pathname.startsWith('/almacenes'))     return ['Almacenes'];
   if (pathname.startsWith('/informes'))      return ['Informes'];
   if (pathname.startsWith('/autorizaciones')) return ['Autorizaciones'];
   if (pathname.startsWith('/configuracion')) return ['Configuración'];
+  if (pathname === '/seleccionar-empresa') return ['Empresa'];
   return [];
 }
 
@@ -549,17 +550,19 @@ export default function SidebarLayout() {
     return (
       <>
         <AppBar position="fixed" elevation={0} sx={{ background: frame.background, borderBottom: `1px solid ${frame.border}`, color: frame.foreground }}>
-          <Toolbar sx={{ minHeight: '56px !important', px: 2, gap: 1 }}>
-            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}><MenuIcon /></IconButton>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}><img src={logo} alt="Emphasys" style={{ height: 24, width: 'auto', filter: frame.logoFilter }} /></Box>
+          <Toolbar sx={{ minHeight: `${MOBILE_APPBAR_HEIGHT}px !important`, height: MOBILE_APPBAR_HEIGHT, px: 1, gap: 0.5 }}>
+            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)} sx={{ p: 0.75 }} aria-label="Abrir menú">
+              <MenuIcon sx={{ fontSize: 22 }} />
+            </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}><img src={logo} alt="Emphasys" style={{ height: 16, width: 'auto', filter: frame.logoFilter }} /></Box>
             <Box sx={{ flex: 1 }} />
-            <EmpresaSelector />
+            <EmpresaSelector compact />
           </Toolbar>
         </AppBar>
         <Drawer anchor="left" open={mobileOpen} onClose={() => setMobileOpen(false)} PaperProps={{ sx: { width: SIDEBAR_WIDTH, background: frame.background, border: 'none' } }}>
           <SidebarNav {...navProps} collapsed={false} />
         </Drawer>
-        <Box sx={{ mt: '56px', width: '100%' }}>
+        <Box sx={{ mt: `${MOBILE_APPBAR_HEIGHT}px`, width: '100%' }}>
           {documentTabBar}
           <Outlet />
         </Box>

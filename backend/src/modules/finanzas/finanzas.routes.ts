@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { requireAuth, requireEmpresaActiva, requireSuperadmin } from '../auth/auth.middleware';
 import {
   deleteAplicacion,
@@ -43,7 +44,16 @@ import {
   postCotejarMovimientos,
   postCerrarConciliacion,
   getHistorialConciliaciones,
+  getMovimientosConciliacionPorId,
   postDeshacerConciliacion,
+  postPrevisualizarEstadoCuenta,
+  postImportarEstadoCuenta,
+  getImportacionesEstadosCuenta,
+  getMovimientosEstadoCuenta,
+  postGenerarCandidatosEstadoCuenta,
+  postAceptarCoincidenciasClaras,
+  getCandidatosEstadoCuenta,
+  putCandidatoEstadoCuenta,
 } from './finanzas.controller';
 import {
   descargarAdjuntoOperacion,
@@ -54,6 +64,7 @@ import {
 } from './finanzas-adjuntos.controller';
 
 const router = Router();
+const estadoCuentaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single('archivo');
 
 // Todas las rutas requieren autenticación y empresa activa
 router.use(requireAuth, requireEmpresaActiva);
@@ -118,6 +129,16 @@ router.get('/conciliacion-bancaria/movimientos', getConciliacionMovimientos);
 router.post('/conciliacion-bancaria/cotejar',    postCotejarMovimientos);
 router.post('/conciliacion-bancaria/cerrar',     postCerrarConciliacion);
 router.get('/conciliacion-bancaria/historial',   getHistorialConciliaciones);
+router.get('/conciliacion-bancaria/:id/movimientos', getMovimientosConciliacionPorId);
 router.post('/conciliacion-bancaria/:id/deshacer', postDeshacerConciliacion);
+
+router.post('/estados-cuenta-importados/previsualizar', estadoCuentaUpload, postPrevisualizarEstadoCuenta);
+router.post('/estados-cuenta-importados', estadoCuentaUpload, postImportarEstadoCuenta);
+router.get('/estados-cuenta-importados', getImportacionesEstadosCuenta);
+router.get('/estados-cuenta-importados/:importacionId/movimientos', getMovimientosEstadoCuenta);
+router.post('/estados-cuenta-importados/:importacionId/candidatos/generar', postGenerarCandidatosEstadoCuenta);
+router.post('/estados-cuenta-importados/:importacionId/candidatos/aceptar-claras', postAceptarCoincidenciasClaras);
+router.get('/estados-cuenta-importados/:importacionId/candidatos', getCandidatosEstadoCuenta);
+router.put('/estados-cuenta-importados/relaciones/:relacionId', putCandidatoEstadoCuenta);
 
 export default router;

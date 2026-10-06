@@ -21,6 +21,7 @@ import type {
   CierrePayload,
   CierreResult,
   HistorialConciliacion,
+  MovimientoConciliacion,
   DeshacerConciliacionPayload,
   DeshacerConciliacionResult,
   ResultadoRecalculoSaldos,
@@ -101,8 +102,8 @@ export async function recalcularSaldos(): Promise<ResultadoRecalculoSaldos> {
   return apiFetch(`${BASE}/recalcular-saldos`, { method: 'POST' });
 }
 
-export async function fetchOperaciones(cuentaId: number): Promise<FinanzasOperacion[]> {
-  return apiFetch(`${BASE}/operaciones?cuenta_id=${cuentaId}`);
+export async function fetchOperaciones(cuentaId?: number | null): Promise<FinanzasOperacion[]> {
+  return apiFetch(cuentaId ? `${BASE}/operaciones?cuenta_id=${cuentaId}` : `${BASE}/operaciones`);
 }
 
 export interface OperacionPayload {
@@ -392,6 +393,10 @@ export async function fetchHistorialConciliaciones(
   return apiFetch(`${BASE}/conciliacion-bancaria/historial?cuenta_id=${cuentaId}`);
 }
 
+export async function fetchMovimientosConciliacion(id: number): Promise<MovimientoConciliacion[]> {
+  return apiFetch(`${BASE}/conciliacion-bancaria/${id}/movimientos`);
+}
+
 export async function deshacerConciliacionSvc(
   id: number,
   payload: DeshacerConciliacionPayload
@@ -400,4 +405,95 @@ export async function deshacerConciliacionSvc(
     method: 'POST',
     body: payload as any,
   });
+}
+
+export type EstadoCuentaPreview = {
+  hashArchivo: string;
+  formato: string;
+  fechaInicial: string | null;
+  fechaFinal: string | null;
+  saldoInicial: number | null;
+  saldoFinal: number | null;
+  totalCargos: number;
+  totalAbonos: number;
+  totalFilas: number;
+  filasValidas: number;
+  filasInvalidas: Array<{ numeroFila: number; errores: string[]; linea: string }>;
+  duplicados: number;
+  movimientos: Array<Record<string, any>>;
+  importacionExistente?: {
+    id: number;
+    cuentaId: number;
+    nombreOriginal: string;
+    fechaInicial: string | null;
+    fechaFinal: string | null;
+    filasDuplicadas: number;
+  } | null;
+};
+
+export type CandidatoEstadoCuenta = {
+  id: number;
+  movimiento_bancario_id: number;
+  operacion_id: number;
+  estado: 'sugerida' | 'confirmada' | 'anulada';
+  puntuacion: number;
+  nivel_confianza: 'alta' | 'media' | 'baja';
+  explicacion: string;
+  motivos?: Record<string, unknown> | null;
+  fecha: string;
+  monto: string;
+  tipo_movimiento: string;
+  referencia: string | null;
+  operacion_fecha?: string | null;
+  observaciones?: string | null;
+  movimiento_importe?: string | number | null;
+  movimiento_tipo?: string | null;
+  operacion_estado_conciliacion?: string | null;
+};
+
+export async function generarCandidatosEstadoCuenta(importacionId: number) {
+  try {
+    console.log('SERVICE_GENERAR_CANDIDATOS_HTTP', importacionId);
+    const response = await apiFetch<{ importacion_id: number; movimientos: number; candidatos: number }>(`${BASE}/estados-cuenta-importados/${importacionId}/candidatos/generar`, { method: 'POST' });
+    console.log('SERVICE_GENERAR_CANDIDATOS_RESPONSE', response);
+    return response;
+  } catch (error) {
+    console.error('SERVICE_GENERAR_CANDIDATOS_ERROR', error);
+    throw error;
+  }
+}
+
+export async function fetchCandidatosEstadoCuenta(importacionId: number): Promise<CandidatoEstadoCuenta[]> {
+  return apiFetch(`${BASE}/estados-cuenta-importados/${importacionId}/candidatos`);
+}
+
+export function aceptarCoincidenciasClaras(importacionId: number) {
+  return apiFetch<{ aceptadas: number }>(`${BASE}/estados-cuenta-importados/${importacionId}/candidatos/aceptar-claras`, { method: 'POST' });
+}
+
+export async function actualizarCandidatoEstadoCuenta(relacionId: number, estado: 'confirmada' | 'anulada') {
+  return apiFetch(`${BASE}/estados-cuenta-importados/relaciones/${relacionId}`, { method: 'PUT', body: { estado } as any });
+}
+
+function estadoCuentaForm(cuentaId: number, archivo: File) {
+  const form = new FormData();
+  form.append('cuenta_id', String(cuentaId));
+  form.append('archivo', archivo);
+  return form;
+}
+
+export function previsualizarEstadoCuenta(cuentaId: number, archivo: File): Promise<EstadoCuentaPreview> {
+  return apiFetch('/api/finanzas/estados-cuenta-importados/previsualizar', { method: 'POST', body: estadoCuentaForm(cuentaId, archivo) });
+}
+
+export function importarEstadoCuenta(cuentaId: number, archivo: File): Promise<EstadoCuentaPreview & { id: number; movimientosInsertados: number; nombreOriginal: string; duplicados: number }> {
+  return apiFetch('/api/finanzas/estados-cuenta-importados', { method: 'POST', body: estadoCuentaForm(cuentaId, archivo) });
+}
+
+export function fetchImportacionesEstadosCuenta(cuentaId: number) {
+  return apiFetch<Array<Record<string, any>>>(`/api/finanzas/estados-cuenta-importados?cuenta_id=${cuentaId}`);
+}
+
+export function fetchMovimientosEstadoCuenta(importacionId: number) {
+  return apiFetch<Array<Record<string, any>>>(`/api/finanzas/estados-cuenta-importados/${importacionId}/movimientos`);
 }

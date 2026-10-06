@@ -14,8 +14,9 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import type { FinanzasCuenta, TransferenciaPayload, TransferenciaUpdatePayload } from '../../types/finanzas';
+import type { FinanzasCuenta, TransferenciaUpdatePayload } from '../../types/finanzas';
 import { crearTransferencia, actualizarTransferencia } from '../../services/finanzasService';
+import { sanitizarMontoTransferencia, validarTransferencia } from './transferenciaLogica';
 
 const toCivilDate = (date = new Date()) => {
   const y = date.getFullYear();
@@ -43,7 +44,7 @@ export function TransferenciaDialog({ open, cuentas, defaultOrigenId, transferen
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sanitizeNumber = (value: string) => value.replace(/[^0-9.]/g, '');
+  const sanitizeNumber = sanitizarMontoTransferencia;
   const formatCurrency = (value: string | number) => {
     const num = Number(typeof value === 'string' ? sanitizeNumber(value) : value);
     if (Number.isNaN(num)) return '';
@@ -73,25 +74,19 @@ export function TransferenciaDialog({ open, cuentas, defaultOrigenId, transferen
   }, [open, defaultOrigenId, transferencia]);
 
   const handleSave = async () => {
-    const montoNumerico = sanitizeNumber(monto);
-
-    if (!cuentaOrigen || !cuentaDestino || !fecha || !montoNumerico) {
-      setError('Completa todos los campos obligatorios.');
-      return;
-    }
-    if (cuentaOrigen === cuentaDestino) {
-      setError('Selecciona cuentas distintas.');
-      return;
-    }
-
-    const payload: TransferenciaPayload = {
-      cuenta_origen_id: Number(cuentaOrigen),
-      cuenta_destino_id: Number(cuentaDestino),
+    const resultado = validarTransferencia({
+      cuentaOrigenId: cuentaOrigen,
+      cuentaDestinoId: cuentaDestino,
       fecha,
-  monto: Number(montoNumerico),
-      referencia: referencia || null,
-      observaciones: observaciones || null,
-    };
+      monto,
+      referencia,
+      observaciones,
+    });
+    if (!resultado.ok) {
+      setError(resultado.mensaje);
+      return;
+    }
+    const payload = resultado.payload;
 
     try {
       setSaving(true);

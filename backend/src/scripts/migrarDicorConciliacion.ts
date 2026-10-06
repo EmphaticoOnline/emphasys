@@ -58,7 +58,7 @@ async function saveCorrespondence(type: string, row: Row, id: number) {
   const destination = await target.query<Row>('SELECT id_origen FROM migrate.entidades_correspondencias WHERE sistema_origen=$1 AND tipo_entidad=$2 AND empresa_destino_id=$3 AND id_destino=$4', ['DICOR', type, EMPRESA, id]);
   if (destination.rows[0]) {
     if (type !== 'importacion_bancaria') throw new Error(`Colisión de correspondencia: ${type} destino ${id} ya pertenece a DICOR ${destination.rows[0].id_origen}`);
-    const physical = await target.query<Row>('SELECT hash_archivo FROM finanzas_importaciones_bancarias WHERE id=$1 AND empresa_id=$2', [id, EMPRESA]);
+    const physical = await target.query<Row>('SELECT hash_archivo FROM finanzas_estados_cuenta_importados WHERE id=$1 AND empresa_id=$2', [id, EMPRESA]);
     if (!physical.rows[0] || physical.rows[0].hash_archivo !== row.hash_archivo) throw new Error(`Colisión real: importación destino ${id} tiene hash incompatible`);
     await target.query(`INSERT INTO migrate.entidades_alias (sistema_origen,tipo_entidad,id_origen,empresa_destino_id,id_destino_canonico,metadata,snapshot_origen,hash_origen) VALUES ('DICOR',$1,$2,$3,$4,$5,$6,$7) ON CONFLICT (sistema_origen,tipo_entidad,id_origen,empresa_destino_id) DO UPDATE SET id_destino_canonico=EXCLUDED.id_destino_canonico,updated_at=now()`, [type, String(row.id), EMPRESA, id, jsonParam({ canonical: false }), jsonParam(snapshot(row)), hash(row)]);
     return;
@@ -78,11 +78,11 @@ async function ensure(type: string, table: string, row: Row, values: Row, confli
 if (old) return old;
 if (!APPLY) return -Number(row.id);
   const columns = Object.keys(values);
-const conflictClause = table === 'finanzas_importaciones_bancarias' || table === 'finanzas_conciliaciones' ? 'ON CONFLICT DO NOTHING' : `ON CONFLICT ${conflict} DO NOTHING`;
+const conflictClause = table === 'finanzas_estados_cuenta_importados' || table === 'finanzas_conciliaciones' ? 'ON CONFLICT DO NOTHING' : `ON CONFLICT ${conflict} DO NOTHING`;
 const q = await target.query<Row>(`INSERT INTO ${table} (${columns.join(',')}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(',')}) ${conflictClause} RETURNING id`, Object.values(values));
   let id = q.rows[0] ? Number(q.rows[0].id) : await correspondence(type, row.id);
-  if (!id && table === 'finanzas_importaciones_bancarias') {
-const existing = await target.query<Row>('SELECT id FROM finanzas_importaciones_bancarias WHERE empresa_id=$1 AND hash_archivo=$2', [EMPRESA, values.hash_archivo]);
+  if (!id && table === 'finanzas_estados_cuenta_importados') {
+const existing = await target.query<Row>('SELECT id FROM finanzas_estados_cuenta_importados WHERE empresa_id=$1 AND hash_archivo=$2', [EMPRESA, values.hash_archivo]);
 id = existing.rows[0] ? Number(existing.rows[0].id) : null;
 }
   if (!id) throw new Error(`No se pudo recuperar ID destino para ${type} ${row.id};
@@ -127,7 +127,7 @@ async function imports(accounts: IdMap) {
     const usuarioCancelacion = await resolveUser(r.usuario_cancelacion_id, r, 'usuario_cancelacion_id');
     const usuarioFinalizacion = await resolveUser(r.usuario_finalizacion_id, r, 'usuario_finalizacion_id');
     r.duplicados_omitidos = jsonParam(r.duplicados_omitidos || {});
-    refs.set(Number(r.id), await ensure('importacion_bancaria', 'finanzas_importaciones_bancarias', r, {
+    refs.set(Number(r.id), await ensure('importacion_bancaria', 'finanzas_estados_cuenta_importados', r, {
       empresa_id: EMPRESA, cuenta_id: account, nombre_original: r.nombre_original || r.nombre || `DICOR-${r.id}`, hash_archivo: r.hash_archivo || hash(r), contenido_original: r.contenido_original || null, codificacion: r.codificacion || null, formato_detectado: r.formato_detectado || null, parser_version: r.parser_version || VERSION, fecha_inicial: r.fecha_inicial || r.fecha_inicio || null, fecha_final: r.fecha_final || r.fecha_fin || null, saldo_inicial: r.saldo_inicial || null, saldo_final: r.saldo_final || null, total_cargos: r.total_cargos || 0, total_abonos: r.total_abonos || 0, total_filas: r.total_filas || 0, filas_validas: r.filas_validas || 0, filas_invalidas: r.filas_invalidas || 0, filas_nuevas: r.filas_nuevas || 0, filas_duplicadas: r.filas_duplicadas || 0, duplicados_omitidos: r.duplicados_omitidos || {}, estado: r.estado || 'procesada', usuario_creacion_id: usuarioCreacion, usuario_cancelacion_id: usuarioCancelacion, fecha_cancelacion: r.fecha_cancelacion || null, motivo_cancelacion: r.motivo_cancelacion || null, usuario_finalizacion_id: usuarioFinalizacion, fecha_finalizacion: r.fecha_finalizacion || null, fecha_creacion: r.fecha_creacion || new Date(), metadatos: { dicor_id: r.id, snapshot: snapshot(r), usuario_historico: r.usuario_historico || [] }
     }, '(empresa_id,hash_archivo)'));
     report.importaciones++;
@@ -144,7 +144,7 @@ if (!imp) {
 problem('movimiento', r, 'IMPORTACION_NO_RESUELTA');
 continue;
 } const cargo = r.cargo || 0, abono = r.abono || 0;
-refs.set(Number(r.id), await ensure('movimiento_bancario', 'finanzas_movimientos_bancarios', r, {
+refs.set(Number(r.id), await ensure('movimiento_bancario', 'finanzas_estados_cuenta_importados_movimientos', r, {
 empresa_id: EMPRESA, importacion_id: imp, cuenta_id: accounts.get(Number(r.cuenta_dinero_id)) || [...accounts.values()][0], numero_fila: r.numero_fila || r.fila || r.id, fecha: r.fecha, hora: r.hora || null, concepto_bancario: r.concepto_bancario || r.concepto || null, referencia_bancaria: r.referencia_bancaria || r.referencia || null, cargo, abono, importe: r.importe || abono - cargo, tipo: r.tipo || (cargo ? 'Retiro' : 'Deposito'), saldo_posterior: r.saldo_posterior || r.saldo || null, linea_original: r.linea_original || null, hash_movimiento: r.hash_movimiento || hash(r), datos_originales: snapshot(r)
 }, '(importacion_id,numero_fila)'));
 report.movimientos++;
@@ -158,7 +158,7 @@ async function bankRelations(movementsMap: IdMap) {
     r.puntuacion = normalizePuntuacion(r.puntuacion);
     const usuarioConfirmacion = await resolveUser(r.usuario_confirmacion_id, r, 'usuario_confirmacion_id');
     if (!m || !o) { problem('relacion', r, 'OPERACION_NO_RESUELTA'); continue; }
-    if (APPLY) await target.query('INSERT INTO finanzas_movimientos_bancarios_relaciones (empresa_id,movimiento_bancario_id,operacion_id,estado,origen,puntuacion,nivel_confianza,explicacion,motivos,usuario_confirmacion_id,fecha_confirmacion,activa) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (movimiento_bancario_id,operacion_id) DO NOTHING', [EMPRESA, m, o, r.estado || 'confirmada', r.origen || 'importacion', r.puntuacion || null, r.nivel_confianza || null, r.explicacion || null, { ...normalizeMotivos(r.motivos) as Row, usuario_historico: r.usuario_historico || [] }, usuarioConfirmacion, r.fecha_confirmacion || null, r.activa !== false]);
+    if (APPLY) await target.query('INSERT INTO finanzas_estados_cuenta_importados_relaciones (empresa_id,movimiento_bancario_id,operacion_id,estado,origen,puntuacion,nivel_confianza,explicacion,motivos,usuario_confirmacion_id,fecha_confirmacion,activa) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (movimiento_bancario_id,operacion_id) DO NOTHING', [EMPRESA, m, o, r.estado || 'confirmada', r.origen || 'importacion', r.puntuacion || null, r.nivel_confianza || null, r.explicacion || null, { ...normalizeMotivos(r.motivos) as Row, usuario_historico: r.usuario_historico || [] }, usuarioConfirmacion, r.fecha_confirmacion || null, r.activa !== false]);
     report.relaciones++;
   }
 }

@@ -23,7 +23,13 @@ export type ThemeResolutionContext = {
  * no pueden ser prefijo: las pantallas que se abren desde el índice conservan
  * su tema hasta que cada una se homologue por separado.
  */
-const EXPERIMENTAL_EXACT_PATHS = ['/informes', '/crm', '/configuracion'] as const;
+const EXPERIMENTAL_EXACT_PATHS = [
+  '/informes',
+  '/crm',
+  '/configuracion',
+  '/login',
+  '/seleccionar-empresa',
+] as const;
 
 const EXPERIMENTAL_PATH_PREFIXES = [
   '/ventas/nota_credito',

@@ -68,7 +68,7 @@ import {
 import { NOTIFICATION_TONE_OPTIONS, type NotificationTone } from '../../utils/notificationSound';
 import { computeListContinuation } from '../../utils/messageListContinuation';
 import { useMessageHighlight } from '../../hooks/useMessageHighlight';
-import { TOPBAR_HEIGHT } from '../layoutConstants';
+import { MOBILE_APPBAR_HEIGHT } from '../layoutConstants';
 import type { Contacto } from '../../types/contactos.types';
 import type {
   EtapaOportunidad,
@@ -86,13 +86,10 @@ import type {
 } from '../../pages/LeadsPage';
 import type { NavigateFunction } from 'react-router-dom';
 
-// SidebarLayout (mobile) envuelve el <Outlet/> en un Box con mt: '56px' pero
-// SIN height propio (solo compensa el AppBar fijo), así que un simple
-// height: '100%' aquí no tiene contra qué resolverse y el historial no
-// quedaría acotado para hacer scroll interno. Se ancla directamente al alto
-// real de viewport menos el AppBar fijo (misma constante que ya usa
-// SidebarLayout para ese AppBar), sin tocar el layout compartido.
-const MOBILE_VIEWPORT_HEIGHT = `calc(100vh - ${TOPBAR_HEIGHT}px)`;
+// SidebarLayout (mobile) envuelve el <Outlet/> en un Box con mt del AppBar
+// pero SIN height propio, así que un simple height: '100%' aquí no tiene
+// contra qué resolverse. Se ancla al viewport menos MOBILE_APPBAR_HEIGHT.
+const MOBILE_VIEWPORT_HEIGHT = `calc(100vh - ${MOBILE_APPBAR_HEIGHT}px)`;
 
 // Igual que MOBILE_VIEWPORT_HEIGHT pero solo para la pantalla de chat, con
 // unidad dinámica de iOS (dvh) cuando el navegador la soporta: 100vh en
@@ -101,9 +98,9 @@ const MOBILE_VIEWPORT_HEIGHT = `calc(100vh - ${TOPBAR_HEIGHT}px)`;
 // declara aparte (no se toca MOBILE_VIEWPORT_HEIGHT, que sigue usando la
 // bandeja) para no alterar el comportamiento ya validado de la bandeja.
 const MOBILE_CHAT_HEIGHT_SX = {
-  height: `calc(100vh - ${TOPBAR_HEIGHT}px)`,
+  height: `calc(100vh - ${MOBILE_APPBAR_HEIGHT}px)`,
   '@supports (height: 100dvh)': {
-    height: `calc(100dvh - ${TOPBAR_HEIGHT}px)`,
+    height: `calc(100dvh - ${MOBILE_APPBAR_HEIGHT}px)`,
   },
 } as const;
 

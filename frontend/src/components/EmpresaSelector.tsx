@@ -9,9 +9,11 @@ import { resolveRutaInicio } from '../utils/rutaInicio';
 interface EmpresaSelectorProps {
   variant?: 'header' | 'panel';
   fullWidth?: boolean;
+  /** Solo la barra móvil: sin etiqueta y con menos ancho. */
+  compact?: boolean;
 }
 
-export default function EmpresaSelector({ variant = 'header', fullWidth = false }: EmpresaSelectorProps) {
+export default function EmpresaSelector({ variant = 'header', fullWidth = false, compact = false }: EmpresaSelectorProps) {
   const navigate = useNavigate();
   const { session, setSession } = useSession();
   const empresas: Empresa[] = session.empresas ?? [];
@@ -38,7 +40,8 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
     <FormControl
       size="small"
       sx={{
-        minWidth: fullWidth ? '100%' : 220,
+        minWidth: fullWidth ? '100%' : compact ? 0 : 220,
+        maxWidth: compact ? 148 : 'none',
         width: fullWidth ? '100%' : 'auto',
         '& .MuiInputLabel-root': { color: '#475569' },
         '& .MuiInputLabel-root.Mui-focused': { color: primary },
@@ -49,10 +52,12 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
         '& .MuiOutlinedInput-root': {
           color: isPanel ? '#0f172a' : frame.controlForeground,
           backgroundColor: isPanel ? '#fff' : frame.control,
+          ...(compact ? { height: 30, fontSize: 13 } : {}),
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
             borderColor: isPanel ? primary : frame.foreground,
           },
           '& .MuiSelect-icon': { color: isPanel ? primary : frame.foreground },
+          '& .MuiSelect-select': compact ? { py: '4px', fontSize: 13 } : {},
         },
       }}
     >
@@ -75,10 +80,12 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false 
   if (isPanel) return formControl;
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <Typography sx={{ fontSize: 14, color: frame.muted, whiteSpace: 'nowrap' }}>
-        Empresa
-      </Typography>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: compact ? 0.5 : 1, minWidth: 0 }}>
+      {compact ? null : (
+        <Typography sx={{ fontSize: 14, color: frame.muted, whiteSpace: 'nowrap' }}>
+          Empresa
+        </Typography>
+      )}
       {formControl}
     </Box>
   );

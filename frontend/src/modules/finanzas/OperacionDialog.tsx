@@ -22,11 +22,22 @@ import { createFilterOptions } from '@mui/material/Autocomplete';
 import type { Concepto, FinanzasCuenta, FinanzasMetodoPago, FinanzasOperacion, NaturalezaOperacion, TipoMovimiento } from '../../types/finanzas';
 import type { Contacto } from '../../types/contactos.types';
 import type { ContactoTipoPermitido } from '../documentos/documentoTypes';
-import { abrirAdjuntoOperacion, actualizarOperacion, crearOperacion, descargarAdjuntoOperacion, eliminarAdjuntoOperacion, fetchAdjuntosOperacion, fetchMetodosPago, subirAdjuntoOperacion, type FinanzasAdjunto, type OperacionPayload } from '../../services/finanzasService';
+import { abrirAdjuntoOperacion, actualizarOperacion, actualizarTransferencia, crearOperacion, crearTransferencia, descargarAdjuntoOperacion, eliminarAdjuntoOperacion, fetchAdjuntosOperacion, fetchMetodosPago, subirAdjuntoOperacion, type FinanzasAdjunto, type OperacionPayload } from '../../services/finanzasService';
 import { fetchConceptos, crearConcepto } from '../../services/conceptosService';
 import { fetchContactos } from '../../services/contactosService';
 import { crearContacto } from '../../services/contactos.api';
 import ContactCaptureDialog from '../../components/contactos/ContactCaptureDialog';
+import { validarBorradorCaptura } from './capturaMovimientoLogica';
+import {
+  ETIQUETA_CONCEPTO_TRANSFERENCIA,
+  construirOpcionesContacto,
+  esTransferenciaOperacion,
+  ladoCapturaTransferencia,
+  opcionTransferenciaSeleccionada,
+  reconstruirLadosTransferencia,
+  validarTransferencia,
+  type OpcionContactoTesoreria,
+} from './transferenciaLogica';
 
 const toCivilDate = (date = new Date()) => {
   const y = date.getFullYear();
@@ -54,10 +65,13 @@ interface OperacionDialogProps {
 
 type ConceptoOption = Concepto & { inputValue?: string; isNew?: boolean };
 
-type ContactoAutocompleteOption = Contacto | {
-  kind: 'create';
-  id: -1;
+type ContactoAutocompleteOption = OpcionContactoTesoreria | {
+  tipo: 'crear';
+  clave: string;
+  etiqueta: string;
   nombre: string;
+  contactoId: null;
+  cuentaId: null;
   inputValue: string;
 };
 
@@ -78,6 +92,10 @@ export function OperacionDialog({
   const [tipoMovimiento, setTipoMovimiento] = useState<TipoMovimiento>('Deposito');
   const [naturaleza, setNaturaleza] = useState<NaturalezaOperacion>('movimiento_general');
   const [contactoId, setContactoId] = useState<string>('');
+  const [destinoId, setDestinoId] = useState<number | null>(null);
+  const [origenFijoId, setOrigenFijoId] = useState<number | null>(null);
+  const [lado, setLado] = useState<'origen' | 'destino'>('origen');
+  const [transferenciaId, setTransferenciaId] = useState<number | null>(null);
   const [referencia, setReferencia] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [monto, setMonto] = useState<string>('');
@@ -118,31 +136,93 @@ export function OperacionDialog({
 
   const conceptoFilter = createFilterOptions<ConceptoOption>();
   const contactoFilter = createFilterOptions<ContactoAutocompleteOption>({
-    stringify: (option) => ('kind' in option && option.kind === 'create' ? option.inputValue : option.nombre || ''),
+    stringify: (option) => option.etiqueta || option.nombre || '',
   });
+  const documentoOrigenId = presetPayload?.documento_origen_id ?? operacion?.documento_origen_id ?? null;
+  const modoTransferencia = destinoId != null || transferenciaId != null || esTransferenciaOperacion(operacion);
+  const ofreceTransferencias = !lockedFields?.contacto_id
+    && documentoOrigenId == null
+    && (naturaleza === 'movimiento_general' || esTransferenciaOperacion(operacion))
+    && (!operacion || esTransferenciaOperacion(operacion));
 
   // Método seleccionado — usado para saber si referencia es obligatoria
   const metodoSeleccionado = metodosPago.find((m) => m.id === metodoPagoId) ?? null;
-  const referenciaObligatoria = metodoSeleccionado?.requiere_referencia === true;
+  const referenciaObligatoria = !modoTransferencia && metodoSeleccionado?.requiere_referencia === true;
+  const conceptoNumerico = conceptoId ? Number(conceptoId) : null;
+
+  const evaluarCaptura = () => validarBorradorCaptura({
+    cuentaId: cuentaId === '' ? null : Number(cuentaId),
+    fecha,
+    salida: tipoMovimiento === 'Retiro' ? monto : '',
+    ingreso: tipoMovimiento === 'Deposito' ? monto : '',
+    referencia,
+    contactoId: contactoId ? Number(contactoId) : null,
+    conceptoId: conceptoNumerico != null && conceptoNumerico > 0 ? conceptoNumerico : null,
+    metodoPagoId,
+    observaciones: observaciones.trim() ? observaciones : null,
+    naturaleza,
+    documentoOrigenId,
+    metodo: metodoSeleccionado,
+  });
+
+  const opcionesContacto = useMemo(
+    () => construirOpcionesContacto({
+      contactos: contactos.map((contacto) => ({ id: contacto.id, nombre: contacto.nombre || '' })),
+      cuentas: ofreceTransferencias ? cuentas : [],
+      cuentaOrigenId: cuentaId === '' ? null : Number(cuentaId),
+      cuentaDestinoId: !modoTransferencia ? null : lado === 'destino' ? origenFijoId : destinoId,
+      modo: operacion == null ? 'alta' : esTransferenciaOperacion(operacion) ? 'transferencia' : 'movimiento',
+    }),
+    [contactos, cuentaId, cuentas, destinoId, lado, modoTransferencia, ofreceTransferencias, origenFijoId],
+  );
+  const valorContacto = modoTransferencia
+    ? opcionTransferenciaSeleccionada(cuentas, lado === 'destino' ? origenFijoId : destinoId)
+    : opcionesContacto.find((opcion) => opcion.tipo === 'contacto' && opcion.contactoId === Number(contactoId)) || null;
+
+  const capturaValida = useMemo(
+    () => {
+      const cuentaNumerica = cuentaId === '' ? null : Number(cuentaId);
+      return modoTransferencia
+        ? validarTransferencia({
+          cuentaOrigenId: transferenciaId && lado === 'destino' ? origenFijoId : cuentaNumerica,
+          cuentaDestinoId: transferenciaId && lado === 'destino' ? cuentaNumerica : destinoId,
+          fecha,
+          monto,
+          referencia,
+          observaciones,
+        }).ok
+        : evaluarCaptura().ok;
+    },
+    [cuentaId, conceptoNumerico, contactoId, destinoId, documentoOrigenId, fecha, lado, metodoPagoId, metodoSeleccionado, modoTransferencia, monto, naturaleza, observaciones, origenFijoId, referencia, tipoMovimiento, transferenciaId],
+  );
 
   useEffect(() => {
     if (operacion) {
+      const lados = esTransferenciaOperacion(operacion) ? reconstruirLadosTransferencia(operacion) : null;
       setCuentaId(operacion.cuenta_id);
       setFecha(operacion.fecha?.slice(0, 10) || '');
       setTipoMovimiento(operacion.tipo_movimiento);
-      setContactoId(operacion.contacto_id ? String(operacion.contacto_id) : '');
+      setContactoId(lados ? '' : operacion.contacto_id ? String(operacion.contacto_id) : '');
+      setDestinoId(lados?.destinoId ?? null);
+      setOrigenFijoId(lados?.origenId ?? null);
+      setLado(lados ? ladoCapturaTransferencia(operacion, lados) : 'origen');
+      setTransferenciaId(lados?.transferenciaId ?? null);
       setReferencia(operacion.referencia || '');
       setObservaciones(operacion.observaciones || '');
       setMonto(formatCurrency(operacion.monto ?? ''));
-      setConceptoId(operacion.concepto_id ? String(operacion.concepto_id) : '');
+      setConceptoId(lados ? '' : operacion.concepto_id ? String(operacion.concepto_id) : '');
       setNaturaleza((operacion.naturaleza_operacion as NaturalezaOperacion) || 'movimiento_general');
-      setMetodoPagoId(operacion.metodo_pago_id ?? null);
+      setMetodoPagoId(lados ? null : operacion.metodo_pago_id ?? null);
     } else {
       setCuentaId(presetPayload?.cuenta_id ?? defaultCuentaId ?? '');
       setFecha(presetPayload?.fecha || toCivilDate());
       setTipoMovimiento(presetPayload?.tipo_movimiento || 'Deposito');
       setNaturaleza(presetPayload?.naturaleza_operacion || 'movimiento_general');
       setContactoId(presetPayload?.contacto_id ? String(presetPayload.contacto_id) : '');
+      setDestinoId(null);
+      setOrigenFijoId(null);
+      setLado('origen');
+      setTransferenciaId(null);
       setReferencia(presetPayload?.referencia || '');
       setObservaciones(presetPayload?.observaciones || '');
       setMonto(presetPayload?.monto ? formatCurrency(presetPayload.monto) : '');
@@ -186,30 +266,74 @@ export function OperacionDialog({
   }, [open, operacion?.id, operacionIdLocal]);
 
   const handleSave = async () => {
-    const montoNumerico = sanitizeNumber(monto);
-
-    if (!cuentaId || !fecha || !montoNumerico) {
-      setError('Completa la cuenta, fecha y monto.');
+    if (modoTransferencia || esTransferenciaOperacion(operacion)) {
+      const cuentaNumerica = cuentaId === '' ? null : Number(cuentaId);
+      const actualTransferencia = validarTransferencia({
+        cuentaOrigenId: transferenciaId && lado === 'destino' ? origenFijoId : cuentaNumerica,
+        cuentaDestinoId: transferenciaId && lado === 'destino' ? cuentaNumerica : destinoId,
+        fecha,
+        monto,
+        referencia,
+        observaciones,
+      });
+      if (!actualTransferencia.ok) {
+        setError(actualTransferencia.mensaje);
+        return;
+      }
+      if (!transferenciaId && operacion?.id) {
+        setError('Un movimiento ya registrado no se convierte en transferencia desde aquí.');
+        return;
+      }
+      try {
+        setSaving(true);
+        setError(null);
+        if (transferenciaId) await actualizarTransferencia(transferenciaId, actualTransferencia.payload);
+        else {
+          const creada = await crearTransferencia(actualTransferencia.payload) as { transferencia?: { id?: number } };
+          const nuevoId = Number(creada?.transferencia?.id);
+          if (Number.isFinite(nuevoId) && nuevoId > 0) setTransferenciaId(nuevoId);
+        }
+        if (!transferenciaId && archivosPendientes.length) {
+          setArchivosPendientes([]);
+          setError('La transferencia se guardó. Los archivos no se adjuntaron: un adjunto pertenece a una operación, no a la transferencia.');
+          onSaved(null);
+          return;
+        }
+        const idAdjuntos = operacion?.id ?? operacionIdLocal;
+        if (transferenciaId && idAdjuntos && archivosPendientes.length) {
+          const failed: File[] = [];
+          const uploaded: FinanzasAdjunto[] = [];
+          for (const archivo of archivosPendientes) {
+            try {
+              uploaded.push(await subirAdjuntoOperacion(idAdjuntos, archivo));
+            } catch {
+              failed.push(archivo);
+            }
+          }
+          setAdjuntos((prev) => [...uploaded, ...prev]);
+          setArchivosPendientes(failed);
+          if (failed.length) {
+            setError(`La transferencia se guardó, pero fallaron ${failed.length} archivo(s).`);
+            onSaved(null);
+            return;
+          }
+        }
+        onSaved(null);
+        onClose();
+      } catch (err: any) {
+        setError(err?.message || 'No se pudo guardar la transferencia');
+      } finally {
+        setSaving(false);
+      }
       return;
     }
-    if (referenciaObligatoria && !referencia.trim()) {
-      setError(`El método "${metodoSeleccionado?.nombre}" requiere una referencia (número de cheque, SPEI, etc.).`);
+
+    const actual = evaluarCaptura();
+    if (!actual.ok) {
+      setError(actual.mensaje);
       return;
     }
-
-    const payload: OperacionPayload = {
-      cuenta_id: Number(cuentaId),
-      fecha,
-      tipo_movimiento: tipoMovimiento,
-      naturaleza_operacion: naturaleza || 'movimiento_general',
-      documento_origen_id: presetPayload?.documento_origen_id ?? operacion?.documento_origen_id ?? null,
-      contacto_id: contactoId ? Number(contactoId) : null,
-      referencia: referencia || null,
-      observaciones: observaciones || null,
-      monto: Number(montoNumerico),
-      concepto_id: conceptoId ? Number(conceptoId) : null,
-      metodo_pago_id: metodoPagoId ?? null,
-    };
+    const payload: OperacionPayload = actual.payload;
 
     try {
       setSaving(true);
@@ -291,6 +415,7 @@ export function OperacionDialog({
       setCrearContactoLoading(true);
       const nuevo = await crearContacto({ nombre, tipo_contacto: crearContactoTipo });
       setContactos((prev) => [nuevo, ...prev.filter((c) => c.id !== nuevo.id)]);
+      setDestinoId(null);
       setContactoId(String(nuevo.id));
       setCrearContactoOpen(false);
       setCrearContactoNombre('');
@@ -315,7 +440,16 @@ export function OperacionDialog({
               labelId="cuenta-label"
               value={cuentaId}
               label="Cuenta"
-              onChange={(e) => setCuentaId(Number(e.target.value))}
+              onChange={(e) => {
+                const siguiente = Number(e.target.value);
+                setCuentaId(siguiente);
+                if (transferenciaId && lado === 'destino') {
+                  setDestinoId(siguiente);
+                  setOrigenFijoId((actual) => (actual === siguiente ? null : actual));
+                  return;
+                }
+                setDestinoId((actual) => (actual === siguiente ? null : actual));
+              }}
             >
               {cuentas.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
@@ -341,7 +475,7 @@ export function OperacionDialog({
                 labelId="tipo-label"
                 value={tipoMovimiento}
                 label="Tipo"
-                disabled={Boolean(lockedFields?.tipo_movimiento)}
+                disabled={modoTransferencia || Boolean(lockedFields?.tipo_movimiento)}
                 onChange={(e) => setTipoMovimiento(e.target.value as TipoMovimiento)}
               >
                 <MenuItem value="Deposito">Depósito</MenuItem>
@@ -356,7 +490,7 @@ export function OperacionDialog({
               labelId="naturaleza-label"
               value={naturaleza}
               label="Naturaleza de la operación"
-              disabled={Boolean(lockedFields?.naturaleza_operacion)}
+              disabled={modoTransferencia || Boolean(lockedFields?.naturaleza_operacion)}
               onChange={(e) => setNaturaleza((e.target.value as NaturalezaOperacion) || 'movimiento_general')}
             >
               <MenuItem value="cobro_cliente">Cobro de cliente</MenuItem>
@@ -366,19 +500,19 @@ export function OperacionDialog({
           </FormControl>
 
           <Autocomplete<ContactoAutocompleteOption>
-            options={contactos}
-            getOptionLabel={(option) => option.nombre || ''}
+            options={opcionesContacto}
             filterOptions={(options, state) => {
               const filtered = contactoFilter(options, state);
               const inputValue = state.inputValue.trim();
+              const buscaTransferencia = /^transfer\b/i.test(inputValue);
 
-              if (!inputValue || lockedFields?.contacto_id) {
+              if (!inputValue || lockedFields?.contacto_id || buscaTransferencia || modoTransferencia && transferenciaId) {
                 return filtered;
               }
 
               const normalizedInput = inputValue.toLocaleLowerCase();
               const hasExactMatch = options.some((option) => {
-                if ('kind' in option && option.kind === 'create') return false;
+                if (option.tipo !== 'contacto') return false;
                 return (option.nombre || '').trim().toLocaleLowerCase() === normalizedInput;
               });
 
@@ -387,29 +521,61 @@ export function OperacionDialog({
               }
 
               return [
-                { kind: 'create', id: -1, nombre: `➕ Crear contacto "${inputValue}"`, inputValue },
+                {
+                  tipo: 'crear' as const,
+                  clave: 'crear',
+                  etiqueta: `Crear contacto "${inputValue}"`,
+                  nombre: `Crear contacto "${inputValue}"`,
+                  contactoId: null,
+                  cuentaId: null,
+                  inputValue,
+                },
                 ...filtered,
               ];
             }}
             loading={loadingContactos}
-            value={contactos.find((c) => c.id === Number(contactoId)) || null}
+            value={valorContacto}
             onChange={(_e, value) => {
               if (lockedFields?.contacto_id) return;
-              if (value && 'kind' in value && value.kind === 'create') {
+              if (value && value.tipo === 'crear') {
                 setCrearContactoNombre(value.inputValue);
                 setCrearContactoTipo(contactoDefaultTipo);
                 setCrearContactoOpen(true);
                 return;
               }
-              setContactoId(value ? String(value.id) : '');
-            }}
-            isOptionEqualToValue={(option, value) => {
-              const optionIsCreate = 'kind' in option && option.kind === 'create';
-              const valueIsCreate = !!value && 'kind' in value && value.kind === 'create';
-              if (optionIsCreate || valueIsCreate) {
-                return optionIsCreate && valueIsCreate && option.id === value.id;
+              if (value?.tipo === 'transferencia' && value.cuentaId != null) {
+                setContactoId('');
+                setConceptoId('');
+                setMetodoPagoId(null);
+                if (transferenciaId && lado === 'destino') setOrigenFijoId(value.cuentaId);
+                else {
+                  setDestinoId(value.cuentaId);
+                  setLado('origen');
+                  setTipoMovimiento('Retiro');
+                }
+                return;
               }
-              return option.id === value.id;
+              if (transferenciaId || esTransferenciaOperacion(operacion)) {
+                setError('Esta transferencia se actualiza eligiendo otra cuenta. No pasa a ser un movimiento general.');
+                return;
+              }
+              setDestinoId(null);
+              setContactoId(value?.contactoId ? String(value.contactoId) : '');
+            }}
+            isOptionEqualToValue={(option, value) => option.clave === value.clave}
+            getOptionLabel={(option) => option.etiqueta || option.nombre || ''}
+            renderOption={(props, option) => {
+              const { key, ...resto } = props;
+              return (
+                <li key={key} {...resto} data-transferencia={option.tipo === 'transferencia' ? 'true' : undefined}>
+                  {option.tipo === 'transferencia' ? (
+                    <span>
+                      <span style={{ opacity: 0.72 }}>Transfer: </span>
+                      {option.nombre}
+                    </span>
+                  ) : option.etiqueta}
+                </li>
+              );
             }}
             disabled={Boolean(lockedFields?.contacto_id)}
             renderInput={(params) => {
@@ -435,7 +601,9 @@ export function OperacionDialog({
           />
 
           <Autocomplete<ConceptoOption>
-            options={conceptosOptions}
+            options={modoTransferencia ? [] : conceptosOptions}
+            disabled={modoTransferencia}
+            {...(modoTransferencia ? { inputValue: ETIQUETA_CONCEPTO_TRANSFERENCIA, onInputChange: () => undefined } : {})}
             filterOptions={(options, params) => {
               const filtered = conceptoFilter(options, params);
               const { inputValue } = params;
@@ -460,8 +628,9 @@ export function OperacionDialog({
             }}
             isOptionEqualToValue={(opt, val) => opt.id === val.id}
             loading={loadingConceptos}
-            value={conceptosOptions.find((c) => c.id === Number(conceptoId)) || null}
+            value={modoTransferencia ? null : conceptosOptions.find((c) => c.id === Number(conceptoId)) || null}
             onChange={async (_e, value) => {
+              if (modoTransferencia) return;
               if (!value) {
                 setConceptoId('');
                 return;
@@ -513,6 +682,7 @@ export function OperacionDialog({
               labelId="metodo-pago-label"
               value={metodoPagoId !== null ? String(metodoPagoId) : ''}
               label="Método de pago"
+              disabled={modoTransferencia}
               onChange={(e) => setMetodoPagoId(e.target.value ? Number(e.target.value) : null)}
             >
               <MenuItem value=""><em>Sin especificar</em></MenuItem>
@@ -608,7 +778,7 @@ export function OperacionDialog({
         </Button>
         <Button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !capturaValida}
           variant="contained"
           sx={{ textTransform: 'none', borderRadius: 999 }}
         >

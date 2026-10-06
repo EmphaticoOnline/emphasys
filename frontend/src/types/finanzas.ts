@@ -331,7 +331,7 @@ export interface MovimientoConciliacion {
   monto: string;
   referencia: string | null;
   observaciones: string | null;
-  estado_conciliacion: 'pendiente' | 'cotejado';
+  estado_conciliacion: 'pendiente' | 'cotejado' | 'conciliado';
   dias_sin_conciliar: number;
   contacto_id: number | null;
   cuenta_nombre: string;

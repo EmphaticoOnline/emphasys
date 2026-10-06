@@ -16,7 +16,7 @@ export type RutaInicioOption = {
 
 export const RUTA_INICIO_FALLBACK = '/contactos';
 
-const RUTA_INICIO_GROUP_ORDER = ['Catálogos', 'Ventas', 'CRM', 'Compras', 'Finanzas', 'Inventarios', 'Informes', 'Configuración'] as const;
+const RUTA_INICIO_GROUP_ORDER = ['Catálogos', 'Ventas', 'CRM', 'Compras', 'Tesorería', 'Inventarios', 'Informes', 'Configuración'] as const;
 
 const DOCUMENT_SHORT_LABELS: Partial<Record<keyof typeof DOCUMENTO_TYPE_CONFIG, string>> = {
 	cotizacion: 'Cotizaciones',
@@ -74,7 +74,7 @@ export async function buildRutaInicioOptions(session: SessionState): Promise<Rut
 			item.path === '/crm'
 				? 'CRM'
 				: item.path === '/finanzas'
-					? 'Finanzas'
+					? 'Tesorería'
 					: item.path.startsWith('/inventario')
 						? 'Inventarios'
 						: item.path.startsWith('/informes')

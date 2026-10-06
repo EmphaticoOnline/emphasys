@@ -763,7 +763,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
   // mide el ancho real del contenedor de Leads (ya descontados el sidebar
   // fijo de SidebarLayout.tsx y el padding de página — nada que ver con el
   // ancho del viewport). No asume un offset fijo tipo el que usa
-  // LeadsMobileView (TOPBAR_HEIGHT), porque ese offset solo es válido ahí:
+  // LeadsMobileView (MOBILE_APPBAR_HEIGHT), porque ese offset solo es válido ahí:
   // en mobile, CRMPage oculta su propio header/tabs mientras el chat está
   // abierto. Acá en desktop/tablet ese header/tabs de CRMPage sigue siempre
   // visible arriba de esta vista, y ni su alto ni el ancho del sidebar son

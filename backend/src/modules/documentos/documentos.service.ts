@@ -189,7 +189,7 @@ async function sincronizarDocumentoMonetarioConTesoreria(
       tipo_movimiento: tipoMovimiento,
       monto: Number(documento.total ?? payload.total ?? 0),
       documento_origen_id: Number(documento.id),
-      referencia: String(payload.referencia ?? documento.referencia ?? documento.numero ?? '').trim() || null,
+      referencia: String(payload.referencia ?? '').trim() || null,
       observaciones: payload.observaciones ?? documento.observaciones ?? null,
     },
     empresaId,

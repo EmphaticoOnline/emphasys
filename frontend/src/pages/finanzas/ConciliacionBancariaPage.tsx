@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -13,9 +12,7 @@ import {
   Divider,
   IconButton,
   InputAdornment,
-  MenuItem,
   Paper,
-  Select,
   Snackbar,
   Stack,
   TextField,
@@ -24,25 +21,34 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { DataGrid, type GridColDef, type GridRowSelectionModel } from '@mui/x-data-grid';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
+import 'dayjs/locale/es';
 import { esES } from '@mui/x-data-grid/locales';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HistoryIcon from '@mui/icons-material/History';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import LockIcon from '@mui/icons-material/Lock';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import UndoIcon from '@mui/icons-material/Undo';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import type { FinanzasCuenta, HistorialConciliacion, MovimientoConciliacion } from '../../types/finanzas';
 import { resolverFolioVisual } from '../../utils/documentos.utils';
 import {
   fetchCuentas,
   fetchConciliacionMovimientos,
   fetchHistorialConciliaciones,
+  fetchMovimientosConciliacion,
   cotejarMovimientosSvc,
   cerrarConciliacion,
   deshacerConciliacionSvc,
 } from '../../services/finanzasService';
+import { HistorialConciliacionesDialog } from '../../modules/finanzas/HistorialConciliacionesDialog';
+import { ImportarEstadoCuentaDialog } from '../../modules/finanzas/ImportarEstadoCuentaDialog';
+import { useSession } from '../../session/useSession';
 
 const fmt = (n: number, moneda = 'MXN') =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: moneda }).format(n);
@@ -70,9 +76,25 @@ const fmtSaldoDisplay = (v: string): string => {
   return n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-const ESTADO_CHIP: Record<string, string> = {
-  pendiente: 'Pendiente',
-  cotejado: 'En banco',
+const claveSaldoBanco = (empresaId: number | null, cuenta: number | '') =>
+  `emphasys.conciliacion.saldoBanco.${empresaId ?? 'sin-empresa'}.${cuenta || 'sin-cuenta'}`;
+
+const leerSaldoBanco = (empresaId: number | null, cuenta: number | '') => {
+  if (!cuenta) return '0.00';
+  try {
+    return sessionStorage.getItem(claveSaldoBanco(empresaId, cuenta)) ?? '0.00';
+  } catch {
+    return '0.00';
+  }
+};
+
+const guardarSaldoBanco = (empresaId: number | null, cuenta: number | '', valor: string) => {
+  if (!cuenta) return;
+  try {
+    sessionStorage.setItem(claveSaldoBanco(empresaId, cuenta), valor);
+  } catch {
+    /* el navegador puede bloquear el almacenamiento de sesión */
+  }
 };
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -84,15 +106,16 @@ const ESTADO_LABEL: Record<string, string> = {
 export default function ConciliacionBancariaPage() {
   const navigate = useNavigate();
   const tokens = useTheme().emphasys;
+  const { session } = useSession();
   const [searchParams] = useSearchParams();
 
   const [cuentas, setCuentas] = useState<FinanzasCuenta[]>([]);
-  const [cuentaId, setCuentaId] = useState<number | ''>(() => {
+  const [cuentaId] = useState<number | ''>(() => {
     const p = searchParams.get('cuenta_id');
     return p ? Number(p) : '';
   });
   const [fechaCorte, setFechaCorte] = useState<string>(() => toCivilDate());
-  const [saldoBanco, setSaldoBanco] = useState('0.00');
+  const [saldoBanco, setSaldoBanco] = useState(() => leerSaldoBanco(session.empresaActivaId, cuentaId));
 
   const [movimientos, setMovimientos] = useState<MovimientoConciliacion[]>([]);
   const [saldoSistema, setSaldoSistema] = useState(0);
@@ -115,8 +138,13 @@ export default function ConciliacionBancariaPage() {
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [deshacerDialogOpen, setDeshacerDialogOpen] = useState(false);
   const [conciliacionADeshacer, setConciliacionADeshacer] = useState<HistorialConciliacion | null>(null);
+  const [conciliacionSeleccionada, setConciliacionSeleccionada] = useState<HistorialConciliacion | null>(null);
+  const [movimientosHistorial, setMovimientosHistorial] = useState<MovimientoConciliacion[]>([]);
+  const [cargandoMovimientosHistorial, setCargandoMovimientosHistorial] = useState(false);
   const [motivoAnulacion, setMotivoAnulacion] = useState('');
   const [deshaciendo, setDeshaciendo] = useState(false);
+  const [importarOpen, setImportarOpen] = useState(false);
+  const fechaInicializadaRef = useRef(false);
 
   const [procesandoFila, setProcesandoFila] = useState<Set<number>>(new Set());
 
@@ -127,8 +155,24 @@ export default function ConciliacionBancariaPage() {
   }>({ open: false, msg: '', sev: 'success' });
 
   useEffect(() => {
+    setSaldoBanco(leerSaldoBanco(session.empresaActivaId, cuentaId));
+  }, [session.empresaActivaId, cuentaId]);
+
+  useEffect(() => {
     fetchCuentas().then(setCuentas).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (!cuentaId || fechaInicializadaRef.current) return;
+    fechaInicializadaRef.current = true;
+    void fetchHistorialConciliaciones(Number(cuentaId)).then((data) => {
+      const ultima = data.filter((item) => item.estatus === 'cerrada').map((item) => item.fecha_corte.slice(0, 10)).sort().at(-1);
+      if (!ultima || ultima < toCivilDate()) return;
+      const siguiente = new Date(`${ultima}T12:00:00`);
+      siguiente.setDate(siguiente.getDate() + 1);
+      setFechaCorte(toCivilDate(siguiente));
+    }).catch(() => undefined);
+  }, [cuentaId]);
 
   const cargar = useCallback(async () => {
     if (!cuentaId || !fechaCorte) return;
@@ -154,18 +198,35 @@ export default function ConciliacionBancariaPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  const cargarHistorial = useCallback(async () => {
+  const cargarHistorial = useCallback(async (trasEliminarId?: number) => {
     if (!cuentaId) return;
     setCargandoHistorial(true);
     try {
       const data = await fetchHistorialConciliaciones(Number(cuentaId));
       setHistorial(data);
+      setConciliacionSeleccionada((actual) => {
+        if (trasEliminarId != null) {
+          return data.find((item) => item.estatus === 'cerrada')
+            ?? data.find((item) => item.id !== trasEliminarId)
+            ?? null;
+        }
+        return data.find((item) => item.id === actual?.id) ?? data[0] ?? null;
+      });
     } catch (err: any) {
       setSnackbar({ open: true, msg: err.message || 'Error al cargar historial', sev: 'error' });
     } finally {
       setCargandoHistorial(false);
     }
   }, [cuentaId]);
+
+  useEffect(() => {
+    if (!conciliacionSeleccionada) { setMovimientosHistorial([]); return; }
+    setCargandoMovimientosHistorial(true);
+    void fetchMovimientosConciliacion(conciliacionSeleccionada.id)
+      .then(setMovimientosHistorial)
+      .catch(() => setMovimientosHistorial([]))
+      .finally(() => setCargandoMovimientosHistorial(false));
+  }, [conciliacionSeleccionada]);
 
   const handleAbrirHistorial = () => {
     setHistorialOpen(true);
@@ -182,11 +243,12 @@ export default function ConciliacionBancariaPage() {
     if (!conciliacionADeshacer || motivoAnulacion.trim().length < 5) return;
     setDeshaciendo(true);
     try {
-      const res = await deshacerConciliacionSvc(conciliacionADeshacer.id, { motivo: motivoAnulacion });
-      setSnackbar({ open: true, msg: `Conciliación #${res.conciliacion_id} deshecha correctamente.`, sev: 'success' });
+      const eliminadaId = conciliacionADeshacer.id;
+      const res = await deshacerConciliacionSvc(eliminadaId, { motivo: motivoAnulacion });
+      setSnackbar({ open: true, msg: `Conciliación #${res.conciliacion_id} eliminada correctamente.`, sev: 'success' });
       setDeshacerDialogOpen(false);
       setConciliacionADeshacer(null);
-      void cargarHistorial();
+      void cargarHistorial(eliminadaId);
       void cargar();
     } catch (err: any) {
       setSnackbar({ open: true, msg: err.message || 'Error al deshacer la conciliación', sev: 'error' });
@@ -209,7 +271,7 @@ export default function ConciliacionBancariaPage() {
   const cuentaSeleccionada = cuentas.find((c) => c.id === Number(cuentaId));
 
   const handleCotejar = async (estado: 'pendiente' | 'cotejado') => {
-    if (seleccionados.length === 0 || conciliacionExistente) return;
+    if (seleccionados.length === 0) return;
     setGuardando(true);
     try {
       const res = await cotejarMovimientosSvc(seleccionados.map(Number), estado);
@@ -227,7 +289,7 @@ export default function ConciliacionBancariaPage() {
   };
 
   const handleToggleFila = useCallback(async (row: MovimientoConciliacion) => {
-    if (conciliacionExistente) return;
+    if (row.estado_conciliacion === 'conciliado') return;
     const nuevoEstado: 'pendiente' | 'cotejado' =
       row.estado_conciliacion === 'cotejado' ? 'pendiente' : 'cotejado';
     setProcesandoFila((prev) => new Set(prev).add(row.id));
@@ -243,7 +305,7 @@ export default function ConciliacionBancariaPage() {
         return next;
       });
     }
-  }, [cargar, conciliacionExistente]);
+  }, [cargar]);
 
   const handleCerrar = async () => {
     setConfirmarCerrar(false);
@@ -279,41 +341,37 @@ export default function ConciliacionBancariaPage() {
         filterable: false,
         disableColumnMenu: true,
         renderCell: ({ row }) => {
+          const cerrado = row.estado_conciliacion === 'conciliado';
           const esCotejado = row.estado_conciliacion === 'cotejado';
-          const cargando = procesandoFila.has(row.id);
+          const cargandoFila = procesandoFila.has(row.id);
+          const titulo = cerrado
+            ? 'Conciliado. Esta conciliación ya está cerrada'
+            : esCotejado
+              ? 'Encontrado en banco. Clic para volver a pendiente'
+              : 'Pendiente. Clic para marcar encontrado en banco';
           return (
-            <Tooltip title={esCotejado ? 'Volver a pendiente' : 'Marcar en banco'} placement="right">
+            <Tooltip title={titulo} placement="right" arrow>
               <span>
                 <IconButton
                   size="small"
-                  disabled={cargando}
-                  onClick={(e) => { e.stopPropagation(); void handleToggleFila(row); }}
+                  aria-label={titulo}
+                  disabled={cargandoFila}
+                  onClick={(e) => { e.stopPropagation(); if (!cerrado) void handleToggleFila(row); }}
                   sx={{ p: 0.25 }}
                 >
-                  {cargando
+                  {cargandoFila
                     ? <CircularProgress size={14} />
-                    : esCotejado
-                      ? <CheckCircleOutlineIcon sx={{ fontSize: 18, color: 'success.main' }} />
-                      : <RadioButtonUncheckedIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+                    : cerrado
+                      ? <LockIcon sx={{ fontSize: 16, color: tokens.content.secondary }} />
+                      : esCotejado
+                        ? <CheckCircleIcon sx={{ fontSize: 18, color: tokens.metric.exhausted.foreground }} />
+                        : <RadioButtonUncheckedIcon sx={{ fontSize: 18, color: tokens.content.muted }} />
                   }
                 </IconButton>
               </span>
             </Tooltip>
           );
         },
-      },
-      {
-        field: 'estado_conciliacion',
-        headerName: 'Estado',
-        width: 120,
-        renderCell: ({ value }) => (
-          <Chip
-            label={ESTADO_CHIP[value as string] ?? value}
-            size="small"
-            color={value === 'cotejado' ? 'info' : 'default'}
-            sx={{ fontSize: 11, fontWeight: 600 }}
-          />
-        ),
       },
       {
         field: 'fecha',
@@ -344,9 +402,9 @@ export default function ConciliacionBancariaPage() {
           </Typography>
         ),
       },
-      { field: 'referencia', headerName: 'Referencia', width: 130 },
-      { field: 'contacto_nombre', headerName: 'Contacto', flex: 1, minWidth: 140 },
-      { field: 'concepto_nombre', headerName: 'Concepto', flex: 1, minWidth: 130 },
+      { field: 'referencia', headerName: 'Referencia', flex: 1.1, minWidth: 160 },
+      { field: 'contacto_nombre', headerName: 'Contacto', flex: 1.4, minWidth: 180 },
+      { field: 'concepto_nombre', headerName: 'Concepto', flex: 1.4, minWidth: 180 },
       {
         field: 'documento_serie',
         headerName: 'Documento',
@@ -386,9 +444,9 @@ export default function ConciliacionBancariaPage() {
           );
         },
       },
-      { field: 'observaciones', headerName: 'Observaciones', flex: 1, minWidth: 140 },
+      { field: 'observaciones', headerName: 'Observaciones', flex: 1.6, minWidth: 200 },
     ],
-    [handleToggleFila, procesandoFila]
+    [handleToggleFila, procesandoFila, tokens]
   );
 
   return (
@@ -396,7 +454,7 @@ export default function ConciliacionBancariaPage() {
       <Box
         component="button"
         type="button"
-        onClick={() => navigate('/finanzas')}
+        onClick={() => navigate(cuentaId ? `/finanzas?cuenta_id=${cuentaId}` : '/finanzas')}
         sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, border: 0, bgcolor: 'transparent', color: tokens.content.foreground, font: 'inherit', cursor: 'pointer', p: 0, width: 'fit-content' }}
       >
         <ArrowBackIcon fontSize="small" /> Tesorería
@@ -407,102 +465,133 @@ export default function ConciliacionBancariaPage() {
             CONCILIACIÓN
           </Typography>
           <Typography variant="figure" sx={{ mt: 0.35, fontSize: { xs: 26, md: 32 }, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
-            Estado de cuenta
+            {cuentaSeleccionada?.identificador || 'Sin cuenta seleccionada'}
           </Typography>
         </Box>
-        {cuentaSeleccionada && (
-          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tokens.metric.amount.background, color: tokens.metric.amount.foreground, fontSize: 12, fontWeight: 700 }}>
-            {cuentaSeleccionada.identificador}
-          </Box>
-        )}
       </Box>
 
       {/* Filtros */}
       <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: tokens.content.elevated, border: `1px solid ${tokens.content.border}` }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="center" flexWrap="wrap">
-          <Box sx={{ minWidth: 200 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.25}>
-              Cuenta financiera *
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'flex-end' }} flexWrap="wrap">
+          <Box sx={{ width: 280 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.content.secondary, mb: 0.4 }}>
+              Fecha de corte
             </Typography>
-            <Select
-              value={cuentaId}
-              onChange={(e) => setCuentaId(e.target.value as number)}
-              displayEmpty
-              fullWidth
-              size="small"
-              sx={{ fontSize: 13 }}
-            >
-              <MenuItem value=""><em>Seleccionar...</em></MenuItem>
-              {cuentas.map((c) => (
-                <MenuItem key={c.id} value={c.id} sx={{ fontSize: 13 }}>
-                  {c.identificador}
-                </MenuItem>
-              ))}
-            </Select>
+            <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+              <DatePicker
+                value={fechaCorte ? dayjs(fechaCorte) : null}
+                onChange={(value) => setFechaCorte(value?.isValid() ? value.format('YYYY-MM-DD') : '')}
+                format="DD/MM/YYYY"
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    sx: {
+                      '& .MuiOutlinedInput-root, & .MuiPickersOutlinedInput-root, & .MuiPickersInputBase-root': {
+                        bgcolor: tokens.metric.amount.background,
+                        borderRadius: 1,
+                        color: tokens.content.foreground,
+                        '& fieldset': { borderColor: tokens.action.primary, borderWidth: 1.5 },
+                        '&:hover fieldset': { borderColor: tokens.action.primaryHover },
+                        '&.Mui-focused fieldset': { borderColor: tokens.action.primary, borderWidth: 1.5 },
+                      },
+                      '& .MuiOutlinedInput-input, & .MuiPickersSectionList-root, & .MuiPickersInputBase-sectionsContainer': {
+                        fontSize: 22,
+                        fontWeight: 500,
+                        fontFamily: 'Iowan Old Style, Palatino, Georgia, serif',
+                        lineHeight: 1.2,
+                        paddingTop: '10px',
+                        paddingBottom: '10px',
+                      },
+                    },
+                  },
+                  openPickerButton: {
+                    sx: {
+                      color: tokens.action.primary,
+                      '&:hover': { bgcolor: tokens.action.hoverTint, color: tokens.action.primaryHover },
+                    },
+                  },
+                  desktopPaper: {
+                    sx: {
+                      bgcolor: tokens.content.elevated,
+                      color: tokens.content.foreground,
+                      border: `1px solid ${tokens.content.border}`,
+                      '& .MuiPickersCalendarHeader-label, & .MuiPickersArrowSwitcher-button, & .MuiDayCalendar-weekDayLabel': {
+                        color: tokens.content.foreground,
+                      },
+                      '& .MuiPickersArrowSwitcher-button:hover': { bgcolor: tokens.metric.amount.background },
+                      '& .MuiPickersDay-root': {
+                        color: tokens.content.foreground,
+                        '&:hover': { bgcolor: tokens.metric.amount.background },
+                        '&.MuiPickersDay-today': { borderColor: tokens.action.primary },
+                        '&.Mui-selected': {
+                          bgcolor: tokens.action.primary,
+                          color: tokens.action.primaryForeground,
+                          '&:hover, &:focus': { bgcolor: tokens.action.primaryHover },
+                        },
+                      },
+                    },
+                  },
+                }}
+              />
+            </LocalizationProvider>
           </Box>
 
-          <Box>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.25}>
-              Fecha de corte *
-            </Typography>
-            <TextField
-              type="date"
-              value={fechaCorte}
-              onChange={(e) => setFechaCorte(e.target.value)}
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ style: { fontSize: 13 } }}
-            />
-          </Box>
-
-          <Box>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.25}>
-              Saldo banco *
+          <Box sx={{ minWidth: 220 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.content.secondary, mb: 0.4 }}>
+              Saldo banco
             </Typography>
             <TextField
               value={saldoBanco}
-              onChange={(e) => setSaldoBanco(e.target.value.replace(/[^\d.,]/g, ''))}
+              onChange={(e) => {
+                const valor = e.target.value.replace(/[^\d.,]/g, '');
+                setSaldoBanco(valor);
+                guardarSaldoBanco(session.empresaActivaId, cuentaId, valor);
+              }}
               onFocus={(e) => {
                 const n = parseSaldo(e.target.value);
-                setSaldoBanco(n === 0 ? '' : String(n));
+                const valor = n === 0 ? '' : String(n);
+                setSaldoBanco(valor);
+                guardarSaldoBanco(session.empresaActivaId, cuentaId, valor);
               }}
-              onBlur={() => setSaldoBanco(fmtSaldoDisplay(saldoBanco))}
-              size="small"
-              sx={{ width: 175 }}
-              inputProps={{ inputMode: 'decimal', style: { fontSize: 13, textAlign: 'right' } }}
+              onBlur={() => {
+                const valor = fmtSaldoDisplay(saldoBanco);
+                setSaldoBanco(valor);
+                guardarSaldoBanco(session.empresaActivaId, cuentaId, valor);
+              }}
+              placeholder="0.00"
+              sx={{
+                width: 220,
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: tokens.metric.amount.background,
+                  borderRadius: 1,
+                  '& fieldset': { borderColor: tokens.action.primary, borderWidth: 1.5 },
+                  '&:hover fieldset': { borderColor: tokens.action.primaryHover },
+                  '&.Mui-focused fieldset': { borderColor: tokens.action.primary, borderWidth: 1.5 },
+                },
+              }}
+              inputProps={{ inputMode: 'decimal', style: { fontSize: 22, fontWeight: 500, textAlign: 'right', fontFamily: 'Iowan Old Style, Palatino, Georgia, serif', paddingTop: 10, paddingBottom: 10 } }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Typography variant="caption" color="text.secondary">$</Typography>
+                    <Typography sx={{ fontSize: 18, color: tokens.content.secondary }}>$</Typography>
                   </InputAdornment>
                 ),
               }}
             />
           </Box>
 
-          <Box sx={{ ml: 'auto !important', alignSelf: 'flex-end', pb: 0.25, display: 'flex', gap: 0.5 }}>
-            <Tooltip title="Ver historial de conciliaciones">
+          <Box sx={{ ml: 'auto !important', alignSelf: 'flex-end', pb: 0.25, display: 'flex', gap: 0.75 }}>
+            <Tooltip title="Historial" arrow>
               <span>
-                <Button
-                  onClick={handleAbrirHistorial}
-                  disabled={!cuentaId}
-                  size="small"
-                  startIcon={<HistoryIcon fontSize="small" />}
-                  sx={{ textTransform: 'none', fontSize: 12 }}
-                >
-                  Historial
-                </Button>
+                <IconButton aria-label="Historial" onClick={handleAbrirHistorial} disabled={!cuentaId} sx={iconoAccionSx(tokens, !cuentaId)}>
+                  <HistoryIcon fontSize="small" />
+                </IconButton>
               </span>
             </Tooltip>
-            <Tooltip title="Recargar movimientos de la cuenta">
+            <Tooltip title="Importar estado de cuenta" arrow>
               <span>
-                <IconButton
-                  onClick={() => void cargar()}
-                  disabled={!cuentaId || !fechaCorte || cargando}
-                  size="small"
-                  color="primary"
-                >
-                  {cargando ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+                <IconButton aria-label="Importar estado de cuenta" onClick={() => setImportarOpen(true)} disabled={!cuentaId} sx={iconoAccionSx(tokens, !cuentaId)}>
+                  <UploadFileIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
@@ -548,14 +637,12 @@ export default function ConciliacionBancariaPage() {
       <Stack spacing={0.75}>
         {conciliacionExistente && (
           <Alert severity="warning" sx={{ py: 0.5 }}>
-            Ya existe una conciliación vigente para esta cuenta y fecha
-            {conciliacionExistenteId ? ` (#${conciliacionExistenteId})` : ''}. Cambia la fecha para iniciar una nueva conciliación.
+            Ya existe un cierre histórico para esta cuenta y fecha
+            {conciliacionExistenteId ? ` (#${conciliacionExistenteId})` : ''}. Puedes cambiar la fecha para cerrar una nueva conciliación.
           </Alert>
         )}
         <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-          Selecciona los movimientos que aparecen en tu estado de cuenta del banco y márcalos como{' '}
-          <strong>Encontrado en banco</strong>. Al cerrar, todos los movimientos en ese estado quedarán{' '}
-          <strong>conciliados</strong> permanentemente — los pendientes no se verán afectados.
+          El círculo marca pendiente y la paloma verde, encontrado en banco. Al cerrar, solo esos quedan conciliados.
         </Typography>
 
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
@@ -566,54 +653,49 @@ export default function ConciliacionBancariaPage() {
           </Typography>
           <Box sx={{ flex: 1 }} />
 
-          <Tooltip title="Confirma que los movimientos seleccionados aparecen en el estado de cuenta del banco">
+          <Tooltip title="Marcar la selección como encontrado en banco" arrow>
             <span>
-              <Button
-                variant="outlined"
-                startIcon={<CheckCircleOutlineIcon />}
+              <IconButton
+                aria-label="Marcar la selección como encontrado en banco"
                 onClick={() => void handleCotejar('cotejado')}
-                disabled={kpis.count === 0 || guardando || conciliacionExistente}
-                size="small"
-                sx={{ textTransform: 'none', borderRadius: 999 }}
+                disabled={kpis.count === 0 || guardando}
+                sx={iconoAccionSx(tokens, kpis.count === 0 || guardando)}
               >
-                Encontrado en banco
-              </Button>
+                <CheckCircleIcon fontSize="small" />
+              </IconButton>
             </span>
           </Tooltip>
 
-          <Tooltip title="Regresa los movimientos seleccionados al estado Pendiente">
+          <Tooltip title="Regresar la selección a pendiente" arrow>
             <span>
-              <Button
-                variant="outlined"
-                startIcon={<RadioButtonUncheckedIcon />}
+              <IconButton
+                aria-label="Regresar la selección a pendiente"
                 onClick={() => void handleCotejar('pendiente')}
-                disabled={kpis.count === 0 || guardando || conciliacionExistente}
-                size="small"
-                sx={{ textTransform: 'none', borderRadius: 999 }}
+                disabled={kpis.count === 0 || guardando}
+                sx={iconoAccionSx(tokens, kpis.count === 0 || guardando)}
               >
-                Marcar pendiente
-              </Button>
+                <RadioButtonUncheckedIcon fontSize="small" />
+              </IconButton>
             </span>
           </Tooltip>
 
           <Tooltip
+            arrow
             title={
               cotejadosCount === 0
-                ? 'No hay movimientos marcados como "Encontrado en banco"'
-                : `Conciliará permanentemente ${cotejadosCount} movimiento(s) marcado(s) como encontrado en banco`
+                ? 'Cerrar conciliación. No hay movimientos encontrados en banco'
+                : `Cerrar conciliación. Conciliará ${cotejadosCount} movimiento(s) encontrado(s) en banco`
             }
           >
             <span>
-              <Button
-                variant="contained"
-                startIcon={guardando ? undefined : <LockIcon />}
+              <IconButton
+                aria-label="Cerrar conciliación"
                 onClick={() => setConfirmarCerrar(true)}
-                disabled={!cuentaId || !fechaCorte || guardando || conciliacionExistente}
-                size="small"
-                sx={{ textTransform: 'none', borderRadius: 999 }}
+                disabled={!cuentaId || !fechaCorte || guardando}
+                sx={iconoAccionSx(tokens, !cuentaId || !fechaCorte || guardando)}
               >
-                {guardando ? <CircularProgress size={16} sx={{ color: 'white' }} /> : 'Cerrar conciliación'}
-              </Button>
+                {guardando ? <CircularProgress size={16} sx={{ color: tokens.action.primaryForeground }} /> : <LockIcon fontSize="small" />}
+              </IconButton>
             </span>
           </Tooltip>
         </Stack>
@@ -638,9 +720,9 @@ export default function ConciliacionBancariaPage() {
             checkboxSelection
             rowSelectionModel={seleccionados}
             onRowSelectionModelChange={(selection) => {
-              if (!conciliacionExistente) setSeleccionados(selection);
+              setSeleccionados(selection);
             }}
-            isRowSelectable={() => !conciliacionExistente}
+            isRowSelectable={(params) => params.row.estado_conciliacion !== 'conciliado'}
             getRowId={(r) => r.id}
             rowHeight={STANDARD_DATA_GRID_ROW_HEIGHT}
             columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
@@ -664,6 +746,7 @@ export default function ConciliacionBancariaPage() {
           />
         )}
       </Box>
+      <ImportarEstadoCuentaDialog open={importarOpen} cuentas={cuentas} cuentaId={cuentaId} onClose={() => { setImportarOpen(false); void cargar(); }} onCancelar={() => setImportarOpen(false)} onImported={() => setSnackbar({ open: true, msg: 'Estado de cuenta importado correctamente', sev: 'success' })} />
 
       {/* Diálogo confirmar cierre */}
       <Dialog open={confirmarCerrar} onClose={() => setConfirmarCerrar(false)} maxWidth="sm" fullWidth>
@@ -709,129 +792,19 @@ export default function ConciliacionBancariaPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog — Historial de conciliaciones */}
-      <Dialog
+      <HistorialConciliacionesDialog
         open={historialOpen}
         onClose={() => setHistorialOpen(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 2 } }}
-      >
-        <DialogTitle fontWeight={700} sx={{ pb: 1 }}>
-          Historial de conciliaciones
-          {cuentaSeleccionada && (
-            <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-              — {cuentaSeleccionada.identificador}
-            </Typography>
-          )}
-        </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          {cargandoHistorial ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : historial.length === 0 ? (
-            <Box sx={{ p: 3 }}>
-              <Typography color="text.secondary" variant="body2">
-                No hay conciliaciones registradas para esta cuenta.
-              </Typography>
-            </Box>
-          ) : (
-            <Box sx={{ overflow: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    {['Fecha corte','Saldo banco','Saldo conc. anterior','Depósitos enc.','Retiros enc.','Saldo conciliado','Diferencia','Movs.','Fecha cierre','Estatus','Motivo','Acción']
-                      .map((h) => (
-                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap', color: '#475569' }}>
-                          {h}
-                        </th>
-                      ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {historial.map((c, idx) => (
-                    <tr
-                      key={c.id}
-                      style={{
-                        backgroundColor: c.estatus === 'anulada' ? '#fafafa' : idx % 2 === 0 ? '#fff' : '#f8fafc',
-                        borderBottom: '1px solid #f1f5f9',
-                        opacity: c.estatus === 'anulada' ? 0.65 : 1,
-                      }}
-                    >
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>{formatFecha(c.fecha_corte)}</td>
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap', textAlign: 'right' }}>{fmt(c.saldo_banco, moneda)}</td>
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap', textAlign: 'right' }}>
-                        {c.saldo_conciliado_anterior != null ? fmt(c.saldo_conciliado_anterior, moneda) : '—'}
-                      </td>
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap', textAlign: 'right', color: '#15803d' }}>
-                        {c.total_depositos_cotejados != null ? `+${fmt(c.total_depositos_cotejados, moneda)}` : '—'}
-                      </td>
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap', textAlign: 'right', color: '#b91c1c' }}>
-                        {c.total_retiros_cotejados != null ? `−${fmt(c.total_retiros_cotejados, moneda)}` : '—'}
-                      </td>
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap', textAlign: 'right' }}>
-                        {c.saldo_conciliado_calculado != null ? fmt(c.saldo_conciliado_calculado, moneda) : '—'}
-                      </td>
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap', textAlign: 'right',
-                        color: c.diferencia != null && Math.abs(c.diferencia) < 0.01 ? '#15803d' : '#b45309' }}>
-                        {c.diferencia != null ? fmt(c.diferencia, moneda) : '—'}
-                      </td>
-                      <td style={{ padding: '7px 12px', textAlign: 'center' }}>{c.cantidad_movimientos}</td>
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>{formatFecha(c.fecha_conciliacion)}</td>
-                      <td style={{ padding: '7px 12px' }}>
-                        <Chip
-                          label={c.estatus === 'cerrada' ? 'Cerrada' : 'Anulada'}
-                          size="small"
-                          color={c.estatus === 'cerrada' ? 'success' : 'default'}
-                          sx={{ fontSize: 11, fontWeight: 600 }}
-                        />
-                      </td>
-                      <td style={{ padding: '7px 12px', maxWidth: 180, color: '#64748b' }}>
-                        {c.motivo_anulacion ?? '—'}
-                      </td>
-                      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
-                        {c.es_ultima_reversible ? (
-                          <Tooltip title="Deshacer esta conciliación">
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="warning"
-                              startIcon={<UndoIcon />}
-                              onClick={() => handleAbrirDeshacer(c)}
-                              sx={{ textTransform: 'none', fontSize: 12 }}
-                            >
-                              Deshacer
-                            </Button>
-                          </Tooltip>
-                        ) : c.estatus === 'cerrada' ? (
-                          <Tooltip title="Solo se puede deshacer la conciliación cerrada más reciente">
-                            <span>
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                disabled
-                                sx={{ textTransform: 'none', fontSize: 12 }}
-                              >
-                                Deshacer
-                              </Button>
-                            </span>
-                          </Tooltip>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setHistorialOpen(false)} sx={{ textTransform: 'none' }}>
-            Cerrar
-          </Button>
-        </DialogActions>
-      </Dialog>
+        cuentaNombre={cuentaSeleccionada?.identificador}
+        moneda={moneda}
+        historial={historial}
+        cargando={cargandoHistorial}
+        seleccionada={conciliacionSeleccionada}
+        onSeleccionar={setConciliacionSeleccionada}
+        movimientos={movimientosHistorial}
+        cargandoMovimientos={cargandoMovimientosHistorial}
+        onEliminar={handleAbrirDeshacer}
+      />
 
       {/* Dialog — Confirmar deshacer conciliación */}
       <Dialog
@@ -841,12 +814,12 @@ export default function ConciliacionBancariaPage() {
         fullWidth
         PaperProps={{ sx: { borderRadius: 2 } }}
       >
-        <DialogTitle fontWeight={700}>¿Deshacer conciliación?</DialogTitle>
+        <DialogTitle fontWeight={700}>¿Eliminar conciliación?</DialogTitle>
         <DialogContent>
           <Stack spacing={2}>
             {conciliacionADeshacer && (
               <Alert severity="warning" sx={{ py: 0.5 }}>
-                Esta acción deshará la conciliación del{' '}
+                Esta acción eliminará la conciliación del{' '}
                 <strong>{formatFecha(conciliacionADeshacer.fecha_corte)}</strong>.
                 Los <strong>{conciliacionADeshacer.cantidad_movimientos} movimiento(s)</strong> conciliados
                 volverán a <em>Encontrado en banco</em>, y el saldo conciliado de la cuenta regresará a{' '}
@@ -855,7 +828,7 @@ export default function ConciliacionBancariaPage() {
                     ? fmt(conciliacionADeshacer.saldo_conciliado_anterior, moneda)
                     : '—'}
                 </strong>.
-                La conciliación quedará marcada como <em>Anulada</em> para auditoría.
+                Sus movimientos volverán a <em>Encontrado en banco</em> y el saldo conciliado se restaurará al cierre anterior.
               </Alert>
             )}
 
@@ -890,7 +863,7 @@ export default function ConciliacionBancariaPage() {
             disabled={deshaciendo}
             sx={{ textTransform: 'none' }}
           >
-            Cancelar
+            No eliminar
           </Button>
           <Button
             variant="contained"
@@ -902,7 +875,7 @@ export default function ConciliacionBancariaPage() {
           >
             {deshaciendo
               ? <CircularProgress size={18} sx={{ color: 'white' }} />
-              : 'Confirmar — Deshacer conciliación'}
+              : 'Eliminar'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -920,6 +893,18 @@ export default function ConciliacionBancariaPage() {
       </Snackbar>
     </Box>
   );
+}
+
+function iconoAccionSx(tokens: { action: { disabled: string; primary: string; primaryForeground: string; primaryHover: string } }, disabled: boolean) {
+  return {
+    width: 34,
+    height: 34,
+    borderRadius: '10px',
+    bgcolor: disabled ? tokens.action.disabled : tokens.action.primary,
+    color: tokens.action.primaryForeground,
+    '&:hover': { bgcolor: disabled ? tokens.action.disabled : tokens.action.primaryHover },
+    '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+  };
 }
 
 function KpiCard({

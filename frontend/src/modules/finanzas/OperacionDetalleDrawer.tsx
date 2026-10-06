@@ -20,7 +20,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import type { Theme } from '@mui/material/styles';
+import { useTheme, type Theme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkIcon from '@mui/icons-material/Link';
@@ -72,6 +73,8 @@ interface OperacionDetalleDrawerProps {
 }
 
 export function OperacionDetalleDrawer({ operacionId, open, onClose }: OperacionDetalleDrawerProps) {
+  const theme = useTheme();
+  const pantallaCompleta = useMediaQuery(theme.breakpoints.down('md'));
   const [operacion, setOperacion] = useState<FinanzasOperacion | null>(null);
   const [disponible, setDisponible] = useState<DocumentoSaldo | null>(null);
   const [aplicaciones, setAplicaciones] = useState<AplicacionOperacion[]>([]);
@@ -282,10 +285,9 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
       open={open}
       onClose={onClose}
       sx={{
-        '& .MuiDrawer-paper': {
-          width: { xs: '100%', md: '70vw' },
-          maxWidth: 1200,
-        },
+        '& .MuiDrawer-paper': pantallaCompleta
+          ? { width: '100%', maxWidth: '100%', height: '100%' }
+          : { width: '70vw', maxWidth: 1200 },
       }}
     >
       <Box
