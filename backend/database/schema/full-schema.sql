@@ -10393,21 +10393,21 @@ COMMENT ON COLUMN public.finanzas_conciliaciones.total_retiros_cotejados IS 'Sum
 -- Name: COLUMN finanzas_conciliaciones.saldo_conciliado_calculado; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_conciliado_calculado IS 'saldo_conciliado_anterior + total_depositos_cotejados - total_retiros_cotejados. Base correcta de cuadre con saldo_banco.';
+COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_conciliado_calculado IS 'Saldo formado por los movimientos efectivamente conciliados: saldo_conciliado_anterior + total_depositos_cotejados - total_retiros_cotejados. Es la base del cuadre con saldo_banco.';
 
 
 --
 -- Name: COLUMN finanzas_conciliaciones.saldo_sistema; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_sistema IS 'Saldo del sistema calculado al momento de cerrar la conciliación (saldo_inicial + movimientos hasta fecha_corte).';
+COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_sistema IS 'Saldo del sistema informativo calculado al momento de cerrar la conciliación: saldo teórico considerando saldo_inicial + todos los movimientos registrados hasta fecha_corte. No es la base del cuadre.';
 
 
 --
 -- Name: COLUMN finanzas_conciliaciones.diferencia; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finanzas_conciliaciones.diferencia IS 'Diferencia saldo_banco - saldo_sistema al momento del cierre.';
+COMMENT ON COLUMN public.finanzas_conciliaciones.diferencia IS 'Diferencia saldo_banco - saldo_conciliado_calculado al momento del cierre.';
 
 
 --
@@ -22350,4 +22350,3 @@ ALTER TABLE ONLY whatsapp.plantillas
 --
 
 \unrestrict X86r9o0ynwykgHghhwUjhIemCFpaPCaC1xWhWFVh1c8icnVcG7lLNrSRefvRynD
-
