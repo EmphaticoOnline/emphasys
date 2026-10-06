@@ -4184,6 +4184,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         indicatorsByDocumentId={indicadoresFacturaPorId}
         gridContextMenuActions={gridContextMenuActions}
         onSelectFactura={selectGridRow}
+        onRefresh={load}
         onCartaPorte={abrirCartaPorte}
         onRegistrarMovimiento={abrirLiquidacionDesdeFila}
         onAplicarSaldoExistente={abrirAplicarSaldoExistente}

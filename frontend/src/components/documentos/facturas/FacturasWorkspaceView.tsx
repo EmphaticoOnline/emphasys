@@ -129,6 +129,7 @@ export interface FacturasWorkspaceViewProps {
   indicatorsByDocumentId: Readonly<Record<number, DocumentoIndicatorModel>>;
   gridContextMenuActions: GridContextMenuAction[];
   onSelectFactura: (row: CotizacionListado) => void;
+  onRefresh: () => Promise<void>;
   onCartaPorte: (row: CotizacionListado) => void;
   onRegistrarMovimiento?: (row: CotizacionListado) => void;
   onAplicarSaldoExistente?: (row: CotizacionListado) => void;
@@ -296,6 +297,7 @@ export default function FacturasWorkspaceView({
   indicatorsByDocumentId,
   gridContextMenuActions,
   onSelectFactura,
+  onRefresh,
   onCartaPorte,
   onRegistrarMovimiento,
   initialSelectedId = null,
@@ -369,6 +371,7 @@ export default function FacturasWorkspaceView({
   const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, tipoDocumento, Boolean(selectedRow), documentoDetalleRefreshKey);
   const handleReconcile = async () => {
     const result = await detalle.handleReconcile();
+    if (result) await onRefresh();
     const estado = normalizeEstatus(result?.cancelacion_estado);
     const toast = estado === 'cancelada'
       ? { title: 'Cancelación confirmada', message: 'El SAT reporta el CFDI como cancelado.', severity: 'success' as const }
