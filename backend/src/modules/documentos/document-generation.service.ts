@@ -1,6 +1,7 @@
 import pool from "../../config/database";
 import type { PoolClient } from "pg";
 import { registrarRelacionDocumento } from './documentos-dependencias-cancelacion';
+import { recalcularEstadoOrdenCompraPorDependencias } from './orden-compra-status.service';
 
 /**
  * Lanza ServiceError si alguno de los documentos origen tiene un intento de
@@ -184,12 +185,20 @@ const estatusDocumentoEsInactivo = (estatusDocumento: string | null | undefined)
   return estatusNormalizado === "cancelado" || estatusNormalizado === "cancelada";
 };
 
-const TIPOS_DESTINO_REQUIEREN_OC_EMITIDA = new Set<string>(['recepcion', 'factura_compra']);
-
 function validarEstatusOrigenParaGeneracion(
   documentosOrigen: DocumentoGeneracionRow[],
   tipoDestino: TipoDocumento
 ) {
+  const documentoInactivo = documentosOrigen.find((doc) => estatusDocumentoEsInactivo(doc.estatus_documento));
+  if (documentoInactivo) {
+    throw new ServiceError(
+      'ORIGEN_INACTIVO',
+      'No se puede generar un documento desde un origen cancelado',
+      400,
+      { documento_origen_id: Number(documentoInactivo.id) },
+    );
+  }
+
   const tipoDestinoNormalizado = String(tipoDestino ?? '').trim().toLowerCase();
   if (tipoDestinoNormalizado === 'nota_credito' || tipoDestinoNormalizado === 'nota_credito_compra') {
     const documentoBorrador = documentosOrigen.find((doc) =>
@@ -206,20 +215,9 @@ function validarEstatusOrigenParaGeneracion(
     }
   }
 
-  if (!TIPOS_DESTINO_REQUIEREN_OC_EMITIDA.has(String(tipoDestino ?? '').toLowerCase())) return;
-
-  for (const doc of documentosOrigen) {
-    if (String(doc.tipo_documento ?? '').toLowerCase() !== 'orden_compra') continue;
-    const estatus = String(doc.estatus_documento ?? '').trim().toLowerCase();
-    if (estatus !== 'emitido' && estatus !== 'enviado') {
-      throw new ServiceError(
-        "ORIGEN_NO_EMITIDO",
-        "La Orden de Compra debe estar emitida antes de generar este documento",
-        400,
-        { documento_origen_id: Number(doc.id) }
-      );
-    }
-  }
+  // La Recepción puede permanecer en Borrador: su existencia activa y la
+  // disponibilidad de sus partidas son las condiciones operativas para
+  // generar una Factura de Compra. No se exige emitir la Recepción.
 }
 
 const normalizarIdsDocumentoOrigen = (payload: GenerarDocumentoPayload) => {
@@ -849,7 +847,11 @@ export class DocumentGenerationService {
       const descuentoGlobalDocumento = esConsolidado
         ? 0
         : Math.min(100, Math.max(0, Number(documentoOrigen.descuento_global ?? 0) || 0));
-      const tratamientoDestino = resolverTratamientoDestino(documentoOrigen, datos_encabezado);
+      // Una recepción hereda la operación de la OC; el payload no puede
+      // introducir una decisión fiscal/comercial distinta.
+      const tratamientoDestino = String(tipo_documento_destino).toLowerCase() === 'recepcion'
+        ? normalizarTratamientoImpuestos(documentoOrigen.tratamiento_impuestos)
+        : resolverTratamientoDestino(documentoOrigen, datos_encabezado);
       let documentoDestino: any;
 
       if (esEdicionDocumentoDestino) {
@@ -1394,6 +1396,12 @@ export class DocumentGenerationService {
         const oportunidadId = oportunidadRows[0]?.id;
         if (oportunidadId) {
           await aplicarConversionComercialDesdeCotizacion(documentoOrigen.id, oportunidadId, client);
+        }
+      }
+
+      for (const origen of documentosOrigen) {
+        if (String(origen.tipo_documento ?? '').toLowerCase() === 'orden_compra') {
+          await recalcularEstadoOrdenCompraPorDependencias(Number(origen.id), empresaId, client);
         }
       }
 

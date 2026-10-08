@@ -30,7 +30,7 @@ import {
   standardDataGridSx,
 } from '../../components/grids/standardDataGridSx';
 import RangoFormView from './RangoFormView';
-import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
+import { barraVistaSx, botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, superficieCatalogoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 
 type Vista = 'lista' | 'formulario';
 
@@ -165,8 +165,9 @@ export default function RangosTab() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, px: { xs: 2, md: 2.5 }, py: 2.5 }}>
-      <Stack direction="row" alignItems="center" justifyContent="flex-end">
+    <Box sx={superficieCatalogoSx}>
+      <Stack sx={barraVistaSx}>
+        <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Rangos de cuentas</Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -183,7 +184,7 @@ export default function RangosTab() {
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <Paper variant="outlined" sx={{ borderRadius: 1.5, overflow: 'hidden' }}>
         <DataGrid
           rows={rangos}
           columns={columns}

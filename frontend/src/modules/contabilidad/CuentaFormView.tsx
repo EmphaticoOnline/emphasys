@@ -267,7 +267,7 @@ export default function CuentaFormView({
   };
 
   return (
-    <Box sx={(theme) => ({ px: { xs: 2, md: 2.5 }, py: 2, color: theme.emphasys.content.foreground })}>
+    <Box sx={(theme) => ({ px: { xs: 1.5, md: 2 }, py: 1.25, color: theme.emphasys.content.foreground })}>
       <Typography sx={[tituloVistaSx, { mb: 1.5 }]}>
         {isEdit ? 'Editar cuenta' : 'Nueva cuenta'}
       </Typography>

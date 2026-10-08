@@ -147,6 +147,9 @@ import TrasladosWorkspaceView from '../components/documentos/traslados/Traslados
 import NotasCreditoWorkspaceView, { FILTRO_NOTAS_VACIO, type FiltroNotas } from '../components/documentos/nota-credito/NotasCreditoWorkspaceView';
 import PagosWorkspaceView from '../components/documentos/pagos/PagosWorkspaceView';
 import AjustesSaldoWorkspaceView from '../components/documentos/ajustes-saldo/AjustesSaldoWorkspaceView';
+import DocumentosGenericoWorkspaceView from '../components/documentos/DocumentosGenericoWorkspaceView';
+import RecepcionesWorkspaceView from '../components/documentos/recepcion/RecepcionesWorkspaceView';
+import RecepcionEditor from '../components/documentos/recepcion/RecepcionEditor';
 import CartaPorteIssuesDialog from '../components/documentos/facturas/CartaPorteIssuesDialog';
 import CartaPorteViajeModal from '../components/documentos/facturas/CartaPorteViajeModal';
 import { obtenerViajePorDocumento, validarCartaPorte, type CartaPorteIssue } from '../services/transporte.api';
@@ -323,6 +326,11 @@ const normalizeDocumentoEstatus = (value: unknown): string => {
 const formatDocumentoEstatusLabel = (value: unknown): string => {
   const normalized = normalizeDocumentoEstatus(value);
   return DOCUMENTO_ESTATUS_LABELS[normalized] ?? String(value ?? 'Borrador');
+};
+
+const formatEstatusDocumentoPorTipo = (value: unknown, tipo: TipoDocumento): string => {
+  if (tipo === 'factura_compra' && normalizeDocumentoEstatus(value) === 'emitido') return 'Confirmada';
+  return formatDocumentoEstatusLabel(value);
 };
 
 const formatMotivoNcLabel = (value: unknown): string => {
@@ -604,6 +612,16 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const esNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
   const esTraslado = tipoDocumento === 'traslado';
   const esFacturaVentas = tipoDocumento === 'factura' && modulo === 'ventas';
+  // Compras comparte el mismo lenguaje visual maduro de Ventas. Las reglas
+  // funcionales siguen dependiendo de `esCotizacion` y del tipo documental;
+  // esta bandera sólo selecciona la superficie visual homologada.
+  const usaSuperficieCatalogo = esCotizacion || modulo === 'compras';
+  const [recepcionEditorId, setRecepcionEditorId] = useState<number | null>(null);
+  useEffect(() => {
+    if (tipoDocumento !== 'recepcion') return;
+    const solicitado = Number((location.state as { recepcionEditorId?: unknown } | null)?.recepcionEditorId ?? 0);
+    if (Number.isInteger(solicitado) && solicitado > 0) setRecepcionEditorId(solicitado);
+  }, [location.state, tipoDocumento]);
   const [openFacturaGlobal, setOpenFacturaGlobal] = useState(false);
   const [tiposDocumento, setTiposDocumento] = useState<TipoDocumentoEmpresa[]>([]);
   const [tiposDocumentoEmpresaId, setTiposDocumentoEmpresaId] = useState<number | null>(null);
@@ -1043,7 +1061,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           }))
         : (documentoTypeConfig?.estatusPermitidos ?? ['borrador', 'emitido', 'cancelado']).map((estatus) => ({
             value: normalizeDocumentoEstatus(estatus),
-            label: formatDocumentoEstatusLabel(estatus),
+            label: formatEstatusDocumentoPorTipo(estatus, tipoDocumento),
           })),
     [documentoTypeConfig, tipoDocumento]
   );
@@ -1317,11 +1335,15 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   };
 
   const contextMenuGenerationActions = useMemo<GridContextMenuAction[]>(() => {
-    if (!contextMenuRow || !tieneOpcionesGeneracion) {
+    const generationRow = contextMenuRow
+      ?? rows.find((row) => Number(row.id) === Number(focusedDocumentId))
+      ?? null;
+    const esFacturaConGeneracion = tipoDocumento === 'factura' || tipoDocumento === 'factura_compra';
+    if (!generationRow || (!tieneOpcionesGeneracion && !esFacturaConGeneracion)) {
       return [];
     }
 
-    const rowId = Number(contextMenuRow.id);
+    const rowId = Number(generationRow.id);
     const opciones = opcionesGeneracion[rowId];
 
     if (!opciones) {
@@ -1341,7 +1363,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       const esDirectaSinPermiso = op.modo_autorizacion === 'directa' && op.usuario_puede_autorizar === false;
       const origenEnBorrador = origenFacturaBorradorBloqueaNotaCredito(
         tipoDocumento,
-        contextMenuRow.estatus_documento,
+        generationRow.estatus_documento,
         op.tipo_documento_destino,
       );
       let label = `Generar ${op.nombre || op.tipo_documento_destino}`;
@@ -1363,7 +1385,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         },
       };
     });
-  }, [contextMenuRow, handlePrepararGeneracion, loading, menuLoading, opcionesGeneracion, tieneOpcionesGeneracion, tipoDocumento]);
+  }, [contextMenuRow, focusedDocumentId, handlePrepararGeneracion, loading, menuLoading, opcionesGeneracion, rows, tieneOpcionesGeneracion, tipoDocumento]);
 
   const handleOpenEstatusMenu = (event: React.MouseEvent<HTMLElement>, row: CotizacionListado) => {
     event.preventDefault();
@@ -1615,7 +1637,10 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
         fecha: toCivilDate(),
         ...(generacionDialog.tipoDestino === 'nota_credito'
           ? { motivo_nc: motivoNc }
-          : { tratamiento_impuestos: generacionDialog.tratamientoImpuestos }),
+          : {}),
+          ...(generacionDialog.tipoDestino !== 'recepcion'
+            ? { tratamiento_impuestos: generacionDialog.tratamientoImpuestos }
+            : {}),
         ...(serieExternaVal !== null && { serie_externa: serieExternaVal }),
         ...(numeroExternoVal !== null && { numero_externo: numeroExternoVal }),
       },
@@ -2377,7 +2402,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           const canEdit = esCotizacion ? getCotizacionEstatusEditableOptions(estatus).length > 0 : true;
           return (
             <Chip
-              label={esCotizacion ? cotizacionConfig?.label : formatDocumentoEstatusLabel(estatus)}
+              label={esCotizacion ? cotizacionConfig?.label : formatEstatusDocumentoPorTipo(estatus, tipoDocumento)}
               size="small"
               color={esCotizacion ? undefined : (getDocumentoEstatusColor(estatus) as any)}
               clickable={canEdit}
@@ -2629,7 +2654,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               </span>
             </Tooltip>
           )}
-          {tieneOpcionesGeneracion && (
+          {(tieneOpcionesGeneracion || tipoDocumento === 'factura' || tipoDocumento === 'factura_compra') && (
             <Tooltip title="Generar">
               <span>
                 <IconButton
@@ -2809,7 +2834,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               </span>
             </Tooltip>
           )}
-          <Tooltip
+          {tipoDocumento !== 'pago_proveedor' && tipoDocumento !== 'nota_credito_compra' && <Tooltip
             title={
               documentoCancelado
                 ? 'Documento ya cancelado'
@@ -2839,7 +2864,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                 <CancelIcon fontSize="small" />
               </IconButton>
             </span>
-          </Tooltip>
+          </Tooltip>}
           {hasAction('enviar_email')
             && (tipoDocumento === 'factura' || (tipoDocumento === 'pago_cliente' && envioCfdiDisponible))
             && (
@@ -3019,6 +3044,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     const envioCfdiDisponible = puedeEnviarCfdiPorCorreo(tipoDocumento, contextMenuRow);
     const whatsappHabilitado = puedeEnviarWhatsappDocumento(tipoDocumento, contextMenuRow);
     const esNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
+    const esNotaCreditoCompra = tipoDocumento === 'nota_credito_compra';
     const canApplySaldoNc = notaCreditoPuedeAplicarSaldo(tipoDocumento, contextMenuRow);
     const estatusDocumentoNormalizado = String(contextMenuRow?.estatus_documento ?? '').trim().toLowerCase();
     const documentoCancelado = estatusDocumentoNormalizado === 'cancelado' || estatusDocumentoNormalizado === 'cancelada';
@@ -3049,6 +3075,10 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         onClick: () => {
           setFocusedDocumentId(rowId);
           setHighlightedDocumentId(null);
+          if (tipoDocumento === 'recepcion') {
+            setRecepcionEditorId(rowId);
+            return;
+          }
           navigate(resolveDocumentoFormPath(tipoDocumento, rowId, modulo));
         },
       },
@@ -3064,9 +3094,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       },
       {
         id: 'emitir',
-        label: 'Emitir',
+        label: tipoDocumento === 'factura_compra' ? 'Confirmar' : 'Emitir',
         icon: <CheckCircleIcon fontSize="small" />,
-        hidden: tipoDocumento !== 'factura',
+        hidden: tipoDocumento !== 'factura' && tipoDocumento !== 'factura_compra',
         disabled:
           loading
           || actualizandoEstatusId === rowId
@@ -3088,7 +3118,11 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               if (saldoActualizado !== undefined) merged.saldo = saldoActualizado;
               return merged;
             }));
-            setSnackbar({ open: true, message: 'Documento emitido', severity: 'success' });
+            setSnackbar({
+              open: true,
+              message: tipoDocumento === 'factura_compra' ? 'Factura de Compra confirmada' : 'Documento emitido',
+              severity: 'success',
+            });
           } catch (err: any) {
             setError(err?.message || 'No se pudo emitir el documento');
           } finally {
@@ -3264,6 +3298,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         id: 'cancelar-documento',
         label: bloqueoCancelacionCfdi || (facturaEnBorrador ? 'Cancelar documento (borrador, use Eliminar)' : 'Cancelar documento'),
         icon: <CancelIcon fontSize="small" />,
+        hidden: esNotaCreditoCompra || tipoDocumento === 'pago_proveedor' || tipoDocumento === 'ajuste_proveedor',
         destructive: true,
         disabled: accionesBloqueadasPorCarga || documentoCancelado || documentoEnBorradorCancelacion || Boolean(bloqueoCancelacionCfdi) || cancelandoId === rowId,
         onClick: () => abrirDialogoCancelar(contextMenuRow),
@@ -3473,7 +3508,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                 onClick={() => setQuickFilter(item.value)}
                 size="small"
                 variant={selected ? 'filled' : 'outlined'}
-                sx={esCotizacion ? {
+                sx={usaSuperficieCatalogo ? {
                   height: 28,
                   borderRadius: 999,
                   fontSize: 12,
@@ -3552,7 +3587,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       <Collapse in={filtersOpen} timeout="auto" unmountOnExit={false}>
         <Paper
           variant="outlined"
-          sx={esCotizacion ? {
+          sx={usaSuperficieCatalogo ? {
             p: { xs: 1.25, sm: 1.5 },
             borderRadius: 2,
             borderColor: theme.emphasys.content.border,
@@ -3565,7 +3600,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           }}
         >
           <Stack spacing={1.25}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: esCotizacion ? theme.emphasys.content.foreground : '#1f2937' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: usaSuperficieCatalogo ? theme.emphasys.content.foreground : '#1f2937' }}>
               Filtros avanzados
             </Typography>
 
@@ -3738,14 +3773,14 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               <Button
                 variant="text"
                 onClick={handleLimpiarFiltros}
-                {...(esCotizacion ? { sx: { textTransform: 'none' as const, fontWeight: 700, color: theme.emphasys.content.foreground } } : {})}
+                {...(usaSuperficieCatalogo ? { sx: { textTransform: 'none' as const, fontWeight: 700, color: theme.emphasys.content.foreground } } : {})}
               >
                 Limpiar
               </Button>
               <Button
                 variant="contained"
                 onClick={handleAplicarFiltros}
-                sx={esCotizacion ? catalogoPrimaryButtonSx : { backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
+                sx={usaSuperficieCatalogo ? catalogoPrimaryButtonSx : { backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
               >
                 Aplicar filtros
               </Button>
@@ -3760,8 +3795,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     <Box
       sx={{
         display: 'grid',
-        gap: esCotizacion ? 0.75 : 1,
-        gridTemplateColumns: esCotizacion ? {
+        gap: usaSuperficieCatalogo ? 0.75 : 1,
+        gridTemplateColumns: usaSuperficieCatalogo ? {
           xs: '1fr',
           sm: 'repeat(2, minmax(0, 1fr))',
           md: 'repeat(3, minmax(0, 1fr))',
@@ -3807,7 +3842,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         <Paper
           key={item.label}
           variant="outlined"
-          sx={esCotizacion ? {
+          sx={usaSuperficieCatalogo ? {
             px: 1.1,
             py: 0.7,
             borderRadius: 2,
@@ -3821,10 +3856,10 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
           }}
         >
-          <Typography sx={esCotizacion ? { fontSize: 10, fontWeight: 700, color: theme.emphasys.metric.caption, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.15 } : { color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
+          <Typography sx={usaSuperficieCatalogo ? { fontSize: 10, fontWeight: 700, color: theme.emphasys.metric.caption, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.15 } : { color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
             {item.label}
           </Typography>
-          <Typography sx={esCotizacion ? { mt: 0.35, fontSize: 16, lineHeight: 1.05, fontWeight: 500, fontFamily: theme.typography.figure.fontFamily, fontVariantNumeric: 'tabular-nums', color: item.color } : { color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
+          <Typography sx={usaSuperficieCatalogo ? { mt: 0.35, fontSize: 16, lineHeight: 1.05, fontWeight: 500, fontFamily: theme.typography.figure.fontFamily, fontVariantNumeric: 'tabular-nums', color: item.color } : { color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
             {currency.format(item.value)}
           </Typography>
         </Paper>
@@ -3835,7 +3870,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   const selectionContent = canBulkDuplicate && selectedDocumentIds.length > 0 ? (
     <Paper
       variant="outlined"
-      sx={esCotizacion ? {
+      sx={usaSuperficieCatalogo ? {
         borderRadius: 2,
         px: 2,
         py: 1.25,
@@ -3857,7 +3892,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         flexDirection: { xs: 'column', sm: 'row' },
       }}
     >
-      <Typography variant="body2" sx={{ fontWeight: 700, color: esCotizacion ? theme.emphasys.content.foreground : '#1f2937' }}>
+      <Typography variant="body2" sx={{ fontWeight: 700, color: usaSuperficieCatalogo ? theme.emphasys.content.foreground : '#1f2937' }}>
         {selectedDocumentIds.length} documento{selectedDocumentIds.length === 1 ? '' : 's'} seleccionado{selectedDocumentIds.length === 1 ? '' : 's'}
       </Typography>
       <Stack direction="row" spacing={1}>
@@ -3882,7 +3917,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             void handleDuplicarSeleccionados();
           }}
           disabled={bulkDuplicating}
-          sx={esCotizacion ? catalogoPrimaryButtonSx : { backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
+          sx={usaSuperficieCatalogo ? catalogoPrimaryButtonSx : { backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
         >
           Duplicar seleccionados
         </Button>
@@ -3960,7 +3995,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         startIcon={exportLoading ? <CircularProgress size={14} /> : <DownloadIcon />}
         onClick={() => void handleExport()}
         disabled={exportLoading}
-        {...(esCotizacion ? { sx: catalogoOutlinedButtonSx } : {})}
+        {...(usaSuperficieCatalogo ? { sx: catalogoOutlinedButtonSx } : {})}
       >
         Exportar
       </Button>
@@ -3996,7 +4031,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         </Button>
       ) : null}
       extraActionsContent={extraActionsContent}
-      surface={esCotizacion ? 'catalog' : 'legacy'}
+      surface={usaSuperficieCatalogo ? 'catalog' : 'legacy'}
       rows={filteredRows}
       columns={orderedColumns}
       canBulkDuplicate={canBulkDuplicate}
@@ -4091,7 +4126,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   // siguen exactamente igual, sobre `desktopView`/`mobileView`. Reutiliza
   // los mismos datos/handlers ya calculados arriba — no duplica lógica.
   const facturasWorkspaceVisible =
-    tipoDocumento === 'factura' && modulo === 'ventas' && facturasWorkspaceEnabled;
+    (tipoDocumento === 'factura' || tipoDocumento === 'factura_compra')
+    && (modulo === 'ventas' ? facturasWorkspaceEnabled : true);
 
   const crearTrasladoWorkspace = async () => {
     const fecha = new Date().toISOString().slice(0, 10);
@@ -4223,7 +4259,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       summaryContent={summaryContent}
       selectionContent={selectionContent}
       extraActionsContent={extraActionsContent}
-      surface={esCotizacion ? 'catalog' : 'legacy'}
+      surface={usaSuperficieCatalogo ? 'catalog' : 'legacy'}
       rows={filteredRows}
       tipoDocumento={tipoDocumento}
       indicatorsByDocumentId={indicadoresFacturaPorId}
@@ -4247,7 +4283,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     />
   );
 
-  const pagosWorkspaceView = tipoDocumento === 'pago_cliente' && modulo === 'ventas' ? (
+  const pagosWorkspaceView = (tipoDocumento === 'pago_cliente' || tipoDocumento === 'pago_proveedor') ? (
     <PagosWorkspaceView
       rows={filteredRows}
       isLoading={loading || loadingPreferences}
@@ -4288,10 +4324,11 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       onSelectedIdsChange={setSelectedDocumentIds}
       onDuplicateSelected={() => { void handleDuplicarSeleccionados(); }}
       duplicating={bulkDuplicating}
+      onRefresh={load}
     />
   ) : null;
 
-  const ajustesSaldoWorkspaceView = tipoDocumento === 'ajuste_cliente' && modulo === 'ventas' ? (
+  const ajustesSaldoWorkspaceView = (tipoDocumento === 'ajuste_cliente' || tipoDocumento === 'ajuste_proveedor') ? (
     <AjustesSaldoWorkspaceView
       rows={filteredRows}
       isLoading={loading || loadingPreferences}
@@ -4327,7 +4364,72 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       onSelectedIdsChange={setSelectedDocumentIds}
       onDuplicateSelected={() => { void handleDuplicarSeleccionados(); }}
       duplicating={bulkDuplicating}
+      onRefresh={load}
     />
+  ) : null;
+
+  const compraWorkspaceProps = {
+    rows: filteredRows,
+    isLoading: loading || loadingPreferences,
+    selectedId: focusedDocumentId,
+    onSelect: selectGridRow,
+    search,
+    onSearch: setSearch,
+    onCreate: () => navigate(`${basePath}/nuevo`),
+    onOpen: (row: CotizacionListado) => navigate(resolveDocumentoFormPath(tipoDocumento, row.id, modulo)),
+    onRefresh: load,
+    onExport: () => { void handleExport(); },
+    exportLoading,
+    title: textos.titulo,
+    formatFolio: (row: CotizacionListado) => resolverFolioVisual(row, tipoDocumento) || String(row.id),
+    formatDate: formatCivilDate,
+    currency,
+    total: rowCount,
+    page,
+    pageSize,
+    onPageChange: setPage,
+    statusOptions,
+    quickFilter,
+    onQuickFilter: setQuickFilter,
+    filtros: filtrosCotizacion,
+    onFiltrosChange: setFiltrosCotizacion,
+    contactos,
+    etiquetaContacto: contactoLabel,
+    resumen: resumenTotales,
+    sortModel,
+    onSortModelChange: setSortModel,
+    selectedIds: selectedDocumentIds,
+    onSelectedIdsChange: setSelectedDocumentIds,
+    selectionContent,
+    extraActionsContent,
+  };
+  const documentosCompraWorkspaceView = tipoDocumento === 'orden_compra' ? (
+    <DocumentosGenericoWorkspaceView
+      {...compraWorkspaceProps}
+      actions={gridContextMenuActions}
+      tipoDocumento={tipoDocumento}
+    />
+  ) : tipoDocumento === 'recepcion' ? (
+    <>
+      <RecepcionesWorkspaceView
+        {...compraWorkspaceProps}
+        onOpen={(row) => setRecepcionEditorId(Number(row.id))}
+        actions={gridContextMenuActions.filter((action) => action.id !== 'generar-recepcion' && action.label !== 'Generar Recepción')}
+      />
+      <RecepcionEditor
+        documentoId={recepcionEditorId}
+        onClose={() => {
+          setRecepcionEditorId(null);
+          if ((location.state as { recepcionEditorId?: number } | null)?.recepcionEditorId) {
+            navigate('/compras/recepcion', { replace: true, state: null });
+          }
+        }}
+        onSaved={async () => {
+          await load();
+          setDocumentoDetalleRefreshKey((value) => value + 1);
+        }}
+      />
+    </>
   ) : null;
 
   const notasCreditoWorkspaceView = notasCreditoWorkspaceVisible ? (
@@ -4362,7 +4464,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
 
   return (
     <>
-      {trasladosWorkspaceView ? trasladosWorkspaceView : notasCreditoWorkspaceView ? notasCreditoWorkspaceView : pagosWorkspaceView ? pagosWorkspaceView : ajustesSaldoWorkspaceView ? ajustesSaldoWorkspaceView : facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
+      {trasladosWorkspaceView ? trasladosWorkspaceView : documentosCompraWorkspaceView ? documentosCompraWorkspaceView : notasCreditoWorkspaceView ? notasCreditoWorkspaceView : pagosWorkspaceView ? pagosWorkspaceView : ajustesSaldoWorkspaceView ? ajustesSaldoWorkspaceView : facturasWorkspaceView ? facturasWorkspaceView : isMobile ? (
         <Container maxWidth={false} sx={{ py: 2 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
             {mobileView}
@@ -4690,7 +4792,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   <MenuItem value="devolucion">Devolución</MenuItem>
                   <MenuItem value="bonificacion">Bonificación</MenuItem>
                 </TextField>
-              ) : (
+              ) : generacionDialog.tipoDestino !== 'recepcion' ? (
                 <TextField
                   select
                   label="Tratamiento fiscal"
@@ -4707,7 +4809,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                     </MenuItem>
                   ))}
                 </TextField>
-              )}
+              ) : null}
               {generacionDialog.tipoDestino === 'factura' && generacionDialog.tratamientoImpuestos === 'sin_iva' && (
                 <FormControlLabel
                   control={

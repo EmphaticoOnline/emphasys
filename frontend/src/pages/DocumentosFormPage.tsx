@@ -115,7 +115,7 @@ import { OperacionDialog } from '../modules/finanzas/OperacionDialog';
 import { getDocumentoOrigenFinancieroConfig } from '../modules/finanzas/documentoOrigenFinanciero';
 import { DEFAULT_ESTADO_SEGUIMIENTO } from '../modules/cotizaciones/estadoSeguimiento';
 import { crearContacto, getContacto } from '../services/contactos.api';
-import { fetchCuentas, fetchEstadoCuenta, fetchResumenAnticiposDocumento, fetchSaldoDocumento } from '../services/finanzasService';
+import { fetchAplicacionesDocumento, fetchCuentas, fetchEstadoCuenta, fetchResumenAnticiposDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
 import { resolvePrecioDocumento } from '../services/preciosService';
 import { normalizarTelefonoMx } from '../utils/telefono';
@@ -576,12 +576,19 @@ export default function DocumentosFormPage({
   const navigate = useNavigate();
   const location = useLocation();
   const moduloDocumento = resolveDocumentoModulo(location.pathname);
-  const documentoActualId = documentoPersistidoId ?? routeDocumentoId;
+  const documentoActualId = embedded ? (documentoPersistidoId ?? routeDocumentoId) : routeDocumentoId;
   const isCotizacion = tipoDocumento === 'cotizacion';
+  const esAjusteSaldo = tipoDocumento === 'ajuste_cliente' || tipoDocumento === 'ajuste_proveedor';
+  const usaAplicacionesSaldo = esDocumentoMonetario || esAjusteSaldo;
   const isNotaCredito = tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra';
   const isTraslado = tipoDocumento === 'traslado';
   const isEdit = Boolean(documentoActualId);
   const basePath = resolveDocumentosListPath(tipoDocumento, moduloDocumento);
+  useEffect(() => {
+    if (!embedded && tipoDocumento === 'recepcion' && !isEdit) {
+      navigate(basePath, { replace: true });
+    }
+  }, [basePath, embedded, isEdit, navigate, tipoDocumento]);
   const showFiscalTab = widgetFiscalTab;
   const isPaymentDocument = tipoDocumento === 'pago_cliente' || tipoDocumento === 'pago_proveedor';
 
@@ -632,7 +639,7 @@ export default function DocumentosFormPage({
     usuario_creacion_id: sessionUserId ?? null,
     empresa_id: getEmpresaActivaId(),
     estado_seguimiento: (defaultEstadoSeguimiento ?? null) as NonNullable<CotizacionCrearPayload['estado_seguimiento']> | null,
-    tratamiento_impuestos: 'sin_iva',
+    tratamiento_impuestos: tipoDocumento === 'orden_compra' ? 'normal' : 'sin_iva',
     rfc_receptor: '',
     nombre_receptor: '',
     regimen_fiscal_receptor: '',
@@ -733,7 +740,11 @@ export default function DocumentosFormPage({
     && (String(form.estatus_documento ?? '').trim().toLowerCase() === 'timbrado' || Boolean(uuidCfdiOrigen));
   const edicionFacturaTimbradaRestringida = isEdit && facturaTimbrada;
   const notaVentaBloqueada = tipoDocumento === 'factura' && notaVentaEditabilidad?.esNotaVenta === true && notaVentaEditabilidad.editable === false;
+  const recepcionBorradorEditable = tipoDocumento === 'recepcion'
+    && isEdit
+    && String(form.estatus_documento ?? '').trim().toLowerCase() === 'borrador';
   const trazabilidadActiva = (trazabilidadDetectada
+    && !recepcionBorradorEditable
     && !(tipoDocumento === 'factura' && String(form.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador'))
     || edicionFacturaTimbradaRestringida
     || Boolean(notaVentaBloqueada);
@@ -1048,7 +1059,6 @@ export default function DocumentosFormPage({
     () => Math.max(0, Number(documentoActualId ? saldoDocumento : form.total || 0) - totalAplicacionMonetariaCapturado),
     [documentoActualId, form.total, saldoDocumento, totalAplicacionMonetariaCapturado]
   );
-
   const decimalFormatter = useMemo(
     () => new Intl.NumberFormat('es-MX', {
       minimumFractionDigits: 2,
@@ -1492,7 +1502,7 @@ export default function DocumentosFormPage({
     const subtotalDespuesDescuentoPartida = baseBruta - descuentoMonto;
     const descuentoGlobalMonto = subtotalDespuesDescuentoPartida * (descuentoGlobal / 100);
     const subtotal_partida = subtotalDespuesDescuentoPartida - descuentoGlobalMonto;
-    const impuestosLista = (partida.impuestos ?? partida.impuestos_calculados ?? []) as any[];
+    const impuestosLista = (partida.impuestos?.length ? partida.impuestos : (isEdit ? partida.impuestos_calculados : [])) as any[];
     const totalImpuestos = impuestosLista.reduce((acc: number, imp: any) => {
       const monto = Number(imp.monto ?? 0);
       const esRetencion = (imp.tipo ?? '').toLowerCase() === 'retencion';
@@ -1913,7 +1923,7 @@ export default function DocumentosFormPage({
 
       const mapped: PartidaForm[] = data.partidas.map((p: CotizacionPartida) => {
         const prod = productos.find((pr) => pr.id === p.producto_id) || null;
-        const impuestosEntrada: ImpuestoEntrada[] = (p.impuestos ?? []).map((imp) => ({
+        const impuestosEntradaPersistidos: ImpuestoEntrada[] = (p.impuestos ?? []).map((imp) => ({
           id: imp.impuesto_id,
           nombre: imp.nombre ?? imp.impuesto_id,
           tipo: imp.tipo ?? null,
@@ -1922,6 +1932,22 @@ export default function DocumentosFormPage({
           base: imp.base ?? null,
           impuesto_id: imp.impuesto_id,
         }));
+        const diferenciaFiscalPersistida = Number(p.total_partida ?? 0) - Number(p.subtotal_partida ?? 0);
+        const impuestosEntrada: ImpuestoEntrada[] = impuestosEntradaPersistidos.length > 0
+          ? impuestosEntradaPersistidos
+          : tipoDocumento === 'orden_compra' && diferenciaFiscalPersistida > 0.000001
+            ? [{
+                id: 'persistido_partida',
+                nombre: 'Impuestos trasladados',
+                tipo: 'traslado',
+                tasa: Number(p.subtotal_partida ?? 0) > 0
+                  ? (diferenciaFiscalPersistida / Number(p.subtotal_partida)) * 100
+                  : 0,
+                monto: diferenciaFiscalPersistida,
+                base: Number(p.subtotal_partida ?? 0),
+                impuesto_id: 'persistido_partida',
+              }]
+            : [];
 
         const impuestosCalcPersistidos: ImpuestoCalculadoUI[] = (p.impuestos_calculados ?? []).map((imp: any) => ({
           impuestoId: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? '',
@@ -1942,7 +1968,18 @@ export default function DocumentosFormPage({
               }))
             : [];
 
-        const impuestosCalc: ImpuestoCalculadoUI[] = impuestosCalcPersistidos.length ? impuestosCalcPersistidos : impuestosCalcFallback;
+        const impuestosPersistidosOC: ImpuestoCalculadoUI[] = tipoDocumento === 'orden_compra'
+          ? impuestosEntrada.map((imp) => ({
+              impuestoId: imp.impuesto_id ?? imp.id,
+              nombre: imp.nombre,
+              tipo: imp.tipo ?? undefined,
+              tasa: Number(imp.tasa ?? 0),
+              monto: Number(imp.monto ?? 0),
+            }))
+          : [];
+        const impuestosCalc: ImpuestoCalculadoUI[] = tipoDocumento === 'orden_compra'
+          ? impuestosPersistidosOC
+          : (impuestosCalcPersistidos.length ? impuestosCalcPersistidos : impuestosCalcFallback);
         return calcularPartida({
           id: p.id,
           producto_id: p.producto_id,
@@ -2004,9 +2041,10 @@ export default function DocumentosFormPage({
 
       setError(null);
 
-      if (tipoDocumento === 'orden_compra' && documentoActualId) {
+      if ((tipoDocumento === 'orden_compra' || tipoDocumento === 'recepcion') && documentoActualId) {
         setRecepcionLoading(true);
-        getRecepcionResumen(Number(documentoActualId))
+        const resumenId = tipoDocumento === 'recepcion' ? Number((doc as any).documento_origen_id ?? 0) : Number(documentoActualId);
+        (resumenId > 0 ? getRecepcionResumen(resumenId) : Promise.reject(new Error('Sin OC origen')))
           .then(setRecepcionResumen)
           .catch(() => setRecepcionResumen(null))
           .finally(() => setRecepcionLoading(false));
@@ -2042,14 +2080,17 @@ export default function DocumentosFormPage({
   }, [anticipoConfig, documentoActualId]);
 
   const loadDocumentosCargoMonetarios = useCallback(async (documentIdOverride?: number | null) => {
-    if (!esDocumentoMonetario || !form.contacto_principal_id) {
+    if (!usaAplicacionesSaldo || !form.contacto_principal_id) {
       setDocumentosCargoMonetarios([]);
       return;
     }
 
     try {
       setLoadingDocumentosCargoMonetarios(true);
-      const estadoCuenta = await fetchEstadoCuenta(Number(form.contacto_principal_id));
+      const [estadoCuenta, aplicacionesActuales] = await Promise.all([
+        fetchEstadoCuenta(Number(form.contacto_principal_id)),
+        documentoActualId ? fetchAplicacionesDocumento(Number(documentoActualId)) : Promise.resolve([]),
+      ]);
       const documentos = (estadoCuenta ?? [])
         .filter((item) => item.origen === 'documento' && Number(item.saldo ?? 0) > 0)
         .filter((item) => tiposDocumentoCargoMonetario.includes(String(item.tipo ?? '').trim().toLowerCase()))
@@ -2057,13 +2098,26 @@ export default function DocumentosFormPage({
         .filter((item) => !form.moneda || String(item.moneda ?? '').trim().toUpperCase() === String(form.moneda ?? '').trim().toUpperCase())
         .sort((a, b) => String(a.fecha ?? '').localeCompare(String(b.fecha ?? '')));
       setDocumentosCargoMonetarios(documentos);
+
+      if (documentoActualId) {
+        const montosExistentes: Record<number, string> = {};
+        for (const aplicacion of aplicacionesActuales ?? []) {
+          if (Number(aplicacion.documento_origen_id) !== Number(documentoActualId)) continue;
+          const destinoId = Number(aplicacion.documento_destino_id ?? 0);
+          const monto = Number(aplicacion.monto_moneda_documento ?? aplicacion.monto ?? 0);
+          if (destinoId > 0 && monto > 0) {
+            montosExistentes[destinoId] = String(Number(monto.toFixed(2)));
+          }
+        }
+        setMontosAplicacionMonetaria(montosExistentes);
+      }
     } catch (err) {
       console.error('No se pudo cargar el estado de cuenta del documento monetario', err);
       setDocumentosCargoMonetarios([]);
     } finally {
       setLoadingDocumentosCargoMonetarios(false);
     }
-  }, [documentoActualId, esDocumentoMonetario, form.contacto_principal_id, form.moneda, tiposDocumentoCargoMonetario]);
+  }, [documentoActualId, usaAplicacionesSaldo, form.contacto_principal_id, form.moneda, tiposDocumentoCargoMonetario]);
 
   const loadCuentasFinancieras = useCallback(async () => {
     try {
@@ -2079,9 +2133,10 @@ export default function DocumentosFormPage({
   }, []);
 
   useEffect(() => {
+    if (!conceptosCatalogoListo) return;
     loadDocumento();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentoActualId, tipoDocumento]);
+  }, [conceptosCatalogoListo, documentoActualId, tipoDocumento]);
 
   useEffect(() => {
     if (tipoDocumento !== 'pago_cliente' || !documentoActualId) {
@@ -2096,7 +2151,7 @@ export default function DocumentosFormPage({
   }, [documentoActualId, tipoDocumento]);
 
   useEffect(() => {
-    if (!esDocumentoMonetario) {
+    if (!usaAplicacionesSaldo) {
       setDocumentosCargoMonetarios([]);
       setMontosAplicacionMonetaria({});
       return;
@@ -2107,7 +2162,7 @@ export default function DocumentosFormPage({
       return;
     }
     void loadDocumentosCargoMonetarios();
-  }, [esDocumentoMonetario, form.contacto_principal_id, form.moneda, loadDocumentosCargoMonetarios]);
+  }, [usaAplicacionesSaldo, form.contacto_principal_id, form.moneda, loadDocumentosCargoMonetarios]);
 
   useEffect(() => {
     if (!requiereCuentaFinanciera || cuentasFinancieras.length > 0) {
@@ -2747,13 +2802,14 @@ export default function DocumentosFormPage({
       const calculoNotaCreditoManual = isNotaCreditoManual
         ? await recalcularNotaCreditoManual(totalNotaCreditoManual, form.tratamiento_impuestos)
         : null;
-      const aplicacionesDocumento = esDocumentoMonetario
-        ? documentosCargoMonetarios
-            .map((item) => {
-              const monto = Number(montosAplicacionMonetaria[item.id] ?? 0);
-              if (!(monto > 0)) return null;
+      const aplicacionesDocumento = usaAplicacionesSaldo
+        ? Object.entries(montosAplicacionMonetaria)
+            .map(([documentoDestinoId, valor]) => {
+              const monto = Number(valor ?? 0);
+              const documento_destino_id = Number(documentoDestinoId);
+              if (!(documento_destino_id > 0) || !(monto > 0)) return null;
               return {
-                documento_destino_id: Number(item.id),
+                documento_destino_id,
                 monto,
                 monto_moneda_documento: monto,
                 fecha_aplicacion: normalizeCivilDate(form.fecha_documento) || defaultFecha(),
@@ -2874,6 +2930,7 @@ export default function DocumentosFormPage({
         ? [await construirPartidaTecnicaNotaCredito(calculoNotaCreditoManual ?? undefined)]
         : partidas.filter((p) => !esPartidaPlaceholder(p)).map((p) => ({
         producto_id: p.producto_id,
+        ...(tipoDocumento === 'recepcion' ? { partida_origen_id: (p as any).partida_origen_id ?? null } : {}),
       descripcion_alterna: p.descripcion_alterna ?? null,
         cantidad: p.cantidad ?? 0,
         precio_unitario: isTraslado ? 0 : (p.precio_unitario ?? 0),
@@ -2898,7 +2955,7 @@ export default function DocumentosFormPage({
           : {}),
         observaciones: p.observaciones ?? '',
         especificaciones: p.especificaciones ?? [],
-        impuestos: isTraslado ? [] : (p.impuestos_calculados ?? p.impuestos ?? []).map((imp: any) => ({
+        impuestos: isTraslado ? [] : ((p.impuestos_calculados?.length ? p.impuestos_calculados : p.impuestos) ?? []).map((imp: any) => ({
           impuesto_id: imp.impuestoId ?? imp.impuesto_id ?? imp.id ?? imp.id,
           nombre: imp.nombre ?? null,
           tipo: imp.tipo ?? null,
@@ -2940,7 +2997,7 @@ export default function DocumentosFormPage({
 
       void loadAnticiposResumen(docId);
 
-      if (esDocumentoMonetario) {
+      if (usaAplicacionesSaldo) {
         const saldoActualizado = await fetchSaldoDocumento(docId).catch(() => null);
         if (saldoActualizado) {
           setSaldoDocumento(Number(saldoActualizado.saldo ?? 0));
@@ -3128,9 +3185,30 @@ export default function DocumentosFormPage({
     let recargar = especificacionesHabilitadas && cambioReal && especificacionesSiguientes.length === 0;
     if (especificacionesHabilitadas && cambioReal && especificacionesSiguientes.length > 0) {
       const conservar = window.confirm(
-        'Esta partida ya tiene especificaciones. Aceptar conserva las actuales; Cancelar las reemplaza con las preferidas del nuevo producto.'
+        'Esta partida ya tiene especificaciones. Aceptar conserva las compatibles y descarta las específicas del producto anterior; Cancelar las reemplaza con las preferidas del nuevo producto.'
       );
-      recargar = !conservar;
+      if (conservar) {
+        try {
+          const propiasNuevoProducto = producto
+            ? await fetchEspecificacionesBiblioteca(producto.id)
+            : [];
+          const idsProductoNuevo = new Set(propiasNuevoProducto.map((e) => Number(e.id)));
+          especificacionesSiguientes = especificacionesSiguientes.filter((e) =>
+            String(e.origen ?? '').toLowerCase() !== 'producto'
+            || idsProductoNuevo.has(Number(e.especificacion_biblioteca_id)),
+          );
+        } catch (e) {
+          // Si no se puede consultar la biblioteca, no conservar referencias
+          // de producto que podrían quedar incompatibles con el nuevo producto.
+          especificacionesSiguientes = especificacionesSiguientes.filter((e) =>
+            String(e.origen ?? '').toLowerCase() !== 'producto',
+          );
+          setSnackbar({ open: true, message: e instanceof Error ? e.message : 'No se pudieron validar las especificaciones del producto', severity: 'error' });
+        }
+        recargar = false;
+      } else {
+        recargar = true;
+      }
     }
     if (recargar) {
       try {
@@ -3854,7 +3932,7 @@ export default function DocumentosFormPage({
           tiposPermitidos={contactoTiposPermitidos}
           captureMode={contactoCaptureMode}
           detailedFields={crearClienteDetailedFields}
-          title="Crear cliente"
+          title={`Crear ${contactoLabel.toLowerCase()}`}
           infoMessage="Se asignará al documento con el tipo seleccionado."
           onNombreChange={setCrearClienteNombre}
           onTipoContactoChange={setCrearClienteTipo}
@@ -4335,7 +4413,7 @@ export default function DocumentosFormPage({
                           .some((value) => value!.trim().toLocaleLowerCase() === normalizedInput);
                       });
                       if (hasExactMatch) return filtered;
-                      return [{ kind: 'create', id: -1, nombre: `➕ Crear cliente "${inputValue}"`, inputValue }, ...filtered];
+                      return [{ kind: 'create', id: -1, nombre: `➕ Crear ${contactoLabel.toLowerCase()} "${inputValue}"`, inputValue }, ...filtered];
                     }}
                     isOptionEqualToValue={(option, value) => {
                       const optionIsCreate = 'kind' in option && option.kind === 'create';
@@ -4344,7 +4422,7 @@ export default function DocumentosFormPage({
                       return option?.id === value?.id;
                     }}
                     value={contactoSeleccionado}
-                    disabled={lockedContacto || trazabilidadActiva}
+                    disabled={lockedContacto || trazabilidadActiva || tipoDocumento === 'recepcion'}
                     onChange={(_, value) => {
                       if (lockedContacto) return;
                       if (value && 'kind' in value && value.kind === 'create') {
@@ -4370,7 +4448,7 @@ export default function DocumentosFormPage({
                         label={contactoLabel}
                         required
                         size="small"
-                        disabled={lockedContacto || trazabilidadActiva}
+                        disabled={lockedContacto || trazabilidadActiva || tipoDocumento === 'recepcion'}
                         InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
                         inputProps={{ ...params.inputProps, style: { fontSize: 12.5 } }}
                       />
@@ -4853,7 +4931,7 @@ export default function DocumentosFormPage({
                                     />
                                   )}
                                   sx={{ width: '100%' }}
-                                  disabled={trazabilidadActiva}
+                                  disabled={trazabilidadActiva || tipoDocumento === 'recepcion'}
                                 />
 
                                 {!isTraslado && (<>
@@ -4906,7 +4984,7 @@ export default function DocumentosFormPage({
                                   inputRef={(el) => {
                                     cantidadRefs.current[index] = el;
                                   }}
-                                  disabled={trazabilidadActiva}
+                                  disabled={trazabilidadActiva && !recepcionBorradorEditable}
                                   sx={cellUnderlineSx}
                                 />
 
@@ -5099,7 +5177,7 @@ export default function DocumentosFormPage({
                                       {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                                     </IconButton>
                                   </Tooltip>
-                                  <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small" disabled={trazabilidadActiva} sx={{ p: 0.5 }}>
+                                  <IconButton color="error" onClick={() => removeRow(index)} aria-label="Eliminar partida" size="small" disabled={!recepcionBorradorEditable && trazabilidadActiva} sx={{ p: 0.5 }}>
                                     <DeleteIcon fontSize="small" />
                                   </IconButton>
                                 </Box>
@@ -5113,7 +5191,7 @@ export default function DocumentosFormPage({
                           <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1.25 }}>
                             <IconButton
                               onClick={addRow}
-                              disabled={trazabilidadActiva}
+                              disabled={!recepcionBorradorEditable && trazabilidadActiva}
                               size="small"
                               sx={{
                                 width: 26,
@@ -5207,8 +5285,8 @@ export default function DocumentosFormPage({
                                   />
                                 )}
                                 sx={{ flex: '1 1 200px', minWidth: 180 }}
-                                disabled={trazabilidadActiva}
-                              />
+                                    disabled={trazabilidadActiva && !recepcionBorradorEditable}
+                                    />
 
                               <TextField
                                 label="Cant."
@@ -5454,12 +5532,12 @@ export default function DocumentosFormPage({
                       </IconButton>
                     </span>
                   </Tooltip>
-                  <Tooltip title={saving ? 'Guardando...' : 'Guardar factura'}>
+                  <Tooltip title={saving ? 'Guardando...' : `Guardar ${textos.singular.toLowerCase()}`}>
                     <span>
                       <IconButton
                         onClick={handleSave}
                         disabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
-                        aria-label="Guardar factura"
+                        aria-label={`Guardar ${textos.singular.toLowerCase()}`}
                         sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' } }}
                       >
                         {saving ? <CircularProgress size={18} color="inherit" /> : <CheckIcon fontSize="small" />}
@@ -5501,6 +5579,31 @@ export default function DocumentosFormPage({
         </Box>
 
         {isMobile && <MobileSaveFab loading={saving} disabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada} onClick={handleSave} />}
+
+        {(tipoDocumento === 'orden_compra' || tipoDocumento === 'recepcion') && isEdit && (
+          <Paper variant="outlined" sx={{ mt: 2, borderRadius: 2, overflow: 'hidden' }}>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.75, py: 1, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 800, color: 'primary.main', flexGrow: 1 }}>Recepciones</Typography>
+              {recepcionLoading && <CircularProgress size={16} />}
+              {!recepcionLoading && recepcionResumen && <Chip label={recepcionResumen.estado_recepcion} size="small" sx={{ textTransform: 'capitalize' }} />}
+            </Stack>
+            {!recepcionLoading && recepcionResumen && recepcionResumen.partidas.length > 0 ? (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead><TableRow><TableCell>Producto</TableCell><TableCell align="right">Ordenado</TableCell><TableCell align="right">Recibido</TableCell><TableCell align="right">Pendiente</TableCell></TableRow></TableHead>
+                  <TableBody>{recepcionResumen.partidas.map((p) => (
+                    <TableRow key={p.partida_oc_id}>
+                      <TableCell>{p.producto_descripcion ?? p.descripcion_alterna ?? '—'}</TableCell>
+                      <TableCell align="right">{Number(p.cantidad_ordenada).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                      <TableCell align="right">{Number(p.cantidad_recibida).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                      <TableCell align="right">{Number(p.cantidad_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                    </TableRow>
+                  ))}</TableBody>
+                </Table>
+              </TableContainer>
+            ) : !recepcionLoading ? <Box sx={{ px: 1.75, py: 1.5, color: 'text.secondary', fontSize: 12 }}>Sin partidas de recepción registradas.</Box> : null}
+          </Paper>
+        )}
 
         {dialogosFactura}
       </Box>
@@ -5690,7 +5793,7 @@ export default function DocumentosFormPage({
     );
   }
 
-  if (tipoDocumento === 'factura' && vistaFacturaCaptura === 'nueva') {
+  if (tipoDocumento === 'orden_compra' || (tipoDocumento === 'factura' && vistaFacturaCaptura === 'nueva')) {
     return renderVistaNueva();
   }
 
@@ -6645,12 +6748,12 @@ export default function DocumentosFormPage({
               </Grid>
               )}
 
-              {esDocumentoMonetario && (
+              {usaAplicacionesSaldo && (
                 <Box id="aplicaciones-pago" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, scrollMarginTop: 16 }}>
                   <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5} alignItems={{ xs: 'stretch', md: 'center' }}>
                     <Box>
                       <Typography variant="subtitle1" fontWeight={700} sx={{ color: tokens.content.foreground }}>
-                        Aplicaciones del pago
+                        {esAjusteSaldo ? 'Aplicaciones del ajuste' : 'Aplicaciones del pago'}
                       </Typography>
                     </Box>
                     {useMobilePaymentApplicationCards ? (
@@ -7347,7 +7450,7 @@ export default function DocumentosFormPage({
                                       inputProps={{ ...params.inputProps, style: { fontSize: 13 } }}
                                     />
                                   )}
-                                  disabled={trazabilidadActiva}
+                                  disabled={trazabilidadActiva || tipoDocumento === 'recepcion'}
                                 />
 
                                 <TextField
@@ -7491,7 +7594,7 @@ export default function DocumentosFormPage({
                                     ),
                                   }}
                                   inputProps={{ min: 0, max: esDescuentoPartidaPorMonto(partida) ? undefined : 100, step: 0.01, style: { textAlign: 'right', fontSize: 13 } }}
-                                  disabled={trazabilidadActiva}
+                                  disabled={trazabilidadActiva || tipoDocumento === 'recepcion'}
                                 />
 
                                 <Tooltip
@@ -7740,7 +7843,7 @@ export default function DocumentosFormPage({
                               />
                             )}
                             sx={{ flex: '1 1 200px', minWidth: { xs: '100%', sm: 180 } }}
-                            disabled={trazabilidadActiva}
+                            disabled={trazabilidadActiva || tipoDocumento === 'recepcion'}
                           />
 
                           <TextField
@@ -7950,8 +8053,8 @@ export default function DocumentosFormPage({
                                     }));
                                   }}
                                   inputProps={{ 'aria-label': 'Cuenta para oportunidad' }}
-                                  disabled={trazabilidadActiva}
-                                />
+                                    disabled={trazabilidadActiva && !recepcionBorradorEditable}
+                                  />
                               </Tooltip>
                             </Box>
                           )}
@@ -8344,7 +8447,7 @@ export default function DocumentosFormPage({
         </Paper>
       )}
 
-      {tipoDocumento === 'orden_compra' && isEdit && (
+      {(tipoDocumento === 'orden_compra' || tipoDocumento === 'recepcion') && isEdit && (
         <Paper
           elevation={0}
           sx={{

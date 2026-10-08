@@ -275,7 +275,7 @@ export default function TrasladosWorkspaceView({
         display: listaVisible ? 'flex' : 'none',
         flexDirection: 'column',
         minHeight: 0,
-        bgcolor: tokens.navigation.background,
+        bgcolor: tokens.workspaceRail.background,
         color: tokens.navigation.foreground,
         borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}`,
       }}>

@@ -1,5 +1,6 @@
 export type NotaCreditoAplicacionRow = {
   saldo?: number | null;
+  tiene_aplicaciones_saldo_activas?: boolean | null;
   estatus_documento?: string | null;
   tratamiento_impuestos?: string | null;
   cfdi_uuid?: string | null;
@@ -30,7 +31,7 @@ export function roundMoney(value: number, decimals = 2): number {
 export function notaCreditoPuedeAplicarSaldo(tipoDocumento: string, row: NotaCreditoAplicacionRow): boolean {
   const tipo = normalizar(tipoDocumento);
   if (tipo !== 'nota_credito' && tipo !== 'nota_credito_compra') return false;
-  if (!(Number(row.saldo ?? 0) > 0)) return false;
+  if (!(Number(row.saldo ?? 0) > 0) && !row.tiene_aplicaciones_saldo_activas) return false;
 
   const estatus = normalizar(row.estatus_documento);
   if (['', 'borrador', 'cancelado', 'cancelada'].includes(estatus)) return false;

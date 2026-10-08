@@ -649,8 +649,10 @@ const tituloPorTipo = (tipo: string | null | undefined) => {
   if (t === 'nota_credito') return 'NOTA DE CRÉDITO';
   if (t === 'nota_credito_compra') return 'NOTA DE CRÉDITO DE COMPRA';
   if (t === 'orden_servicio') return 'ORDEN DE SERVICIO';
+  if (t === 'orden_compra') return 'ORDEN DE COMPRA';
   if (t === 'pedido') return 'PEDIDO';
   if (t === 'remision') return 'REMISIÓN';
+  if (t === 'recepcion') return 'RECEPCIÓN';
   if (t === 'pago_cliente') return 'RECIBO DE PAGO';
   return 'COTIZACIÓN';
 };

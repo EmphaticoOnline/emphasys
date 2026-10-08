@@ -71,6 +71,7 @@ export async function obtenerDependenciasCancelacion(
          FROM documentos d
         WHERE d.empresa_id = $1
           AND d.documento_origen_id = $2
+          AND d.id <> $2
           AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
        UNION ALL
        SELECT 'vinculo_partidas'::text AS relacion,
@@ -92,9 +93,10 @@ export async function obtenerDependenciasCancelacion(
          JOIN documentos destino ON destino.id = dr.documento_destino_id
         WHERE dr.empresa_id = $1
           AND dr.documento_origen_id = $2
+          AND destino.id <> $2
           AND dr.tipo_relacion = 'origen_nota_credito'
           AND dr.activa = true
-          AND LOWER(TRIM(COALESCE(destino.tipo_documento, ''))) = 'nota_credito'
+          AND LOWER(TRIM(COALESCE(destino.tipo_documento, ''))) IN ('nota_credito', 'nota_credito_compra')
           AND LOWER(TRIM(COALESCE(destino.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
      )
      SELECT dep.relacion, dep.documento_id, dep.tipo_documento, dep.folio,

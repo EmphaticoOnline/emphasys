@@ -12,6 +12,7 @@ import {
   actualizarDocumentoRepository,
   eliminarDocumentoRepository,
   obtenerRecepcionResumenRepository,
+  obtenerTrazabilidadOrdenCompraRepository,
 } from './documentos.repository';
 import { generarDocumentoPDF, generarTrasladoPDFDesdeXml, normalizarColorHex, obtenerLogoEmpresaPath } from './documentos.pdf';
 import { generarComplementoPagoPdfDesdeXml } from './complemento-pago.pdf';
@@ -44,6 +45,7 @@ import { mapCartaPortePrintModel } from '../transporte/carta-porte-print.mapper'
 import { generarCartaPortePDF } from '../transporte/carta-porte-print.pdf';
 import { combinarPDFs } from '../transporte/pdf-composer';
 import { isTraslado } from './documento-policy.registry';
+import { debeAplicarScopeVentas } from './documento-scope';
 
 const normalizarTipo = (valor: any, fallback: TipoDocumento): TipoDocumento => {
   const t = (valor ?? fallback) as any;
@@ -528,6 +530,7 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
     );
 
     const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
+    const aplicaScopeVentas = debeAplicarScopeVentas(tipo);
     const search = typeof req.query.search === 'string' ? req.query.search : null;
 
     const pageRaw = req.query.page;
@@ -536,7 +539,7 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
     const limit = typeof limitRaw === 'string' ? Number(limitRaw) : undefined;
     const esPaginado = Number.isFinite(page) && Number.isFinite(limit) && page && page >= 1 && limit && limit >= 1 && limit <= 100;
 
-    if (scope.sinAcceso) {
+    if (aplicaScopeVentas && scope.sinAcceso) {
       if (esPaginado) return res.json({ data: [], total: 0, page, limit });
       return res.json([]);
     }
@@ -577,12 +580,17 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
           motivos,
           aplicacion,
         },
-        scope.agenteId
+        aplicaScopeVentas ? scope.agenteId : null
       );
       return res.json({ data: result.data, total: result.total, page, limit });
     }
 
-    const data = await listarDocumentosRepository(tipo, Number(empresaId), search, scope.agenteId);
+    const data = await listarDocumentosRepository(
+      tipo,
+      Number(empresaId),
+      search,
+      aplicaScopeVentas ? scope.agenteId : null,
+    );
     res.json(data);
   } catch (error) {
     console.error(`Error al listar ${nombreDocumento[tipoPorDefecto] ?? tipoPorDefecto}`, error);
@@ -604,7 +612,12 @@ const buildObtenerHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) 
     }
 
     const tipo = forzarTipo ? tipoPorDefecto : normalizarTipo(req.query.tipo_documento, tipoPorDefecto);
-    const result = await obtenerDocumentoRepository(id, Number(empresaId), tipo, scope.agenteId);
+    const result = await obtenerDocumentoRepository(
+      id,
+      Number(empresaId),
+      tipo,
+      debeAplicarScopeVentas(tipo) ? scope.agenteId : null,
+    );
     if (!result) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
     res.json(result);
   } catch (error) {
@@ -664,7 +677,7 @@ const buildActualizarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = fals
     const tipo = forzarTipo ? tipoPorDefecto : resolverTipoDocumentoRequest(req, tipoPorDefecto);
 
     // Los documentos monetarios (pagos) no afectan inventario — path sin cambios
-    if (TIPOS_DOCUMENTO_MONETARIOS.has(tipo)) {
+    if (TIPOS_DOCUMENTO_MONETARIOS.has(tipo) || tipo === 'ajuste_cliente' || tipo === 'ajuste_proveedor') {
       const updated = await actualizarDocumentoService(id, req.body || {}, Number(empresaId), tipo);
       if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
       return res.json(updated);
@@ -770,6 +783,12 @@ export const actualizarCotizacion = async (req: Request, res: Response) => {
 
     const tipo = resolverTipoDocumentoRequest(req, 'cotizacion');
     const body = req.body || {};
+
+    if (TIPOS_DOCUMENTO_MONETARIOS.has(tipo) || tipo === 'ajuste_cliente' || tipo === 'ajuste_proveedor') {
+      const updated = await actualizarDocumentoService(id, body, Number(empresaId), tipo);
+      if (!updated) return res.status(404).json({ message: `${nombreDocumento[tipo] ?? tipo} no encontrada` });
+      return res.json(updated);
+    }
 
     // Cotización con reconciliación de oportunidad: path propio sin inventario
     // (actualizarCotizacionService no participa en transacción externa y las
@@ -967,11 +986,17 @@ export async function exportarDocumentos(req: Request, res: Response) {
     );
 
     const tipo = normalizarTipo(filters.tipo_documento, 'cotizacion');
+    const aplicaScopeVentas = debeAplicarScopeVentas(tipo);
     const search = typeof filters.search === 'string' ? filters.search : null;
 
-    let filas: Record<string, any>[] = scope.sinAcceso
+    let filas: Record<string, any>[] = aplicaScopeVentas && scope.sinAcceso
       ? []
-      : await listarDocumentosRepository(tipo, Number(empresaId), search, scope.agenteId);
+      : await listarDocumentosRepository(
+        tipo,
+        Number(empresaId),
+        search,
+        aplicaScopeVentas ? scope.agenteId : null,
+      );
 
     if (filters.soloPendientes === true) {
       filas = filas.filter((row) => Number(row['saldo'] ?? 0) > 0);
@@ -1760,7 +1785,7 @@ export async function reconciliarCancelacionDocumentoHandler(req: Request, res: 
 
 export async function obtenerRecepcionResumenHandler(req: Request, res: Response) {
   try {
-    const empresaId = Number((req as any).empresaActiva?.id);
+    const empresaId = Number(req.context?.empresaId ?? (req as any).empresaActiva?.id);
     const id = Number(req.params.id);
 
     if (!empresaId || !id) {
@@ -1777,5 +1802,23 @@ export async function obtenerRecepcionResumenHandler(req: Request, res: Response
   } catch (error: any) {
     console.error('[recepcion-resumen] Error', error);
     return res.status(500).json({ error: error?.message ?? 'Error al obtener resumen de recepción' });
+  }
+}
+
+export async function obtenerTrazabilidadOrdenCompraHandler(req: Request, res: Response) {
+  try {
+    const empresaId = Number(req.context?.empresaId ?? (req as any).empresaActiva?.id);
+    const id = Number(req.params.id);
+    if (!empresaId || !id) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const resultado = await obtenerTrazabilidadOrdenCompraRepository(id, empresaId);
+    if (!resultado) {
+      return res.status(404).json({ error: 'Orden de compra no encontrada' });
+    }
+    return res.json(resultado);
+  } catch (error: any) {
+    console.error('[trazabilidad-orden-compra] Error', error);
+    return res.status(500).json({ error: error?.message ?? 'Error al obtener la trazabilidad de la orden de compra' });
   }
 }

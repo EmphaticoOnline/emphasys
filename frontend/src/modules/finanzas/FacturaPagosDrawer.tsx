@@ -171,7 +171,11 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     const documentos = (estadoCuenta ?? [])
       .filter((item) => item.origen === 'documento' && Number(item.saldo ?? 0) > 0)
       .filter((item) => documentosCompatibles.includes(String(item.tipo ?? '').toLowerCase()))
-      .filter((item) => String(item.estatus_documento ?? '').trim().toLowerCase() !== 'borrador')
+      .filter((item) => {
+        const tipo = String(item.tipo ?? '').trim().toLowerCase();
+        const estado = String(item.estatus_documento ?? '').trim().toLowerCase();
+        return tipo === 'factura_compra' ? estado === 'emitido' : estado !== 'borrador';
+      })
       .filter((item) => Number(item.id) !== Number(documentoId))
       .filter((item) => String(item.moneda ?? '').trim().toUpperCase() === String(monedaSaldo).trim().toUpperCase())
       .sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -443,7 +447,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             </Box>
             <Box>
               <Typography variant="body2" color="text.secondary">
-                {esNotaCredito ? 'Aplicaciones registradas' : 'Pagos aplicados'}
+                {esNotaCredito ? 'Aplicaciones registradas' : 'Aplicaciones previas'}
               </Typography>
               <Typography variant="h6" fontWeight={700} color="#1d2f68">
                 {aplicaciones.length}
@@ -453,8 +457,8 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
         </Box>
 
         <Stack spacing={1}>
-          <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
-            Aplicaciones registradas
+            <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+              Aplicaciones previas
           </Typography>
           {esNotaCredito ? (
             <Typography variant="body2" color="text.secondary">
@@ -466,7 +470,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             </Typography>
           )}
           <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
-            <Table size="small" aria-label="Aplicaciones registradas">
+            <Table size="small" aria-label={esNotaCredito ? 'Aplicaciones registradas' : 'Aplicaciones previas'}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={headerCellSx}>{esNotaCredito ? 'Documento' : 'Origen'}</TableCell>
@@ -493,8 +497,8 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                       <TableCell sx={bodyCellSx}>{formatDateShort(item.fecha_documento || item.fecha_aplicacion || item.fecha_creacion)}</TableCell>
                       <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(item.monto_moneda_documento || item.monto || 0))}</TableCell>
                       <TableCell align="center" sx={{ ...bodyCellSx, py: '2px', width: 40 }}>
-                        {puedeDesaplicar && item.tipo_documento_origen === 'pago_cliente' ? (
-                          <Tooltip title="Desaplicar pago">
+                        {puedeDesaplicar && ['pago_cliente', 'pago_proveedor'].includes(String(item.tipo_documento_origen ?? '').toLowerCase()) ? (
+                          <Tooltip title={`Desaplicar saldo de ${folio}`}>
                             <IconButton
                               size="small"
                               color="error"
@@ -503,7 +507,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                                 setDesaplicarItem(item);
                               }}
                               disabled={deletingAplicacionId === Number(item.id)}
-                              aria-label="Desaplicar pago"
+                              aria-label={`Desaplicar saldo de ${folio}`}
                               sx={{ p: 0.25 }}
                             >
                               <DeleteOutlineIcon fontSize="small" />
@@ -722,6 +726,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             }
           }}
           onConfirm={handleDesaplicarPago}
+          destinoLabel={tipoDocumentoNormalizado === 'factura_compra' ? 'factura de compra' : 'factura'}
         />
       </Drawer>
   );

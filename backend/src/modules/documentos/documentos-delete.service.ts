@@ -9,6 +9,64 @@ export class DocumentoDeleteValidationError extends Error {
   }
 }
 
+/**
+ * Regla transversal: un documento padre no puede eliminarse mientras tenga
+ * documentos derivados activos, sin importar el tipo de documento padre.
+ */
+export async function assertNoActiveDocumentDependents(
+  documentoId: number,
+  empresaId: number,
+  client: Pick<PoolClient, 'query'>,
+) {
+  const { rows } = await client.query<{ tipo_documento: string | null; folio: string | null }>(
+    `SELECT DISTINCT d.tipo_documento,
+            CASE
+              WHEN d.serie IS NOT NULL AND d.numero IS NOT NULL THEN d.serie || '-' || LPAD(d.numero::text, 3, '0')
+              WHEN d.serie IS NOT NULL THEN d.serie
+              ELSE '#' || d.id::text
+            END AS folio
+       FROM documentos d
+      WHERE d.empresa_id = $2
+        AND d.documento_origen_id = $1
+        AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+      UNION
+     SELECT DISTINCT d.tipo_documento,
+            CASE
+              WHEN d.serie IS NOT NULL AND d.numero IS NOT NULL THEN d.serie || '-' || LPAD(d.numero::text, 3, '0')
+              WHEN d.serie IS NOT NULL THEN d.serie
+              ELSE '#' || d.id::text
+            END AS folio
+       FROM documentos_partidas_vinculos dpv
+       JOIN documentos d ON d.id = dpv.documento_destino_id
+      WHERE dpv.documento_origen_id = $1
+        AND d.empresa_id = $2
+        AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+      UNION
+     SELECT DISTINCT d.tipo_documento,
+            CASE
+              WHEN d.serie IS NOT NULL AND d.numero IS NOT NULL THEN d.serie || '-' || LPAD(d.numero::text, 3, '0')
+              WHEN d.serie IS NOT NULL THEN d.serie
+              ELSE '#' || d.id::text
+            END AS folio
+       FROM documentos_relaciones dr
+       JOIN documentos d ON d.id = dr.documento_destino_id
+      WHERE dr.documento_origen_id = $1
+        AND d.empresa_id = $2
+        AND COALESCE(dr.activa, TRUE)
+        AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+      LIMIT 20`,
+    [documentoId, empresaId],
+  );
+
+  if (rows.length === 0) return;
+
+  const tipos = [...new Set(rows.map((row) => String(row.tipo_documento ?? '').toLowerCase()))];
+  const etiquetas = tipos.map((tipo) => tipo === 'recepcion' ? 'Recepciones' : tipo === 'factura_compra' ? 'Facturas de Compra' : tipo);
+  throw new DocumentoDeleteValidationError(
+    `No se puede eliminar el documento porque tiene documentos derivados activos (${etiquetas.join(', ')}).`,
+  );
+}
+
 type OportunidadDeleteRow = {
   id: number;
   cotizacion_principal_id: number | null;

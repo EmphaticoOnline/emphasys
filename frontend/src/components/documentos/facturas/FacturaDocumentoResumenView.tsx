@@ -24,6 +24,7 @@
 // de Partidas es flexible y con scroll interno propio cuando hay muchas.
 import React, { useMemo } from 'react';
 import { Alert, Box, Button, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
+import DocumentoHojaFrame from '../DocumentoHojaFrame';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
 import type { CotizacionDocumento, CotizacionListado, CotizacionPartida } from '../../../types/cotizacion';
@@ -104,8 +105,7 @@ export default function FacturaDocumentoResumenView({
         : cancelacionEstado === 'rechazada' ? 'Rechazada' : '';
 
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ border: `1px solid ${tokens.content.border}`, borderRadius: 2, p: 1.75, bgcolor: tokens.content.card, color: tokens.content.foreground, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <DocumentoHojaFrame>
 
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} sx={{ pb: 1, mb: 1, borderBottom: `2px solid ${tokens.content.foreground}`, flexShrink: 0 }}>
           <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
@@ -263,7 +263,6 @@ export default function FacturaDocumentoResumenView({
             <Typography variant="body2" whiteSpace="pre-wrap">{documento.observaciones}</Typography>
           </Box>
         ) : null}
-      </Box>
-    </Box>
+    </DocumentoHojaFrame>
   );
 }

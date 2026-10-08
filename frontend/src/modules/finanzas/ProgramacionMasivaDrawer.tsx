@@ -169,17 +169,18 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
   const handleSelectionChange = (model: GridRowSelectionModel) => {
     setMontos((prev) => {
       const nuevo = new Map(prev);
-      const idsSeleccionados = new Set(model.map((id) => Number(id)));
+      const idsSeleccionados = new Set(model.map((id) => String(id)));
       // agregar default para nuevas selecciones
       for (const id of idsSeleccionados) {
-        if (!nuevo.has(id)) {
-          const f = facturas.find((x) => x.id === id);
-          if (f) nuevo.set(id, formatMonto(f.saldo_disponible_programar));
+        const numericId = Number(id);
+        if (!nuevo.has(numericId)) {
+          const f = facturas.find((x) => x.id === numericId);
+          if (f) nuevo.set(numericId, formatMonto(f.saldo_disponible_programar));
         }
       }
       // limpiar las que ya no están seleccionadas
       for (const id of Array.from(nuevo.keys())) {
-        if (!idsSeleccionados.has(id)) nuevo.delete(id);
+        if (!idsSeleccionados.has(String(id))) nuevo.delete(id);
       }
       return nuevo;
     });
@@ -448,7 +449,7 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
           <DataGrid
             rows={facturas}
             columns={columns}
-            getRowId={(row) => (row as FacturaCompraPendiente).id}
+            getRowId={(row) => String((row as FacturaCompraPendiente).id)}
             checkboxSelection
             disableRowSelectionOnClick
             rowSelectionModel={seleccion}

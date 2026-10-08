@@ -123,6 +123,21 @@ export async function reemplazarPartidasService(
   const inserted = await reemplazarPartidasRepository(documentoId, partidasPersistir, empresaId, client);
   console.log('[BACK IVA DEBUG] reemplazarPartidasService inserted', inserted?.map((p) => ({ id: p?.id, producto_id: p?.producto_id, subtotal: p?.subtotal_partida, total: p?.total_partida })));
 
+    const { rows: documentoRows } = await client.query<{ tipo_documento: string; estatus_documento: string }>(
+      `SELECT tipo_documento, estatus_documento FROM documentos WHERE id = $1 AND empresa_id = $2 LIMIT 1`,
+      [documentoId, empresaId],
+    );
+    const esRecepcionBorrador = String(documentoRows[0]?.tipo_documento ?? '').toLowerCase() === 'recepcion'
+      && String(documentoRows[0]?.estatus_documento ?? '').toLowerCase() === 'borrador';
+    if (esRecepcionBorrador && Array.isArray(inserted)) {
+      for (const partida of inserted) {
+        if (partida?.id) await calcularImpuestosPartida(partida.id, client);
+      }
+      await actualizarTotales(documentoId, client);
+      await client.query('COMMIT');
+      return inserted;
+    }
+
     // Con trazabilidad activa, reemplazarPartidasRepository solo actualizó la imagen de
     // cada partida in-place (cantidad, precio, descuento e importes quedaron intactos).
     // Recalcular impuestos/totales aquí sería un cambio indirecto sobre datos protegidos,

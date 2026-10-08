@@ -9,13 +9,14 @@ import {
 } from './cotizacion-status';
 import { obtenerOCrearProductoTecnicoNcComercialRepository } from '../productos/productos.repository';
 import { reservarNumeroParaSerieExistente, resolverSerieDocumento, resolverYReservarSerieDocumento } from './series-documento.service';
-import { DocumentoDeleteValidationError } from './documentos-delete.service';
+import { DocumentoDeleteValidationError, assertNoActiveDocumentDependents } from './documentos-delete.service';
 import { sanitizarRichTextBasico } from '../../utils/richTextSanitize';
 import { obtenerConfiguracionEspecificaciones } from '../productos/especificaciones-configuracion.service';
 import { esFacturaTimbrada, validarCamposFacturaTimbrada } from './factura-timbrada-edicion';
 import { assertNotaVentaEditable } from './nota-venta-editabilidad';
 import { assertNotaCreditoSinAplicacionesParaBorrador } from '../finanzas/aplicaciones-saldo.rules';
 import { isTraslado } from './documento-policy.registry';
+import { recalcularEstadoOrdenCompraPorDependencias } from './orden-compra-status.service';
 
 type PostgresForeignKeyError = Error & {
   code?: string;
@@ -380,6 +381,11 @@ function esFacturaBorrador(current: Record<string, any>): boolean {
     && String(current.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador';
 }
 
+function esRecepcionBorrador(current: Record<string, any>): boolean {
+  return String(current.tipo_documento ?? '').trim().toLowerCase() === 'recepcion'
+    && String(current.estatus_documento ?? 'borrador').trim().toLowerCase() === 'borrador';
+}
+
 function esNotaCredito(current: Record<string, any>): boolean {
   const tipo = String(current.tipo_documento ?? '').trim().toLowerCase();
   return tipo === 'nota_credito' || tipo === 'nota_credito_compra';
@@ -434,6 +440,8 @@ function assertSoloObservacionesModificadas(
 ): void {
   for (const campo of CAMPOS_DOCUMENTO) {
     if (CAMPOS_FACTURA_BORRADOR_EDITABLES_CON_TRAZABILIDAD.includes(campo) && esFacturaBorrador(current)) continue;
+    if (campo === 'observaciones' && (esFacturaBorrador(current) || esRecepcionBorrador(current))) continue;
+    if (campo === 'fecha_documento' && esRecepcionBorrador(current)) continue;
 
     if (campo === 'estatus_documento') {
       const incomingEstatus = (dataToUpdate as any).estatus_documento;
@@ -578,7 +586,8 @@ async function assertNotaCreditoEliminable(
   estatusDocumento: unknown,
   executor: Pick<import('pg').PoolClient, 'query'>
 ) {
-  if (String(tipoDocumento ?? '').trim().toLowerCase() !== 'nota_credito') return;
+  const tipo = String(tipoDocumento ?? '').trim().toLowerCase();
+  if (tipo !== 'nota_credito' && tipo !== 'nota_credito_compra') return;
 
   const estatus = String(estatusDocumento ?? '').trim().toLowerCase();
   const { rows: cfdiRows } = await executor.query<{ uuid: string | null }>(
@@ -589,7 +598,10 @@ async function assertNotaCreditoEliminable(
     [documentoId]
   );
 
-  if (estatus === 'timbrado' || cfdiRows[0]?.uuid) {
+  // La nota de compra no es un CFDI emitido por Emphasys. Si existiera
+  // documentación recibida asociada en otra infraestructura, no debe
+  // convertirla en un bloqueo de cancelación fiscal local.
+  if (tipo === 'nota_credito' && (estatus === 'timbrado' || cfdiRows[0]?.uuid)) {
     throw new DocumentoDeleteValidationError(
       'No se puede eliminar una nota de crédito timbrada. Utilice la cancelación fiscal (CFDI) en su lugar.'
     );
@@ -597,7 +609,9 @@ async function assertNotaCreditoEliminable(
 
   if (estatus !== 'borrador') {
     throw new DocumentoDeleteValidationError(
-      'Solo se puede eliminar una nota de crédito en borrador. Para conservar la trazabilidad, utilice la cancelación.'
+      tipo === 'nota_credito_compra'
+        ? 'Solo se puede eliminar una nota de crédito de compra en borrador.'
+        : 'Solo se puede eliminar una nota de crédito en borrador. Para conservar la trazabilidad, utilice la cancelación.'
     );
   }
 }
@@ -1381,7 +1395,13 @@ export async function listarDocumentosRepositoryPaginado(
     const { soloPendientes, quickFilter, clienteId, agenteId, fechaDesde, fechaHasta, montoMin, montoMax, estatus, motivos, aplicacion } = additionalFilters;
 
     if (soloPendientes && tieneSaldoDocumental) {
-      whereClauses.push('COALESCE(dso.saldo_operativo, 0) > 0');
+      whereClauses.push(`(
+        COALESCE(dso.saldo_operativo, 0) > 0
+        OR (
+          LOWER(COALESCE(d.tipo_documento, '')) = 'factura_compra'
+          AND LOWER(COALESCE(d.estatus_documento, '')) = 'borrador'
+        )
+      )`);
     }
 
     if (quickFilter && quickFilter !== 'todos') {
@@ -1450,7 +1470,7 @@ export async function listarDocumentosRepositoryPaginado(
     if (tieneSaldoDocumental && (aplicacion === 'pendiente' || aplicacion === 'aplicada')) {
       const activa = `LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
       whereClauses.push(aplicacion === 'pendiente'
-        ? `COALESCE(dso.saldo_operativo, 0) > 0 AND ${activa}`
+        ? `(COALESCE(dso.saldo_operativo, 0) > 0 OR (LOWER(COALESCE(d.tipo_documento, '')) = 'factura_compra' AND LOWER(COALESCE(d.estatus_documento, '')) = 'borrador')) AND ${activa}`
         : `COALESCE(dso.saldo_operativo, 0) <= 0 AND ${activa}`);
     }
   }
@@ -2094,6 +2114,40 @@ export async function actualizarDocumentoRepository(
   if (!current) return null;
 
   const tipoActual = String(current.tipo_documento ?? '').trim().toLowerCase();
+  if (tipoActual === 'pago_cliente' || tipoActual === 'pago_proveedor') {
+    const { rows: aplicacionesRows } = await executor.query<{ existe: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM aplicaciones_saldo
+          WHERE empresa_id = $1
+            AND (documento_origen_id = $2 OR documento_destino_id = $2)
+       ) AS existe`,
+      [empresaId, id],
+    );
+    if (Boolean(aplicacionesRows[0]?.existe)) {
+      if (!Array.isArray((data as any).aplicaciones_documento)) {
+        throw new Error('VALIDATION_ERROR: Un pago con aplicaciones activas solo permite modificar sus aplicaciones; desaplíquelas antes de editar datos estructurales.');
+      }
+    }
+  }
+  const recepcionBorrador = tipoActual === 'recepcion'
+    && String(current.estatus_documento ?? '').trim().toLowerCase() === 'borrador';
+  if (recepcionBorrador) {
+    if (Object.prototype.hasOwnProperty.call(data, 'contacto_principal_id')
+      && Number(data.contacto_principal_id ?? 0) !== Number(current.contacto_principal_id ?? 0)) {
+      throw new Error('VALIDATION_ERROR: El proveedor de una recepción no puede modificarse');
+    }
+    // Los importes de una recepción se derivan de la OC y de sus cantidades.
+    // Nunca aceptar una segunda captura comercial desde el encabezado.
+    data = { ...data };
+    delete (data as any).subtotal;
+    delete (data as any).descuento;
+    delete (data as any).iva;
+    delete (data as any).retencion_iva;
+    delete (data as any).total;
+    delete (data as any).tratamiento_impuestos;
+    delete (data as any).documento_origen_id;
+  }
   if (isTraslado(tipoActual)) {
     if (Object.prototype.hasOwnProperty.call(data, 'contacto_principal_id') && !data.contacto_principal_id) {
       throw new Error('VALIDATION_ERROR: Un Traslado requiere un contacto operativo.');
@@ -2270,7 +2324,9 @@ export async function actualizarDocumentoRepository(
     if (trazabilidadHeader.activa) {
       const editables = esFacturaBorrador(current)
         ? [...CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD, ...CAMPOS_FACTURA_BORRADOR_EDITABLES_CON_TRAZABILIDAD]
-        : CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD;
+        : esRecepcionBorrador(current)
+          ? [...CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD, 'fecha_documento']
+          : CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD;
       if (!editables.includes(campo)) return false;
     }
     if (!hasSeguimiento && (SEGUIMIENTO_CAMPOS as readonly string[]).includes(campo)) return false;
@@ -2471,6 +2527,11 @@ export async function reemplazarPartidasRepository(
 
     assertFacturaCompraNoEmitida(docRow.tipo_documento, docRow.estatus_documento);
     await assertOrdenCompraModificable(documentoId, empresaId, docRow.tipo_documento, executor);
+
+    if (String(docRow.tipo_documento).toLowerCase() === 'recepcion'
+      && String(docRow.estatus_documento ?? '').trim().toLowerCase() === 'borrador') {
+      return reemplazarPartidasRecepcionBorrador(documentoId, partidas, empresaId, executor);
+    }
 
     const trazabilidadPartidas = await obtenerTrazabilidadPartidas(documentoId, executor);
     if (trazabilidadPartidas.activa) {
@@ -2683,6 +2744,108 @@ export async function reemplazarPartidasRepository(
   }
 }
 
+/**
+ * Recepciones derivadas: la trazabilidad sigue siendo obligatoria, pero una
+ * recepción en borrador puede corregir cantidades y partidas contra su misma OC.
+ * El lock de la OC serializa las recepciones concurrentes de ese origen.
+ */
+async function reemplazarPartidasRecepcionBorrador(
+  documentoId: number,
+  partidas: PartidaInput[],
+  empresaId: number,
+  executor: PoolClient,
+) {
+  const { rows: recepcionRows } = await executor.query<{ documento_origen_id: number | null }>(
+    `SELECT documento_origen_id
+       FROM documentos
+      WHERE id = $1 AND empresa_id = $2 AND LOWER(tipo_documento) = 'recepcion'
+      FOR UPDATE`,
+    [documentoId, empresaId],
+  );
+  const ocId = Number(recepcionRows[0]?.documento_origen_id ?? 0);
+  if (!ocId) throw new Error('VALIDATION_ERROR: La recepción no tiene una orden de compra origen');
+
+  const { rows: ocRows } = await executor.query<{ id: number; estatus_documento: string }>(
+    `SELECT id, estatus_documento
+       FROM documentos
+      WHERE id = $1 AND empresa_id = $2 AND LOWER(tipo_documento) = 'orden_compra'
+      FOR UPDATE`,
+    [ocId, empresaId],
+  );
+  if (!ocRows[0]) throw new Error('VALIDATION_ERROR: La orden de compra origen no existe');
+  // La primera recepción es la que emite automáticamente la OC; no exigir
+  // que la OC ya estuviera emitida antes de crearla.
+
+  const { rows: origenes } = await executor.query<any>(
+    `SELECT dp.id, dp.producto_id, dp.descripcion_alterna, dp.cantidad,
+            dp.precio_unitario, dp.descuento, dp.descuento_tipo, dp.descuento_monto,
+            dp.subtotal_partida, dp.total_partida
+       FROM documentos_partidas dp
+      WHERE dp.documento_id = $1
+      ORDER BY dp.numero_partida, dp.id`,
+    [ocId],
+  );
+  const origenPorId = new Map(origenes.map((row) => [Number(row.id), row]));
+  const recibidasPorOrigen = new Map<number, number>();
+  const { rows: recibidas } = await executor.query<{ partida_origen_id: number; cantidad: string }>(
+    `SELECT v.partida_origen_id, COALESCE(SUM(v.cantidad), 0) AS cantidad
+       FROM documentos_partidas_vinculos v
+       JOIN documentos r ON r.id = v.documento_destino_id
+      WHERE v.documento_origen_id = $1
+        AND v.documento_destino_id <> $2
+        AND LOWER(r.tipo_documento) = 'recepcion'
+        AND LOWER(TRIM(COALESCE(r.estatus_documento, ''))) NOT IN ('cancelado', 'cancelada')
+      GROUP BY v.partida_origen_id`,
+    [ocId, documentoId],
+  );
+  recibidas.forEach((row) => recibidasPorOrigen.set(Number(row.partida_origen_id), Number(row.cantidad)));
+
+  const vistos = new Set<number>();
+  const normalizadas = partidas.filter((partida) => partida.producto_id != null || (partida as any).partida_origen_id != null);
+  for (const partida of normalizadas) {
+    const origenId = Number((partida as any).partida_origen_id ?? 0);
+    const origen = origenPorId.get(origenId);
+    if (!origen || vistos.has(origenId)) throw new Error('VALIDATION_ERROR: La partida no pertenece a la orden de compra origen');
+    vistos.add(origenId);
+    if (Number(partida.producto_id ?? 0) !== Number(origen.producto_id ?? 0)) {
+      throw new Error('VALIDATION_ERROR: El producto de la recepción debe ser el heredado de la orden de compra');
+    }
+    const cantidad = Number(partida.cantidad ?? 0);
+    const disponible = Number(origen.cantidad) - (recibidasPorOrigen.get(origenId) ?? 0);
+    if (!Number.isFinite(cantidad) || cantidad <= 0 || cantidad > disponible + 0.000001) {
+      throw new Error(`VALIDATION_ERROR: La cantidad excede el pendiente disponible de la orden de compra (${Math.max(disponible, 0)})`);
+    }
+  }
+
+  await executor.query('DELETE FROM documentos_partidas WHERE documento_id = $1', [documentoId]);
+  const insertados: any[] = [];
+  for (const [idx, partida] of normalizadas.entries()) {
+    const origen = origenPorId.get(Number((partida as any).partida_origen_id));
+    const cantidad = Number(partida.cantidad);
+    const subtotal = Number((cantidad * Number(origen.precio_unitario)).toFixed(2));
+    const { rows } = await executor.query(
+      `INSERT INTO documentos_partidas
+        (documento_id, numero_partida, producto_id, descripcion_alterna, cantidad,
+         precio_unitario, descuento, descuento_tipo, descuento_monto,
+         subtotal_partida, total_partida, es_parte_oportunidad, observaciones)
+       VALUES ($1,$2,$3,$4,$5,$6,0,'porcentaje',0,$7,$7,true,$8)
+       RETURNING *`,
+      [documentoId, idx + 1, origen.producto_id, origen.descripcion_alterna,
+        cantidad, origen.precio_unitario, subtotal, partida.observaciones ?? null],
+    );
+    const nueva = rows[0];
+    await executor.query(
+      `INSERT INTO documentos_partidas_vinculos
+        (empresa_id, documento_origen_id, documento_destino_id,
+         partida_origen_id, partida_destino_id, cantidad)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [empresaId, ocId, documentoId, origen.id, nueva.id, cantidad],
+    );
+    insertados.push(nueva);
+  }
+  return insertados;
+}
+
 export async function eliminarDocumentoRepository(id: number, empresaId: number, tipoDocumento?: TipoDocumento) {
   const client = await pool.connect();
   let transactionCommitted = false;
@@ -2715,11 +2878,53 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
     const documentoActual = documentoRows[0] ?? null;
 
     if (documentoActual) {
+      await assertNoActiveDocumentDependents(id, empresaId, client);
+
+      if (
+        String(documentoActual.tipo_documento ?? '').trim().toLowerCase() === 'recepcion'
+        && String(documentoActual.estatus_documento ?? '').trim().toLowerCase() !== 'borrador'
+      ) {
+        throw new DocumentoDeleteValidationError('Solo se puede eliminar una recepción en estado Borrador');
+      }
+
+      if (String(documentoActual.tipo_documento ?? '').trim().toLowerCase() === 'recepcion') {
+        const { rows: descendientes } = await client.query(
+          `SELECT 1
+             FROM documentos d
+            WHERE d.documento_origen_id = $1
+            UNION ALL
+           SELECT 1
+             FROM documentos_relaciones dr
+            WHERE dr.documento_origen_id = $1
+            LIMIT 1`,
+          [id]
+        );
+        if (descendientes.length > 0) {
+          throw new DocumentoDeleteValidationError('No se puede eliminar la recepción porque tiene documentos descendientes');
+        }
+      }
+
       assertFacturaCompraNoEmitida(documentoActual.tipo_documento, documentoActual.estatus_documento);
       await assertNotaCreditoEliminable(id, documentoActual.tipo_documento, documentoActual.estatus_documento, client);
       await assertFacturaEliminable(id, empresaId, documentoActual.tipo_documento, documentoActual.estatus_documento, client);
 
-      if (String(documentoActual.tipo_documento ?? '').trim().toLowerCase() === 'nota_credito') {
+      if (String(documentoActual.tipo_documento ?? '').trim().toLowerCase() === 'pago_proveedor' && documentoActual.finanzas_operacion_id) {
+        const { rows: operacionPreviaRows } = await client.query<{ estado_conciliacion: string | null }>(
+          `SELECT estado_conciliacion
+             FROM finanzas_operaciones
+            WHERE id = $1 AND empresa_id = $2
+            FOR UPDATE`,
+          [documentoActual.finanzas_operacion_id, empresaId]
+        );
+        if (!operacionPreviaRows[0]) {
+          throw new DocumentoDeleteValidationError('Operación financiera asociada no encontrada');
+        }
+        if (String(operacionPreviaRows[0].estado_conciliacion ?? '').toLowerCase() !== 'pendiente') {
+          throw new DocumentoDeleteValidationError('Primero debe deshacerse la conciliación del Retiro antes de eliminar el Pago Proveedor');
+        }
+      }
+
+      if (['nota_credito', 'nota_credito_compra'].includes(String(documentoActual.tipo_documento ?? '').trim().toLowerCase())) {
         await eliminarDependenciasPropiasNotaCredito(id, empresaId, client);
       }
     }
@@ -2748,6 +2953,16 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
 
     etapa = 'DELETE documentos_partidas';
     await client.query(deletePartidasSql, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
+
+    if (['pago_proveedor', 'ajuste_cliente', 'ajuste_proveedor', 'nota_credito', 'nota_credito_compra'].includes(String(documentoActual?.tipo_documento ?? '').trim().toLowerCase())) {
+      etapa = 'DELETE aplicaciones_saldo';
+      await client.query(
+        `DELETE FROM aplicaciones_saldo
+          WHERE empresa_id = $1
+            AND (documento_origen_id = $2 OR documento_destino_id = $2)`,
+        [empresaId, id]
+      );
+    }
 
     const deleteDocumentoSql = tipoDocumento
       ? 'DELETE FROM documentos WHERE id = $1 AND empresa_id = $2 AND LOWER(tipo_documento) = LOWER($3)'
@@ -2815,6 +3030,14 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
       await revertirConversionComercialSiYaNoHayFacturasActivas(documentoActual?.documento_origen_id, empresaId, client);
     }
 
+    if (
+      (result.rowCount ?? 0) > 0
+      && ['recepcion', 'factura_compra'].includes(String(documentoActual?.tipo_documento ?? '').trim().toLowerCase())
+      && documentoActual?.documento_origen_id
+    ) {
+      await recalcularEstadoOrdenCompraPorDependencias(documentoActual.documento_origen_id, empresaId, client);
+    }
+
     await client.query('COMMIT');
     transactionCommitted = true;
     if ((result.rowCount ?? 0) > 0 && adjuntosDocumento.length > 0) {
@@ -2866,9 +3089,11 @@ export async function obtenerRecepcionResumenRepository(
   empresaId: number
 ): Promise<RecepcionResumenResponse | null> {
   const { rows: docRows } = await pool.query<{ id: number }>(
-    `SELECT id FROM documentos
+    `SELECT CASE WHEN LOWER(tipo_documento) = 'recepcion' THEN documento_origen_id ELSE id END AS id
+       FROM documentos
       WHERE id = $1 AND empresa_id = $2
-        AND LOWER(tipo_documento) = 'orden_compra'
+        AND (LOWER(tipo_documento) = 'orden_compra'
+             OR (LOWER(tipo_documento) = 'recepcion' AND documento_origen_id IS NOT NULL))
       LIMIT 1`,
     [documentoId, empresaId]
   );
@@ -2887,23 +3112,30 @@ export async function obtenerRecepcionResumenRepository(
     cantidad_pendiente: string;
   }>(
     `SELECT
-       opr.partida_oc_id,
-       opr.producto_id,
+       dp.id AS partida_oc_id,
+       dp.producto_id,
        p.descripcion     AS producto_descripcion,
        p.clave           AS producto_clave,
        dp.descripcion_alterna,
        dp.unidad,
        dp.numero_partida,
-       opr.cantidad_ordenada,
-       opr.cantidad_recibida,
-       opr.cantidad_pendiente
-     FROM public.oc_partidas_recepcion opr
-     JOIN public.documentos_partidas dp ON dp.id = opr.partida_oc_id
-     LEFT JOIN public.productos p ON p.id = opr.producto_id
-     WHERE opr.oc_id      = $1
-       AND opr.empresa_id = $2
+       dp.cantidad AS cantidad_ordenada,
+       COALESCE(recibido.cantidad_recibida, 0) AS cantidad_recibida,
+       GREATEST(dp.cantidad - COALESCE(recibido.cantidad_recibida, 0), 0) AS cantidad_pendiente
+     FROM public.documentos_partidas dp
+     LEFT JOIN (
+       SELECT v.partida_origen_id, SUM(v.cantidad) AS cantidad_recibida
+         FROM public.documentos_partidas_vinculos v
+         JOIN public.documentos r ON r.id = v.documento_destino_id
+        WHERE r.empresa_id = $2
+          AND LOWER(r.tipo_documento) = 'recepcion'
+          AND LOWER(COALESCE(r.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')
+        GROUP BY v.partida_origen_id
+     ) recibido ON recibido.partida_origen_id = dp.id
+     LEFT JOIN public.productos p ON p.id = dp.producto_id
+     WHERE dp.documento_id = $1
      ORDER BY dp.numero_partida NULLS LAST, dp.id`,
-    [documentoId, empresaId]
+    [Number(docRows[0].id), empresaId]
   );
 
   const partidas: PartidaRecepcionResumen[] = rows.map((row) => ({
@@ -2933,4 +3165,231 @@ export async function obtenerRecepcionResumenRepository(
   }
 
   return { partidas, estado_recepcion, total_ordenado, total_recibido, total_pendiente };
+}
+
+export type TrazabilidadOrdenCompraPartida = {
+  clave: string;
+  cantidad: number;
+};
+
+export type TrazabilidadOrdenCompraRecepcion = {
+  id: number;
+  serie: string | null;
+  numero: number | null;
+  fecha_documento: string;
+  estatus_documento: string;
+  cancelada: boolean;
+  unidades: number;
+  partidas: TrazabilidadOrdenCompraPartida[];
+};
+
+export type TrazabilidadOrdenCompraFactura = {
+  id: number;
+  serie: string | null;
+  numero: number | null;
+  serie_externa: string | null;
+  numero_externo: number | null;
+  fecha_documento: string;
+  estatus_documento: string;
+  cancelada: boolean;
+  total: number;
+  origen: 'orden' | 'recepcion';
+  origen_folios: Array<{ serie: string | null; numero: number | null }>;
+};
+
+export type TrazabilidadOrdenCompraResponse = {
+  recepciones: TrazabilidadOrdenCompraRecepcion[];
+  facturas: TrazabilidadOrdenCompraFactura[];
+};
+
+const documentoCancelado = (estatus: unknown) => {
+  const valor = String(estatus ?? '').trim().toLowerCase();
+  return valor === 'cancelado' || valor === 'cancelada';
+};
+
+/**
+ * Lectura de la cadena documental de una orden de compra.
+ * No modifica vínculos ni cantidades: solo describe recepciones y facturas ya existentes.
+ */
+export async function obtenerTrazabilidadOrdenCompraRepository(
+  ordenCompraId: number,
+  empresaId: number,
+): Promise<TrazabilidadOrdenCompraResponse | null> {
+  const { rows: ordenRows } = await pool.query<{ id: number }>(
+    `SELECT id
+       FROM documentos
+      WHERE id = $1
+        AND empresa_id = $2
+        AND LOWER(tipo_documento) = 'orden_compra'
+      LIMIT 1`,
+    [ordenCompraId, empresaId],
+  );
+  if (!ordenRows[0]) return null;
+
+  const { rows: recepcionRows } = await pool.query<{
+    id: string;
+    serie: string | null;
+    numero: string | null;
+    fecha_documento: string;
+    estatus_documento: string | null;
+    unidades: string;
+  }>(
+    `SELECT r.id, r.serie, r.numero, r.fecha_documento, r.estatus_documento,
+            COALESCE((
+              SELECT SUM(v.cantidad)
+                FROM documentos_partidas_vinculos v
+               WHERE v.documento_destino_id = r.id
+                 AND v.documento_origen_id = $1
+            ), 0) AS unidades
+       FROM documentos r
+      WHERE r.empresa_id = $2
+        AND LOWER(r.tipo_documento) = 'recepcion'
+        AND (
+          r.documento_origen_id = $1
+          OR EXISTS (
+            SELECT 1
+              FROM documentos_partidas_vinculos v
+             WHERE v.documento_destino_id = r.id
+               AND v.documento_origen_id = $1
+          )
+        )
+      ORDER BY r.fecha_documento, r.id`,
+    [ordenCompraId, empresaId],
+  );
+
+  const recepcionIds = recepcionRows.map((row) => Number(row.id));
+  const { rows: desgloseRows } = recepcionIds.length
+    ? await pool.query<{
+        recepcion_id: string;
+        clave: string | null;
+        descripcion: string | null;
+        cantidad: string;
+      }>(
+        `SELECT v.documento_destino_id AS recepcion_id,
+                p.clave,
+                COALESCE(dp.descripcion_alterna, p.descripcion) AS descripcion,
+                SUM(v.cantidad) AS cantidad
+           FROM documentos_partidas_vinculos v
+           JOIN documentos_partidas dp ON dp.id = v.partida_origen_id
+           LEFT JOIN productos p ON p.id = dp.producto_id
+          WHERE v.documento_origen_id = $1
+            AND v.documento_destino_id = ANY($2::int[])
+          GROUP BY v.documento_destino_id, p.clave, COALESCE(dp.descripcion_alterna, p.descripcion), dp.numero_partida, dp.id
+          ORDER BY v.documento_destino_id, dp.numero_partida NULLS LAST, dp.id`,
+        [ordenCompraId, recepcionIds],
+      )
+    : { rows: [] };
+
+  const desglosePorRecepcion = new Map<number, TrazabilidadOrdenCompraPartida[]>();
+  desgloseRows.forEach((row) => {
+    const id = Number(row.recepcion_id);
+    const lista = desglosePorRecepcion.get(id) ?? [];
+    const clave = String(row.clave ?? '').trim() || String(row.descripcion ?? '').trim() || 'Partida';
+    lista.push({ clave, cantidad: Number(row.cantidad) });
+    desglosePorRecepcion.set(id, lista);
+  });
+
+  const recepciones: TrazabilidadOrdenCompraRecepcion[] = recepcionRows.map((row) => ({
+    id: Number(row.id),
+    serie: row.serie,
+    numero: row.numero != null ? Number(row.numero) : null,
+    fecha_documento: row.fecha_documento,
+    estatus_documento: String(row.estatus_documento ?? 'borrador'),
+    cancelada: documentoCancelado(row.estatus_documento),
+    unidades: Number(row.unidades),
+    partidas: desglosePorRecepcion.get(Number(row.id)) ?? [],
+  }));
+
+  const origenIds = [ordenCompraId, ...recepcionIds];
+  const { rows: facturaRows } = await pool.query<{
+    id: string;
+    serie: string | null;
+    numero: string | null;
+    serie_externa: string | null;
+    numero_externo: string | null;
+    fecha_documento: string;
+    estatus_documento: string | null;
+    total: string;
+    documento_origen_id: string | null;
+  }>(
+    `SELECT f.id, f.serie, f.numero, f.serie_externa, f.numero_externo,
+            f.fecha_documento, f.estatus_documento, f.total, f.documento_origen_id
+       FROM documentos f
+      WHERE f.empresa_id = $1
+        AND LOWER(f.tipo_documento) = 'factura_compra'
+        AND (
+          f.documento_origen_id = ANY($2::int[])
+          OR EXISTS (
+              SELECT 1
+                FROM documentos_partidas_vinculos v
+             WHERE v.documento_destino_id = f.id
+               AND v.documento_origen_id = ANY($2::int[])
+          )
+        )
+      ORDER BY f.fecha_documento, f.id`,
+    [empresaId, origenIds],
+  );
+
+  const facturaIds = facturaRows.map((row) => Number(row.id));
+  const { rows: padreRows } = facturaIds.length
+    ? await pool.query<{
+        factura_id: string;
+        padre_id: string;
+        padre_tipo: string;
+        padre_serie: string | null;
+        padre_numero: string | null;
+      }>(
+        `SELECT DISTINCT v.documento_destino_id AS factura_id,
+                o.id AS padre_id,
+                o.tipo_documento AS padre_tipo,
+                o.serie AS padre_serie,
+                o.numero AS padre_numero
+           FROM documentos_partidas_vinculos v
+           JOIN documentos o ON o.id = v.documento_origen_id
+          WHERE v.documento_destino_id = ANY($1::int[])
+            AND o.id = ANY($2::int[])`,
+        [facturaIds, origenIds],
+      )
+    : { rows: [] };
+
+  const padresPorFactura = new Map<number, typeof padreRows>();
+  padreRows.forEach((row) => {
+    const id = Number(row.factura_id);
+    const lista = padresPorFactura.get(id) ?? [];
+    lista.push(row);
+    padresPorFactura.set(id, lista);
+  });
+
+  const recepcionPorId = new Map(recepciones.map((recepcion) => [recepcion.id, recepcion]));
+  const facturas: TrazabilidadOrdenCompraFactura[] = facturaRows.map((row) => {
+    const id = Number(row.id);
+    const padres = padresPorFactura.get(id) ?? [];
+    const padresRecepcion = padres.filter((padre) => String(padre.padre_tipo).toLowerCase() === 'recepcion');
+    const origenId = Number(row.documento_origen_id ?? 0);
+    const recepcionPorEncabezado = recepcionPorId.get(origenId) ?? null;
+    const viaRecepcion = padresRecepcion.length > 0 || Boolean(recepcionPorEncabezado);
+    const folios = padresRecepcion.length > 0
+      ? padresRecepcion.map((padre) => ({
+          serie: padre.padre_serie,
+          numero: padre.padre_numero != null ? Number(padre.padre_numero) : null,
+        }))
+      : recepcionPorEncabezado
+        ? [{ serie: recepcionPorEncabezado.serie, numero: recepcionPorEncabezado.numero }]
+        : [];
+    return {
+      id,
+      serie: row.serie,
+      numero: row.numero != null ? Number(row.numero) : null,
+      serie_externa: row.serie_externa,
+      numero_externo: row.numero_externo != null ? Number(row.numero_externo) : null,
+      fecha_documento: row.fecha_documento,
+      estatus_documento: String(row.estatus_documento ?? 'borrador'),
+      cancelada: documentoCancelado(row.estatus_documento),
+      total: Number(row.total),
+      origen: viaRecepcion ? 'recepcion' : 'orden',
+      origen_folios: viaRecepcion ? folios : [],
+    };
+  });
+
+  return { recepciones, facturas };
 }

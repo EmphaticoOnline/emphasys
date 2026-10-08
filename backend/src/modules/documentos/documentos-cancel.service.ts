@@ -19,6 +19,7 @@ import {
   type DependenciaCancelacion,
 } from './documentos-dependencias-cancelacion';
 import { markTransportCancelledForDocument } from '../transporte/transporte.repository';
+import { recalcularEstadoOrdenCompraPorDependencias } from './orden-compra-status.service';
 
 export class DocumentoCancelValidationError extends Error {
   constructor(
@@ -49,6 +50,7 @@ type DocumentoCancelRow = {
   tipo_documento: string | null;
   estatus_documento: string | null;
   fecha_cancelacion: string | null;
+  documento_origen_id: number | null;
 };
 
 type DocumentoCfdiRow = {
@@ -121,7 +123,7 @@ async function obtenerDocumentoParaCancelacion(
 ): Promise<DocumentoCancelRow | null> {
   const locking = forUpdate ? 'FOR UPDATE' : '';
   const { rows } = await client.query<DocumentoCancelRow>(
-    `SELECT id, tipo_documento, estatus_documento, fecha_cancelacion
+    `SELECT id, tipo_documento, estatus_documento, fecha_cancelacion, documento_origen_id
        FROM documentos
       WHERE id = $1
         AND empresa_id = $2
@@ -668,6 +670,16 @@ async function ejecutarCancelacionInterna(params: {
           AND empresa_id = $6`,
       [usuarioId, motivoCancelacion, motivoSat, uuidSustitucion, documentoId, empresaId]
     );
+
+    await client.query(
+      `UPDATE documentos SET observaciones = CONCAT_WS(E'\\n', NULLIF(observaciones, ''), $1::text)
+        WHERE id = $2 AND empresa_id = $3`,
+      [`Cancelada. Documento originalmente generado desde OC #${documento.documento_origen_id ?? 'desconocida'}.`, documentoId, empresaId],
+    );
+    await client.query('DELETE FROM documentos_partidas_vinculos WHERE documento_destino_id = $1', [documentoId]);
+    if (documento.documento_origen_id) {
+      await recalcularEstadoOrdenCompraPorDependencias(documento.documento_origen_id, empresaId, client);
+    }
 
     // Actualizar CFDI si aplica
     if (cfdiUuid) {

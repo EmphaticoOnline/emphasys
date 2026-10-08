@@ -38,6 +38,7 @@ import { formatearFolioDocumento } from '../../utils/documentos.utils';
 import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
+import { AplicarDistribucionPagoDialog } from './AplicarDistribucionPagoDialog';
 
 const compatibilidadNaturaleza: Record<string, string[]> = {
   cobro_cliente: ['factura', 'nota_credito'],
@@ -86,6 +87,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   const [desaplicandoId, setDesaplicandoId] = useState<number | null>(null);
   const [desaplicarItem, setDesaplicarItem] = useState<AplicacionOperacion | null>(null);
   const [desaplicarError, setDesaplicarError] = useState<string | null>(null);
+  const [distribucionOpen, setDistribucionOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>(
     { open: false, message: '', severity: 'success' }
   );
@@ -181,6 +183,11 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   };
 
   const handleAplicar = async (doc: EstadoCuentaItem) => {
+    setDistribucionOpen(true);
+    return;
+    /* legacy inmediato conservado temporalmente para compatibilidad de tipos; la UI usa el diálogo transaccional. */
+    /* istanbul ignore next */
+    if (false) {
     const documentoOrigenId = operacion?.documento_origen_id ?? null;
     if (!operacionId || !documentoOrigenId || !disponible) return;
     const raw = montos[doc.id] ?? '';
@@ -231,6 +238,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
     } finally {
       setApplyingId(null);
     }
+    }
   };
 
   const facturasPendientes = useMemo(
@@ -249,6 +257,10 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
   const sinDocumentoOrigen = !esMovimientoGeneral && !!operacion && !operacion.documento_origen_id;
 
   const handleAplicarAutomatico = async () => {
+    setDistribucionOpen(true);
+    return;
+    /* legacy inmediato conservado temporalmente para compatibilidad de tipos. */
+    if (false) {
     const documentoOrigenId = operacion?.documento_origen_id ?? null;
     if (!operacionId || !documentoOrigenId || !disponible || esMovimientoGeneral) return;
     let available = disponible.saldo;
@@ -276,6 +288,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
       setSnackbar({ open: true, message: err?.message || 'No se pudo aplicar automáticamente', severity: 'error' });
     } finally {
       setAutoApplying(false);
+    }
     }
   };
 
@@ -323,6 +336,11 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
             <Typography variant="subtitle2" color="text.secondary">
               Resumen
             </Typography>
+            {operacion.documento_origen_id && operacion.naturaleza_operacion !== 'movimiento_general' && (
+              <Button variant="contained" size="small" sx={{ mt: 1, textTransform: 'none' }} onClick={() => setDistribucionOpen(true)}>
+                Aplicar saldo / administrar aplicaciones
+              </Button>
+            )}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} mt={1} flexWrap="wrap">
               <Stack spacing={0.5}>
                 <Typography variant="body2" color="text.secondary">
@@ -364,7 +382,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
 
         <Stack spacing={1}>
           <Typography variant="subtitle1" fontWeight={700} color="text.primary" sx={{ fontSize: '0.98rem' }}>
-            Aplicaciones existentes
+            Aplicaciones previas
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem' }}>
             Documentos que ya están ligados a este movimiento.
@@ -378,7 +396,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                 boxShadow: 'none',
               }}
             >
-              <Table size="small" stickyHeader aria-label="Aplicaciones existentes" sx={{ width: '100%', minWidth: 0 }}>
+              <Table size="small" stickyHeader aria-label="Aplicaciones previas" sx={{ width: '100%', minWidth: 0 }}>
               <TableHead>
                 <TableRow>
                     <TableCell sx={{ ...headerCellSx, width: '30%' }}>Folio</TableCell>
@@ -412,17 +430,14 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                         {formatter.format(Number(row.monto_moneda_documento) || 0)}
                       </TableCell>
                       <TableCell align="center" sx={{ ...bodyCellSx, py: '2px', width: '20%' }}>
-                        {puedeDesaplicar && row.tipo_documento_origen === 'pago_cliente' ? (
-                          <Tooltip title="Desaplicar pago">
+                        {puedeDesaplicar && ['pago_cliente', 'pago_proveedor'].includes(String(row.tipo_documento_origen ?? '').toLowerCase()) ? (
+                          <Tooltip title={`Desaplicar saldo de ${folio}`}>
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => {
-                                setDesaplicarError(null);
-                                setDesaplicarItem(row);
-                              }}
+                              onClick={() => setDistribucionOpen(true)}
                               disabled={desaplicandoId === row.id}
-                              aria-label="Desaplicar pago"
+                              aria-label={`Desaplicar saldo de ${folio}`}
                               sx={{ p: 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                               <DeleteOutlineIcon fontSize="small" />
@@ -558,7 +573,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                               <IconButton
                                 size="small"
                                 color="primary"
-                                onClick={() => handleAplicar(row)}
+                                onClick={() => setDistribucionOpen(true)}
                                 disabled={applyingId === row.id}
                                 sx={{ p: 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                               >
@@ -605,6 +620,16 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
           }
         }}
         onConfirm={handleDesaplicarPago}
+        destinoLabel={operacion?.naturaleza_operacion === 'pago_proveedor' ? 'factura de compra' : 'factura'}
+      />
+      <AplicarDistribucionPagoDialog
+        open={distribucionOpen}
+        pagoId={operacion?.documento_origen_id ?? null}
+        pagoFolio={formatearFolioDocumento(operacion?.documento_origen_serie || '', operacion?.documento_origen_numero || 0)}
+        contactoId={operacion?.contacto_id}
+        tipoPago={operacion?.naturaleza_operacion === 'pago_proveedor' ? 'pago_proveedor' : 'pago_cliente'}
+        onClose={() => setDistribucionOpen(false)}
+        onSaved={async () => { if (operacionId) await fetchAll(operacionId); }}
       />
     </Drawer>
   );

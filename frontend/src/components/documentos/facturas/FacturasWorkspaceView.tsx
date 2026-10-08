@@ -60,6 +60,7 @@ import { getStatusToneColor } from '../../status/status.semantics';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
 import FacturaDocumentoResumenView from './FacturaDocumentoResumenView';
+import { DocumentoHojaViewport } from '../DocumentoHojaFrame';
 import FacturaWorkspaceContabilidadTab from './FacturaWorkspaceContabilidadTab';
 import { resolverFolioVisual } from '../../../utils/documentos.utils';
 import {
@@ -201,6 +202,7 @@ function itemsMenuFactura(
     || Number(row.contacto_principal_id ?? 0) <= 0;
   const registrarMovimientoLabel = registrarMovimientoAction?.label
     || (tipoDocumento === 'factura_compra' ? 'Registrar pago' : 'Registrar cobro');
+  const accionDefinitivaLabel = tipoDocumento === 'factura_compra' ? 'Confirmar' : 'Emitir';
   const items: WorkspaceContextItem[] = [{
     id: 'carta-porte',
     label: 'Carta Porte / Viaje',
@@ -229,7 +231,16 @@ function itemsMenuFactura(
       onClick: registrarMovimientoDisabled ? undefined : () => onRegistrarMovimiento(row),
     });
   }
-  agregarAccionVisible(items, findAction(actions, 'generar-nota_credito'), 'Generar Nota de crédito', <AssignmentReturnOutlinedIcon fontSize="small" />);
+  const generarNotaCreditoAction = findAction(
+    actions,
+    tipoDocumento === 'factura_compra' ? 'generar-nota_credito_compra' : 'generar-nota_credito',
+  );
+  agregarAccionVisible(
+    items,
+    generarNotaCreditoAction,
+    tipoDocumento === 'factura_compra' ? 'Generar Nota de crédito de compra' : 'Generar Nota de crédito',
+    <AssignmentReturnOutlinedIcon fontSize="small" />,
+  );
   const correoVisible = Boolean(enviarCorreoAction && !enviarCorreoAction.hidden);
   const whatsappVisible = Boolean(enviarWhatsappAction && !enviarWhatsappAction.hidden);
   if (correoVisible && enviarCorreoAction) {
@@ -260,7 +271,7 @@ function itemsMenuFactura(
   }
   agregarAccionVisible(items, findAction(actions, 'contabilizar-factura-venta'), 'Contabilizar factura');
   agregarAccionVisible(items, findAction(actions, 'cancelar-documento'), 'Cancelar');
-  agregarAccionVisible(items, findAction(actions, 'emitir'), 'Emitir', <CheckCircleIcon fontSize="small" />);
+  agregarAccionVisible(items, findAction(actions, 'emitir'), accionDefinitivaLabel, <CheckCircleIcon fontSize="small" />);
   agregarAccionVisible(items, findAction(actions, 'editar'), 'Editar');
   agregarAccionVisible(items, findAction(actions, 'eliminar'), 'Eliminar', undefined, !facturaEliminable);
   return items;
@@ -407,7 +418,7 @@ export default function FacturasWorkspaceView({
         display: verLista ? 'flex' : 'none',
         flexDirection: 'column',
         minHeight: 0,
-        bgcolor: tokens.navigation.background,
+        bgcolor: tokens.workspaceRail.background,
         color: tokens.navigation.foreground,
         borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}`,
       }}>
@@ -823,6 +834,7 @@ function FacturaWorkspacePanel({
   compacto: boolean;
   onVolver: () => void;
 }) {
+  const accionDefinitivaLabel = tipoDocumento === 'factura_compra' ? 'Confirmar' : 'Emitir';
   const theme = useTheme();
   const tokens = theme.emphasys;
   const estatus = normalizeEstatus(row.estatus_documento);
@@ -833,7 +845,10 @@ function FacturaWorkspacePanel({
   const emitirAction = findAction(gridContextMenuActions, 'emitir');
   const timbrarAction = findAction(gridContextMenuActions, 'timbrar');
   const registrarMovimientoAction = findAction(gridContextMenuActions, 'registrar-movimiento');
-  const generarNotaCreditoAction = findAction(gridContextMenuActions, 'generar-nota_credito');
+  const generarNotaCreditoAction = findAction(
+    gridContextMenuActions,
+    tipoDocumento === 'factura_compra' ? 'generar-nota_credito_compra' : 'generar-nota_credito',
+  );
   const contabilizarAction = findAction(gridContextMenuActions, 'contabilizar-factura-venta');
   const cancelarAction = findAction(gridContextMenuActions, 'cancelar-documento');
   const eliminarAction = findAction(gridContextMenuActions, 'eliminar');
@@ -1004,9 +1019,13 @@ function FacturaWorkspacePanel({
                   </span>
                 </Tooltip>
               ) : null}
-              {renderActionButton(generarNotaCreditoAction, 'Generar Nota de crédito', {
+              {renderActionButton(
+                generarNotaCreditoAction,
+                tipoDocumento === 'factura_compra' ? 'Generar Nota de crédito de compra' : 'Generar Nota de crédito',
+                {
                 icon: <AssignmentReturnOutlinedIcon fontSize="small" />,
-              })}
+                },
+              )}
               <Tooltip title="Enviar" arrow>
                 <span>
                   <IconButton
@@ -1042,7 +1061,7 @@ function FacturaWorkspacePanel({
             </Stack>
             <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap flexWrap="wrap" sx={{ justifyContent: 'flex-end' }}>
               {renderActionButton(cancelarAction, 'Cancelar')}
-              {renderActionButton(emitirAction, 'Emitir', { icon: <CheckCircleIcon fontSize="small" /> })}
+              {renderActionButton(emitirAction, accionDefinitivaLabel, { icon: <CheckCircleIcon fontSize="small" /> })}
               {renderActionButton(editarAction, 'Editar')}
               {renderActionButton(eliminarAction, 'Eliminar', { disabled: !facturaEliminable })}
             </Stack>
@@ -1099,7 +1118,7 @@ function FacturaWorkspacePanel({
         {PREVIEW_TAB_LABELS.map((label) => <Tab key={label} label={label} />)}
       </Tabs>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', p: { xs: 1.5, md: 2.25 } }}>
+      <DocumentoHojaViewport>
         {previewTab === 0 ? (
           <FacturaDocumentoResumenView
             row={row}
@@ -1139,13 +1158,13 @@ function FacturaWorkspacePanel({
         ) : (
           <InventarioTab movimientos={detalle.data.movimientosInventario} />
         )}
-      </Box>
+      </DocumentoHojaViewport>
       </Box>
     </>
   );
 }
 
-function PopoverFiltroFacturas({
+export function PopoverFiltroFacturas({
   ancla,
   filtro,
   contactos,

@@ -186,6 +186,7 @@ function buildColumns(
             <Button
               size="small"
               title="Editar"
+              aria-label="Editar programación"
               onClick={(e) => { e.stopPropagation(); onEdit(p.row); }}
               sx={{ minWidth: 0, p: 0.5 }}
             >
@@ -195,6 +196,7 @@ function buildColumns(
               size="small"
               color="success"
               title="Pagar"
+              aria-label="Pagar programación"
               disabled={pagandoId !== null}
               onClick={(e) => { e.stopPropagation(); onPagar(p.row); }}
               sx={{ minWidth: 0, p: 0.5 }}
@@ -207,6 +209,7 @@ function buildColumns(
               size="small"
               color="error"
               title="Cancelar"
+              aria-label="Cancelar programación"
               onClick={(e) => { e.stopPropagation(); onCancel(p.row); }}
               sx={{ minWidth: 0, p: 0.5 }}
             >
@@ -357,7 +360,11 @@ export default function ProgramacionPagosPage() {
     void cargar();
   };
 
-  const columns = useMemo(() => buildColumns(handleEdit, handleCancelar, handlePagar, pagandoId), [handleEdit, handleCancelar, handlePagar, pagandoId]);
+  const columns = useMemo(() => {
+    const built = buildColumns(handleEdit, handleCancelar, handlePagar, pagandoId);
+    const actions = built.find((column) => column.field === '_acciones');
+    return actions ? [actions, ...built.filter((column) => column.field !== '_acciones')] : built;
+  }, [handleEdit, handleCancelar, handlePagar, pagandoId]);
 
   // KPIs por moneda sobre las filas visibles
   type KpiMoneda = { moneda: string; totalProgramado: number; totalVencido: number; totalHoy: number; proximos7: number };

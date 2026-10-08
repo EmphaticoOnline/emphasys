@@ -187,6 +187,26 @@ export async function fetchEstadoCuenta(contactoId: number): Promise<EstadoCuent
   return apiFetch(`${BASE}/contactos/${contactoId}/estado-cuenta`);
 }
 
+export type AplicarDistribucionPagoPayload = {
+  aplicaciones: Array<{
+    documento_destino_id: number;
+    monto: number;
+    monto_moneda_documento?: number;
+    fecha_aplicacion?: string | null;
+  }>;
+  quitar: Array<{ aplicacion_id: number; motivo: string }>;
+};
+
+export async function aplicarDistribucionPago(
+  pagoId: number,
+  payload: AplicarDistribucionPagoPayload,
+): Promise<unknown> {
+  return apiFetch(`${BASE}/pagos/${pagoId}/aplicar-distribucion`, {
+    method: 'POST',
+    body: payload as any,
+  });
+}
+
 export async function crearAplicacion(payload: {
   documento_origen_id: number;
   documento_destino_id: number;

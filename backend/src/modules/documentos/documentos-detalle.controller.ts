@@ -5,6 +5,7 @@ import { listarPagosAplicadosPorDocumento, listarNotasCreditoAplicadasPorDocumen
 import { listarMovimientosPorDocumentoRepository } from '../inventario/inventario.repository';
 import { evaluarScopeVentas, resolverContextoScopeComercial } from '../auth/scope-comercial';
 import type { TipoDocumento } from '../../types/documentos';
+import { debeAplicarScopeVentas } from './documento-scope';
 
 export async function obtenerDetalleDocumentoHandler(req: Request, res: Response) {
   try {
@@ -12,17 +13,22 @@ export async function obtenerDetalleDocumentoHandler(req: Request, res: Response
     const empresaId = req.context?.empresaId;
     if (Number.isNaN(id) || !empresaId) return res.status(400).json({ message: 'ID o empresaId inválido' });
 
-    const scope = evaluarScopeVentas(
-      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
-    );
-    if (scope.sinAcceso) {
-      return res.status(403).json({ message: 'Su usuario no tiene un vendedor asociado; no puede consultar documentos.' });
-    }
-
     const tipoQuery = req.query.tipo_documento;
     const tipo = (tipoQuery ? String(tipoQuery).toLowerCase() : 'cotizacion') as TipoDocumento;
 
-    const result = await obtenerDocumentoRepository(id, Number(empresaId), tipo, scope.agenteId);
+    const scope = evaluarScopeVentas(
+      await resolverContextoScopeComercial(Number(empresaId), req.auth?.userId, req.auth?.esSuperadmin)
+    );
+    if (debeAplicarScopeVentas(tipo) && scope.sinAcceso) {
+      return res.status(403).json({ message: 'Su usuario no tiene un vendedor asociado; no puede consultar documentos.' });
+    }
+
+    const result = await obtenerDocumentoRepository(
+      id,
+      Number(empresaId),
+      tipo,
+      debeAplicarScopeVentas(tipo) ? scope.agenteId : null,
+    );
     if (!result) return res.status(404).json({ message: 'Documento no encontrado' });
 
     const [pagos, notasCredito, movimientosInventario, documentosRelacionados] = await Promise.all([

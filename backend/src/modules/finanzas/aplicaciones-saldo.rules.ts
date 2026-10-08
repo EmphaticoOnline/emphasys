@@ -40,6 +40,7 @@ export async function documentoTieneAplicacionesSaldo(
 }
 
 export type NotaCreditoAplicacionSnapshot = {
+  tipo_documento?: string | null;
   estatus_documento: string | null;
   tratamiento_impuestos: string | null;
   uuid: string | null;
@@ -56,8 +57,16 @@ export function evaluarNotaCreditoElegibleParaAplicacion(
   }
 
   const estatus = normalizarEstado(documento.estatus_documento);
+  const esNotaCreditoCompra = normalizarEstado(documento.tipo_documento) === 'nota_credito_compra';
   if (esCancelado(estatus)) {
     return { ok: false, code: 'NC_CANCELADA', message: 'Una nota de crédito cancelada no puede aplicar saldo.' };
+  }
+
+  if (esNotaCreditoCompra) {
+    if (estatus !== 'emitido') {
+      return { ok: false, code: 'NC_NO_EMITIDA', message: 'La nota de crédito de compra debe estar emitida antes de aplicar saldo.' };
+    }
+    return { ok: true };
   }
 
   if (normalizarEstado(documento.tratamiento_impuestos) === 'sin_iva') {
@@ -87,7 +96,8 @@ export async function assertNotaCreditoElegibleParaAplicacion(
   empresaId: number,
 ): Promise<void> {
   const result = await executor.query<NotaCreditoAplicacionSnapshot>(
-    `SELECT d.estatus_documento,
+    `SELECT d.tipo_documento,
+            d.estatus_documento,
             d.tratamiento_impuestos,
             dc.uuid,
             dc.estado_sat,

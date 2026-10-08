@@ -29,7 +29,8 @@ import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../Workspace
 import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
 import { getStatusToneColor } from '../../status/status.semantics';
 import type { StatusTone } from '../../status/status.types';
-import { fetchAplicacionesDocumento } from '../../../services/finanzasService';
+import { desaplicarAplicacionDocumental, fetchAplicacionesDocumento } from '../../../services/finanzasService';
+import { DesaplicarPagoDialog } from '../../../modules/finanzas/DesaplicarPagoDialog';
 import { formatearFolioDocumento } from '../../../utils/documentos.utils';
 import type { AplicacionOperacion } from '../../../types/finanzas';
 import type { Contacto } from '../../../types/contactos.types';
@@ -91,6 +92,7 @@ type Props = {
   onSelectedIdsChange: (ids: number[]) => void;
   onDuplicateSelected: () => void;
   duplicating: boolean;
+  onRefresh?: () => void;
 };
 
 type DocumentoAjuste = CotizacionDocumento & {
@@ -151,7 +153,7 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
     rows, isLoading, selectedId, highlightedId, onSelect, search, onSearch, onCreate, onExport, exportLoading,
     actions, onOpenEstatus, tipoDocumento, formatFolio, formatDate, currency, quickFilter, onQuickFilter,
     statusOptions, soloPendientes, onSoloPendientes, filtros, onFiltrosChange, contactos, etiquetaContacto,
-    resumen, total, page, pageSize, onPageChange, selectedIds, onSelectedIdsChange, onDuplicateSelected, duplicating,
+    resumen, total, page, pageSize, onPageChange, selectedIds, onSelectedIdsChange, onDuplicateSelected, duplicating, onRefresh,
   } = props;
   const theme = useTheme();
   const tokens = theme.emphasys;
@@ -162,6 +164,9 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
   const [menuFila, setMenuFila] = useState<{ top: number; left: number; rowId: number } | null>(null);
   const [aplicaciones, setAplicaciones] = useState<AplicacionOperacion[]>([]);
   const [cargandoAplicaciones, setCargandoAplicaciones] = useState(false);
+  const [desaplicarItem, setDesaplicarItem] = useState<AplicacionOperacion | null>(null);
+  const [desaplicarError, setDesaplicarError] = useState<string | null>(null);
+  const [desaplicando, setDesaplicando] = useState(false);
 
   const criteriosActivos = filtrosAvanzadosActivos(filtros) + (soloPendientes ? 1 : 0) + (quickFilter !== 'todos' ? 1 : 0);
   const seleccion = rows.find((row) => row.id === selectedId) ?? null;
@@ -174,6 +179,15 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
   const documento = (detalle.data?.documento ?? null) as DocumentoAjuste | null;
 
   useEffect(() => { setTab(0); }, [seleccion?.id]);
+
+  const recargarAplicaciones = () => {
+    if (!seleccion) return;
+    setCargandoAplicaciones(true);
+    void fetchAplicacionesDocumento(seleccion.id)
+      .then((rowsAplicadas) => setAplicaciones((rowsAplicadas ?? []).filter((aplicacion) => Number(aplicacion.documento_origen_id) === seleccion.id)))
+      .catch(() => setAplicaciones([]))
+      .finally(() => setCargandoAplicaciones(false));
+  };
 
   useEffect(() => {
     if (rows.length === 0) {
@@ -265,7 +279,7 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
       flexDirection: 'column',
       minHeight: 0,
       flex: compacto ? 1 : undefined,
-      bgcolor: tokens.navigation.background,
+        bgcolor: tokens.workspaceRail.background,
       color: tokens.navigation.foreground,
       borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}`,
     }}>
@@ -441,8 +455,8 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
           <Cifra etiqueta="Disponible" valor={currency.format(Number(seleccion.saldo ?? 0))} detalle={esCancelado(seleccion.estatus_documento) ? 'Ajuste cancelado' : agotadaSeleccion ? 'Saldo aplicado por completo' : 'Puede aplicarse'} fondo={tonoDisponible.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} destacado />
         </Box>
         <Box sx={{ mt: 1.1, height: 4, borderRadius: 99, bgcolor: tokens.metric.track, overflow: 'hidden' }}>
-          <Box sx={{ width: `${pctSeleccion}%`, height: '100%', bgcolor: agotadaSeleccion ? tokens.metric.progressDone : tokens.metric.progress }} />
-        </Box>
+        <Box sx={{ width: `${pctSeleccion}%`, height: '100%', bgcolor: agotadaSeleccion ? tokens.metric.progressDone : tokens.metric.progress }} />
+      </Box>
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', mx: { xs: 1, md: 1.75 }, mb: { xs: 1, md: 1.75 }, bgcolor: tokens.content.well, borderRadius: 3, border: `1px solid ${tokens.content.border}`, overflow: 'hidden' }}>
         <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ px: 1.5, minHeight: 46, borderBottom: `1px solid ${tokens.content.border}`, '& .MuiTab-root': { minHeight: 46, textTransform: 'none', fontWeight: 650, fontSize: 14, color: tokens.content.muted }, '& .Mui-selected': { color: tokens.content.foreground }, '& .MuiTabs-indicator': { height: 2, backgroundColor: tokens.content.foreground } }}>
@@ -474,12 +488,18 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
               {cargandoAplicaciones ? <CircularProgress size={18} /> : aplicaciones.length === 0 ? (
                 <TarjetaQuieta titulo="Sin aplicaciones" texto="Los documentos compensados con este ajuste aparecen aquí." />
               ) : aplicaciones.map((aplicacion) => (
-                <TarjetaDocumento
-                  key={aplicacion.id}
-                  folio={formatearFolioDocumento(aplicacion.serie ?? '', aplicacion.numero ?? 0) || 'Documento'}
-                  meta={[formatDate(aplicacion.fecha_aplicacion || aplicacion.fecha_documento), aplicacion.tipo_documento_destino || aplicacion.tipo_documento].filter(Boolean).join(' · ')}
-                  monto={currency.format(Number(aplicacion.monto_moneda_documento ?? aplicacion.monto ?? 0))}
-                />
+                <Box key={aplicacion.id} sx={{ display: 'flex', gap: 1, alignItems: 'stretch' }}>
+                  <Box sx={{ flex: 1 }}>
+                    <TarjetaDocumento
+                      folio={formatearFolioDocumento(aplicacion.serie ?? '', aplicacion.numero ?? 0) || 'Documento'}
+                      meta={[formatDate(aplicacion.fecha_aplicacion || aplicacion.fecha_documento), aplicacion.tipo_documento_destino || aplicacion.tipo_documento].filter(Boolean).join(' · ')}
+                      monto={currency.format(Number(aplicacion.monto_moneda_documento ?? aplicacion.monto ?? 0))}
+                    />
+                  </Box>
+                  <Button size="small" color="error" variant="outlined" onClick={() => { setDesaplicarError(null); setDesaplicarItem(aplicacion); }}>
+                    Desaplicar ajuste
+                  </Button>
+                </Box>
               ))}
             </Box>
           )}
@@ -511,6 +531,25 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
         anchorPosition={menuFila && seleccion && menuFila.rowId === seleccion.id ? { top: menuFila.top, left: menuFila.left } : null}
         items={itemsMenuAjuste}
         onClose={() => setMenuFila(null)}
+      />
+      <DesaplicarPagoDialog
+        open={Boolean(desaplicarItem)}
+        pagoFolio={desaplicarItem ? formatearFolioDocumento(desaplicarItem.serie || '', desaplicarItem.numero || 0) : ''}
+        facturaFolio={desaplicarItem ? `Factura de Compra #${desaplicarItem.documento_destino_id ?? ''}` : ''}
+        importe={desaplicarItem ? currency.format(Number(desaplicarItem.monto_moneda_documento ?? desaplicarItem.monto ?? 0)) : ''}
+        loading={desaplicando}
+        error={desaplicarError}
+        documentoLabel="ajuste"
+        onClose={() => { if (!desaplicando) { setDesaplicarItem(null); setDesaplicarError(null); } }}
+        onConfirm={(motivo) => {
+          if (!desaplicarItem) return;
+          setDesaplicando(true);
+          void desaplicarAplicacionDocumental(desaplicarItem.id)
+            .then(() => { setDesaplicarItem(null); setDesaplicarError(null); recargarAplicaciones(); onRefresh?.(); })
+            .catch((error) => setDesaplicarError(error instanceof Error ? error.message : 'No se pudo desaplicar el ajuste.'))
+            .finally(() => setDesaplicando(false));
+          void motivo;
+        }}
       />
     </Box>
   );

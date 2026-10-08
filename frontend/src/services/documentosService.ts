@@ -463,3 +463,42 @@ export type RecepcionResumenResponse = {
 export function getRecepcionResumen(documentoId: number): Promise<RecepcionResumenResponse> {
   return apiFetch(`/api/documentos/${documentoId}/recepcion-resumen`);
 }
+
+export type TrazabilidadOrdenCompraPartida = {
+  clave: string;
+  cantidad: number;
+};
+
+export type TrazabilidadOrdenCompraRecepcion = {
+  id: number;
+  serie: string | null;
+  numero: number | null;
+  fecha_documento: string;
+  estatus_documento: string;
+  cancelada: boolean;
+  unidades: number;
+  partidas: TrazabilidadOrdenCompraPartida[];
+};
+
+export type TrazabilidadOrdenCompraFactura = {
+  id: number;
+  serie: string | null;
+  numero: number | null;
+  serie_externa: string | null;
+  numero_externo: number | null;
+  fecha_documento: string;
+  estatus_documento: string;
+  cancelada: boolean;
+  total: number;
+  origen: 'orden' | 'recepcion';
+  origen_folios: Array<{ serie: string | null; numero: number | null }>;
+};
+
+export type TrazabilidadOrdenCompraResponse = {
+  recepciones: TrazabilidadOrdenCompraRecepcion[];
+  facturas: TrazabilidadOrdenCompraFactura[];
+};
+
+export function getTrazabilidadOrdenCompra(documentoId: number): Promise<TrazabilidadOrdenCompraResponse> {
+  return apiFetch(`/api/documentos/${documentoId}/trazabilidad-orden-compra`);
+}

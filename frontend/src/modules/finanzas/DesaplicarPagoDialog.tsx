@@ -22,6 +22,8 @@ type Props = {
   error?: string | null;
   onClose: () => void;
   onConfirm: (motivo: string) => void;
+  documentoLabel?: 'pago' | 'ajuste';
+  destinoLabel?: string;
 };
 
 export function DesaplicarPagoDialog({
@@ -33,10 +35,15 @@ export function DesaplicarPagoDialog({
   error,
   onClose,
   onConfirm,
+  documentoLabel = 'pago',
+  destinoLabel = 'factura',
 }: Props) {
   const [motivo, setMotivo] = useState('');
   const motivoNormalizado = motivo.trim();
   const motivoValido = motivoNormalizado.length <= MOTIVO_MAX;
+  const esAjuste = documentoLabel === 'ajuste';
+  const sustantivo = esAjuste ? 'ajuste' : 'pago';
+  const accion = esAjuste ? 'Desaplicar ajuste' : 'Desaplicar pago';
   const helperText = useMemo(() => {
     if (!motivo.length) return `Opcional, máximo ${MOTIVO_MAX} caracteres.`;
     if (motivoNormalizado.length > MOTIVO_MAX) return `El motivo no puede exceder ${MOTIVO_MAX} caracteres.`;
@@ -49,12 +56,12 @@ export function DesaplicarPagoDialog({
 
   return (
     <Dialog open={open} onClose={loading ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Desaplicar pago</DialogTitle>
+      <DialogTitle>{accion}</DialogTitle>
       <DialogContent>
         <DialogContentText sx={{ mb: 2 }}>
-          Se quitará la aplicación de {importe} del pago {pagoFolio || 'seleccionado'} a la factura
-          {' '}{facturaFolio || 'seleccionada'}. La factura volverá a tener {importe} pendientes y el pago
-          {' '}recuperará {importe} disponibles. El documento de pago no se eliminará.
+          Se quitará la aplicación de {importe} del documento {pagoFolio || 'seleccionado'} a la {destinoLabel}
+          {' '}{facturaFolio || 'seleccionada'}. La {destinoLabel} volverá a tener {importe} pendientes y el {sustantivo}
+          {' '}recuperará {importe} disponibles. El documento de {sustantivo} no se eliminará.
         </DialogContentText>
         {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
         <TextField
@@ -80,7 +87,7 @@ export function DesaplicarPagoDialog({
           onClick={() => onConfirm(motivoNormalizado)}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
         >
-          Desaplicar pago
+          {accion}
         </Button>
       </DialogActions>
     </Dialog>

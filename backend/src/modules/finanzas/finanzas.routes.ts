@@ -21,6 +21,7 @@ import {
   getVerificacionSaldos,
   postAplicarAnticiposDocumento,
   postAplicacion,
+  postAplicarDistribucionPago,
   postAplicarSaldoNotaCredito,
   postConciliacion,
   postCuenta,
@@ -99,6 +100,7 @@ router.delete('/transferencias/:id', deleteTransferencia);
 router.post('/conciliaciones', postConciliacion);
 
 router.post('/aplicaciones', postAplicacion);
+router.post('/pagos/:pagoId/aplicar-distribucion', postAplicarDistribucionPago);
 router.post('/notas-credito/:id/aplicar-saldo', postAplicarSaldoNotaCredito);
 router.post('/aplicaciones/:id/desaplicar', deleteAplicacion);
 router.post('/aplicaciones/:id/desaplicar-documental', deleteAplicacionDocumental);

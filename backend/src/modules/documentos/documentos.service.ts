@@ -144,6 +144,7 @@ const currentCivilDate = (): string =>
   new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
 const TIPOS_DOCUMENTO_MONETARIOS = new Set<TipoDocumento>(['pago_cliente', 'pago_proveedor']);
+const TIPOS_DOCUMENTO_AJUSTE = new Set<TipoDocumento>(['ajuste_cliente', 'ajuste_proveedor']);
 
 function esDocumentoMonetario(tipoDocumento: TipoDocumento) {
   return TIPOS_DOCUMENTO_MONETARIOS.has(tipoDocumento);
@@ -180,6 +181,7 @@ async function sincronizarDocumentoMonetarioConTesoreria(
     throw new Error('VALIDATION_ERROR: La cuenta financiera es obligatoria para documentos monetarios.');
   }
 
+
   const tipoMovimiento = tipoDocumento === 'pago_cliente' ? 'Deposito' : 'Retiro';
   const operacion = await upsertOperacionDocumentoEnTransaccion(
     client,
@@ -214,6 +216,7 @@ async function sincronizarDocumentoMonetarioConTesoreria(
     [empresaId, documento.id]
   );
 
+
   const aplicaciones = normalizarAplicacionesDocumento(payload);
   for (const aplicacion of aplicaciones) {
     await crearAplicacionEnTransaccion(
@@ -230,6 +233,35 @@ async function sincronizarDocumentoMonetarioConTesoreria(
   }
 
   return documento;
+}
+
+async function sincronizarAplicacionesAjuste(
+  documento: Record<string, any>,
+  payload: DocumentoCrearPayload,
+  empresaId: number,
+  tipoDocumento: TipoDocumento,
+  client: PoolClient,
+) {
+  if (!TIPOS_DOCUMENTO_AJUSTE.has(tipoDocumento) || !Array.isArray(payload.aplicaciones_documento)) {
+    return;
+  }
+
+  await client.query(
+    `DELETE FROM aplicaciones_saldo
+      WHERE empresa_id = $1
+        AND documento_origen_id = $2`,
+    [empresaId, documento.id],
+  );
+
+  for (const aplicacion of normalizarAplicacionesDocumento(payload)) {
+    await crearAplicacionEnTransaccion(client, {
+      documento_origen_id: Number(documento.id),
+      documento_destino_id: Number(aplicacion.documento_destino_id),
+      monto: Number(aplicacion.monto),
+      monto_moneda_documento: Number(aplicacion.monto_moneda_documento),
+      fecha_aplicacion: aplicacion.fecha_aplicacion ?? payload.fecha_documento ?? documento.fecha_documento ?? null,
+    }, empresaId);
+  }
 }
 
 /**
@@ -521,6 +553,24 @@ export async function crearDocumentoService(
   empresaId: number,
   tipoDocumento: TipoDocumento
 ) {
+  if (tipoDocumento === 'recepcion') {
+    const origenId = Number((payload as any).documento_origen_id ?? 0);
+    if (!Number.isInteger(origenId) || origenId <= 0) {
+      throw new Error('VALIDATION_ERROR: Una Recepción solo puede crearse desde una Orden de Compra emitida');
+    }
+    const { rows } = await pool.query<{ tipo_documento: string; estatus_documento: string }>(
+      `SELECT tipo_documento, estatus_documento
+         FROM public.documentos
+        WHERE id = $1 AND empresa_id = $2
+        LIMIT 1`,
+      [origenId, empresaId],
+    );
+    const origen = rows[0];
+    if (!origen || String(origen.tipo_documento).toLowerCase() !== 'orden_compra'
+      || !['emitido', 'enviado'].includes(String(origen.estatus_documento ?? '').toLowerCase())) {
+      throw new Error('VALIDATION_ERROR: Una Recepción solo puede crearse desde una Orden de Compra emitida');
+    }
+  }
   if (isTraslado(tipoDocumento) && (Array.isArray(payload.aplicaciones_documento) && payload.aplicaciones_documento.length > 0 || payload.cuenta_financiera_id != null || payload.finanzas_operacion_id != null)) {
     throw new Error('VALIDATION_ERROR: Un Traslado no acepta pagos ni aplicaciones de saldo');
   }
@@ -559,6 +609,7 @@ export async function crearDocumentoService(
     }
 
   await sincronizarDocumentoMonetarioConTesoreria(created, data, empresaId, tipoDocumento, client);
+  await sincronizarAplicacionesAjuste(created, data, empresaId, tipoDocumento, client);
 
     if (tipoDocumento === 'cotizacion' && created?.id) {
       await asegurarOportunidadParaCotizacion(
@@ -605,6 +656,7 @@ export async function actualizarDocumentoService(
     }
 
     await sincronizarDocumentoMonetarioConTesoreria(actualizado, payload, empresaId, tipoDocumento, client);
+    await sincronizarAplicacionesAjuste(actualizado, payload, empresaId, tipoDocumento, client);
 
     await client.query('COMMIT');
     return actualizado;

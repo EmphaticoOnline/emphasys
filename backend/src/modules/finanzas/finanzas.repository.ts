@@ -1006,7 +1006,7 @@ async function crearAplicacionTx(
   // 1) Bloquear destino primero. La validación de cancelación se ejecuta
   // después del lock para cerrar la carrera entre aplicar y cancelar.
   const destinoQuery = `
-    SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.tratamiento_impuestos, d.moneda, d.tipo_cambio, d.total
+    SELECT d.id, d.empresa_id, d.contacto_principal_id AS contacto_id, d.tipo_documento, d.estatus_documento, d.tratamiento_impuestos, d.moneda, d.tipo_cambio, d.total
     FROM documentos d
     WHERE d.id = $1 AND d.tipo_documento IN ('factura', 'factura_compra') AND d.empresa_id = $2
     FOR UPDATE
@@ -1016,6 +1016,15 @@ async function crearAplicacionTx(
   if (!destino) {
     const err = new Error('Documento destino no encontrado o tipo inválido');
     (err as any).status = 404;
+    throw err;
+  }
+  // Factura de compra pagable: el estado definitivo se representa hoy como
+  // "emitido". La validación positiva evita que nuevos estados intermedios
+  // entren al flujo solo por no estar en una lista de exclusión.
+  if (destino.tipo_documento === 'factura_compra'
+    && String((destino as any).estatus_documento ?? '').trim().toLowerCase() !== 'emitido') {
+    const err = new Error('La factura de compra debe estar Confirmada para recibir un pago');
+    (err as any).status = 409;
     throw err;
   }
   await assertDocumentoCobrableEnTransaccion(client, documentoDestinoId, empresaId, { bloquearBorrador: true });
@@ -1203,7 +1212,9 @@ export async function desaplicarAplicacionDocumental(
     if (!app) { const e = new Error('Aplicación no encontrada'); (e as any).status = 404; throw e; }
     const compatible = (app.origen_tipo === 'nota_credito_compra' && app.destino_tipo === 'factura_compra')
       || (app.origen_tipo === 'nota_credito' && app.destino_tipo === 'factura');
-    if (!compatible) { const e = new Error('La aplicación no es documental compatible'); (e as any).status = 409; throw e; }
+    const compatibleAjuste = (app.origen_tipo === 'ajuste_proveedor' && app.destino_tipo === 'factura_compra')
+      || (app.origen_tipo === 'ajuste_cliente' && app.destino_tipo === 'factura');
+    if (!compatible && !compatibleAjuste) { const e = new Error('La aplicación no es documental compatible'); (e as any).status = 409; throw e; }
     const deleted = await client.query(
       'DELETE FROM aplicaciones_saldo WHERE id = $1 AND empresa_id = $2 RETURNING id',
       [aplicacionId, empresaId]
@@ -1307,8 +1318,9 @@ export async function eliminarOperacion(id: number, empresaId: number): Promise<
     const { rows: documentoPagoRows } = await client.query<{
       id: number;
       estatus_documento: string | null;
+      tipo_documento: string | null;
     }>(
-      `SELECT id, estatus_documento
+      `SELECT id, estatus_documento, tipo_documento
          FROM documentos
         WHERE finanzas_operacion_id = $1
           AND empresa_id = $2
@@ -1319,6 +1331,9 @@ export async function eliminarOperacion(id: number, empresaId: number): Promise<
 
     const documentoPago = documentoPagoRows[0];
     if (documentoPago) {
+      if (String(documentoPago.tipo_documento ?? '').toLowerCase() === 'pago_proveedor') {
+        throw new Error('Este Retiro pertenece a un Pago Proveedor. Elimínelo desde Compras para conservar la integridad documental.');
+      }
       if (String(documentoPago.estatus_documento ?? '').toLowerCase() === 'timbrado') {
         throw new Error('No se puede eliminar la operación porque el documento de pago asociado está timbrado');
       }
@@ -2195,14 +2210,13 @@ export type DesaplicarPagoResult = {
 const estadoCancelado = (value: unknown) =>
   ['cancelado', 'cancelada'].includes(String(value ?? '').trim().toLowerCase());
 
-export async function desaplicarPagoCliente(
+export async function desaplicarAplicacionFinancieraTx(
+  client: PoolClient,
   id: number,
   empresaId: number,
   input: DesaplicarPagoInput
 ): Promise<DesaplicarPagoResult> {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
 
     const { rows } = await client.query(
       `SELECT *
@@ -2242,8 +2256,16 @@ export async function desaplicarPagoCliente(
       (err as any).status = 409;
       throw err;
     }
-    if (pago.tipo_documento !== 'pago_cliente' || factura.tipo_documento !== 'factura') {
-      const err = new Error('La aplicación seleccionada no corresponde a un pago de cliente aplicado a una factura');
+    const paresCompatibles = new Set([
+      'pago_cliente:factura',
+      'pago_proveedor:factura_compra',
+      'ajuste_cliente:factura',
+      'ajuste_proveedor:factura_compra',
+      'nota_credito:factura',
+      'nota_credito_compra:factura_compra',
+    ]);
+    if (!paresCompatibles.has(`${pago.tipo_documento}:${factura.tipo_documento}`)) {
+      const err = new Error('La aplicación seleccionada no corresponde a un origen y destino compatibles');
       (err as any).status = 409;
       throw err;
     }
@@ -2291,7 +2313,7 @@ export async function desaplicarPagoCliente(
       `SELECT uuid FROM documentos_cfdi WHERE documento_id = $1 LIMIT 1 FOR UPDATE`,
       [pago.id]
     );
-    if (String(cfdiRows[0]?.uuid ?? '').trim()) {
+    if (pago.tipo_documento === 'pago_cliente' && String(cfdiRows[0]?.uuid ?? '').trim()) {
       const err = new Error('No se puede desaplicar porque el pago tiene un complemento de pago timbrado. Cancela primero el CFDI mediante el flujo fiscal correspondiente.');
       (err as any).status = 409;
       throw err;
@@ -2309,7 +2331,7 @@ export async function desaplicarPagoCliente(
       [empresaId, pago.id]
     );
     if (Boolean(polizaRows[0]?.existe)) {
-      const err = new Error('No se puede desaplicar porque el pago está vinculado con una póliza contable aplicada.');
+      const err = new Error('No se puede desaplicar porque el documento está vinculado con una póliza contable aplicada.');
       (err as any).status = 409;
       throw err;
     }
@@ -2385,7 +2407,6 @@ export async function desaplicarPagoCliente(
       throw err;
     }
 
-    await client.query('COMMIT');
     return {
       aplicacion: {
         id,
@@ -2398,12 +2419,182 @@ export async function desaplicarPagoCliente(
       factura: { id: factura.id, folio: folio(factura), saldo_pendiente: saldoFactura },
     };
   } catch (err) {
+    throw err;
+  }
+}
+
+export async function desaplicarAplicacionFinanciera(
+  id: number,
+  empresaId: number,
+  input: DesaplicarPagoInput
+): Promise<DesaplicarPagoResult> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await desaplicarAplicacionFinancieraTx(client, id, empresaId, input);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
     await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
   }
 }
+
+export type AplicarDistribucionPagoInput = {
+  aplicaciones?: Array<{
+    documento_destino_id: number;
+    monto: number;
+    monto_moneda_documento?: number;
+    fecha_aplicacion?: string | null;
+  }>;
+  quitar?: Array<{
+    aplicacion_id: number;
+    motivo?: string | null;
+  }>;
+  created_by?: number | null;
+};
+
+export async function aplicarDistribucionPago(
+  pagoId: number,
+  data: AplicarDistribucionPagoInput,
+  empresaId: number,
+  usuarioId: number,
+) {
+  const aplicaciones = Array.isArray(data.aplicaciones) ? data.aplicaciones : [];
+  const quitar = Array.isArray(data.quitar) ? data.quitar : [];
+  if (aplicaciones.length === 0 && quitar.length === 0) {
+    const error = new Error('Se requiere al menos una aplicación o una baja');
+    (error as any).status = 400;
+    throw error;
+  }
+  const destinoIds = aplicaciones.map((item) => Number(item.documento_destino_id));
+  const quitarIds = quitar.map((item) => Number(item.aplicacion_id));
+  if (destinoIds.some((id) => !Number.isInteger(id) || id <= 0) || quitarIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+    const error = new Error('Los identificadores de aplicación o destino son inválidos');
+    (error as any).status = 400;
+    throw error;
+  }
+  if (new Set(destinoIds).size !== destinoIds.length || new Set(quitarIds).size !== quitarIds.length) {
+    const error = new Error('No se permiten identificadores repetidos');
+    (error as any).status = 400;
+    throw error;
+  }
+  for (const item of aplicaciones) {
+    if (!(Number(item.monto) > 0) || !Number.isFinite(Number(item.monto))) {
+      const error = new Error('Cada aplicación debe tener un monto mayor a cero');
+      (error as any).status = 400;
+      throw error;
+    }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const pagoResult = await client.query<{
+      id: number; empresa_id: number; tipo_documento: string; tipo_cambio: string | null;
+      total: string; contacto_id: number | null; moneda: string | null; estatus_documento: string | null;
+      finanzas_operacion_id: number | null; serie: string | null; numero: number | null;
+    }>(
+      `SELECT d.id, d.empresa_id, d.tipo_documento, d.tipo_cambio, d.total,
+              d.contacto_principal_id AS contacto_id, d.moneda, d.estatus_documento,
+              d.finanzas_operacion_id, d.serie, d.numero
+         FROM documentos d
+        WHERE d.id = $1 AND d.empresa_id = $2
+          AND d.tipo_documento IN ('pago_cliente', 'pago_proveedor')
+        FOR UPDATE`,
+      [pagoId, empresaId],
+    );
+    const pago = pagoResult.rows[0];
+    if (!pago) {
+      const error = new Error('El pago no existe o no es compatible');
+      (error as any).status = 404;
+      throw error;
+    }
+    if (pago.finanzas_operacion_id) {
+      const { rows: operaciones } = await client.query<{ id: number; tipo_movimiento: string }>(
+        `SELECT id, tipo_movimiento FROM finanzas_operaciones WHERE id = $1 AND empresa_id = $2 FOR UPDATE`,
+        [pago.finanzas_operacion_id, empresaId],
+      );
+      const esperado = pago.tipo_documento === 'pago_proveedor' ? 'Retiro' : 'Deposito';
+      if (!operaciones[0] || String(operaciones[0].tipo_movimiento) !== esperado) {
+        const error = new Error('La operación bancaria del pago no corresponde al tipo de movimiento esperado');
+        (error as any).status = 409;
+        throw error;
+      }
+    }
+
+    const actuales = await client.query(
+      `SELECT id, documento_destino_id FROM aplicaciones_saldo
+        WHERE empresa_id = $1 AND documento_origen_id = $2
+        FOR UPDATE`,
+      [empresaId, pagoId],
+    );
+    const actualesIds = new Set(actuales.rows.map((row) => Number(row.id)));
+    if (quitarIds.some((id) => !actualesIds.has(id))) {
+      const error = new Error('Una aplicación a quitar no pertenece al pago');
+      (error as any).status = 409;
+      throw error;
+    }
+
+    const destinosBloqueo = [...new Set([
+      ...actuales.rows.filter((row) => quitarIds.includes(Number(row.id))).map((row) => Number(row.documento_destino_id)),
+      ...destinoIds,
+    ])].sort((a, b) => a - b);
+    if (destinosBloqueo.length) {
+      await client.query(
+        `SELECT id FROM documentos
+          WHERE empresa_id = $1 AND id = ANY($2::int[])
+          ORDER BY id FOR UPDATE`,
+        [empresaId, destinosBloqueo],
+      );
+    }
+
+    for (const item of quitar) {
+      const motivo = String(item.motivo ?? '').trim();
+      if (!motivo) {
+        const error = new Error('El motivo es obligatorio para quitar una aplicación');
+        (error as any).status = 400;
+        throw error;
+      }
+      await desaplicarAplicacionFinancieraTx(client, Number(item.aplicacion_id), empresaId, {
+        motivo,
+        usuarioId,
+      });
+    }
+
+    const created = [];
+    for (const item of aplicaciones) {
+      const montoMoneda = Number(item.monto_moneda_documento ?? item.monto);
+      created.push(await crearAplicacionTx(client, {
+        documento_origen_id: pagoId,
+        documento_destino_id: Number(item.documento_destino_id),
+        monto: Number(item.monto),
+        monto_moneda_documento: montoMoneda,
+        fecha_aplicacion: item.fecha_aplicacion ?? currentCivilDate(),
+        created_by: data.created_by ?? null,
+      }, empresaId));
+    }
+
+    const idsAfectados = [...new Set([pagoId, ...destinosBloqueo])];
+    const saldos = await client.query(
+      `SELECT id, saldo_operativo AS saldo FROM documentos_saldo_operativo
+        WHERE empresa_id = $1 AND id = ANY($2::int[])`,
+      [empresaId, idsAfectados],
+    );
+    await client.query('COMMIT');
+    return { pago, creadas: created, saldos: saldos.rows };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** Compatibilidad temporal para consumidores antiguos; el motor ya es genérico. */
+export const desaplicarPagoCliente = desaplicarAplicacionFinanciera;
 
 // ── Catálogo: finanzas_metodos_pago ────────────────────────────────────────────
 
@@ -2656,6 +2847,7 @@ export async function listarFacturasCompraPendientes(
      LEFT JOIN contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = d.empresa_id
      WHERE d.empresa_id = $1
        AND d.tipo_documento = 'factura_compra'
+       AND LOWER(TRIM(COALESCE(d.estatus_documento, ''))) = 'emitido'
        AND dso.saldo_operativo > 0
        AND LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada', 'borrador')
        ${filtros.join(' ')}

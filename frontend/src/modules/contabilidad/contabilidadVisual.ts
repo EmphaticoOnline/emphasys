@@ -55,6 +55,47 @@ export function shellModuloSx(theme: Theme): SystemStyleObject<Theme> {
   };
 }
 
+/** Superficie base para catálogos: deja la acción en la misma línea que el contexto. */
+export function superficieCatalogoSx(theme: Theme): SystemStyleObject<Theme> {
+  const tokens = theme.emphasys;
+  return {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1,
+    px: { xs: 1.5, md: 2 },
+    py: 1.25,
+    color: tokens.content.foreground,
+  };
+}
+
+export function barraVistaSx(theme: Theme): SystemStyleObject<Theme> {
+  return {
+    minHeight: 34,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 1,
+  };
+}
+
+export function tabsInternasSx(theme: Theme): SystemStyleObject<Theme> {
+  return {
+    minHeight: 32,
+    borderBottom: `1px solid ${theme.emphasys.content.border}`,
+    '& .MuiTab-root': {
+      minHeight: 32,
+      textTransform: 'none',
+      fontWeight: 650,
+      fontSize: 13,
+      py: 0.5,
+      px: 1.25,
+      color: theme.emphasys.content.muted,
+    },
+    '& .Mui-selected': { color: theme.emphasys.content.foreground },
+    '& .MuiTabs-indicator': { backgroundColor: theme.emphasys.action.info, height: 2 },
+  };
+}
+
 export function mesesToggleSx(theme: Theme, height = 26, fontSize = 12): SystemStyleObject<Theme> {
   const tokens = theme.emphasys;
   return {
@@ -155,7 +196,7 @@ export function panelSx(theme: Theme): SystemStyleObject<Theme> {
 export function formularioPaperSx(theme: Theme): SystemStyleObject<Theme> {
   const tokens = theme.emphasys;
   return {
-    p: 2.5,
+    p: 2,
     maxWidth: 560,
     backgroundColor: tokens.content.elevated,
     border: `1px solid ${tokens.content.border}`,

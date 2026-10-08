@@ -158,6 +158,10 @@ function mensajeVacio(search: string, criterios: number): string {
   return 'No hay notas de crédito.';
 }
 
+function esNotaCreditoCompra(tipoDocumento: TipoDocumento): boolean {
+  return tipoDocumento === 'nota_credito_compra';
+}
+
 function razonEditar(row: CotizacionListado): string | null {
   const estatus = String(row.estatus_documento ?? '').trim().toLowerCase();
   if (estatus !== 'borrador') return 'Solo se puede editar una nota de crédito en borrador.';
@@ -282,7 +286,8 @@ export default function NotasCreditoWorkspaceView({
 
   const origenes = detalle.data?.documentosOrigen ?? [];
   const partidas = detalle.data?.partidas ?? [];
-  const fiscal = seleccion ? esFiscal(seleccion.tratamiento_impuestos) : false;
+  const fiscal = seleccion ? esFiscal(seleccion.tratamiento_impuestos) && !esNotaCreditoCompra(tipoDocumento) : false;
+  const etiquetaContactoWorkspace = esNotaCreditoCompra(tipoDocumento) ? 'proveedor' : 'cliente';
   const motivo = seleccion?.motivo_nc ?? null;
   const tituloPartidas = motivo === 'devolucion'
     ? (partidas.length === 1 ? 'Devolución' : 'Devoluciones')
@@ -385,7 +390,7 @@ export default function NotasCreditoWorkspaceView({
         flexDirection: 'column',
         minHeight: 0,
         flex: compacto ? 1 : undefined,
-        bgcolor: tokens.navigation.background,
+        bgcolor: tokens.workspaceRail.background,
         color: tokens.navigation.foreground,
         borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}`,
       }}
@@ -393,8 +398,8 @@ export default function NotasCreditoWorkspaceView({
       <Box sx={{ px: 1.75, pt: 1.7, pb: 1.2 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <Box>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.navigation.muted }}>
-              NOTAS DE CRÉDITO
+              <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.navigation.muted }}>
+              {esNotaCreditoCompra(tipoDocumento) ? 'NOTAS DE CRÉDITO DE COMPRA' : 'NOTAS DE CRÉDITO'}
             </Typography>
             <Typography sx={{ mt: 0.35, fontSize: 13, color: tokens.navigation.subtle }}>
               {total > rows.length ? `${rows.length} de ${total}` : `${rows.length} en vista`}
@@ -421,7 +426,7 @@ export default function NotasCreditoWorkspaceView({
           <TextField
             size="small"
             fullWidth
-            placeholder="Buscar folio, cliente…"
+            placeholder={`Buscar folio, ${etiquetaContactoWorkspace}…`}
             value={search}
             onChange={(event) => onSearch(event.target.value)}
             InputProps={{
@@ -511,7 +516,7 @@ export default function NotasCreditoWorkspaceView({
           filtro={filtros}
           estatusOpciones={estatusOpciones}
           tiposContacto={tiposContacto}
-          etiquetaContacto={etiquetaContacto}
+          etiquetaContacto={etiquetaContactoWorkspace}
           onClose={() => setAnclaFiltro(null)}
           onChange={onFiltrosChange}
         />

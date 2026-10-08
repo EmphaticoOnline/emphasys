@@ -12,6 +12,7 @@ import OperadoresPage from './pages/OperadoresPage';
 import DomiciliosPropiosPage from './pages/DomiciliosPropiosPage';
 import DocumentosPage from './pages/DocumentosPage';
 import DocumentosFormPage from './pages/DocumentosFormPage';
+import { RecepcionEditorRoute } from './components/documentos/recepcion/RecepcionEditor';
 import LoginPage from './pages/LoginPage';
 import SeleccionEmpresaPage from './pages/SeleccionEmpresaPage';
 import RequireAuth from './auth/RequireAuth';
@@ -160,6 +161,8 @@ export default function App() {
               <Route path="/ventas/:codigo/:id" element={<DocumentosFormPage />} />
 
               {/* Compras */}
+              <Route path="/compras/recepcion/nuevo" element={<Navigate to="/compras/recepcion" replace />} />
+              <Route path="/compras/recepcion/:id" element={<RecepcionEditorRoute />} />
               <Route path="/compras/:codigo" element={<DocumentosPage />} />
               <Route path="/compras/:codigo/nuevo" element={<DocumentosFormPage />} />
               <Route path="/compras/:codigo/:id" element={<DocumentosFormPage />} />

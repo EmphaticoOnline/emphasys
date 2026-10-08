@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'r
 import {
   Autocomplete,
   Box,
+  Button,
   Checkbox,
   CircularProgress,
   IconButton,
@@ -31,6 +32,7 @@ import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
 import { fetchAplicacionesDocumento, fetchCuentas } from '../../../services/finanzasService';
+import { AplicarDistribucionPagoDialog } from '../../../modules/finanzas/AplicarDistribucionPagoDialog';
 import { prevalidarComplementoPago, type PagoComplementPrevalidacion } from '../../../services/documentosService';
 import { apiFetch } from '../../../services/apiFetch';
 import { getCuentaFinancieraDisplayLabel } from '../../../modules/finanzas/liquidacion-documento/useLiquidacionDocumento';
@@ -96,6 +98,7 @@ type Props = {
   onSelectedIdsChange: (ids: number[]) => void;
   onDuplicateSelected: () => void;
   duplicating: boolean;
+  onRefresh?: () => void | Promise<void>;
 };
 
 type DocumentoPago = CotizacionDocumento & {
@@ -185,6 +188,7 @@ export default function PagosWorkspaceView({
   onSelectedIdsChange,
   onDuplicateSelected,
   duplicating,
+  onRefresh,
 }: Props) {
   const theme = useTheme();
   const tokens = theme.emphasys;
@@ -199,6 +203,11 @@ export default function PagosWorkspaceView({
   const [cargandoAplicaciones, setCargandoAplicaciones] = useState(false);
   const [complemento, setComplemento] = useState<PagoComplementPrevalidacion | null>(null);
   const [cargandoComplemento, setCargandoComplemento] = useState(false);
+  const [desaplicarItem, setDesaplicarItem] = useState<AplicacionOperacion | null>(null);
+  const [desaplicarError, setDesaplicarError] = useState<string | null>(null);
+  const [desaplicando, setDesaplicando] = useState(false);
+  const [aplicacionesVersion, setAplicacionesVersion] = useState(0);
+  const [distribucionOpen, setDistribucionOpen] = useState(false);
 
   const criteriosActivos = filtrosAvanzadosActivos(filtros)
     + (soloPendientes ? 1 : 0)
@@ -282,7 +291,22 @@ export default function PagosWorkspaceView({
     return () => {
       cancelado = true;
     };
-  }, [seleccion]);
+  }, [seleccion, aplicacionesVersion]);
+
+  const confirmarDesaplicacion = async (motivo: string) => {
+    if (!desaplicarItem) return;
+    setDesaplicando(true);
+    setDesaplicarError(null);
+    try {
+      void motivo;
+      setDesaplicarItem(null);
+      setDistribucionOpen(true);
+    } catch (error) {
+      setDesaplicarError(error instanceof Error ? error.message : 'No se pudo desaplicar la aplicación.');
+    } finally {
+      setDesaplicando(false);
+    }
+  };
 
   useEffect(() => {
     if (!seleccion) {
@@ -399,7 +423,7 @@ export default function PagosWorkspaceView({
         flexDirection: 'column',
         minHeight: 0,
         flex: compacto ? 1 : undefined,
-        bgcolor: tokens.navigation.background,
+        bgcolor: tokens.workspaceRail.background,
         color: tokens.navigation.foreground,
         borderRight: compacto ? 'none' : `1px solid ${tokens.navigation.border}`,
       }}
@@ -831,6 +855,9 @@ export default function PagosWorkspaceView({
           )}
           {tab === 1 && (
             <Box sx={{ display: 'grid', gap: 1, maxWidth: 720 }}>
+              <Button variant="contained" onClick={() => setDistribucionOpen(true)} sx={{ justifySelf: 'start', textTransform: 'none' }}>
+                Aplicar saldo / administrar aplicaciones
+              </Button>
               {cargandoAplicaciones ? <CircularProgress size={18} /> : aplicaciones.length === 0 ? (
                 <TarjetaQuieta
                   titulo="Sin aplicaciones"
@@ -843,7 +870,8 @@ export default function PagosWorkspaceView({
                   meta={[formatDate(aplicacion.fecha_aplicacion || aplicacion.fecha_documento), aplicacion.tipo_documento_destino || aplicacion.tipo_documento].filter(Boolean).join(' · ')}
                   monto={currency.format(Number(aplicacion.monto_moneda_documento ?? aplicacion.monto ?? 0))}
                   detalle="Aplicación de saldo"
-                />
+                    accion={undefined}
+                  />
               ))}
             </Box>
           )}
@@ -878,6 +906,15 @@ export default function PagosWorkspaceView({
             </Box>
           )}
         </Box>
+        <AplicarDistribucionPagoDialog
+          open={distribucionOpen}
+          pagoId={seleccion?.id ?? null}
+          pagoFolio={seleccion ? formatFolio(seleccion) : 'Pago'}
+          contactoId={seleccion?.contacto_principal_id}
+          tipoPago={tipoDocumento === 'pago_proveedor' ? 'pago_proveedor' : 'pago_cliente'}
+          onClose={() => setDistribucionOpen(false)}
+          onSaved={async () => { setAplicacionesVersion((version) => version + 1); await onRefresh?.(); }}
+        />
       </Box>
     </Box>
   );
@@ -964,7 +1001,7 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   );
 }
 
-function TarjetaDocumento({ folio, meta, monto, detalle }: { folio: string; meta: string; monto: string; detalle?: string | undefined }) {
+function TarjetaDocumento({ folio, meta, monto, detalle, accion }: { folio: string; meta: string; monto: string; detalle?: string | undefined; accion?: ReactNode }) {
   const tokens = useTheme().emphasys;
   return (
     <Box sx={{ border: `1px solid ${tokens.content.border}`, borderRadius: 1.5, bgcolor: tokens.content.card, px: 1.4, py: 1.1 }}>
@@ -974,6 +1011,7 @@ function TarjetaDocumento({ folio, meta, monto, detalle }: { folio: string; meta
       </Box>
       {meta ? <Typography sx={{ fontSize: 12, color: tokens.content.muted, mt: 0.25 }}>{meta}</Typography> : null}
       {detalle ? <Typography sx={{ fontSize: 12.5, color: tokens.content.secondary, mt: 0.35, overflowWrap: 'anywhere' }}>{detalle}</Typography> : null}
+      {accion ? <Box sx={{ mt: 0.9, display: 'flex', justifyContent: 'flex-end' }}>{accion}</Box> : null}
     </Box>
   );
 }

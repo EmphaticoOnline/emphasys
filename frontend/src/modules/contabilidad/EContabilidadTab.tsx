@@ -37,7 +37,7 @@ import PaqueteZipView from './PaqueteZipView';
 import BitacoraView from './BitacoraView';
 import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService';
 import { fetchValidacionesEContabilidad } from '../../services/eContabilidadService';
-import { botonPrimarioSx, panelSx, textoEstadoSx, tituloVistaSx } from './contabilidadVisual';
+import { botonPrimarioSx, panelSx, superficieCatalogoSx, tabsInternasSx, textoEstadoSx, tituloVistaSx } from './contabilidadVisual';
 import type {
   NivelValidacionEContabilidad,
   SeccionValidacionEContabilidad,
@@ -231,12 +231,12 @@ export default function EContabilidadTab() {
   const listoParaEContabilidad = resultado != null && resultado.resumen.errores === 0 && resultado.resumen.advertencias === 0;
 
   return (
-    <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      <Box>
+    <Box sx={{ ...superficieCatalogoSx, gap: 1.25 }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
         <Typography sx={tituloVistaSx}>
           Contabilidad electrónica
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12.5 }}>
           Valida si el periodo está listo para generar catálogo de cuentas, balanza, pólizas y auxiliares en formato
           SAT. Catálogo de cuentas, balanza de comprobación, pólizas del periodo y auxiliares (folios fiscales y
           cuentas) ya pueden generarse como XML (subtabs "Catálogo XML" / "Balanza XML" / "Pólizas XML" /
@@ -249,13 +249,7 @@ export default function EContabilidadTab() {
         onChange={(_e, value) => setSubVista(value)}
         variant="scrollable"
         allowScrollButtonsMobile
-        sx={(theme) => ({
-          minHeight: 32,
-          borderBottom: `1px solid ${theme.emphasys.content.border}`,
-          '& .MuiTab-root': { minHeight: 32, textTransform: 'none', fontWeight: 650, fontSize: 13, py: 0.5, color: theme.emphasys.content.muted },
-          '& .Mui-selected': { color: theme.emphasys.content.foreground },
-          '& .MuiTabs-indicator': { backgroundColor: theme.emphasys.action.info },
-        })}
+        sx={tabsInternasSx}
       >
         <Tab value="validaciones" label="Validaciones" />
         <Tab value="catalogo-sat" label="Catálogo de cuentas SAT" />
@@ -321,8 +315,8 @@ export default function EContabilidadTab() {
 
       {subVista === 'validaciones' && (
         <>
-      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 2 }}>
+        <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 1.25 }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel id="e-contabilidad-ejercicio-label">Ejercicio</InputLabel>
             <Select

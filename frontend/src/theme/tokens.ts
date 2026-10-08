@@ -30,6 +30,9 @@ export type EmphasysTokens = {
     track: string;
     progress: string;
   };
+  workspaceRail: {
+    background: string;
+  };
   documentNav: {
     background: string;
     border: string;
@@ -175,6 +178,9 @@ export const classicTokens: EmphasysTokens = {
     track: '#e5e7eb',
     progress: '#1d2f68',
   },
+  workspaceRail: {
+    background: '#ffffff',
+  },
   documentNav: {
     background: '#f6f8fa',
     border: '#e5e7eb',
@@ -260,7 +266,7 @@ export const classicTokens: EmphasysTokens = {
 export const experimentalTokens: EmphasysTokens = {
   frame: { ...structuralFrame },
   navigation: {
-    background: '#3c4149',
+    background: '#2c3344',
     foreground: '#f4f0e8',
     muted: 'rgba(244,240,232,0.62)',
     subtle: 'rgba(244,240,232,0.42)',
@@ -274,6 +280,9 @@ export const experimentalTokens: EmphasysTokens = {
     summary: 'rgba(255,255,255,0.08)',
     track: 'rgba(255,255,255,0.16)',
     progress: '#a9c0d6',
+  },
+  workspaceRail: {
+    background: '#3c4149',
   },
   documentNav: {
     background: '#f4f0e8',
@@ -293,8 +302,8 @@ export const experimentalTokens: EmphasysTokens = {
     radius: 0,
   },
   content: {
-    background: '#f4f0e8',
-    elevated: '#fbf7f1',
+    background: '#f7f4ee',
+    elevated: '#fffaf2',
     foreground: '#3e3428',
     secondary: '#5c5348',
     muted: '#7a7268',

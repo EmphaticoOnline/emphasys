@@ -72,13 +72,13 @@ export default function TipoPolizaFormView({
   };
 
   return (
-    <Box sx={(theme) => ({ px: { xs: 2, md: 2.5 }, py: 2, color: theme.emphasys.content.foreground })}>
+    <Box sx={(theme) => ({ px: { xs: 1.5, md: 2 }, py: 1.25, color: theme.emphasys.content.foreground })}>
       <Typography sx={[tituloVistaSx, { mb: 1.5 }]}>
         {isEdit ? 'Editar tipo de póliza' : 'Nuevo tipo de póliza'}
       </Typography>
 
       <Paper sx={(theme) => ({ ...formularioPaperSx(theme), pb: '96px', maxWidth: 480 })}>
-        <Stack spacing={2} sx={campoCompactoSx}>
+        <Stack spacing={1.25} sx={campoCompactoSx}>
           <TextField
             label="Identificador"
             required

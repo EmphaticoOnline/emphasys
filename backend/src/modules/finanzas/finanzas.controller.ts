@@ -5,13 +5,14 @@ import {
   actualizarOperacion,
   actualizarTransferencia,
   aplicarDistribucionSaldoNotaCredito,
+  aplicarDistribucionPago,
   crearAplicacion,
   crearConciliacion,
   crearCuenta,
   crearOperacion,
   crearTransferencia,
   diagnosticarDuplicadosAplicaciones,
-  desaplicarPagoCliente,
+  desaplicarAplicacionFinanciera,
   desaplicarAplicacionDocumental,
   eliminarCuenta,
   eliminarOperacion,
@@ -416,6 +417,33 @@ export async function postAplicacion(req: Request, res: Response) {
   }
 }
 
+export async function postAplicarDistribucionPago(req: Request, res: Response) {
+  try {
+    const empresaId = req.context?.empresaId as number;
+    if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+    const pagoId = Number(req.params.pagoId);
+    const usuarioId = Number(req.auth?.userId);
+    if (!Number.isSafeInteger(pagoId) || pagoId <= 0) return res.status(400).json({ message: 'pagoId inválido' });
+    if (!Number.isSafeInteger(usuarioId) || usuarioId <= 0) return res.status(403).json({ message: 'Usuario no autorizado' });
+    if (!req.auth?.esSuperadmin) {
+      const roles = await obtenerRolesDeUsuarioEnEmpresa(usuarioId, empresaId);
+      const autorizado = roles.some((rol) => ['administrador', 'admin'].includes(String(rol.nombre ?? '').trim().toLowerCase()));
+      if (Array.isArray(req.body?.quitar) && req.body.quitar.length > 0 && !autorizado) {
+        return res.status(403).json({ message: 'No tiene permiso para quitar aplicaciones financieras' });
+      }
+    }
+    const result = await aplicarDistribucionPago(pagoId, {
+      aplicaciones: Array.isArray(req.body?.aplicaciones) ? req.body.aplicaciones : [],
+      quitar: Array.isArray(req.body?.quitar) ? req.body.quitar : [],
+      created_by: usuarioId,
+    }, empresaId, usuarioId);
+    res.status(201).json(result);
+  } catch (err: any) {
+    const status = Number(err?.status) || 500;
+    res.status(status).json({ message: err.message || 'No se pudo guardar la distribución del pago' });
+  }
+}
+
 export async function deleteAplicacionDocumental(req: Request, res: Response) {
   try {
     const empresaId = req.context?.empresaId as number;
@@ -510,10 +538,10 @@ export async function deleteAplicacion(req: Request, res: Response) {
         ['administrador', 'admin'].includes(String(rol.nombre ?? '').trim().toLowerCase())
       );
       if (!autorizado) {
-        return res.status(403).json({ message: 'No tiene permiso para desaplicar pagos de clientes' });
+        return res.status(403).json({ message: 'No tiene permiso para desaplicar aplicaciones financieras' });
       }
     }
-    const result = await desaplicarPagoCliente(id, empresaId, { motivo: motivo || null, usuarioId });
+    const result = await desaplicarAplicacionFinanciera(id, empresaId, { motivo: motivo || null, usuarioId });
     res.json(result);
   } catch (err: any) {
     const status = Number(err?.status);

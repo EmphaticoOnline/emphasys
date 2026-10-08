@@ -25,6 +25,7 @@ import {
   calcularImpuestosPreviewHandler,
   exportarDocumentos,
   obtenerRecepcionResumenHandler,
+  obtenerTrazabilidadOrdenCompraHandler,
   obtenerEditabilidadNotaVenta,
 } from './documentos.controller';
 import { obtenerCamposDocumento } from './documentos-campos.controller';
@@ -35,14 +36,17 @@ const router = Router();
 // GET /api/documentos?tipo_documento=Cotizacion
 router.get('/', requireAuth, requireEmpresaActiva, listarCotizaciones);
 
+// GET /api/documentos/:id/recepcion-resumen
+router.get('/:id/recepcion-resumen', requireAuth, requireEmpresaActiva, obtenerRecepcionResumenHandler);
+
+// GET /api/documentos/:id/trazabilidad-orden-compra
+router.get('/:id/trazabilidad-orden-compra', requireAuth, requireEmpresaActiva, obtenerTrazabilidadOrdenCompraHandler);
+
 // GET /api/documentos/:id
 router.get('/:id', requireAuth, requireEmpresaActiva, obtenerCotizacion);
 
 // GET /api/documentos/:id/detalle (drawer de consulta: partidas, pagos, NC, relacionados, inventario)
 router.get('/:id/detalle', requireAuth, requireEmpresaActiva, obtenerDetalleDocumentoHandler);
-
-// GET /api/documentos/:id/recepcion-resumen
-router.get('/:id/recepcion-resumen', requireAuth, requireEmpresaActiva, obtenerRecepcionResumenHandler);
 
 // GET /api/documentos/:id/validar-eliminacion
 router.get('/:id/validar-eliminacion', requireAuth, requireEmpresaActiva, validarEliminacionCotizacion);
