@@ -95,6 +95,7 @@ export interface CfdiTimbradoOptions {
 export interface CfdiTimbradoHooks {
   validateStampedXml?: (xmlTimbrado: string) => void;
   persistWithinTransaction?: (client: PoolClient) => Promise<void>;
+  inventarioUsuarioId?: number;
 }
 
 export interface CfdiBuildResult {

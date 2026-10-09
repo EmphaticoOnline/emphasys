@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Chip, Dialog, DialogContent, DialogTitle, IconButton, Snackbar } from '@mui/material';
+import { Box, Chip, Dialog, DialogContent, DialogTitle, IconButton, Snackbar } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import type { GridColDef, GridColumnVisibilityModel, GridRenderCellParams, GridRowParams } from '@mui/x-data-grid';
@@ -26,9 +26,7 @@ import { useGridContextMenu } from '../hooks/useGridContextMenu';
 import { useDeviceProfile } from '../hooks/useDeviceProfile';
 import { useGridPreferences } from '../hooks/useGridPreferences';
 import ProductosDesktopView from '../components/productos/ProductosDesktopView';
-import ProductosMobileView from '../components/productos/ProductosMobileView';
 import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
-import type { ProductosViewMode } from '../components/productos/ProductosView.types';
 import { useSession } from '../session/useSession';
 import { esRolAdmin } from '../session/rolScope';
 
@@ -52,7 +50,6 @@ export default function ProductosPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [globalSpecsOpen, setGlobalSpecsOpen] = useState(false);
   const [especificacionesHabilitadas, setEspecificacionesHabilitadas] = useState(false);
-  const [viewMode, setViewMode] = useState<ProductosViewMode>('lista');
   const [selectedProductoId, setSelectedProductoId] = useState<number | null>(null);
   const esAdmin = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
 
@@ -138,7 +135,7 @@ export default function ProductosPage() {
 
   // Autoselección del primer producto visible en la vista Lista, igual que Contactos.
   useEffect(() => {
-    if (viewMode !== 'lista' || loading) return;
+    if (isMobile || loading) return;
     if (productos.length === 0) {
       setSelectedProductoId(null);
       return;
@@ -147,7 +144,7 @@ export default function ProductosPage() {
     if (!stillVisible && productos[0]) {
       setSelectedProductoId(productos[0].id);
     }
-  }, [productos, viewMode, loading, selectedProductoId]);
+  }, [productos, isMobile, loading, selectedProductoId]);
 
   const handleDelete = async (producto: Producto) => {
     const confirmed = window.confirm(`¿Eliminar el producto "${producto.descripcion}"?`);
@@ -335,6 +332,7 @@ export default function ProductosPage() {
       productos={productos}
       columns={orderedColumns}
       loading={loading || loadingPreferences}
+      error={error}
       rowCount={rowCount}
       paginationModel={{ page, pageSize }}
       onPaginationModelChange={(model) => {
@@ -370,8 +368,6 @@ export default function ProductosPage() {
       onCloseContextMenu={closeContextMenu}
       onExport={() => void handleExport()}
       exportLoading={exportLoading}
-      viewMode={viewMode}
-      onViewModeChange={setViewMode}
       esAdmin={esAdmin}
       selectedProductoId={selectedProductoId}
       onSelectProducto={setSelectedProductoId}
@@ -381,27 +377,8 @@ export default function ProductosPage() {
     />
   );
 
-  const mobileView = (
-    <ProductosMobileView
-      {...commonViewProps}
-      productos={productos}
-      loading={loading}
-      error={error}
-      onClearError={() => setError(null)}
-      onEditProducto={(productoId) => navigate(`/productos/${productoId}`)}
-      onDeleteProducto={(producto) => {
-        void handleDelete(producto);
-      }}
-    />
-  );
-
-  const bibliotecaGlobal = especificacionesHabilitadas ? (
-    <Button variant="outlined" onClick={() => setGlobalSpecsOpen(true)} sx={(theme) => ({ textTransform: 'none', fontWeight: 700, color: theme.emphasys.content.foreground, borderColor: theme.emphasys.content.border, bgcolor: theme.emphasys.content.card, '&:hover': { borderColor: theme.emphasys.content.foreground, bgcolor: theme.emphasys.content.hover } })}>Biblioteca global</Button>
-  ) : null;
-
   return <Box sx={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-    {bibliotecaGlobal && (isMobile || viewMode !== 'lista') ? <Box sx={{ px: 3, pt: 2, display: 'flex', justifyContent: 'flex-end' }}>{bibliotecaGlobal}</Box> : null}
-    {isMobile ? mobileView : desktopView}
+    {desktopView}
     <Dialog open={globalSpecsOpen} onClose={() => setGlobalSpecsOpen(false)} fullWidth maxWidth="md">
       <DialogTitle>Biblioteca global de especificaciones</DialogTitle>
       <DialogContent dividers><EspecificacionesBibliotecaEditor alcance="global" onError={(message) => setSnackbar({ open: true, message, severity: 'error' })} /></DialogContent>

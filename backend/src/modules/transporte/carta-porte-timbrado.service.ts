@@ -100,18 +100,19 @@ export function executeCartaPorteStampPlan(
   documentoId: number,
   empresaId: number,
   plan: CartaPorteStampPlan | null,
-  cfdi: CfdiDocumentStamper
+  cfdi: CfdiDocumentStamper,
+  inventarioUsuarioId?: number
 ) {
   const timbrar = cfdi.timbrarDocumento?.bind(cfdi) ?? cfdi.timbrarFactura.bind(cfdi);
   return plan
-    ? timbrar(documentoId, empresaId, plan.options, buildCartaPorteStampHooks(plan))
-    : timbrar(documentoId, empresaId);
+    ? timbrar(documentoId, empresaId, plan.options, { ...buildCartaPorteStampHooks(plan), inventarioUsuarioId })
+    : timbrar(documentoId, empresaId, undefined, { inventarioUsuarioId });
 }
 
-export async function timbrarFacturaConTransporte(documentoId: number, empresaId: number, cfdi = new CfdiService()) {
+export async function timbrarFacturaConTransporte(documentoId: number, empresaId: number, cfdi = new CfdiService(), inventarioUsuarioId?: number) {
   const row = await findCartaPorteStampContext(documentoId, empresaId);
   const plan = buildCartaPorteStampPlan(row, documentoId);
-  return executeCartaPorteStampPlan(documentoId, empresaId, plan, cfdi);
+  return executeCartaPorteStampPlan(documentoId, empresaId, plan, cfdi, inventarioUsuarioId);
 }
 
 export async function vincularFacturaViaje(viajeId: number, documentoId: number, empresaId: number) {

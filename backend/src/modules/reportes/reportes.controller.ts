@@ -1472,13 +1472,14 @@ export async function getKardexProducto(req: Request, res: Response) {
   const fechaInicio    = (req.query.fecha_inicio as string) || '';
   const fechaFin       = (req.query.fecha_fin   as string) || '';
   const tipoMovimiento = (req.query.tipo_movimiento as string | undefined) || null;
+  const orden           = req.query.orden === 'desc' ? 'desc' : 'asc';
   const formato        = ((req.query.formato as string) || 'json').toLowerCase();
 
   if (!empresaId)   return res.status(400).json({ message: 'Empresa requerida' });
   if (!productoId)  return res.status(400).json({ message: 'producto_id es requerido' });
   if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
   try {
-    const resultado = await obtenerKardexProducto({ empresaId, productoId, almacenId, fechaInicio, fechaFin, tipoMovimiento });
+    const resultado = await obtenerKardexProducto({ empresaId, productoId, almacenId, fechaInicio, fechaFin, tipoMovimiento, orden });
     return sendKardex(res, resultado, formato);
   } catch (err: unknown) {
     return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });

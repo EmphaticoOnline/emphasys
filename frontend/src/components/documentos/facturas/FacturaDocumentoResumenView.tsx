@@ -77,8 +77,8 @@ export default function FacturaDocumentoResumenView({
   );
 
   const folio = resolverFolioVisual(row, 'factura') || String(row.id);
-  const esNotaDeVenta = String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
-  const timbrado = Boolean(row.cfdi_uuid);
+  const esNotaDeVenta = String(documento?.tratamiento_impuestos ?? row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
+  const timbrado = !esNotaDeVenta && Boolean(row.cfdi_uuid);
   const estatus = String(row.estatus_documento ?? '').toLowerCase();
 
   const subtotal = documento?.subtotal ?? null;
@@ -122,7 +122,11 @@ export default function FacturaDocumentoResumenView({
           ) : null}
         </Stack>
 
-        {estatus === 'cancelado' ? (
+        {estatus === 'cancelado' && esNotaDeVenta ? (
+          <Alert severity="info" sx={{ py: 0, mb: 1, flexShrink: 0, '& .MuiAlert-message': { fontSize: 12.5 } }}>
+            Nota de venta cancelada.
+          </Alert>
+        ) : estatus === 'cancelado' ? (
           <Alert severity="error" sx={{ py: 0, mb: 1, flexShrink: 0, '& .MuiAlert-message': { fontSize: 12.5 } }}>
             CFDI cancelado ante el SAT — este documento ya no tiene efectos fiscales.
           </Alert>
@@ -145,7 +149,7 @@ export default function FacturaDocumentoResumenView({
           {field('RFC receptor', documento?.rfc_receptor)}
           {field('Régimen fiscal', documento?.regimen_fiscal_receptor)}
           {field('Uso de CFDI', documento?.uso_cfdi)}
-          {timbrado ? (
+          {!esNotaDeVenta && timbrado ? (
             <>
               {field('Forma de pago', documento?.forma_pago)}
               {field('Método de pago', documento?.metodo_pago)}
@@ -159,11 +163,11 @@ export default function FacturaDocumentoResumenView({
                 ))}
               </Box>
             </>
-          ) : (
+          ) : !esNotaDeVenta ? (
             <Box sx={{ gridColumn: '1 / -1' }}>
               {field('CFDI', 'Sin timbrar — no cuenta con folio fiscal (UUID)')}
             </Box>
-          )}
+          ) : null}
         </Box>
 
         {/* Partidas — única zona con scroll interno */}
@@ -207,7 +211,7 @@ export default function FacturaDocumentoResumenView({
         {/* Cancelación y totales: ambas columnas permanecen ancladas en la franja inferior. */}
         <Stack direction="row" alignItems="flex-end" justifyContent="space-between" spacing={2} sx={{ pt: 1, mt: 1, borderTop: `1px solid ${tokens.content.border}`, flexShrink: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            {cancelacionRelevante ? (
+            {cancelacionRelevante && !esNotaDeVenta ? (
               <Box sx={{ maxWidth: 360, pr: 1 }}>
                 <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: tokens.status.cancellation, textTransform: 'uppercase' }}>CANCELACIÓN CFDI</Typography>
                 <Typography sx={{ fontSize: 13, fontWeight: 800, color: tokens.metric.blocked.foreground }}>Estado: {cancelacionLabel}</Typography>

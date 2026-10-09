@@ -14,17 +14,26 @@ export interface CrearMovimientoManualPayload {
   partidas: MovimientoPartidaPayload[];
 }
 
-export interface MovimientoListadoItem {
+export interface MovimientoEncabezado {
   id: number;
   fecha: string;
-  tipo_movimiento: TipoMovimientoInventario;
+  tipo_movimiento: TipoMovimientoInventario | string;
   observaciones: string | null;
   usuario_id: number | null;
   usuario_nombre?: string | null;
   documento_id: number | null;
   documento_serie?: string | null;
   documento_numero?: number | null;
+  documento_tipo?: string | null;
+  documento_estatus?: string | null;
+  documento_fecha?: string | null;
+  documento_origen_id?: number | null;
+  contacto_id?: number | null;
+  contacto_nombre?: string | null;
+  contacto_tipo?: string | null;
 }
+
+export type MovimientoListadoItem = MovimientoEncabezado;
 
 export interface MovimientoPartidaDetalle {
   id: number;
@@ -35,21 +44,14 @@ export interface MovimientoPartidaDetalle {
   almacen_origen_nombre?: string | null;
   almacen_destino_id: number | null;
   almacen_destino_nombre?: string | null;
-  cantidad: number;
+  cantidad: number | string;
+  costo_unitario?: number | string | null;
+  existencia_resultante?: number | string | null;
+  valor_movimiento?: number | string | null;
 }
 
 export interface MovimientoDetalle {
-  movimiento: {
-    id: number;
-    fecha: string;
-    tipo_movimiento: TipoMovimientoInventario;
-    observaciones: string | null;
-    usuario_id: number | null;
-    usuario_nombre?: string | null;
-    documento_id: number | null;
-    documento_serie?: string | null;
-    documento_numero?: number | null;
-  };
+  movimiento: MovimientoEncabezado;
   partidas: MovimientoPartidaDetalle[];
 }
 

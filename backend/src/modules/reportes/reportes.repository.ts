@@ -2781,8 +2781,10 @@ export async function obtenerKardexProducto(params: {
   fechaInicio: string;
   fechaFin: string;
   tipoMovimiento: string | null;
+  orden?: 'asc' | 'desc';
 }): Promise<KardexResult> {
   const { empresaId, productoId, almacenId, fechaInicio, fechaFin, tipoMovimiento } = params;
+  const orden = params.orden === 'desc' ? 'DESC' : 'ASC';
 
   const [{ rows: prodRows }, { rows }] = await Promise.all([
     pool.query(
@@ -2815,7 +2817,7 @@ export async function obtenerKardexProducto(params: {
          AND mp.fecha_movimiento >= $4::date
          AND mp.fecha_movimiento <  $5::date + INTERVAL '1 day'
          AND ($6::text IS NULL OR m.tipo_movimiento = $6)
-       ORDER BY mp.fecha_movimiento, mp.id`,
+       ORDER BY mp.fecha_movimiento ${orden}, m.id ${orden}, mp.id ${orden}`,
       [empresaId, productoId, almacenId, fechaInicio, fechaFin, tipoMovimiento]
     ),
   ]);
@@ -2892,7 +2894,10 @@ export async function obtenerMovimientosInventarioPeriodo(params: {
 
   const { rows } = await pool.query(
     `SELECT
-       mp.fecha_movimiento::date                                            AS fecha,
+       -- La fecha funcional del movimiento se almacena como timestamptz,
+       -- pero el Kardex muestra la fecha civil persistida en UTC. Hacer la
+       -- zona explícita evita que la configuración de sesión cambie el día.
+       (mp.fecha_movimiento AT TIME ZONE 'UTC')::date                       AS fecha,
        m.tipo_movimiento,
        p.id                                                                 AS producto_id,
        p.clave                                                              AS producto_clave,

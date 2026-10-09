@@ -8,16 +8,17 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../documentos/WorkspaceRowContextMenu';
 import type { GridPaginationModel } from '@mui/x-data-grid';
 import type { Producto } from '../../types/producto';
 import { catalogoRailIconButtonSx, catalogoRailSearchSx } from '../catalogo/catalogoSurfaces';
-import { CatalogoRailVistaAyuda } from '../catalogo/CatalogoModuloToolbar';
 
 type ProductosListaCompactaProps = {
   productos: Producto[];
   rowCount: number;
   loading: boolean;
+  error?: string | null;
   paginationModel: GridPaginationModel;
   onPaginationModelChange: (model: GridPaginationModel) => void;
   selectedProductoId: number | null;
@@ -32,9 +33,8 @@ type ProductosListaCompactaProps = {
   onDeleteProducto: (producto: Producto) => void;
   onAlternarActivo: (producto: Producto) => Promise<Producto | void>;
   togglingId: number | null;
-  viewMode: 'lista' | 'tabla';
-  onViewModeChange: (mode: 'lista' | 'tabla') => void;
   helpHref: string;
+  anchoCompleto?: boolean;
   onOpenBiblioteca?: () => void;
 };
 
@@ -46,6 +46,7 @@ export default function ProductosListaCompacta({
   productos,
   rowCount,
   loading,
+  error,
   paginationModel,
   onPaginationModelChange,
   selectedProductoId,
@@ -60,9 +61,8 @@ export default function ProductosListaCompacta({
   onDeleteProducto,
   onAlternarActivo,
   togglingId,
-  viewMode,
-  onViewModeChange,
   helpHref,
+  anchoCompleto = false,
   onOpenBiblioteca,
 }: ProductosListaCompactaProps) {
   const [menuFila, setMenuFila] = React.useState<{ top: number; left: number; rowId: number } | null>(null);
@@ -81,8 +81,8 @@ export default function ProductosListaCompacta({
   return (
     <Box
       sx={{
-        width: { xs: '100%', md: 372 },
-        maxWidth: { md: 372 },
+        width: anchoCompleto ? '100%' : { xs: '100%', md: 372 },
+        maxWidth: anchoCompleto ? '100%' : { md: 372 },
         flexShrink: 0,
         m: 0,
         alignSelf: 'stretch',
@@ -90,7 +90,7 @@ export default function ProductosListaCompacta({
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: (theme) => theme.emphasys.navigation.background,
+        backgroundColor: (theme) => theme.emphasys.workspaceRail.background,
         color: (theme) => theme.emphasys.navigation.foreground,
         borderRight: (theme) => `1px solid ${theme.emphasys.navigation.border}`,
       }}
@@ -108,19 +108,23 @@ export default function ProductosListaCompacta({
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.4, flexWrap: 'wrap', flexShrink: 1, minWidth: 0 }}>
           <Tooltip title="Exportar" arrow>
             <span>
-              <IconButton aria-label="Exportar" disabled={exportLoading} onClick={onExport} sx={catalogoRailIconButtonSx}>
+              <IconButton aria-label="Exportar" disabled={exportLoading} onClick={onExport} sx={[catalogoRailIconButtonSx, { width: 34, height: 34, borderRadius: '10px' }]}>
                 {exportLoading ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : <IosShareOutlinedIcon sx={{ fontSize: 16 }} />}
               </IconButton>
             </span>
           </Tooltip>
           {onOpenBiblioteca ? (
             <Tooltip title="Biblioteca global de especificaciones" arrow>
-              <IconButton aria-label="Biblioteca global de especificaciones" onClick={onOpenBiblioteca} sx={catalogoRailIconButtonSx}>
+              <IconButton aria-label="Biblioteca global de especificaciones" onClick={onOpenBiblioteca} sx={[catalogoRailIconButtonSx, { width: 34, height: 34, borderRadius: '10px' }]}>
                 <MenuBookOutlinedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
           ) : null}
-          <CatalogoRailVistaAyuda viewMode={viewMode} onViewModeChange={onViewModeChange} helpHref={helpHref} />
+          <Tooltip title="Ayuda" arrow>
+            <IconButton aria-label="Ayuda" onClick={() => window.open(helpHref, '_blank')} sx={[catalogoRailIconButtonSx, { width: 34, height: 34, borderRadius: '10px' }]}>
+              <HelpOutlineIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Nuevo producto" arrow>
             <IconButton
               aria-label="Nuevo producto"
@@ -129,6 +133,7 @@ export default function ProductosListaCompacta({
                 width: 34,
                 height: 34,
                 flexShrink: 0,
+                borderRadius: '10px',
                 bgcolor: theme.emphasys.navigation.control,
                 color: theme.emphasys.navigation.controlForeground,
                 boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
@@ -167,6 +172,11 @@ export default function ProductosListaCompacta({
       </Box>
 
       <Box sx={(theme) => ({ flex: 1, overflow: 'auto', px: 1, pb: 1.2, scrollbarWidth: 'thin', scrollbarColor: `${theme.emphasys.navigation.progress} ${theme.emphasys.navigation.background}` })}>
+        {error ? (
+          <Typography sx={{ px: 1.25, py: 1, fontSize: 13, color: (theme) => theme.emphasys.metric.blocked.foreground }}>
+            {error}
+          </Typography>
+        ) : null}
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
             <CircularProgress size={26} />
@@ -221,7 +231,7 @@ export default function ProductosListaCompacta({
                     <Typography
                       variant="figure"
                       noWrap
-                      sx={(theme) => ({ fontSize: 16, lineHeight: 1.1, color: theme.emphasys.navigation.foreground })}
+                      sx={(theme) => ({ fontSize: 14, lineHeight: 1.1, color: theme.emphasys.navigation.foreground })}
                     >
                       {producto.clave}
                     </Typography>
@@ -229,7 +239,7 @@ export default function ProductosListaCompacta({
                       <Chip label={producto.tipo_producto} size="small" sx={(theme) => ({ fontWeight: 700, flexShrink: 0, height: 18, bgcolor: theme.emphasys.navigation.summary, color: theme.emphasys.navigation.foreground })} />
                     ) : null}
                   </Box>
-                  <Typography variant="figure" noWrap sx={(theme) => ({ fontSize: 14, mt: 0.25, lineHeight: 1.2, color: theme.emphasys.navigation.foreground })}>
+                  <Typography variant="figure" noWrap sx={(theme) => ({ fontSize: 13, mt: 0.2, lineHeight: 1.2, color: theme.emphasys.navigation.foreground })}>
                     {producto.descripcion}
                   </Typography>
                   {subtitle ? (

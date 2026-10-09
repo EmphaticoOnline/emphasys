@@ -9,6 +9,7 @@ import {
   validarRfcEmisorRecibido,
 } from './cfdi-emisor.validation';
 import { actualizarIntentoTimbrado } from './cfdi-timbrado-intentos.repository';
+import { aplicarInventarioDesdeDocumento } from '../inventario/inventario.service';
 import type {
   CfdiBuildOptions,
   CfdiInvoiceData,
@@ -259,6 +260,16 @@ export class CfdiService {
       facturama.configId, facturama.pac, intentoId,
       esTraslado ? transporte!.buildCartaPorteStampHooks(plan!) : hooks
     );
+
+    // El timbrado ya quedó confirmado en BD. El inventario se aplica en una
+    // transacción separada para no revertir un timbrado aceptado por el PAC.
+    if (!esTraslado && String(data.documento.tipo_documento ?? '').trim().toLowerCase() === 'factura' && hooks?.inventarioUsuarioId) {
+      try {
+        await aplicarInventarioDesdeDocumento(documentoId, empresaId, hooks.inventarioUsuarioId);
+      } catch (error) {
+        console.error('[CFDI][inventario] Timbrado exitoso; no se pudo aplicar inventario', { documentoId, empresaId, error });
+      }
+    }
 
     return {
       xmlGenerado: xml,

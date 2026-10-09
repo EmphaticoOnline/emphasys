@@ -40,11 +40,12 @@ import {
 const COLOR = '#7c3aed';
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtCant = (v: number) => v.toLocaleString('es-MX', { maximumFractionDigits: 4 });
-const fmtFecha = (iso: string) => {
-  if (!iso || iso.length < 10) return iso;
-  const [yr, mo, da] = iso.slice(0, 10).split('-');
+function formatCivilDate(value: string | null | undefined): string {
+  const civil = String(value ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(civil)) return civil;
+  const [yr, mo, da] = civil.split('-');
   return `${da}-${mo}-${yr}`;
-};
+}
 
 function primerDiaMes() {
   const d = new Date();
@@ -79,7 +80,7 @@ function buildColumns(): GridColDef<MovimientoInventario>[] {
       field: 'fecha',
       headerName: 'Fecha',
       width: 100,
-      renderCell: (p: GridRenderCellParams<MovimientoInventario, string>) => fmtFecha(p.value ?? ''),
+      renderCell: (p: GridRenderCellParams<MovimientoInventario, string>) => formatCivilDate(p.value),
     },
     { field: 'tipo_movimiento',      headerName: 'Tipo',        width: 110 },
     { field: 'producto_clave',       headerName: 'Clave',       width: 90  },

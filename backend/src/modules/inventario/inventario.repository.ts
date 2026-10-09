@@ -10,6 +10,13 @@ export type MovimientoRow = {
   documento_id: number | null;
   documento_serie: string | null;
   documento_numero: number | null;
+  documento_tipo: string | null;
+  documento_estatus: string | null;
+  documento_fecha: string | null;
+  documento_origen_id: number | null;
+  contacto_id: number | null;
+  contacto_nombre: string | null;
+  contacto_tipo: string | null;
 };
 
 export type MovimientoPartidaDetalle = {
@@ -22,6 +29,9 @@ export type MovimientoPartidaDetalle = {
   almacen_destino_id: number | null;
   almacen_destino_nombre: string | null;
   cantidad: number;
+  costo_unitario: number | null;
+  existencia_resultante: number | null;
+  valor_movimiento: number | null;
 };
 
 export type MovimientoDetalle = {
@@ -39,10 +49,18 @@ export async function listarMovimientosRepository(empresaId: number): Promise<Mo
            u.nombre AS usuario_nombre,
            m.documento_id,
            d.serie   AS documento_serie,
-           d.numero  AS documento_numero
+           d.numero  AS documento_numero,
+           d.tipo_documento AS documento_tipo,
+           d.estatus_documento AS documento_estatus,
+           d.fecha_documento AS documento_fecha,
+           d.documento_origen_id,
+           d.contacto_principal_id AS contacto_id,
+           c.nombre AS contacto_nombre,
+           c.tipo_contacto AS contacto_tipo
       FROM inventario.movimientos m
      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      LEFT JOIN public.documentos d ON d.id = m.documento_id
+     LEFT JOIN public.contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = m.empresa_id
      WHERE m.empresa_id = $1
      ORDER BY m.fecha DESC, m.id DESC
   `;
@@ -107,10 +125,18 @@ export async function obtenerMovimientoDetalleRepository(id: number, empresaId: 
            u.nombre AS usuario_nombre,
            m.documento_id,
            d.serie   AS documento_serie,
-           d.numero  AS documento_numero
+           d.numero  AS documento_numero,
+           d.tipo_documento AS documento_tipo,
+           d.estatus_documento AS documento_estatus,
+           d.fecha_documento AS documento_fecha,
+           d.documento_origen_id,
+           d.contacto_principal_id AS contacto_id,
+           c.nombre AS contacto_nombre,
+           c.tipo_contacto AS contacto_tipo
       FROM inventario.movimientos m
-      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
-      LEFT JOIN public.documentos d ON d.id = m.documento_id
+     LEFT JOIN core.usuarios u ON u.id = m.usuario_id
+     LEFT JOIN public.documentos d ON d.id = m.documento_id
+     LEFT JOIN public.contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = m.empresa_id
      WHERE m.id = $1
        AND m.empresa_id = $2
      LIMIT 1
@@ -125,7 +151,12 @@ export async function obtenerMovimientoDetalleRepository(id: number, empresaId: 
            ao.nombre              AS almacen_origen_nombre,
            mp.almacen_destino_id,
            ad.nombre              AS almacen_destino_nombre,
-           mp.cantidad * mp.signo AS cantidad
+           mp.cantidad * mp.signo AS cantidad,
+           mp.costo_unitario,
+           mp.existencia_resultante,
+           CASE WHEN mp.costo_unitario IS NULL THEN NULL
+                ELSE mp.cantidad * mp.signo * mp.costo_unitario
+           END AS valor_movimiento
       FROM inventario.movimientos_partidas mp
       LEFT JOIN public.productos p ON p.id = mp.producto_id
       LEFT JOIN inventario.almacenes ao ON ao.id = mp.almacen_id

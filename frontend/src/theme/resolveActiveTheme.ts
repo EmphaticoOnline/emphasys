@@ -29,6 +29,7 @@ const EXPERIMENTAL_EXACT_PATHS = [
   '/configuracion',
   '/login',
   '/seleccionar-empresa',
+  '/inventario/movimientos',
 ] as const;
 
 const EXPERIMENTAL_PATH_PREFIXES = [

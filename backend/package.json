@@ -19,6 +19,7 @@
     "migrar:dicor-conciliacion": "ts-node src/scripts/migrarDicorConciliacion.ts",
     "normalize-phones": "ts-node src/scripts/normalizePhones.ts",
     "seed:contabilidad": "ts-node src/scripts/seedContabilidadDemoEmpresa8.ts",
+    "seed:empresa8:tunnel": "ts-node src/scripts/runSeedDemoEmpresa8WithTunnel.ts",
     "diagnosticar-sat": "ts-node src/scripts/diagnosticarSatDescarga.ts",
     "test:cfdi-cancelacion": "ts-node src/scripts/testCfdiCancelacion.ts",
     "cfdi:sat-cancel:test": "ts-node src/scripts/cfdiSatCancelTest.ts",

@@ -1071,12 +1071,14 @@ export type KardexParams = {
   fecha_inicio: string;
   fecha_fin: string;
   tipo_movimiento?: string | null;
+  orden?: 'asc' | 'desc';
 };
 
 function buildKardexQs(params: KardexParams, extras: Record<string, string> = {}): URLSearchParams {
   const qs = new URLSearchParams({ producto_id: String(params.producto_id), fecha_inicio: params.fecha_inicio, fecha_fin: params.fecha_fin, ...extras });
   if (params.almacen_id)       qs.set('almacen_id',       String(params.almacen_id));
   if (params.tipo_movimiento)  qs.set('tipo_movimiento',  params.tipo_movimiento);
+  if (params.orden)            qs.set('orden',              params.orden);
   return qs;
 }
 

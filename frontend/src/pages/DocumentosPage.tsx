@@ -382,8 +382,14 @@ const FACTURA_ESTATUS_OPERATIVOS: StatusOption[] = [
   { value: 'emitido', label: 'Emitido' },
 ];
 
-const getFacturaEstatusEditableOptions = (value: unknown): StatusOption[] =>
-  normalizeDocumentoEstatus(value) === 'borrador' ? FACTURA_ESTATUS_OPERATIVOS : [];
+const esFacturaVentaEstandar = (row?: Partial<CotizacionListado> | null): boolean =>
+  String(row?.tipo_documento ?? 'factura').trim().toLowerCase() === 'factura'
+  && String(row?.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'normal';
+
+const getFacturaEstatusEditableOptions = (value: unknown, row?: Partial<CotizacionListado> | null): StatusOption[] =>
+  normalizeDocumentoEstatus(value) === 'borrador' && !esFacturaVentaEstandar(row)
+    ? FACTURA_ESTATUS_OPERATIVOS
+    : [];
 
 const isFacturaTimbrada = (value: unknown): boolean => normalizeDocumentoEstatus(value) === 'timbrado';
 
@@ -1093,9 +1099,9 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     () => (esCotizacion
       ? COTIZACION_ESTATUS_EDITABLE_OPTIONS
       : esFacturaVentas
-        ? FACTURA_ESTATUS_OPERATIVOS
+        ? (rows.some((row) => !esFacturaVentaEstandar(row)) ? FACTURA_ESTATUS_OPERATIVOS : [])
         : statusOptions),
-    [esCotizacion, esFacturaVentas, statusOptions]
+    [esCotizacion, esFacturaVentas, rows, statusOptions]
   );
   const effectiveColumnVisibilityModel = useMemo<GridColumnVisibilityModel>(
     () => ({
@@ -1393,7 +1399,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
     if (esCotizacion && getCotizacionEstatusEditableOptions(row.estatus_documento).length === 0) {
       return;
     }
-    if (esFacturaVentas && getFacturaEstatusEditableOptions(row.estatus_documento).length === 0) {
+    if (esFacturaVentas && getFacturaEstatusEditableOptions(row.estatus_documento, row).length === 0) {
       return;
     }
     setEstatusMenu({
@@ -1421,7 +1427,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
     if (esFacturaVentas) {
       const normalizedNext = normalizeDocumentoEstatus(nextValue);
-      const allowed = getFacturaEstatusEditableOptions(estatusMenu.currentValue)
+      const currentRow = rows.find((row) => Number(row.id) === rowId);
+      const allowed = getFacturaEstatusEditableOptions(estatusMenu.currentValue, currentRow)
         .some((option) => option.value === normalizedNext);
       if (normalizedNext === 'timbrado' || normalizedNext === 'cancelado' || normalizedNext === 'cancelada' || !allowed) {
         closeEstatusMenu();
@@ -2447,7 +2454,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               const presentation = getDocumentoEstatusActionPresentation(estatus);
               const menuOpen = Boolean(estatusMenu.anchorEl) && estatusMenu.rowId === rowId;
               const indicators = indicadoresFacturaPorId[rowId];
-              const canChangeStatus = getFacturaEstatusEditableOptions(estatus).length > 0;
+              const canChangeStatus = getFacturaEstatusEditableOptions(estatus, params.row as CotizacionListado).length > 0;
 
               return (
                 <Box
@@ -3096,7 +3103,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         id: 'emitir',
         label: tipoDocumento === 'factura_compra' ? 'Confirmar' : 'Emitir',
         icon: <CheckCircleIcon fontSize="small" />,
-        hidden: tipoDocumento !== 'factura' && tipoDocumento !== 'factura_compra',
+        hidden: (tipoDocumento !== 'factura' && tipoDocumento !== 'factura_compra')
+          || (tipoDocumento === 'factura' && esFacturaVentaEstandar(contextMenuRow)),
         disabled:
           loading
           || actualizandoEstatusId === rowId
@@ -4853,7 +4861,15 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                     <TableCell>Producto</TableCell>
                     <TableCell align="right">Cant. origen</TableCell>
                     <TableCell align="right">{generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion' ? 'Máximo bonificable' : 'Pendiente'}</TableCell>
-                    <TableCell align="right">{generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion' ? 'Monto a bonificar' : 'Cantidad a devolver'}</TableCell>
+                    <TableCell align="right">
+                      {generacionDialog.tipoDestino === 'nota_credito' && generacionDialog.motivoNc === 'bonificacion'
+                        ? 'Monto a bonificar'
+                        : generacionDialog.tipoDestino === 'nota_credito'
+                          ? 'Cantidad a devolver'
+                          : generacionDialog.tipoDestino === 'recepcion'
+                            ? 'Cantidad a recibir'
+                            : 'Cantidad a generar'}
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>

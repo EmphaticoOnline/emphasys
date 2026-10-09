@@ -77,6 +77,16 @@ export type ProductoArchivo = {
   fecha_creacion: string;
 };
 
+export type ExistenciaProducto = { producto_id: number; almacen_id: number; almacen: string; existencia: number; minimo_inventario: number; ultima_fecha: string | null };
+export type DocumentoRelacionadoProducto = { id: number; tipo: string; fecha: string; serie: string | null; folio: string; contacto: string | null; estado: string | null };
+
+export async function fetchExistenciasProducto(productoId: number): Promise<ExistenciaProducto[]> {
+  return apiFetch(`${BASE_URL}/${productoId}/existencias`);
+}
+export async function fetchDocumentosRelacionadosProducto(productoId: number): Promise<DocumentoRelacionadoProducto[]> {
+  return apiFetch(`${BASE_URL}/${productoId}/documentos-relacionados`);
+}
+
 export async function fetchProductos(): Promise<Producto[]> {
   return apiFetch(BASE_URL);
 }

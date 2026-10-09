@@ -4,6 +4,50 @@ import type { PoolClient } from 'pg';
 import { removeFileIfExists } from '../../services/fileStorage.service';
 import { eliminarPdfPreviewSiExiste } from '../../services/pdfPreviewImage.service';
 import { resolveUploadsDir } from '../uploads/uploads.multer';
+import { obtenerExistenciasPorAlmacen, type ExistenciaPorAlmacen } from '../reportes/reportes.repository';
+
+export type DocumentoRelacionadoProducto = {
+  id: number;
+  tipo: string;
+  fecha: string;
+  serie: string | null;
+  folio: string;
+  contacto: string | null;
+  estado: string | null;
+};
+
+export async function listarExistenciasProductoRepository(productoId: number, empresaId: number): Promise<ExistenciaPorAlmacen[]> {
+  const producto = await pool.query<{ tipo_producto: string | null }>(
+    'SELECT tipo_producto FROM public.productos WHERE id = $1 AND empresa_id = $2',
+    [productoId, empresaId]
+  );
+  if (!producto.rowCount) return [];
+  if (String(producto.rows[0].tipo_producto ?? '').trim().toLowerCase() === 'servicio') return [];
+  const resultado = await obtenerExistenciasPorAlmacen({
+    empresaId, almacenId: null, productoId, soloConExistencia: false, soloBajoMinimo: false, familia: null,
+  });
+  return resultado.lineas;
+}
+
+export async function listarDocumentosRelacionadosProductoRepository(productoId: number, empresaId: number): Promise<DocumentoRelacionadoProducto[]> {
+  const { rows } = await pool.query(
+    `SELECT d.id, d.tipo_documento AS tipo, d.fecha_documento AS fecha, d.serie,
+            COALESCE(NULLIF(TRIM(d.serie), ''), '') || CASE WHEN d.numero IS NULL THEN '' ELSE '-' || d.numero::text END AS folio,
+            c.nombre AS contacto, d.estatus_documento AS estado
+       FROM public.documentos d
+       JOIN public.documentos_partidas dp ON dp.documento_id = d.id
+       LEFT JOIN public.contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = d.empresa_id
+      WHERE d.empresa_id = $1 AND dp.producto_id = $2
+      GROUP BY d.id, d.tipo_documento, d.fecha_documento, d.serie, d.numero, c.nombre, d.estatus_documento
+      ORDER BY d.fecha_documento DESC NULLS LAST, d.id DESC`,
+    [empresaId, productoId]
+  );
+  return rows.map((row) => ({
+    id: Number(row.id), tipo: String(row.tipo ?? ''), fecha: row.fecha instanceof Date ? row.fecha.toISOString().slice(0, 10) : String(row.fecha ?? '').slice(0, 10),
+    serie: row.serie ? String(row.serie) : null, folio: String(row.folio ?? ''), contacto: row.contacto ? String(row.contacto) : null,
+    estado: row.estado ? String(row.estado) : null,
+  }));
+}
 
 export type ProductoImpuestoCatalogo = {
   id: string;

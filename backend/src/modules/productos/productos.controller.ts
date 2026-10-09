@@ -15,6 +15,8 @@ import {
   crearProductoArchivoRepository,
   eliminarProductoArchivoRepository,
   marcarProductoArchivoPrincipalRepository,
+  listarExistenciasProductoRepository,
+  listarDocumentosRelacionadosProductoRepository,
 } from './productos.repository';
 import { listarImpuestosProductoRepository, reemplazarImpuestosProductoRepository } from './productos.repository';
 import { generarPdfPreviewSiFalta } from '../../services/pdfPreviewImage.service';
@@ -121,6 +123,20 @@ export async function getProducto(req: Request, res: Response) {
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener producto' });
   }
+}
+
+export async function getExistenciasProducto(req: Request, res: Response) {
+  const empresaId = Number(req.context?.empresaId); const productoId = Number(req.params.id);
+  if (!empresaId || !Number.isInteger(productoId)) return res.status(400).json({ message: 'Producto o empresa inválidos' });
+  try { return res.json(await listarExistenciasProductoRepository(productoId, empresaId)); }
+  catch (error) { console.error('Error al obtener existencias del producto', error); return res.status(500).json({ error: 'Error al obtener existencias del producto' }); }
+}
+
+export async function getDocumentosRelacionadosProducto(req: Request, res: Response) {
+  const empresaId = Number(req.context?.empresaId); const productoId = Number(req.params.id);
+  if (!empresaId || !Number.isInteger(productoId)) return res.status(400).json({ message: 'Producto o empresa inválidos' });
+  try { return res.json(await listarDocumentosRelacionadosProductoRepository(productoId, empresaId)); }
+  catch (error) { console.error('Error al obtener documentos del producto', error); return res.status(500).json({ error: 'Error al obtener documentos relacionados' }); }
 }
 
 export async function getImpuestosProducto(req: Request, res: Response) {

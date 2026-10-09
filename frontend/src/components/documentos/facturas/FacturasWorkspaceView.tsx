@@ -190,6 +190,8 @@ function itemsMenuFactura(
   const saldoPendiente = Number(row.saldo ?? 0) > 0;
   const facturaYaTimbrada = estatus === 'timbrado' || Boolean(row.cfdi_uuid);
   const esNotaDeVenta = String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
+  const esFacturaVentaEstandar = tipoDocumento === 'factura'
+    && String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'normal';
   const cartaPorteDisabled = facturaYaTimbrada || esNotaDeVenta;
   const facturaEliminable = estatus === 'borrador';
   const timbrarAction = findAction(actions, 'timbrar');
@@ -271,7 +273,9 @@ function itemsMenuFactura(
   }
   agregarAccionVisible(items, findAction(actions, 'contabilizar-factura-venta'), 'Contabilizar factura');
   agregarAccionVisible(items, findAction(actions, 'cancelar-documento'), 'Cancelar');
-  agregarAccionVisible(items, findAction(actions, 'emitir'), accionDefinitivaLabel, <CheckCircleIcon fontSize="small" />);
+  if (!esFacturaVentaEstandar) {
+    agregarAccionVisible(items, findAction(actions, 'emitir'), accionDefinitivaLabel, <CheckCircleIcon fontSize="small" />);
+  }
   agregarAccionVisible(items, findAction(actions, 'editar'), 'Editar');
   agregarAccionVisible(items, findAction(actions, 'eliminar'), 'Eliminar', undefined, !facturaEliminable);
   return items;

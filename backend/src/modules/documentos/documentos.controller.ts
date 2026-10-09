@@ -1616,7 +1616,7 @@ export async function timbrarFacturaCfdi(req: Request, res: Response) {
   }
 
   try {
-    const resultado = await timbrarFacturaConTransporte(documentoId, Number(empresaId), cfdiService);
+    const resultado = await timbrarFacturaConTransporte(documentoId, Number(empresaId), cfdiService, req.auth?.userId);
     res.json(resultado);
   } catch (error) {
     if (error instanceof CfdiAcceptedPendingDownloadError) {

@@ -25,6 +25,14 @@ export class DocumentoCobroBloqueadoError extends Error {
   }
 }
 
+function esFacturaVentaEstandar(row: {
+  tipo_documento?: unknown;
+  tratamiento_impuestos?: unknown;
+}): boolean {
+  return String(row.tipo_documento ?? '').trim().toLowerCase() === 'factura'
+    && String(row.tratamiento_impuestos ?? '').trim().toLowerCase() === 'normal';
+}
+
 export function esCancelacionCobroBloqueante(value: unknown): boolean {
   return ESTADOS_CANCELACION_COBRO_BLOQUEADO.includes(
     String(value ?? '').trim().toLowerCase() as EstadoCancelacionCobroBloqueado
@@ -41,10 +49,21 @@ export async function assertDocumentoCobrableEnTransaccion(
     serie: string | null;
     numero: number | null;
     estatus_documento: string | null;
+    tipo_documento: string | null;
+    tratamiento_impuestos: string | null;
+    cfdi_uuid: string | null;
+    cfdi_estado_sat: string | null;
+    cfdi_fecha_cancelacion: string | null;
+    cfdi_cancelacion_estado: string | null;
     cancelacion_estado: string | null;
     intento_estado: string | null;
   }>(
     `SELECT d.serie, d.numero, d.estatus_documento,
+            d.tipo_documento, d.tratamiento_impuestos,
+            dc.uuid AS cfdi_uuid,
+            dc.estado_sat AS cfdi_estado_sat,
+            dc.fecha_cancelacion AS cfdi_fecha_cancelacion,
+            dc.cancelacion_estado AS cfdi_cancelacion_estado,
             dc.cancelacion_estado,
             intento.estado AS intento_estado
        FROM documentos d
@@ -75,6 +94,16 @@ export async function assertDocumentoCobrableEnTransaccion(
     throw new DocumentoCobroBloqueadoError(
       'INVOICE_DRAFT',
       `No se puede aplicar el pago a la factura ${folio} porque está en borrador.`
+    );
+  }
+  const cfdiVigente = Boolean(row.cfdi_uuid)
+    && !row.cfdi_fecha_cancelacion
+    && !['cancelado', 'cancelada'].includes(String(row.cfdi_estado_sat ?? '').trim().toLowerCase())
+    && !['cancelado', 'cancelada'].includes(String(row.cfdi_cancelacion_estado ?? '').trim().toLowerCase());
+  if (esFacturaVentaEstandar(row) && !cfdiVigente) {
+    throw new DocumentoCobroBloqueadoError(
+      'INVOICE_DRAFT',
+      `No se puede aplicar el pago a la factura ${folio} porque no tiene un CFDI timbrado y vigente.`
     );
   }
   const estado = String(row.intento_estado || row.cancelacion_estado || '').trim().toLowerCase();

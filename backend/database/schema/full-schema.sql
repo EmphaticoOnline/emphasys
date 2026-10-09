@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-09-30T22:55:56.779Z
+-- Generated at: 2026-10-08T15:14:03.175Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict X86r9o0ynwykgHghhwUjhIemCFpaPCaC1xWhWFVh1c8icnVcG7lLNrSRefvRynD
+\restrict JiVO5WuCy76tJT9pUQKReBHTh3TqSAjOvuiqukc71Zatt1HvZgYLBxTa1BFMr0r
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -4539,7 +4539,8 @@ CREATE TABLE core.empresas (
     cfdi_csd_cer_path character varying,
     cfdi_csd_key_path character varying,
     cfdi_csd_password_encrypted text,
-    zona_horaria character varying(64)
+    zona_horaria character varying(64),
+    contacto_id integer
 );
 
 
@@ -4744,6 +4745,13 @@ COMMENT ON COLUMN core.empresas.cfdi_csd_password_encrypted IS 'Contrasena CSD c
 --
 
 COMMENT ON COLUMN core.empresas.zona_horaria IS 'Zona horaria IANA usada para métricas y calendarios laborales; NULL significa no configurada.';
+
+
+--
+-- Name: COLUMN empresas.contacto_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas.contacto_id IS 'Contacto interno técnico que representa a la propia empresa para documentos de Traslado.';
 
 
 --
@@ -10190,8 +10198,12 @@ CREATE VIEW public.documentos_saldo_operativo AS
     ds.moneda,
     ds.tipo_cambio,
     ds.total,
-    ds.saldo AS saldo_registrado,
         CASE
+            WHEN ((lower(TRIM(BOTH FROM COALESCE(d.estatus_documento, ''::character varying))) = 'borrador'::text) AND (lower(TRIM(BOTH FROM COALESCE(d.tipo_documento, ''::character varying))) = 'factura_compra'::text)) THEN (0)::numeric
+            ELSE ds.saldo
+        END AS saldo_registrado,
+        CASE
+            WHEN ((lower(TRIM(BOTH FROM COALESCE(d.estatus_documento, ''::character varying))) = ANY (ARRAY['borrador'::text, 'cancelado'::text, 'cancelada'::text])) AND (lower(TRIM(BOTH FROM COALESCE(d.tipo_documento, ''::character varying))) = 'factura_compra'::text)) THEN (0)::numeric
             WHEN ((lower(TRIM(BOTH FROM COALESCE(d.estatus_documento, ''::character varying))) = ANY (ARRAY['cancelado'::text, 'cancelada'::text])) OR ((dc.cancelacion_estado)::text = 'cancelada'::text) OR ((intento.estado)::text = ANY ((ARRAY['iniciado'::character varying, 'solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[])) OR ((dc.cancelacion_estado)::text = ANY ((ARRAY['solicitada'::character varying, 'pendiente'::character varying, 'requiere_reconciliacion'::character varying])::text[]))) THEN (0)::numeric
             ELSE ds.saldo
         END AS saldo_operativo,
@@ -10393,21 +10405,21 @@ COMMENT ON COLUMN public.finanzas_conciliaciones.total_retiros_cotejados IS 'Sum
 -- Name: COLUMN finanzas_conciliaciones.saldo_conciliado_calculado; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_conciliado_calculado IS 'Saldo formado por los movimientos efectivamente conciliados: saldo_conciliado_anterior + total_depositos_cotejados - total_retiros_cotejados. Es la base del cuadre con saldo_banco.';
+COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_conciliado_calculado IS 'saldo_conciliado_anterior + total_depositos_cotejados - total_retiros_cotejados. Base correcta de cuadre con saldo_banco.';
 
 
 --
 -- Name: COLUMN finanzas_conciliaciones.saldo_sistema; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_sistema IS 'Saldo del sistema informativo calculado al momento de cerrar la conciliación: saldo teórico considerando saldo_inicial + todos los movimientos registrados hasta fecha_corte. No es la base del cuadre.';
+COMMENT ON COLUMN public.finanzas_conciliaciones.saldo_sistema IS 'Saldo del sistema calculado al momento de cerrar la conciliación (saldo_inicial + movimientos hasta fecha_corte).';
 
 
 --
 -- Name: COLUMN finanzas_conciliaciones.diferencia; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.finanzas_conciliaciones.diferencia IS 'Diferencia saldo_banco - saldo_conciliado_calculado al momento del cierre.';
+COMMENT ON COLUMN public.finanzas_conciliaciones.diferencia IS 'Diferencia saldo_banco - saldo_sistema al momento del cierre.';
 
 
 --
@@ -10597,6 +10609,203 @@ CREATE SEQUENCE public.finanzas_desaplicaciones_pago_id_seq
 --
 
 ALTER SEQUENCE public.finanzas_desaplicaciones_pago_id_seq OWNED BY public.finanzas_desaplicaciones_pago.id;
+
+
+--
+-- Name: finanzas_estados_cuenta_importados; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finanzas_estados_cuenta_importados (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    cuenta_id bigint NOT NULL,
+    nombre_original text NOT NULL,
+    hash_archivo text NOT NULL,
+    contenido_original bytea,
+    codificacion text,
+    formato_detectado text,
+    parser_version text,
+    fecha_inicial date,
+    fecha_final date,
+    saldo_inicial numeric(20,6),
+    saldo_final numeric(20,6),
+    total_cargos numeric(20,6) DEFAULT 0 NOT NULL,
+    total_abonos numeric(20,6) DEFAULT 0 NOT NULL,
+    total_filas integer DEFAULT 0 NOT NULL,
+    filas_validas integer DEFAULT 0 NOT NULL,
+    filas_invalidas integer DEFAULT 0 NOT NULL,
+    filas_nuevas integer DEFAULT 0 NOT NULL,
+    filas_duplicadas integer DEFAULT 0 NOT NULL,
+    duplicados_omitidos jsonb DEFAULT '{}'::jsonb NOT NULL,
+    estado text DEFAULT 'borrador'::text NOT NULL,
+    usuario_creacion_id bigint,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    usuario_cancelacion_id bigint,
+    fecha_cancelacion timestamp with time zone,
+    motivo_cancelacion text,
+    usuario_finalizacion_id bigint,
+    fecha_finalizacion timestamp with time zone,
+    saldo_calculado_final numeric(20,6),
+    diferencia_final numeric(20,6),
+    metadatos jsonb DEFAULT '{}'::jsonb NOT NULL,
+    es_historica boolean DEFAULT false NOT NULL,
+    CONSTRAINT finanzas_estados_cuenta_importados_estado_check CHECK ((estado = ANY (ARRAY['borrador'::text, 'procesada'::text, 'conciliada'::text, 'cancelada'::text, 'revertida'::text]))),
+    CONSTRAINT finanzas_estados_cuenta_importados_filas_duplicadas_check CHECK ((filas_duplicadas >= 0)),
+    CONSTRAINT finanzas_estados_cuenta_importados_filas_invalidas_check CHECK ((filas_invalidas >= 0)),
+    CONSTRAINT finanzas_estados_cuenta_importados_filas_nuevas_check CHECK ((filas_nuevas >= 0)),
+    CONSTRAINT finanzas_estados_cuenta_importados_filas_validas_check CHECK ((filas_validas >= 0)),
+    CONSTRAINT finanzas_estados_cuenta_importados_total_abonos_check CHECK ((total_abonos >= (0)::numeric)),
+    CONSTRAINT finanzas_estados_cuenta_importados_total_cargos_check CHECK ((total_cargos >= (0)::numeric)),
+    CONSTRAINT finanzas_estados_cuenta_importados_total_filas_check CHECK ((total_filas >= 0))
+);
+
+
+--
+-- Name: TABLE finanzas_estados_cuenta_importados; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finanzas_estados_cuenta_importados IS 'Estado de cuenta importado y su resultado; no sustituye movimientos ni conciliaciones.';
+
+
+--
+-- Name: COLUMN finanzas_estados_cuenta_importados.hash_archivo; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_estados_cuenta_importados.hash_archivo IS 'Huella del archivo para detectar repeticiones por empresa.';
+
+
+--
+-- Name: COLUMN finanzas_estados_cuenta_importados.es_historica; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_estados_cuenta_importados.es_historica IS 'Indica que la importación proviene de un histórico migrado.';
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.finanzas_estados_cuenta_importados ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.finanzas_estados_cuenta_importados_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_movimientos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finanzas_estados_cuenta_importados_movimientos (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    importacion_id bigint NOT NULL,
+    cuenta_id bigint NOT NULL,
+    numero_fila integer NOT NULL,
+    fecha date NOT NULL,
+    hora time without time zone,
+    concepto_bancario text,
+    referencia_bancaria text,
+    cargo numeric(20,6) DEFAULT 0 NOT NULL,
+    abono numeric(20,6) DEFAULT 0 NOT NULL,
+    importe numeric(20,6) NOT NULL,
+    tipo text NOT NULL,
+    saldo_posterior numeric(20,6),
+    linea_original text,
+    hash_movimiento text NOT NULL,
+    estado_revision text DEFAULT 'pendiente'::text NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    motivo_exclusion text,
+    usuario_exclusion_id bigint,
+    fecha_exclusion timestamp with time zone,
+    datos_originales jsonb DEFAULT '{}'::jsonb NOT NULL,
+    metadatos jsonb DEFAULT '{}'::jsonb NOT NULL,
+    saldo_disponible boolean,
+    es_historico boolean DEFAULT false NOT NULL,
+    CONSTRAINT finanzas_estados_cuenta_importados_movimi_estado_revision_check CHECK ((estado_revision = ANY (ARRAY['pendiente'::text, 'relacionado'::text, 'sin_coincidencia'::text, 'excluido'::text]))),
+    CONSTRAINT finanzas_estados_cuenta_importados_movimiento_numero_fila_check CHECK ((numero_fila > 0)),
+    CONSTRAINT finanzas_estados_cuenta_importados_movimientos_abono_check CHECK ((abono >= (0)::numeric)),
+    CONSTRAINT finanzas_estados_cuenta_importados_movimientos_cargo_check CHECK ((cargo >= (0)::numeric)),
+    CONSTRAINT finanzas_estados_cuenta_importados_movimientos_tipo_check CHECK ((tipo = ANY (ARRAY['Deposito'::text, 'Retiro'::text])))
+);
+
+
+--
+-- Name: TABLE finanzas_estados_cuenta_importados_movimientos; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finanzas_estados_cuenta_importados_movimientos IS 'Movimiento normalizado de un estado de cuenta importado, con datos originales para trazabilidad.';
+
+
+--
+-- Name: COLUMN finanzas_estados_cuenta_importados_movimientos.es_historico; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finanzas_estados_cuenta_importados_movimientos.es_historico IS 'Indica que el movimiento proviene de un histórico migrado.';
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_movimientos_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.finanzas_estados_cuenta_importados_movimientos ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.finanzas_estados_cuenta_importados_movimientos_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_relaciones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finanzas_estados_cuenta_importados_relaciones (
+    id bigint NOT NULL,
+    empresa_id bigint NOT NULL,
+    movimiento_bancario_id bigint NOT NULL,
+    operacion_id bigint NOT NULL,
+    estado text DEFAULT 'sugerida'::text NOT NULL,
+    origen text DEFAULT 'manual'::text NOT NULL,
+    puntuacion numeric(8,6),
+    nivel_confianza text,
+    explicacion text,
+    motivos jsonb DEFAULT '{}'::jsonb NOT NULL,
+    usuario_confirmacion_id bigint,
+    fecha_confirmacion timestamp with time zone,
+    activa boolean DEFAULT true NOT NULL,
+    fecha_creacion timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT finanzas_estados_cuenta_importados_relaciones_estado_check CHECK ((estado = ANY (ARRAY['sugerida'::text, 'confirmada'::text, 'anulada'::text]))),
+    CONSTRAINT finanzas_estados_cuenta_importados_relaciones_origen_check CHECK ((origen = ANY (ARRAY['automatico'::text, 'manual'::text, 'importacion'::text]))),
+    CONSTRAINT finanzas_estados_cuenta_importados_relaciones_puntuacion_check CHECK (((puntuacion >= (0)::numeric) AND (puntuacion <= (1)::numeric)))
+);
+
+
+--
+-- Name: TABLE finanzas_estados_cuenta_importados_relaciones; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finanzas_estados_cuenta_importados_relaciones IS 'Relación auditable entre movimiento de estado de cuenta importado y operación financiera.';
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_relaciones_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.finanzas_estados_cuenta_importados_relaciones ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.finanzas_estados_cuenta_importados_relaciones_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -12616,7 +12825,7 @@ CREATE TABLE transporte.viaje_documentos (
     tipo_relacion character varying(30) DEFAULT 'factura_servicio'::character varying NOT NULL,
     principal boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT ck_transporte_viaje_documentos_tipo CHECK (((tipo_relacion)::text = 'factura_servicio'::text))
+    CONSTRAINT ck_transporte_viaje_documentos_tipo CHECK (((tipo_relacion)::text = ANY ((ARRAY['factura_servicio'::character varying, 'traslado'::character varying])::text[])))
 );
 
 
@@ -12680,7 +12889,7 @@ CREATE TABLE transporte.viaje_mercancias (
     clave_unidad_sat character varying(10),
     unidad_descripcion character varying(100),
     cantidad numeric(18,6) NOT NULL,
-    peso_kg numeric(18,3) NOT NULL,
+    peso_kg numeric(18,3),
     valor_mercancia numeric(18,2),
     material_peligroso boolean DEFAULT false NOT NULL,
     clave_material_peligroso character varying(20),
@@ -12693,7 +12902,7 @@ CREATE TABLE transporte.viaje_mercancias (
     producto_id integer,
     CONSTRAINT ck_transporte_viaje_mercancias_cantidad CHECK ((cantidad > (0)::numeric)),
     CONSTRAINT ck_transporte_viaje_mercancias_descripcion CHECK ((btrim((descripcion_snapshot)::text) <> ''::text)),
-    CONSTRAINT ck_transporte_viaje_mercancias_peso CHECK ((peso_kg > (0)::numeric)),
+    CONSTRAINT ck_transporte_viaje_mercancias_peso CHECK (((peso_kg IS NULL) OR (peso_kg > (0)::numeric))),
     CONSTRAINT ck_transporte_viaje_mercancias_valor CHECK (((valor_mercancia IS NULL) OR (valor_mercancia >= (0)::numeric)))
 );
 
@@ -15562,6 +15771,30 @@ ALTER TABLE ONLY public.finanzas_desaplicaciones_pago
 
 
 --
+-- Name: finanzas_estados_cuenta_importados_movimientos finanzas_estados_cuenta_importados_movimientos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_movimientos
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_movimientos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados finanzas_estados_cuenta_importados_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_relaciones finanzas_estados_cuenta_importados_relaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_relaciones
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_relaciones_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finanzas_metodos_pago finanzas_metodos_pago_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15775,6 +16008,22 @@ ALTER TABLE ONLY public.documentos_partidas_especificaciones
 
 ALTER TABLE ONLY public.finanzas_desaplicaciones_pago
     ADD CONSTRAINT uq_finanzas_desaplicaciones_aplicacion UNIQUE (empresa_id, aplicacion_id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_movimientos uq_finanzas_estados_cuenta_importados_movimientos_fila; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_movimientos
+    ADD CONSTRAINT uq_finanzas_estados_cuenta_importados_movimientos_fila UNIQUE (importacion_id, numero_fila);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_relaciones uq_finanzas_estados_cuenta_importados_relacion; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_relaciones
+    ADD CONSTRAINT uq_finanzas_estados_cuenta_importados_relacion UNIQUE (movimiento_bancario_id, operacion_id);
 
 
 --
@@ -17395,6 +17644,13 @@ CREATE INDEX ix_cfdi_sat_solicitudes_empresa ON core.cfdi_sat_solicitudes USING 
 
 
 --
+-- Name: ix_core_empresas_contacto_id; Type: INDEX; Schema: core; Owner: -
+--
+
+CREATE INDEX ix_core_empresas_contacto_id ON core.empresas USING btree (contacto_id);
+
+
+--
 -- Name: ix_empresa_excepciones_laborales_empresa_fecha; Type: INDEX; Schema: core; Owner: -
 --
 
@@ -18879,6 +19135,34 @@ CREATE INDEX ix_documentos_cfdi_pac_config ON public.documentos_cfdi USING btree
 
 
 --
+-- Name: ix_finanzas_estados_cuenta_importados_empresa_cuenta; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_finanzas_estados_cuenta_importados_empresa_cuenta ON public.finanzas_estados_cuenta_importados USING btree (empresa_id, cuenta_id, fecha_creacion);
+
+
+--
+-- Name: ix_finanzas_estados_cuenta_importados_movimientos_empresa_fecha; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_finanzas_estados_cuenta_importados_movimientos_empresa_fecha ON public.finanzas_estados_cuenta_importados_movimientos USING btree (empresa_id, cuenta_id, fecha);
+
+
+--
+-- Name: ix_finanzas_estados_cuenta_importados_movimientos_estado; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_finanzas_estados_cuenta_importados_movimientos_estado ON public.finanzas_estados_cuenta_importados_movimientos USING btree (empresa_id, estado_revision);
+
+
+--
+-- Name: ix_finanzas_estados_cuenta_importados_relaciones_operacion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_finanzas_estados_cuenta_importados_relaciones_operacion ON public.finanzas_estados_cuenta_importados_relaciones USING btree (empresa_id, operacion_id);
+
+
+--
 -- Name: ix_productos_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -18897,6 +19181,20 @@ CREATE INDEX ix_productos_pais_origen ON public.productos USING btree (pais_orig
 --
 
 CREATE INDEX ix_productos_proveedor_preferido ON public.productos USING btree (proveedor_preferido_id);
+
+
+--
+-- Name: uq_finanzas_estados_cuenta_importados_empresa_hash_normal; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_finanzas_estados_cuenta_importados_empresa_hash_normal ON public.finanzas_estados_cuenta_importados USING btree (empresa_id, hash_archivo) WHERE (es_historica = false);
+
+
+--
+-- Name: uq_finanzas_estados_cuenta_importados_movimientos_hash_normal; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_finanzas_estados_cuenta_importados_movimientos_hash_normal ON public.finanzas_estados_cuenta_importados_movimientos USING btree (empresa_id, cuenta_id, hash_movimiento) WHERE (es_historico = false);
 
 
 --
@@ -20395,6 +20693,14 @@ ALTER TABLE ONLY core.catalogos
 
 
 --
+-- Name: empresas fk_core_empresas_contacto; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas
+    ADD CONSTRAINT fk_core_empresas_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id);
+
+
+--
 -- Name: empresas_assets fk_empresas_assets_empresa; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -21287,6 +21593,110 @@ ALTER TABLE ONLY public.especificaciones_biblioteca
 
 ALTER TABLE ONLY public.especificaciones_biblioteca
     ADD CONSTRAINT especificaciones_biblioteca_usuario_modificacion_id_fkey FOREIGN KEY (usuario_modificacion_id) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_relaciones finanzas_estados_cuenta_importados__movimiento_bancario_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_relaciones
+    ADD CONSTRAINT finanzas_estados_cuenta_importados__movimiento_bancario_id_fkey FOREIGN KEY (movimiento_bancario_id) REFERENCES public.finanzas_estados_cuenta_importados_movimientos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finanzas_estados_cuenta_importados finanzas_estados_cuenta_importados_cuenta_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_cuenta_id_fkey FOREIGN KEY (cuenta_id) REFERENCES public.finanzas_cuentas(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados finanzas_estados_cuenta_importados_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_movimientos finanzas_estados_cuenta_importados_mo_usuario_exclusion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_movimientos
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_mo_usuario_exclusion_id_fkey FOREIGN KEY (usuario_exclusion_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_movimientos finanzas_estados_cuenta_importados_movimien_importacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_movimientos
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_movimien_importacion_id_fkey FOREIGN KEY (importacion_id) REFERENCES public.finanzas_estados_cuenta_importados(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_movimientos finanzas_estados_cuenta_importados_movimientos_cuenta_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_movimientos
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_movimientos_cuenta_id_fkey FOREIGN KEY (cuenta_id) REFERENCES public.finanzas_cuentas(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_movimientos finanzas_estados_cuenta_importados_movimientos_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_movimientos
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_movimientos_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_relaciones finanzas_estados_cuenta_importados_relaciones_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_relaciones
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_relaciones_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_relaciones finanzas_estados_cuenta_importados_relaciones_operacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_relaciones
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_relaciones_operacion_id_fkey FOREIGN KEY (operacion_id) REFERENCES public.finanzas_operaciones(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados finanzas_estados_cuenta_importados_usuario_cancelacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_usuario_cancelacion_id_fkey FOREIGN KEY (usuario_cancelacion_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados_relaciones finanzas_estados_cuenta_importados_usuario_confirmacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados_relaciones
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_usuario_confirmacion_id_fkey FOREIGN KEY (usuario_confirmacion_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados finanzas_estados_cuenta_importados_usuario_creacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_usuario_creacion_id_fkey FOREIGN KEY (usuario_creacion_id) REFERENCES core.usuarios(id);
+
+
+--
+-- Name: finanzas_estados_cuenta_importados finanzas_estados_cuenta_importados_usuario_finalizacion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finanzas_estados_cuenta_importados
+    ADD CONSTRAINT finanzas_estados_cuenta_importados_usuario_finalizacion_id_fkey FOREIGN KEY (usuario_finalizacion_id) REFERENCES core.usuarios(id);
 
 
 --
@@ -22349,4 +22759,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict X86r9o0ynwykgHghhwUjhIemCFpaPCaC1xWhWFVh1c8icnVcG7lLNrSRefvRynD
+\unrestrict JiVO5WuCy76tJT9pUQKReBHTh3TqSAjOvuiqukc71Zatt1HvZgYLBxTa1BFMr0r
+

@@ -8,10 +8,10 @@
  *
  * Opciones:
  *   --desde=YYYY-MM-DD              (default: 2025-12-01)
- *   --hasta=YYYY-MM-DD              (default: 2026-06-30)
- *   --ventas=N                      (default: 80)
- *   --compras=N                     (default: 70)
- *   --limpiar=true|false            (default: true)
+ *   --hasta=YYYY-MM-DD              (default: 2026-10-08)
+ *   --ventas=N                      (default: 114; proporcional a 10 meses)
+ *   --compras=N                     (default: 100; proporcional a 10 meses)
+ *   --limpiar=true|false            (default: false; no elimina datos)
  *   --minMovimientosPorProducto=N   (default: 4)
  *   --productosAltaRotacion=N       (default: 12)
  *   --seed=STRING                   (default: demo-empresa-8)
@@ -27,12 +27,14 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // ─── Constantes de seguridad — inmutables ───────────────────
 const EMPRESA_ID     = 8;
-const USUARIO_ID     = 1;
-const CUENTA_ID      = 9;
 const IVA_TASA       = 0.16;
-const IVA_ID         = 'iva_16';
-const CONCEPTO_VENTA  = 64;
-const CONCEPTO_COMPRA = 66;
+let USUARIO_ID = 0;
+let CUENTA_ID = 0;
+let IVA_ID = '';
+let CONCEPTO_VENTA = 0;
+let CONCEPTO_COMPRA = 0;
+let SEED_MARKER = '';
+let FECHA_HASTA = '9999-12-31';
 
 // ─── CLI ────────────────────────────────────────────────────
 
@@ -55,10 +57,10 @@ function parseCLI(): Config {
   };
   return {
     desde:                    get('desde',    '2025-12-01'),
-    hasta:                    get('hasta',    '2026-06-30'),
-    ventas:                   Number(get('ventas',   '80')),
-    compras:                  Number(get('compras',  '70')),
-    limpiar:                  get('limpiar',  'true') !== 'false',
+    hasta:                    get('hasta',    '2026-10-08'),
+    ventas:                   Number(get('ventas',   '114')),
+    compras:                  Number(get('compras',  '100')),
+    limpiar:                  get('limpiar',  'false') === 'true',
     minMovimientosPorProducto:Number(get('minMovimientosPorProducto', '4')),
     productosAltaRotacion:    Number(get('productosAltaRotacion', '12')),
     seed:                     get('seed', 'demo-empresa-8'),
@@ -115,6 +117,12 @@ function addDays(fechaStr: string, dias: number): string {
 }
 function diasEnMes(y: number, m: number): number {
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+function diaSeguro(y: number, m: number, inicio: number, maximo: number, rng: SeededRng): number | null {
+  const limite = FECHA_HASTA.startsWith(`${y}-${String(m).padStart(2, '0')}-`)
+    ? Number(FECHA_HASTA.slice(8, 10)) : maximo;
+  const max = Math.min(maximo, limite, diasEnMes(y, m));
+  return max < inicio ? null : rng.int(inicio, max);
 }
 function generarMeses(desde: string, hasta: string): [number, number][] {
   const dp = desde.split('-').map(Number) as [number, number, number];
@@ -308,22 +316,22 @@ async function insertDocumento(c: PoolClient, opts: {
   fecha_documento: string; fecha_vencimiento?: string;
   contacto_id: number; almacen_id?: number;
   subtotal: number; iva: number; total: number;
-  estatus_documento: string; concepto_id: number;
+  estatus_documento: string; concepto_id: number; tratamiento_impuestos?: string;
 }): Promise<number> {
   const { rows } = await c.query<{ id: number }>(
     `INSERT INTO documentos
        (empresa_id, tipo_documento, serie, numero, fecha_documento, fecha_vencimiento,
         contacto_principal_id, almacen_id, subtotal, iva, total, saldo,
         estatus_documento, estado_seguimiento, estado_autorizacion,
-        moneda, tratamiento_impuestos, concepto_id, usuario_creacion_id)
+        moneda, tratamiento_impuestos, concepto_id, usuario_creacion_id, observaciones)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
-            'borrador','no_requerida','MXN','normal',$14,$15)
+            'borrador','no_requerida','MXN',$14,$15,$16,$17)
      RETURNING id`,
     [EMPRESA_ID, opts.tipo_documento, opts.serie, opts.numero,
      opts.fecha_documento, opts.fecha_vencimiento ?? null,
      opts.contacto_id, opts.almacen_id ?? null,
      opts.subtotal, opts.iva, opts.total, opts.total,
-     opts.estatus_documento, opts.concepto_id, USUARIO_ID],
+     opts.estatus_documento, opts.tratamiento_impuestos ?? 'normal', opts.concepto_id, USUARIO_ID, SEED_MARKER],
   );
   return rows[0].id;
 }
@@ -353,7 +361,7 @@ async function aplicarMovimiento(
 ): Promise<bigint> {
   const { rows } = await c.query<{ aplicar_movimiento: bigint }>(
     `SELECT inventario.aplicar_movimiento($1,$2,$3,$4,$5,$6,$7) AS aplicar_movimiento`,
-    [EMPRESA_ID, tipoMov, fechaTs, USUARIO_ID, documentoId, obs ?? null, JSON.stringify(partidas)],
+    [EMPRESA_ID, tipoMov, fechaTs, USUARIO_ID, documentoId, `${SEED_MARKER} ${obs ?? ''}`.trim(), JSON.stringify(partidas)],
   );
   for (const p of partidas) {
     adjExist(p.producto_id, p.almacen_id, p.signo * p.cantidad);
@@ -423,7 +431,8 @@ function selectConStock(
 // ─── Limpieza ────────────────────────────────────────────────
 
 async function cleanup(c: PoolClient) {
-  console.log('  → Limpiando datos previos de empresa 8...');
+  throw new Error('cleanup legado deshabilitado: use únicamente cleanupSeed, que nunca elimina catálogos');
+/*
   await c.query(`DELETE FROM finanzas_programacion_pagos_detalle WHERE empresa_id=$1`, [EMPRESA_ID]);
   await c.query(`DELETE FROM finanzas_programacion_pagos WHERE empresa_id=$1`, [EMPRESA_ID]);
   await c.query(`DELETE FROM finanzas_conciliaciones_operaciones fco
@@ -470,45 +479,39 @@ async function cleanup(c: PoolClient) {
   await c.query(`DELETE FROM inventario.almacenes WHERE empresa_id=$1`, [EMPRESA_ID]);
   await c.query(`UPDATE series_documento SET ultimo_numero=0, updated_at=now() WHERE empresa_id=$1`, [EMPRESA_ID]);
   console.log('    ✓ Limpieza completada');
+*/
 }
 
 // ─── Crear catálogos ─────────────────────────────────────────
 
 async function crearAlmacenes(c: PoolClient): Promise<Almacen[]> {
-  const result: Almacen[] = [];
-  for (const a of ALMACENES_DEF) {
-    const { rows } = await c.query<{ id: number }>(
-      `INSERT INTO inventario.almacenes(empresa_id,clave,nombre,tipo) VALUES($1,$2,$3,$4) RETURNING id`,
-      [EMPRESA_ID, a.clave, a.nombre, a.tipo],
-    );
-    result.push({ id: rows[0].id, clave: a.clave });
-  }
-  console.log(`    ✓ ${result.length} almacenes creados`);
+  const { rows } = await c.query<Almacen>(
+    `SELECT id, clave FROM inventario.almacenes WHERE empresa_id=$1 AND clave = ANY($2::text[]) ORDER BY id`,
+    [EMPRESA_ID, ALMACENES_DEF.map(a => a.clave)],
+  );
+  if (rows.length < ALMACENES_DEF.length) throw new Error('Faltan almacenes demo; no se crean catálogos automáticamente');
+  const result = rows;
+  console.log(`    ✓ ${result.length} almacenes existentes reutilizados`);
   return result;
 }
 
 async function crearUnidades(c: PoolClient): Promise<Unidad[]> {
-  const result: Unidad[] = [];
-  for (const u of UNIDADES_DEF) {
-    const { rows } = await c.query<{ id: number }>(
-      `INSERT INTO unidades(clave,descripcion,unidad_sat_id,empresa_id,activo) VALUES($1,$2,2,$3,true) RETURNING id`,
-      [u.clave, u.descripcion, EMPRESA_ID],
-    );
-    result.push({ id: rows[0].id, clave: u.clave });
-  }
-  console.log(`    ✓ ${result.length} unidades creadas`);
+  const { rows } = await c.query<Unidad>(
+    `SELECT id, clave FROM unidades WHERE empresa_id=$1 AND clave = ANY($2::text[]) ORDER BY id`,
+    [EMPRESA_ID, UNIDADES_DEF.map(u => u.clave)],
+  );
+  if (rows.length < UNIDADES_DEF.length) throw new Error('Faltan unidades demo; no se crean catálogos automáticamente');
+  const result = rows;
+  console.log(`    ✓ ${result.length} unidades existentes reutilizadas`);
   return result;
 }
 
 async function crearProveedores(c: PoolClient): Promise<Contacto[]> {
   const result: Contacto[] = [];
   for (const p of PROVEEDORES_DEF) {
-    const { rows } = await c.query<{ id: number }>(
-      `INSERT INTO contactos(empresa_id,tipo_contacto,nombre,rfc,activo,dias_credito)
-       VALUES($1,'Proveedor',$2,$3,true,30) RETURNING id`,
-      [EMPRESA_ID, p.nombre, p.rfc],
-    );
-    result.push({ id: rows[0].id, nombre: p.nombre, diasCredito: 30 });
+    const { rows } = await c.query<Contacto>(`SELECT id, nombre, dias_credito AS "diasCredito" FROM contactos WHERE empresa_id=$1 AND rfc=$2 AND tipo_contacto='Proveedor' LIMIT 1`, [EMPRESA_ID, p.rfc]);
+    if (!rows[0]) throw new Error(`Falta proveedor de catálogo ${p.rfc}; no se crean contactos`);
+    result.push(rows[0]);
   }
   console.log(`    ✓ ${result.length} proveedores creados`);
   return result;
@@ -517,12 +520,9 @@ async function crearProveedores(c: PoolClient): Promise<Contacto[]> {
 async function crearClientes(c: PoolClient): Promise<Contacto[]> {
   const result: Contacto[] = [];
   for (const cl of CLIENTES_DEF) {
-    const { rows } = await c.query<{ id: number }>(
-      `INSERT INTO contactos(empresa_id,tipo_contacto,nombre,rfc,activo,dias_credito,limite_credito)
-       VALUES($1,'Cliente',$2,$3,true,$4,$5) RETURNING id`,
-      [EMPRESA_ID, cl.nombre, cl.rfc, cl.dias_credito, cl.limite],
-    );
-    result.push({ id: rows[0].id, nombre: cl.nombre, diasCredito: cl.dias_credito });
+    const { rows } = await c.query<Contacto>(`SELECT id, nombre, dias_credito AS "diasCredito" FROM contactos WHERE empresa_id=$1 AND rfc=$2 AND tipo_contacto='Cliente' LIMIT 1`, [EMPRESA_ID, cl.rfc]);
+    if (!rows[0]) throw new Error(`Falta cliente de catálogo ${cl.rfc}; no se crean contactos`);
+    result.push(rows[0]);
   }
   console.log(`    ✓ ${result.length} clientes creados`);
   return result;
@@ -531,19 +531,10 @@ async function crearClientes(c: PoolClient): Promise<Contacto[]> {
 async function crearProductos(c: PoolClient, unidades: Unidad[], proveedores: Contacto[]): Promise<Producto[]> {
   const pzaId = unidades.find(u => u.clave === 'PZA')!.id;
   const result: Producto[] = [];
-  for (const pd of PRODUCTOS_DEF) {
+  for (const pd of PRODUCTOS_DEF.filter((p, i, all) => all.findIndex(x => x.clave === p.clave) === i)) {
     const provId = proveedores[pd.provIdx]?.id ?? null;
-    const { rows } = await c.query<{ id: number }>(
-      `INSERT INTO productos
-         (empresa_id,clave,descripcion,tipo_producto,familia,activo,
-          unidad_venta_id,unidad_inventario_id,
-          costo_estandar,costo_promedio,ultimo_costo,
-          precio_publico,precio_menudeo,precio_mayoreo,precio_distribuidor,
-          minimo_inventario,proveedor_principal_id,proveedor_preferido_id)
-       VALUES($1,$2,$3,$4,$5,true,$6,$6,$7,$7,$7,$8,$8,$8,$8,$9,$10,$10) RETURNING id`,
-      [EMPRESA_ID, pd.clave, pd.descripcion, pd.tipo, pd.familia,
-       pzaId, pd.costo, pd.precio, pd.minimo, provId],
-    );
+    const { rows } = await c.query<Producto>(`SELECT id, clave, costo_estandar AS costo, precio_publico AS precio, minimo_inventario AS minimo FROM productos WHERE empresa_id=$1 AND clave=$2 LIMIT 1`, [EMPRESA_ID, pd.clave]);
+    if (!rows[0]) throw new Error(`Falta producto de catálogo ${pd.clave}; no se crean productos`);
     result.push({ id: rows[0].id, clave: pd.clave, costo: pd.costo, precio: pd.precio, minimo: pd.minimo });
   }
   console.log(`    ✓ ${result.length} productos creados`);
@@ -551,36 +542,21 @@ async function crearProductos(c: PoolClient, unidades: Unidad[], proveedores: Co
 }
 
 async function crearListasPrecios(c: PoolClient, productos: Producto[]) {
-  const { rows: [{ id: listaPublico }] } = await c.query<{ id: number }>(
-    `INSERT INTO precios_listas(empresa_id,nombre,tipo_precio,es_default,activo)
-     VALUES($1,'Precio Público','venta',true,true) RETURNING id`, [EMPRESA_ID],
-  );
-  const { rows: [{ id: listaMayoreo }] } = await c.query<{ id: number }>(
-    `INSERT INTO precios_listas(empresa_id,nombre,tipo_precio,es_default,activo)
-     VALUES($1,'Precio Mayoreo','venta',false,true) RETURNING id`, [EMPRESA_ID],
-  );
-  for (const [i, p] of productos.entries()) {
-    await c.query(`INSERT INTO precios(empresa_id,producto_id,precio_lista_id,precio,activo) VALUES($1,$2,$3,$4,true)`,
-      [EMPRESA_ID, p.id, listaPublico, round2(p.precio * (1 + (i % 3) * 0.02))]);
-    await c.query(`INSERT INTO precios(empresa_id,producto_id,precio_lista_id,precio,activo) VALUES($1,$2,$3,$4,true)`,
-      [EMPRESA_ID, p.id, listaMayoreo, round2(p.precio * (1 - 0.08 - (i % 4) * 0.02))]);
-  }
-  console.log(`    ✓ 2 listas de precios + ${productos.length * 2} precios`);
+  const { rows } = await c.query(`SELECT count(*)::int AS n FROM precios_listas WHERE empresa_id=$1`, [EMPRESA_ID]);
+  if (!rows[0] || rows[0].n === 0) throw new Error('No existen listas de precios; el seed no crea catálogos');
+  console.log(`    ✓ ${rows[0].n} listas de precios existentes reutilizadas`);
 }
 
 async function setupSeries(c: PoolClient) {
   const series: [string, string][] = [
     ['cotizacion','COT'], ['pedido','PED'], ['remision','REM'],
-    ['factura','FAC'], ['factura_compra','FCO'], ['orden_compra','OC'],
+    ['factura','FAC'], ['factura','N'], ['factura_compra','FCO'], ['orden_compra','OC'],
     ['recepcion','REC'], ['pago_cliente','PCL'], ['pago_proveedor','PPR'],
     ['nota_credito','NC'], ['nota_credito_compra','NCC'],
   ];
   for (const [tipo, serie] of series) {
-    await c.query(
-      `INSERT INTO series_documento(empresa_id,tipo_documento,serie,activa,ultimo_numero)
-       VALUES($1,$2,$3,true,0) ON CONFLICT(empresa_id,tipo_documento,serie) DO NOTHING`,
-      [EMPRESA_ID, tipo, serie],
-    );
+    const { rows } = await c.query(`SELECT 1 FROM series_documento WHERE empresa_id=$1 AND tipo_documento=$2 AND serie=$3`, [EMPRESA_ID, tipo, serie]);
+    if (!rows[0]) throw new Error(`Falta serie ${tipo}/${serie}; el seed no crea ni reinicia consecutivos`);
   }
   console.log('    ✓ Series verificadas');
 }
@@ -685,10 +661,9 @@ async function generarVentas(
         tipo_documento: 'factura', serie: 'FAC', numero: num,
         fecha_documento: fechaDoc, fecha_vencimiento: addDays(fechaDoc, diasCred > 0 ? diasCred : 30),
         contacto_id: cli.id, almacen_id: alm.id,
-        subtotal, iva, total, estatus_documento: 'Emitido', concepto_id: CONCEPTO_VENTA,
+        subtotal, iva, total, estatus_documento: 'Borrador', concepto_id: CONCEPTO_VENTA,
       });
 
-      const movPart: MovPartida[] = [];
       for (const [ii, item] of items.entries()) {
         const { prod, qty } = item;
         const sub  = round2(qty * prod.precio);
@@ -699,9 +674,7 @@ async function generarVentas(
           iva_monto: ivaP, almacen_id: alm.id,
         });
         await insertImpuesto(c, pid, sub, ivaP);
-        movPart.push({ producto_id: prod.id, almacen_id: alm.id, cantidad: qty, signo: -1 });
       }
-      await aplicarMovimiento(c, 'venta', ts(year, month, dia), docId, movPart, `Venta FAC-${num}`);
       ids.push(docId);
     }
   }
@@ -730,7 +703,7 @@ async function generarMovimientosGarantizados(
 
     for (let i = 0; i < numComprasNec; i++) {
       const [year, month] = (i % 2 === 0 ? mesIni : mesUlt) as [number, number];
-      const dia      = rng.int(2, Math.min(diasEnMes(year, month) - 1, 24));
+      const dia      = diaSeguro(year, month, 2, Math.min(diasEnMes(year, month) - 1, 24), rng); if (dia === null) continue;
       const qty      = rng.int(10, 25);
       const fechaDoc = d(year, month, dia);
       const sub      = round2(qty * prod.costo);
@@ -761,7 +734,7 @@ async function generarMovimientosGarantizados(
     const movTras = memMovs.get(prod.id) ?? 0;
     if (movTras < cfg.minMovimientosPorProducto && getExist(prod.id, almGral.id) >= 3) {
       const [year, month] = mesUlt as [number, number];
-      const dia      = rng.int(10, Math.min(diasEnMes(year, month) - 1, 27));
+      const dia      = diaSeguro(year, month, 10, Math.min(diasEnMes(year, month) - 1, 27), rng); if (dia === null) continue;
       const stock    = getExist(prod.id, almGral.id);
       const qty      = rng.int(1, Math.max(1, Math.floor(stock * 0.3)));
       const fechaDoc = d(year, month, dia);
@@ -775,7 +748,7 @@ async function generarMovimientosGarantizados(
         fecha_documento: fechaDoc, fecha_vencimiento: addDays(fechaDoc, 30),
         contacto_id: cliId, almacen_id: almGral.id,
         subtotal: sub, iva: ivaP, total: round2(sub + ivaP),
-        estatus_documento: 'Emitido', concepto_id: CONCEPTO_VENTA,
+        estatus_documento: 'Borrador', concepto_id: CONCEPTO_VENTA,
       });
       const pid = await insertPartida(c, {
         documento_id: docId, numero: 1, producto_id: prod.id, cantidad: qty,
@@ -783,9 +756,6 @@ async function generarMovimientosGarantizados(
         iva_monto: ivaP, almacen_id: almGral.id,
       });
       await insertImpuesto(c, pid, sub, ivaP);
-      await aplicarMovimiento(c, 'venta', ts(year, month, dia), docId,
-        [{ producto_id: prod.id, almacen_id: almGral.id, cantidad: qty, signo: -1 }],
-        `Venta relleno FAC-${num}`);
       ventasExtra++;
     }
   }
@@ -828,6 +798,44 @@ async function generarPagosProveedores(c: PoolClient, factIds: number[]) {
 
 // ─── Cobros de clientes ──────────────────────────────────────
 
+async function generarNotasVenta(
+  c: PoolClient, cfg: Config, rng: SeededRng, meses: [number, number][],
+  almacenes: Almacen[], clientes: Contacto[], productos: Producto[],
+): Promise<number[]> {
+  const ids: number[] = [];
+  const dist = distribuirEnMeses(60, meses.length);
+  const almsVenta = almacenes.slice(0, 2);
+  for (let mi = 0; mi < meses.length; mi++) {
+    const [year, month] = meses[mi] as [number, number];
+    for (let ni = 0; ni < (dist[mi] ?? 0); ni++) {
+      const alm = almsVenta[rng.int(0, almsVenta.length - 1)] as Almacen;
+      const dia = diaSeguro(year, month, 2, Math.min(diasEnMes(year, month) - 1, 28), rng);
+      if (dia === null) continue;
+      const cli = clientes[rng.int(0, clientes.length - 1)] as Contacto;
+      const sel = selectConStock(rng, productos, cfg.productosAltaRotacion, rng.int(1, 3), alm.id, 1);
+      if (sel.length === 0) continue;
+      const items = sel.map(prod => ({ prod, qty: rng.int(1, Math.min(3, Math.max(1, Math.floor(getExist(prod.id, alm.id)))) ) }));
+      const subtotal = round2(items.reduce((s, it) => s + it.qty * it.prod.precio, 0));
+      const docId = await insertDocumento(c, {
+        tipo_documento: 'factura', serie: 'N', numero: await nextNumero(c, 'factura', 'N'),
+        fecha_documento: d(year, month, dia), fecha_vencimiento: addDays(d(year, month, dia), 15),
+        contacto_id: cli.id, almacen_id: alm.id, subtotal, iva: 0, total: subtotal,
+        estatus_documento: 'Emitido', tratamiento_impuestos: 'sin_iva', concepto_id: CONCEPTO_VENTA,
+      });
+      const movPart: MovPartida[] = [];
+      for (const [ii, item] of items.entries()) {
+        const sub = round2(item.qty * item.prod.precio);
+        const pid = await insertPartida(c, { documento_id: docId, numero: ii + 1, producto_id: item.prod.id, cantidad: item.qty, precio_unitario: item.prod.precio, subtotal_partida: sub, total_partida: sub, iva_monto: 0, almacen_id: alm.id });
+        movPart.push({ producto_id: item.prod.id, almacen_id: alm.id, cantidad: item.qty, signo: -1 });
+      }
+      await aplicarMovimiento(c, 'venta', ts(year, month, dia), docId, movPart, `Nota de venta N-${docId}`);
+      ids.push(docId);
+    }
+  }
+  console.log(`    ✓ ${ids.length} notas de venta generadas`);
+  return ids;
+}
+
 async function generarPagosClientes(c: PoolClient, factIds: number[]) {
   let cobros = 0;
   for (let i = 0; i < factIds.length; i++) {
@@ -857,6 +865,40 @@ async function generarPagosClientes(c: PoolClient, factIds: number[]) {
   console.log(`    ✓ ${cobros} cobros de cliente generados`);
 }
 
+async function cleanupSeed(c: PoolClient) {
+  const ids = `(SELECT id FROM documentos WHERE empresa_id=$1 AND observaciones=$2)`;
+  const existing = await c.query(`SELECT count(*)::int AS n FROM documentos WHERE empresa_id=$1 AND observaciones=$2`, [EMPRESA_ID, SEED_MARKER]);
+  if (existing.rows[0]?.n > 0) {
+    throw new Error('Ya existen datos de este seed. La repetición aborta para no duplicar inventario ni alterar saldos; respalda y elimina esos datos mediante el procedimiento operativo autorizado.');
+  }
+  await c.query(`DELETE FROM aplicaciones_saldo WHERE empresa_id=$1 AND documento_destino_id IN ${ids}`, [EMPRESA_ID, SEED_MARKER]);
+  await c.query(`DELETE FROM finanzas_operaciones WHERE empresa_id=$1 AND documento_origen_id IN ${ids}`, [EMPRESA_ID, SEED_MARKER]);
+  await c.query(`DELETE FROM documentos_partidas_impuestos WHERE partida_id IN (SELECT p.id FROM documentos_partidas p JOIN documentos d ON d.id=p.documento_id WHERE d.empresa_id=$1 AND d.observaciones=$2)`, [EMPRESA_ID, SEED_MARKER]);
+  await c.query(`DELETE FROM documentos_partidas WHERE documento_id IN ${ids}`, [EMPRESA_ID, SEED_MARKER]);
+  await c.query(`DELETE FROM documentos WHERE empresa_id=$1 AND observaciones=$2`, [EMPRESA_ID, SEED_MARKER]);
+  await c.query(`DELETE FROM inventario.movimientos_partidas WHERE movimiento_id IN (SELECT id FROM inventario.movimientos WHERE empresa_id=$1 AND observaciones LIKE $2)`, [EMPRESA_ID, `${SEED_MARKER}%`]);
+  await c.query(`DELETE FROM inventario.movimientos WHERE empresa_id=$1 AND observaciones LIKE $2`, [EMPRESA_ID, `${SEED_MARKER}%`]);
+}
+
+async function resolveRuntime(c: PoolClient, seed: string) {
+  SEED_MARKER = `SEED:EMPHASYS-DEMO-8:${seed}`;
+  const user = await c.query<{ id: number }>(`SELECT id FROM core.usuarios WHERE activo=true ORDER BY id LIMIT 1`);
+  if (!user.rows[0]) throw new Error('No existe usuario activo para el seed');
+  USUARIO_ID = user.rows[0].id;
+  const cuenta = await c.query<{ id: number }>(`SELECT id FROM finanzas_cuentas WHERE empresa_id=$1 AND cuenta_cerrada=false ORDER BY id LIMIT 1`, [EMPRESA_ID]);
+  if (!cuenta.rows[0]) throw new Error('No existe cuenta bancaria activa para empresa 8');
+  CUENTA_ID = cuenta.rows[0].id;
+  // La tasa se almacena como porcentaje (16.0000), no como fracción (0.16).
+  const impuesto = await c.query<{ id: string }>(`SELECT id FROM impuestos WHERE tasa=$1 AND activo=true ORDER BY id LIMIT 1`, [IVA_TASA * 100]);
+  if (!impuesto.rows[0]) throw new Error('No existe impuesto activo con tasa 16%');
+  IVA_ID = impuesto.rows[0].id;
+  const conceptos = await c.query<{ id: number; nombre_concepto: string }>(`SELECT id, nombre_concepto FROM conceptos WHERE empresa_id=$1`, [EMPRESA_ID]);
+  const venta = conceptos.rows.find(x => /venta/i.test(x.nombre_concepto));
+  const compra = conceptos.rows.find(x => /compra/i.test(x.nombre_concepto));
+  if (!venta || !compra) throw new Error('Faltan conceptos de venta/compra para empresa 8');
+  CONCEPTO_VENTA = venta.id; CONCEPTO_COMPRA = compra.id;
+}
+
 // ─── Ajustes de inventario ───────────────────────────────────
 
 async function generarAjustes(
@@ -870,7 +912,7 @@ async function generarAjustes(
   for (let i = 0; i < numAjustes; i++) {
     const mes    = meses[rng.int(1, meses.length - 1)] as [number, number]; // evitar primer mes
     const [year, month] = mes;
-    const dia    = rng.int(20, Math.min(diasEnMes(year, month) - 1, 28));
+    const dia    = diaSeguro(year, month, 20, Math.min(diasEnMes(year, month) - 1, 28), rng); if (dia === null) continue;
     const prod   = productos[rng.int(0, productos.length - 1)] as Producto;
     const esEntrada = rng.next() < 0.40;
 
@@ -909,7 +951,7 @@ async function generarTraspasos(
   for (let i = 0; i < numTraspasos; i++) {
     const mes = meses[rng.int(1, meses.length - 1)] as [number, number];
     const [year, month] = mes;
-    const dia  = rng.int(3, Math.min(diasEnMes(year, month) - 1, 20));
+    const dia  = diaSeguro(year, month, 3, Math.min(diasEnMes(year, month) - 1, 20), rng); if (dia === null) continue;
     // Producto con stock en GRAL
     const conStock = productos.filter(p => getExist(p.id, almGral.id) >= 10);
     if (conStock.length === 0) continue;
@@ -946,7 +988,7 @@ async function generarDocumentosPendientes(
   // Órdenes de compra pendientes
   for (let i = 0; i < N; i++) {
     const [year, month] = mesesRecientes[i % mesesRecientes.length] as [number, number];
-    const dia      = rng.int(5, Math.min(diasEnMes(year, month) - 3, 25));
+    const dia      = diaSeguro(year, month, 5, Math.min(diasEnMes(year, month) - 3, 25), rng); if (dia === null) continue;
     const fechaDoc = d(year, month, dia);
     const provId   = proveedores[rng.int(0, proveedores.length - 1)].id;
     const sel      = selectProductos(rng, productos, 20, rng.int(2, 3));
@@ -978,7 +1020,7 @@ async function generarDocumentosPendientes(
   // Pedidos de clientes pendientes
   for (let i = 0; i < N; i++) {
     const [year, month] = mesesRecientes[i % mesesRecientes.length] as [number, number];
-    const dia      = rng.int(5, Math.min(diasEnMes(year, month) - 3, 25));
+    const dia      = diaSeguro(year, month, 5, Math.min(diasEnMes(year, month) - 3, 25), rng); if (dia === null) continue;
     const fechaDoc = d(year, month, dia);
     const cliId    = (clientes[rng.int(0, clientes.length - 1)] as Contacto).id;
     const sel      = selectProductos(rng, productos, cfg_altaRot_placeholder, rng.int(2, 3));
@@ -1010,7 +1052,7 @@ async function generarDocumentosPendientes(
   // Remisiones pendientes de facturar
   for (let i = 0; i < N; i++) {
     const [year, month] = mesesRecientes[i % mesesRecientes.length] as [number, number];
-    const dia      = rng.int(10, Math.min(diasEnMes(year, month) - 1, 28));
+    const dia      = diaSeguro(year, month, 10, Math.min(diasEnMes(year, month) - 1, 28), rng); if (dia === null) continue;
     const fechaDoc = d(year, month, dia);
     const cliId    = (clientes[rng.int(0, clientes.length - 1)] as Contacto).id;
     const sel      = selectProductos(rng, productos, cfg_altaRot_placeholder, rng.int(2, 3));
@@ -1262,6 +1304,7 @@ async function imprimirResumen(c: PoolClient, cfg: Config, meses: [number, numbe
 
 async function main() {
   const cfg   = parseCLI();
+  FECHA_HASTA = cfg.hasta;
   const meses = generarMeses(cfg.desde, cfg.hasta);
   validarConfig(cfg, meses);
 
@@ -1280,18 +1323,15 @@ async function main() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await resolveRuntime(client, cfg.seed);
 
     if (cfg.limpiar) {
-      await cleanup(client);
-    } else {
-      const { rows } = await client.query(
-        `SELECT count(*) AS n FROM productos WHERE empresa_id=$1`, [EMPRESA_ID],
-      );
+      throw new Error('--limpiar=true está deshabilitado: este generador no elimina datos. Use el procedimiento de depuración autorizado antes de repetirlo.');
+    }
+    {
+      const { rows } = await client.query(`SELECT count(*) AS n FROM documentos WHERE empresa_id=$1 AND observaciones=$2`, [EMPRESA_ID, SEED_MARKER]);
       if (Number(rows[0].n) > 0) {
-        throw new Error(
-          `Ya existen ${rows[0].n} productos en empresa_id=8. ` +
-          `Ejecuta con --limpiar=true para regenerar desde cero.`,
-        );
+        throw new Error(`Ya existen ${rows[0].n} documentos de este seed; se aborta para no duplicar datos.`);
       }
     }
 
@@ -1310,12 +1350,16 @@ async function main() {
     console.log('\n💰  Generando ventas (con verificación de stock)...');
     const factVentasIds = await generarVentas(client, cfg, rng, meses, almacenes, clientes, productos);
 
+    console.log('\n🧾  Generando notas de venta (Emitidas, sin CFDI)...');
+    const notaVentaIds = await generarNotasVenta(client, cfg, rng, meses, almacenes, clientes, productos);
+
     console.log('\n🔄  Garantizando movimientos mínimos por producto...');
     await generarMovimientosGarantizados(client, cfg, rng, meses, almacenes, proveedores, clientes, productos);
 
     console.log('\n💳  Generando pagos...');
     await generarPagosProveedores(client, factComprasIds);
-    await generarPagosClientes(client, factVentasIds);
+    // Las facturas estándar quedan en Borrador; los cobros solo aplican a notas de venta.
+    await generarPagosClientes(client, notaVentaIds);
 
     console.log('\n⚖️   Generando ajustes y traspasos...');
     await generarAjustes(client, rng, meses, almacenes, productos);

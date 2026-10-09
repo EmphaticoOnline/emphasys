@@ -1,4 +1,5 @@
-import { Alert, Box, Button, CircularProgress, Dialog, IconButton, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Autocomplete, Box, Button, CircularProgress, Dialog, IconButton, Stack, TextField, Typography } from '@mui/material';
+import { useEffect, useRef } from 'react';
 import Grid from '@mui/material/Grid';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -6,7 +7,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import { NumericFormat } from 'react-number-format';
 import type { DatosFiscalesValues } from '../../documentos';
 import { DocumentoDatosFiscalesTab } from '../../documentos';
-import type { FinanzasCuenta } from '../../../types/finanzas';
 import LiquidacionAplicacionesList from './LiquidacionAplicacionesList';
 import LiquidacionResumenFooter from './LiquidacionResumenFooter';
 import { getCuentaFinancieraDisplayLabel, useLiquidacionDocumento, type LiquidacionDocumentoParams } from './useLiquidacionDocumento';
@@ -33,6 +33,20 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
   const isLaptop = useMediaQuery(theme.breakpoints.down('xl'));
   const liquidacion = useLiquidacionDocumento(params);
   const { config } = liquidacion;
+  const importeRef = useRef<HTMLInputElement | null>(null);
+  const importeEnfocadoRef = useRef(false);
+
+  useEffect(() => {
+    if (liquidacion.loading) {
+      importeEnfocadoRef.current = false;
+      return;
+    }
+    if (!importeEnfocadoRef.current && liquidacion.monto > 0) {
+      importeRef.current?.focus();
+      importeRef.current?.select();
+      importeEnfocadoRef.current = true;
+    }
+  }, [liquidacion.loading, liquidacion.monto]);
 
   const saveDisabled = !config
     || liquidacion.saving
@@ -152,6 +166,7 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
             prefix="$"
             fullWidth
             size="small"
+            inputRef={importeRef}
             inputProps={{ inputMode: 'decimal' }}
             sx={amountFieldSx}
           />
@@ -189,24 +204,31 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <FieldLabel>Cuenta / caja / banco</FieldLabel>
-          <TextField
-            hiddenLabel
-            select
-            required
-            value={liquidacion.cuentaFinancieraId ?? ''}
-            onChange={(e) => liquidacion.setCuentaFinancieraId(Number(e.target.value) || null)}
+          <FieldLabel>Cuenta</FieldLabel>
+          <Autocomplete
+            options={liquidacion.cuentas}
+            value={liquidacion.cuentas.find((cuenta) => Number(cuenta.id) === Number(liquidacion.cuentaFinancieraId)) ?? null}
+            onChange={(_, cuenta) => liquidacion.setCuentaFinancieraId(cuenta ? Number(cuenta.id) : null)}
+            getOptionLabel={getCuentaFinancieraDisplayLabel}
+            isOptionEqualToValue={(option, value) => Number(option.id) === Number(value.id)}
+            noOptionsText="Sin cuentas disponibles"
+            clearText="Limpiar cuenta"
+            openText="Abrir cuentas"
+            closeText="Cerrar cuentas"
+            clearOnEscape={false}
             fullWidth
             size="small"
-            sx={captureFieldSx}
-          >
-            <MenuItem value="">Selecciona una cuenta</MenuItem>
-            {liquidacion.cuentas.map((cuenta: FinanzasCuenta) => (
-              <MenuItem key={cuenta.id} value={cuenta.id}>
-                {getCuentaFinancieraDisplayLabel(cuenta)}
-              </MenuItem>
-            ))}
-          </TextField>
+            sx={formaPagoFieldSx}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                hiddenLabel
+                required
+                placeholder="Selecciona o escribe una cuenta"
+                size="small"
+              />
+            )}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FieldLabel>Forma de pago</FieldLabel>

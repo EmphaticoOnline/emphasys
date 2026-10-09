@@ -2114,6 +2114,13 @@ export async function actualizarDocumentoRepository(
   if (!current) return null;
 
   const tipoActual = String(current.tipo_documento ?? '').trim().toLowerCase();
+  const estatusSolicitado = String((data as any).estatus_documento ?? '').trim().toLowerCase();
+  const facturaVentaEstandar = tipoActual === 'factura'
+    && String(current.tratamiento_impuestos ?? '').trim().toLowerCase() === 'normal';
+  if (facturaVentaEstandar && estatusSolicitado === 'emitido'
+    && String(current.estatus_documento ?? '').trim().toLowerCase() !== 'emitido') {
+    throw new Error('VALIDATION_ERROR: Una factura de venta estándar solo puede pasar a Timbrado mediante un timbrado CFDI exitoso.');
+  }
   if (tipoActual === 'pago_cliente' || tipoActual === 'pago_proveedor') {
     const { rows: aplicacionesRows } = await executor.query<{ existe: boolean }>(
       `SELECT EXISTS (

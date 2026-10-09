@@ -19,6 +19,7 @@
     "backend:start": "cd backend && npm start",
     "schema:full": "npm --prefix backend run schema:export:single",
     "db:query": "npm --prefix backend run db:query --",
+    "seed:empresa8": "npm --prefix backend run seed:empresa8:tunnel --",
     "db:migrate:file": "npm --prefix backend run db:migrate:file --",
     "dev:local": "APP_ENV=development DB_TARGET=local bash ./scripts/dev-local.sh",
     "dev:server": "APP_ENV=development DB_TARGET=server bash ./scripts/dev-server.sh",

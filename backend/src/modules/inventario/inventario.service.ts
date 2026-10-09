@@ -337,7 +337,9 @@ export async function revertirInventarioDocumentoEnTransaccion(
     {
       empresaId,
       tipoMovimiento: tipoReversion,
-      fecha: normalizarFecha(opciones?.fecha ?? new Date()),
+      // La reversión representa la fecha civil en que se cancela el
+      // documento, no la fecha UTC del instante de ejecución.
+      fecha: normalizarFecha(opciones?.fecha ?? await obtenerFechaCivilEmpresa(client, empresaId)),
       usuarioId,
       documentoId,
       observaciones:
@@ -362,6 +364,22 @@ function normalizarFecha(fecha?: Date | string): Date | string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha;
   const parsed = new Date(fecha);
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+async function obtenerFechaCivilEmpresa(client: PoolClient, empresaId: number): Promise<string> {
+  const { rows } = await client.query<{ zona_horaria: string | null }>(
+    `SELECT zona_horaria FROM core.empresas WHERE id = $1`,
+    [empresaId]
+  );
+  const zona = String(rows[0]?.zona_horaria ?? 'America/Mexico_City').trim() || 'America/Mexico_City';
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone: zona,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const valores = Object.fromEntries(partes.map((parte) => [parte.type, parte.value]));
+  return `${valores.year}-${valores.month}-${valores.day}`;
 }
 
 async function resolverAlmacenDefault(
@@ -421,7 +439,7 @@ export async function aplicarInventarioDesdeDocumentoEnTransaccion(
   }
 
   const estatus = (documento.estatus_documento || '').toLowerCase();
-  if (estatus !== 'emitido' && estatus !== 'enviado') {
+  if (estatus !== 'emitido' && estatus !== 'enviado' && estatus !== 'timbrado') {
     throw buildError('DOCUMENTO_NO_CONFIRMADO', 'El documento debe estar emitido antes de afectar inventario');
   }
 
