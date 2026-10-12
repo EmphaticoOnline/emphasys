@@ -41,7 +41,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import type { MovimientoDetalle, MovimientoEncabezado, MovimientoListadoItem, MovimientoPartidaDetalle } from '../types/inventario';
 import { afectarMovimiento, desafectarMovimiento, eliminarMovimiento, exportarMovimientos, listarMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
