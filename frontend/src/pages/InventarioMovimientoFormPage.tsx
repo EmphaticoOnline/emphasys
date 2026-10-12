@@ -1,9 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
-  Button,
   Alert,
   IconButton,
+  Tooltip,
   InputBase,
   MenuItem,
   Autocomplete,
@@ -286,10 +286,10 @@ export default function InventarioMovimientoFormPage() {
     const id = focoProductoId.current;
     if (!id) return;
     const enfocar = () => {
-      const input = document.querySelector<HTMLInputElement>(`input[data-producto-partida="${CSS.escape(id)}"]`);
-      if (!input) return false;
-      input.focus();
-      input.scrollIntoView({ block: 'nearest' });
+      const inicio = document.querySelector<HTMLElement>(`[data-partida-inicio="${CSS.escape(id)}"]`);
+      if (!inicio) return false;
+      inicio.focus();
+      inicio.scrollIntoView({ block: 'nearest' });
       return true;
     };
     const frame = window.requestAnimationFrame(() => {
@@ -389,14 +389,16 @@ export default function InventarioMovimientoFormPage() {
   const handleGuardar = () => {
     setFormError(null);
 
-    if (!partidas.length) {
+    const capturadas = partidas.filter((p) => !partidaSinCaptura(p));
+    if (!capturadas.length) {
       setFormError('Agrega al menos una partida.');
       return;
     }
 
-    const tipoMovimiento = esMixta ? 'mixto' : sentidoUnico as TipoMovimiento;
+    const sentidosCapturados = Array.from(new Set(capturadas.map((p) => p.sentido)));
+    const tipoMovimiento = sentidosCapturados.length > 1 ? 'mixto' : sentidosCapturados[0] as TipoMovimiento;
 
-    for (const p of partidas) {
+    for (const p of capturadas) {
       const showOrigen = p.sentido !== 'entrada';
       const showDestino = p.sentido !== 'salida';
 
@@ -436,7 +438,7 @@ export default function InventarioMovimientoFormPage() {
       fecha: fechaCivilGuadalajara(fecha),
       observaciones: observaciones || null,
       contacto_id: contactoId,
-      partidas: partidas.map<MovimientoPartidaPayload>((p) => {
+      partidas: capturadas.map<MovimientoPartidaPayload>((p) => {
         const origen = toNumberOrNull(p.almacenOrigenId);
         const destino = toNumberOrNull(p.almacenDestinoId);
 
@@ -466,10 +468,13 @@ export default function InventarioMovimientoFormPage() {
     };
 
     setSaving(true);
-    (editando ? actualizarMovimiento(Number(movimientoId), payload) : crearMovimientoManual(payload))
-      .then(() => {
+    (editando ? actualizarMovimiento(Number(movimientoId), payload).then(() => Number(movimientoId)) : crearMovimientoManual(payload).then((resultado) => Number((resultado as { movimientoId?: number }).movimientoId)))
+      .then((id) => {
         navigate('/inventario/movimientos', {
-          state: { snackbar: { message: editando ? 'Movimiento editado y afectado correctamente' : 'Movimiento guardado correctamente', severity: 'success' as const } },
+          state: {
+            snackbar: { message: editando ? 'Movimiento editado y afectado correctamente' : 'Movimiento guardado correctamente', severity: 'success' as const },
+            ...(Number.isInteger(id) && id > 0 ? { movimientoId: id } : {}),
+          },
         });
       })
       .catch((err) => {
@@ -523,21 +528,38 @@ export default function InventarioMovimientoFormPage() {
 
   const acciones = (
     <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
-      <Button onClick={handleCancelar} disabled={saving} startIcon={<ArrowBackIcon sx={{ fontSize: '16px !important' }} />} sx={botonSecundarioSx} title="Regresar a movimientos">
-        Regresar
-      </Button>
-      <Button
-        onClick={handleGuardar}
-        disabled={deshabilitarGuardar}
-        startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <CheckIcon sx={{ fontSize: '16px !important' }} />}
-        sx={botonPrimarioSx}
-        title="Guardar movimiento (⌘/Ctrl + Enter)"
-      >
-        {saving ? 'Guardando…' : 'Guardar movimiento'}
-        {!isMobile && !saving && (
-          <Box component="span" sx={{ ml: 1, fontSize: 10.5, lineHeight: '15px', px: 0.5, border: '1px solid currentColor', borderRadius: '3px', opacity: 0.7 }}>⌘↵</Box>
-        )}
-      </Button>
+      <Tooltip title="Regresar">
+        <span>
+          <IconButton
+            onClick={handleCancelar}
+            disabled={saving}
+            aria-label="Regresar"
+            tabIndex={-1}
+            sx={{ border: '1px solid', borderColor: 'primary.main', color: 'primary.main', borderRadius: 1 }}
+          >
+            <ArrowBackIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Tooltip title={saving ? 'Guardando...' : 'Guardar (⌘/Ctrl + Enter)'}>
+        <span>
+          <IconButton
+            onClick={handleGuardar}
+            disabled={deshabilitarGuardar}
+            aria-label="Guardar"
+            tabIndex={-1}
+            sx={{
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              borderRadius: 1,
+              '&:hover': { bgcolor: 'primary.dark' },
+              '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' },
+            }}
+          >
+            {saving ? <CircularProgress size={18} color="inherit" /> : <CheckIcon fontSize="small" />}
+          </IconButton>
+        </span>
+      </Tooltip>
     </Box>
   );
 
@@ -627,7 +649,7 @@ export default function InventarioMovimientoFormPage() {
             }}
           >
             <CampoMeta etiqueta="Fecha operativa">
-              <CampoFechaOperativa value={fecha} onChange={setFecha} />
+              <CampoFechaOperativa value={fecha} onChange={setFecha} enfocarAlMontar={!editando} />
             </CampoMeta>
             <CampoMeta etiqueta="Contacto">
               <Autocomplete<Contacto>
@@ -637,7 +659,7 @@ export default function InventarioMovimientoFormPage() {
                 onChange={(_, value) => setContactoId(value?.id ?? null)}
                 getOptionLabel={(option) => option.nombre || option.nombre_contacto || `Contacto #${option.id}`}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderInput={(params) => <TextField {...params} placeholder="Opcional" variant="standard" sx={campoMetaSx} />}
+                renderInput={(params) => <TextField {...(params as object)} placeholder="Opcional" variant="standard" sx={campoMetaSx} />}
               />
             </CampoMeta>
             <Box sx={{ gridColumn: isMobile ? '1 / -1' : 'auto', minWidth: 0 }}>
@@ -662,10 +684,10 @@ export default function InventarioMovimientoFormPage() {
           {/* Filtros por sentido (atenúan, no ocultan) + búsqueda */}
           <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', columnGap: 2.25, rowGap: 0.5, mt: 0.5 }}>
             <Box role="tablist" sx={{ display: 'flex', gap: { xs: 1.75, md: 2.75 } }}>
-              <PestanaFiltro label="Todas" count={partidas.length} activo={filtroSentido === 'todas'} onClick={() => setFiltroSentido('todas')} />
-              <PestanaFiltro label="Entradas" count={conteoPorSentido.entrada} activo={filtroSentido === 'entrada'} onClick={() => setFiltroSentido('entrada')} />
-              <PestanaFiltro label="Salidas" count={conteoPorSentido.salida} activo={filtroSentido === 'salida'} onClick={() => setFiltroSentido('salida')} />
-              <PestanaFiltro label="Transferencias" count={conteoPorSentido.transferencia} activo={filtroSentido === 'transferencia'} onClick={() => setFiltroSentido('transferencia')} />
+              <PestanaFiltro label="Todas" count={partidas.length} activo={filtroSentido === 'todas'} onClick={() => setFiltroSentido('todas')} tabIndex={-1} />
+              <PestanaFiltro label="Entradas" count={conteoPorSentido.entrada} activo={filtroSentido === 'entrada'} onClick={() => setFiltroSentido('entrada')} tabIndex={-1} />
+              <PestanaFiltro label="Salidas" count={conteoPorSentido.salida} activo={filtroSentido === 'salida'} onClick={() => setFiltroSentido('salida')} tabIndex={-1} />
+              <PestanaFiltro label="Transferencias" count={conteoPorSentido.transferencia} activo={filtroSentido === 'transferencia'} onClick={() => setFiltroSentido('transferencia')} tabIndex={-1} />
             </Box>
             <Box sx={{ flex: 1 }} />
             {filtroActivo && (
@@ -689,7 +711,7 @@ export default function InventarioMovimientoFormPage() {
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar clave o producto"
-                inputProps={{ 'aria-label': 'Buscar clave o producto' }}
+                inputProps={{ 'aria-label': 'Buscar clave o producto', tabIndex: -1 }}
                 sx={(theme) => ({ width: { xs: 150, md: 190 }, fontSize: 13, color: theme.emphasys.content.foreground, '& input': { p: 0 } })}
               />
             </Box>
@@ -873,31 +895,6 @@ const campoMetaSx = (theme: Theme) => ({
   '& .MuiInput-underline:after': { borderBottomColor: theme.emphasys.content.foreground, borderBottomWidth: 1 },
 });
 
-const botonSecundarioSx = (theme: Theme) => ({
-  height: 34,
-  px: 1.75,
-  borderRadius: '6px',
-  textTransform: 'none' as const,
-  fontSize: 13,
-  fontWeight: 500,
-  whiteSpace: 'nowrap' as const,
-  border: `1px solid ${theme.emphasys.content.border}`,
-  bgcolor: theme.emphasys.documentNav.selectedBackground,
-  color: theme.emphasys.content.foreground,
-  '&:hover': { bgcolor: theme.emphasys.content.hover },
-  '& .MuiButton-startIcon': { mr: 0.75 },
-});
-
-const botonPrimarioSx = (theme: Theme) => ({
-  ...botonSecundarioSx(theme),
-  border: `1px solid ${theme.emphasys.action.primary}`,
-  bgcolor: theme.emphasys.action.primary,
-  color: theme.emphasys.action.primaryForeground,
-  '&:hover': { bgcolor: theme.emphasys.action.primaryHover },
-  '&.Mui-disabled': { bgcolor: theme.emphasys.action.disabled, borderColor: theme.emphasys.action.disabled, color: theme.emphasys.action.primaryForeground },
-});
-
-// Caja de control de la retícula: 28px, borde de 1px, fondo marfil claro y texto a 9px del borde exterior.
 function campoFilaSx(theme: Theme, align: 'left' | 'right' = 'left', color?: string) {
   return {
     width: '100%',
@@ -984,13 +981,14 @@ function CampoMeta({ etiqueta, children }: { etiqueta: string; children: React.R
   );
 }
 
-function PestanaFiltro({ label, count, activo, onClick }: { label: string; count: number; activo: boolean; onClick: () => void }) {
+function PestanaFiltro({ label, count, activo, onClick, tabIndex = 0 }: { label: string; count: number; activo: boolean; onClick: () => void; tabIndex?: number }) {
   return (
     <Box
       component="button"
       type="button"
       role="tab"
       aria-selected={activo}
+      tabIndex={tabIndex}
       onClick={onClick}
       sx={(theme) => ({
         border: 0,
@@ -1017,10 +1015,19 @@ function PestanaFiltro({ label, count, activo, onClick }: { label: string; count
   );
 }
 
-function SelectorSentido({ valor, onChange }: { valor: TipoMovimiento; onChange: (v: TipoMovimiento) => void }) {
+function SelectorSentido({ partidaId, valor, onChange }: { partidaId: string; valor: TipoMovimiento; onChange: (v: TipoMovimiento) => void }) {
+  const mover = (direccion: 1 | -1) => {
+    const indice = tipoMovimientoOptions.indexOf(valor);
+    const siguiente = tipoMovimientoOptions[(indice + direccion + tipoMovimientoOptions.length) % tipoMovimientoOptions.length];
+    if (!siguiente) return;
+    onChange(siguiente);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-sentido-opcion="${CSS.escape(`${partidaId}:${siguiente}`)}"]`)?.focus();
+    });
+  };
   return (
     <Box
-      role="group"
+      role="radiogroup"
       aria-label="Sentido"
       sx={(theme) => ({
         display: 'inline-grid',
@@ -1041,10 +1048,20 @@ function SelectorSentido({ valor, onChange }: { valor: TipoMovimiento; onChange:
             key={opt}
             component="button"
             type="button"
+            role="radio"
             aria-label={etiquetaTipo[opt]}
-            aria-pressed={activo}
+            aria-checked={activo}
+            tabIndex={activo ? 0 : -1}
+            data-sentido-opcion={`${partidaId}:${opt}`}
+            {...(activo ? { 'data-partida-inicio': partidaId } : {})}
             title={`${etiquetaTipo[opt]}: ${ayudaSentido[opt]}`}
             onClick={() => onChange(opt)}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+              event.preventDefault();
+              event.stopPropagation();
+              mover(event.key === 'ArrowRight' ? 1 : -1);
+            }}
             sx={(theme) => ({
               height: '100%',
               p: '0 5px',
@@ -1273,7 +1290,7 @@ function FilaPartida({
         </Typography>
       </Box>
       <Box sx={celda}>
-        <SelectorSentido valor={partida.sentido} onChange={(v) => onSentidoChange(partida.id, v)} />
+        <SelectorSentido partidaId={partida.id} valor={partida.sentido} onChange={(v) => onSentidoChange(partida.id, v)} />
       </Box>
       <Box sx={celda}>
         <SelectorProducto
@@ -1310,6 +1327,7 @@ function BotonEliminar({ disabled, onClick, visible }: { disabled: boolean; onCl
       aria-label="Eliminar partida"
       title="Eliminar partida"
       disabled={disabled}
+      tabIndex={-1}
       onClick={onClick}
       sx={(theme) => ({
         width: 26,
@@ -1774,7 +1792,7 @@ function PartidaMovil({
         <Typography variant="figure" sx={(theme) => ({ fontSize: 14, color: theme.emphasys.table.muted })}>
           {String(partida.numero).padStart(2, '0')}
         </Typography>
-        <SelectorSentido valor={partida.sentido} onChange={(v) => onSentidoChange(partida.id, v)} />
+        <SelectorSentido partidaId={partida.id} valor={partida.sentido} onChange={(v) => onSentidoChange(partida.id, v)} />
         <Box sx={{ flex: 1 }} />
         <BotonEliminar disabled={!puedeEliminar} onClick={() => onEliminar(partida.id)} visible />
       </Box>
@@ -1856,6 +1874,16 @@ function partidaListaParaContinuar(partida: Partida, decimalesCantidad: number) 
   return true;
 }
 
+function partidaSinCaptura(partida: Partida) {
+  const almacenOrigenCapturado = Boolean(partida.almacenOrigenId) && !partida.heredadoOrigen;
+  const almacenDestinoCapturado = Boolean(partida.almacenDestinoId) && !partida.heredadoDestino;
+  return !partida.productoId
+    && partida.cantidad.trim() === ''
+    && partida.costoUnitario.trim() === ''
+    && !almacenOrigenCapturado
+    && !almacenDestinoCapturado;
+}
+
 function filaHeredadaVacia(candidata: Partida, origen: Partida) {
   return candidata.sentido === origen.sentido
     && candidata.productoId === ''
@@ -1891,8 +1919,21 @@ function enterDebeContinuarCaptura(event: React.KeyboardEvent) {
   return true;
 }
 
-function CampoFechaOperativa({ value, onChange }: { value: string; onChange: (valor: string) => void }) {
+function CampoFechaOperativa({ value, onChange, enfocarAlMontar = false }: { value: string; onChange: (valor: string) => void; enfocarAlMontar?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
+  const yaEnfoco = useRef(false);
+  useEffect(() => {
+    if (!enfocarAlMontar || yaEnfoco.current) return;
+    const input = ref.current;
+    if (!input) return;
+    yaEnfoco.current = true;
+    input.focus({ preventScroll: true });
+    try {
+      input.showPicker();
+    } catch {
+      // Algunos navegadores solo abren el calendario tras un gesto del usuario.
+    }
+  }, [enfocarAlMontar]);
   return (
     <Box
       component="input"

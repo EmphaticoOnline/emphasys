@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -26,7 +26,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { useLocation } from 'react-router-dom';
+import { decidirSeleccionMovimiento, idsIguales } from './inventarioMovimientosSeleccion';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloseIcon from '@mui/icons-material/Close';
@@ -258,18 +258,29 @@ export default function InventarioMovimientosPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [decimalesCantidades, setDecimalesCantidades] = useState(2);
   const [eliminarId, setEliminarId] = useState<number | null>(null);
+  const focoPendiente = useRef<number | null>(null);
+  const listaRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const state = location.state as { snackbar?: { message?: string; severity?: 'success' | 'error' } } | null;
+    const state = location.state as { snackbar?: { message?: string; severity?: 'success' | 'error' }; movimientoId?: number } | null;
     const notification = state?.snackbar;
-    if (!notification?.message) return;
-    setSnackbar({
-      open: true,
-      message: notification.message,
-      severity: notification.severity === 'error' ? 'error' : 'success',
-    });
+    const movimientoId = Number(state?.movimientoId);
+    const tieneMovimiento = Number.isInteger(movimientoId) && movimientoId > 0;
+    if (!notification?.message && !tieneMovimiento) return;
+    if (notification?.message) {
+      setSnackbar({
+        open: true,
+        message: notification.message,
+        severity: notification.severity === 'error' ? 'error' : 'success',
+      });
+    }
+    if (tieneMovimiento) {
+      focoPendiente.current = movimientoId;
+      setSelectedId(movimientoId);
+      if (compacto) setDetalleMovil(true);
+    }
     navigate(location.pathname, { replace: true, state: null });
-  }, [location.pathname, location.state, navigate]);
+  }, [compacto, location.pathname, location.state, navigate]);
 
   useEffect(() => {
     void fetchParametrosSistema().then((modulos) => {
@@ -331,14 +342,34 @@ export default function InventarioMovimientosPage() {
   }, []);
 
   useEffect(() => {
-    if (listLoading && movimientos.length === 0) return;
-    const primero = filtrados[0];
-    if (!primero) {
-      setSelectedId(null);
-      return;
+    const cargaTerminada = !listLoading && cargaLista > 0;
+    const decision = decidirSeleccionMovimiento({
+      pendiente: focoPendiente.current,
+      selectedId,
+      movimientos,
+      filtrados,
+      cargaTerminada,
+      hayFiltros: Boolean(texto || anio || mes || soloAjustes),
+    });
+    focoPendiente.current = decision.pendiente;
+    if (decision.limpiarFiltros) {
+      setTexto('');
+      setAnio('');
+      setMes('');
+      setSoloAjustes(false);
     }
-    setSelectedId((actual) => (filtrados.some((movimiento) => movimiento.id === actual) ? actual : primero.id));
-  }, [filtrados, listLoading, movimientos.length]);
+    setSelectedId((actual) => (idsIguales(actual, decision.selectedId) ? actual : decision.selectedId));
+  }, [anio, cargaLista, filtrados, listLoading, mes, movimientos, selectedId, soloAjustes, texto]);
+
+  useEffect(() => {
+    if (listLoading || selectedId == null) return;
+    if (!filtrados.some((movimiento) => idsIguales(movimiento.id, selectedId))) return;
+    const frame = window.requestAnimationFrame(() => {
+      const registro = listaRef.current?.querySelector(`[data-movimiento-id="${selectedId}"]`);
+      registro?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [filtrados, listLoading, selectedId]);
 
   useEffect(() => {
     if (selectedId == null) {
@@ -410,9 +441,9 @@ export default function InventarioMovimientosPage() {
     }
   };
 
-  const seleccionado = filtrados.find((movimiento) => movimiento.id === selectedId) ?? null;
-  const encabezado = detalle?.movimiento.id === selectedId ? detalle.movimiento : seleccionado;
-  const partidas = detalle?.movimiento.id === selectedId ? detalle.partidas : [];
+  const seleccionado = filtrados.find((movimiento) => idsIguales(movimiento.id, selectedId)) ?? null;
+  const encabezado = detalle && idsIguales(detalle.movimiento.id, selectedId) ? detalle.movimiento : seleccionado;
+  const partidas = detalle && idsIguales(detalle.movimiento.id, selectedId) ? detalle.partidas : [];
   const movimientoManual = Boolean(encabezado && encabezado.documento_id == null && !encabezado.es_reversion);
   const puedeEditar = movimientoManual && encabezado?.estatus_afectacion === 0;
   const puedeEliminar = puedeEditar;
@@ -420,8 +451,8 @@ export default function InventarioMovimientosPage() {
   const puedeDesafectar = movimientoManual && encabezado?.estatus_afectacion === 1;
   const verLista = !compacto || !detalleMovil;
 
-  const elegir = (id: number) => {
-    setSelectedId(id);
+  const elegir = (id: number | string) => {
+    setSelectedId(Number(id));
     if (compacto) setDetalleMovil(true);
   };
 
@@ -662,7 +693,7 @@ export default function InventarioMovimientosPage() {
 
         {listError && <Alert severity="error" sx={{ mx: 1.5, mb: 1 }}>{listError}</Alert>}
 
-        <Box sx={{
+        <Box ref={listaRef} sx={{
           flex: 1,
           minWidth: 0,
           overflowX: 'hidden',
@@ -679,13 +710,14 @@ export default function InventarioMovimientosPage() {
               {texto || criteriosFiltro > 0 ? 'Ningún movimiento coincide con la búsqueda.' : 'No hay movimientos registrados aún.'}
             </Typography>
           ) : filtrados.map((movimiento, indice) => {
-            const selected = movimiento.id === selectedId;
+            const selected = idsIguales(movimiento.id, selectedId);
             const folio = folioDocumento(movimiento);
             const origen = origenModulo(movimiento);
             const OrigenIcon = origen ? ORIGEN_VISUAL[origen].Icon : null;
             return (
               <Box key={movimiento.id}>
                 <Box
+                  data-movimiento-id={movimiento.id}
                   onClick={() => elegir(movimiento.id)}
                   sx={{
                     minWidth: 0,
