@@ -99,7 +99,11 @@ export default function RecalculoInventarioPage() {
 
   const filas = React.useMemo<FilaDiferencia[]>(() => {
     const diferencias = (analisis?.diferencias ?? []) as DiferenciaApi[];
-    return diferencias.map((fila) => ({
+    return diferencias.filter((fila) => (
+      Number(fila.diferencia_existencia ?? 0) !== 0
+      || Number(fila.diferencia_valor ?? 0) !== 0
+      || (fila.diferencia_costo != null && Number(fila.diferencia_costo) !== 0)
+    )).map((fila) => ({
       id: `${fila.producto_id}-${fila.almacen_id}`,
       producto: nombreProducto(Number(fila.producto_id)),
       almacen: fila.almacen?.trim() ? fila.almacen : `Almacén ${fila.almacen_id}`,
