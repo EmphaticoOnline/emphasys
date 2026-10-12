@@ -9,6 +9,8 @@ import {
 	getProducto,
 	getExistenciasProducto,
 	getDocumentosRelacionadosProducto,
+	getUltimasComprasProducto,
+	getUltimasVentasProducto,
 	getImpuestosProducto,
 	putImpuestosProducto,
 	listarCatalogosConfigurablesDeProducto,
@@ -74,6 +76,8 @@ router.get('/:productoId/archivos', requireAuth, requireEmpresaActiva, listarPro
 // GET /api/productos/:id
 router.get('/:id/catalogos-configurables', requireAuth, requireEmpresaActiva, listarCatalogosConfigurablesDeProducto);
 router.get('/:id/existencias', requireAuth, requireEmpresaActiva, getExistenciasProducto);
+router.get('/:id/ultimas-compras', requireAuth, requireEmpresaActiva, getUltimasComprasProducto);
+router.get('/:id/ultimas-ventas', requireAuth, requireEmpresaActiva, getUltimasVentasProducto);
 router.get('/:id/documentos-relacionados', requireAuth, requireEmpresaActiva, getDocumentosRelacionadosProducto);
 router.get('/:id', requireAuth, requireEmpresaActiva, getProducto);
 

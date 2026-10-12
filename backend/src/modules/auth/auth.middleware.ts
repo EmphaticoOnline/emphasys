@@ -48,6 +48,16 @@ export function requireSuperadmin(req: Request, res: Response, next: NextFunctio
   return next();
 }
 
+export async function requireAdministradorInventario(req: Request, res: Response, next: NextFunction) {
+  if (!req.auth) return res.status(401).json({ message: 'No autenticado' });
+  if (req.auth.esSuperadmin) return next();
+  try {
+    const { rows } = await pool.query(`SELECT 1 FROM core.usuarios_roles ur JOIN core.roles r ON r.id=ur.rol_id WHERE ur.usuario_id=$1 AND ur.empresa_id=$2 AND lower(trim(r.nombre)) IN ('admin','administrador') LIMIT 1`, [req.auth.userId, (req as any).context?.empresaId]);
+    if (!rows.length) return res.status(403).json({ message: 'Sólo administradores pueden recalcular inventario.' });
+    return next();
+  } catch { return res.status(500).json({ message: 'No se pudo validar el permiso administrativo.' }); }
+}
+
 export async function requireEmpresaActiva(req: Request, res: Response, next: NextFunction) {
   try {
     if (!req.auth) {

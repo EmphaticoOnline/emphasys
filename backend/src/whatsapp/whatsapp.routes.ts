@@ -1,4 +1,7 @@
 import { Router } from "express";
+import multer from "multer";
+import { subirImagen } from "../modules/uploads/uploads.controller";
+import { createDiskUploader, DEFAULT_UPLOAD_MIME_TYPES, resolveUploadsDir } from "../modules/uploads/uploads.multer";
 import {
 	enviarWhatsapp,
 	reaccionarMensajeWhatsapp,
@@ -28,6 +31,29 @@ import { requireAuth, requireEmpresaActiva, requireSuperadmin } from "../modules
 import { analizarTemperatura, obtenerTemperatura } from "../modules/leads/temperatura.controller";
 
 const router = Router();
+
+// Catálogo exclusivo del chat CRM. No se agrega XML a /api/uploads porque ese
+// endpoint es compartido por otros módulos del ERP.
+const chatUpload = createDiskUploader({
+	allowedMimeTypes: [...DEFAULT_UPLOAD_MIME_TYPES, "application/xml", "text/xml"],
+	maxFileSizeBytes: 16 * 1024 * 1024,
+	destinationDir: resolveUploadsDir(),
+});
+
+router.post("/subir-adjunto-chat", requireAuth, requireEmpresaActiva, (req, res, next) => {
+	chatUpload.single("file")(req, res, (err: any) => {
+		if (err instanceof multer.MulterError) {
+			return res.status(400).json({ message: err.code === "LIMIT_FILE_SIZE" ? "El archivo excede el límite de 16 MB" : err.message });
+		}
+		if (err?.code === "INVALID_FILE_TYPE") return res.status(400).json({ message: "Tipo de archivo no permitido" });
+		if (err) {
+			console.error("[WhatsApp Chat Upload] Error al guardar archivo", { message: err.message, code: err.code });
+			return res.status(500).json({ message: "Error al guardar archivo" });
+		}
+		if (!req.file) return res.status(400).json({ message: "Archivo no enviado" });
+		return next();
+	});
+}, subirImagen);
 
 //router.post("/webhook/:token", whatsappWebhook);
 router.post("/webhook", whatsappWebhook);

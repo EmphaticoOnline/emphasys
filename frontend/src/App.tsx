@@ -41,6 +41,9 @@ import FinanzasPage from './pages/FinanzasPage';
 import ContabilidadPage from './pages/ContabilidadPage';
 import { Outlet } from 'react-router-dom';
 import InventarioMovimientosPage from './pages/InventarioMovimientosPage';
+import RecalculoInventarioPage from './pages/RecalculoInventarioPage';
+import InventarioAlmacenesPage from './pages/InventarioAlmacenesPage';
+import InventarioAlmacenFormPage from './pages/InventarioAlmacenFormPage';
 import InventarioMovimientoFormPage from './pages/InventarioMovimientoFormPage';
 import CRMPage from './pages/CRMPage';
 import EvaluacionVendedoresPage from './pages/EvaluacionVendedoresPage';
@@ -101,6 +104,7 @@ import NotaCreditoMockupPage from './dev-mockups/nota-credito/NotaCreditoMockupP
 import NotasCreditoWorkspaceMockupPage from './dev-mockups/notas-credito-workspace/NotasCreditoWorkspaceMockupPage';
 import NotasCreditoWorkspacePropuesta2 from './dev-mockups/notas-credito-workspace/NotasCreditoWorkspacePropuesta2';
 import IdentidadErpMockupPage from './dev-mockups/identidad-erp/IdentidadErpMockupPage';
+import AlmacenesPrototipoPage from './dev-mockups/almacenes/AlmacenesPrototipoPage';
 
 export default function App() {
   const compassHost = isCompassHostname(window.location.hostname);
@@ -116,6 +120,11 @@ export default function App() {
         <Route path="/dev/mockups/notas-credito" element={<NotasCreditoWorkspaceMockupPage />} />
         <Route path="/dev/mockups/notas-credito-2" element={<NotasCreditoWorkspacePropuesta2 />} />
         <Route path="/dev/mockups/identidad" element={<IdentidadErpMockupPage />} />
+        <Route path="/dev/mockups/almacenes" element={<AlmacenesPrototipoPage />}>
+          <Route index element={null} />
+          <Route path="nuevo" element={null} />
+          <Route path=":id" element={null} />
+        </Route>
 
         <Route element={<RequireAuth />}>
           <Route path="/compass" element={<CompassLayout />}>
@@ -191,7 +200,12 @@ export default function App() {
               <Route path="/finanzas/programacion-pagos" element={<ProgramacionPagosPage />} />
               <Route path="/finanzas/conciliacion-bancaria" element={<ConciliacionBancariaPage />} />
               <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
+              <Route path="/inventario/almacenes" element={<InventarioAlmacenesPage />} />
+              <Route path="/inventario/almacenes/nuevo" element={<InventarioAlmacenFormPage />} />
+              <Route path="/inventario/almacenes/:id" element={<InventarioAlmacenFormPage />} />
+              <Route path="/inventario/recalcular" element={<RecalculoInventarioPage />} />
               <Route path="/inventario/movimientos/nuevo" element={<InventarioMovimientoFormPage />} />
+              <Route path="/inventario/movimientos/:movimientoId/editar" element={<InventarioMovimientoFormPage />} />
               <Route path="/informes" element={<InformesPage />} />
               <Route path="/informes/resumen-ejecutivo" element={<ResumenEjecutivoPage />} />
               <Route path="/informes/ia" element={<AIReportesPage />} />

@@ -2308,7 +2308,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     )}
                     {isUploadingImage && (
                       <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
-                        {uploadFileType === 'audio' ? 'Subiendo audio...' : 'Subiendo imagen...'}
+                        {uploadFileType === 'audio' ? 'Subiendo audio...' : 'Subiendo archivo...'}
                       </Typography>
                     )}
                     {uploadError && (

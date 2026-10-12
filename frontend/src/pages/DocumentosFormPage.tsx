@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../services/apiFetch';
+import { origenDesdeEstado, PRODUCTOS_ORIGEN_STATE } from '../modules/productos/productosOrigenNavegacion';
 import {
   Alert,
   AlertTitle,
@@ -2898,7 +2899,7 @@ export default function DocumentosFormPage({
         setDocumentoPersistidoId(docId);
         const nextPath = resolveDocumentoFormPath(tipoDocumento, docId, moduloDocumento);
         if (!embedded && location.pathname !== nextPath) {
-          navigate(nextPath, { replace: true });
+          navigate(nextPath, { replace: true, state: location.state });
         }
         void loadAnticiposResumen(docId);
         if (showSuccessMessage) {
@@ -2992,7 +2993,7 @@ export default function DocumentosFormPage({
 
       const nextPath = resolveDocumentoFormPath(tipoDocumento, docId, moduloDocumento);
       if (!embedded && location.pathname !== nextPath) {
-        navigate(nextPath, { replace: true });
+        navigate(nextPath, { replace: true, state: location.state });
       }
 
       void loadAnticiposResumen(docId);
@@ -3758,7 +3759,7 @@ export default function DocumentosFormPage({
           pathname: location.pathname,
           search: nextSearch ? `?${nextSearch}` : '',
         },
-        { replace: true }
+        { replace: true, state: location.state }
       );
     }
     void loadDocumento();
@@ -3790,8 +3791,14 @@ export default function DocumentosFormPage({
       setSnackbar({ open: true, message: 'Cambios guardados antes de salir.', severity: 'success' });
     }
 
+    const origenProducto = origenDesdeEstado(location.state);
+    if (origenProducto) {
+      navigate('/productos', { state: { [PRODUCTOS_ORIGEN_STATE]: origenProducto } });
+      return;
+    }
+
     navigate(basePath, { replace: true });
-  }, [basePath, documentoActualId, hasAnticiposRegistrados, navigate, persistDocumento]);
+  }, [basePath, documentoActualId, hasAnticiposRegistrados, location.state, navigate, persistDocumento]);
 
   const handleCloseAnticipoDialog = useCallback(() => {
     setOpenAnticipoDialog(false);

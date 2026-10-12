@@ -579,6 +579,18 @@ export const sendDocumentMessage = async (
     return response.data;
   } catch (error: any) {
     logWhatsappSendError("document", error);
+    console.error('[WhatsApp Media][Gupshup Rechazo Documento]', {
+      endpoint: GUPSHUP_API_URL,
+      httpStatus: error?.response?.status ?? null,
+      responseData: error?.response?.data ?? null,
+      responseHeaders: error?.response?.headers
+        ? { 'content-type': error.response.headers['content-type'], 'x-request-id': error.response.headers['x-request-id'] }
+        : null,
+      filename: filename ?? null,
+      mediaUrl: typeof mediaUrl === 'string' ? mediaUrl.split('?')[0] : mediaUrl,
+      errorCode: error?.code ?? null,
+      errorMessage: error?.message ?? String(error),
+    });
     throw error;
   }
 };

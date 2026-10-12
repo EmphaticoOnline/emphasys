@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-10-08T15:14:03.175Z
+-- Generated at: 2026-10-10T18:41:36.486Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict JiVO5WuCy76tJT9pUQKReBHTh3TqSAjOvuiqukc71Zatt1HvZgYLBxTa1BFMr0r
+\restrict 6Ryq5TXcuSBi0cj06OVCROIPP0T9glzuhOZkhojRC7vKdAhEiiIZ87tsMleH2K4
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -90,6 +90,34 @@ CREATE SCHEMA mantenimiento;
 --
 
 CREATE SCHEMA migrate;
+
+
+--
+-- Name: ops_backup_empresa_8_20261008092128388; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA ops_backup_empresa_8_20261008092128388;
+
+
+--
+-- Name: ops_backup_empresa_8_20261008092532102; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA ops_backup_empresa_8_20261008092532102;
+
+
+--
+-- Name: ops_backup_empresa_8_20261008092712888; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA ops_backup_empresa_8_20261008092712888;
+
+
+--
+-- Name: ops_backup_empresa_8_20261008092949988; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA ops_backup_empresa_8_20261008092949988;
 
 
 --
@@ -703,103 +731,252 @@ CREATE FUNCTION inventario.aplicar_movimiento(p_empresa_id integer, p_tipo_movim
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  v_movimiento_id         BIGINT;
-  v_partida               JSONB;
-  v_producto_id           INTEGER;
-  v_almacen_id            INTEGER;
-  v_cantidad              NUMERIC(18,6);
-  v_signo                 SMALLINT;
-  v_tipo_partida          VARCHAR(25);
-  v_costo_unitario        NUMERIC(18,6);
-  v_almacen_destino_id    INTEGER;
-  v_doc_partida_id        INTEGER;
-  v_existencia_actual     NUMERIC(18,6);
-  v_existencia_resultante NUMERIC(18,6);
+  mov bigint;
+  p jsonb;
+  prod integer;
+  source integer;
+  dest integer;
+  qty numeric;
+  sentido text;
+  affected integer[] := '{}';
 BEGIN
-  INSERT INTO inventario.movimientos (
-    empresa_id,
-    tipo_movimiento,
-    fecha,
-    usuario_id,
-    documento_id,
-    observaciones
-  ) VALUES (
-    p_empresa_id,
-    p_tipo_movimiento,
-    p_fecha,
-    p_usuario_id,
-    p_documento_id,
-    p_observaciones
-  ) RETURNING id INTO v_movimiento_id;
+  IF jsonb_array_length(p_partidas) = 0 THEN
+    RAISE EXCEPTION 'SIN_PARTIDAS' USING ERRCODE='P0001';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('inventario:' || p_empresa_id::text, 0));
+  INSERT INTO inventario.movimientos(empresa_id, tipo_movimiento, fecha, usuario_id, documento_id, observaciones)
+  VALUES (p_empresa_id, p_tipo_movimiento, p_fecha, p_usuario_id, p_documento_id, p_observaciones)
+  RETURNING id INTO mov;
 
-  FOR v_partida IN SELECT * FROM jsonb_array_elements(p_partidas) LOOP
-    v_producto_id        := (v_partida->>'producto_id')::INTEGER;
-    v_almacen_id         := (v_partida->>'almacen_id')::INTEGER;
-    v_cantidad           := (v_partida->>'cantidad')::NUMERIC;
-    v_signo              := (v_partida->>'signo')::SMALLINT;
-    v_tipo_partida       := COALESCE(v_partida->>'tipo_partida', 'normal');
-    v_costo_unitario     := (v_partida->>'costo_unitario')::NUMERIC;
-    v_almacen_destino_id := (v_partida->>'almacen_destino_id')::INTEGER;
-    v_doc_partida_id     := (v_partida->>'documento_partida_id')::INTEGER;
+  FOR p IN SELECT * FROM jsonb_array_elements(p_partidas) LOOP
+    prod := (p->>'producto_id')::integer;
+    source := (p->>'almacen_id')::integer;
+    dest := nullif(p->>'almacen_destino_id', '')::integer;
+    qty := (p->>'cantidad')::numeric;
+    sentido := coalesce(p->>'sentido', CASE WHEN (p->>'signo') = '1' THEN 'entrada' ELSE 'salida' END);
+    IF qty IS NULL OR qty <= 0 THEN RAISE EXCEPTION 'CANTIDAD_INVALIDA' USING ERRCODE='P0001'; END IF;
+    IF sentido = 'transferencia' AND (dest IS NULL OR dest = source) THEN RAISE EXCEPTION 'ALMACEN_DESTINO_INVALIDO' USING ERRCODE='P0001'; END IF;
+    IF sentido = 'entrada' THEN
+      INSERT INTO inventario.movimientos_partidas(empresa_id,movimiento_id,producto_id,almacen_id,fecha_movimiento,cantidad,signo,tipo_partida,costo_unitario,existencia_resultante)
+      VALUES(p_empresa_id,mov,prod,source,p_fecha,qty,1,'normal',nullif(p->>'costo_unitario','')::numeric,0);
+    ELSIF sentido = 'salida' THEN
+      INSERT INTO inventario.movimientos_partidas(empresa_id,movimiento_id,producto_id,almacen_id,fecha_movimiento,cantidad,signo,tipo_partida,existencia_resultante)
+      VALUES(p_empresa_id,mov,prod,source,p_fecha,qty,-1,'normal',0);
+    ELSE
+      INSERT INTO inventario.movimientos_partidas(empresa_id,movimiento_id,producto_id,almacen_id,almacen_destino_id,fecha_movimiento,cantidad,signo,tipo_partida,existencia_resultante)
+      VALUES(p_empresa_id,mov,prod,source,dest,p_fecha,qty,-1,'salida_transferencia',0);
+    END IF;
+    IF NOT prod = ANY(affected) THEN affected := array_append(affected, prod); END IF;
+  END LOOP;
+  FOREACH prod IN ARRAY affected LOOP
+    PERFORM inventario.reconstruir_producto(p_empresa_id, prod);
+  END LOOP;
+  RETURN mov;
+END $$;
 
-    SELECT existencia
-      INTO v_existencia_actual
-      FROM inventario.existencias
-     WHERE empresa_id  = p_empresa_id
-       AND producto_id = v_producto_id
-       AND almacen_id  = v_almacen_id
-     FOR UPDATE;
 
-    v_existencia_actual     := COALESCE(v_existencia_actual, 0);
-    v_existencia_resultante := v_existencia_actual + (v_cantidad * v_signo);
+--
+-- Name: aplicar_movimiento(integer, character varying, date, integer, integer, text, jsonb, integer); Type: FUNCTION; Schema: inventario; Owner: -
+--
 
-    INSERT INTO inventario.movimientos_partidas (
-      empresa_id,
-      movimiento_id,
-      documento_partida_id,
-      producto_id,
-      almacen_id,
-      almacen_destino_id,
-      fecha_movimiento,
-      cantidad,
-      signo,
-      tipo_partida,
-      costo_unitario,
-      existencia_resultante
-    ) VALUES (
-      p_empresa_id,
-      v_movimiento_id,
-      v_doc_partida_id,
-      v_producto_id,
-      v_almacen_id,
-      v_almacen_destino_id,
-      p_fecha,
-      v_cantidad,
-      v_signo,
-      v_tipo_partida,
-      v_costo_unitario,
-      v_existencia_resultante
-    );
+CREATE FUNCTION inventario.aplicar_movimiento(p_empresa_id integer, p_tipo_movimiento character varying, p_fecha date, p_usuario_id integer, p_documento_id integer, p_observaciones text, p_partidas jsonb, p_contacto_id integer) RETURNS bigint
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  mov bigint;
+  p jsonb;
+  prod integer;
+  source integer;
+  dest integer;
+  qty numeric;
+  sentido text;
+  affected integer[] := '{}';
+BEGIN
+  IF jsonb_typeof(p_partidas) <> 'array' OR jsonb_array_length(p_partidas) = 0 THEN
+    RAISE EXCEPTION 'SIN_PARTIDAS' USING ERRCODE = 'P0001';
+  END IF;
 
-    INSERT INTO inventario.existencias (
-      empresa_id,
-      producto_id,
-      almacen_id,
-      existencia,
-      updated_at
-    ) VALUES (
-      p_empresa_id,
-      v_producto_id,
-      v_almacen_id,
-      v_existencia_resultante,
-      now()
-    ) ON CONFLICT (empresa_id, producto_id, almacen_id)
-      DO UPDATE SET
-        existencia = v_existencia_resultante,
-        updated_at = now();
+  PERFORM pg_advisory_xact_lock(hashtextextended('inventario:' || p_empresa_id::text, 0));
+
+  INSERT INTO inventario.movimientos
+    (empresa_id, tipo_movimiento, fecha, usuario_id, documento_id, observaciones, contacto_id)
+  VALUES
+    (p_empresa_id, p_tipo_movimiento, p_fecha, p_usuario_id, p_documento_id, p_observaciones, p_contacto_id)
+  RETURNING id INTO mov;
+
+  FOR p IN SELECT value FROM jsonb_array_elements(p_partidas) LOOP
+    prod := (p->>'producto_id')::integer;
+    source := (p->>'almacen_id')::integer;
+    dest := nullif(p->>'almacen_destino_id', '')::integer;
+    qty := (p->>'cantidad')::numeric;
+    sentido := lower(coalesce(p->>'sentido', CASE WHEN (p->>'signo') = '1' THEN 'entrada' ELSE 'salida' END));
+
+    IF prod IS NULL OR source IS NULL OR qty IS NULL OR qty <= 0 THEN
+      RAISE EXCEPTION 'PARTIDA_INVALIDA' USING ERRCODE = 'P0001';
+    END IF;
+
+    IF sentido = 'transferencia' THEN
+      IF dest IS NULL OR dest = source THEN
+        RAISE EXCEPTION 'ALMACEN_DESTINO_INVALIDO' USING ERRCODE = 'P0001';
+      END IF;
+
+      -- Una transferencia siempre se representa por las dos partidas.
+      INSERT INTO inventario.movimientos_partidas
+        (empresa_id, movimiento_id, producto_id, almacen_id, almacen_destino_id,
+         fecha_movimiento, cantidad, signo, tipo_partida, existencia_resultante)
+      VALUES
+        (p_empresa_id, mov, prod, source, dest, p_fecha, qty, -1,
+         'salida_transferencia', 0);
+
+      INSERT INTO inventario.movimientos_partidas
+        (empresa_id, movimiento_id, producto_id, almacen_id, almacen_destino_id,
+         fecha_movimiento, cantidad, signo, tipo_partida, existencia_resultante)
+      VALUES
+        (p_empresa_id, mov, prod, dest, source, p_fecha, qty, 1,
+         'entrada_transferencia', 0);
+    ELSIF sentido = 'entrada' THEN
+      INSERT INTO inventario.movimientos_partidas
+        (empresa_id, movimiento_id, producto_id, almacen_id, fecha_movimiento,
+         cantidad, signo, tipo_partida, costo_unitario, existencia_resultante)
+      VALUES
+        (p_empresa_id, mov, prod, source, p_fecha, qty, 1, 'normal',
+         nullif(p->>'costo_unitario', '')::numeric, 0);
+    ELSIF sentido = 'salida' THEN
+      INSERT INTO inventario.movimientos_partidas
+        (empresa_id, movimiento_id, producto_id, almacen_id, fecha_movimiento,
+         cantidad, signo, tipo_partida, existencia_resultante)
+      VALUES
+        (p_empresa_id, mov, prod, source, p_fecha, qty, -1, 'normal', 0);
+    ELSE
+      RAISE EXCEPTION 'SENTIDO_INVALIDO: %', sentido USING ERRCODE = 'P0001';
+    END IF;
+
+    IF NOT prod = ANY(affected) THEN
+      affected := array_append(affected, prod);
+    END IF;
   END LOOP;
 
-  RETURN v_movimiento_id;
+  FOREACH prod IN ARRAY affected LOOP
+    PERFORM inventario.reconstruir_producto(p_empresa_id, prod);
+  END LOOP;
+
+  RETURN mov;
+END;
+$$;
+
+
+--
+-- Name: asignar_precision_partida(); Type: FUNCTION; Schema: inventario; Owner: -
+--
+
+CREATE FUNCTION inventario.asignar_precision_partida() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  empresa_id_mov bigint;
+  dec_cantidad integer;
+  dec_costo integer;
+BEGIN
+  SELECT m.empresa_id INTO empresa_id_mov
+    FROM inventario.movimientos m WHERE m.id = NEW.movimiento_id;
+  SELECT COALESCE(pe.valor, p.valor_default)::integer INTO dec_cantidad
+    FROM core.parametros p LEFT JOIN core.parametros_empresa pe
+      ON pe.parametro_id = p.parametro_id AND pe.empresa_id = empresa_id_mov
+   WHERE p.clave = 'decimales_cantidades' LIMIT 1;
+  SELECT COALESCE(pe.valor, p.valor_default)::integer INTO dec_costo
+    FROM core.parametros p LEFT JOIN core.parametros_empresa pe
+      ON pe.parametro_id = p.parametro_id AND pe.empresa_id = empresa_id_mov
+   WHERE p.clave = 'decimales_costos' LIMIT 1;
+  NEW.precision_cantidad := CASE WHEN NEW.precision_cantidad BETWEEN 0 AND 6 THEN NEW.precision_cantidad ELSE COALESCE(dec_cantidad, 6) END;
+  NEW.precision_costo := CASE WHEN NEW.precision_costo BETWEEN 0 AND 6 THEN NEW.precision_costo ELSE COALESCE(dec_costo, 6) END;
+  NEW.cantidad := round(NEW.cantidad, NEW.precision_cantidad);
+  IF NEW.costo_unitario IS NOT NULL THEN NEW.costo_unitario := round(NEW.costo_unitario, NEW.precision_costo); END IF;
+  RETURN NEW;
+END $$;
+
+
+--
+-- Name: reconstruir_producto(integer, integer); Type: FUNCTION; Schema: inventario; Owner: -
+--
+
+CREATE FUNCTION inventario.reconstruir_producto(p_empresa_id integer, p_producto_id integer) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE r record; q numeric(24,6); v numeric(24,6); avgc numeric(24,6);
+  outcost numeric(24,6); cantidad_calc numeric(24,6); valor_calc numeric(24,6);
+  permite_negativos boolean;
+BEGIN
+  UPDATE inventario.movimientos_partidas mp SET existencia_resultante=0, valor_movimiento=NULL,
+    costo_promedio_resultante=NULL, secuencia_operativa=NULL
+   FROM inventario.movimientos m WHERE m.id=mp.movimiento_id AND m.empresa_id=mp.empresa_id
+    AND mp.empresa_id=p_empresa_id AND mp.producto_id=p_producto_id
+    AND COALESCE(m.estatus_afectacion,1)<>1;
+  SELECT lower(coalesce(pe.valor,p.valor_default,'false')) IN ('1','true','t','yes','si','sí','on')
+    INTO permite_negativos FROM core.parametros p LEFT JOIN core.parametros_empresa pe
+      ON pe.parametro_id=p.parametro_id AND pe.empresa_id=p_empresa_id
+   WHERE p.clave='inventario.permite_negativos' LIMIT 1;
+  permite_negativos:=coalesce(permite_negativos,false);
+  UPDATE inventario.existencias SET existencia=0,updated_at=now()
+   WHERE empresa_id=p_empresa_id AND producto_id=p_producto_id;
+  CREATE TEMP TABLE IF NOT EXISTS pg_temp.inv_saldos_recalc(almacen_id integer PRIMARY KEY,
+    existencia numeric(24,6),valor numeric(24,6),ultimo_costo numeric(24,6)) ON COMMIT DROP;
+  TRUNCATE pg_temp.inv_saldos_recalc;
+  FOR r IN SELECT mp.id,mp.movimiento_id,m.fecha,mp.almacen_id,mp.almacen_destino_id,mp.cantidad,
+      mp.signo,mp.tipo_partida,mp.costo_unitario,coalesce(mp.precision_cantidad,6) precision_cantidad,
+      coalesce(mp.precision_costo,6) precision_costo,row_number() over(order by m.fecha,m.id,
+        CASE WHEN mp.tipo_partida='salida_transferencia' THEN 0 ELSE 1 END,mp.id) seq
+    FROM inventario.movimientos_partidas mp JOIN inventario.movimientos m
+      ON m.id=mp.movimiento_id AND m.empresa_id=mp.empresa_id
+   WHERE mp.empresa_id=p_empresa_id AND mp.producto_id=p_producto_id
+     AND coalesce(m.estatus_afectacion,1)=1
+   ORDER BY m.fecha,m.id,CASE WHEN mp.tipo_partida='salida_transferencia' THEN 0 ELSE 1 END,mp.id LOOP
+    INSERT INTO pg_temp.inv_saldos_recalc VALUES(r.almacen_id,0,0,NULL) ON CONFLICT DO NOTHING;
+    SELECT existencia,valor,ultimo_costo INTO q,v,outcost FROM pg_temp.inv_saldos_recalc WHERE almacen_id=r.almacen_id FOR UPDATE;
+    cantidad_calc:=round(r.cantidad,r.precision_cantidad);
+    IF r.tipo_partida='entrada_transferencia' THEN
+      SELECT round(x.costo_unitario,r.precision_costo) INTO outcost FROM inventario.movimientos_partidas x
+       WHERE x.movimiento_id=r.movimiento_id AND x.producto_id=p_producto_id
+         AND x.tipo_partida='salida_transferencia' AND x.costo_unitario IS NOT NULL ORDER BY x.id LIMIT 1;
+      IF outcost IS NULL THEN RAISE EXCEPTION 'COSTO_TRANSFERENCIA_NO_DISPONIBLE: producto %',p_producto_id USING ERRCODE='P0001'; END IF;
+    ELSIF r.signo<0 THEN
+      IF NOT permite_negativos AND q<cantidad_calc THEN RAISE EXCEPTION 'EXISTENCIA_INSUFICIENTE: producto %, almacén %, disponible %, solicitado %',p_producto_id,r.almacen_id,q,cantidad_calc USING ERRCODE='P0001'; END IF;
+      outcost:=CASE WHEN q<>0 THEN round(v/q,r.precision_costo) ELSE outcost END;
+      IF outcost IS NULL THEN RAISE EXCEPTION 'COSTO_NO_DISPONIBLE: producto %, almacén %',p_producto_id,r.almacen_id USING ERRCODE='P0001'; END IF;
+    ELSE
+      IF r.costo_unitario IS NULL OR r.costo_unitario<0 THEN RAISE EXCEPTION 'COSTO_ENTRADA_REQUERIDO: producto %, partida %',p_producto_id,r.id USING ERRCODE='P0001'; END IF;
+      outcost:=round(r.costo_unitario,r.precision_costo);
+    END IF;
+    valor_calc:=round(cantidad_calc*outcost,r.precision_costo);
+    q:=round(q+cantidad_calc*r.signo,r.precision_cantidad); v:=round(v+valor_calc*r.signo,r.precision_costo);
+    avgc:=CASE WHEN q<>0 THEN round(v/q,r.precision_costo) ELSE outcost END;
+    UPDATE pg_temp.inv_saldos_recalc SET existencia=q,valor=v,ultimo_costo=outcost WHERE almacen_id=r.almacen_id;
+    UPDATE inventario.movimientos_partidas SET costo_unitario=CASE WHEN r.tipo_partida='entrada_transferencia' THEN outcost ELSE CASE WHEN r.signo<0 THEN outcost ELSE costo_unitario END END,
+      valor_movimiento=valor_calc*r.signo,existencia_resultante=q,costo_promedio_resultante=avgc,secuencia_operativa=r.seq WHERE id=r.id;
+  END LOOP;
+  FOR r IN SELECT almacen_id,existencia FROM pg_temp.inv_saldos_recalc LOOP
+    INSERT INTO inventario.existencias(empresa_id,producto_id,almacen_id,existencia,updated_at) VALUES(p_empresa_id,p_producto_id,r.almacen_id,r.existencia,now())
+      ON CONFLICT(empresa_id,producto_id,almacen_id) DO UPDATE SET existencia=excluded.existencia,updated_at=now();
+  END LOOP;
+END $$;
+
+
+--
+-- Name: validar_movimiento_contacto_empresa(); Type: FUNCTION; Schema: inventario; Owner: -
+--
+
+CREATE FUNCTION inventario.validar_movimiento_contacto_empresa() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.contacto_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1
+      FROM public.contactos c
+     WHERE c.id = NEW.contacto_id
+       AND c.empresa_id = NEW.empresa_id
+  ) THEN
+    RAISE EXCEPTION 'CONTACTO_EMPRESA_INVALIDO' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -7530,7 +7707,18 @@ CREATE TABLE inventario.movimientos (
     observaciones text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
-    es_reversion boolean DEFAULT false NOT NULL
+    es_reversion boolean DEFAULT false NOT NULL,
+    contacto_id integer,
+    serie character varying(20),
+    numero bigint,
+    estatus_afectacion smallint DEFAULT 1 NOT NULL,
+    afectado_at timestamp with time zone,
+    afectado_por integer,
+    desafectado_at timestamp with time zone,
+    desafectado_por integer,
+    motivo_desafectacion text,
+    movimiento_origen_id bigint,
+    CONSTRAINT chk_inv_mov_estatus_afectacion CHECK ((estatus_afectacion = ANY (ARRAY[0, 1])))
 );
 
 
@@ -7612,6 +7800,13 @@ COMMENT ON COLUMN inventario.movimientos.es_reversion IS 'Indica si el movimient
 
 
 --
+-- Name: COLUMN movimientos.contacto_id; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.contacto_id IS 'Contacto asociado al movimiento al momento de su registro; NULL para movimientos sin contacto.';
+
+
+--
 -- Name: movimientos_id_seq; Type: SEQUENCE; Schema: inventario; Owner: -
 --
 
@@ -7649,6 +7844,11 @@ CREATE TABLE inventario.movimientos_partidas (
     costo_unitario numeric(18,6),
     existencia_resultante numeric(18,6) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    valor_movimiento numeric(24,6),
+    costo_promedio_resultante numeric(24,6),
+    secuencia_operativa bigint,
+    precision_cantidad smallint,
+    precision_costo smallint,
     CONSTRAINT chk_inv_part_cantidad CHECK ((cantidad > (0)::numeric)),
     CONSTRAINT chk_inv_part_signo CHECK ((signo = ANY (ARRAY['-1'::integer, 1]))),
     CONSTRAINT chk_inv_part_tipo CHECK (((tipo_partida)::text = ANY (ARRAY[('normal'::character varying)::text, ('salida_transferencia'::character varying)::text, ('entrada_transferencia'::character varying)::text])))
@@ -8052,6 +8252,6086 @@ CREATE VIEW migrate.v_productos_legacy_supplier AS
     migrate.to_numeric_legacy((productos_legacy_supplier_json.data ->> 'PRD:FactorDemanda'::text)) AS factor_demanda,
     productos_legacy_supplier_json.data AS raw_data
    FROM migrate.productos_legacy_supplier_json;
+
+
+--
+-- Name: contabilidad__contabilizaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.contabilidad__contabilizaciones (
+    id bigint,
+    empresa_id bigint,
+    poliza_id bigint,
+    tipo_movimiento character varying(20),
+    tipo_documento character varying(30),
+    documento_id bigint,
+    operacion_dinero_id integer,
+    movimiento_inventario_id bigint,
+    evento_contable character varying(20),
+    modo_contabilizacion character varying(20),
+    fecha_documento date,
+    fecha_contabilizacion timestamp with time zone,
+    usuario_id integer,
+    es_reversa boolean,
+    contabilizacion_origen_id bigint,
+    comentario character varying(500),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__cuentas_saldos_mensuales; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.contabilidad__cuentas_saldos_mensuales (
+    id bigint,
+    empresa_id bigint,
+    cuenta_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    cargos numeric(19,2),
+    abonos numeric(19,2),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__documentos_polizas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.contabilidad__documentos_polizas (
+    id bigint,
+    empresa_id bigint,
+    documento_id bigint,
+    poliza_id bigint,
+    tipo character varying(20),
+    documento_poliza_original_id bigint,
+    codigo_poliza_legacy character varying(16),
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__e_contabilidad_paquetes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.contabilidad__e_contabilidad_paquetes (
+    id bigint,
+    empresa_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    nombre_zip character varying(255),
+    archivos_incluidos jsonb,
+    parametros jsonb,
+    resumen jsonb,
+    hash_zip character varying(128),
+    hash_algoritmo character varying(20),
+    generado_por bigint,
+    generado_en timestamp with time zone,
+    observaciones text,
+    estatus character varying(30),
+    enviado_sat boolean,
+    enviado_sat_en timestamp with time zone,
+    acuse_sat text
+);
+
+
+--
+-- Name: contabilidad__polizas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.contabilidad__polizas (
+    id bigint,
+    empresa_id bigint,
+    codigo_legacy character varying(16),
+    tipo_poliza_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    numero integer,
+    fecha date,
+    estatus character varying(20),
+    referencia character varying(100),
+    observaciones text,
+    total_cargos numeric(19,2),
+    total_abonos numeric(19,2),
+    modulo_origen character varying(30),
+    almacen_id bigint,
+    uuid_cfdi uuid,
+    creada_por_id bigint,
+    modificada_por_id bigint,
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__polizas_detalle; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.contabilidad__polizas_detalle (
+    id bigint,
+    empresa_id bigint,
+    poliza_id bigint,
+    renglon integer,
+    cuenta_id bigint,
+    concepto_id bigint,
+    cargo numeric(19,2),
+    abono numeric(19,2),
+    fecha date,
+    uuid_cfdi uuid,
+    rfc character varying(13),
+    cuenta_legacy character varying(64),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone,
+    concepto_texto character varying(200)
+);
+
+
+--
+-- Name: core__cfdi_sat_autorizaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.core__cfdi_sat_autorizaciones (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    version_texto character varying(20),
+    aceptado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_bitacora; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.core__cfdi_sat_bitacora (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    accion character varying(40),
+    resultado character varying(10),
+    detalle text,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_comprobantes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.core__cfdi_sat_comprobantes (
+    id integer,
+    empresa_id integer,
+    solicitud_id integer,
+    paquete_id integer,
+    uuid character varying(36),
+    rfc_emisor character varying(13),
+    rfc_receptor character varying(13),
+    nombre_emisor character varying(300),
+    nombre_receptor character varying(300),
+    fecha_emision timestamp without time zone,
+    tipo_comprobante character varying(1),
+    total numeric(15,2),
+    moneda character varying(3),
+    estatus_sat character varying(10),
+    tipo_descarga character varying(10),
+    xml_path character varying(500),
+    importado_compras boolean,
+    documento_id integer,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_paquetes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.core__cfdi_sat_paquetes (
+    id integer,
+    solicitud_id integer,
+    sat_package_id character varying(80),
+    estatus character varying(20),
+    zip_path character varying(500),
+    descargado_en timestamp with time zone,
+    mensaje_error text,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_solicitudes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.core__cfdi_sat_solicitudes (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    tipo_descarga character varying(10),
+    fecha_inicio date,
+    fecha_fin date,
+    tipo_solicitud character varying(10),
+    estatus_comprobante character varying(10),
+    sat_request_id character varying(80),
+    estatus character varying(20),
+    mensaje_error text,
+    creado_en timestamp with time zone,
+    solicitado_en timestamp with time zone,
+    cfdis_encontrados integer,
+    verificado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__actividades; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.crm__actividades (
+    id integer,
+    empresa_id integer,
+    usuario_asignado_id integer,
+    usuario_creador_id integer,
+    oportunidad_id integer,
+    tipo_actividad character varying(30),
+    fecha_programada timestamp without time zone,
+    observaciones text,
+    estatus character varying(20),
+    fecha_realizacion timestamp without time zone,
+    resultado text,
+    recordatorio boolean,
+    recordatorio_minutos integer,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone,
+    recordatorio_disparado_at timestamp without time zone,
+    contacto_id integer,
+    recordatorio_erp_claimed_at timestamp without time zone,
+    recordatorio_erp_claimed_by character varying(120),
+    recordatorio_erp_entregado_at timestamp without time zone,
+    recordatorio_push_claimed_at timestamp without time zone,
+    recordatorio_push_entregado_at timestamp without time zone,
+    recordatorio_push_ultimo_intento_at timestamp without time zone,
+    recordatorio_push_error text,
+    descripcion text
+);
+
+
+--
+-- Name: crm__conversacion_etiquetas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.crm__conversacion_etiquetas (
+    id integer,
+    empresa_id integer,
+    conversacion_id integer,
+    etiqueta_id integer,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: crm__conversaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.crm__conversaciones (
+    id bigint,
+    empresa_id integer,
+    contacto_id integer,
+    estado character varying(20),
+    asignado_a integer,
+    creada_en timestamp with time zone,
+    ultimo_mensaje_en timestamp with time zone,
+    cerrada_en timestamp with time zone,
+    prioridad character varying(10),
+    siguiente_accion character varying(30),
+    etapa_oportunidad character varying(30),
+    finalizada_en timestamp with time zone,
+    finalizada_por integer,
+    motivo_finalizacion character varying(40),
+    observaciones_finalizacion text,
+    reactivada_en timestamp with time zone,
+    reactivada_por_evento character varying(30)
+);
+
+
+--
+-- Name: crm__conversaciones_lecturas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.crm__conversaciones_lecturas (
+    empresa_id integer,
+    usuario_id integer,
+    conversacion_id bigint,
+    ultima_lectura_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__mensaje_reacciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.crm__mensaje_reacciones (
+    id bigint,
+    empresa_id integer,
+    mensaje_id bigint,
+    autor character varying(10),
+    usuario_id integer,
+    emoji character varying(16),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__mensajes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.crm__mensajes (
+    id bigint,
+    empresa_id integer,
+    contacto_id integer,
+    conversacion_id bigint,
+    telefono character varying(20),
+    tipo_mensaje character varying(20),
+    canal character varying(50),
+    contenido text,
+    plantilla_nombre character varying(100),
+    fecha_envio timestamp with time zone,
+    status character varying(20),
+    id_externo character varying(100),
+    intentos_envio integer,
+    respuesta_json jsonb,
+    creado_en timestamp with time zone,
+    tipo_contenido character varying(20),
+    media_url text,
+    mime_type character varying(100),
+    caption text,
+    email_from character varying(150),
+    email_to character varying(150),
+    email_subject character varying(200),
+    email_cc character varying(200),
+    email_bcc character varying(200),
+    in_reply_to character varying(150),
+    mensaje_respuesta_id bigint,
+    autor_usuario_id integer,
+    autor_vendedor_contacto_id integer,
+    responsabilidad_contacto_id bigint,
+    origen_envio character varying(30)
+);
+
+
+--
+-- Name: crm__meta_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.crm__meta_leads (
+    id bigint,
+    empresa_id integer,
+    leadgen_id text,
+    page_id text,
+    form_id text,
+    form_name text,
+    created_time text,
+    ad_id text,
+    campaign_id text,
+    campaign_name text,
+    field_names jsonb,
+    estado text,
+    intentos integer,
+    ultimo_error text,
+    proximo_reintento_at timestamp without time zone,
+    contacto_id integer,
+    actividad_id integer,
+    recibido_at timestamp without time zone,
+    procesado_at timestamp without time zone,
+    actualizado_at timestamp without time zone,
+    field_data jsonb
+);
+
+
+--
+-- Name: crm__oportunidades_venta; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.crm__oportunidades_venta (
+    id integer,
+    empresa_id integer,
+    conversacion_id integer,
+    contacto_id integer,
+    vendedor_id integer,
+    estatus character varying(20),
+    etapa character varying(50),
+    cotizacion_principal_id integer,
+    fecha_estimada_decision date,
+    fecha_reactivacion_estimada date,
+    dolor_validado boolean,
+    presupuesto_validado boolean,
+    contacto_es_decisor boolean,
+    comentarios_no_cierre text,
+    observaciones text,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+--
+-- Name: documentacion__adjuntos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.documentacion__adjuntos (
+    id integer,
+    empresa_id integer,
+    tipo_id integer,
+    nombre_original character varying(255),
+    fecha_vencimiento date,
+    comentarios text,
+    mime_type character varying(120),
+    tamano bigint,
+    storage_key text,
+    creado_por integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: documentacion__adjuntos_entidades; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.documentacion__adjuntos_entidades (
+    adjunto_id integer,
+    empresa_documentada_id integer,
+    documento_id integer,
+    contacto_id integer,
+    finanzas_operacion_id integer
+);
+
+
+--
+-- Name: inventario__existencias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.inventario__existencias (
+    id bigint,
+    empresa_id integer,
+    producto_id integer,
+    almacen_id integer,
+    existencia numeric(18,6),
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: inventario__movimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.inventario__movimientos (
+    id bigint,
+    empresa_id bigint,
+    documento_id bigint,
+    usuario_id bigint,
+    tipo_movimiento character varying(30),
+    fecha date,
+    observaciones text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    es_reversion boolean
+);
+
+
+--
+-- Name: inventario__movimientos_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.inventario__movimientos_partidas (
+    id bigint,
+    empresa_id integer,
+    movimiento_id bigint,
+    documento_partida_id integer,
+    producto_id integer,
+    almacen_id integer,
+    almacen_destino_id integer,
+    fecha_movimiento date,
+    cantidad numeric(18,6),
+    signo smallint,
+    tipo_partida character varying(25),
+    costo_unitario numeric(18,6),
+    existencia_resultante numeric(18,6),
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: produccion__seguimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.produccion__seguimientos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    etapa_id integer,
+    fecha_promesa date,
+    comentarios text,
+    updated_by integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    activo boolean
+);
+
+
+--
+-- Name: public__aplicaciones_saldo; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__aplicaciones_saldo (
+    id integer,
+    empresa_id integer,
+    finanzas_operacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    monto numeric(15,2),
+    monto_moneda_documento numeric(15,2),
+    fecha_aplicacion timestamp with time zone,
+    fecha_creacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    created_by integer
+);
+
+
+--
+-- Name: public__audit_log; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__audit_log (
+    id bigint,
+    empresa_id bigint,
+    usuario_id bigint,
+    modulo character varying(100),
+    entidad character varying(100),
+    entidad_id character varying(100),
+    accion character varying(50),
+    descripcion text,
+    datos_anteriores jsonb,
+    datos_nuevos jsonb,
+    ip_address inet,
+    user_agent text,
+    origen character varying(50),
+    created_at timestamp with time zone,
+    usuario_nombre character varying(200),
+    empresa_nombre character varying(200),
+    motivo character varying(500),
+    metadata jsonb
+);
+
+
+--
+-- Name: public__autorizaciones_solicitudes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__autorizaciones_solicitudes (
+    id integer,
+    empresa_id integer,
+    regla_id integer,
+    documento_origen_id integer,
+    tipo_documento_origen character varying(60),
+    tipo_documento_destino character varying(60),
+    folio_documento_origen character varying(60),
+    monto numeric(18,4),
+    usuario_solicitante_id integer,
+    usuario_autorizador_id integer,
+    estado character varying(20),
+    comentario_solicitante text,
+    comentario_autorizador text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    respondido_at timestamp with time zone
+);
+
+
+--
+-- Name: public__cfdi_intentos_timbrado; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__cfdi_intentos_timbrado (
+    id bigint,
+    empresa_id integer,
+    documento_id integer,
+    proveedor character varying(50),
+    proveedor_cfdi_id character varying(100),
+    endpoint text,
+    estado character varying(40),
+    uuid character varying(36),
+    error_codigo character varying(100),
+    error_mensaje_sanitizado text,
+    intentos_descarga integer,
+    metadata_sanitizada jsonb,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__credito_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__credito_operaciones (
+    id integer,
+    empresa_id integer,
+    contacto_id integer,
+    documento_id integer,
+    tipo_operacion character varying(20),
+    fecha date,
+    monto numeric(15,2),
+    referencia character varying(100),
+    observaciones text,
+    usuario_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__credito_operaciones_aplicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__credito_operaciones_aplicaciones (
+    id integer,
+    empresa_id integer,
+    operacion_origen_id integer,
+    operacion_aplicada_id integer,
+    fecha date,
+    monto_aplicado numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__credito_operaciones_items; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__credito_operaciones_items (
+    id integer,
+    operacion_credito_id integer,
+    documento_id integer,
+    partida_id integer,
+    producto_id integer,
+    cantidad numeric(15,6),
+    monto numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__crm_ruteo_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__crm_ruteo_leads (
+    id integer,
+    empresa_id integer,
+    origen character varying(50),
+    modo_asignacion character varying(20),
+    vendedor_fijo_id integer,
+    ultimo_vendedor_id integer,
+    prioridad integer,
+    activo boolean,
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    fecha_actualizacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos (
+    id integer,
+    tipo_documento character varying(30),
+    estatus_documento character varying(30),
+    serie character varying(10),
+    numero integer,
+    empresa_id integer,
+    almacen_id integer,
+    contacto_principal_id integer,
+    contacto_facturacion_id integer,
+    contacto_entrega_id integer,
+    agente_id integer,
+    fecha_documento date,
+    fecha_vencimiento date,
+    fecha_entrega date,
+    fecha_cancelacion date,
+    moneda character varying(10),
+    tipo_cambio numeric(9,4),
+    subtotal numeric(15,2),
+    descuento_global numeric(9,4),
+    descuento numeric(15,2),
+    iva numeric(15,2),
+    ieps numeric(15,2),
+    retencion_iva numeric(15,2),
+    retencion_isr numeric(15,2),
+    total numeric(15,2),
+    saldo numeric(15,2),
+    domicilio_entrega_id integer,
+    fletera_id integer,
+    observaciones text,
+    comentarios_internos text,
+    documento_origen_id integer,
+    documento_padre_id integer,
+    documento_relacionado_id integer,
+    es_restitucion boolean,
+    es_publico_general boolean,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone,
+    rfc_receptor character varying(13),
+    nombre_receptor text,
+    regimen_fiscal_receptor text,
+    uso_cfdi text,
+    forma_pago text,
+    metodo_pago text,
+    codigo_postal_receptor character varying(10),
+    tratamiento_impuestos character varying(30),
+    estado_seguimiento text,
+    comentario_seguimiento text,
+    producto_resumen text,
+    oportunidad_id integer,
+    motivo_nc character varying(20),
+    concepto_id integer,
+    finanzas_operacion_id integer,
+    periodicidad_global character varying(2),
+    meses_global character varying(2),
+    anio_global smallint,
+    factura_global_id integer,
+    usuario_cancelacion_id integer,
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    estado_autorizacion character varying(20),
+    serie_externa character varying(10),
+    numero_externo integer,
+    uuid_cfdi_origen character varying(36)
+);
+
+
+--
+-- Name: public__documentos_campos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_campos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    campo_id integer,
+    catalogo_id integer,
+    valor_texto text,
+    valor_numero numeric,
+    valor_fecha date,
+    valor_boolean boolean,
+    created_at timestamp without time zone
+);
+
+
+--
+-- Name: public__documentos_cancelacion_intentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_cancelacion_intentos (
+    id bigint,
+    empresa_id integer,
+    documento_id integer,
+    usuario_id integer,
+    estado character varying(40),
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    cfdi_uuid character varying(36),
+    facturama_respuesta jsonb,
+    error_externo_mensaje text,
+    error_interno_mensaje text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    proveedor character varying(50),
+    pac_id character varying(100),
+    modalidad character varying(10),
+    rfc_emisor text,
+    endpoint text,
+    proveedor_status character varying(40),
+    fecha_solicitud timestamp with time zone,
+    intentos_consulta integer,
+    error_codigo character varying(100),
+    mensaje_sanitizado text,
+    acuse_xml text,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__documentos_cfdi; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_cfdi (
+    documento_id integer,
+    uuid character varying(36),
+    fecha_timbrado timestamp with time zone,
+    version_cfdi character varying(10),
+    serie_cfdi character varying(10),
+    folio_cfdi character varying(20),
+    no_certificado character varying(30),
+    no_certificado_sat character varying(30),
+    sello_cfdi text,
+    sello_sat text,
+    cadena_original text,
+    xml_timbrado text,
+    qr_url text,
+    estado_sat character varying(20),
+    fecha_cancelacion timestamp with time zone,
+    xml_cancelacion text,
+    fecha_emision timestamp with time zone,
+    rfc_proveedor_certificacion character varying(20),
+    pac character varying(20),
+    pac_id character varying(50),
+    rfc_emisor text,
+    rfc_receptor text,
+    total numeric(14,2),
+    pac_modalidad character varying(10),
+    cancelacion_estado character varying(30),
+    cancelacion_proveedor_status character varying(40),
+    cancelacion_ultima_consulta_at timestamp with time zone,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__documentos_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_partidas (
+    id integer,
+    documento_id integer,
+    numero_partida integer,
+    producto_id integer,
+    descripcion_alterna character varying(255),
+    cantidad numeric(15,6),
+    unidad character varying(20),
+    factor_conversion numeric(11,4),
+    cantidad_inventariable numeric(15,6),
+    precio_unitario numeric(15,6),
+    descuento numeric(9,4),
+    subtotal_partida numeric(15,2),
+    iva_porcentaje numeric(9,4),
+    iva_monto numeric(15,2),
+    ieps_porcentaje numeric(9,4),
+    ieps_monto numeric(15,2),
+    retencion_iva_porcentaje numeric(9,4),
+    retencion_iva_monto numeric(15,2),
+    retencion_isr_porcentaje numeric(9,4),
+    retencion_isr_monto numeric(15,2),
+    total_partida numeric(15,2),
+    costo numeric(15,6),
+    costo_indirecto numeric(15,6),
+    cantidad_entregada numeric(15,6),
+    cantidad_facturada numeric(15,6),
+    cantidad_cancelada numeric(15,6),
+    cantidad_devuelta numeric(15,6),
+    cantidad_en_entrada numeric(15,6),
+    saldo_cantidad numeric(15,6),
+    es_gasto boolean,
+    es_componente boolean,
+    partida_padre_id integer,
+    partida_origen_id integer,
+    titulo_agrupador character varying(70),
+    archivo_imagen_1 character varying(255),
+    archivo_imagen_2 character varying(255),
+    observaciones text,
+    comentarios_internos text,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone,
+    es_parte_oportunidad boolean,
+    producto_archivo_id integer,
+    precio_lista_id bigint,
+    precio_editado_manual boolean,
+    precio_origen character varying(30),
+    almacen_id integer,
+    descuento_tipo character varying(20),
+    descuento_monto numeric(15,2)
+);
+
+
+--
+-- Name: public__documentos_partidas_campos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_partidas_campos (
+    id integer,
+    empresa_id integer,
+    partida_id integer,
+    campo_id integer,
+    catalogo_id integer,
+    valor_texto text,
+    valor_numero numeric,
+    valor_fecha date,
+    valor_boolean boolean,
+    created_at timestamp without time zone
+);
+
+
+--
+-- Name: public__documentos_partidas_especificaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_partidas_especificaciones (
+    id bigint,
+    partida_id integer,
+    especificacion_biblioteca_id bigint,
+    orden integer,
+    tipo character varying(20),
+    origen character varying(20),
+    contenido text,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos_partidas_impuestos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_partidas_impuestos (
+    id integer,
+    partida_id integer,
+    impuesto_id character varying(30),
+    tasa numeric(9,4),
+    base numeric(15,2),
+    monto numeric(15,2)
+);
+
+
+--
+-- Name: public__documentos_partidas_vinculos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_partidas_vinculos (
+    id integer,
+    empresa_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    partida_origen_id integer,
+    partida_destino_id integer,
+    cantidad numeric(15,6),
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos_relaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__documentos_relaciones (
+    id bigint,
+    empresa_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    tipo_relacion character varying(30),
+    bloquea_cancelacion boolean,
+    metadata jsonb,
+    activa boolean,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_aplicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_aplicaciones (
+    id integer,
+    empresa_id integer,
+    operacion_id integer,
+    documento_id integer,
+    monto numeric(15,2),
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_conciliaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_conciliaciones (
+    id integer,
+    empresa_id integer,
+    cuenta_id integer,
+    fecha_corte date,
+    saldo_banco numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    usuario_id integer,
+    saldo_conciliado_anterior numeric(15,2),
+    total_depositos_cotejados numeric(15,2),
+    total_retiros_cotejados numeric(15,2),
+    saldo_conciliado_calculado numeric(15,2),
+    saldo_sistema numeric(15,2),
+    diferencia numeric(15,2),
+    estatus character varying(20),
+    anulada_en timestamp with time zone,
+    anulada_por integer,
+    motivo_anulacion text
+);
+
+
+--
+-- Name: public__finanzas_conciliaciones_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_conciliaciones_operaciones (
+    id integer,
+    conciliacion_id integer,
+    operacion_id integer
+);
+
+
+--
+-- Name: public__finanzas_desaplicaciones_pago; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_desaplicaciones_pago (
+    id bigint,
+    empresa_id integer,
+    aplicacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    monto numeric(15,2),
+    monto_moneda_documento numeric(15,2),
+    fecha_aplicacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    usuario_id integer,
+    motivo character varying(500),
+    fecha_desaplicacion timestamp with time zone,
+    pago_folio character varying(120),
+    factura_folio character varying(120)
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_estados_cuenta_importados (
+    id bigint,
+    empresa_id bigint,
+    cuenta_id bigint,
+    nombre_original text,
+    hash_archivo text,
+    contenido_original bytea,
+    codificacion text,
+    formato_detectado text,
+    parser_version text,
+    fecha_inicial date,
+    fecha_final date,
+    saldo_inicial numeric(20,6),
+    saldo_final numeric(20,6),
+    total_cargos numeric(20,6),
+    total_abonos numeric(20,6),
+    total_filas integer,
+    filas_validas integer,
+    filas_invalidas integer,
+    filas_nuevas integer,
+    filas_duplicadas integer,
+    duplicados_omitidos jsonb,
+    estado text,
+    usuario_creacion_id bigint,
+    fecha_creacion timestamp with time zone,
+    usuario_cancelacion_id bigint,
+    fecha_cancelacion timestamp with time zone,
+    motivo_cancelacion text,
+    usuario_finalizacion_id bigint,
+    fecha_finalizacion timestamp with time zone,
+    saldo_calculado_final numeric(20,6),
+    diferencia_final numeric(20,6),
+    metadatos jsonb,
+    es_historica boolean
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados_movimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_estados_cuenta_importados_movimientos (
+    id bigint,
+    empresa_id bigint,
+    importacion_id bigint,
+    cuenta_id bigint,
+    numero_fila integer,
+    fecha date,
+    hora time without time zone,
+    concepto_bancario text,
+    referencia_bancaria text,
+    cargo numeric(20,6),
+    abono numeric(20,6),
+    importe numeric(20,6),
+    tipo text,
+    saldo_posterior numeric(20,6),
+    linea_original text,
+    hash_movimiento text,
+    estado_revision text,
+    activo boolean,
+    fecha_creacion timestamp with time zone,
+    motivo_exclusion text,
+    usuario_exclusion_id bigint,
+    fecha_exclusion timestamp with time zone,
+    datos_originales jsonb,
+    metadatos jsonb,
+    saldo_disponible boolean,
+    es_historico boolean
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados_relaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_estados_cuenta_importados_relaciones (
+    id bigint,
+    empresa_id bigint,
+    movimiento_bancario_id bigint,
+    operacion_id bigint,
+    estado text,
+    origen text,
+    puntuacion numeric(8,6),
+    nivel_confianza text,
+    explicacion text,
+    motivos jsonb,
+    usuario_confirmacion_id bigint,
+    fecha_confirmacion timestamp with time zone,
+    activa boolean,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_operaciones (
+    id integer,
+    empresa_id integer,
+    fecha date,
+    tipo_movimiento character varying(20),
+    monto numeric(15,2),
+    referencia character varying(100),
+    observaciones text,
+    cuenta_id integer,
+    contacto_id integer,
+    factura_id integer,
+    es_transferencia boolean,
+    transferencia_id integer,
+    estado_conciliacion character varying(20),
+    saldo numeric(15,2),
+    fecha_creacion timestamp with time zone,
+    concepto_id integer,
+    naturaleza_operacion character varying(30),
+    documento_origen_id integer,
+    created_by integer,
+    metodo_pago_id integer
+);
+
+
+--
+-- Name: public__finanzas_programacion_pagos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_programacion_pagos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    proveedor_id integer,
+    fecha_programada date,
+    monto_programado numeric(20,6),
+    moneda character varying(3),
+    cuenta_origen_id integer,
+    metodo_pago_id integer,
+    referencia character varying(100),
+    estatus character varying(20),
+    notas text,
+    created_by integer,
+    updated_by integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    documento_pago_id integer,
+    finanzas_operacion_id integer
+);
+
+
+--
+-- Name: public__finanzas_programacion_pagos_detalle; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_programacion_pagos_detalle (
+    id integer,
+    empresa_id integer,
+    programacion_id integer,
+    documento_id integer,
+    monto_programado numeric(20,6),
+    moneda character varying(3),
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_transferencias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__finanzas_transferencias (
+    id integer,
+    empresa_id integer,
+    cuenta_origen_id integer,
+    cuenta_destino_id integer,
+    monto numeric(15,2),
+    fecha date,
+    referencia character varying(100),
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    usuario_id integer
+);
+
+
+--
+-- Name: public__operaciones_entregas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__operaciones_entregas (
+    id bigint,
+    empresa_id integer,
+    fecha date,
+    cantidad numeric(15,6),
+    estado character varying(20),
+    full_documento_id integer,
+    contacto_id integer,
+    fletera_contacto_id integer,
+    operador_id bigint,
+    vehiculo_id bigint,
+    domicilio_snapshot jsonb,
+    carta_porte_referencia text,
+    observaciones text,
+    datos_logisticos_snapshot jsonb,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__operaciones_entregas_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__operaciones_entregas_partidas (
+    id bigint,
+    entrega_id bigint,
+    documento_id integer,
+    partida_id integer,
+    cantidad numeric(15,6)
+);
+
+
+--
+-- Name: public__temp_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.public__temp_leads (
+    nombre text,
+    correo text,
+    telefono text,
+    empresa text,
+    estado text,
+    producto_servicio text,
+    vendedor text,
+    seguimiento text,
+    estatus text,
+    "NÚMERO DE TELÉFONO" bigint,
+    "Column4" bigint,
+    "FRECUENCIA" character varying(50),
+    "PRODUCTO/SERVICIO" character varying(50),
+    "Column12" character varying(50),
+    "Column13" character varying(50),
+    "Column14" character varying(50),
+    "Column15" character varying(50),
+    "Column16" character varying(50),
+    "Column17" character varying(50),
+    "Column18" character varying(50),
+    "Column19" character varying(50),
+    "Column20" character varying(50),
+    "Column21" character varying(50),
+    "Column22" character varying(50),
+    "Column23" character varying(50),
+    "Column24" character varying(50),
+    "Column25" character varying(50),
+    "Column26" character varying(50),
+    "Column27" character varying(50),
+    "Column28" character varying(50),
+    "Column29" character varying(50),
+    "Column30" character varying(50)
+);
+
+
+--
+-- Name: transporte__cartas_porte; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.transporte__cartas_porte (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    documento_id integer,
+    version character varying(10),
+    id_ccp character varying(36),
+    estatus character varying(30),
+    snapshot_json jsonb,
+    validado_at timestamp with time zone,
+    timbrado_at timestamp with time zone,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_documentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.transporte__viaje_documentos (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    documento_id integer,
+    tipo_relacion character varying(30),
+    principal boolean,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_figuras; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.transporte__viaje_figuras (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    tipo_figura character varying(30),
+    operador_id bigint,
+    contacto_id integer,
+    secuencia integer,
+    datos_snapshot jsonb,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_mercancias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.transporte__viaje_mercancias (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    descripcion_snapshot character varying(250),
+    clave_bienes_transportados_sat character varying(20),
+    clave_unidad_sat character varying(10),
+    unidad_descripcion character varying(100),
+    cantidad numeric(18,6),
+    peso_kg numeric(18,3),
+    valor_mercancia numeric(18,2),
+    material_peligroso boolean,
+    clave_material_peligroso character varying(20),
+    embalaje character varying(20),
+    descripcion_embalaje character varying(100),
+    origen_viaje_ubicacion_id bigint,
+    destino_viaje_ubicacion_id bigint,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    producto_id integer
+);
+
+
+--
+-- Name: transporte__viaje_remolques; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.transporte__viaje_remolques (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    remolque_id bigint,
+    orden integer,
+    datos_snapshot jsonb,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_ubicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.transporte__viaje_ubicaciones (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    tipo character varying(20),
+    secuencia integer,
+    remitente_destinatario_nombre character varying(200),
+    remitente_destinatario_rfc character varying(13),
+    fecha_hora_programada timestamp with time zone,
+    fecha_hora_real timestamp with time zone,
+    distancia_recorrida numeric(14,3),
+    domicilio_snapshot jsonb,
+    coordenadas_snapshot jsonb,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    domicilio_id integer
+);
+
+
+--
+-- Name: transporte__viajes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.transporte__viajes (
+    id bigint,
+    empresa_id integer,
+    folio_interno character varying(50),
+    cliente_contacto_id integer,
+    estatus character varying(30),
+    fecha_programada timestamp with time zone,
+    fecha_inicio timestamp with time zone,
+    fecha_fin timestamp with time zone,
+    vehiculo_id bigint,
+    referencia_cliente character varying(100),
+    observaciones text,
+    creado_por integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: whatsapp__contacto_estado; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.whatsapp__contacto_estado (
+    empresa_id integer,
+    telefono character varying(20),
+    opt_in boolean,
+    opt_out boolean,
+    ultimo_in timestamp with time zone,
+    ultimo_out timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: whatsapp__estadisticas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.whatsapp__estadisticas (
+    empresa_id integer,
+    fecha date,
+    mensajes_enviados integer,
+    mensajes_recibidos integer,
+    plantillas_usadas integer,
+    errores_envio integer
+);
+
+
+--
+-- Name: whatsapp__intentos_contacto; Type: TABLE; Schema: ops_backup_empresa_8_20261008092128388; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092128388.whatsapp__intentos_contacto (
+    id bigint,
+    empresa_id integer,
+    pagina_origen text,
+    producto text,
+    fuente text,
+    mensaje_prellenado text,
+    session_id text,
+    ip_address inet,
+    user_agent text,
+    creado_en timestamp with time zone,
+    tipo_intento text
+);
+
+
+--
+-- Name: contabilidad__contabilizaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.contabilidad__contabilizaciones (
+    id bigint,
+    empresa_id bigint,
+    poliza_id bigint,
+    tipo_movimiento character varying(20),
+    tipo_documento character varying(30),
+    documento_id bigint,
+    operacion_dinero_id integer,
+    movimiento_inventario_id bigint,
+    evento_contable character varying(20),
+    modo_contabilizacion character varying(20),
+    fecha_documento date,
+    fecha_contabilizacion timestamp with time zone,
+    usuario_id integer,
+    es_reversa boolean,
+    contabilizacion_origen_id bigint,
+    comentario character varying(500),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__cuentas_saldos_mensuales; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.contabilidad__cuentas_saldos_mensuales (
+    id bigint,
+    empresa_id bigint,
+    cuenta_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    cargos numeric(19,2),
+    abonos numeric(19,2),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__documentos_polizas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.contabilidad__documentos_polizas (
+    id bigint,
+    empresa_id bigint,
+    documento_id bigint,
+    poliza_id bigint,
+    tipo character varying(20),
+    documento_poliza_original_id bigint,
+    codigo_poliza_legacy character varying(16),
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__e_contabilidad_paquetes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.contabilidad__e_contabilidad_paquetes (
+    id bigint,
+    empresa_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    nombre_zip character varying(255),
+    archivos_incluidos jsonb,
+    parametros jsonb,
+    resumen jsonb,
+    hash_zip character varying(128),
+    hash_algoritmo character varying(20),
+    generado_por bigint,
+    generado_en timestamp with time zone,
+    observaciones text,
+    estatus character varying(30),
+    enviado_sat boolean,
+    enviado_sat_en timestamp with time zone,
+    acuse_sat text
+);
+
+
+--
+-- Name: contabilidad__polizas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.contabilidad__polizas (
+    id bigint,
+    empresa_id bigint,
+    codigo_legacy character varying(16),
+    tipo_poliza_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    numero integer,
+    fecha date,
+    estatus character varying(20),
+    referencia character varying(100),
+    observaciones text,
+    total_cargos numeric(19,2),
+    total_abonos numeric(19,2),
+    modulo_origen character varying(30),
+    almacen_id bigint,
+    uuid_cfdi uuid,
+    creada_por_id bigint,
+    modificada_por_id bigint,
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__polizas_detalle; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.contabilidad__polizas_detalle (
+    id bigint,
+    empresa_id bigint,
+    poliza_id bigint,
+    renglon integer,
+    cuenta_id bigint,
+    concepto_id bigint,
+    cargo numeric(19,2),
+    abono numeric(19,2),
+    fecha date,
+    uuid_cfdi uuid,
+    rfc character varying(13),
+    cuenta_legacy character varying(64),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone,
+    concepto_texto character varying(200)
+);
+
+
+--
+-- Name: core__cfdi_sat_autorizaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.core__cfdi_sat_autorizaciones (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    version_texto character varying(20),
+    aceptado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_bitacora; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.core__cfdi_sat_bitacora (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    accion character varying(40),
+    resultado character varying(10),
+    detalle text,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_comprobantes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.core__cfdi_sat_comprobantes (
+    id integer,
+    empresa_id integer,
+    solicitud_id integer,
+    paquete_id integer,
+    uuid character varying(36),
+    rfc_emisor character varying(13),
+    rfc_receptor character varying(13),
+    nombre_emisor character varying(300),
+    nombre_receptor character varying(300),
+    fecha_emision timestamp without time zone,
+    tipo_comprobante character varying(1),
+    total numeric(15,2),
+    moneda character varying(3),
+    estatus_sat character varying(10),
+    tipo_descarga character varying(10),
+    xml_path character varying(500),
+    importado_compras boolean,
+    documento_id integer,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_paquetes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.core__cfdi_sat_paquetes (
+    id integer,
+    solicitud_id integer,
+    sat_package_id character varying(80),
+    estatus character varying(20),
+    zip_path character varying(500),
+    descargado_en timestamp with time zone,
+    mensaje_error text,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_solicitudes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.core__cfdi_sat_solicitudes (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    tipo_descarga character varying(10),
+    fecha_inicio date,
+    fecha_fin date,
+    tipo_solicitud character varying(10),
+    estatus_comprobante character varying(10),
+    sat_request_id character varying(80),
+    estatus character varying(20),
+    mensaje_error text,
+    creado_en timestamp with time zone,
+    solicitado_en timestamp with time zone,
+    cfdis_encontrados integer,
+    verificado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__actividades; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.crm__actividades (
+    id integer,
+    empresa_id integer,
+    usuario_asignado_id integer,
+    usuario_creador_id integer,
+    oportunidad_id integer,
+    tipo_actividad character varying(30),
+    fecha_programada timestamp without time zone,
+    observaciones text,
+    estatus character varying(20),
+    fecha_realizacion timestamp without time zone,
+    resultado text,
+    recordatorio boolean,
+    recordatorio_minutos integer,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone,
+    recordatorio_disparado_at timestamp without time zone,
+    contacto_id integer,
+    recordatorio_erp_claimed_at timestamp without time zone,
+    recordatorio_erp_claimed_by character varying(120),
+    recordatorio_erp_entregado_at timestamp without time zone,
+    recordatorio_push_claimed_at timestamp without time zone,
+    recordatorio_push_entregado_at timestamp without time zone,
+    recordatorio_push_ultimo_intento_at timestamp without time zone,
+    recordatorio_push_error text,
+    descripcion text
+);
+
+
+--
+-- Name: crm__conversacion_etiquetas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.crm__conversacion_etiquetas (
+    id integer,
+    empresa_id integer,
+    conversacion_id integer,
+    etiqueta_id integer,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: crm__conversaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.crm__conversaciones (
+    id bigint,
+    empresa_id integer,
+    contacto_id integer,
+    estado character varying(20),
+    asignado_a integer,
+    creada_en timestamp with time zone,
+    ultimo_mensaje_en timestamp with time zone,
+    cerrada_en timestamp with time zone,
+    prioridad character varying(10),
+    siguiente_accion character varying(30),
+    etapa_oportunidad character varying(30),
+    finalizada_en timestamp with time zone,
+    finalizada_por integer,
+    motivo_finalizacion character varying(40),
+    observaciones_finalizacion text,
+    reactivada_en timestamp with time zone,
+    reactivada_por_evento character varying(30)
+);
+
+
+--
+-- Name: crm__conversaciones_lecturas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.crm__conversaciones_lecturas (
+    empresa_id integer,
+    usuario_id integer,
+    conversacion_id bigint,
+    ultima_lectura_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__mensaje_reacciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.crm__mensaje_reacciones (
+    id bigint,
+    empresa_id integer,
+    mensaje_id bigint,
+    autor character varying(10),
+    usuario_id integer,
+    emoji character varying(16),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__mensajes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.crm__mensajes (
+    id bigint,
+    empresa_id integer,
+    contacto_id integer,
+    conversacion_id bigint,
+    telefono character varying(20),
+    tipo_mensaje character varying(20),
+    canal character varying(50),
+    contenido text,
+    plantilla_nombre character varying(100),
+    fecha_envio timestamp with time zone,
+    status character varying(20),
+    id_externo character varying(100),
+    intentos_envio integer,
+    respuesta_json jsonb,
+    creado_en timestamp with time zone,
+    tipo_contenido character varying(20),
+    media_url text,
+    mime_type character varying(100),
+    caption text,
+    email_from character varying(150),
+    email_to character varying(150),
+    email_subject character varying(200),
+    email_cc character varying(200),
+    email_bcc character varying(200),
+    in_reply_to character varying(150),
+    mensaje_respuesta_id bigint,
+    autor_usuario_id integer,
+    autor_vendedor_contacto_id integer,
+    responsabilidad_contacto_id bigint,
+    origen_envio character varying(30)
+);
+
+
+--
+-- Name: crm__meta_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.crm__meta_leads (
+    id bigint,
+    empresa_id integer,
+    leadgen_id text,
+    page_id text,
+    form_id text,
+    form_name text,
+    created_time text,
+    ad_id text,
+    campaign_id text,
+    campaign_name text,
+    field_names jsonb,
+    estado text,
+    intentos integer,
+    ultimo_error text,
+    proximo_reintento_at timestamp without time zone,
+    contacto_id integer,
+    actividad_id integer,
+    recibido_at timestamp without time zone,
+    procesado_at timestamp without time zone,
+    actualizado_at timestamp without time zone,
+    field_data jsonb
+);
+
+
+--
+-- Name: crm__oportunidades_venta; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.crm__oportunidades_venta (
+    id integer,
+    empresa_id integer,
+    conversacion_id integer,
+    contacto_id integer,
+    vendedor_id integer,
+    estatus character varying(20),
+    etapa character varying(50),
+    cotizacion_principal_id integer,
+    fecha_estimada_decision date,
+    fecha_reactivacion_estimada date,
+    dolor_validado boolean,
+    presupuesto_validado boolean,
+    contacto_es_decisor boolean,
+    comentarios_no_cierre text,
+    observaciones text,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+--
+-- Name: documentacion__adjuntos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.documentacion__adjuntos (
+    id integer,
+    empresa_id integer,
+    tipo_id integer,
+    nombre_original character varying(255),
+    fecha_vencimiento date,
+    comentarios text,
+    mime_type character varying(120),
+    tamano bigint,
+    storage_key text,
+    creado_por integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: documentacion__adjuntos_entidades; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.documentacion__adjuntos_entidades (
+    adjunto_id integer,
+    empresa_documentada_id integer,
+    documento_id integer,
+    contacto_id integer,
+    finanzas_operacion_id integer
+);
+
+
+--
+-- Name: inventario__existencias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.inventario__existencias (
+    id bigint,
+    empresa_id integer,
+    producto_id integer,
+    almacen_id integer,
+    existencia numeric(18,6),
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: inventario__movimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.inventario__movimientos (
+    id bigint,
+    empresa_id bigint,
+    documento_id bigint,
+    usuario_id bigint,
+    tipo_movimiento character varying(30),
+    fecha date,
+    observaciones text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    es_reversion boolean
+);
+
+
+--
+-- Name: inventario__movimientos_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.inventario__movimientos_partidas (
+    id bigint,
+    empresa_id integer,
+    movimiento_id bigint,
+    documento_partida_id integer,
+    producto_id integer,
+    almacen_id integer,
+    almacen_destino_id integer,
+    fecha_movimiento date,
+    cantidad numeric(18,6),
+    signo smallint,
+    tipo_partida character varying(25),
+    costo_unitario numeric(18,6),
+    existencia_resultante numeric(18,6),
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: produccion__seguimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.produccion__seguimientos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    etapa_id integer,
+    fecha_promesa date,
+    comentarios text,
+    updated_by integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    activo boolean
+);
+
+
+--
+-- Name: public__aplicaciones_saldo; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__aplicaciones_saldo (
+    id integer,
+    empresa_id integer,
+    finanzas_operacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    monto numeric(15,2),
+    monto_moneda_documento numeric(15,2),
+    fecha_aplicacion timestamp with time zone,
+    fecha_creacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    created_by integer
+);
+
+
+--
+-- Name: public__audit_log; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__audit_log (
+    id bigint,
+    empresa_id bigint,
+    usuario_id bigint,
+    modulo character varying(100),
+    entidad character varying(100),
+    entidad_id character varying(100),
+    accion character varying(50),
+    descripcion text,
+    datos_anteriores jsonb,
+    datos_nuevos jsonb,
+    ip_address inet,
+    user_agent text,
+    origen character varying(50),
+    created_at timestamp with time zone,
+    usuario_nombre character varying(200),
+    empresa_nombre character varying(200),
+    motivo character varying(500),
+    metadata jsonb
+);
+
+
+--
+-- Name: public__autorizaciones_solicitudes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__autorizaciones_solicitudes (
+    id integer,
+    empresa_id integer,
+    regla_id integer,
+    documento_origen_id integer,
+    tipo_documento_origen character varying(60),
+    tipo_documento_destino character varying(60),
+    folio_documento_origen character varying(60),
+    monto numeric(18,4),
+    usuario_solicitante_id integer,
+    usuario_autorizador_id integer,
+    estado character varying(20),
+    comentario_solicitante text,
+    comentario_autorizador text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    respondido_at timestamp with time zone
+);
+
+
+--
+-- Name: public__cfdi_intentos_timbrado; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__cfdi_intentos_timbrado (
+    id bigint,
+    empresa_id integer,
+    documento_id integer,
+    proveedor character varying(50),
+    proveedor_cfdi_id character varying(100),
+    endpoint text,
+    estado character varying(40),
+    uuid character varying(36),
+    error_codigo character varying(100),
+    error_mensaje_sanitizado text,
+    intentos_descarga integer,
+    metadata_sanitizada jsonb,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__credito_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__credito_operaciones (
+    id integer,
+    empresa_id integer,
+    contacto_id integer,
+    documento_id integer,
+    tipo_operacion character varying(20),
+    fecha date,
+    monto numeric(15,2),
+    referencia character varying(100),
+    observaciones text,
+    usuario_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__credito_operaciones_aplicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__credito_operaciones_aplicaciones (
+    id integer,
+    empresa_id integer,
+    operacion_origen_id integer,
+    operacion_aplicada_id integer,
+    fecha date,
+    monto_aplicado numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__credito_operaciones_items; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__credito_operaciones_items (
+    id integer,
+    operacion_credito_id integer,
+    documento_id integer,
+    partida_id integer,
+    producto_id integer,
+    cantidad numeric(15,6),
+    monto numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__crm_ruteo_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__crm_ruteo_leads (
+    id integer,
+    empresa_id integer,
+    origen character varying(50),
+    modo_asignacion character varying(20),
+    vendedor_fijo_id integer,
+    ultimo_vendedor_id integer,
+    prioridad integer,
+    activo boolean,
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    fecha_actualizacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos (
+    id integer,
+    tipo_documento character varying(30),
+    estatus_documento character varying(30),
+    serie character varying(10),
+    numero integer,
+    empresa_id integer,
+    almacen_id integer,
+    contacto_principal_id integer,
+    contacto_facturacion_id integer,
+    contacto_entrega_id integer,
+    agente_id integer,
+    fecha_documento date,
+    fecha_vencimiento date,
+    fecha_entrega date,
+    fecha_cancelacion date,
+    moneda character varying(10),
+    tipo_cambio numeric(9,4),
+    subtotal numeric(15,2),
+    descuento_global numeric(9,4),
+    descuento numeric(15,2),
+    iva numeric(15,2),
+    ieps numeric(15,2),
+    retencion_iva numeric(15,2),
+    retencion_isr numeric(15,2),
+    total numeric(15,2),
+    saldo numeric(15,2),
+    domicilio_entrega_id integer,
+    fletera_id integer,
+    observaciones text,
+    comentarios_internos text,
+    documento_origen_id integer,
+    documento_padre_id integer,
+    documento_relacionado_id integer,
+    es_restitucion boolean,
+    es_publico_general boolean,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone,
+    rfc_receptor character varying(13),
+    nombre_receptor text,
+    regimen_fiscal_receptor text,
+    uso_cfdi text,
+    forma_pago text,
+    metodo_pago text,
+    codigo_postal_receptor character varying(10),
+    tratamiento_impuestos character varying(30),
+    estado_seguimiento text,
+    comentario_seguimiento text,
+    producto_resumen text,
+    oportunidad_id integer,
+    motivo_nc character varying(20),
+    concepto_id integer,
+    finanzas_operacion_id integer,
+    periodicidad_global character varying(2),
+    meses_global character varying(2),
+    anio_global smallint,
+    factura_global_id integer,
+    usuario_cancelacion_id integer,
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    estado_autorizacion character varying(20),
+    serie_externa character varying(10),
+    numero_externo integer,
+    uuid_cfdi_origen character varying(36)
+);
+
+
+--
+-- Name: public__documentos_campos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_campos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    campo_id integer,
+    catalogo_id integer,
+    valor_texto text,
+    valor_numero numeric,
+    valor_fecha date,
+    valor_boolean boolean,
+    created_at timestamp without time zone
+);
+
+
+--
+-- Name: public__documentos_cancelacion_intentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_cancelacion_intentos (
+    id bigint,
+    empresa_id integer,
+    documento_id integer,
+    usuario_id integer,
+    estado character varying(40),
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    cfdi_uuid character varying(36),
+    facturama_respuesta jsonb,
+    error_externo_mensaje text,
+    error_interno_mensaje text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    proveedor character varying(50),
+    pac_id character varying(100),
+    modalidad character varying(10),
+    rfc_emisor text,
+    endpoint text,
+    proveedor_status character varying(40),
+    fecha_solicitud timestamp with time zone,
+    intentos_consulta integer,
+    error_codigo character varying(100),
+    mensaje_sanitizado text,
+    acuse_xml text,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__documentos_cfdi; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_cfdi (
+    documento_id integer,
+    uuid character varying(36),
+    fecha_timbrado timestamp with time zone,
+    version_cfdi character varying(10),
+    serie_cfdi character varying(10),
+    folio_cfdi character varying(20),
+    no_certificado character varying(30),
+    no_certificado_sat character varying(30),
+    sello_cfdi text,
+    sello_sat text,
+    cadena_original text,
+    xml_timbrado text,
+    qr_url text,
+    estado_sat character varying(20),
+    fecha_cancelacion timestamp with time zone,
+    xml_cancelacion text,
+    fecha_emision timestamp with time zone,
+    rfc_proveedor_certificacion character varying(20),
+    pac character varying(20),
+    pac_id character varying(50),
+    rfc_emisor text,
+    rfc_receptor text,
+    total numeric(14,2),
+    pac_modalidad character varying(10),
+    cancelacion_estado character varying(30),
+    cancelacion_proveedor_status character varying(40),
+    cancelacion_ultima_consulta_at timestamp with time zone,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__documentos_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_partidas (
+    id integer,
+    documento_id integer,
+    numero_partida integer,
+    producto_id integer,
+    descripcion_alterna character varying(255),
+    cantidad numeric(15,6),
+    unidad character varying(20),
+    factor_conversion numeric(11,4),
+    cantidad_inventariable numeric(15,6),
+    precio_unitario numeric(15,6),
+    descuento numeric(9,4),
+    subtotal_partida numeric(15,2),
+    iva_porcentaje numeric(9,4),
+    iva_monto numeric(15,2),
+    ieps_porcentaje numeric(9,4),
+    ieps_monto numeric(15,2),
+    retencion_iva_porcentaje numeric(9,4),
+    retencion_iva_monto numeric(15,2),
+    retencion_isr_porcentaje numeric(9,4),
+    retencion_isr_monto numeric(15,2),
+    total_partida numeric(15,2),
+    costo numeric(15,6),
+    costo_indirecto numeric(15,6),
+    cantidad_entregada numeric(15,6),
+    cantidad_facturada numeric(15,6),
+    cantidad_cancelada numeric(15,6),
+    cantidad_devuelta numeric(15,6),
+    cantidad_en_entrada numeric(15,6),
+    saldo_cantidad numeric(15,6),
+    es_gasto boolean,
+    es_componente boolean,
+    partida_padre_id integer,
+    partida_origen_id integer,
+    titulo_agrupador character varying(70),
+    archivo_imagen_1 character varying(255),
+    archivo_imagen_2 character varying(255),
+    observaciones text,
+    comentarios_internos text,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone,
+    es_parte_oportunidad boolean,
+    producto_archivo_id integer,
+    precio_lista_id bigint,
+    precio_editado_manual boolean,
+    precio_origen character varying(30),
+    almacen_id integer,
+    descuento_tipo character varying(20),
+    descuento_monto numeric(15,2)
+);
+
+
+--
+-- Name: public__documentos_partidas_campos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_partidas_campos (
+    id integer,
+    empresa_id integer,
+    partida_id integer,
+    campo_id integer,
+    catalogo_id integer,
+    valor_texto text,
+    valor_numero numeric,
+    valor_fecha date,
+    valor_boolean boolean,
+    created_at timestamp without time zone
+);
+
+
+--
+-- Name: public__documentos_partidas_especificaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_partidas_especificaciones (
+    id bigint,
+    partida_id integer,
+    especificacion_biblioteca_id bigint,
+    orden integer,
+    tipo character varying(20),
+    origen character varying(20),
+    contenido text,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos_partidas_impuestos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_partidas_impuestos (
+    id integer,
+    partida_id integer,
+    impuesto_id character varying(30),
+    tasa numeric(9,4),
+    base numeric(15,2),
+    monto numeric(15,2)
+);
+
+
+--
+-- Name: public__documentos_partidas_vinculos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_partidas_vinculos (
+    id integer,
+    empresa_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    partida_origen_id integer,
+    partida_destino_id integer,
+    cantidad numeric(15,6),
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos_relaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__documentos_relaciones (
+    id bigint,
+    empresa_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    tipo_relacion character varying(30),
+    bloquea_cancelacion boolean,
+    metadata jsonb,
+    activa boolean,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_aplicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_aplicaciones (
+    id integer,
+    empresa_id integer,
+    operacion_id integer,
+    documento_id integer,
+    monto numeric(15,2),
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_conciliaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_conciliaciones (
+    id integer,
+    empresa_id integer,
+    cuenta_id integer,
+    fecha_corte date,
+    saldo_banco numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    usuario_id integer,
+    saldo_conciliado_anterior numeric(15,2),
+    total_depositos_cotejados numeric(15,2),
+    total_retiros_cotejados numeric(15,2),
+    saldo_conciliado_calculado numeric(15,2),
+    saldo_sistema numeric(15,2),
+    diferencia numeric(15,2),
+    estatus character varying(20),
+    anulada_en timestamp with time zone,
+    anulada_por integer,
+    motivo_anulacion text
+);
+
+
+--
+-- Name: public__finanzas_conciliaciones_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_conciliaciones_operaciones (
+    id integer,
+    conciliacion_id integer,
+    operacion_id integer
+);
+
+
+--
+-- Name: public__finanzas_desaplicaciones_pago; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_desaplicaciones_pago (
+    id bigint,
+    empresa_id integer,
+    aplicacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    monto numeric(15,2),
+    monto_moneda_documento numeric(15,2),
+    fecha_aplicacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    usuario_id integer,
+    motivo character varying(500),
+    fecha_desaplicacion timestamp with time zone,
+    pago_folio character varying(120),
+    factura_folio character varying(120)
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_estados_cuenta_importados (
+    id bigint,
+    empresa_id bigint,
+    cuenta_id bigint,
+    nombre_original text,
+    hash_archivo text,
+    contenido_original bytea,
+    codificacion text,
+    formato_detectado text,
+    parser_version text,
+    fecha_inicial date,
+    fecha_final date,
+    saldo_inicial numeric(20,6),
+    saldo_final numeric(20,6),
+    total_cargos numeric(20,6),
+    total_abonos numeric(20,6),
+    total_filas integer,
+    filas_validas integer,
+    filas_invalidas integer,
+    filas_nuevas integer,
+    filas_duplicadas integer,
+    duplicados_omitidos jsonb,
+    estado text,
+    usuario_creacion_id bigint,
+    fecha_creacion timestamp with time zone,
+    usuario_cancelacion_id bigint,
+    fecha_cancelacion timestamp with time zone,
+    motivo_cancelacion text,
+    usuario_finalizacion_id bigint,
+    fecha_finalizacion timestamp with time zone,
+    saldo_calculado_final numeric(20,6),
+    diferencia_final numeric(20,6),
+    metadatos jsonb,
+    es_historica boolean
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados_movimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_estados_cuenta_importados_movimientos (
+    id bigint,
+    empresa_id bigint,
+    importacion_id bigint,
+    cuenta_id bigint,
+    numero_fila integer,
+    fecha date,
+    hora time without time zone,
+    concepto_bancario text,
+    referencia_bancaria text,
+    cargo numeric(20,6),
+    abono numeric(20,6),
+    importe numeric(20,6),
+    tipo text,
+    saldo_posterior numeric(20,6),
+    linea_original text,
+    hash_movimiento text,
+    estado_revision text,
+    activo boolean,
+    fecha_creacion timestamp with time zone,
+    motivo_exclusion text,
+    usuario_exclusion_id bigint,
+    fecha_exclusion timestamp with time zone,
+    datos_originales jsonb,
+    metadatos jsonb,
+    saldo_disponible boolean,
+    es_historico boolean
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados_relaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_estados_cuenta_importados_relaciones (
+    id bigint,
+    empresa_id bigint,
+    movimiento_bancario_id bigint,
+    operacion_id bigint,
+    estado text,
+    origen text,
+    puntuacion numeric(8,6),
+    nivel_confianza text,
+    explicacion text,
+    motivos jsonb,
+    usuario_confirmacion_id bigint,
+    fecha_confirmacion timestamp with time zone,
+    activa boolean,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_operaciones (
+    id integer,
+    empresa_id integer,
+    fecha date,
+    tipo_movimiento character varying(20),
+    monto numeric(15,2),
+    referencia character varying(100),
+    observaciones text,
+    cuenta_id integer,
+    contacto_id integer,
+    factura_id integer,
+    es_transferencia boolean,
+    transferencia_id integer,
+    estado_conciliacion character varying(20),
+    saldo numeric(15,2),
+    fecha_creacion timestamp with time zone,
+    concepto_id integer,
+    naturaleza_operacion character varying(30),
+    documento_origen_id integer,
+    created_by integer,
+    metodo_pago_id integer
+);
+
+
+--
+-- Name: public__finanzas_programacion_pagos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_programacion_pagos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    proveedor_id integer,
+    fecha_programada date,
+    monto_programado numeric(20,6),
+    moneda character varying(3),
+    cuenta_origen_id integer,
+    metodo_pago_id integer,
+    referencia character varying(100),
+    estatus character varying(20),
+    notas text,
+    created_by integer,
+    updated_by integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    documento_pago_id integer,
+    finanzas_operacion_id integer
+);
+
+
+--
+-- Name: public__finanzas_programacion_pagos_detalle; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_programacion_pagos_detalle (
+    id integer,
+    empresa_id integer,
+    programacion_id integer,
+    documento_id integer,
+    monto_programado numeric(20,6),
+    moneda character varying(3),
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_transferencias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__finanzas_transferencias (
+    id integer,
+    empresa_id integer,
+    cuenta_origen_id integer,
+    cuenta_destino_id integer,
+    monto numeric(15,2),
+    fecha date,
+    referencia character varying(100),
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    usuario_id integer
+);
+
+
+--
+-- Name: public__operaciones_entregas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__operaciones_entregas (
+    id bigint,
+    empresa_id integer,
+    fecha date,
+    cantidad numeric(15,6),
+    estado character varying(20),
+    full_documento_id integer,
+    contacto_id integer,
+    fletera_contacto_id integer,
+    operador_id bigint,
+    vehiculo_id bigint,
+    domicilio_snapshot jsonb,
+    carta_porte_referencia text,
+    observaciones text,
+    datos_logisticos_snapshot jsonb,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__operaciones_entregas_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__operaciones_entregas_partidas (
+    id bigint,
+    entrega_id bigint,
+    documento_id integer,
+    partida_id integer,
+    cantidad numeric(15,6)
+);
+
+
+--
+-- Name: public__temp_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.public__temp_leads (
+    nombre text,
+    correo text,
+    telefono text,
+    empresa text,
+    estado text,
+    producto_servicio text,
+    vendedor text,
+    seguimiento text,
+    estatus text,
+    "NÚMERO DE TELÉFONO" bigint,
+    "Column4" bigint,
+    "FRECUENCIA" character varying(50),
+    "PRODUCTO/SERVICIO" character varying(50),
+    "Column12" character varying(50),
+    "Column13" character varying(50),
+    "Column14" character varying(50),
+    "Column15" character varying(50),
+    "Column16" character varying(50),
+    "Column17" character varying(50),
+    "Column18" character varying(50),
+    "Column19" character varying(50),
+    "Column20" character varying(50),
+    "Column21" character varying(50),
+    "Column22" character varying(50),
+    "Column23" character varying(50),
+    "Column24" character varying(50),
+    "Column25" character varying(50),
+    "Column26" character varying(50),
+    "Column27" character varying(50),
+    "Column28" character varying(50),
+    "Column29" character varying(50),
+    "Column30" character varying(50)
+);
+
+
+--
+-- Name: transporte__cartas_porte; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.transporte__cartas_porte (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    documento_id integer,
+    version character varying(10),
+    id_ccp character varying(36),
+    estatus character varying(30),
+    snapshot_json jsonb,
+    validado_at timestamp with time zone,
+    timbrado_at timestamp with time zone,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_documentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.transporte__viaje_documentos (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    documento_id integer,
+    tipo_relacion character varying(30),
+    principal boolean,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_figuras; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.transporte__viaje_figuras (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    tipo_figura character varying(30),
+    operador_id bigint,
+    contacto_id integer,
+    secuencia integer,
+    datos_snapshot jsonb,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_mercancias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.transporte__viaje_mercancias (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    descripcion_snapshot character varying(250),
+    clave_bienes_transportados_sat character varying(20),
+    clave_unidad_sat character varying(10),
+    unidad_descripcion character varying(100),
+    cantidad numeric(18,6),
+    peso_kg numeric(18,3),
+    valor_mercancia numeric(18,2),
+    material_peligroso boolean,
+    clave_material_peligroso character varying(20),
+    embalaje character varying(20),
+    descripcion_embalaje character varying(100),
+    origen_viaje_ubicacion_id bigint,
+    destino_viaje_ubicacion_id bigint,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    producto_id integer
+);
+
+
+--
+-- Name: transporte__viaje_remolques; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.transporte__viaje_remolques (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    remolque_id bigint,
+    orden integer,
+    datos_snapshot jsonb,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_ubicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.transporte__viaje_ubicaciones (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    tipo character varying(20),
+    secuencia integer,
+    remitente_destinatario_nombre character varying(200),
+    remitente_destinatario_rfc character varying(13),
+    fecha_hora_programada timestamp with time zone,
+    fecha_hora_real timestamp with time zone,
+    distancia_recorrida numeric(14,3),
+    domicilio_snapshot jsonb,
+    coordenadas_snapshot jsonb,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    domicilio_id integer
+);
+
+
+--
+-- Name: transporte__viajes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.transporte__viajes (
+    id bigint,
+    empresa_id integer,
+    folio_interno character varying(50),
+    cliente_contacto_id integer,
+    estatus character varying(30),
+    fecha_programada timestamp with time zone,
+    fecha_inicio timestamp with time zone,
+    fecha_fin timestamp with time zone,
+    vehiculo_id bigint,
+    referencia_cliente character varying(100),
+    observaciones text,
+    creado_por integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: whatsapp__contacto_estado; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.whatsapp__contacto_estado (
+    empresa_id integer,
+    telefono character varying(20),
+    opt_in boolean,
+    opt_out boolean,
+    ultimo_in timestamp with time zone,
+    ultimo_out timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: whatsapp__estadisticas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.whatsapp__estadisticas (
+    empresa_id integer,
+    fecha date,
+    mensajes_enviados integer,
+    mensajes_recibidos integer,
+    plantillas_usadas integer,
+    errores_envio integer
+);
+
+
+--
+-- Name: whatsapp__intentos_contacto; Type: TABLE; Schema: ops_backup_empresa_8_20261008092532102; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092532102.whatsapp__intentos_contacto (
+    id bigint,
+    empresa_id integer,
+    pagina_origen text,
+    producto text,
+    fuente text,
+    mensaje_prellenado text,
+    session_id text,
+    ip_address inet,
+    user_agent text,
+    creado_en timestamp with time zone,
+    tipo_intento text
+);
+
+
+--
+-- Name: contabilidad__contabilizaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.contabilidad__contabilizaciones (
+    id bigint,
+    empresa_id bigint,
+    poliza_id bigint,
+    tipo_movimiento character varying(20),
+    tipo_documento character varying(30),
+    documento_id bigint,
+    operacion_dinero_id integer,
+    movimiento_inventario_id bigint,
+    evento_contable character varying(20),
+    modo_contabilizacion character varying(20),
+    fecha_documento date,
+    fecha_contabilizacion timestamp with time zone,
+    usuario_id integer,
+    es_reversa boolean,
+    contabilizacion_origen_id bigint,
+    comentario character varying(500),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__cuentas_saldos_mensuales; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.contabilidad__cuentas_saldos_mensuales (
+    id bigint,
+    empresa_id bigint,
+    cuenta_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    cargos numeric(19,2),
+    abonos numeric(19,2),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__documentos_polizas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.contabilidad__documentos_polizas (
+    id bigint,
+    empresa_id bigint,
+    documento_id bigint,
+    poliza_id bigint,
+    tipo character varying(20),
+    documento_poliza_original_id bigint,
+    codigo_poliza_legacy character varying(16),
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__e_contabilidad_paquetes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.contabilidad__e_contabilidad_paquetes (
+    id bigint,
+    empresa_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    nombre_zip character varying(255),
+    archivos_incluidos jsonb,
+    parametros jsonb,
+    resumen jsonb,
+    hash_zip character varying(128),
+    hash_algoritmo character varying(20),
+    generado_por bigint,
+    generado_en timestamp with time zone,
+    observaciones text,
+    estatus character varying(30),
+    enviado_sat boolean,
+    enviado_sat_en timestamp with time zone,
+    acuse_sat text
+);
+
+
+--
+-- Name: contabilidad__polizas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.contabilidad__polizas (
+    id bigint,
+    empresa_id bigint,
+    codigo_legacy character varying(16),
+    tipo_poliza_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    numero integer,
+    fecha date,
+    estatus character varying(20),
+    referencia character varying(100),
+    observaciones text,
+    total_cargos numeric(19,2),
+    total_abonos numeric(19,2),
+    modulo_origen character varying(30),
+    almacen_id bigint,
+    uuid_cfdi uuid,
+    creada_por_id bigint,
+    modificada_por_id bigint,
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__polizas_detalle; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.contabilidad__polizas_detalle (
+    id bigint,
+    empresa_id bigint,
+    poliza_id bigint,
+    renglon integer,
+    cuenta_id bigint,
+    concepto_id bigint,
+    cargo numeric(19,2),
+    abono numeric(19,2),
+    fecha date,
+    uuid_cfdi uuid,
+    rfc character varying(13),
+    cuenta_legacy character varying(64),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone,
+    concepto_texto character varying(200)
+);
+
+
+--
+-- Name: core__cfdi_sat_autorizaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.core__cfdi_sat_autorizaciones (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    version_texto character varying(20),
+    aceptado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_bitacora; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.core__cfdi_sat_bitacora (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    accion character varying(40),
+    resultado character varying(10),
+    detalle text,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_comprobantes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.core__cfdi_sat_comprobantes (
+    id integer,
+    empresa_id integer,
+    solicitud_id integer,
+    paquete_id integer,
+    uuid character varying(36),
+    rfc_emisor character varying(13),
+    rfc_receptor character varying(13),
+    nombre_emisor character varying(300),
+    nombre_receptor character varying(300),
+    fecha_emision timestamp without time zone,
+    tipo_comprobante character varying(1),
+    total numeric(15,2),
+    moneda character varying(3),
+    estatus_sat character varying(10),
+    tipo_descarga character varying(10),
+    xml_path character varying(500),
+    importado_compras boolean,
+    documento_id integer,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_paquetes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.core__cfdi_sat_paquetes (
+    id integer,
+    solicitud_id integer,
+    sat_package_id character varying(80),
+    estatus character varying(20),
+    zip_path character varying(500),
+    descargado_en timestamp with time zone,
+    mensaje_error text,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_solicitudes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.core__cfdi_sat_solicitudes (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    tipo_descarga character varying(10),
+    fecha_inicio date,
+    fecha_fin date,
+    tipo_solicitud character varying(10),
+    estatus_comprobante character varying(10),
+    sat_request_id character varying(80),
+    estatus character varying(20),
+    mensaje_error text,
+    creado_en timestamp with time zone,
+    solicitado_en timestamp with time zone,
+    cfdis_encontrados integer,
+    verificado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__actividades; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.crm__actividades (
+    id integer,
+    empresa_id integer,
+    usuario_asignado_id integer,
+    usuario_creador_id integer,
+    oportunidad_id integer,
+    tipo_actividad character varying(30),
+    fecha_programada timestamp without time zone,
+    observaciones text,
+    estatus character varying(20),
+    fecha_realizacion timestamp without time zone,
+    resultado text,
+    recordatorio boolean,
+    recordatorio_minutos integer,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone,
+    recordatorio_disparado_at timestamp without time zone,
+    contacto_id integer,
+    recordatorio_erp_claimed_at timestamp without time zone,
+    recordatorio_erp_claimed_by character varying(120),
+    recordatorio_erp_entregado_at timestamp without time zone,
+    recordatorio_push_claimed_at timestamp without time zone,
+    recordatorio_push_entregado_at timestamp without time zone,
+    recordatorio_push_ultimo_intento_at timestamp without time zone,
+    recordatorio_push_error text,
+    descripcion text
+);
+
+
+--
+-- Name: crm__conversacion_etiquetas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.crm__conversacion_etiquetas (
+    id integer,
+    empresa_id integer,
+    conversacion_id integer,
+    etiqueta_id integer,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: crm__conversaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.crm__conversaciones (
+    id bigint,
+    empresa_id integer,
+    contacto_id integer,
+    estado character varying(20),
+    asignado_a integer,
+    creada_en timestamp with time zone,
+    ultimo_mensaje_en timestamp with time zone,
+    cerrada_en timestamp with time zone,
+    prioridad character varying(10),
+    siguiente_accion character varying(30),
+    etapa_oportunidad character varying(30),
+    finalizada_en timestamp with time zone,
+    finalizada_por integer,
+    motivo_finalizacion character varying(40),
+    observaciones_finalizacion text,
+    reactivada_en timestamp with time zone,
+    reactivada_por_evento character varying(30)
+);
+
+
+--
+-- Name: crm__conversaciones_lecturas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.crm__conversaciones_lecturas (
+    empresa_id integer,
+    usuario_id integer,
+    conversacion_id bigint,
+    ultima_lectura_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__mensaje_reacciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.crm__mensaje_reacciones (
+    id bigint,
+    empresa_id integer,
+    mensaje_id bigint,
+    autor character varying(10),
+    usuario_id integer,
+    emoji character varying(16),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__mensajes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.crm__mensajes (
+    id bigint,
+    empresa_id integer,
+    contacto_id integer,
+    conversacion_id bigint,
+    telefono character varying(20),
+    tipo_mensaje character varying(20),
+    canal character varying(50),
+    contenido text,
+    plantilla_nombre character varying(100),
+    fecha_envio timestamp with time zone,
+    status character varying(20),
+    id_externo character varying(100),
+    intentos_envio integer,
+    respuesta_json jsonb,
+    creado_en timestamp with time zone,
+    tipo_contenido character varying(20),
+    media_url text,
+    mime_type character varying(100),
+    caption text,
+    email_from character varying(150),
+    email_to character varying(150),
+    email_subject character varying(200),
+    email_cc character varying(200),
+    email_bcc character varying(200),
+    in_reply_to character varying(150),
+    mensaje_respuesta_id bigint,
+    autor_usuario_id integer,
+    autor_vendedor_contacto_id integer,
+    responsabilidad_contacto_id bigint,
+    origen_envio character varying(30)
+);
+
+
+--
+-- Name: crm__meta_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.crm__meta_leads (
+    id bigint,
+    empresa_id integer,
+    leadgen_id text,
+    page_id text,
+    form_id text,
+    form_name text,
+    created_time text,
+    ad_id text,
+    campaign_id text,
+    campaign_name text,
+    field_names jsonb,
+    estado text,
+    intentos integer,
+    ultimo_error text,
+    proximo_reintento_at timestamp without time zone,
+    contacto_id integer,
+    actividad_id integer,
+    recibido_at timestamp without time zone,
+    procesado_at timestamp without time zone,
+    actualizado_at timestamp without time zone,
+    field_data jsonb
+);
+
+
+--
+-- Name: crm__oportunidades_venta; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.crm__oportunidades_venta (
+    id integer,
+    empresa_id integer,
+    conversacion_id integer,
+    contacto_id integer,
+    vendedor_id integer,
+    estatus character varying(20),
+    etapa character varying(50),
+    cotizacion_principal_id integer,
+    fecha_estimada_decision date,
+    fecha_reactivacion_estimada date,
+    dolor_validado boolean,
+    presupuesto_validado boolean,
+    contacto_es_decisor boolean,
+    comentarios_no_cierre text,
+    observaciones text,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+--
+-- Name: documentacion__adjuntos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.documentacion__adjuntos (
+    id integer,
+    empresa_id integer,
+    tipo_id integer,
+    nombre_original character varying(255),
+    fecha_vencimiento date,
+    comentarios text,
+    mime_type character varying(120),
+    tamano bigint,
+    storage_key text,
+    creado_por integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: documentacion__adjuntos_entidades; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.documentacion__adjuntos_entidades (
+    adjunto_id integer,
+    empresa_documentada_id integer,
+    documento_id integer,
+    contacto_id integer,
+    finanzas_operacion_id integer
+);
+
+
+--
+-- Name: inventario__existencias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.inventario__existencias (
+    id bigint,
+    empresa_id integer,
+    producto_id integer,
+    almacen_id integer,
+    existencia numeric(18,6),
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: inventario__movimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.inventario__movimientos (
+    id bigint,
+    empresa_id bigint,
+    documento_id bigint,
+    usuario_id bigint,
+    tipo_movimiento character varying(30),
+    fecha date,
+    observaciones text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    es_reversion boolean
+);
+
+
+--
+-- Name: inventario__movimientos_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.inventario__movimientos_partidas (
+    id bigint,
+    empresa_id integer,
+    movimiento_id bigint,
+    documento_partida_id integer,
+    producto_id integer,
+    almacen_id integer,
+    almacen_destino_id integer,
+    fecha_movimiento date,
+    cantidad numeric(18,6),
+    signo smallint,
+    tipo_partida character varying(25),
+    costo_unitario numeric(18,6),
+    existencia_resultante numeric(18,6),
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: produccion__seguimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.produccion__seguimientos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    etapa_id integer,
+    fecha_promesa date,
+    comentarios text,
+    updated_by integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    activo boolean
+);
+
+
+--
+-- Name: public__aplicaciones_saldo; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__aplicaciones_saldo (
+    id integer,
+    empresa_id integer,
+    finanzas_operacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    monto numeric(15,2),
+    monto_moneda_documento numeric(15,2),
+    fecha_aplicacion timestamp with time zone,
+    fecha_creacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    created_by integer
+);
+
+
+--
+-- Name: public__audit_log; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__audit_log (
+    id bigint,
+    empresa_id bigint,
+    usuario_id bigint,
+    modulo character varying(100),
+    entidad character varying(100),
+    entidad_id character varying(100),
+    accion character varying(50),
+    descripcion text,
+    datos_anteriores jsonb,
+    datos_nuevos jsonb,
+    ip_address inet,
+    user_agent text,
+    origen character varying(50),
+    created_at timestamp with time zone,
+    usuario_nombre character varying(200),
+    empresa_nombre character varying(200),
+    motivo character varying(500),
+    metadata jsonb
+);
+
+
+--
+-- Name: public__autorizaciones_solicitudes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__autorizaciones_solicitudes (
+    id integer,
+    empresa_id integer,
+    regla_id integer,
+    documento_origen_id integer,
+    tipo_documento_origen character varying(60),
+    tipo_documento_destino character varying(60),
+    folio_documento_origen character varying(60),
+    monto numeric(18,4),
+    usuario_solicitante_id integer,
+    usuario_autorizador_id integer,
+    estado character varying(20),
+    comentario_solicitante text,
+    comentario_autorizador text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    respondido_at timestamp with time zone
+);
+
+
+--
+-- Name: public__cfdi_intentos_timbrado; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__cfdi_intentos_timbrado (
+    id bigint,
+    empresa_id integer,
+    documento_id integer,
+    proveedor character varying(50),
+    proveedor_cfdi_id character varying(100),
+    endpoint text,
+    estado character varying(40),
+    uuid character varying(36),
+    error_codigo character varying(100),
+    error_mensaje_sanitizado text,
+    intentos_descarga integer,
+    metadata_sanitizada jsonb,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__credito_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__credito_operaciones (
+    id integer,
+    empresa_id integer,
+    contacto_id integer,
+    documento_id integer,
+    tipo_operacion character varying(20),
+    fecha date,
+    monto numeric(15,2),
+    referencia character varying(100),
+    observaciones text,
+    usuario_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__credito_operaciones_aplicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__credito_operaciones_aplicaciones (
+    id integer,
+    empresa_id integer,
+    operacion_origen_id integer,
+    operacion_aplicada_id integer,
+    fecha date,
+    monto_aplicado numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__credito_operaciones_items; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__credito_operaciones_items (
+    id integer,
+    operacion_credito_id integer,
+    documento_id integer,
+    partida_id integer,
+    producto_id integer,
+    cantidad numeric(15,6),
+    monto numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__crm_ruteo_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__crm_ruteo_leads (
+    id integer,
+    empresa_id integer,
+    origen character varying(50),
+    modo_asignacion character varying(20),
+    vendedor_fijo_id integer,
+    ultimo_vendedor_id integer,
+    prioridad integer,
+    activo boolean,
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    fecha_actualizacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos (
+    id integer,
+    tipo_documento character varying(30),
+    estatus_documento character varying(30),
+    serie character varying(10),
+    numero integer,
+    empresa_id integer,
+    almacen_id integer,
+    contacto_principal_id integer,
+    contacto_facturacion_id integer,
+    contacto_entrega_id integer,
+    agente_id integer,
+    fecha_documento date,
+    fecha_vencimiento date,
+    fecha_entrega date,
+    fecha_cancelacion date,
+    moneda character varying(10),
+    tipo_cambio numeric(9,4),
+    subtotal numeric(15,2),
+    descuento_global numeric(9,4),
+    descuento numeric(15,2),
+    iva numeric(15,2),
+    ieps numeric(15,2),
+    retencion_iva numeric(15,2),
+    retencion_isr numeric(15,2),
+    total numeric(15,2),
+    saldo numeric(15,2),
+    domicilio_entrega_id integer,
+    fletera_id integer,
+    observaciones text,
+    comentarios_internos text,
+    documento_origen_id integer,
+    documento_padre_id integer,
+    documento_relacionado_id integer,
+    es_restitucion boolean,
+    es_publico_general boolean,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone,
+    rfc_receptor character varying(13),
+    nombre_receptor text,
+    regimen_fiscal_receptor text,
+    uso_cfdi text,
+    forma_pago text,
+    metodo_pago text,
+    codigo_postal_receptor character varying(10),
+    tratamiento_impuestos character varying(30),
+    estado_seguimiento text,
+    comentario_seguimiento text,
+    producto_resumen text,
+    oportunidad_id integer,
+    motivo_nc character varying(20),
+    concepto_id integer,
+    finanzas_operacion_id integer,
+    periodicidad_global character varying(2),
+    meses_global character varying(2),
+    anio_global smallint,
+    factura_global_id integer,
+    usuario_cancelacion_id integer,
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    estado_autorizacion character varying(20),
+    serie_externa character varying(10),
+    numero_externo integer,
+    uuid_cfdi_origen character varying(36)
+);
+
+
+--
+-- Name: public__documentos_campos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_campos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    campo_id integer,
+    catalogo_id integer,
+    valor_texto text,
+    valor_numero numeric,
+    valor_fecha date,
+    valor_boolean boolean,
+    created_at timestamp without time zone
+);
+
+
+--
+-- Name: public__documentos_cancelacion_intentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_cancelacion_intentos (
+    id bigint,
+    empresa_id integer,
+    documento_id integer,
+    usuario_id integer,
+    estado character varying(40),
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    cfdi_uuid character varying(36),
+    facturama_respuesta jsonb,
+    error_externo_mensaje text,
+    error_interno_mensaje text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    proveedor character varying(50),
+    pac_id character varying(100),
+    modalidad character varying(10),
+    rfc_emisor text,
+    endpoint text,
+    proveedor_status character varying(40),
+    fecha_solicitud timestamp with time zone,
+    intentos_consulta integer,
+    error_codigo character varying(100),
+    mensaje_sanitizado text,
+    acuse_xml text,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__documentos_cfdi; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_cfdi (
+    documento_id integer,
+    uuid character varying(36),
+    fecha_timbrado timestamp with time zone,
+    version_cfdi character varying(10),
+    serie_cfdi character varying(10),
+    folio_cfdi character varying(20),
+    no_certificado character varying(30),
+    no_certificado_sat character varying(30),
+    sello_cfdi text,
+    sello_sat text,
+    cadena_original text,
+    xml_timbrado text,
+    qr_url text,
+    estado_sat character varying(20),
+    fecha_cancelacion timestamp with time zone,
+    xml_cancelacion text,
+    fecha_emision timestamp with time zone,
+    rfc_proveedor_certificacion character varying(20),
+    pac character varying(20),
+    pac_id character varying(50),
+    rfc_emisor text,
+    rfc_receptor text,
+    total numeric(14,2),
+    pac_modalidad character varying(10),
+    cancelacion_estado character varying(30),
+    cancelacion_proveedor_status character varying(40),
+    cancelacion_ultima_consulta_at timestamp with time zone,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__documentos_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_partidas (
+    id integer,
+    documento_id integer,
+    numero_partida integer,
+    producto_id integer,
+    descripcion_alterna character varying(255),
+    cantidad numeric(15,6),
+    unidad character varying(20),
+    factor_conversion numeric(11,4),
+    cantidad_inventariable numeric(15,6),
+    precio_unitario numeric(15,6),
+    descuento numeric(9,4),
+    subtotal_partida numeric(15,2),
+    iva_porcentaje numeric(9,4),
+    iva_monto numeric(15,2),
+    ieps_porcentaje numeric(9,4),
+    ieps_monto numeric(15,2),
+    retencion_iva_porcentaje numeric(9,4),
+    retencion_iva_monto numeric(15,2),
+    retencion_isr_porcentaje numeric(9,4),
+    retencion_isr_monto numeric(15,2),
+    total_partida numeric(15,2),
+    costo numeric(15,6),
+    costo_indirecto numeric(15,6),
+    cantidad_entregada numeric(15,6),
+    cantidad_facturada numeric(15,6),
+    cantidad_cancelada numeric(15,6),
+    cantidad_devuelta numeric(15,6),
+    cantidad_en_entrada numeric(15,6),
+    saldo_cantidad numeric(15,6),
+    es_gasto boolean,
+    es_componente boolean,
+    partida_padre_id integer,
+    partida_origen_id integer,
+    titulo_agrupador character varying(70),
+    archivo_imagen_1 character varying(255),
+    archivo_imagen_2 character varying(255),
+    observaciones text,
+    comentarios_internos text,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone,
+    es_parte_oportunidad boolean,
+    producto_archivo_id integer,
+    precio_lista_id bigint,
+    precio_editado_manual boolean,
+    precio_origen character varying(30),
+    almacen_id integer,
+    descuento_tipo character varying(20),
+    descuento_monto numeric(15,2)
+);
+
+
+--
+-- Name: public__documentos_partidas_campos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_partidas_campos (
+    id integer,
+    empresa_id integer,
+    partida_id integer,
+    campo_id integer,
+    catalogo_id integer,
+    valor_texto text,
+    valor_numero numeric,
+    valor_fecha date,
+    valor_boolean boolean,
+    created_at timestamp without time zone
+);
+
+
+--
+-- Name: public__documentos_partidas_especificaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_partidas_especificaciones (
+    id bigint,
+    partida_id integer,
+    especificacion_biblioteca_id bigint,
+    orden integer,
+    tipo character varying(20),
+    origen character varying(20),
+    contenido text,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos_partidas_impuestos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_partidas_impuestos (
+    id integer,
+    partida_id integer,
+    impuesto_id character varying(30),
+    tasa numeric(9,4),
+    base numeric(15,2),
+    monto numeric(15,2)
+);
+
+
+--
+-- Name: public__documentos_partidas_vinculos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_partidas_vinculos (
+    id integer,
+    empresa_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    partida_origen_id integer,
+    partida_destino_id integer,
+    cantidad numeric(15,6),
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos_relaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__documentos_relaciones (
+    id bigint,
+    empresa_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    tipo_relacion character varying(30),
+    bloquea_cancelacion boolean,
+    metadata jsonb,
+    activa boolean,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_aplicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_aplicaciones (
+    id integer,
+    empresa_id integer,
+    operacion_id integer,
+    documento_id integer,
+    monto numeric(15,2),
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_conciliaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_conciliaciones (
+    id integer,
+    empresa_id integer,
+    cuenta_id integer,
+    fecha_corte date,
+    saldo_banco numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    usuario_id integer,
+    saldo_conciliado_anterior numeric(15,2),
+    total_depositos_cotejados numeric(15,2),
+    total_retiros_cotejados numeric(15,2),
+    saldo_conciliado_calculado numeric(15,2),
+    saldo_sistema numeric(15,2),
+    diferencia numeric(15,2),
+    estatus character varying(20),
+    anulada_en timestamp with time zone,
+    anulada_por integer,
+    motivo_anulacion text
+);
+
+
+--
+-- Name: public__finanzas_conciliaciones_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_conciliaciones_operaciones (
+    id integer,
+    conciliacion_id integer,
+    operacion_id integer
+);
+
+
+--
+-- Name: public__finanzas_desaplicaciones_pago; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_desaplicaciones_pago (
+    id bigint,
+    empresa_id integer,
+    aplicacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    monto numeric(15,2),
+    monto_moneda_documento numeric(15,2),
+    fecha_aplicacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    usuario_id integer,
+    motivo character varying(500),
+    fecha_desaplicacion timestamp with time zone,
+    pago_folio character varying(120),
+    factura_folio character varying(120)
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_estados_cuenta_importados (
+    id bigint,
+    empresa_id bigint,
+    cuenta_id bigint,
+    nombre_original text,
+    hash_archivo text,
+    contenido_original bytea,
+    codificacion text,
+    formato_detectado text,
+    parser_version text,
+    fecha_inicial date,
+    fecha_final date,
+    saldo_inicial numeric(20,6),
+    saldo_final numeric(20,6),
+    total_cargos numeric(20,6),
+    total_abonos numeric(20,6),
+    total_filas integer,
+    filas_validas integer,
+    filas_invalidas integer,
+    filas_nuevas integer,
+    filas_duplicadas integer,
+    duplicados_omitidos jsonb,
+    estado text,
+    usuario_creacion_id bigint,
+    fecha_creacion timestamp with time zone,
+    usuario_cancelacion_id bigint,
+    fecha_cancelacion timestamp with time zone,
+    motivo_cancelacion text,
+    usuario_finalizacion_id bigint,
+    fecha_finalizacion timestamp with time zone,
+    saldo_calculado_final numeric(20,6),
+    diferencia_final numeric(20,6),
+    metadatos jsonb,
+    es_historica boolean
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados_movimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_estados_cuenta_importados_movimientos (
+    id bigint,
+    empresa_id bigint,
+    importacion_id bigint,
+    cuenta_id bigint,
+    numero_fila integer,
+    fecha date,
+    hora time without time zone,
+    concepto_bancario text,
+    referencia_bancaria text,
+    cargo numeric(20,6),
+    abono numeric(20,6),
+    importe numeric(20,6),
+    tipo text,
+    saldo_posterior numeric(20,6),
+    linea_original text,
+    hash_movimiento text,
+    estado_revision text,
+    activo boolean,
+    fecha_creacion timestamp with time zone,
+    motivo_exclusion text,
+    usuario_exclusion_id bigint,
+    fecha_exclusion timestamp with time zone,
+    datos_originales jsonb,
+    metadatos jsonb,
+    saldo_disponible boolean,
+    es_historico boolean
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados_relaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_estados_cuenta_importados_relaciones (
+    id bigint,
+    empresa_id bigint,
+    movimiento_bancario_id bigint,
+    operacion_id bigint,
+    estado text,
+    origen text,
+    puntuacion numeric(8,6),
+    nivel_confianza text,
+    explicacion text,
+    motivos jsonb,
+    usuario_confirmacion_id bigint,
+    fecha_confirmacion timestamp with time zone,
+    activa boolean,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_operaciones (
+    id integer,
+    empresa_id integer,
+    fecha date,
+    tipo_movimiento character varying(20),
+    monto numeric(15,2),
+    referencia character varying(100),
+    observaciones text,
+    cuenta_id integer,
+    contacto_id integer,
+    factura_id integer,
+    es_transferencia boolean,
+    transferencia_id integer,
+    estado_conciliacion character varying(20),
+    saldo numeric(15,2),
+    fecha_creacion timestamp with time zone,
+    concepto_id integer,
+    naturaleza_operacion character varying(30),
+    documento_origen_id integer,
+    created_by integer,
+    metodo_pago_id integer
+);
+
+
+--
+-- Name: public__finanzas_programacion_pagos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_programacion_pagos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    proveedor_id integer,
+    fecha_programada date,
+    monto_programado numeric(20,6),
+    moneda character varying(3),
+    cuenta_origen_id integer,
+    metodo_pago_id integer,
+    referencia character varying(100),
+    estatus character varying(20),
+    notas text,
+    created_by integer,
+    updated_by integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    documento_pago_id integer,
+    finanzas_operacion_id integer
+);
+
+
+--
+-- Name: public__finanzas_programacion_pagos_detalle; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_programacion_pagos_detalle (
+    id integer,
+    empresa_id integer,
+    programacion_id integer,
+    documento_id integer,
+    monto_programado numeric(20,6),
+    moneda character varying(3),
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_transferencias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__finanzas_transferencias (
+    id integer,
+    empresa_id integer,
+    cuenta_origen_id integer,
+    cuenta_destino_id integer,
+    monto numeric(15,2),
+    fecha date,
+    referencia character varying(100),
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    usuario_id integer
+);
+
+
+--
+-- Name: public__operaciones_entregas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__operaciones_entregas (
+    id bigint,
+    empresa_id integer,
+    fecha date,
+    cantidad numeric(15,6),
+    estado character varying(20),
+    full_documento_id integer,
+    contacto_id integer,
+    fletera_contacto_id integer,
+    operador_id bigint,
+    vehiculo_id bigint,
+    domicilio_snapshot jsonb,
+    carta_porte_referencia text,
+    observaciones text,
+    datos_logisticos_snapshot jsonb,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__operaciones_entregas_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__operaciones_entregas_partidas (
+    id bigint,
+    entrega_id bigint,
+    documento_id integer,
+    partida_id integer,
+    cantidad numeric(15,6)
+);
+
+
+--
+-- Name: public__temp_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.public__temp_leads (
+    nombre text,
+    correo text,
+    telefono text,
+    empresa text,
+    estado text,
+    producto_servicio text,
+    vendedor text,
+    seguimiento text,
+    estatus text,
+    "NÚMERO DE TELÉFONO" bigint,
+    "Column4" bigint,
+    "FRECUENCIA" character varying(50),
+    "PRODUCTO/SERVICIO" character varying(50),
+    "Column12" character varying(50),
+    "Column13" character varying(50),
+    "Column14" character varying(50),
+    "Column15" character varying(50),
+    "Column16" character varying(50),
+    "Column17" character varying(50),
+    "Column18" character varying(50),
+    "Column19" character varying(50),
+    "Column20" character varying(50),
+    "Column21" character varying(50),
+    "Column22" character varying(50),
+    "Column23" character varying(50),
+    "Column24" character varying(50),
+    "Column25" character varying(50),
+    "Column26" character varying(50),
+    "Column27" character varying(50),
+    "Column28" character varying(50),
+    "Column29" character varying(50),
+    "Column30" character varying(50)
+);
+
+
+--
+-- Name: transporte__cartas_porte; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.transporte__cartas_porte (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    documento_id integer,
+    version character varying(10),
+    id_ccp character varying(36),
+    estatus character varying(30),
+    snapshot_json jsonb,
+    validado_at timestamp with time zone,
+    timbrado_at timestamp with time zone,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_documentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.transporte__viaje_documentos (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    documento_id integer,
+    tipo_relacion character varying(30),
+    principal boolean,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_figuras; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.transporte__viaje_figuras (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    tipo_figura character varying(30),
+    operador_id bigint,
+    contacto_id integer,
+    secuencia integer,
+    datos_snapshot jsonb,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_mercancias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.transporte__viaje_mercancias (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    descripcion_snapshot character varying(250),
+    clave_bienes_transportados_sat character varying(20),
+    clave_unidad_sat character varying(10),
+    unidad_descripcion character varying(100),
+    cantidad numeric(18,6),
+    peso_kg numeric(18,3),
+    valor_mercancia numeric(18,2),
+    material_peligroso boolean,
+    clave_material_peligroso character varying(20),
+    embalaje character varying(20),
+    descripcion_embalaje character varying(100),
+    origen_viaje_ubicacion_id bigint,
+    destino_viaje_ubicacion_id bigint,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    producto_id integer
+);
+
+
+--
+-- Name: transporte__viaje_remolques; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.transporte__viaje_remolques (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    remolque_id bigint,
+    orden integer,
+    datos_snapshot jsonb,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_ubicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.transporte__viaje_ubicaciones (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    tipo character varying(20),
+    secuencia integer,
+    remitente_destinatario_nombre character varying(200),
+    remitente_destinatario_rfc character varying(13),
+    fecha_hora_programada timestamp with time zone,
+    fecha_hora_real timestamp with time zone,
+    distancia_recorrida numeric(14,3),
+    domicilio_snapshot jsonb,
+    coordenadas_snapshot jsonb,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    domicilio_id integer
+);
+
+
+--
+-- Name: transporte__viajes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.transporte__viajes (
+    id bigint,
+    empresa_id integer,
+    folio_interno character varying(50),
+    cliente_contacto_id integer,
+    estatus character varying(30),
+    fecha_programada timestamp with time zone,
+    fecha_inicio timestamp with time zone,
+    fecha_fin timestamp with time zone,
+    vehiculo_id bigint,
+    referencia_cliente character varying(100),
+    observaciones text,
+    creado_por integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: whatsapp__contacto_estado; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.whatsapp__contacto_estado (
+    empresa_id integer,
+    telefono character varying(20),
+    opt_in boolean,
+    opt_out boolean,
+    ultimo_in timestamp with time zone,
+    ultimo_out timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: whatsapp__estadisticas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.whatsapp__estadisticas (
+    empresa_id integer,
+    fecha date,
+    mensajes_enviados integer,
+    mensajes_recibidos integer,
+    plantillas_usadas integer,
+    errores_envio integer
+);
+
+
+--
+-- Name: whatsapp__intentos_contacto; Type: TABLE; Schema: ops_backup_empresa_8_20261008092712888; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092712888.whatsapp__intentos_contacto (
+    id bigint,
+    empresa_id integer,
+    pagina_origen text,
+    producto text,
+    fuente text,
+    mensaje_prellenado text,
+    session_id text,
+    ip_address inet,
+    user_agent text,
+    creado_en timestamp with time zone,
+    tipo_intento text
+);
+
+
+--
+-- Name: contabilidad__contabilizaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.contabilidad__contabilizaciones (
+    id bigint,
+    empresa_id bigint,
+    poliza_id bigint,
+    tipo_movimiento character varying(20),
+    tipo_documento character varying(30),
+    documento_id bigint,
+    operacion_dinero_id integer,
+    movimiento_inventario_id bigint,
+    evento_contable character varying(20),
+    modo_contabilizacion character varying(20),
+    fecha_documento date,
+    fecha_contabilizacion timestamp with time zone,
+    usuario_id integer,
+    es_reversa boolean,
+    contabilizacion_origen_id bigint,
+    comentario character varying(500),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__cuentas_saldos_mensuales; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.contabilidad__cuentas_saldos_mensuales (
+    id bigint,
+    empresa_id bigint,
+    cuenta_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    cargos numeric(19,2),
+    abonos numeric(19,2),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__documentos_polizas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.contabilidad__documentos_polizas (
+    id bigint,
+    empresa_id bigint,
+    documento_id bigint,
+    poliza_id bigint,
+    tipo character varying(20),
+    documento_poliza_original_id bigint,
+    codigo_poliza_legacy character varying(16),
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__e_contabilidad_paquetes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.contabilidad__e_contabilidad_paquetes (
+    id bigint,
+    empresa_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    nombre_zip character varying(255),
+    archivos_incluidos jsonb,
+    parametros jsonb,
+    resumen jsonb,
+    hash_zip character varying(128),
+    hash_algoritmo character varying(20),
+    generado_por bigint,
+    generado_en timestamp with time zone,
+    observaciones text,
+    estatus character varying(30),
+    enviado_sat boolean,
+    enviado_sat_en timestamp with time zone,
+    acuse_sat text
+);
+
+
+--
+-- Name: contabilidad__polizas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.contabilidad__polizas (
+    id bigint,
+    empresa_id bigint,
+    codigo_legacy character varying(16),
+    tipo_poliza_id bigint,
+    ejercicio integer,
+    periodo smallint,
+    numero integer,
+    fecha date,
+    estatus character varying(20),
+    referencia character varying(100),
+    observaciones text,
+    total_cargos numeric(19,2),
+    total_abonos numeric(19,2),
+    modulo_origen character varying(30),
+    almacen_id bigint,
+    uuid_cfdi uuid,
+    creada_por_id bigint,
+    modificada_por_id bigint,
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: contabilidad__polizas_detalle; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.contabilidad__polizas_detalle (
+    id bigint,
+    empresa_id bigint,
+    poliza_id bigint,
+    renglon integer,
+    cuenta_id bigint,
+    concepto_id bigint,
+    cargo numeric(19,2),
+    abono numeric(19,2),
+    fecha date,
+    uuid_cfdi uuid,
+    rfc character varying(13),
+    cuenta_legacy character varying(64),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone,
+    concepto_texto character varying(200)
+);
+
+
+--
+-- Name: core__cfdi_sat_autorizaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.core__cfdi_sat_autorizaciones (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    version_texto character varying(20),
+    aceptado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_bitacora; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.core__cfdi_sat_bitacora (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    accion character varying(40),
+    resultado character varying(10),
+    detalle text,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_comprobantes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.core__cfdi_sat_comprobantes (
+    id integer,
+    empresa_id integer,
+    solicitud_id integer,
+    paquete_id integer,
+    uuid character varying(36),
+    rfc_emisor character varying(13),
+    rfc_receptor character varying(13),
+    nombre_emisor character varying(300),
+    nombre_receptor character varying(300),
+    fecha_emision timestamp without time zone,
+    tipo_comprobante character varying(1),
+    total numeric(15,2),
+    moneda character varying(3),
+    estatus_sat character varying(10),
+    tipo_descarga character varying(10),
+    xml_path character varying(500),
+    importado_compras boolean,
+    documento_id integer,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_paquetes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.core__cfdi_sat_paquetes (
+    id integer,
+    solicitud_id integer,
+    sat_package_id character varying(80),
+    estatus character varying(20),
+    zip_path character varying(500),
+    descargado_en timestamp with time zone,
+    mensaje_error text,
+    creado_en timestamp with time zone
+);
+
+
+--
+-- Name: core__cfdi_sat_solicitudes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.core__cfdi_sat_solicitudes (
+    id integer,
+    empresa_id integer,
+    usuario_id integer,
+    tipo_descarga character varying(10),
+    fecha_inicio date,
+    fecha_fin date,
+    tipo_solicitud character varying(10),
+    estatus_comprobante character varying(10),
+    sat_request_id character varying(80),
+    estatus character varying(20),
+    mensaje_error text,
+    creado_en timestamp with time zone,
+    solicitado_en timestamp with time zone,
+    cfdis_encontrados integer,
+    verificado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__actividades; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.crm__actividades (
+    id integer,
+    empresa_id integer,
+    usuario_asignado_id integer,
+    usuario_creador_id integer,
+    oportunidad_id integer,
+    tipo_actividad character varying(30),
+    fecha_programada timestamp without time zone,
+    observaciones text,
+    estatus character varying(20),
+    fecha_realizacion timestamp without time zone,
+    resultado text,
+    recordatorio boolean,
+    recordatorio_minutos integer,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone,
+    recordatorio_disparado_at timestamp without time zone,
+    contacto_id integer,
+    recordatorio_erp_claimed_at timestamp without time zone,
+    recordatorio_erp_claimed_by character varying(120),
+    recordatorio_erp_entregado_at timestamp without time zone,
+    recordatorio_push_claimed_at timestamp without time zone,
+    recordatorio_push_entregado_at timestamp without time zone,
+    recordatorio_push_ultimo_intento_at timestamp without time zone,
+    recordatorio_push_error text,
+    descripcion text
+);
+
+
+--
+-- Name: crm__conversacion_etiquetas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.crm__conversacion_etiquetas (
+    id integer,
+    empresa_id integer,
+    conversacion_id integer,
+    etiqueta_id integer,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: crm__conversaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.crm__conversaciones (
+    id bigint,
+    empresa_id integer,
+    contacto_id integer,
+    estado character varying(20),
+    asignado_a integer,
+    creada_en timestamp with time zone,
+    ultimo_mensaje_en timestamp with time zone,
+    cerrada_en timestamp with time zone,
+    prioridad character varying(10),
+    siguiente_accion character varying(30),
+    etapa_oportunidad character varying(30),
+    finalizada_en timestamp with time zone,
+    finalizada_por integer,
+    motivo_finalizacion character varying(40),
+    observaciones_finalizacion text,
+    reactivada_en timestamp with time zone,
+    reactivada_por_evento character varying(30)
+);
+
+
+--
+-- Name: crm__conversaciones_lecturas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.crm__conversaciones_lecturas (
+    empresa_id integer,
+    usuario_id integer,
+    conversacion_id bigint,
+    ultima_lectura_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__mensaje_reacciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.crm__mensaje_reacciones (
+    id bigint,
+    empresa_id integer,
+    mensaje_id bigint,
+    autor character varying(10),
+    usuario_id integer,
+    emoji character varying(16),
+    creado_en timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: crm__mensajes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.crm__mensajes (
+    id bigint,
+    empresa_id integer,
+    contacto_id integer,
+    conversacion_id bigint,
+    telefono character varying(20),
+    tipo_mensaje character varying(20),
+    canal character varying(50),
+    contenido text,
+    plantilla_nombre character varying(100),
+    fecha_envio timestamp with time zone,
+    status character varying(20),
+    id_externo character varying(100),
+    intentos_envio integer,
+    respuesta_json jsonb,
+    creado_en timestamp with time zone,
+    tipo_contenido character varying(20),
+    media_url text,
+    mime_type character varying(100),
+    caption text,
+    email_from character varying(150),
+    email_to character varying(150),
+    email_subject character varying(200),
+    email_cc character varying(200),
+    email_bcc character varying(200),
+    in_reply_to character varying(150),
+    mensaje_respuesta_id bigint,
+    autor_usuario_id integer,
+    autor_vendedor_contacto_id integer,
+    responsabilidad_contacto_id bigint,
+    origen_envio character varying(30)
+);
+
+
+--
+-- Name: crm__meta_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.crm__meta_leads (
+    id bigint,
+    empresa_id integer,
+    leadgen_id text,
+    page_id text,
+    form_id text,
+    form_name text,
+    created_time text,
+    ad_id text,
+    campaign_id text,
+    campaign_name text,
+    field_names jsonb,
+    estado text,
+    intentos integer,
+    ultimo_error text,
+    proximo_reintento_at timestamp without time zone,
+    contacto_id integer,
+    actividad_id integer,
+    recibido_at timestamp without time zone,
+    procesado_at timestamp without time zone,
+    actualizado_at timestamp without time zone,
+    field_data jsonb
+);
+
+
+--
+-- Name: crm__oportunidades_venta; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.crm__oportunidades_venta (
+    id integer,
+    empresa_id integer,
+    conversacion_id integer,
+    contacto_id integer,
+    vendedor_id integer,
+    estatus character varying(20),
+    etapa character varying(50),
+    cotizacion_principal_id integer,
+    fecha_estimada_decision date,
+    fecha_reactivacion_estimada date,
+    dolor_validado boolean,
+    presupuesto_validado boolean,
+    contacto_es_decisor boolean,
+    comentarios_no_cierre text,
+    observaciones text,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+--
+-- Name: documentacion__adjuntos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.documentacion__adjuntos (
+    id integer,
+    empresa_id integer,
+    tipo_id integer,
+    nombre_original character varying(255),
+    fecha_vencimiento date,
+    comentarios text,
+    mime_type character varying(120),
+    tamano bigint,
+    storage_key text,
+    creado_por integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: documentacion__adjuntos_entidades; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.documentacion__adjuntos_entidades (
+    adjunto_id integer,
+    empresa_documentada_id integer,
+    documento_id integer,
+    contacto_id integer,
+    finanzas_operacion_id integer
+);
+
+
+--
+-- Name: inventario__existencias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.inventario__existencias (
+    id bigint,
+    empresa_id integer,
+    producto_id integer,
+    almacen_id integer,
+    existencia numeric(18,6),
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: inventario__movimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.inventario__movimientos (
+    id bigint,
+    empresa_id bigint,
+    documento_id bigint,
+    usuario_id bigint,
+    tipo_movimiento character varying(30),
+    fecha date,
+    observaciones text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    es_reversion boolean
+);
+
+
+--
+-- Name: inventario__movimientos_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.inventario__movimientos_partidas (
+    id bigint,
+    empresa_id integer,
+    movimiento_id bigint,
+    documento_partida_id integer,
+    producto_id integer,
+    almacen_id integer,
+    almacen_destino_id integer,
+    fecha_movimiento date,
+    cantidad numeric(18,6),
+    signo smallint,
+    tipo_partida character varying(25),
+    costo_unitario numeric(18,6),
+    existencia_resultante numeric(18,6),
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: produccion__seguimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.produccion__seguimientos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    etapa_id integer,
+    fecha_promesa date,
+    comentarios text,
+    updated_by integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    activo boolean
+);
+
+
+--
+-- Name: public__aplicaciones_saldo; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__aplicaciones_saldo (
+    id integer,
+    empresa_id integer,
+    finanzas_operacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    monto numeric(15,2),
+    monto_moneda_documento numeric(15,2),
+    fecha_aplicacion timestamp with time zone,
+    fecha_creacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    created_by integer
+);
+
+
+--
+-- Name: public__audit_log; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__audit_log (
+    id bigint,
+    empresa_id bigint,
+    usuario_id bigint,
+    modulo character varying(100),
+    entidad character varying(100),
+    entidad_id character varying(100),
+    accion character varying(50),
+    descripcion text,
+    datos_anteriores jsonb,
+    datos_nuevos jsonb,
+    ip_address inet,
+    user_agent text,
+    origen character varying(50),
+    created_at timestamp with time zone,
+    usuario_nombre character varying(200),
+    empresa_nombre character varying(200),
+    motivo character varying(500),
+    metadata jsonb
+);
+
+
+--
+-- Name: public__autorizaciones_solicitudes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__autorizaciones_solicitudes (
+    id integer,
+    empresa_id integer,
+    regla_id integer,
+    documento_origen_id integer,
+    tipo_documento_origen character varying(60),
+    tipo_documento_destino character varying(60),
+    folio_documento_origen character varying(60),
+    monto numeric(18,4),
+    usuario_solicitante_id integer,
+    usuario_autorizador_id integer,
+    estado character varying(20),
+    comentario_solicitante text,
+    comentario_autorizador text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    respondido_at timestamp with time zone
+);
+
+
+--
+-- Name: public__cfdi_intentos_timbrado; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__cfdi_intentos_timbrado (
+    id bigint,
+    empresa_id integer,
+    documento_id integer,
+    proveedor character varying(50),
+    proveedor_cfdi_id character varying(100),
+    endpoint text,
+    estado character varying(40),
+    uuid character varying(36),
+    error_codigo character varying(100),
+    error_mensaje_sanitizado text,
+    intentos_descarga integer,
+    metadata_sanitizada jsonb,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__credito_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__credito_operaciones (
+    id integer,
+    empresa_id integer,
+    contacto_id integer,
+    documento_id integer,
+    tipo_operacion character varying(20),
+    fecha date,
+    monto numeric(15,2),
+    referencia character varying(100),
+    observaciones text,
+    usuario_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__credito_operaciones_aplicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__credito_operaciones_aplicaciones (
+    id integer,
+    empresa_id integer,
+    operacion_origen_id integer,
+    operacion_aplicada_id integer,
+    fecha date,
+    monto_aplicado numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__credito_operaciones_items; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__credito_operaciones_items (
+    id integer,
+    operacion_credito_id integer,
+    documento_id integer,
+    partida_id integer,
+    producto_id integer,
+    cantidad numeric(15,6),
+    monto numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__crm_ruteo_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__crm_ruteo_leads (
+    id integer,
+    empresa_id integer,
+    origen character varying(50),
+    modo_asignacion character varying(20),
+    vendedor_fijo_id integer,
+    ultimo_vendedor_id integer,
+    prioridad integer,
+    activo boolean,
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    fecha_actualizacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos (
+    id integer,
+    tipo_documento character varying(30),
+    estatus_documento character varying(30),
+    serie character varying(10),
+    numero integer,
+    empresa_id integer,
+    almacen_id integer,
+    contacto_principal_id integer,
+    contacto_facturacion_id integer,
+    contacto_entrega_id integer,
+    agente_id integer,
+    fecha_documento date,
+    fecha_vencimiento date,
+    fecha_entrega date,
+    fecha_cancelacion date,
+    moneda character varying(10),
+    tipo_cambio numeric(9,4),
+    subtotal numeric(15,2),
+    descuento_global numeric(9,4),
+    descuento numeric(15,2),
+    iva numeric(15,2),
+    ieps numeric(15,2),
+    retencion_iva numeric(15,2),
+    retencion_isr numeric(15,2),
+    total numeric(15,2),
+    saldo numeric(15,2),
+    domicilio_entrega_id integer,
+    fletera_id integer,
+    observaciones text,
+    comentarios_internos text,
+    documento_origen_id integer,
+    documento_padre_id integer,
+    documento_relacionado_id integer,
+    es_restitucion boolean,
+    es_publico_general boolean,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone,
+    rfc_receptor character varying(13),
+    nombre_receptor text,
+    regimen_fiscal_receptor text,
+    uso_cfdi text,
+    forma_pago text,
+    metodo_pago text,
+    codigo_postal_receptor character varying(10),
+    tratamiento_impuestos character varying(30),
+    estado_seguimiento text,
+    comentario_seguimiento text,
+    producto_resumen text,
+    oportunidad_id integer,
+    motivo_nc character varying(20),
+    concepto_id integer,
+    finanzas_operacion_id integer,
+    periodicidad_global character varying(2),
+    meses_global character varying(2),
+    anio_global smallint,
+    factura_global_id integer,
+    usuario_cancelacion_id integer,
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    estado_autorizacion character varying(20),
+    serie_externa character varying(10),
+    numero_externo integer,
+    uuid_cfdi_origen character varying(36)
+);
+
+
+--
+-- Name: public__documentos_campos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_campos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    campo_id integer,
+    catalogo_id integer,
+    valor_texto text,
+    valor_numero numeric,
+    valor_fecha date,
+    valor_boolean boolean,
+    created_at timestamp without time zone
+);
+
+
+--
+-- Name: public__documentos_cancelacion_intentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_cancelacion_intentos (
+    id bigint,
+    empresa_id integer,
+    documento_id integer,
+    usuario_id integer,
+    estado character varying(40),
+    motivo_cancelacion text,
+    motivo_sat character varying(2),
+    uuid_sustitucion character varying(36),
+    cfdi_uuid character varying(36),
+    facturama_respuesta jsonb,
+    error_externo_mensaje text,
+    error_interno_mensaje text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    proveedor character varying(50),
+    pac_id character varying(100),
+    modalidad character varying(10),
+    rfc_emisor text,
+    endpoint text,
+    proveedor_status character varying(40),
+    fecha_solicitud timestamp with time zone,
+    intentos_consulta integer,
+    error_codigo character varying(100),
+    mensaje_sanitizado text,
+    acuse_xml text,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__documentos_cfdi; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_cfdi (
+    documento_id integer,
+    uuid character varying(36),
+    fecha_timbrado timestamp with time zone,
+    version_cfdi character varying(10),
+    serie_cfdi character varying(10),
+    folio_cfdi character varying(20),
+    no_certificado character varying(30),
+    no_certificado_sat character varying(30),
+    sello_cfdi text,
+    sello_sat text,
+    cadena_original text,
+    xml_timbrado text,
+    qr_url text,
+    estado_sat character varying(20),
+    fecha_cancelacion timestamp with time zone,
+    xml_cancelacion text,
+    fecha_emision timestamp with time zone,
+    rfc_proveedor_certificacion character varying(20),
+    pac character varying(20),
+    pac_id character varying(50),
+    rfc_emisor text,
+    rfc_receptor text,
+    total numeric(14,2),
+    pac_modalidad character varying(10),
+    cancelacion_estado character varying(30),
+    cancelacion_proveedor_status character varying(40),
+    cancelacion_ultima_consulta_at timestamp with time zone,
+    cfdi_pac_config_id integer
+);
+
+
+--
+-- Name: public__documentos_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_partidas (
+    id integer,
+    documento_id integer,
+    numero_partida integer,
+    producto_id integer,
+    descripcion_alterna character varying(255),
+    cantidad numeric(15,6),
+    unidad character varying(20),
+    factor_conversion numeric(11,4),
+    cantidad_inventariable numeric(15,6),
+    precio_unitario numeric(15,6),
+    descuento numeric(9,4),
+    subtotal_partida numeric(15,2),
+    iva_porcentaje numeric(9,4),
+    iva_monto numeric(15,2),
+    ieps_porcentaje numeric(9,4),
+    ieps_monto numeric(15,2),
+    retencion_iva_porcentaje numeric(9,4),
+    retencion_iva_monto numeric(15,2),
+    retencion_isr_porcentaje numeric(9,4),
+    retencion_isr_monto numeric(15,2),
+    total_partida numeric(15,2),
+    costo numeric(15,6),
+    costo_indirecto numeric(15,6),
+    cantidad_entregada numeric(15,6),
+    cantidad_facturada numeric(15,6),
+    cantidad_cancelada numeric(15,6),
+    cantidad_devuelta numeric(15,6),
+    cantidad_en_entrada numeric(15,6),
+    saldo_cantidad numeric(15,6),
+    es_gasto boolean,
+    es_componente boolean,
+    partida_padre_id integer,
+    partida_origen_id integer,
+    titulo_agrupador character varying(70),
+    archivo_imagen_1 character varying(255),
+    archivo_imagen_2 character varying(255),
+    observaciones text,
+    comentarios_internos text,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone,
+    es_parte_oportunidad boolean,
+    producto_archivo_id integer,
+    precio_lista_id bigint,
+    precio_editado_manual boolean,
+    precio_origen character varying(30),
+    almacen_id integer,
+    descuento_tipo character varying(20),
+    descuento_monto numeric(15,2)
+);
+
+
+--
+-- Name: public__documentos_partidas_campos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_partidas_campos (
+    id integer,
+    empresa_id integer,
+    partida_id integer,
+    campo_id integer,
+    catalogo_id integer,
+    valor_texto text,
+    valor_numero numeric,
+    valor_fecha date,
+    valor_boolean boolean,
+    created_at timestamp without time zone
+);
+
+
+--
+-- Name: public__documentos_partidas_especificaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_partidas_especificaciones (
+    id bigint,
+    partida_id integer,
+    especificacion_biblioteca_id bigint,
+    orden integer,
+    tipo character varying(20),
+    origen character varying(20),
+    contenido text,
+    usuario_creacion_id integer,
+    usuario_modificacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos_partidas_impuestos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_partidas_impuestos (
+    id integer,
+    partida_id integer,
+    impuesto_id character varying(30),
+    tasa numeric(9,4),
+    base numeric(15,2),
+    monto numeric(15,2)
+);
+
+
+--
+-- Name: public__documentos_partidas_vinculos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_partidas_vinculos (
+    id integer,
+    empresa_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    partida_origen_id integer,
+    partida_destino_id integer,
+    cantidad numeric(15,6),
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__documentos_relaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__documentos_relaciones (
+    id bigint,
+    empresa_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    tipo_relacion character varying(30),
+    bloquea_cancelacion boolean,
+    metadata jsonb,
+    activa boolean,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone,
+    fecha_modificacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_aplicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_aplicaciones (
+    id integer,
+    empresa_id integer,
+    operacion_id integer,
+    documento_id integer,
+    monto numeric(15,2),
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_conciliaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_conciliaciones (
+    id integer,
+    empresa_id integer,
+    cuenta_id integer,
+    fecha_corte date,
+    saldo_banco numeric(15,2),
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    usuario_id integer,
+    saldo_conciliado_anterior numeric(15,2),
+    total_depositos_cotejados numeric(15,2),
+    total_retiros_cotejados numeric(15,2),
+    saldo_conciliado_calculado numeric(15,2),
+    saldo_sistema numeric(15,2),
+    diferencia numeric(15,2),
+    estatus character varying(20),
+    anulada_en timestamp with time zone,
+    anulada_por integer,
+    motivo_anulacion text
+);
+
+
+--
+-- Name: public__finanzas_conciliaciones_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_conciliaciones_operaciones (
+    id integer,
+    conciliacion_id integer,
+    operacion_id integer
+);
+
+
+--
+-- Name: public__finanzas_desaplicaciones_pago; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_desaplicaciones_pago (
+    id bigint,
+    empresa_id integer,
+    aplicacion_id integer,
+    documento_origen_id integer,
+    documento_destino_id integer,
+    monto numeric(15,2),
+    monto_moneda_documento numeric(15,2),
+    fecha_aplicacion timestamp with time zone,
+    num_parcialidad integer,
+    imp_saldo_ant numeric(20,6),
+    imp_saldo_insoluto numeric(20,6),
+    usuario_id integer,
+    motivo character varying(500),
+    fecha_desaplicacion timestamp with time zone,
+    pago_folio character varying(120),
+    factura_folio character varying(120)
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_estados_cuenta_importados (
+    id bigint,
+    empresa_id bigint,
+    cuenta_id bigint,
+    nombre_original text,
+    hash_archivo text,
+    contenido_original bytea,
+    codificacion text,
+    formato_detectado text,
+    parser_version text,
+    fecha_inicial date,
+    fecha_final date,
+    saldo_inicial numeric(20,6),
+    saldo_final numeric(20,6),
+    total_cargos numeric(20,6),
+    total_abonos numeric(20,6),
+    total_filas integer,
+    filas_validas integer,
+    filas_invalidas integer,
+    filas_nuevas integer,
+    filas_duplicadas integer,
+    duplicados_omitidos jsonb,
+    estado text,
+    usuario_creacion_id bigint,
+    fecha_creacion timestamp with time zone,
+    usuario_cancelacion_id bigint,
+    fecha_cancelacion timestamp with time zone,
+    motivo_cancelacion text,
+    usuario_finalizacion_id bigint,
+    fecha_finalizacion timestamp with time zone,
+    saldo_calculado_final numeric(20,6),
+    diferencia_final numeric(20,6),
+    metadatos jsonb,
+    es_historica boolean
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados_movimientos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_estados_cuenta_importados_movimientos (
+    id bigint,
+    empresa_id bigint,
+    importacion_id bigint,
+    cuenta_id bigint,
+    numero_fila integer,
+    fecha date,
+    hora time without time zone,
+    concepto_bancario text,
+    referencia_bancaria text,
+    cargo numeric(20,6),
+    abono numeric(20,6),
+    importe numeric(20,6),
+    tipo text,
+    saldo_posterior numeric(20,6),
+    linea_original text,
+    hash_movimiento text,
+    estado_revision text,
+    activo boolean,
+    fecha_creacion timestamp with time zone,
+    motivo_exclusion text,
+    usuario_exclusion_id bigint,
+    fecha_exclusion timestamp with time zone,
+    datos_originales jsonb,
+    metadatos jsonb,
+    saldo_disponible boolean,
+    es_historico boolean
+);
+
+
+--
+-- Name: public__finanzas_estados_cuenta_importados_relaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_estados_cuenta_importados_relaciones (
+    id bigint,
+    empresa_id bigint,
+    movimiento_bancario_id bigint,
+    operacion_id bigint,
+    estado text,
+    origen text,
+    puntuacion numeric(8,6),
+    nivel_confianza text,
+    explicacion text,
+    motivos jsonb,
+    usuario_confirmacion_id bigint,
+    fecha_confirmacion timestamp with time zone,
+    activa boolean,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_operaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_operaciones (
+    id integer,
+    empresa_id integer,
+    fecha date,
+    tipo_movimiento character varying(20),
+    monto numeric(15,2),
+    referencia character varying(100),
+    observaciones text,
+    cuenta_id integer,
+    contacto_id integer,
+    factura_id integer,
+    es_transferencia boolean,
+    transferencia_id integer,
+    estado_conciliacion character varying(20),
+    saldo numeric(15,2),
+    fecha_creacion timestamp with time zone,
+    concepto_id integer,
+    naturaleza_operacion character varying(30),
+    documento_origen_id integer,
+    created_by integer,
+    metodo_pago_id integer
+);
+
+
+--
+-- Name: public__finanzas_programacion_pagos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_programacion_pagos (
+    id integer,
+    empresa_id integer,
+    documento_id integer,
+    proveedor_id integer,
+    fecha_programada date,
+    monto_programado numeric(20,6),
+    moneda character varying(3),
+    cuenta_origen_id integer,
+    metodo_pago_id integer,
+    referencia character varying(100),
+    estatus character varying(20),
+    notas text,
+    created_by integer,
+    updated_by integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    documento_pago_id integer,
+    finanzas_operacion_id integer
+);
+
+
+--
+-- Name: public__finanzas_programacion_pagos_detalle; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_programacion_pagos_detalle (
+    id integer,
+    empresa_id integer,
+    programacion_id integer,
+    documento_id integer,
+    monto_programado numeric(20,6),
+    moneda character varying(3),
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: public__finanzas_transferencias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__finanzas_transferencias (
+    id integer,
+    empresa_id integer,
+    cuenta_origen_id integer,
+    cuenta_destino_id integer,
+    monto numeric(15,2),
+    fecha date,
+    referencia character varying(100),
+    observaciones text,
+    fecha_creacion timestamp with time zone,
+    usuario_id integer
+);
+
+
+--
+-- Name: public__operaciones_entregas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__operaciones_entregas (
+    id bigint,
+    empresa_id integer,
+    fecha date,
+    cantidad numeric(15,6),
+    estado character varying(20),
+    full_documento_id integer,
+    contacto_id integer,
+    fletera_contacto_id integer,
+    operador_id bigint,
+    vehiculo_id bigint,
+    domicilio_snapshot jsonb,
+    carta_porte_referencia text,
+    observaciones text,
+    datos_logisticos_snapshot jsonb,
+    usuario_creacion_id integer,
+    fecha_creacion timestamp with time zone
+);
+
+
+--
+-- Name: public__operaciones_entregas_partidas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__operaciones_entregas_partidas (
+    id bigint,
+    entrega_id bigint,
+    documento_id integer,
+    partida_id integer,
+    cantidad numeric(15,6)
+);
+
+
+--
+-- Name: public__temp_leads; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.public__temp_leads (
+    nombre text,
+    correo text,
+    telefono text,
+    empresa text,
+    estado text,
+    producto_servicio text,
+    vendedor text,
+    seguimiento text,
+    estatus text,
+    "NÚMERO DE TELÉFONO" bigint,
+    "Column4" bigint,
+    "FRECUENCIA" character varying(50),
+    "PRODUCTO/SERVICIO" character varying(50),
+    "Column12" character varying(50),
+    "Column13" character varying(50),
+    "Column14" character varying(50),
+    "Column15" character varying(50),
+    "Column16" character varying(50),
+    "Column17" character varying(50),
+    "Column18" character varying(50),
+    "Column19" character varying(50),
+    "Column20" character varying(50),
+    "Column21" character varying(50),
+    "Column22" character varying(50),
+    "Column23" character varying(50),
+    "Column24" character varying(50),
+    "Column25" character varying(50),
+    "Column26" character varying(50),
+    "Column27" character varying(50),
+    "Column28" character varying(50),
+    "Column29" character varying(50),
+    "Column30" character varying(50)
+);
+
+
+--
+-- Name: transporte__cartas_porte; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.transporte__cartas_porte (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    documento_id integer,
+    version character varying(10),
+    id_ccp character varying(36),
+    estatus character varying(30),
+    snapshot_json jsonb,
+    validado_at timestamp with time zone,
+    timbrado_at timestamp with time zone,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_documentos; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.transporte__viaje_documentos (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    documento_id integer,
+    tipo_relacion character varying(30),
+    principal boolean,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_figuras; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.transporte__viaje_figuras (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    tipo_figura character varying(30),
+    operador_id bigint,
+    contacto_id integer,
+    secuencia integer,
+    datos_snapshot jsonb,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_mercancias; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.transporte__viaje_mercancias (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    descripcion_snapshot character varying(250),
+    clave_bienes_transportados_sat character varying(20),
+    clave_unidad_sat character varying(10),
+    unidad_descripcion character varying(100),
+    cantidad numeric(18,6),
+    peso_kg numeric(18,3),
+    valor_mercancia numeric(18,2),
+    material_peligroso boolean,
+    clave_material_peligroso character varying(20),
+    embalaje character varying(20),
+    descripcion_embalaje character varying(100),
+    origen_viaje_ubicacion_id bigint,
+    destino_viaje_ubicacion_id bigint,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    producto_id integer
+);
+
+
+--
+-- Name: transporte__viaje_remolques; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.transporte__viaje_remolques (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    remolque_id bigint,
+    orden integer,
+    datos_snapshot jsonb,
+    created_at timestamp with time zone
+);
+
+
+--
+-- Name: transporte__viaje_ubicaciones; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.transporte__viaje_ubicaciones (
+    id bigint,
+    empresa_id integer,
+    viaje_id bigint,
+    tipo character varying(20),
+    secuencia integer,
+    remitente_destinatario_nombre character varying(200),
+    remitente_destinatario_rfc character varying(13),
+    fecha_hora_programada timestamp with time zone,
+    fecha_hora_real timestamp with time zone,
+    distancia_recorrida numeric(14,3),
+    domicilio_snapshot jsonb,
+    coordenadas_snapshot jsonb,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    domicilio_id integer
+);
+
+
+--
+-- Name: transporte__viajes; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.transporte__viajes (
+    id bigint,
+    empresa_id integer,
+    folio_interno character varying(50),
+    cliente_contacto_id integer,
+    estatus character varying(30),
+    fecha_programada timestamp with time zone,
+    fecha_inicio timestamp with time zone,
+    fecha_fin timestamp with time zone,
+    vehiculo_id bigint,
+    referencia_cliente character varying(100),
+    observaciones text,
+    creado_por integer,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+
+--
+-- Name: whatsapp__contacto_estado; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.whatsapp__contacto_estado (
+    empresa_id integer,
+    telefono character varying(20),
+    opt_in boolean,
+    opt_out boolean,
+    ultimo_in timestamp with time zone,
+    ultimo_out timestamp with time zone,
+    actualizado_en timestamp with time zone
+);
+
+
+--
+-- Name: whatsapp__estadisticas; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.whatsapp__estadisticas (
+    empresa_id integer,
+    fecha date,
+    mensajes_enviados integer,
+    mensajes_recibidos integer,
+    plantillas_usadas integer,
+    errores_envio integer
+);
+
+
+--
+-- Name: whatsapp__intentos_contacto; Type: TABLE; Schema: ops_backup_empresa_8_20261008092949988; Owner: -
+--
+
+CREATE TABLE ops_backup_empresa_8_20261008092949988.whatsapp__intentos_contacto (
+    id bigint,
+    empresa_id integer,
+    pagina_origen text,
+    producto text,
+    fuente text,
+    mensaje_prellenado text,
+    session_id text,
+    ip_address inet,
+    user_agent text,
+    creado_en timestamp with time zone,
+    tipo_intento text
+);
 
 
 --
@@ -18057,6 +24337,13 @@ CREATE INDEX idx_inv_part_recalculo ON inventario.movimientos_partidas USING btr
 
 
 --
+-- Name: idx_inv_part_secuencia; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX idx_inv_part_secuencia ON inventario.movimientos_partidas USING btree (empresa_id, producto_id, fecha_movimiento, movimiento_id, id);
+
+
+--
 -- Name: idx_inv_part_transferencia_destino; Type: INDEX; Schema: inventario; Owner: -
 --
 
@@ -18113,6 +24400,20 @@ COMMENT ON INDEX inventario.idx_inventario_almacenes_empresa_nombre IS 'Índice 
 
 
 --
+-- Name: ix_inv_mov_empresa_estatus_fecha; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX ix_inv_mov_empresa_estatus_fecha ON inventario.movimientos USING btree (empresa_id, estatus_afectacion, fecha, id);
+
+
+--
+-- Name: ix_inventario_movimientos_contacto_id; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX ix_inventario_movimientos_contacto_id ON inventario.movimientos USING btree (empresa_id, contacto_id) WHERE (contacto_id IS NOT NULL);
+
+
+--
 -- Name: uq_inventario_almacenes_empresa_clave; Type: INDEX; Schema: inventario; Owner: -
 --
 
@@ -18124,6 +24425,20 @@ CREATE UNIQUE INDEX uq_inventario_almacenes_empresa_clave ON inventario.almacene
 --
 
 COMMENT ON INDEX inventario.uq_inventario_almacenes_empresa_clave IS 'Garantiza que la clave del almacén no se repita dentro de una misma empresa.';
+
+
+--
+-- Name: ux_inv_mov_folio; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_inv_mov_folio ON inventario.movimientos USING btree (empresa_id, serie, numero) WHERE ((serie IS NOT NULL) AND (numero IS NOT NULL));
+
+
+--
+-- Name: ux_inv_mov_reversion_origen; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_inv_mov_reversion_origen ON inventario.movimientos USING btree (empresa_id, movimiento_origen_id) WHERE (movimiento_origen_id IS NOT NULL);
 
 
 --
@@ -19730,6 +26045,20 @@ CREATE TRIGGER adjuntos_entidades_tenant_trg BEFORE INSERT OR UPDATE ON document
 
 
 --
+-- Name: movimientos_partidas trg_asignar_precision_partida; Type: TRIGGER; Schema: inventario; Owner: -
+--
+
+CREATE TRIGGER trg_asignar_precision_partida BEFORE INSERT ON inventario.movimientos_partidas FOR EACH ROW EXECUTE FUNCTION inventario.asignar_precision_partida();
+
+
+--
+-- Name: movimientos trg_validar_movimiento_contacto_empresa; Type: TRIGGER; Schema: inventario; Owner: -
+--
+
+CREATE TRIGGER trg_validar_movimiento_contacto_empresa BEFORE INSERT OR UPDATE OF empresa_id, contacto_id ON inventario.movimientos FOR EACH ROW EXECUTE FUNCTION inventario.validar_movimiento_contacto_empresa();
+
+
+--
 -- Name: etapas trg_produccion_etapas_updated_at; Type: TRIGGER; Schema: produccion; Owner: -
 --
 
@@ -21292,6 +27621,14 @@ ALTER TABLE ONLY inventario.movimientos
 
 
 --
+-- Name: movimientos fk_inv_mov_origen; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos
+    ADD CONSTRAINT fk_inv_mov_origen FOREIGN KEY (movimiento_origen_id) REFERENCES inventario.movimientos(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: movimientos fk_inv_mov_usuario; Type: FK CONSTRAINT; Schema: inventario; Owner: -
 --
 
@@ -21337,6 +27674,14 @@ ALTER TABLE ONLY inventario.movimientos_partidas
 
 ALTER TABLE ONLY inventario.almacenes
     ADD CONSTRAINT fk_inventario_almacenes_empresa FOREIGN KEY (empresa_id) REFERENCES core.empresas(id);
+
+
+--
+-- Name: movimientos fk_movimientos_contacto; Type: FK CONSTRAINT; Schema: inventario; Owner: -
+--
+
+ALTER TABLE ONLY inventario.movimientos
+    ADD CONSTRAINT fk_movimientos_contacto FOREIGN KEY (contacto_id) REFERENCES public.contactos(id) ON DELETE RESTRICT;
 
 
 --
@@ -22759,5 +29104,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JiVO5WuCy76tJT9pUQKReBHTh3TqSAjOvuiqukc71Zatt1HvZgYLBxTa1BFMr0r
+\unrestrict 6Ryq5TXcuSBi0cj06OVCROIPP0T9glzuhOZkhojRC7vKdAhEiiIZ87tsMleH2K4
 

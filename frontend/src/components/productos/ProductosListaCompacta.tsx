@@ -22,6 +22,7 @@ type ProductosListaCompactaProps = {
   paginationModel: GridPaginationModel;
   onPaginationModelChange: (model: GridPaginationModel) => void;
   selectedProductoId: number | null;
+  existenciasPorProducto?: Record<number, number> | null;
   onSelectProducto: (productoId: number) => void;
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
@@ -36,10 +37,32 @@ type ProductosListaCompactaProps = {
   helpHref: string;
   anchoCompleto?: boolean;
   onOpenBiblioteca?: () => void;
+  scrollInicial?: number | undefined;
+  onScrollLista?: ((scrollTop: number) => void) | undefined;
 };
 
 function subtitleFor(producto: Producto) {
   return [producto.familia, producto.unidad_venta_clave].filter(Boolean).join(' · ');
+}
+
+function esInventariable(tipo: string | null | undefined) {
+  return String(tipo ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase() === 'inventariable';
+}
+
+function formatExistenciaGlobal(value: number): string {
+  const negativo = value < 0;
+  let texto = Math.abs(value).toString();
+  if (/e/i.test(texto)) texto = Math.abs(value).toFixed(12);
+  const [enteraParte, fraccion = ''] = texto.split('.');
+  const entera = enteraParte || '0';
+  const fraccionVisible = fraccion.slice(0, 6).replace(/0+$/, '');
+  const enteraMiles = entera.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const cuerpo = fraccionVisible ? `${enteraMiles}.${fraccionVisible}` : enteraMiles;
+  return negativo ? `-${cuerpo}` : cuerpo;
 }
 
 export default function ProductosListaCompacta({
@@ -50,6 +73,7 @@ export default function ProductosListaCompacta({
   paginationModel,
   onPaginationModelChange,
   selectedProductoId,
+  existenciasPorProducto = null,
   onSelectProducto,
   searchTerm,
   onSearchTermChange,
@@ -64,8 +88,19 @@ export default function ProductosListaCompacta({
   helpHref,
   anchoCompleto = false,
   onOpenBiblioteca,
+  scrollInicial,
+  onScrollLista,
 }: ProductosListaCompactaProps) {
   const [menuFila, setMenuFila] = React.useState<{ top: number; left: number; rowId: number } | null>(null);
+  const listaRef = React.useRef<HTMLDivElement | null>(null);
+  const scrollPendienteRef = React.useRef<number | null>(scrollInicial ?? null);
+
+  React.useLayoutEffect(() => {
+    const nodo = listaRef.current;
+    if (!nodo || scrollPendienteRef.current == null || loading) return;
+    nodo.scrollTop = scrollPendienteRef.current;
+    scrollPendienteRef.current = null;
+  }, [loading, productos]);
   const productoMenu = productos.find((producto) => producto.id === menuFila?.rowId) ?? null;
   const itemsMenu: WorkspaceContextItem[] = productoMenu ? [
     { id: 'editar', label: 'Editar', icon: <EditIcon fontSize="small" />, onClick: () => onEditProducto(productoMenu.id) },
@@ -171,7 +206,11 @@ export default function ProductosListaCompacta({
         </Box>
       </Box>
 
-      <Box sx={(theme) => ({ flex: 1, overflow: 'auto', px: 1, pb: 1.2, scrollbarWidth: 'thin', scrollbarColor: `${theme.emphasys.navigation.progress} ${theme.emphasys.navigation.background}` })}>
+      <Box
+        ref={listaRef}
+        onScroll={(event) => onScrollLista?.(event.currentTarget.scrollTop)}
+        sx={(theme) => ({ flex: 1, overflow: 'auto', px: 1, pb: 1.2, scrollbarWidth: 'thin', scrollbarColor: `${theme.emphasys.navigation.progress} ${theme.emphasys.navigation.background}` })}
+      >
         {error ? (
           <Typography sx={{ px: 1.25, py: 1, fontSize: 13, color: (theme) => theme.emphasys.metric.blocked.foreground }}>
             {error}
@@ -191,6 +230,8 @@ export default function ProductosListaCompacta({
           productos.map((producto) => {
             const isSelected = selectedProductoId === producto.id;
             const subtitle = subtitleFor(producto);
+            const existenciaGlobal = existenciasPorProducto?.[producto.id];
+            const mostrarExistencia = esInventariable(producto.tipo_producto) && existenciaGlobal != null;
             return (
               <Box
                 key={producto.id}
@@ -227,16 +268,28 @@ export default function ProductosListaCompacta({
                   }}
                 />
                 <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
                     <Typography
                       variant="figure"
                       noWrap
-                      sx={(theme) => ({ fontSize: 14, lineHeight: 1.1, color: theme.emphasys.navigation.foreground })}
+                      sx={(theme) => ({ flex: '0 1 auto', minWidth: 0, fontSize: 14, lineHeight: 1.1, color: theme.emphasys.navigation.foreground })}
                     >
                       {producto.clave}
                     </Typography>
                     {producto.tipo_producto ? (
                       <Chip label={producto.tipo_producto} size="small" sx={(theme) => ({ fontWeight: 700, flexShrink: 0, height: 18, bgcolor: theme.emphasys.navigation.summary, color: theme.emphasys.navigation.foreground })} />
+                    ) : null}
+                    {mostrarExistencia ? (
+                      <Typography
+                        variant="figure"
+                        noWrap
+                        sx={(theme) => ({ flexShrink: 0, ml: 'auto', fontSize: 12.5, fontWeight: 500, lineHeight: 1.1, letterSpacing: '0.01em', color: theme.emphasys.navigation.muted })}
+                      >
+                        Existencia:{' '}
+                        <Box component="span" sx={(theme) => ({ fontWeight: 650, fontSize: 13.5, letterSpacing: '-0.02em', color: theme.emphasys.navigation.foreground, fontVariantNumeric: 'tabular-nums' })}>
+                          {formatExistenciaGlobal(existenciaGlobal)}
+                        </Box>
+                      </Typography>
                     ) : null}
                   </Box>
                   <Typography variant="figure" noWrap sx={(theme) => ({ fontSize: 13, mt: 0.2, lineHeight: 1.2, color: theme.emphasys.navigation.foreground })}>

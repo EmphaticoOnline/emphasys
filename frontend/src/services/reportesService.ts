@@ -1052,6 +1052,12 @@ export type KardexLinea = {
   salida: number;
   existencia_despues: number;
   costo_unitario: number | null;
+  /** Lo envía el endpoint cuando existe. El Kardex no lo calcula. */
+  costo_promedio_resultante?: number | string | null;
+  precision_cantidad?: number | null;
+  precision_costo?: number | null;
+  contacto_id?: number | null;
+  contacto_nombre?: string | null;
   valor: number;
   observaciones: string | null;
 };

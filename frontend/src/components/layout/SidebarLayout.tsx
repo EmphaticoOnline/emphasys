@@ -62,6 +62,12 @@ const NAVIGATION_DOCUMENT_OVERRIDES: Record<'ventas' | 'compras', DocumentoTabDe
   compras: [{ value: 'pago_proveedor', label: 'Pagos Proveedor', icon: 'AccountBalanceWallet' }],
 };
 
+const INVENTARIO_TABS: DocumentoTabDef[] = [
+  { label: 'Movimientos', value: 'movimientos', icon: 'Inventory' },
+  { label: 'Almacenes', value: 'almacenes', icon: 'Warehouse' },
+  { label: 'Recálculo de existencias y costos', value: 'recalcular', icon: 'Build' },
+];
+
 const DOC_ICON_MAP: Record<string, SvgIconComponent> = {
   RequestQuote: RequestQuoteIcon,
   ShoppingCart: ShoppingCartIcon,
@@ -98,7 +104,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Tesorería',     path: '/finanzas',              icon: AccountBalanceIcon },
   { label: 'Contabilidad',  path: '/contabilidad',          icon: CalculateIcon },
   { label: 'Inventarios',   path: '/inventario/movimientos', icon: InventoryIcon },
-  { label: 'Almacenes',     path: '/almacenes',             icon: WarehouseIcon },
   { label: 'Informes',      path: '/informes',              icon: BarChartIcon },
   { label: 'Autorizaciones', path: '/autorizaciones',        icon: VerifiedUserIcon },
   { label: 'Configuración', path: '/configuracion',         icon: SettingsIcon },
@@ -118,7 +123,6 @@ function getBreadcrumbs(pathname: string): string[] {
   if (pathname.startsWith('/compras'))       return ['Compras'];
   if (pathname.startsWith('/finanzas'))      return ['Tesorería'];
   if (pathname.startsWith('/inventario'))    return ['Inventarios'];
-  if (pathname.startsWith('/almacenes'))     return ['Almacenes'];
   if (pathname.startsWith('/informes'))      return ['Informes'];
   if (pathname.startsWith('/autorizaciones')) return ['Autorizaciones'];
   if (pathname.startsWith('/configuracion')) return ['Configuración'];
@@ -395,6 +399,7 @@ export default function SidebarLayout() {
   }, [empresaId]);
 
   const esVendedorSinAdmin = esRolVendedor(session.roles) && !esRolAdmin(session.roles);
+  const esAdministrador = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
   const visibleNavItems = esVendedorSinAdmin
     ? NAV_ITEMS.filter((item) => ALLOWED_PREFIXES_VENDEDOR.some((prefix) => item.path.startsWith(prefix)))
     : NAV_ITEMS;
@@ -460,6 +465,9 @@ export default function SidebarLayout() {
     : null;
   const docTab = docModulo ? (location.pathname.split('/')[2] || '') : '';
   const documentTabs = docModulo === 'ventas' ? ventasTabs : docModulo === 'compras' ? comprasTabs : [];
+  const inventarioModulo = location.pathname.startsWith('/inventario/');
+  const inventarioTabs = esAdministrador ? INVENTARIO_TABS : INVENTARIO_TABS.filter((tab) => tab.value !== 'recalcular');
+  const inventarioTab = location.pathname.split('/')[2] || 'movimientos';
 
   const handleDocumentTabChange = (_: React.SyntheticEvent, value: string) => {
     if (docModulo === 'ventas') navigate(`/ventas/${value}`);
@@ -475,6 +483,12 @@ export default function SidebarLayout() {
       navigate(`/${docModulo}/${documentTabs[0].value}`, { replace: true });
     }
   }, [docModulo, docTab, documentTabs, navigate]);
+
+  React.useEffect(() => {
+    if (!inventarioModulo) return;
+    if (inventarioTab === 'recalcular' && !esAdministrador) { navigate('/inventario/movimientos', { replace: true }); return; }
+    if (!inventarioTabs.some((tab) => tab.value === inventarioTab)) navigate(`/inventario/${inventarioTabs[0].value}`, { replace: true });
+  }, [esAdministrador, inventarioModulo, inventarioTab, inventarioTabs, navigate]);
 
   const frame = theme.emphasys.frame;
   const canvas = theme.emphasys.canvas;
@@ -508,6 +522,8 @@ export default function SidebarLayout() {
       </Tabs>
     </Box>
   ) : null;
+
+  const inventarioTabBar = inventarioModulo ? <Box sx={moduleTabStripSx()}><Tabs value={inventarioTab} onChange={(_e, value) => navigate(`/inventario/${value}`)} variant="scrollable" allowScrollButtonsMobile textColor="inherit" TabIndicatorProps={{ style: { display: 'none' } }} sx={moduleTabBarSx()}>{inventarioTabs.map((tab) => { const Icon = tab.icon ? DOC_ICON_MAP[tab.icon] : null; return <Tab key={tab.value} value={tab.value} label={tab.label} {...(Icon ? { icon: <Icon fontSize="small" />, iconPosition: 'start' as const } : {})} disableRipple />; })}</Tabs></Box> : null;
 
   const handleToggleCollapse = () => {
     setCollapsed((prev) => {
@@ -564,6 +580,7 @@ export default function SidebarLayout() {
         </Drawer>
         <Box sx={{ mt: `${MOBILE_APPBAR_HEIGHT}px`, width: '100%' }}>
           {documentTabBar}
+          {inventarioTabBar}
           <Outlet />
         </Box>
         <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
@@ -588,6 +605,7 @@ export default function SidebarLayout() {
             <EmpresaSelector />
           </Box>
         {documentTabBar}
+        {inventarioTabBar}
         <Box sx={{ flex: 1, overflow: canvas.inset ? 'auto' : 'hidden', background: canvas.page, py: canvas.inset, px: canvas.inset, minHeight: 0, display: canvas.inset ? 'block' : 'flex', flexDirection: 'column' }}>
           <Box component="main" sx={{ width: '100%', minHeight: canvas.inset ? '100%' : 0, flex: canvas.inset ? undefined : 1, overflow: canvas.inset ? 'visible' : 'auto', background: canvas.sheet, borderRadius: canvas.radius, border: canvas.border === 'transparent' ? 'none' : `1px solid ${canvas.border}`, display: 'flex', flexDirection: 'column' }}>
             <Outlet />

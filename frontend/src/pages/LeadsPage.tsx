@@ -2670,6 +2670,8 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     'application/pdf',
     'video/mp4',
     'video/3gpp',
+    'application/xml',
+    'text/xml',
   ];
 
   // Limpia únicamente el estado local del adjunto pendiente (archivo, sus
@@ -2696,7 +2698,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // previa. No sube nada al servidor.
   const preparePendingAttachment = (file: File) => {
     if (!ALLOWED_ATTACHMENT_MIME_TYPES.includes(file.type)) {
-      setUploadError('Formato no compatible. Puedes adjuntar imágenes, PDF o videos MP4/3GP.');
+      setUploadError('Formato no compatible. Puedes adjuntar imágenes, PDF, XML o videos MP4/3GP.');
       return;
     }
     if (file.type.startsWith('video/') && file.size > MAX_VIDEO_SIZE_BYTES) {
@@ -2722,7 +2724,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
 
     const headers = buildAuthHeaders();
 
-    const response = await fetch(buildApiUrl('/api/uploads'), {
+    const response = await fetch(buildApiUrl('/api/whatsapp/subir-adjunto-chat'), {
       method: 'POST',
       headers,
       body: formData,

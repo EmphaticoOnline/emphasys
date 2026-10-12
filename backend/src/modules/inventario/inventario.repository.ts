@@ -2,6 +2,11 @@ import pool from '../../config/database';
 
 export type MovimientoRow = {
   id: number;
+  serie: string | null;
+  numero: number | null;
+  estatus_afectacion: number;
+  es_reversion: boolean;
+  movimiento_origen_id: number | null;
   fecha: string;
   tipo_movimiento: string;
   observaciones: string | null;
@@ -42,6 +47,11 @@ export type MovimientoDetalle = {
 export async function listarMovimientosRepository(empresaId: number): Promise<MovimientoRow[]> {
   const query = `
     SELECT m.id,
+           m.serie,
+           m.numero,
+           COALESCE(m.estatus_afectacion, 1) AS estatus_afectacion,
+           COALESCE(m.es_reversion, false) AS es_reversion,
+           m.movimiento_origen_id,
            m.fecha,
            m.tipo_movimiento,
            m.observaciones,
@@ -54,13 +64,13 @@ export async function listarMovimientosRepository(empresaId: number): Promise<Mo
            d.estatus_documento AS documento_estatus,
            d.fecha_documento AS documento_fecha,
            d.documento_origen_id,
-           d.contacto_principal_id AS contacto_id,
+           COALESCE(m.contacto_id, d.contacto_principal_id) AS contacto_id,
            c.nombre AS contacto_nombre,
            c.tipo_contacto AS contacto_tipo
       FROM inventario.movimientos m
      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      LEFT JOIN public.documentos d ON d.id = m.documento_id
-     LEFT JOIN public.contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = m.empresa_id
+     LEFT JOIN public.contactos c ON c.id = COALESCE(m.contacto_id, d.contacto_principal_id) AND c.empresa_id = m.empresa_id
      WHERE m.empresa_id = $1
      ORDER BY m.fecha DESC, m.id DESC
   `;
@@ -118,6 +128,11 @@ export async function listarMovimientosPorDocumentoRepository(
 export async function obtenerMovimientoDetalleRepository(id: number, empresaId: number): Promise<MovimientoDetalle | null> {
   const headerQuery = `
     SELECT m.id,
+           m.serie,
+           m.numero,
+           COALESCE(m.estatus_afectacion, 1) AS estatus_afectacion,
+           COALESCE(m.es_reversion, false) AS es_reversion,
+           m.movimiento_origen_id,
            m.fecha,
            m.tipo_movimiento,
            m.observaciones,
@@ -130,13 +145,13 @@ export async function obtenerMovimientoDetalleRepository(id: number, empresaId: 
            d.estatus_documento AS documento_estatus,
            d.fecha_documento AS documento_fecha,
            d.documento_origen_id,
-           d.contacto_principal_id AS contacto_id,
+           COALESCE(m.contacto_id, d.contacto_principal_id) AS contacto_id,
            c.nombre AS contacto_nombre,
            c.tipo_contacto AS contacto_tipo
       FROM inventario.movimientos m
      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      LEFT JOIN public.documentos d ON d.id = m.documento_id
-     LEFT JOIN public.contactos c ON c.id = d.contacto_principal_id AND c.empresa_id = m.empresa_id
+     LEFT JOIN public.contactos c ON c.id = COALESCE(m.contacto_id, d.contacto_principal_id) AND c.empresa_id = m.empresa_id
      WHERE m.id = $1
        AND m.empresa_id = $2
      LIMIT 1
@@ -150,6 +165,8 @@ export async function obtenerMovimientoDetalleRepository(id: number, empresaId: 
            mp.almacen_id          AS almacen_origen_id,
            ao.nombre              AS almacen_origen_nombre,
            mp.almacen_destino_id,
+           mp.tipo_partida,
+           mp.signo,
            ad.nombre              AS almacen_destino_nombre,
            mp.cantidad * mp.signo AS cantidad,
            mp.costo_unitario,

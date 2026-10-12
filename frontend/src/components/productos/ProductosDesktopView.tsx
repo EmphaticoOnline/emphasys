@@ -22,15 +22,21 @@ export default function ProductosDesktopView({
   onCreateProducto,
   esAdmin,
   selectedProductoId,
+  existenciasPorProducto = null,
   onSelectProducto,
   onEditProducto,
   onDeleteProducto,
   onRefresh,
   onOpenBiblioteca,
+  scrollListaInicial,
+  onScrollLista,
+  restauracion = null,
+  onScrollDetalle,
+  onAbrirDocumentoRelacionado,
 }: ProductosDesktopViewProps) {
   const theme = useTheme();
   const compacto = useMediaQuery(theme.breakpoints.down('md'));
-  const [verDetalle, setVerDetalle] = useState(false);
+  const [verDetalle, setVerDetalle] = useState(Boolean(restauracion));
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -82,6 +88,7 @@ export default function ProductosDesktopView({
             paginationModel={paginationModel}
             onPaginationModelChange={onPaginationModelChange}
             selectedProductoId={selectedProductoId}
+            existenciasPorProducto={existenciasPorProducto}
             onSelectProducto={seleccionar}
             searchTerm={searchTerm}
             onSearchTermChange={onSearchTermChange}
@@ -96,6 +103,8 @@ export default function ProductosDesktopView({
             helpHref="/docs/guia-productos.html"
             anchoCompleto={compacto}
             {...(onOpenBiblioteca ? { onOpenBiblioteca } : {})}
+            scrollInicial={scrollListaInicial}
+            onScrollLista={onScrollLista}
           />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: compacto && mostrarLista ? 'none' : 'flex' }}>
@@ -109,6 +118,9 @@ export default function ProductosDesktopView({
             alternando={togglingId === selectedProductoId}
             compacto={compacto}
             onVolver={() => setVerDetalle(false)}
+            restauracion={restauracion}
+            {...(onScrollDetalle ? { onScrollDetalle } : {})}
+            {...(onAbrirDocumentoRelacionado ? { onAbrirDocumentoRelacionado } : {})}
           />
         </Box>
       </Box>

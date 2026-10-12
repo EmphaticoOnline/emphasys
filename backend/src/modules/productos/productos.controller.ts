@@ -27,6 +27,7 @@ import {
   filtrarCamposEconomicosDeEntrada,
   excluirColumnasEconomicas,
 } from './productos.economic-fields';
+import { listarHistorialProducto, type ProductoHistorialModo } from './producto-historial.repository';
 
 async function resolverEsAdmin(req: Request, empresaId: number): Promise<boolean> {
   const { esAdmin } = await resolverContextoScopeComercial(
@@ -138,6 +139,32 @@ export async function getDocumentosRelacionadosProducto(req: Request, res: Respo
   try { return res.json(await listarDocumentosRelacionadosProductoRepository(productoId, empresaId)); }
   catch (error) { console.error('Error al obtener documentos del producto', error); return res.status(500).json({ error: 'Error al obtener documentos relacionados' }); }
 }
+
+function leerFechaProducto(query: Request['query'], nombre: string): string | undefined {
+  const value = query[nombre];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`${nombre} debe tener formato YYYY-MM-DD`);
+  return value;
+}
+
+async function getHistorialProducto(req: Request, res: Response, modo: ProductoHistorialModo) {
+  const empresaId = Number(req.context?.empresaId); const productoId = Number(req.params.id);
+  if (!empresaId || !Number.isInteger(productoId)) return res.status(400).json({ error: 'Producto o empresa inválidos' });
+  try {
+    const fechaInicio = leerFechaProducto(req.query, 'fecha_inicio'); const fechaFin = leerFechaProducto(req.query, 'fecha_fin');
+    if (fechaInicio && fechaFin && fechaInicio > fechaFin) return res.status(400).json({ error: 'fecha_inicio no puede ser posterior a fecha_fin' });
+    const limit = req.query.limit === undefined ? 50 : Number(req.query.limit); const offset = req.query.offset === undefined ? 0 : Number(req.query.offset);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200 || !Number.isInteger(offset) || offset < 0) return res.status(400).json({ error: 'limit debe estar entre 1 y 200; offset debe ser un entero no negativo' });
+    return res.json(await listarHistorialProducto(modo, { empresaId, productoId, fechaInicio, fechaFin, limit, offset }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error al obtener historial';
+    if (message.includes('debe tener formato')) return res.status(400).json({ error: message });
+    console.error(`Error al obtener historial de ${modo} del producto`, error); return res.status(500).json({ error: `Error al obtener últimas ${modo} del producto` });
+  }
+}
+
+export const getUltimasComprasProducto = (req: Request, res: Response) => getHistorialProducto(req, res, 'compras');
+export const getUltimasVentasProducto = (req: Request, res: Response) => getHistorialProducto(req, res, 'ventas');
 
 export async function getImpuestosProducto(req: Request, res: Response) {
   try {

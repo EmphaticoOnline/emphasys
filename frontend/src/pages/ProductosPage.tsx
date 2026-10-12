@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { Box, Chip, Dialog, DialogContent, DialogTitle, IconButton, Snackbar } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
@@ -29,16 +29,46 @@ import ProductosDesktopView from '../components/productos/ProductosDesktopView';
 import EspecificacionesBibliotecaEditor from '../components/productos/EspecificacionesBibliotecaEditor';
 import { useSession } from '../session/useSession';
 import { esRolAdmin } from '../session/rolScope';
+import { fetchExistenciasPorAlmacen, type ExistenciaPorAlmacen } from '../services/reportesService';
+import {
+  guardarProductosOrigen,
+  olvidarProductosOrigen,
+  PRODUCTOS_ORIGEN_STATE,
+  resolverProductosOrigen,
+  type ProductosOrigenNavegacion,
+} from '../modules/productos/productosOrigenNavegacion';
+
+function sumarExistenciasPorProducto(lineas: ExistenciaPorAlmacen[]): Record<number, number> {
+  const mapa: Record<number, number> = {};
+  for (const linea of lineas) {
+    const cantidad = Number(linea.existencia);
+    if (!Number.isFinite(cantidad)) continue;
+    mapa[linea.producto_id] = (mapa[linea.producto_id] ?? 0) + cantidad;
+  }
+  return mapa;
+}
 
 export default function ProductosPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationType = useNavigationType();
   const { session } = useSession();
+  const empresaId = Number(session.empresaActivaId ?? 0);
+  const origenRef = useRef<{ listo: boolean; valor: ProductosOrigenNavegacion | null }>({ listo: false, valor: null });
+  if (!origenRef.current.listo && empresaId > 0) {
+    origenRef.current = {
+      listo: true,
+      valor: resolverProductosOrigen(location.state, navigationType, empresaId),
+    };
+  }
+  const origen = origenRef.current.valor;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const perfilDispositivo = useDeviceProfile();
   const [productos, setProductos] = useState<Producto[]>([]);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [existenciasPorProducto, setExistenciasPorProducto] = useState<Record<number, number> | null>(null);
+  const [search, setSearch] = useState(origen?.busqueda ?? '');
+  const [debouncedSearch, setDebouncedSearch] = useState(origen?.busqueda.trim() ?? '');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [rowCount, setRowCount] = useState(0);
@@ -50,7 +80,9 @@ export default function ProductosPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [globalSpecsOpen, setGlobalSpecsOpen] = useState(false);
   const [especificacionesHabilitadas, setEspecificacionesHabilitadas] = useState(false);
-  const [selectedProductoId, setSelectedProductoId] = useState<number | null>(null);
+  const [selectedProductoId, setSelectedProductoId] = useState<number | null>(origen?.productoId ?? null);
+  const scrollListaRef = useRef(origen?.scrollLista ?? 0);
+  const scrollDetalleRef = useRef(origen?.scrollDetalle ?? 0);
   const esAdmin = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
 
   const {
@@ -72,7 +104,8 @@ export default function ProductosPage() {
     defaultColumnOrder: [],
     defaultExternalFilters: { searchTerm: '' },
     onLoadExternalFilters: (value) => {
-      setSearch(String(value.searchTerm ?? ''));
+      const restaurado = origenRef.current.valor;
+      setSearch(restaurado ? restaurado.busqueda : String(value.searchTerm ?? ''));
     },
   });
 
@@ -90,13 +123,17 @@ export default function ProductosPage() {
     if (loadingPreferences) return;
     try {
       setLoading(true);
-      const result = await fetchProductosPaginados({
-        page: page + 1,
-        limit: pageSize,
-        search: debouncedSearch,
-      });
+      const [result, existencias] = await Promise.all([
+        fetchProductosPaginados({
+          page: page + 1,
+          limit: pageSize,
+          search: debouncedSearch,
+        }),
+        fetchExistenciasPorAlmacen({}).catch(() => null),
+      ]);
       setProductos(result.data);
       setRowCount(result.total);
+      setExistenciasPorProducto(existencias ? sumarExistenciasPorProducto(existencias.lineas) : null);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al cargar productos');
@@ -104,6 +141,21 @@ export default function ProductosPage() {
       setLoading(false);
     }
   };
+
+  const origenAplicadoRef = useRef(false);
+  useEffect(() => {
+    if (!origen || origenAplicadoRef.current) return;
+    origenAplicadoRef.current = true;
+    setSearch(origen.busqueda);
+    setDebouncedSearch(origen.busqueda.trim());
+    setSelectedProductoId(origen.productoId);
+  }, [origen]);
+
+  useEffect(() => {
+    if (!origen || !origenAplicadoRef.current) return;
+    if (search === origen.busqueda && selectedProductoId === origen.productoId) return;
+    olvidarProductosOrigen();
+  }, [origen, search, selectedProductoId]);
 
   // Debounce search
   useEffect(() => {
@@ -136,6 +188,7 @@ export default function ProductosPage() {
   // Autoselección del primer producto visible en la vista Lista, igual que Contactos.
   useEffect(() => {
     if (isMobile || loading) return;
+    if (origen && selectedProductoId === origen.productoId) return;
     if (productos.length === 0) {
       setSelectedProductoId(null);
       return;
@@ -144,7 +197,7 @@ export default function ProductosPage() {
     if (!stillVisible && productos[0]) {
       setSelectedProductoId(productos[0].id);
     }
-  }, [productos, isMobile, loading, selectedProductoId]);
+  }, [origen, productos, isMobile, loading, selectedProductoId]);
 
   const handleDelete = async (producto: Producto) => {
     const confirmed = window.confirm(`¿Eliminar el producto "${producto.descripcion}"?`);
@@ -370,10 +423,35 @@ export default function ProductosPage() {
       exportLoading={exportLoading}
       esAdmin={esAdmin}
       selectedProductoId={selectedProductoId}
+      existenciasPorProducto={existenciasPorProducto}
       onSelectProducto={setSelectedProductoId}
       onEditProducto={(productoId) => navigate(`/productos/${productoId}`)}
       onDeleteProducto={(producto) => void handleDelete(producto)}
       {...(especificacionesHabilitadas ? { onOpenBiblioteca: () => setGlobalSpecsOpen(true) } : {})}
+      {...(origen ? { scrollListaInicial: origen.scrollLista, restauracion: { productoId: origen.productoId, tipoDocumento: origen.tipoDocumento, scrollDetalle: origen.scrollDetalle } } : {})}
+      onScrollLista={(valor) => {
+        scrollListaRef.current = valor;
+      }}
+      onScrollDetalle={(valor) => {
+        scrollDetalleRef.current = valor;
+      }}
+      onAbrirDocumentoRelacionado={(ruta, tipo) => {
+        if (!selectedProductoId || empresaId <= 0) {
+          navigate(ruta);
+          return;
+        }
+        const contexto: ProductosOrigenNavegacion = {
+          empresaId,
+          productoId: selectedProductoId,
+          busqueda: search,
+          tab: 'relacionados',
+          tipoDocumento: tipo,
+          scrollLista: scrollListaRef.current,
+          scrollDetalle: scrollDetalleRef.current,
+        };
+        guardarProductosOrigen(contexto);
+        navigate(ruta, { state: { [PRODUCTOS_ORIGEN_STATE]: contexto } });
+      }}
     />
   );
 

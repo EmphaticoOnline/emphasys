@@ -25,6 +25,9 @@ export const SERIES_DEFAULTS: Record<TipoDocumento, string> = {
   ajuste_proveedor: 'APR',
 };
 
+// Inventario comparte el motor de consecutivos, aunque no sea un documento comercial.
+export const SERIE_MOVIMIENTO_INVENTARIO = 'INV';
+
 type SerieDocumentoRow = {
   id: number;
   empresa_id: number;
@@ -286,4 +289,18 @@ export async function reservarNumeroParaSerieExistente(args: ReservarNumeroArgs)
   }
 
   return reservarSiguienteNumeroSerieDocumento(serieDocumentoId, client);
+}
+
+export async function reservarNumeroMovimientoInventario(
+  empresaId: number,
+  client?: QueryExecutor,
+): Promise<{ serie: string; numero: number }> {
+  const serie = SERIE_MOVIMIENTO_INVENTARIO;
+  const numero = await reservarNumeroParaSerieExistente({
+    empresaId,
+    tipoDocumento: 'movimiento_inventario' as TipoDocumento,
+    serie,
+    client,
+  });
+  return { serie, numero };
 }

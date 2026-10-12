@@ -1637,7 +1637,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
             <>
               {isUploadingImage && (
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                  {uploadFileType === 'audio' ? 'Subiendo audio...' : 'Subiendo imagen...'}
+                  {uploadFileType === 'audio' ? 'Subiendo audio...' : 'Subiendo archivo...'}
                 </Typography>
               )}
               {uploadError && (

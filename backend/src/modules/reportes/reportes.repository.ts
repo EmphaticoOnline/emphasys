@@ -2761,8 +2761,13 @@ export type KardexLinea = {
   salida: number;
   existencia_despues: number;
   costo_unitario: number | null;
+  costo_promedio_resultante: number | null;
+  precision_cantidad: number | null;
+  precision_costo: number | null;
   valor: number;
   observaciones: string | null;
+  contacto_id: number | null;
+  contacto_nombre: string | null;
 };
 
 export type KardexResult = {
@@ -2805,12 +2810,38 @@ export async function obtenerKardexProducto(params: {
          CASE WHEN mp.signo = -1 THEN mp.cantidad ELSE 0 END               AS salida,
          mp.existencia_resultante                                           AS existencia_despues,
          mp.costo_unitario,
+         mp.costo_promedio_resultante,
+         mp.precision_cantidad,
+         mp.precision_costo,
          mp.cantidad * COALESCE(mp.costo_unitario, 0)                      AS valor,
-         m.observaciones
+         m.observaciones,
+         COALESCE(m.contacto_id, d.contacto_principal_id, origen.contacto_principal_id, rel.contacto_principal_id) AS contacto_id,
+         c.nombre                                                           AS contacto_nombre
        FROM inventario.movimientos_partidas mp
        JOIN inventario.movimientos m  ON m.id = mp.movimiento_id AND m.empresa_id = mp.empresa_id
        JOIN inventario.almacenes a    ON a.id = mp.almacen_id    AND a.empresa_id = mp.empresa_id
        LEFT JOIN public.documentos d  ON d.id = m.documento_id   AND d.empresa_id = mp.empresa_id
+       LEFT JOIN public.documentos origen
+         ON origen.id = d.documento_origen_id
+        AND origen.empresa_id = d.empresa_id
+       LEFT JOIN LATERAL (
+         SELECT o.contacto_principal_id
+           FROM public.documentos_relaciones dr
+           JOIN public.documentos o
+             ON o.id = dr.documento_origen_id
+            AND o.empresa_id = dr.empresa_id
+          WHERE d.contacto_principal_id IS NULL
+            AND origen.contacto_principal_id IS NULL
+            AND dr.empresa_id = d.empresa_id
+            AND dr.documento_destino_id = d.id
+            AND dr.activa = true
+            AND o.contacto_principal_id IS NOT NULL
+          ORDER BY CASE WHEN dr.tipo_relacion = 'origen_nota_credito' THEN 0 ELSE 1 END, dr.id
+          LIMIT 1
+       ) rel ON true
+       LEFT JOIN public.contactos c
+         ON c.id = COALESCE(m.contacto_id, d.contacto_principal_id, origen.contacto_principal_id, rel.contacto_principal_id)
+        AND c.empresa_id = mp.empresa_id
        WHERE mp.empresa_id = $1
          AND mp.producto_id = $2
          AND ($3::int IS NULL OR mp.almacen_id = $3)
@@ -2837,8 +2868,13 @@ export async function obtenerKardexProducto(params: {
     salida:             Number(r.salida ?? 0),
     existencia_despues: Number(r.existencia_despues ?? 0),
     costo_unitario:     r.costo_unitario != null ? Number(r.costo_unitario) : null,
+    costo_promedio_resultante: r.costo_promedio_resultante != null ? Number(r.costo_promedio_resultante) : null,
+    precision_cantidad: r.precision_cantidad != null ? Number(r.precision_cantidad) : 6,
+    precision_costo: r.precision_costo != null ? Number(r.precision_costo) : 6,
     valor:              Number(r.valor ?? 0),
     observaciones:      r.observaciones ? String(r.observaciones) : null,
+    contacto_id:        r.contacto_id != null ? Number(r.contacto_id) : null,
+    contacto_nombre:    r.contacto_nombre ? String(r.contacto_nombre).trim() || null : null,
   }));
 
   return {

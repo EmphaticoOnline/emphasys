@@ -29,3 +29,21 @@ export function formatearFolioDocumento(serie: string, numero: number): string {
 
   return `${serieLimpia}-${numeroFormateado}`;
 }
+
+/** El listado de relacionados trae serie y folio sin ceros. El número se recupera de ese folio y se formatea con resolverFolioVisual. */
+export function folioVisualDesdeSerieYFolio(
+  serie: string | null | undefined,
+  folio: string | null | undefined,
+  tipoDocumento: string,
+): string {
+  const serieLimpia = String(serie ?? '').trim();
+  const crudo = String(folio ?? '').trim();
+  let numeroTexto = crudo;
+  if (serieLimpia && (crudo === serieLimpia || crudo.startsWith(`${serieLimpia}-`))) {
+    numeroTexto = crudo.slice(serieLimpia.length).replace(/^-/, '');
+  } else if (crudo.startsWith('-')) {
+    numeroTexto = crudo.slice(1);
+  }
+  if (!/^\d+$/.test(numeroTexto)) return crudo;
+  return resolverFolioVisual({ serie: serieLimpia, numero: Number(numeroTexto) }, tipoDocumento);
+}

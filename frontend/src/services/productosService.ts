@@ -87,6 +87,65 @@ export async function fetchDocumentosRelacionadosProducto(productoId: number): P
   return apiFetch(`${BASE_URL}/${productoId}/documentos-relacionados`);
 }
 
+export type ProductoHistorialFila = {
+  documento_id: number;
+  partida_id: number;
+  tipo_documento: string;
+  tratamiento_impuestos: string | null;
+  estatus_documento: string | null;
+  contacto_id: number | null;
+  contacto_nombre: string | null;
+  contacto_tipo: string | null;
+  fecha_documento: string;
+  folio: string;
+  producto_id: number;
+  cantidad: number;
+  unidad: string | null;
+  cantidad_inventariable: number | null;
+  factor_conversion: number | null;
+  precio_unitario: number | null;
+  descuento: number | null;
+  subtotal_partida: number | null;
+  total_partida: number | null;
+  observaciones: string | null;
+  signo_comercial: number;
+};
+
+export type ProductoHistorialResultado = {
+  modo: 'ventas' | 'compras';
+  producto_id: number;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  total_filas: number;
+  cantidad_total: number;
+  importe_total: number;
+  filas: ProductoHistorialFila[];
+};
+
+export type ProductoHistorialConsulta = {
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  limit: number;
+  offset: number;
+};
+
+function consultaHistorial(productoId: number, ruta: 'ultimas-compras' | 'ultimas-ventas', consulta: ProductoHistorialConsulta) {
+  const params = new URLSearchParams();
+  if (consulta.fecha_inicio) params.set('fecha_inicio', consulta.fecha_inicio);
+  if (consulta.fecha_fin) params.set('fecha_fin', consulta.fecha_fin);
+  params.set('limit', String(consulta.limit));
+  params.set('offset', String(consulta.offset));
+  return apiFetch<ProductoHistorialResultado>(`${BASE_URL}/${productoId}/${ruta}?${params.toString()}`);
+}
+
+export function fetchUltimasComprasProducto(productoId: number, consulta: ProductoHistorialConsulta) {
+  return consultaHistorial(productoId, 'ultimas-compras', consulta);
+}
+
+export function fetchUltimasVentasProducto(productoId: number, consulta: ProductoHistorialConsulta) {
+  return consultaHistorial(productoId, 'ultimas-ventas', consulta);
+}
+
 export async function fetchProductos(): Promise<Producto[]> {
   return apiFetch(BASE_URL);
 }

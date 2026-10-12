@@ -29,10 +29,14 @@ const EXPERIMENTAL_EXACT_PATHS = [
   '/configuracion',
   '/login',
   '/seleccionar-empresa',
-  '/inventario/movimientos',
 ] as const;
 
 const EXPERIMENTAL_PATH_PREFIXES = [
+  // Homologado junto con el formulario de captura: cubre tanto el listado
+  // como sus hijos (p. ej. /inventario/movimientos/nuevo) con un solo prefijo.
+  '/inventario/movimientos',
+  '/inventario/almacenes',
+  '/inventario/recalcular',
   '/ventas/nota_credito',
   '/ventas/pago_cliente',
   '/ventas/ajuste_cliente',

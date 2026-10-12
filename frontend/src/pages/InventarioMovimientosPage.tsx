@@ -2,8 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Checkbox,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   InputAdornment,
   Popover,
@@ -21,6 +26,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { useLocation } from 'react-router-dom';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloseIcon from '@mui/icons-material/Close';
@@ -31,10 +37,14 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import { useNavigate } from 'react-router-dom';
 
 import type { MovimientoDetalle, MovimientoEncabezado, MovimientoListadoItem, MovimientoPartidaDetalle } from '../types/inventario';
-import { exportarMovimientos, listarMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
+import { afectarMovimiento, desafectarMovimiento, eliminarMovimiento, exportarMovimientos, listarMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
 import { fetchParametrosSistema } from '../services/parametrosService';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
 import type { TipoDocumento } from '../types/documentos.types';
@@ -220,6 +230,7 @@ function celdaAlmacen(partida: MovimientoPartidaDetalle): string {
 
 export default function InventarioMovimientosPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const theme = useTheme();
   const tokens = theme.emphasys;
   const compacto = useMediaQuery(theme.breakpoints.down('md'));
@@ -246,6 +257,19 @@ export default function InventarioMovimientosPage() {
   );
   const [exportLoading, setExportLoading] = useState(false);
   const [decimalesCantidades, setDecimalesCantidades] = useState(2);
+  const [eliminarId, setEliminarId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const state = location.state as { snackbar?: { message?: string; severity?: 'success' | 'error' } } | null;
+    const notification = state?.snackbar;
+    if (!notification?.message) return;
+    setSnackbar({
+      open: true,
+      message: notification.message,
+      severity: notification.severity === 'error' ? 'error' : 'success',
+    });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
     void fetchParametrosSistema().then((modulos) => {
@@ -359,9 +383,41 @@ export default function InventarioMovimientosPage() {
     }
   };
 
+  const actualizarAfectacion = async (afectar: boolean) => {
+    if (!encabezado) return;
+    try {
+      if (afectar) await afectarMovimiento(encabezado.id);
+      else await desafectarMovimiento(encabezado.id, 'Desafectación manual desde movimientos de inventario');
+      setSnackbar({ open: true, message: afectar ? 'Movimiento afectado correctamente' : 'Movimiento desafectado correctamente', severity: 'success' });
+      await cargarMovimientos();
+    } catch (err) {
+      setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudo actualizar el movimiento', severity: 'error' });
+    }
+  };
+
+  const confirmarEliminacion = async () => {
+    if (eliminarId == null) return;
+    try {
+      await eliminarMovimiento(eliminarId);
+      setEliminarId(null);
+      setDetalle(null);
+      setSelectedId(null);
+      setSnackbar({ open: true, message: 'Movimiento eliminado correctamente', severity: 'success' });
+      await cargarMovimientos();
+    } catch (err) {
+      setEliminarId(null);
+      setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudo eliminar el movimiento', severity: 'error' });
+    }
+  };
+
   const seleccionado = filtrados.find((movimiento) => movimiento.id === selectedId) ?? null;
   const encabezado = detalle?.movimiento.id === selectedId ? detalle.movimiento : seleccionado;
   const partidas = detalle?.movimiento.id === selectedId ? detalle.partidas : [];
+  const movimientoManual = Boolean(encabezado && encabezado.documento_id == null && !encabezado.es_reversion);
+  const puedeEditar = movimientoManual && encabezado?.estatus_afectacion === 0;
+  const puedeEliminar = puedeEditar;
+  const puedeAfectar = movimientoManual && encabezado?.estatus_afectacion === 0;
+  const puedeDesafectar = movimientoManual && encabezado?.estatus_afectacion === 1;
   const verLista = !compacto || !detalleMovil;
 
   const elegir = (id: number) => {
@@ -377,6 +433,16 @@ export default function InventarioMovimientosPage() {
     '&:hover': { bgcolor: tokens.navigation.hover },
     '&.Mui-disabled': { color: tokens.navigation.muted },
   };
+
+  const accionWorkspaceSx = (disabled: boolean) => ({
+    width: 34,
+    height: 34,
+    borderRadius: '10px',
+    bgcolor: disabled ? tokens.action.disabled : tokens.action.primary,
+    color: tokens.action.primaryForeground,
+    '&:hover': { bgcolor: disabled ? tokens.action.disabled : tokens.action.primaryHover },
+    '&.Mui-disabled': { bgcolor: tokens.action.disabled, color: tokens.action.primaryForeground },
+  });
 
   const campoFiltroSx = {
     '& .MuiInputLabel-root': { color: tokens.content.muted },
@@ -645,7 +711,7 @@ export default function InventarioMovimientosPage() {
                         </Tooltip>
                       ) : null}
                       <Typography variant="figure" sx={{ fontSize: 16, color: 'inherit', lineHeight: 1.1, minWidth: 0 }}>
-                        #{movimiento.id}
+                        {movimiento.serie && movimiento.numero != null ? formatearFolioDocumento(movimiento.serie, Number(movimiento.numero)) : `#${movimiento.id}`}
                       </Typography>
                     </Box>
                     <Typography sx={{ fontSize: 11, flexShrink: 0, color: selected ? tokens.navigation.selectionForeground : tokens.navigation.muted }}>
@@ -671,11 +737,14 @@ export default function InventarioMovimientosPage() {
                     {lineaTarjeta(movimiento.contacto_nombre, movimiento.observaciones)}
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1, mt: 0.45, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 12, color: tokens.navigation.subtle, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
+                      <Box component="span" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? '#4ade80' : '#f87171', flexShrink: 0 }} />
+                      <Typography sx={{ fontSize: 12, color: tokens.navigation.foreground, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {movimiento.usuario_nombre?.trim() || 'Sin usuario'}
-                    </Typography>
+                      </Typography>
+                    </Box>
                     <Typography sx={{ fontSize: 11, color: tokens.navigation.muted, textAlign: 'right', flexShrink: 0, maxWidth: '46%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {folio ?? 'Sin documento'}
+                      {folio ?? ''}
                     </Typography>
                   </Box>
                 </Box>
@@ -707,7 +776,7 @@ export default function InventarioMovimientosPage() {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'baseline', flexWrap: 'wrap', mt: 0.35 }}>
                 <Typography variant="figure" sx={{ fontSize: compacto ? 26 : 32, letterSpacing: '-0.02em', lineHeight: 1, color: tokens.content.foreground }}>
-                  #{encabezado.id}
+                  {encabezado.serie && encabezado.numero != null ? formatearFolioDocumento(encabezado.serie, Number(encabezado.numero)) : `#${encabezado.id}`}
                 </Typography>
                 <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>{formatoFecha(encabezado.fecha)}</Typography>
               </Box>
@@ -715,7 +784,36 @@ export default function InventarioMovimientosPage() {
                 <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tonoTipo(encabezado.tipo_movimiento).background, color: tonoTipo(encabezado.tipo_movimiento).foreground, fontSize: 12, fontWeight: 700 }}>
                   {etiquetaTipo(encabezado.tipo_movimiento)}
                 </Box>
+                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: encabezado.estatus_afectacion === 1 ? tokens.metric.applied.background : tokens.content.elevated, color: encabezado.estatus_afectacion === 1 ? tokens.metric.applied.foreground : tokens.content.muted, fontSize: 12, fontWeight: 700 }}>
+                  {encabezado.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'}
+                </Box>
+                <Stack direction="row" spacing={0.6} sx={{ ml: 'auto' }}>
+                  <Tooltip title={puedeEditar ? 'Editar movimiento' : 'Editar no disponible: requiere un movimiento manual desafectado'} arrow>
+                    <span><IconButton size="small" disabled={!puedeEditar} onClick={puedeEditar ? () => navigate(`/inventario/movimientos/${encabezado.id}/editar`) : undefined} sx={accionWorkspaceSx(!puedeEditar)}><EditOutlinedIcon fontSize="small" /></IconButton></span>
+                  </Tooltip>
+                  <Tooltip title={puedeEliminar ? 'Eliminar movimiento' : 'Eliminar no disponible: requiere un movimiento manual desafectado'} arrow>
+                    <span><IconButton size="small" disabled={!puedeEliminar} onClick={puedeEliminar ? () => setEliminarId(encabezado.id) : undefined} sx={accionWorkspaceSx(!puedeEliminar)}><DeleteOutlineIcon fontSize="small" /></IconButton></span>
+                  </Tooltip>
+                  {encabezado.estatus_afectacion === 1 ? (
+                    <Tooltip title={puedeDesafectar ? 'Desafectar movimiento' : 'Desafectar no disponible para este movimiento'} arrow>
+                      <span><IconButton size="small" disabled={!puedeDesafectar} onClick={puedeDesafectar ? () => void actualizarAfectacion(false) : undefined} sx={accionWorkspaceSx(!puedeDesafectar)}><RemoveCircleOutlineIcon fontSize="small" /></IconButton></span>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip title={puedeAfectar ? 'Afectar movimiento' : 'Afectar no disponible para este movimiento'} arrow>
+                      <span><IconButton size="small" disabled={!puedeAfectar} onClick={puedeAfectar ? () => void actualizarAfectacion(true) : undefined} sx={accionWorkspaceSx(!puedeAfectar)}><CheckCircleOutlineIcon fontSize="small" /></IconButton></span>
+                    </Tooltip>
+                  )}
+                </Stack>
               </Box>
+
+      <Dialog open={eliminarId != null} onClose={() => setEliminarId(null)}>
+        <DialogTitle>Eliminar movimiento</DialogTitle>
+        <DialogContent>¿Deseas eliminar definitivamente el movimiento {encabezado?.serie && encabezado.numero != null ? formatearFolioDocumento(encabezado.serie, Number(encabezado.numero)) : ''}?<br />Esta acción no se puede deshacer.</DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEliminarId(null)}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={() => void confirmarEliminacion()}>Eliminar</Button>
+        </DialogActions>
+      </Dialog>
             </Box>
 
             <Box sx={{ px: { xs: 1.5, md: 2.75 }, pb: 1.4, flexShrink: 0 }}>
@@ -731,7 +829,7 @@ export default function InventarioMovimientosPage() {
                 <Dato
                   tokens={tokens}
                   etiqueta="Documento"
-                  valor={folioDocumento(encabezado) ?? '—'}
+                  valor={folioDocumento(encabezado) ?? ''}
                   detalle={contextoDocumento(encabezado)}
                 />
                 <Box sx={{ gridColumn: { sm: '1 / -1' }, px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.content.elevated, color: tokens.content.foreground }}>

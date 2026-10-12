@@ -268,7 +268,7 @@ interface Contacto { id: number; nombre: string; diasCredito?: number; }
 interface Producto { id: number; clave: string; costo: number; precio: number; minimo: number; }
 interface MovPartida {
   producto_id: number; almacen_id: number; cantidad: number; signo: number;
-  costo_unitario?: number; tipo_partida?: string; almacen_destino_id?: number;
+  costo_unitario?: number; tipo_partida?: string; almacen_destino_id?: number; sentido?: string;
 }
 interface PartidaOpts {
   documento_id: number; numero: number; producto_id: number; cantidad: number;
@@ -361,7 +361,7 @@ async function aplicarMovimiento(
 ): Promise<bigint> {
   const { rows } = await c.query<{ aplicar_movimiento: bigint }>(
     `SELECT inventario.aplicar_movimiento($1,$2,$3,$4,$5,$6,$7) AS aplicar_movimiento`,
-    [EMPRESA_ID, tipoMov, fechaTs, USUARIO_ID, documentoId, `${SEED_MARKER} ${obs ?? ''}`.trim(), JSON.stringify(partidas)],
+    [EMPRESA_ID, tipoMov, fechaTs, USUARIO_ID, documentoId, `${SEED_MARKER} ${obs ?? ''}`.trim(), JSON.stringify(partidas), null],
   );
   for (const p of partidas) {
     adjExist(p.producto_id, p.almacen_id, p.signo * p.cantidad);
@@ -962,12 +962,8 @@ async function generarTraspasos(
 
     await aplicarMovimiento(c, 'transferencia', fecha, null,
       [{ producto_id: prod.id, almacen_id: almGral.id, almacen_destino_id: almTienda.id,
-         cantidad: qty, signo: -1, tipo_partida: 'salida_transferencia' }],
+         cantidad: qty, signo: -1, tipo_partida: 'salida_transferencia', sentido: 'transferencia' }],
       `Traspaso GRAL→TIENDA`);
-    await aplicarMovimiento(c, 'transferencia', fecha, null,
-      [{ producto_id: prod.id, almacen_id: almTienda.id,
-         cantidad: qty, signo: 1, tipo_partida: 'entrada_transferencia' }],
-      `Traspaso GRAL→TIENDA (entrada)`);
     creados++;
   }
   console.log(`    ✓ ${creados} traspasos entre almacenes generados`);

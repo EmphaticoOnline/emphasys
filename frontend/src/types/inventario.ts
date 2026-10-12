@@ -4,18 +4,26 @@ export interface MovimientoPartidaPayload {
   producto_id: number;
   almacen_id: number;
   almacen_destino_id?: number | null | undefined;
-  cantidad: number;
+  cantidad: number | string;
+  costo_unitario?: number | null;
+  sentido?: TipoMovimientoInventario;
 }
 
 export interface CrearMovimientoManualPayload {
-  tipo_movimiento: TipoMovimientoInventario;
+  tipo_movimiento?: TipoMovimientoInventario | 'mixto';
   fecha: string; // ISO string
   observaciones?: string | null;
+  contacto_id?: number | null;
   partidas: MovimientoPartidaPayload[];
 }
 
 export interface MovimientoEncabezado {
   id: number;
+  serie?: string | null;
+  numero?: number | null;
+  estatus_afectacion?: 0 | 1 | number;
+  es_reversion?: boolean;
+  movimiento_origen_id?: number | null;
   fecha: string;
   tipo_movimiento: TipoMovimientoInventario | string;
   observaciones: string | null;
@@ -44,6 +52,8 @@ export interface MovimientoPartidaDetalle {
   almacen_origen_nombre?: string | null;
   almacen_destino_id: number | null;
   almacen_destino_nombre?: string | null;
+  tipo_partida?: 'normal' | 'salida_transferencia' | 'entrada_transferencia' | null;
+  signo?: number | null;
   cantidad: number | string;
   costo_unitario?: number | string | null;
   existencia_resultante?: number | string | null;
@@ -57,7 +67,11 @@ export interface MovimientoDetalle {
 
 export interface Almacen {
   id: number;
+  empresa_id?: number;
   nombre: string;
   clave?: string | null;
-  descripcion?: string | null;
+  tipo?: string | null;
+  activo?: boolean;
+  created_at?: string;
+  updated_at?: string | null;
 }

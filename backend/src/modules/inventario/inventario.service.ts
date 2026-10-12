@@ -7,8 +7,9 @@ import {
 } from './inventario.repository';
 import { isTraslado } from '../documentos/documento-policy.registry';
 import type { PoolClient } from 'pg';
+import { reservarNumeroMovimientoInventario } from '../documentos/series-documento.service';
 
-type TipoMovimiento = 'entrada' | 'salida' | 'transferencia';
+type TipoMovimiento = 'entrada' | 'salida' | 'transferencia' | 'mixto';
 
 type MovimientoPartidaPayload = {
   documento_partida_id?: number | null;
@@ -19,20 +20,23 @@ type MovimientoPartidaPayload = {
   signo: 1 | -1;
   tipo_partida?: 'normal' | 'salida_transferencia' | 'entrada_transferencia';
   costo_unitario?: number | null;
+  sentido?: TipoMovimiento;
 };
 
 export type CrearMovimientoManualPayload = {
   empresaId: number;
   usuarioId: number;
-  tipoMovimiento: TipoMovimiento;
+  tipoMovimiento?: TipoMovimiento;
   fecha?: Date | string;
   observaciones?: string | null;
+  contactoId?: number | null;
   partidas: Array<{
     productoId: number;
     almacenId: number;
-    cantidad: number;
+    cantidad: number | string;
     almacenDestinoId?: number | null;
     costoUnitario?: number | null;
+    sentido?: TipoMovimiento;
   }>;
 };
 
@@ -45,6 +49,7 @@ type DocumentoInventarioRow = {
   almacen_id: number | null;
   afecta_inventario: string | null;
   observaciones: string | null;
+  contacto_id: number | null;
 };
 
 type PartidaDocumentoRow = {
@@ -117,12 +122,14 @@ async function ejecutarAplicarMovimiento(
     usuarioId: number;
     documentoId: number | null;
     observaciones?: string | null;
+    contactoId?: number | null;
     partidas: MovimientoPartidaPayload[];
     esReversion?: boolean;
+    movimientoOrigenId?: number | null;
   },
   client: PoolClient
 ): Promise<number> {
-  const { empresaId, tipoMovimiento, fecha, usuarioId, documentoId, observaciones, partidas, esReversion } = params;
+  const { empresaId, tipoMovimiento, fecha, usuarioId, documentoId, observaciones, contactoId, partidas, esReversion, movimientoOrigenId } = params;
 
   if (!Array.isArray(partidas) || partidas.length === 0) {
     throw buildError('SIN_PARTIDAS', 'No hay partidas para aplicar el movimiento de inventario');
@@ -130,7 +137,7 @@ async function ejecutarAplicarMovimiento(
 
   console.log(`[APLICAR_MOV] Antes de INSERT tipo=${tipoMovimiento} fecha=${fecha} esReversion=${esReversion} doc=${documentoId} empresa=${empresaId} partidas=${partidas.length}`);
   const { rows } = await client.query<{ movimiento_id: number }>(
-    `SELECT inventario.aplicar_movimiento($1, $2, $3::date, $4, $5, $6, $7::jsonb) AS movimiento_id`,
+    `SELECT inventario.aplicar_movimiento($1, $2, $3::date, $4, $5, $6, $7::jsonb, $8) AS movimiento_id`,
     [
       empresaId,
       tipoMovimiento,
@@ -139,6 +146,7 @@ async function ejecutarAplicarMovimiento(
       documentoId,
       observaciones ?? null,
       JSON.stringify(partidas),
+      contactoId ?? null,
     ]
   );
   console.log(`[APLICAR_MOV] Después de INSERT rows=`, JSON.stringify(rows));
@@ -148,9 +156,15 @@ async function ejecutarAplicarMovimiento(
     throw buildError('MOVIMIENTO_NO_CREADO', 'No se pudo crear el movimiento de inventario');
   }
 
-  if (typeof esReversion === 'boolean') {
-    await client.query(`UPDATE inventario.movimientos SET es_reversion = $1 WHERE id = $2`, [esReversion, movimientoId]);
-  }
+  const folio = await reservarNumeroMovimientoInventario(empresaId, client);
+  await client.query(
+    `UPDATE inventario.movimientos
+        SET serie = $2, numero = $3, estatus_afectacion = 1,
+            afectado_at = now(), afectado_por = $4,
+            es_reversion = COALESCE($5, false), movimiento_origen_id = $6
+      WHERE id = $1 AND empresa_id = $7`,
+    [movimientoId, folio.serie, folio.numero, usuarioId, esReversion ?? false, movimientoOrigenId ?? null, empresaId]
+  );
 
   console.log(`[APLICAR_MOV] movimientoId=${movimientoId} es_reversion=${esReversion} guardado`);
   return movimientoId;
@@ -188,7 +202,8 @@ async function obtenerDocumentoInventario(
             d.fecha_documento,
             d.almacen_id,
             COALESCE(etd.afecta_inventario, td.afecta_inventario, 'none') AS afecta_inventario,
-            d.observaciones
+            d.observaciones,
+            d.contacto_principal_id AS contacto_id
        FROM documentos d
   LEFT JOIN core.tipos_documento td
          ON lower(td.codigo) = lower(d.tipo_documento)
@@ -244,8 +259,9 @@ async function obtenerMovimientoOriginal(documentoId: number, empresaId: number,
     tipo_movimiento: string;
     fecha: Date;
     observaciones: string | null;
+    contacto_id: number | null;
   }>(
-    `SELECT id, tipo_movimiento, fecha, observaciones
+    `SELECT id, tipo_movimiento, fecha, observaciones, contacto_id
        FROM inventario.movimientos
       WHERE documento_id = $1
         AND empresa_id = $2
@@ -308,7 +324,9 @@ export async function revertirInventarioDocumentoEnTransaccion(
     throw buildError('SIN_PARTIDAS_ORIGINALES', 'El movimiento original no tiene partidas');
   }
 
-  const partidas: MovimientoPartidaPayload[] = partidasOriginales.map((p) => {
+  const partidas: MovimientoPartidaPayload[] = partidasOriginales
+    .filter((p) => p.tipo_partida !== 'entrada_transferencia')
+    .map((p) => {
     const signoOriginal = Number(p.signo) || 0;
     if (signoOriginal === 0) {
       throw buildError('SIGNO_INVALIDO', `Signo inválido en partida del movimiento original (partida ${p.documento_partida_id ?? ''})`);
@@ -324,6 +342,7 @@ export async function revertirInventarioDocumentoEnTransaccion(
       signo: signoInvertido,
       tipo_partida: p.tipo_partida,
       costo_unitario: p.costo_unitario ?? null,
+      sentido: p.tipo_partida === 'salida_transferencia' || p.tipo_partida === 'entrada_transferencia' ? 'transferencia' : (signoInvertido > 0 ? 'entrada' : 'salida'),
     };
   });
 
@@ -345,8 +364,10 @@ export async function revertirInventarioDocumentoEnTransaccion(
       observaciones:
         opciones?.observaciones ??
         `Reversión del movimiento ${movimientoOriginal.id} generado por documento ${documentoId}`,
+      contactoId: movimientoOriginal.contacto_id,
       partidas,
       esReversion: true,
+      movimientoOrigenId: movimientoOriginal.id,
     },
     client
   );
@@ -390,7 +411,39 @@ async function resolverAlmacenDefault(
   if (almacenDocumentoId) return almacenDocumentoId;
 
   const almacenParametro = await obtenerParametroNumero('inventario.almacen_default', empresaId, client);
-  if (almacenParametro) return almacenParametro;
+  if (almacenParametro) {
+    const { rows } = await client.query<{ id: number }>(
+      `SELECT id FROM inventario.almacenes
+        WHERE id=$1 AND empresa_id=$2 AND activo=true
+        LIMIT 1`,
+      [almacenParametro, empresaId]
+    );
+    if (rows[0]?.id) return rows[0].id;
+    throw buildError('ALMACEN_DEFAULT_INVALIDO', 'El almacén predeterminado configurado no pertenece a la empresa o está inactivo');
+  }
+
+  // Primero reutiliza un almacén general ya configurado. GRAL es la clave
+  // histórica del catálogo; GENERAL queda como compatibilidad para empresas
+  // que ya fueron inicializadas con esa clave. Solo se crea si no existe
+  // ningún candidato válido.
+  const existentes = await client.query<{ id: number; clave: string }>(
+    `SELECT id, clave
+       FROM inventario.almacenes
+      WHERE empresa_id=$1
+        AND activo=true
+        AND (upper(trim(clave)) IN ('GRAL','GENERAL')
+             OR lower(trim(nombre)) = 'almacén general')
+      ORDER BY CASE upper(trim(clave)) WHEN 'GRAL' THEN 0 WHEN 'GENERAL' THEN 1 ELSE 2 END, id`,
+    [empresaId]
+  );
+  if (existentes.rows.length > 0) {
+    const [primero] = existentes.rows;
+    const claves = new Set(existentes.rows.map((row) => String(row.clave ?? '').trim().toUpperCase()));
+    if (existentes.rows.length > 1 && !claves.has('GRAL') && !claves.has('GENERAL')) {
+      throw buildError('ALMACEN_DEFAULT_AMBIGUO', 'Existen varios almacenes generales activos y no hay una configuración predeterminada');
+    }
+    return primero.id;
+  }
 
   // Crear o recuperar el almacén general de forma idempotente y concurrente.
   // El UNIQUE (empresa_id, clave) garantiza que no se creen duplicados aunque
@@ -486,6 +539,7 @@ export async function aplicarInventarioDesdeDocumentoEnTransaccion(
       usuarioId,
       documentoId,
       observaciones: opciones?.observaciones ?? documento.observaciones ?? null,
+      contactoId: documento.contacto_id,
       partidas,
       esReversion: false,
     },
@@ -536,6 +590,180 @@ export async function revertirInventarioDocumento(
   }
 }
 
+async function reconstruirProductosMovimiento(client: PoolClient, movimientoId: number, empresaId: number) {
+  const { rows } = await client.query<{ producto_id: number }>(
+    `SELECT DISTINCT producto_id FROM inventario.movimientos_partidas
+      WHERE movimiento_id = $1 AND empresa_id = $2`, [movimientoId, empresaId]
+  );
+  for (const row of rows) {
+    await client.query('SELECT inventario.reconstruir_producto($1, $2)', [empresaId, row.producto_id]);
+  }
+}
+
+export async function desafectarMovimientoManual(
+  movimientoId: number,
+  empresaId: number,
+  usuarioId: number,
+  motivo: string,
+) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query<any>(
+      `SELECT id, documento_id, es_reversion, estatus_afectacion
+         FROM inventario.movimientos
+        WHERE id = $1 AND empresa_id = $2 FOR UPDATE`, [movimientoId, empresaId]
+    );
+    const movimiento = rows[0];
+    if (!movimiento) throw buildError('MOVIMIENTO_NO_ENCONTRADO', 'El movimiento no existe.');
+    if (movimiento.documento_id != null) throw buildError('MOVIMIENTO_DOCUMENTAL', 'Los movimientos originados en documentos se gestionan desde su documento.');
+    if (movimiento.es_reversion) throw buildError('MOVIMIENTO_REVERSION', 'Las reversiones no se desafectan manualmente.');
+    if (Number(movimiento.estatus_afectacion) !== 1) throw buildError('YA_DESAFECTADO', 'El movimiento ya está desafectado.');
+    await client.query(
+      `UPDATE inventario.movimientos
+          SET estatus_afectacion = 0, desafectado_at = now(), desafectado_por = $3,
+              motivo_desafectacion = $4, updated_at = now()
+        WHERE id = $1 AND empresa_id = $2`, [movimientoId, empresaId, usuarioId, motivo || 'Desafectación manual']
+    );
+    await reconstruirProductosMovimiento(client, movimientoId, empresaId);
+    await client.query(
+      `INSERT INTO public.audit_log (empresa_id,usuario_id,modulo,entidad,entidad_id,accion,descripcion,datos_nuevos,origen)
+       VALUES ($1,$2,'inventario','movimientos',$3,'desafectar',$4,$5::jsonb,'api')`,
+      [empresaId, usuarioId, movimientoId, motivo || 'Desafectación manual', JSON.stringify({ estatus_afectacion: 0, motivo_desafectacion: motivo || 'Desafectación manual' })]
+    );
+    await client.query('COMMIT');
+    return { movimientoId, estatusAfectacion: 0 };
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
+}
+
+export async function afectarMovimientoManual(movimientoId: number, empresaId: number, usuarioId: number) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query<any>(
+      `SELECT id, documento_id, es_reversion, estatus_afectacion
+         FROM inventario.movimientos
+        WHERE id = $1 AND empresa_id = $2 FOR UPDATE`, [movimientoId, empresaId]
+    );
+    const movimiento = rows[0];
+    if (!movimiento) throw buildError('MOVIMIENTO_NO_ENCONTRADO', 'El movimiento no existe.');
+    if (movimiento.documento_id != null) throw buildError('MOVIMIENTO_DOCUMENTAL', 'Los movimientos originados en documentos se gestionan desde su documento.');
+    if (Number(movimiento.estatus_afectacion) === 1) throw buildError('YA_AFECTADO', 'El movimiento ya está afectado.');
+    await client.query(
+      `UPDATE inventario.movimientos
+          SET estatus_afectacion = 1, afectado_at = now(), afectado_por = $3,
+              updated_at = now()
+        WHERE id = $1 AND empresa_id = $2`, [movimientoId, empresaId, usuarioId]
+    );
+    await reconstruirProductosMovimiento(client, movimientoId, empresaId);
+    await client.query(
+      `INSERT INTO public.audit_log (empresa_id,usuario_id,modulo,entidad,entidad_id,accion,descripcion,datos_nuevos,origen)
+       VALUES ($1,$2,'inventario','movimientos',$3,'afectar',$4,$5::jsonb,'api')`,
+      [empresaId, usuarioId, movimientoId, 'Afectó movimiento manual', JSON.stringify({ estatus_afectacion: 1 })]
+    );
+    await client.query('COMMIT');
+    return { movimientoId, estatusAfectacion: 1 };
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
+}
+
+export async function actualizarMovimientoManualDesafectado(
+  movimientoId: number,
+  payload: CrearMovimientoManualPayload,
+) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query<any>(
+      `SELECT * FROM inventario.movimientos WHERE id = $1 AND empresa_id = $2 FOR UPDATE`,
+      [movimientoId, payload.empresaId]
+    );
+    const actual = rows[0];
+    if (!actual) throw buildError('MOVIMIENTO_NO_ENCONTRADO', 'El movimiento no existe.');
+    if (actual.documento_id != null) throw buildError('MOVIMIENTO_DOCUMENTAL', 'Los movimientos originados en documentos no se pueden editar.');
+    if (actual.es_reversion) throw buildError('MOVIMIENTO_REVERSION', 'Las reversiones no se pueden editar.');
+    if (Number(actual.estatus_afectacion) !== 0) throw buildError('MOVIMIENTO_AFECTADO', 'Solo se pueden editar movimientos desafectados.');
+    if (!Array.isArray(payload.partidas) || payload.partidas.length === 0) throw buildError('SIN_PARTIDAS', 'Se requiere al menos una partida.');
+
+    const anteriores = await client.query(`SELECT * FROM inventario.movimientos_partidas WHERE movimiento_id=$1 AND empresa_id=$2 ORDER BY id`, [movimientoId, payload.empresaId]);
+    const productos = new Set<number>(anteriores.rows.map((p: any) => Number(p.producto_id)));
+    const normalizadas: MovimientoPartidaPayload[] = [];
+    for (const [idx, p] of payload.partidas.entries()) {
+      const productoId = assertPositiveNumber(p.productoId, 'PRODUCTO_REQUERIDO', `productoId faltante en partida ${idx + 1}`);
+      const almacenId = assertPositiveNumber(p.almacenId, 'ALMACEN_REQUERIDO', `almacenId faltante en partida ${idx + 1}`);
+      const cantidad = assertPositiveNumber(p.cantidad, 'CANTIDAD_INVALIDA', `cantidad inválida en partida ${idx + 1}`);
+      const sentido = p.sentido;
+      if (!sentido || !['entrada', 'salida', 'transferencia'].includes(sentido)) throw buildError('SENTIDO_REQUERIDO', `sentido faltante en partida ${idx + 1}`);
+      productos.add(productoId);
+      if (sentido === 'transferencia') {
+        const destino = assertPositiveNumber(p.almacenDestinoId, 'ALMACEN_DESTINO_REQUERIDO', `almacenDestinoId faltante en partida ${idx + 1}`);
+        if (destino === almacenId) throw buildError('ALMACEN_DESTINO_INVALIDO', 'El almacén destino no puede ser igual al origen.');
+        normalizadas.push({ producto_id: productoId, almacen_id: almacenId, almacen_destino_id: destino, cantidad, signo: -1, tipo_partida: 'salida_transferencia', costo_unitario: null, sentido });
+        normalizadas.push({ producto_id: productoId, almacen_id: destino, almacen_destino_id: almacenId, cantidad, signo: 1, tipo_partida: 'entrada_transferencia', costo_unitario: null, sentido });
+      } else {
+        const costo = p.costoUnitario == null ? null : parseNumeric(p.costoUnitario);
+        if (sentido === 'entrada' && (costo == null || costo < 0)) throw buildError('COSTO_ENTRADA_REQUERIDO', `El costo unitario de la entrada es obligatorio en partida ${idx + 1}`);
+        normalizadas.push({ producto_id: productoId, almacen_id: almacenId, cantidad, signo: sentido === 'entrada' ? 1 : -1, tipo_partida: 'normal', costo_unitario: costo, sentido });
+      }
+    }
+    const antes = { ...actual, partidas: anteriores.rows };
+    await client.query('DELETE FROM inventario.movimientos_partidas WHERE movimiento_id=$1 AND empresa_id=$2', [movimientoId, payload.empresaId]);
+    for (const p of normalizadas) {
+      await client.query(
+        `INSERT INTO inventario.movimientos_partidas
+          (empresa_id,movimiento_id,producto_id,almacen_id,almacen_destino_id,fecha_movimiento,cantidad,signo,tipo_partida,costo_unitario,existencia_resultante)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0)`,
+        [payload.empresaId, movimientoId, p.producto_id, p.almacen_id, p.almacen_destino_id ?? null, normalizarFecha(payload.fecha), p.cantidad, p.signo, p.tipo_partida ?? 'normal', p.costo_unitario ?? null]
+      );
+    }
+    await client.query(
+      `UPDATE inventario.movimientos
+          SET fecha=$3, observaciones=$4, contacto_id=$5, tipo_movimiento=$6,
+              estatus_afectacion=1, afectado_at=now(), afectado_por=$7,
+              updated_at=now()
+        WHERE id=$1 AND empresa_id=$2`,
+      [movimientoId, payload.empresaId, normalizarFecha(payload.fecha), payload.observaciones ?? null, payload.contactoId ?? null,
+       payload.tipoMovimiento ?? 'mixto', payload.usuarioId]
+    );
+    const despues = await client.query(`SELECT * FROM inventario.movimientos_partidas WHERE movimiento_id=$1 AND empresa_id=$2 ORDER BY id`, [movimientoId, payload.empresaId]);
+    await client.query(
+      `INSERT INTO public.audit_log (empresa_id,usuario_id,modulo,entidad,entidad_id,accion,descripcion,datos_anteriores,datos_nuevos,origen)
+       VALUES ($1,$2,'inventario','movimientos',$3,'editar_afectar',$4,$5::jsonb,$6::jsonb,'api')`,
+      [payload.empresaId, payload.usuarioId, movimientoId, `Editó y afectó el movimiento ${actual.serie ?? ''}-${actual.numero ?? actual.id}`,
+       JSON.stringify(antes), JSON.stringify({ ...actual, fecha: payload.fecha, observaciones: payload.observaciones, contacto_id: payload.contactoId, tipo_movimiento: payload.tipoMovimiento, estatus_afectacion: 1, partidas: despues.rows })]
+    );
+    for (const productoId of productos) await client.query('SELECT inventario.reconstruir_producto($1,$2)', [payload.empresaId, productoId]);
+    await client.query('COMMIT');
+    return { movimientoId, serie: actual.serie, numero: actual.numero, estatusAfectacion: 1 };
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
+}
+
+export async function eliminarMovimientoManualDesafectado(movimientoId: number, empresaId: number, usuarioId: number) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`inventario:${empresaId}`]);
+    const { rows } = await client.query(`SELECT * FROM inventario.movimientos WHERE id=$1 AND empresa_id=$2 FOR UPDATE`, [movimientoId, empresaId]);
+    const movimiento = rows[0];
+    if (!movimiento) throw buildError('MOVIMIENTO_NO_ENCONTRADO', 'El movimiento no existe.');
+    if (movimiento.documento_id != null) throw buildError('MOVIMIENTO_DOCUMENTAL', 'Los movimientos vinculados a documentos no se pueden eliminar.');
+    if (movimiento.es_reversion) throw buildError('MOVIMIENTO_REVERSION', 'Las reversiones no se pueden eliminar.');
+    if (Number(movimiento.estatus_afectacion) !== 0) throw buildError('MOVIMIENTO_AFECTADO', 'Solo se pueden eliminar movimientos desafectados.');
+    await client.query('DELETE FROM inventario.movimientos_partidas WHERE movimiento_id=$1 AND empresa_id=$2', [movimientoId, empresaId]);
+    await client.query('DELETE FROM inventario.movimientos WHERE id=$1 AND empresa_id=$2', [movimientoId, empresaId]);
+    await client.query(
+      `INSERT INTO public.audit_log (empresa_id,usuario_id,modulo,entidad,entidad_id,accion,descripcion,datos_anteriores,origen)
+       VALUES ($1,$2,'inventario','movimientos',$3,'eliminar',$4,$5::jsonb,'api')`,
+      [empresaId, usuarioId, movimientoId, `Eliminó movimiento ${movimiento.serie ?? ''}-${movimiento.numero ?? movimientoId}`, JSON.stringify(movimiento)]
+    );
+    await client.query('COMMIT');
+    return { movimientoId };
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
+}
+
 export async function listarMovimientos(empresaId: number): Promise<MovimientoRow[]> {
   return listarMovimientosRepository(empresaId);
 }
@@ -551,10 +779,18 @@ export async function crearMovimientoManual(payload: CrearMovimientoManualPayloa
 
     const empresaId = assertPositiveNumber(payload.empresaId, 'EMPRESA_REQUERIDA', 'empresaId es requerido');
     const usuarioId = assertPositiveNumber(payload.usuarioId, 'USUARIO_REQUERIDO', 'usuarioId es requerido');
-    const tipoMovimiento = (payload.tipoMovimiento || '').toLowerCase() as TipoMovimiento;
+    const tipoMovimiento = (payload.tipoMovimiento || 'mixto').toLowerCase() as TipoMovimiento | 'mixto';
+    const contactoId = payload.contactoId == null ? null : assertPositiveNumber(payload.contactoId, 'CONTACTO_INVALIDO', 'contactoId inválido');
+    if (contactoId != null) {
+      const { rowCount } = await client.query(
+        `SELECT 1 FROM public.contactos WHERE id = $1 AND empresa_id = $2`,
+        [contactoId, empresaId]
+      );
+      if (!rowCount) throw buildError('CONTACTO_EMPRESA_INVALIDO', 'El contacto no pertenece a la empresa activa');
+    }
 
-    if (!['entrada', 'salida', 'transferencia'].includes(tipoMovimiento)) {
-      throw buildError('TIPO_INVALIDO', 'tipoMovimiento debe ser entrada, salida o transferencia');
+    if (!['entrada', 'salida', 'transferencia', 'mixto'].includes(tipoMovimiento)) {
+      throw buildError('TIPO_INVALIDO', 'tipoMovimiento debe ser entrada, salida, transferencia o mixto');
     }
 
     if (!Array.isArray(payload.partidas) || payload.partidas.length === 0) {
@@ -568,8 +804,10 @@ export async function crearMovimientoManual(payload: CrearMovimientoManualPayloa
       const almacenId = assertPositiveNumber(p.almacenId, 'ALMACEN_REQUERIDO', `almacenId faltante en partida ${idx + 1}`);
       const cantidad = assertPositiveNumber(p.cantidad, 'CANTIDAD_INVALIDA', `cantidad inválida en partida ${idx + 1}`);
       const costoUnitario = p.costoUnitario !== undefined ? parseNumeric(p.costoUnitario) : null;
+      const sentido = p.sentido ?? (tipoMovimiento === 'mixto' ? undefined : tipoMovimiento);
+      if (!sentido) throw buildError('SENTIDO_REQUERIDO', `sentido faltante en partida ${idx + 1}`);
 
-      if (tipoMovimiento === 'transferencia') {
+      if (sentido === 'transferencia') {
         const almacenDestinoId = assertPositiveNumber(
           p.almacenDestinoId,
           'ALMACEN_DESTINO_REQUERIDO',
@@ -579,28 +817,24 @@ export async function crearMovimientoManual(payload: CrearMovimientoManualPayloa
           throw buildError('ALMACEN_DESTINO_INVALIDO', `El almacén destino no puede ser igual al origen en partida ${idx + 1}`);
         }
 
-        partidas.push(
-          {
-            producto_id: productoId,
-            almacen_id: almacenId,
-            almacen_destino_id: almacenDestinoId,
-            cantidad,
-            signo: -1,
-            tipo_partida: 'salida_transferencia',
-            costo_unitario: costoUnitario,
-          },
-          {
-            producto_id: productoId,
-            almacen_id: almacenId,
-            almacen_destino_id: almacenDestinoId,
-            cantidad,
-            signo: 1,
-            tipo_partida: 'entrada_transferencia',
-            costo_unitario: costoUnitario,
-          }
-        );
+        // La función SQL recibe una transferencia lógica y crea internamente
+        // sus afectaciones de salida y entrada. No expandirla aquí: hacerlo
+        // duplicaría ambas afectaciones.
+        partidas.push({
+          producto_id: productoId,
+          almacen_id: almacenId,
+          almacen_destino_id: almacenDestinoId,
+          cantidad,
+          signo: -1,
+          tipo_partida: 'salida_transferencia',
+          costo_unitario: null,
+          sentido,
+        });
       } else {
-        const signo: 1 | -1 = tipoMovimiento === 'entrada' ? 1 : -1;
+        const signo: 1 | -1 = sentido === 'entrada' ? 1 : -1;
+        if (sentido === 'entrada' && (costoUnitario == null || costoUnitario < 0)) {
+          throw buildError('COSTO_ENTRADA_REQUERIDO', `El costo unitario de la entrada es obligatorio y no puede ser negativo en partida ${idx + 1}`);
+        }
         partidas.push({
           producto_id: productoId,
           almacen_id: almacenId,
@@ -608,6 +842,7 @@ export async function crearMovimientoManual(payload: CrearMovimientoManualPayloa
           signo,
           tipo_partida: 'normal',
           costo_unitario: costoUnitario,
+          sentido,
         });
       }
     });
@@ -620,6 +855,7 @@ export async function crearMovimientoManual(payload: CrearMovimientoManualPayloa
         usuarioId,
         documentoId: null,
         observaciones: payload.observaciones ?? null,
+        contactoId,
         partidas,
         esReversion: false,
       },

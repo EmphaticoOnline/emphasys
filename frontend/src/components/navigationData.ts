@@ -16,7 +16,7 @@ export const MODULE_TABS: Record<string, string[]> = {
   Ventas: [],
   Compras: ['Requisiciones', 'Órdenes de compra', 'Recepciones', 'Facturas'],
   Tesorería: ['Tesorería'],
-  Inventarios: ['Movimientos', 'Inventario', 'Ajustes de stock', 'Kardex', 'Ubicaciones', 'Reportes de inventario'],
+  Inventarios: ['Movimientos', 'Inventario', 'Ajustes de stock', 'Recalcular existencias y costos', 'Kardex', 'Ubicaciones', 'Reportes de inventario'],
   Informes: ['Pregúntale a tu negocio'],
   Autorizaciones: [],
   Configuración: [],
@@ -40,6 +40,7 @@ export const MAIN_MENU_LINKS = [
   { label: 'CRM', path: '/crm', description: 'Gestiona conversaciones y oportunidades comerciales desde un solo módulo.' },
   { label: 'Tesorería', path: '/finanzas', description: 'Supervisa cuentas, movimientos y conciliaciones bancarias.' },
   { label: 'Movimientos de inventario', path: '/inventario/movimientos', description: 'Consulta y registra los movimientos de inventario.' },
+  { label: 'Recalcular existencias y costos', path: '/inventario/recalcular', description: 'Analiza y reconstruye resultados derivados del inventario.' },
   { label: 'Pregúntale a tu negocio', path: '/informes/ia', description: 'Explora reportes y respuestas ad-hoc sobre tu negocio.' },
   { label: 'Configuración', path: '/configuracion', description: 'Configura catálogos del sistema, usuarios, roles y empresas.' },
 ] as const;

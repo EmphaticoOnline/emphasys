@@ -10,6 +10,8 @@ import {
   Tabs,
   Tooltip,
   Typography,
+  Popover,
+  useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import EditIcon from '@mui/icons-material/Edit';
@@ -43,7 +45,11 @@ import EspecificacionesBibliotecaEditor from './EspecificacionesBibliotecaEditor
 import { getDocumentoTypeConfig } from '../../modules/documentos/documentoTypeConfig';
 import { resolveDocumentoFormPath, type DocumentoModulo } from '../../modules/documentos/documentoNavigation';
 import { fetchKardexProducto, type KardexLinea } from '../../services/reportesService';
-import { resolverFolioVisual } from '../../utils/documentos.utils';
+import { fetchParametrosSistema } from '../../services/parametrosService';
+import { useGridPreferences } from '../../hooks/useGridPreferences';
+import ProductoHistorialComercial from './ProductoHistorialComercial';
+import { folioVisualDesdeSerieYFolio, resolverFolioVisual } from '../../utils/documentos.utils';
+import type { RestauracionProductoRelacionado } from '../../modules/productos/productosOrigenNavegacion';
 
 export async function alternarActivoDeProducto(producto: Producto): Promise<Producto> {
   const payload: ProductoBasico = {
@@ -70,11 +76,15 @@ type ProductoWorkspaceProps = {
   alternando?: boolean;
   compacto?: boolean;
   onVolver?: () => void;
+  restauracion?: RestauracionProductoRelacionado | null;
+  onScrollDetalle?: (scrollTop: number) => void;
+  onAbrirDocumentoRelacionado?: (ruta: string, tipo: string) => void;
 };
+
+const COLUMNAS_RELACIONADOS = '88px 128px minmax(140px, 200px) 112px 28px';
 
 const dateFormatter = new Intl.DateTimeFormat('es-MX', { year: 'numeric', month: 'short', day: '2-digit' });
 const currencyFormatter = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
-const qtyFormatter = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 4 });
 
 const TIPOS_COMPRA = new Set([
   'requisicion',
@@ -111,8 +121,8 @@ function formatCurrency(value?: number | string | null) {
   return currencyFormatter.format(numeric);
 }
 
-function formatQty(value: number) {
-  return qtyFormatter.format(Number(value) || 0);
+function formatQty(value: number, decimales = 2) {
+  return new Intl.NumberFormat('es-MX', { minimumFractionDigits: decimales, maximumFractionDigits: decimales }).format(Number(value) || 0);
 }
 
 function normalizarTexto(value: string): string {
@@ -166,14 +176,25 @@ function valorCatalogoPorNombre(catalogos: CatalogoConfigurablesProductoRespuest
   return seleccionados.length ? seleccionados.join(', ') : null;
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+function InfoRow({ label, value, denso = false }: { label: string; value: React.ReactNode; denso?: boolean }) {
+  const visible = value || value === 0 ? value : '—';
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ display: 'block', mb: 0.15, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: (theme) => theme.emphasys.content.muted }}>
+      <Typography sx={{ display: 'block', mb: denso ? 0 : 0.15, fontSize: denso ? 10 : 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: (theme) => theme.emphasys.content.muted, lineHeight: 1.2 }}>
         {label}
       </Typography>
-      <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35, color: (theme) => theme.emphasys.content.foreground, wordBreak: 'break-word' }}>
-        {value || value === 0 ? value : '—'}
+      <Typography
+        title={typeof visible === 'string' ? visible : undefined}
+        sx={{
+          fontSize: denso ? 12.5 : 13,
+          fontWeight: 600,
+          lineHeight: denso ? 1.25 : 1.35,
+          color: (theme) => theme.emphasys.content.foreground,
+          wordBreak: 'break-word',
+          ...(denso ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : null),
+        }}
+      >
+        {visible}
       </Typography>
     </Box>
   );
@@ -184,11 +205,13 @@ function SectionCard({
   action,
   children,
   llenar = false,
+  densa = false,
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   llenar?: boolean;
+  densa?: boolean;
 }) {
   return (
     <Box
@@ -197,13 +220,14 @@ function SectionCard({
         borderRadius: 2,
         backgroundColor: theme.emphasys.action.wash,
         overflow: 'hidden',
+        height: densa ? '100%' : undefined,
         ...(llenar ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : null),
       })}
     >
       <Box
         sx={{
-          px: 1.25,
-          py: 0.85,
+          px: densa ? 1 : 1.25,
+          py: densa ? 0.45 : 0.85,
           flexShrink: 0,
           borderBottom: (theme) => `1px solid ${theme.emphasys.content.border}`,
           display: 'flex',
@@ -216,7 +240,7 @@ function SectionCard({
         </Typography>
         {action ? <Box sx={{ ml: 'auto' }}>{action}</Box> : null}
       </Box>
-      <Box sx={{ p: 1.25, ...(llenar ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : null) }}>{children}</Box>
+      <Box sx={{ p: densa ? 0.85 : 1.25, ...(llenar ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : null) }}>{children}</Box>
     </Box>
   );
 }
@@ -243,11 +267,13 @@ function PendingCard({ title, message }: { title: string; message: string }) {
 function ExistenciasAlmacen({
   existencias,
   tipo,
+  decimalesCantidad = 2,
   almacenSeleccionadoId = null,
   onSeleccionarAlmacen,
 }: {
   existencias: ExistenciaProducto[];
   tipo: string | null;
+  decimalesCantidad?: number;
   almacenSeleccionadoId?: number | null;
   onSeleccionarAlmacen?: (almacenId: number) => void;
 }) {
@@ -325,14 +351,14 @@ function ExistenciasAlmacen({
             <Box sx={{ minWidth: 0 }}>
               <Typography noWrap sx={{ fontSize: 13 }}>{fila.almacen}</Typography>
               <Typography sx={{ display: { sm: 'none' }, fontSize: 11, color: (theme) => theme.emphasys.content.muted }}>
-                Mín. {formatQty(fila.minimo_inventario)} · {formatDate(fila.ultima_fecha) ?? 'sin movimiento'}
+                Mín. {formatQty(fila.minimo_inventario, decimalesCantidad)} · {formatDate(fila.ultima_fecha) ?? 'sin movimiento'}
               </Typography>
             </Box>
             <Typography sx={{ fontSize: 13, fontWeight: 700, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: (theme) => (bajoMinimo ? theme.emphasys.metric.blocked.foreground : theme.emphasys.content.foreground) }}>
-              {formatQty(fila.existencia)}
+              {formatQty(fila.existencia, decimalesCantidad)}
             </Typography>
             <Typography sx={{ display: { xs: 'none', sm: 'block' }, fontSize: 13, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: (theme) => theme.emphasys.content.secondary }}>
-              {formatQty(fila.minimo_inventario)}
+              {formatQty(fila.minimo_inventario, decimalesCantidad)}
             </Typography>
             <Typography sx={{ display: { xs: 'none', sm: 'block' }, fontSize: 12, textAlign: 'right', color: (theme) => theme.emphasys.content.muted }}>
               {formatDate(fila.ultima_fecha) ?? '—'}
@@ -345,41 +371,95 @@ function ExistenciasAlmacen({
           Total
         </Typography>
         <Typography sx={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: (theme) => theme.emphasys.content.foreground }}>
-          {formatQty(total)}
+          {formatQty(total, decimalesCantidad)}
         </Typography>
       </Box>
     </Box>
   );
 }
 
-const KARDEX_COLUMNAS = '108px 84px minmax(132px, 1.15fr) 80px 80px 96px 124px minmax(148px, 1.3fr)';
-const KARDEX_ANCHO_MINIMO = 980;
-const KARDEX_ALTO_ENCABEZADO = 32;
+const KARDEX_DEFAULT_ORDER = ['fecha', 'cantidad', 'existencia', 'costo', 'costo_promedio', 'contacto', 'documento', 'observaciones'] as const;
+type KardexColumnaId = (typeof KARDEX_DEFAULT_ORDER)[number];
+const KARDEX_DEFINICIONES: { id: KardexColumnaId; label: string; ancho: number; numerica: boolean; flexible: boolean }[] = [
+  { id: 'fecha', label: 'Fecha', ancho: 92, numerica: false, flexible: false },
+  { id: 'cantidad', label: 'Cantidad', ancho: 96, numerica: true, flexible: false },
+  { id: 'existencia', label: 'Existencia', ancho: 104, numerica: true, flexible: false },
+  { id: 'costo', label: 'Costo', ancho: 80, numerica: true, flexible: false },
+  { id: 'costo_promedio', label: 'Costo promedio', ancho: 88, numerica: true, flexible: false },
+  { id: 'contacto', label: 'Contacto', ancho: 148, numerica: false, flexible: true },
+  { id: 'documento', label: 'Documento', ancho: 112, numerica: false, flexible: false },
+  { id: 'observaciones', label: 'Observaciones', ancho: 156, numerica: false, flexible: true },
+];
+const KARDEX_POR_ID = new Map(KARDEX_DEFINICIONES.map((columna) => [columna.id, columna]));
+const KARDEX_FIJAS = new Set<KardexColumnaId>(['fecha', 'cantidad']);
+const KARDEX_ORDEN_INICIAL: string[] = [...KARDEX_DEFAULT_ORDER];
+const KARDEX_VISIBILIDAD_INICIAL = Object.fromEntries(KARDEX_DEFAULT_ORDER.map((id) => [id, true]));
+const KARDEX_ANCHO_MIN = 72;
+const KARDEX_ANCHO_MAX = 420;
+const KARDEX_ALTO_ENCABEZADO = 40;
 const KARDEX_ALTO_FILA = 28;
 
-function formatCantidadKardex(value: number): string {
+function esColumnaKardex(id: string): id is KardexColumnaId {
+  return KARDEX_POR_ID.has(id as KardexColumnaId);
+}
+
+function normalizarOrdenKardex(order: readonly string[]): KardexColumnaId[] {
+  const vistos = new Set<KardexColumnaId>();
+  const orden: KardexColumnaId[] = [];
+  for (const id of order) {
+    if (!esColumnaKardex(id) || vistos.has(id)) continue;
+    vistos.add(id);
+    orden.push(id);
+  }
+  for (const id of KARDEX_DEFAULT_ORDER) {
+    if (!vistos.has(id)) orden.push(id);
+  }
+  return orden;
+}
+
+function normalizarVisibilidadKardex(model: Record<string, boolean | undefined>): Record<KardexColumnaId, boolean> {
+  return Object.fromEntries(KARDEX_DEFAULT_ORDER.map((id) => [id, KARDEX_FIJAS.has(id) || model[id] !== false])) as Record<KardexColumnaId, boolean>;
+}
+
+function normalizarAnchosKardex(widths: Record<string, number>): Partial<Record<KardexColumnaId, number>> {
+  const anchos: Partial<Record<KardexColumnaId, number>> = {};
+  for (const columna of KARDEX_DEFINICIONES) {
+    const valor = Number(widths[columna.id]);
+    if (!Number.isFinite(valor)) continue;
+    anchos[columna.id] = Math.min(KARDEX_ANCHO_MAX, Math.max(KARDEX_ANCHO_MIN, Math.round(valor)));
+  }
+  return anchos;
+}
+
+function formatNumeroKardex(value: number, opciones?: { signo?: boolean; decimales?: number }): string {
   if (!Number.isFinite(value)) return '—';
-  const negativo = value < 0;
   let texto = Math.abs(value).toString();
   if (/e/i.test(texto)) texto = Math.abs(value).toFixed(12);
   const [enteraParte, fraccion = ''] = texto.split('.');
   const entera = enteraParte || '0';
-  const fraccionVisible = fraccion.slice(0, 6).replace(/0+$/, '');
+  const decimales = Math.max(0, Math.min(6, opciones?.decimales ?? 6));
+  const fraccionVisible = fraccion.slice(0, decimales).padEnd(decimales, '0');
   const enteraMiles = entera.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const cuerpo = fraccionVisible ? `${enteraMiles}.${fraccionVisible}` : enteraMiles;
-  return negativo ? `-${cuerpo}` : cuerpo;
+  if (value < 0) return `−${cuerpo}`;
+  if (opciones?.signo && value > 0) return `+${cuerpo}`;
+  return cuerpo;
+}
+
+function cantidadKardex(entrada: number | null, salida: number | null): number | null {
+  if (entrada == null && salida == null) return null;
+  const entradas = entrada ?? 0;
+  const salidas = salida ?? 0;
+  if (entradas === 0 && salidas === 0) return 0;
+  if (salidas === 0) return entradas;
+  if (entradas === 0) return -salidas;
+  return entradas - salidas;
 }
 
 function numeroKardex(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === '') return null;
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
-}
-
-function etiquetaMovimiento(tipo: string): string {
-  const limpio = tipo.trim().replace(/_/g, ' ');
-  if (!limpio) return '—';
-  return limpio.charAt(0).toUpperCase() + limpio.slice(1);
 }
 
 function folioKardex(linea: KardexLinea): string {
@@ -408,11 +488,87 @@ function KardexProducto({
   lineas,
   cargando,
   error,
+  decimalesCantidad,
+  decimalesCosto,
 }: {
   lineas: KardexLinea[];
   cargando: boolean;
   error: string | null;
+  decimalesCantidad: number;
+  decimalesCosto: number;
 }) {
+  const {
+    loadingPreferences,
+    columnOrder,
+    columnVisibilityModel,
+    columnWidths,
+    setColumnOrder,
+    setColumnVisibilityModel,
+    setColumnWidths,
+  } = useGridPreferences({
+    pantalla: 'productos.inventario.kardex',
+    perfilDispositivo: 'desktop',
+    defaultColumnOrder: KARDEX_ORDEN_INICIAL,
+    defaultColumnVisibilityModel: KARDEX_VISIBILIDAD_INICIAL,
+  });
+  const [columnasAnchor, setColumnasAnchor] = React.useState<HTMLElement | null>(null);
+  const redimensionando = React.useRef(false);
+  const orden = React.useMemo(() => normalizarOrdenKardex(columnOrder), [columnOrder]);
+  const visibilidad = React.useMemo(() => normalizarVisibilidadKardex(columnVisibilityModel), [columnVisibilityModel]);
+  const anchos = React.useMemo(() => normalizarAnchosKardex(columnWidths), [columnWidths]);
+  const columnas = React.useMemo(
+    () => orden.filter((id) => visibilidad[id]).map((id) => {
+      const definicion = KARDEX_POR_ID.get(id)!;
+      const anchoGuardado = anchos[id];
+      return { ...definicion, ancho: anchoGuardado ?? definicion.ancho, flexible: definicion.flexible && anchoGuardado == null };
+    }),
+    [anchos, orden, visibilidad],
+  );
+
+  React.useEffect(() => {
+    if (loadingPreferences) return;
+    const ordenActual = columnOrder.join('|');
+    const ordenNormal = orden.join('|');
+    if (ordenActual !== ordenNormal) setColumnOrder(() => orden);
+    const visibilidadNormal = JSON.stringify(visibilidad);
+    const visibilidadActual = JSON.stringify(normalizarVisibilidadKardex(columnVisibilityModel));
+    if (visibilidadActual !== visibilidadNormal || JSON.stringify(columnVisibilityModel) !== visibilidadNormal) {
+      setColumnVisibilityModel(visibilidad);
+    }
+    if (JSON.stringify(columnWidths) !== JSON.stringify(anchos)) setColumnWidths(() => anchos);
+  }, [anchos, columnOrder, columnVisibilityModel, columnWidths, loadingPreferences, orden, setColumnOrder, setColumnVisibilityModel, setColumnWidths, visibilidad]);
+
+  const reordenar = (origen: string, destino: KardexColumnaId) => {
+    if (!esColumnaKardex(origen) || origen === destino) return;
+    setColumnOrder((actual) => {
+      const base = normalizarOrdenKardex(actual);
+      const desde = base.indexOf(origen);
+      const hacia = base.indexOf(destino);
+      if (desde < 0 || hacia < 0 || desde === hacia) return base;
+      base.splice(desde, 1);
+      base.splice(hacia, 0, origen);
+      return base;
+    });
+  };
+
+  const iniciarRedimension = (id: KardexColumnaId, event: React.PointerEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    redimensionando.current = true;
+    const encabezado = event.currentTarget.parentElement;
+    const inicioX = event.clientX;
+    const inicioAncho = encabezado?.getBoundingClientRect().width ?? KARDEX_POR_ID.get(id)?.ancho ?? KARDEX_ANCHO_MIN;
+    const mover = (movement: PointerEvent) => {
+      const siguiente = Math.min(KARDEX_ANCHO_MAX, Math.max(KARDEX_ANCHO_MIN, Math.round(inicioAncho + movement.clientX - inicioX)));
+      setColumnWidths((prev) => ({ ...prev, [id]: siguiente }));
+    };
+    const terminar = () => {
+      window.removeEventListener('pointermove', mover);
+      redimensionando.current = false;
+    };
+    window.addEventListener('pointermove', mover);
+    window.addEventListener('pointerup', terminar, { once: true });
+  };
   const libroRef = React.useRef<HTMLDivElement | null>(null);
   const [altoLibro, setAltoLibro] = React.useState(0);
 
@@ -431,6 +587,9 @@ function KardexProducto({
   const vacios = desborda ? 0 : Math.max(0, capacidad - lineas.length);
   const aviso = error ?? (cargando && lineas.length === 0 ? 'Consultando movimientos…' : !lineas.length ? 'Sin movimientos de inventario registrados.' : null);
 
+  const anchoMinimo = columnas.reduce((suma, columna) => suma + (columna.flexible ? 96 : columna.ancho), 0);
+  const hayFlexible = columnas.some((columna) => columna.flexible);
+
   return (
     <Box
       ref={libroRef}
@@ -444,156 +603,259 @@ function KardexProducto({
         overflowX: 'auto',
         overflowY: desborda ? 'auto' : 'hidden',
         backgroundColor: theme.emphasys.content.elevated,
+        fontFamily: theme.typography.fontFamily,
       })}
     >
       <Box
+        component="table"
         sx={(theme) => ({
-          display: 'grid',
-          gridTemplateColumns: KARDEX_COLUMNAS,
-          columnGap: 1.25,
-          alignItems: 'center',
-          height: KARDEX_ALTO_ENCABEZADO,
-          minWidth: KARDEX_ANCHO_MINIMO,
-          px: 1.5,
-          position: 'sticky',
-          top: 0,
-          zIndex: 2,
-          boxSizing: 'border-box',
-          backgroundColor: theme.emphasys.grid.header,
-          color: theme.emphasys.grid.headerForeground,
-          fontSize: 10.5,
-          fontWeight: 650,
-          letterSpacing: '0.07em',
-          textTransform: 'uppercase',
+          width: hayFlexible ? '100%' : anchoMinimo,
+          minWidth: anchoMinimo,
+          tableLayout: 'fixed',
+          borderCollapse: 'collapse',
+          borderSpacing: 0,
+          fontFamily: 'inherit',
+          fontVariantNumeric: 'tabular-nums',
+          '& th, & td': {
+            boxSizing: 'border-box',
+            padding: '0 8px',
+            overflow: 'hidden',
+          },
+          '& th:first-of-type, & td:first-of-type': { paddingLeft: '10px' },
+          '& td:last-of-type': { paddingRight: '10px' },
+          '& th:last-of-type': { paddingRight: '28px' },
+          '& thead th': {
+            position: 'sticky',
+            top: 0,
+            zIndex: 2,
+            height: KARDEX_ALTO_ENCABEZADO,
+            backgroundColor: theme.emphasys.grid.header,
+            color: theme.emphasys.grid.headerForeground,
+            fontSize: 10.5,
+            fontWeight: 650,
+            letterSpacing: '0.07em',
+            lineHeight: 1.15,
+            textTransform: 'uppercase',
+            whiteSpace: 'nowrap',
+            cursor: 'grab',
+            userSelect: 'none',
+          },
+          '& tbody td': {
+            height: KARDEX_ALTO_FILA,
+            borderBottom: `1px solid ${theme.emphasys.content.border}`,
+            fontSize: 12,
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+          },
         })}
       >
-        <span>Fecha</span>
-        <span>Tipo</span>
-        <span>Documento</span>
-        <span style={{ textAlign: 'right', fontWeight: 700 }}>Entrada</span>
-        <span style={{ textAlign: 'right', fontWeight: 700 }}>Salida</span>
-        <Box component="span" sx={(theme) => ({ textAlign: 'right', fontWeight: 700, letterSpacing: '0.09em', borderLeft: `1px solid ${theme.emphasys.navigation.track}`, pl: 1.15 })}>
-          Existencia
+        <colgroup>
+          {columnas.map((columna) => (
+            <col key={columna.id} style={columna.flexible ? undefined : { width: columna.ancho }} />
+          ))}
+        </colgroup>
+        <Box component="thead">
+          <Box component="tr">
+            {columnas.map((columna) => (
+              <Box
+                component="th"
+                key={columna.id}
+                scope="col"
+                draggable
+                onDragStart={(event) => {
+                  if (redimensionando.current) {
+                    event.preventDefault();
+                    return;
+                  }
+                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', columna.id);
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  reordenar(event.dataTransfer.getData('text/plain'), columna.id);
+                }}
+                sx={{
+                  position: 'relative',
+                  textAlign: columna.numerica ? 'right' : 'left',
+                  ...(columna.id === 'existencia' ? { borderLeft: (theme) => `1px solid ${theme.emphasys.navigation.track}` } : null),
+                }}
+              >
+                {columna.id === 'costo_promedio' ? (
+                  <Box component="span" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.15 }}>
+                    <span>Costo</span>
+                    <span>promedio</span>
+                  </Box>
+                ) : columna.label}
+                <Box
+                  component="span"
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label={`Redimensionar ${columna.label}`}
+                  onPointerDown={(event) => iniciarRedimension(columna.id, event)}
+                  onClick={(event) => event.stopPropagation()}
+                  sx={{ position: 'absolute', top: 0, right: 0, width: 8, height: '100%', cursor: 'col-resize' }}
+                />
+              </Box>
+            ))}
+          </Box>
         </Box>
-        <span style={{ textAlign: 'right' }}>Costo unitario</span>
-        <span>Observaciones</span>
+        <Box component="tbody">
+          {lineas.map((linea, index) => {
+            const cantidad = cantidadKardex(numeroKardex(linea.entrada), numeroKardex(linea.salida));
+            const existencia = numeroKardex(linea.existencia_despues);
+            const costo = numeroKardex(linea.costo_unitario);
+            const costoPromedio = numeroKardex(linea.costo_promedio_resultante);
+            const precisionCantidad = linea.precision_cantidad ?? decimalesCantidad;
+            const precisionCosto = linea.precision_costo ?? decimalesCosto;
+            const observaciones = (linea.observaciones ?? '').trim();
+            const contacto = (linea.contacto_nombre ?? '').trim();
+            const folio = folioKardex(linea);
+            const documento = etiquetaDocumento(linea.doc_tipo);
+            const documentoCompleto = [folio !== '—' ? folio : '', documento].filter(Boolean).join(' ');
+            const fondo = (theme: { emphasys: { content: { elevated: string }; action: { wash: string } } }) => (
+              index % 2 === 0 ? theme.emphasys.content.elevated : theme.emphasys.action.wash
+            );
+            const contenido: Record<KardexColumnaId, React.ReactNode> = {
+              fecha: formatDate(linea.fecha) ?? linea.fecha,
+              cantidad: cantidad == null ? '—' : formatNumeroKardex(cantidad, { signo: true, decimales: precisionCantidad }),
+              existencia: existencia == null ? '—' : formatNumeroKardex(existencia, { decimales: precisionCantidad }),
+              costo: costo == null ? '—' : formatNumeroKardex(costo, { decimales: precisionCosto }),
+              costo_promedio: costoPromedio == null ? '—' : formatNumeroKardex(costoPromedio, { decimales: precisionCosto }),
+              contacto: contacto || '—',
+              documento: (
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.7, minWidth: 0 }}>
+                  <Typography noWrap sx={{ flex: '0 1 auto', minWidth: 0, fontFamily: 'inherit', fontSize: 12, lineHeight: 1, color: 'inherit' }}>
+                    {folio}
+                  </Typography>
+                  {documento ? (
+                    <Typography noWrap sx={(theme) => ({ flex: '1 1 auto', minWidth: 0, fontFamily: 'inherit', fontSize: 11, lineHeight: 1, color: theme.emphasys.content.muted })}>
+                      {documento}
+                    </Typography>
+                  ) : null}
+                </Box>
+              ),
+              observaciones: observaciones || '—',
+            };
+
+            return (
+              <Box
+                component="tr"
+                key={`${linea.fecha}-${linea.tipo_movimiento}-${folio}-${index}`}
+                sx={(theme) => ({
+                  '&:hover td': { backgroundImage: `linear-gradient(${theme.emphasys.grid.hover}, ${theme.emphasys.grid.hover})` },
+                })}
+              >
+                {columnas.map((columna) => {
+                  const texto = columna.id === 'contacto' ? contacto : columna.id === 'observaciones' ? observaciones : columna.id === 'documento' ? documentoCompleto : '';
+                  const nodo = texto ? (
+                    <Tooltip title={texto} placement="top-start">
+                      <Box component="span" sx={{ display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {contenido[columna.id]}
+                      </Box>
+                    </Tooltip>
+                  ) : contenido[columna.id];
+                  return (
+                    <Box
+                      component="td"
+                      key={columna.id}
+                      sx={(theme) => ({
+                        backgroundColor: fondo(theme),
+                        textAlign: columna.numerica ? 'right' : 'left',
+                        fontVariantNumeric: 'tabular-nums',
+                        color: columna.id === 'cantidad'
+                          ? (cantidad == null || cantidad === 0 ? theme.emphasys.table.muted : cantidad > 0 ? theme.emphasys.metric.applied.foreground : theme.emphasys.action.destructive)
+                          : columna.id === 'existencia'
+                            ? theme.emphasys.action.primary
+                            : columna.id === 'costo' || columna.id === 'costo_promedio'
+                              ? ((columna.id === 'costo' ? costo : costoPromedio) == null ? theme.emphasys.table.muted : theme.emphasys.content.foreground)
+                              : columna.id === 'fecha'
+                                ? theme.emphasys.content.secondary
+                                : columna.id === 'contacto' || columna.id === 'observaciones'
+                                  ? (texto ? theme.emphasys.content.secondary : theme.emphasys.table.muted)
+                                  : theme.emphasys.content.foreground,
+                        fontWeight: columna.id === 'existencia' || (columna.id === 'cantidad' && cantidad != null && cantidad !== 0) ? 700 : 400,
+                        fontSize: columna.numerica ? 12.5 : 12,
+                        ...(columna.id === 'existencia' ? { borderLeft: `1px solid ${theme.emphasys.content.border}` } : null),
+                      })}
+                    >
+                      {nodo}
+                    </Box>
+                  );
+                })}
+              </Box>
+            );
+          })}
+          {Array.from({ length: vacios }, (_, indice) => {
+            const index = lineas.length + indice;
+            return (
+              <Box component="tr" key={`vacio-${indice}`} aria-hidden>
+                {columnas.map((columna) => (
+                  <Box
+                    component="td"
+                    key={columna.id}
+                    sx={(theme) => ({
+                      pointerEvents: 'none',
+                      userSelect: 'none',
+                      backgroundColor: index % 2 === 0 ? theme.emphasys.content.elevated : theme.emphasys.action.wash,
+                      ...(columna.id === 'existencia' ? { borderLeft: `1px solid ${theme.emphasys.content.border}` } : null),
+                    })}
+                  />
+                ))}
+              </Box>
+            );
+          })}
+        </Box>
       </Box>
-
-      {lineas.map((linea, index) => {
-        const entrada = numeroKardex(linea.entrada);
-        const salida = numeroKardex(linea.salida);
-        const existencia = numeroKardex(linea.existencia_despues);
-        const costo = numeroKardex(linea.costo_unitario);
-        const observaciones = (linea.observaciones ?? '').trim();
-        const folio = folioKardex(linea);
-        const documento = etiquetaDocumento(linea.doc_tipo);
-        const tipo = etiquetaMovimiento(linea.tipo_movimiento);
-        const esEntrada = (entrada ?? 0) > 0;
-        const esSalida = (salida ?? 0) > 0;
-
-        return (
-          <Box
-            key={`${linea.fecha}-${linea.tipo_movimiento}-${folio}-${index}`}
-            sx={(theme) => ({
-              display: 'grid',
-              gridTemplateColumns: KARDEX_COLUMNAS,
-              columnGap: 1.25,
-              alignItems: 'center',
-              height: KARDEX_ALTO_FILA,
-              minWidth: KARDEX_ANCHO_MINIMO,
-              px: 1.5,
-              boxSizing: 'border-box',
-              backgroundColor: index % 2 === 0 ? theme.emphasys.content.elevated : theme.emphasys.action.wash,
-              borderBottom: `1px solid ${theme.emphasys.content.border}`,
-              '&:hover': { backgroundImage: `linear-gradient(${theme.emphasys.grid.hover}, ${theme.emphasys.grid.hover})` },
-            })}
-          >
-            <Typography noWrap sx={{ fontSize: 12, lineHeight: 1, color: (theme) => theme.emphasys.content.secondary, fontVariantNumeric: 'tabular-nums' }}>
-              {formatDate(linea.fecha) ?? linea.fecha}
-            </Typography>
-            <Typography
-              noWrap
-              sx={(theme) => ({
-                fontSize: 12,
-                lineHeight: 1,
-                fontWeight: 700,
-                color: esSalida ? theme.emphasys.action.destructive : esEntrada ? theme.emphasys.metric.applied.foreground : theme.emphasys.content.foreground,
-              })}
-            >
-              {tipo}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.7, minWidth: 0 }}>
-              <Typography noWrap sx={(theme) => ({ fontFamily: theme.typography.figure?.fontFamily, fontSize: 13, lineHeight: 1, color: theme.emphasys.content.foreground })}>
-                {folio}
-              </Typography>
-              {documento ? (
-                <Typography noWrap sx={{ fontSize: 11, lineHeight: 1, color: (theme) => theme.emphasys.content.muted }}>
-                  {documento}
-                </Typography>
-              ) : null}
+      <Box
+        component="button"
+        type="button"
+        aria-label="Columnas del Kardex"
+        onClick={(event) => setColumnasAnchor(event.currentTarget)}
+        sx={(theme) => ({
+          position: 'absolute',
+          top: 6,
+          right: 6,
+          zIndex: 3,
+          width: 22,
+          height: 22,
+          border: 0,
+          borderRadius: '4px',
+          backgroundColor: theme.emphasys.grid.header,
+          color: theme.emphasys.grid.headerForeground,
+          cursor: 'pointer',
+          lineHeight: 1,
+        })}
+      >
+        ⋮
+      </Box>
+      <Popover open={Boolean(columnasAnchor)} anchorEl={columnasAnchor} onClose={() => setColumnasAnchor(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Box sx={{ p: 1.25, minWidth: 190 }}>
+          {KARDEX_DEFINICIONES.map((columna) => (
+            <Box component="label" key={columna.id} sx={{ display: 'flex', gap: 1, alignItems: 'center', py: 0.4, fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={visibilidad[columna.id]}
+                disabled={KARDEX_FIJAS.has(columna.id)}
+                onChange={(event) => setColumnVisibilityModel({ ...visibilidad, [columna.id]: event.target.checked || KARDEX_FIJAS.has(columna.id) })}
+              />
+              {columna.label}
             </Box>
-            <Typography sx={(theme) => ({ textAlign: 'right', fontFamily: theme.typography.figure?.fontFamily, fontWeight: esEntrada ? 700 : 400, fontSize: esEntrada ? 14 : 13, lineHeight: 1, letterSpacing: '-0.015em', fontVariantNumeric: 'tabular-nums', color: esEntrada ? theme.emphasys.metric.applied.foreground : theme.emphasys.table.muted })}>
-              {esEntrada && entrada != null ? formatCantidadKardex(entrada) : '—'}
-            </Typography>
-            <Typography sx={(theme) => ({ textAlign: 'right', fontFamily: theme.typography.figure?.fontFamily, fontWeight: esSalida ? 700 : 400, fontSize: esSalida ? 14 : 13, lineHeight: 1, letterSpacing: '-0.015em', fontVariantNumeric: 'tabular-nums', color: esSalida ? theme.emphasys.action.destructive : theme.emphasys.table.muted })}>
-              {esSalida && salida != null ? formatCantidadKardex(salida) : '—'}
-            </Typography>
-            <Typography
-              sx={(theme) => ({
-                textAlign: 'right',
-                fontFamily: theme.typography.figure?.fontFamily,
-                fontWeight: 700,
-                fontSize: 15,
-                lineHeight: 1,
-                letterSpacing: '-0.02em',
-                fontVariantNumeric: 'tabular-nums',
-                color: theme.emphasys.action.primary,
-                borderLeft: `1px solid ${theme.emphasys.content.border}`,
-                pl: 1.15,
-              })}
-            >
-              {existencia == null ? '—' : formatCantidadKardex(existencia)}
-            </Typography>
-            <Typography sx={(theme) => ({ textAlign: 'right', fontFamily: theme.typography.figure?.fontFamily, fontSize: 12.5, lineHeight: 1, fontVariantNumeric: 'tabular-nums', color: costo == null ? theme.emphasys.table.muted : theme.emphasys.content.foreground })}>
-              {costo == null ? '—' : formatCurrency(costo)}
-            </Typography>
-            {observaciones ? (
-              <Tooltip title={observaciones} placement="top-start">
-                <Typography noWrap sx={{ fontSize: 12, lineHeight: 1, color: (theme) => theme.emphasys.content.secondary }}>
-                  {observaciones}
-                </Typography>
-              </Tooltip>
-            ) : (
-              <Typography sx={{ fontSize: 12, lineHeight: 1, color: (theme) => theme.emphasys.table.muted }}>—</Typography>
-            )}
-          </Box>
-        );
-      })}
-
-      {Array.from({ length: vacios }, (_, indice) => {
-        const index = lineas.length + indice;
-        return (
+          ))}
           <Box
-            key={`vacio-${indice}`}
-            aria-hidden
-            sx={(theme) => ({
-              display: 'grid',
-              gridTemplateColumns: KARDEX_COLUMNAS,
-              columnGap: 1.25,
-              height: KARDEX_ALTO_FILA,
-              minWidth: KARDEX_ANCHO_MINIMO,
-              px: 1.5,
-              boxSizing: 'border-box',
-              pointerEvents: 'none',
-              userSelect: 'none',
-              backgroundColor: index % 2 === 0 ? theme.emphasys.content.elevated : theme.emphasys.action.wash,
-              borderBottom: `1px solid ${theme.emphasys.content.border}`,
-            })}
+            component="button"
+            type="button"
+            onClick={() => {
+              setColumnOrder(() => [...KARDEX_DEFAULT_ORDER]);
+              setColumnWidths(() => ({}));
+              setColumnVisibilityModel(Object.fromEntries(KARDEX_DEFAULT_ORDER.map((id) => [id, true])));
+            }}
+            sx={{ mt: 1, border: 0, background: 'transparent', cursor: 'pointer', color: 'primary.main', fontSize: 12, p: 0 }}
           >
-            <Box sx={(theme) => ({ gridColumn: '6', borderLeft: `1px solid ${theme.emphasys.content.border}`, height: '100%' })} />
+            Restablecer columnas
           </Box>
-        );
-      })}
+        </Box>
+      </Popover>
 
       {aviso ? (
         <Typography
@@ -615,8 +877,39 @@ function KardexProducto({
   );
 }
 
-function DocumentosRelacionados({ documentos }: { documentos: DocumentoRelacionadoProducto[] }) {
-  const navigate = useNavigate();
+function tonoEstado(estado: string | null): 'borrador' | 'vigente' | 'cancelado' | 'neutro' {
+  const clave = normalizarTexto(String(estado ?? '').trim());
+  if (clave === 'borrador' || clave === 'en negociacion') return 'borrador';
+  if (clave === 'cancelado') return 'cancelado';
+  if (clave === 'emitido' || clave === 'timbrado' || clave === 'pagado' || clave === 'cerrado' || clave === 'enviado') return 'vigente';
+  return 'neutro';
+}
+
+function textoFolioRelacionado(documento: DocumentoRelacionadoProducto) {
+  const visual = folioVisualDesdeSerieYFolio(documento.serie, documento.folio, documento.tipo);
+  return visual || 'Sin folio';
+}
+
+function DocumentosRelacionados({
+  documentos,
+  tipoInicial,
+  scrollInicial,
+  onScroll,
+  onConsumirScroll,
+  onTipo,
+  onAbrir,
+}: {
+  documentos: DocumentoRelacionadoProducto[];
+  tipoInicial?: string;
+  scrollInicial?: number;
+  onScroll?: (scrollTop: number) => void;
+  onConsumirScroll?: () => void;
+  onTipo?: (tipo: string) => void;
+  onAbrir: (ruta: string, tipo: string) => void;
+}) {
+  const compacto = useMediaQuery((theme) => theme.breakpoints.down('md'));
+  const listaRef = React.useRef<HTMLDivElement | null>(null);
+  const scrollPendienteRef = React.useRef<number | null>(scrollInicial ?? null);
   const grupos = React.useMemo(() => {
     const ordenados = [...documentos].sort((a, b) => {
       const porFecha = String(b.fecha || '').localeCompare(String(a.fecha || ''));
@@ -632,90 +925,297 @@ function DocumentosRelacionados({ documentos }: { documentos: DocumentoRelaciona
       .map(([tipo, filas]) => ({ tipo, filas }))
       .sort((a, b) => String(b.filas[0]?.fecha || '').localeCompare(String(a.filas[0]?.fecha || '')));
   }, [documentos]);
-  const [tipoActivo, setTipoActivo] = React.useState(grupos[0]?.tipo ?? '');
+  const [tipoActivo, setTipoActivo] = React.useState(tipoInicial || grupos[0]?.tipo || '');
 
   React.useEffect(() => {
-    if (!grupos.some((grupo) => grupo.tipo === tipoActivo)) {
-      setTipoActivo(grupos[0]?.tipo ?? '');
+    if (grupos.some((grupo) => grupo.tipo === tipoActivo)) return;
+    if (tipoInicial && grupos.some((grupo) => grupo.tipo === tipoInicial)) {
+      setTipoActivo(tipoInicial);
+      return;
     }
-  }, [grupos, tipoActivo]);
+    setTipoActivo(grupos[0]?.tipo ?? '');
+  }, [grupos, tipoActivo, tipoInicial]);
+
+  React.useLayoutEffect(() => {
+    const nodo = listaRef.current;
+    if (!nodo || scrollPendienteRef.current == null || documentos.length === 0) return;
+    nodo.scrollTop = scrollPendienteRef.current;
+    scrollPendienteRef.current = null;
+    onConsumirScroll?.();
+  }, [documentos, onConsumirScroll, tipoActivo]);
 
   if (grupos.length === 0) {
-    return <Typography sx={{ fontSize: 13, color: (theme) => theme.emphasys.content.muted }}>Sin documentos relacionados.</Typography>;
+    return (
+      <Typography sx={{ px: 1.5, py: 1.5, fontSize: 13, color: (theme) => theme.emphasys.content.muted }}>
+        Sin documentos relacionados.
+      </Typography>
+    );
   }
 
   const activo = grupos.find((grupo) => grupo.tipo === tipoActivo) ?? grupos[0];
+  if (!activo) {
+    return (
+      <Typography sx={{ px: 1.5, py: 1.5, fontSize: 13, color: (theme) => theme.emphasys.content.muted }}>
+        Sin documentos relacionados.
+      </Typography>
+    );
+  }
 
   return (
-    <Box>
-      <Tabs
-        value={activo.tipo}
-        onChange={(_, value) => setTipoActivo(value)}
-        variant="scrollable"
-        scrollButtons="auto"
+    <Box sx={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box
+        role="tablist"
+        aria-label="Categorías de documentos"
         sx={(theme) => ({
-          minHeight: 34,
-          mb: 1,
-          '& .MuiTab-root': { minHeight: 34, minWidth: 0, px: 1.1, py: 0.5, textTransform: 'none', fontWeight: 650, fontSize: 13, color: theme.emphasys.content.muted },
-          '& .Mui-selected': { color: theme.emphasys.content.foreground },
-          '& .MuiTabs-indicator': { height: 2, borderRadius: 2, backgroundColor: theme.emphasys.content.foreground },
+          display: 'flex',
+          gap: 0.5,
+          overflowX: 'auto',
+          flexShrink: 0,
+          px: 1.15,
+          py: 0.85,
+          borderBottom: `1px solid ${theme.emphasys.content.border}`,
+          backgroundColor: theme.emphasys.content.well,
         })}
       >
-        {grupos.map((grupo) => (
-          <Tab key={grupo.tipo} value={grupo.tipo} label={`${getDocumentoTypeConfig(grupo.tipo)?.label ?? grupo.tipo} (${grupo.filas.length})`} />
-        ))}
-      </Tabs>
-      <Stack spacing={0.45}>
-        {activo.filas.map((documento) => {
-          const ruta = rutaDocumento(documento);
+        {grupos.map((grupo) => {
+          const seleccionado = grupo.tipo === activo.tipo;
+          const etiqueta = getDocumentoTypeConfig(grupo.tipo)?.label ?? grupo.tipo;
           return (
             <Box
-              key={documento.id}
+              key={grupo.tipo}
               component="button"
               type="button"
-              disabled={!ruta}
+              role="tab"
+              aria-selected={seleccionado}
               onClick={() => {
-                if (ruta) navigate(ruta);
+                setTipoActivo(grupo.tipo);
+                onTipo?.(grupo.tipo);
               }}
               sx={(theme) => ({
-                width: '100%',
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) 28px',
-                gap: 0.75,
+                display: 'inline-flex',
                 alignItems: 'center',
-                textAlign: 'left',
-                border: `1px solid ${theme.emphasys.content.border}`,
-                borderRadius: '10px',
-                px: 1,
-                py: 0.7,
+                gap: 0.7,
+                flexShrink: 0,
+                height: 28,
+                px: 1.05,
+                border: 0,
+                borderRadius: '8px',
+                cursor: 'pointer',
                 font: 'inherit',
-                cursor: ruta ? 'pointer' : 'default',
-                color: theme.emphasys.content.foreground,
-                backgroundColor: theme.emphasys.content.elevated,
-                '&:hover': { backgroundColor: ruta ? theme.emphasys.content.hover : theme.emphasys.content.elevated },
-                '&:disabled': { opacity: 0.7 },
+                fontSize: 12.5,
+                fontWeight: seleccionado ? 700 : 550,
+                color: seleccionado ? theme.emphasys.navigation.foreground : theme.emphasys.content.secondary,
+                backgroundColor: seleccionado ? theme.emphasys.grid.header : 'transparent',
+                '&:hover': { backgroundColor: seleccionado ? theme.emphasys.grid.header : theme.emphasys.content.hover },
               })}
             >
-              <Box sx={{ minWidth: 0 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline' }}>
-                  <Typography sx={{ fontSize: 12, color: (theme) => theme.emphasys.content.muted }}>{formatDate(documento.fecha) ?? '—'}</Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{documento.folio || 'Sin folio'}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline', mt: 0.2 }}>
-                  <Typography noWrap sx={{ fontSize: 13, minWidth: 0 }}>{documento.contacto || '—'}</Typography>
-                  <Typography sx={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: (theme) => theme.emphasys.content.secondary }}>{etiquetaEstado(documento.estado)}</Typography>
-                </Box>
+              {etiqueta}
+              <Box
+                component="span"
+                sx={(theme) => ({
+                  fontFamily: theme.typography.figure?.fontFamily,
+                  fontSize: 12,
+                  fontWeight: 650,
+                  lineHeight: 1,
+                  fontVariantNumeric: 'tabular-nums',
+                  color: seleccionado ? theme.emphasys.navigation.foreground : theme.emphasys.content.muted,
+                })}
+              >
+                {grupo.filas.length}
               </Box>
-              <OpenInNewOutlinedIcon sx={{ fontSize: 16, color: (theme) => (ruta ? theme.emphasys.content.foreground : theme.emphasys.content.muted) }} />
             </Box>
           );
         })}
-      </Stack>
+      </Box>
+
+      <Box
+        ref={listaRef}
+        onScroll={(event) => onScroll?.(event.currentTarget.scrollTop)}
+        sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}
+      >
+        {compacto ? (
+          activo.filas.map((documento, index) => (
+            <DocumentoRelacionadoCompacto key={documento.id} documento={documento} index={index} onAbrir={onAbrir} />
+          ))
+        ) : (
+          <>
+            <Box
+              sx={(theme) => ({
+                display: 'grid',
+                gridTemplateColumns: COLUMNAS_RELACIONADOS,
+                columnGap: 1.25,
+                alignItems: 'center',
+                height: 32,
+                width: '100%',
+                minWidth: 540,
+                px: 1.5,
+                position: 'sticky',
+                top: 0,
+                zIndex: 1,
+                boxSizing: 'border-box',
+                backgroundColor: theme.emphasys.grid.header,
+                color: theme.emphasys.grid.headerForeground,
+                fontSize: 10.5,
+                fontWeight: 650,
+                letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+              })}
+            >
+              <span>Fecha</span>
+              <span>Folio</span>
+              <span>Contacto</span>
+              <span>Estado</span>
+              <span />
+            </Box>
+            {activo.filas.map((documento, index) => (
+              <DocumentoRelacionadoFila key={documento.id} documento={documento} index={index} onAbrir={onAbrir} />
+            ))}
+          </>
+        )}
+      </Box>
     </Box>
   );
 }
 
-const TABS = ['resumen', 'comercial', 'inventario', 'archivos', 'especificaciones', 'relacionados'] as const;
+function MarcaEstado({ estado }: { estado: string | null }) {
+  const tono = tonoEstado(estado);
+  return (
+    <Box
+      component="span"
+      sx={(theme) => ({
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: 18,
+        px: 0.7,
+        borderRadius: '999px',
+        fontSize: 10.5,
+        fontWeight: 700,
+        letterSpacing: '0.02em',
+        lineHeight: 1,
+        whiteSpace: 'nowrap',
+        backgroundColor:
+          tono === 'vigente'
+            ? theme.emphasys.metric.applied.background
+            : tono === 'cancelado'
+              ? theme.emphasys.metric.blocked.background
+              : tono === 'borrador'
+                ? theme.emphasys.metric.amount.background
+                : theme.emphasys.content.hover,
+        color:
+          tono === 'vigente'
+            ? theme.emphasys.metric.applied.foreground
+            : tono === 'cancelado'
+              ? theme.emphasys.metric.blocked.foreground
+              : theme.emphasys.content.foreground,
+      })}
+    >
+      {etiquetaEstado(estado)}
+    </Box>
+  );
+}
+
+function DocumentoRelacionadoFila({
+  documento,
+  index,
+  onAbrir,
+}: {
+  documento: DocumentoRelacionadoProducto;
+  index: number;
+  onAbrir: (ruta: string, tipo: string) => void;
+}) {
+  const ruta = rutaDocumento(documento);
+  return (
+    <Box
+      component="button"
+      type="button"
+      disabled={!ruta}
+      onClick={() => {
+        if (ruta) onAbrir(ruta, documento.tipo);
+      }}
+      sx={(theme) => ({
+        display: 'grid',
+        gridTemplateColumns: COLUMNAS_RELACIONADOS,
+        columnGap: 1.25,
+        alignItems: 'center',
+        width: '100%',
+        minWidth: 540,
+        minHeight: 34,
+        px: 1.5,
+        boxSizing: 'border-box',
+        border: 0,
+        borderBottom: `1px solid ${theme.emphasys.content.border}`,
+        font: 'inherit',
+        textAlign: 'left',
+        cursor: ruta ? 'pointer' : 'default',
+        color: theme.emphasys.content.foreground,
+        backgroundColor: index % 2 === 0 ? theme.emphasys.content.elevated : theme.emphasys.action.wash,
+        '&:hover': { backgroundColor: ruta ? theme.emphasys.content.hover : undefined },
+        '&:disabled': { opacity: 0.72 },
+      })}
+    >
+      <Typography noWrap sx={{ fontSize: 12, lineHeight: 1.2, color: (theme) => theme.emphasys.content.secondary, fontVariantNumeric: 'tabular-nums' }}>
+        {formatDate(documento.fecha) ?? '—'}
+      </Typography>
+      <Typography noWrap sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2, color: (theme) => theme.emphasys.content.foreground }}>
+        {textoFolioRelacionado(documento)}
+      </Typography>
+      <Typography noWrap sx={{ fontSize: 13, lineHeight: 1.2, color: (theme) => theme.emphasys.content.foreground }}>
+        {documento.contacto || '—'}
+      </Typography>
+      <Box><MarcaEstado estado={documento.estado} /></Box>
+      <OpenInNewOutlinedIcon sx={{ justifySelf: 'end', fontSize: 15, color: (theme) => (ruta ? theme.emphasys.content.secondary : theme.emphasys.table.muted) }} />
+    </Box>
+  );
+}
+
+function DocumentoRelacionadoCompacto({
+  documento,
+  index,
+  onAbrir,
+}: {
+  documento: DocumentoRelacionadoProducto;
+  index: number;
+  onAbrir: (ruta: string, tipo: string) => void;
+}) {
+  const ruta = rutaDocumento(documento);
+  return (
+    <Box
+      component="button"
+      type="button"
+      disabled={!ruta}
+      onClick={() => {
+        if (ruta) onAbrir(ruta, documento.tipo);
+      }}
+      sx={(theme) => ({
+        display: 'block',
+        width: '100%',
+        px: 1.35,
+        py: 0.75,
+        border: 0,
+        borderBottom: `1px solid ${theme.emphasys.content.border}`,
+        font: 'inherit',
+        textAlign: 'left',
+        cursor: ruta ? 'pointer' : 'default',
+        backgroundColor: index % 2 === 0 ? theme.emphasys.content.elevated : theme.emphasys.action.wash,
+        '&:disabled': { opacity: 0.72 },
+      })}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        <Typography noWrap sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2, color: (theme) => theme.emphasys.content.foreground }}>
+          {textoFolioRelacionado(documento)}
+        </Typography>
+        <MarcaEstado estado={documento.estado} />
+      </Box>
+      <Typography noWrap sx={{ mt: 0.25, fontSize: 12, color: (theme) => theme.emphasys.content.secondary }}>
+        {formatDate(documento.fecha) ?? '—'}
+        {' · '}
+        {documento.contacto || '—'}
+      </Typography>
+    </Box>
+  );
+}
+
+const TABS = ['resumen', 'comercial', 'relacionados', 'compras', 'ventas', 'archivos', 'especificaciones'] as const;
 type TabId = (typeof TABS)[number];
 
 export default function ProductoWorkspace({
@@ -728,6 +1228,9 @@ export default function ProductoWorkspace({
   alternando = false,
   compacto = false,
   onVolver,
+  restauracion = null,
+  onScrollDetalle,
+  onAbrirDocumentoRelacionado,
 }: ProductoWorkspaceProps) {
   const tokens = useTheme().emphasys;
   const [loading, setLoading] = React.useState(false);
@@ -740,12 +1243,32 @@ export default function ProductoWorkspace({
   const [kardex, setKardex] = React.useState<KardexLinea[]>([]);
   const [kardexCargando, setKardexCargando] = React.useState(false);
   const [kardexError, setKardexError] = React.useState<string | null>(null);
+  const [decimalesCantidad, setDecimalesCantidad] = React.useState(2);
+  const [decimalesCosto, setDecimalesCosto] = React.useState(2);
   const [almacenKardexId, setAlmacenKardexId] = React.useState<number | null>(null);
   const [kardexConsulta, setKardexConsulta] = React.useState(0);
+  const [historialDesde, setHistorialDesde] = React.useState('');
+  const [historialHasta, setHistorialHasta] = React.useState('');
+  const [offsetCompras, setOffsetCompras] = React.useState(0);
+  const [offsetVentas, setOffsetVentas] = React.useState(0);
+  const navigate = useNavigate();
   const productoSeleccionRef = React.useRef<number | null>(null);
+  const restauracionInicialRef = React.useRef(restauracion);
   const [tab, setTab] = React.useState<TabId>('resumen');
+  const [tipoRelacionado, setTipoRelacionado] = React.useState(restauracion?.tipoDocumento ?? '');
+  const [scrollDetalleInicial, setScrollDetalleInicial] = React.useState<number | undefined>(restauracion?.scrollDetalle);
   const [toggling, setToggling] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    void fetchParametrosSistema().then((modulos) => {
+      const parametros = modulos.flatMap((modulo) => modulo.parametros);
+      const cantidad = Number(parametros.find((parametro) => parametro.clave === 'decimales_cantidades')?.valor_resuelto);
+      const costo = Number(parametros.find((parametro) => parametro.clave === 'decimales_costos')?.valor_resuelto);
+      if (Number.isInteger(cantidad) && cantidad >= 0 && cantidad <= 6) setDecimalesCantidad(cantidad);
+      if (Number.isInteger(costo) && costo >= 0 && costo <= 6) setDecimalesCosto(costo);
+    }).catch(() => undefined);
+  }, []);
 
   const cargar = React.useCallback(() => {
     if (!productoId) {
@@ -796,10 +1319,20 @@ export default function ProductoWorkspace({
   }, [productoId]);
 
   React.useEffect(() => {
-    setTab('resumen');
+    const pendiente = restauracionInicialRef.current;
+    if (pendiente && productoId === pendiente.productoId) {
+      setTab('relacionados');
+    } else if (!pendiente || productoId != null) {
+      setTab('resumen');
+      if (productoId != null) restauracionInicialRef.current = null;
+    }
     setAlmacenKardexId(null);
     setKardex([]);
     setKardexError(null);
+    setHistorialDesde('');
+    setHistorialHasta('');
+    setOffsetCompras(0);
+    setOffsetVentas(0);
     productoSeleccionRef.current = null;
     return cargar();
   }, [cargar]);
@@ -988,9 +1521,7 @@ export default function ProductoWorkspace({
     }))
     .filter((row) => row.v);
 
-  const clasificacionCatalogo = valorCatalogoPorNombre(catalogos, 'clasificacion');
   const familiaCatalogo = valorCatalogoPorNombre(catalogos, 'familia');
-  const lineaCatalogo = valorCatalogoPorNombre(catalogos, 'linea');
 
   const costoBase = producto.costo_estandar ?? producto.costo_promedio ?? producto.ultimo_costo ?? null;
   const nivelesPrecio: { nivel: string; valor: number | null }[] = [
@@ -1001,6 +1532,13 @@ export default function ProductoWorkspace({
   ];
   const existenciaTotal = existencias.reduce((suma, fila) => suma + Number(fila.existencia || 0), 0);
   const servicio = esServicio(producto.tipo_producto);
+  const controlaInventario = !servicio && !esNoInventariable(producto.tipo_producto);
+  const unidadInventario = producto.unidad_inventario_clave
+    ? `${producto.unidad_inventario_clave}${producto.unidad_inventario_descripcion ? ` · ${producto.unidad_inventario_descripcion}` : ''}`
+    : null;
+  const unidadVenta = producto.unidad_venta_clave
+    ? `${producto.unidad_venta_clave}${producto.unidad_venta_descripcion ? ` · ${producto.unidad_venta_descripcion}` : ''}`
+    : null;
 
   return (
     <Box sx={{ flex: 1, height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', minWidth: 0, bgcolor: tokens.content.background, overflow: 'hidden' }}>
@@ -1141,88 +1679,107 @@ export default function ProductoWorkspace({
         >
           <Tab value="resumen" label="Resumen" />
           <Tab value="comercial" label={esAdmin ? 'Comercial y precios' : 'Comercial'} />
-          <Tab value="inventario" label="Inventario" />
+          <Tab value="relacionados" label={`Relacionados${documentosRelacionados.length ? ` (${documentosRelacionados.length})` : ''}`} />
+          <Tab value="compras" label="Últimas compras" />
+          <Tab value="ventas" label="Últimas ventas" />
           <Tab value="archivos" label={`Imágenes${archivos.length ? ` (${archivos.length})` : ''}`} />
           <Tab value="especificaciones" label="Especificaciones" />
-          <Tab value="relacionados" label={`Relacionados${documentosRelacionados.length ? ` (${documentosRelacionados.length})` : ''}`} />
         </Tabs>
         <Box
           sx={{
-            p: { xs: 1, md: 1.25 },
-            overflowY: 'auto',
+            p: tab === 'compras' || tab === 'ventas' || tab === 'relacionados' ? 0 : { xs: 1, md: 1.25 },
+            overflowY: tab === 'resumen' && controlaInventario ? { xs: 'auto', md: 'hidden' } : 'auto',
             flex: 1,
             minHeight: 0,
-            display: tab === 'inventario' ? 'flex' : 'block',
+            display: (tab === 'resumen' && controlaInventario) || tab === 'compras' || tab === 'ventas' || tab === 'relacionados' ? 'flex' : 'block',
             flexDirection: 'column',
           }}
         >
           {tab === 'resumen' && (
-            <Stack spacing={1}>
-              <SectionCard title="Datos generales">
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 1.25 }}>
-                  <InfoRow label="Clave" value={producto.clave} />
-                  <InfoRow label="Descripción" value={producto.descripcion} />
-                  <InfoRow label="Tipo de producto" value={producto.tipo_producto} />
-                  {clasificacionCatalogo ? <InfoRow label="Clasificación" value={clasificacionCatalogo} /> : null}
-                  {familiaCatalogo ? <InfoRow label="Familia" value={familiaCatalogo} /> : null}
-                  {lineaCatalogo ? <InfoRow label="Línea" value={lineaCatalogo} /> : null}
-                  <InfoRow label="Estado" value={producto.activo ? 'Activo' : 'Inactivo'} />
-                  <InfoRow label="Creado" value={formatDate(producto.fecha_creacion)} />
-                </Box>
-              </SectionCard>
-
-              <SectionCard title="SAT y unidades">
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 1.25 }}>
-                  <InfoRow label="Clave SAT producto" value={producto.clave_producto_sat} />
-                  <InfoRow label="Unidad de venta" value={producto.unidad_venta_clave ? `${producto.unidad_venta_clave}${producto.unidad_venta_descripcion ? ` · ${producto.unidad_venta_descripcion}` : ''}` : null} />
-                  <InfoRow label="Unidad de inventario" value={producto.unidad_inventario_clave ? `${producto.unidad_inventario_clave}${producto.unidad_inventario_descripcion ? ` · ${producto.unidad_inventario_descripcion}` : ''}` : null} />
-                  <InfoRow label="IVA" value={producto.iva_porcentaje !== null && producto.iva_porcentaje !== undefined ? `${producto.iva_porcentaje}%` : null} />
-                  <InfoRow label="IEPS" value={producto.ieps_porcentaje !== null && producto.ieps_porcentaje !== undefined ? `${producto.ieps_porcentaje}%` : null} />
-                  <InfoRow label="Fracción arancelaria" value={producto.fraccion_arancelaria} />
-                </Box>
-              </SectionCard>
-
-              {catalogosSeleccionados.length > 0 && (
-                <SectionCard title="Información comercial y catálogos">
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 1.25 }}>
-                    {catalogosSeleccionados.map((row) => (
-                      <InfoRow key={row.id} label={row.k} value={row.v} />
-                    ))}
-                  </Box>
-                </SectionCard>
-              )}
-
-              {esAdmin && (
-                <SectionCard
-                  title="Costos y precios propios"
-                  action={
-                    <Chip label="Restringido" size="small" sx={{ height: 18, fontSize: 10.5, fontWeight: 600, backgroundColor: tokens.metric.amount.background, color: tokens.metric.amount.foreground }} />
-                  }
-                >
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 0.75 }}>
-                    <Box sx={{ borderRadius: '10px', p: 1, bgcolor: tokens.content.elevated }}>
-                      <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: tokens.content.muted }}>Costo</Typography>
-                      <Typography sx={{ fontSize: 16, fontWeight: 700, fontFamily: (theme) => theme.typography.figure.fontFamily }}>{formatCurrency(costoBase) ?? '—'}</Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0.75,
+                minHeight: controlaInventario ? 0 : undefined,
+                flex: controlaInventario ? 1 : undefined,
+                height: controlaInventario ? '100%' : undefined,
+              }}
+            >
+              <Box
+                sx={{
+                  flexShrink: 0,
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' },
+                  gap: 0.75,
+                  alignItems: 'stretch',
+                }}
+              >
+                <SectionCard densa title="Datos generales">
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.7 }}>
+                    <InfoRow denso label="Clave" value={producto.clave} />
+                    <InfoRow denso label="Estado" value={producto.activo ? 'Activo' : 'Inactivo'} />
+                    <Box sx={{ gridColumn: '1 / -1' }}>
+                      <InfoRow denso label="Descripción" value={producto.descripcion} />
                     </Box>
-                    {nivelesPrecio.filter((n) => n.valor !== null && n.valor !== undefined).map((n) => (
-                      <Box key={n.nivel} sx={{ borderRadius: '10px', p: 1, bgcolor: tokens.content.elevated }}>
-                        <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: tokens.content.muted }}>Precio {n.nivel}</Typography>
-                        <Typography sx={{ fontSize: 16, fontWeight: 700, fontFamily: (theme) => theme.typography.figure.fontFamily, color: tokens.content.foreground }}>{formatCurrency(n.valor)}</Typography>
-                        {costoBase && n.valor ? (
-                          <Typography sx={{ fontSize: 11, color: tokens.content.muted }}>
-                            margen {(((Number(n.valor) - Number(costoBase)) / Number(n.valor)) * 100).toFixed(1)}%
-                          </Typography>
-                        ) : null}
-                      </Box>
-                    ))}
+                    <InfoRow denso label="Fecha de creación" value={formatDate(producto.fecha_creacion)} />
                   </Box>
                 </SectionCard>
-              )}
 
-              <SectionCard title="Existencia por almacén">
-                <ExistenciasAlmacen existencias={existencias} tipo={producto.tipo_producto} />
-              </SectionCard>
-            </Stack>
+                <SectionCard densa title="SAT y unidades">
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.7 }}>
+                    <InfoRow denso label="Clave SAT" value={producto.clave_producto_sat} />
+                    <InfoRow denso label="Unidad de venta" value={unidadVenta} />
+                    <InfoRow denso label="Unidad de inventario" value={unidadInventario} />
+                    <InfoRow denso label="IVA" value={producto.iva_porcentaje !== null && producto.iva_porcentaje !== undefined ? `${producto.iva_porcentaje}%` : null} />
+                    <InfoRow denso label="IEPS" value={producto.ieps_porcentaje !== null && producto.ieps_porcentaje !== undefined ? `${producto.ieps_porcentaje}%` : null} />
+                    <InfoRow denso label="Fracción arancelaria" value={producto.fraccion_arancelaria} />
+                  </Box>
+                </SectionCard>
+
+                <SectionCard densa title="Parámetros de inventario">
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.7 }}>
+                    <InfoRow denso label="Tipo de producto" value={producto.tipo_producto} />
+                    <InfoRow denso label="Unidad de inventario" value={producto.unidad_inventario_clave} />
+                    <InfoRow denso label="Mínimo de inventario" value={producto.minimo_inventario == null ? null : formatQty(Number(producto.minimo_inventario), decimalesCantidad)} />
+                    <InfoRow denso label="Ubicación en almacén" value={producto.ubicacion_almacen} />
+                  </Box>
+                </SectionCard>
+              </Box>
+
+              {controlaInventario ? (
+                <>
+                  <Box sx={{ flexShrink: 0, maxHeight: { xs: 220, md: 176 }, overflowY: 'auto' }}>
+                    <SectionCard densa title="Existencias por almacén">
+                      <ExistenciasAlmacen
+                        existencias={existencias}
+                        tipo={producto.tipo_producto}
+                        decimalesCantidad={decimalesCantidad}
+                        almacenSeleccionadoId={almacenKardexId}
+                        onSeleccionarAlmacen={seleccionarAlmacenKardex}
+                      />
+                    </SectionCard>
+                  </Box>
+                  <Box sx={{ flex: '1 1 0', minHeight: { xs: 320, md: 220 }, display: 'flex', flexDirection: 'column' }}>
+                    <SectionCard
+                      llenar
+                      title="Kardex"
+                      action={
+                        almacenKardexId != null
+                          ? (
+                            <Typography sx={{ fontSize: 12, fontWeight: 650, color: tokens.content.secondary }}>
+                              {existencias.find((fila) => fila.almacen_id === almacenKardexId)?.almacen ?? ''}
+                            </Typography>
+                          )
+                          : null
+                      }
+                    >
+                      <KardexProducto lineas={kardex} cargando={kardexCargando} error={kardexError} decimalesCantidad={decimalesCantidad} decimalesCosto={decimalesCosto} />
+                    </SectionCard>
+                  </Box>
+                </>
+              ) : null}
+            </Box>
           )}
 
           {tab === 'comercial' && (
@@ -1287,42 +1844,25 @@ export default function ProductoWorkspace({
             </Stack>
           )}
 
-          {tab === 'inventario' && (
-            <Stack spacing={1} sx={{ flex: 1, minHeight: 0 }}>
-              <SectionCard title="Parámetros de inventario">
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.25 }}>
-                  <InfoRow label="Tipo de producto" value={producto.tipo_producto} />
-                  <InfoRow label="Unidad de inventario" value={producto.unidad_inventario_clave} />
-                  <InfoRow label="Mínimo de inventario" value={producto.minimo_inventario} />
-                  <InfoRow label="Ubicación en almacén" value={producto.ubicacion_almacen} />
-                </Box>
-              </SectionCard>
-              <SectionCard title="Existencia real por almacén">
-                <ExistenciasAlmacen
-                  existencias={existencias}
-                  tipo={producto.tipo_producto}
-                  almacenSeleccionadoId={almacenKardexId}
-                  onSeleccionarAlmacen={seleccionarAlmacenKardex}
-                />
-              </SectionCard>
-              <Box sx={{ flex: '1 1 auto', minHeight: 240, display: 'flex', flexDirection: 'column' }}>
-              <SectionCard
-                llenar
-                title="Kardex"
-                action={
-                  almacenKardexId != null
-                    ? (
-                      <Typography sx={{ fontSize: 12, fontWeight: 650, color: tokens.content.secondary }}>
-                        {existencias.find((fila) => fila.almacen_id === almacenKardexId)?.almacen ?? ''}
-                      </Typography>
-                    )
-                    : null
-                }
-              >
-                <KardexProducto lineas={kardex} cargando={kardexCargando} error={kardexError} />
-              </SectionCard>
-              </Box>
-            </Stack>
+          {(tab === 'compras' || tab === 'ventas') && (
+            <ProductoHistorialComercial
+              productoId={producto.id}
+              modo={tab}
+              desde={historialDesde}
+              hasta={historialHasta}
+              offset={tab === 'compras' ? offsetCompras : offsetVentas}
+              onDesde={(valor) => {
+                setHistorialDesde(valor);
+                setOffsetCompras(0);
+                setOffsetVentas(0);
+              }}
+              onHasta={(valor) => {
+                setHistorialHasta(valor);
+                setOffsetCompras(0);
+                setOffsetVentas(0);
+              }}
+              onOffset={tab === 'compras' ? setOffsetCompras : setOffsetVentas}
+            />
           )}
 
           {tab === 'archivos' && (
@@ -1384,9 +1924,21 @@ export default function ProductoWorkspace({
           )}
 
           {tab === 'relacionados' && (
-            <SectionCard title="Documentos relacionados">
-              <DocumentosRelacionados documentos={documentosRelacionados} />
-            </SectionCard>
+            <DocumentosRelacionados
+              documentos={documentosRelacionados}
+              {...(tipoRelacionado ? { tipoInicial: tipoRelacionado } : {})}
+              {...(scrollDetalleInicial != null ? { scrollInicial: scrollDetalleInicial } : {})}
+              {...(onScrollDetalle ? { onScroll: onScrollDetalle } : {})}
+              onConsumirScroll={() => setScrollDetalleInicial(undefined)}
+              onTipo={setTipoRelacionado}
+              onAbrir={(ruta, tipo) => {
+                if (onAbrirDocumentoRelacionado) {
+                  onAbrirDocumentoRelacionado(ruta, tipo);
+                  return;
+                }
+                navigate(ruta);
+              }}
+            />
           )}
         </Box>
       </Box>

@@ -10,6 +10,7 @@ import type {
 } from '@mui/x-data-grid';
 import type { ReactNode } from 'react';
 import type { Producto } from '../../types/producto';
+import type { RestauracionProductoRelacionado } from '../../modules/productos/productosOrigenNavegacion';
 import type { GridContextMenuAction } from '../grids/GridContextMenu';
 
 export interface ProductosViewCommonProps {
@@ -44,11 +45,17 @@ export interface ProductosDesktopViewProps extends ProductosViewCommonProps {
   exportLoading?: boolean;
   esAdmin: boolean;
   selectedProductoId: number | null;
+  existenciasPorProducto?: Record<number, number> | null;
   onSelectProducto: (productoId: number) => void;
   onEditProducto: (productoId: number) => void;
   onDeleteProducto: (producto: Producto) => void;
   headerExtra?: ReactNode;
   onOpenBiblioteca?: () => void;
+  scrollListaInicial?: number;
+  onScrollLista?: (scrollTop: number) => void;
+  restauracion?: RestauracionProductoRelacionado | null;
+  onScrollDetalle?: (scrollTop: number) => void;
+  onAbrirDocumentoRelacionado?: (ruta: string, tipo: string) => void;
 }
 
 export interface ProductosMobileViewProps extends ProductosViewCommonProps {
