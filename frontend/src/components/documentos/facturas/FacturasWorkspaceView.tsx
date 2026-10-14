@@ -190,8 +190,6 @@ function itemsMenuFactura(
   const saldoPendiente = Number(row.saldo ?? 0) > 0;
   const facturaYaTimbrada = estatus === 'timbrado' || Boolean(row.cfdi_uuid);
   const esNotaDeVenta = String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
-  const esFacturaVentaEstandar = tipoDocumento === 'factura'
-    && String(row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'normal';
   const cartaPorteDisabled = facturaYaTimbrada || esNotaDeVenta;
   const facturaEliminable = estatus === 'borrador';
   const timbrarAction = findAction(actions, 'timbrar');
@@ -212,6 +210,7 @@ function itemsMenuFactura(
     disabled: cartaPorteDisabled,
     onClick: cartaPorteDisabled ? undefined : () => onCartaPorte(row),
   }];
+  agregarAccionVisible(items, findAction(actions, 'emitir'), accionDefinitivaLabel, <CheckCircleIcon fontSize="small" />);
   agregarAccionVisible(items, findAction(actions, 'ver-pdf'), 'Imprimir', <PrintOutlinedIcon fontSize="small" />);
   agregarAccionVisible(items, findAction(actions, 'descargar-cfdi'), 'Descargar CFDI', <FileDownloadOutlinedIcon fontSize="small" />, !row.cfdi_uuid);
   if (timbrarAction && !timbrarAction.hidden) {
@@ -273,9 +272,7 @@ function itemsMenuFactura(
   }
   agregarAccionVisible(items, findAction(actions, 'contabilizar-factura-venta'), 'Contabilizar factura');
   agregarAccionVisible(items, findAction(actions, 'cancelar-documento'), 'Cancelar');
-  if (!esFacturaVentaEstandar) {
-    agregarAccionVisible(items, findAction(actions, 'emitir'), accionDefinitivaLabel, <CheckCircleIcon fontSize="small" />);
-  }
+  agregarAccionVisible(items, findAction(actions, 'emitir'), accionDefinitivaLabel, <CheckCircleIcon fontSize="small" />);
   agregarAccionVisible(items, findAction(actions, 'editar'), 'Editar');
   agregarAccionVisible(items, findAction(actions, 'eliminar'), 'Eliminar', undefined, !facturaEliminable);
   return items;
@@ -355,7 +352,9 @@ export default function FacturasWorkspaceView({
       setDetalleMovil(false);
       return;
     }
-    if (!rows.some((row) => row.id === selectedId)) {
+    if (initialSelectedId) {
+      setSelectedId(rows.some((row) => row.id === initialSelectedId) ? initialSelectedId : null);
+    } else if (!rows.some((row) => row.id === selectedId)) {
       setSelectedId(rows[0]?.id ?? null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

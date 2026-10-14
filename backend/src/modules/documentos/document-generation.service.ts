@@ -427,8 +427,13 @@ async function validarFlujosOrigenDestino(
          FROM core.empresas_tipos_documento_transiciones etd
          JOIN core.tipos_documento td_origen ON td_origen.id = etd.tipo_documento_origen_id
          JOIN core.tipos_documento td_dest   ON td_dest.id   = etd.tipo_documento_destino_id
+         JOIN core.empresas_tipos_documento etd_dest
+           ON etd_dest.empresa_id = etd.empresa_id
+          AND etd_dest.tipo_documento_id = td_dest.id
+          AND etd_dest.activo = true
         WHERE etd.empresa_id = $1
           AND etd.activo = true
+          AND td_dest.activo = true
           AND LOWER(td_origen.codigo) = LOWER($2)
           AND LOWER(td_dest.codigo) = LOWER($3)
         LIMIT 1`,
@@ -682,6 +687,10 @@ export class DocumentGenerationService {
            FROM core.empresas_tipos_documento_transiciones etd
            JOIN core.tipos_documento td_origen ON td_origen.id = etd.tipo_documento_origen_id
            JOIN core.tipos_documento td_dest   ON td_dest.id   = etd.tipo_documento_destino_id
+           JOIN core.empresas_tipos_documento etd_dest
+             ON etd_dest.empresa_id = etd.empresa_id
+            AND etd_dest.tipo_documento_id = td_dest.id
+            AND etd_dest.activo = true
           WHERE etd.empresa_id = $1
             AND etd.activo = true
             AND td_dest.activo = true

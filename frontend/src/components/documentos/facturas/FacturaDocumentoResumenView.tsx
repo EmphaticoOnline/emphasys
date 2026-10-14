@@ -18,10 +18,9 @@
 //   - Nombre del emisor: `session.empresas` (ya cargado al iniciar sesión,
 //     usado hoy por el selector de empresa del topbar) — no se agrega fetch.
 //
-// Densidad: pensada para que una factura de 1-3 partidas quepa sin scroll
-// dentro del alto del workspace. Todo el bloque (encabezado, datos
-// generales, totales, fiscales) es de altura fija y compacta; solo la lista
-// de Partidas es flexible y con scroll interno propio cuando hay muchas.
+// Densidad: el encabezado, los datos generales y los totales conservan su
+// tamaño. Si las partidas o las observaciones no caben en el alto del
+// workspace, la hoja crece y el viewport del tab hace scroll.
 import React, { useMemo } from 'react';
 import { Alert, Box, Button, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
 import DocumentoHojaFrame from '../DocumentoHojaFrame';
@@ -170,8 +169,7 @@ export default function FacturaDocumentoResumenView({
           ) : null}
         </Box>
 
-        {/* Partidas — única zona con scroll interno */}
-        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
           <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: tokens.content.muted, textTransform: 'uppercase', letterSpacing: 0.3, mb: 0.5, flexShrink: 0 }}>
             Partidas
           </Typography>
@@ -183,7 +181,7 @@ export default function FacturaDocumentoResumenView({
           ) : !partidas || partidas.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>Sin partidas.</Typography>
           ) : (
-            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', border: `1px solid ${tokens.content.border}`, borderRadius: 1 }}>
+            <Box sx={{ flex: '1 0 auto', border: `1px solid ${tokens.content.border}`, borderRadius: 1 }}>
               {partidas.map((p, idx) => (
                 <Stack
                   key={p.id}

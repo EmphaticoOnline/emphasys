@@ -13,6 +13,7 @@ export type GeneratedDocumentFocus = {
   tipoDocumento: TipoDocumento;
   modulo: DocumentoModulo;
   nonce: string;
+  preserveFilters?: boolean;
 };
 
 type GeneratedDocumentNavigationState = {
@@ -35,13 +36,15 @@ export function resolveDocumentoFormPath(tipoDocumento: TipoDocumento, documento
 export function buildGeneratedDocumentFocus(
   documentoId: number,
   tipoDocumento: TipoDocumento,
-  modulo: DocumentoModulo
+  modulo: DocumentoModulo,
+  options?: { preserveFilters?: boolean }
 ): GeneratedDocumentFocus {
   return {
     documentoId,
     tipoDocumento,
     modulo,
     nonce: `${modulo}:${tipoDocumento}:${documentoId}:${Date.now()}`,
+    preserveFilters: options?.preserveFilters,
   };
 }
 
@@ -52,12 +55,15 @@ export function navigateToGeneratedDocument(
     tipoDocumento: TipoDocumento;
     modulo?: DocumentoModulo;
     pathname?: string;
+    preserveFilters?: boolean;
   }
 ): void {
   const modulo = options.modulo ?? DOCUMENTO_ROUTE_MODULE[options.tipoDocumento] ?? resolveDocumentoModulo(options.pathname);
   navigate(resolveDocumentosListPath(options.tipoDocumento, modulo), {
     state: {
-      generatedDocumentFocus: buildGeneratedDocumentFocus(options.documentoId, options.tipoDocumento, modulo),
+      generatedDocumentFocus: buildGeneratedDocumentFocus(options.documentoId, options.tipoDocumento, modulo, {
+        preserveFilters: options.preserveFilters,
+      }),
     } satisfies GeneratedDocumentNavigationState,
   });
 }
@@ -80,5 +86,6 @@ export function parseGeneratedDocumentFocus(state: unknown): GeneratedDocumentFo
     tipoDocumento,
     modulo,
     nonce,
+    preserveFilters: candidate.preserveFilters === true,
   };
 }

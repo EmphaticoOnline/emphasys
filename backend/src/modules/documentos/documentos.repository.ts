@@ -398,6 +398,23 @@ const normalizarEstatusDocumentoParaTransicion = (value: unknown): string => {
   return normalizado;
 };
 
+export function validarTransicionFacturaVentaEstandar(
+  estatusActual: unknown,
+  estatusSolicitado: unknown,
+): void {
+  const actual = normalizarEstatusDocumentoParaTransicion(estatusActual);
+  const solicitado = normalizarEstatusDocumentoParaTransicion(estatusSolicitado);
+
+  if (actual === solicitado) return;
+  if (actual === 'borrador' && solicitado === 'emitido') return;
+
+  if (solicitado === 'timbrado') {
+    throw new Error(
+      'VALIDATION_ERROR: Una factura de venta estándar solo puede pasar a Timbrado mediante un timbrado CFDI exitoso.'
+    );
+  }
+}
+
 /**
  * Con trazabilidad activa, la única transición de `estatus_documento` permitida es
  * borrador → emitido (la que usan el menú rápido de estatus y la generación automática de
@@ -501,7 +518,16 @@ function valorDeCampoPartidaDifiere(actual: unknown, incoming: unknown, tipo: Ti
     return a !== b;
   }
   if (tipo === 'booleano') {
-    return Boolean(actual) !== Boolean(incoming);
+    const normalizarBooleano = (value: unknown): boolean | null => {
+      if (value === null || value === undefined || value === '') return null;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      const texto = String(value).trim().toLowerCase();
+      if (['true', '1', 'si', 'sí', 'yes'].includes(texto)) return true;
+      if (['false', '0', 'no'].includes(texto)) return false;
+      return Boolean(value);
+    };
+    return normalizarBooleano(actual) !== normalizarBooleano(incoming);
   }
   const a = actual === null || actual === undefined ? '' : String(actual).trim();
   const b = incoming === null || incoming === undefined ? '' : String(incoming).trim();
@@ -515,7 +541,7 @@ function valorDeCampoPartidaDifiere(actual: unknown, incoming: unknown, tipo: Ti
  * difiere del guardado) sobre cualquier otro campo: cantidad, precio, descuento, producto,
  * observaciones, importes, etc.
  */
-function assertSoloImagenPartidasModificadas(
+export function assertSoloImagenPartidasModificadas(
   partidasActuales: any[],
   partidasIncoming: PartidaInput[],
   folioRelacionado: string | null
@@ -528,6 +554,15 @@ function assertSoloImagenPartidasModificadas(
     const descuentoNormalizadoIncoming = normalizarDescuentoPartida(incoming);
 
     for (const campo of camposProtegidos) {
+      // Un campo omitido significa "sin cambios". Esto permite actualizar el
+      // encabezado sin reserializar valores heredados de la trazabilidad.
+      const descuentoCampo = campo === 'descuento' || campo === 'descuento_tipo' || campo === 'descuento_monto';
+      const descuentoIncluido = ['descuento', 'descuento_tipo', 'descuento_monto']
+        .some((clave) => Object.prototype.hasOwnProperty.call(incoming, clave));
+      if ((!descuentoCampo && !Object.prototype.hasOwnProperty.call(incoming, campo))
+        || (descuentoCampo && !descuentoIncluido)) {
+        continue;
+      }
       const valorIncoming = campo === 'descuento' || campo === 'descuento_tipo' || campo === 'descuento_monto'
         ? (descuentoNormalizadoIncoming as any)[campo]
         : (incoming as any)[campo];
@@ -832,6 +867,7 @@ type ActualizarDocumentoOptions = {
 };
 
 export type PartidaInput = {
+  id?: number | null;
   producto_id?: number | null;
   descripcion_alterna?: string | null;
   cantidad?: number | null;
@@ -1059,6 +1095,7 @@ export async function listarDocumentosRepository(
       OR COALESCE(d.serie, '') ILIKE $${searchIdx}
       OR COALESCE(d.numero::text, '') ILIKE $${searchIdx}
       OR COALESCE(c.nombre, '') ILIKE $${searchIdx}
+      OR COALESCE(c.nombre_contacto, '') ILIKE $${searchIdx}
       OR COALESCE(c.email, '') ILIKE $${searchIdx}
       OR COALESCE(c.telefono, '') ILIKE $${searchIdx}
       OR COALESCE(c.telefono_secundario, '') ILIKE $${searchIdx}
@@ -1363,6 +1400,7 @@ export async function listarDocumentosRepositoryPaginado(
       OR COALESCE(d.serie, '') ILIKE $${searchIdx}
       OR COALESCE(d.numero::text, '') ILIKE $${searchIdx}
       OR COALESCE(c.nombre, '') ILIKE $${searchIdx}
+      OR COALESCE(c.nombre_contacto, '') ILIKE $${searchIdx}
       OR COALESCE(c.email, '') ILIKE $${searchIdx}
       OR COALESCE(c.telefono, '') ILIKE $${searchIdx}
       OR COALESCE(c.telefono_secundario, '') ILIKE $${searchIdx}
@@ -2117,9 +2155,8 @@ export async function actualizarDocumentoRepository(
   const estatusSolicitado = String((data as any).estatus_documento ?? '').trim().toLowerCase();
   const facturaVentaEstandar = tipoActual === 'factura'
     && String(current.tratamiento_impuestos ?? '').trim().toLowerCase() === 'normal';
-  if (facturaVentaEstandar && estatusSolicitado === 'emitido'
-    && String(current.estatus_documento ?? '').trim().toLowerCase() !== 'emitido') {
-    throw new Error('VALIDATION_ERROR: Una factura de venta estándar solo puede pasar a Timbrado mediante un timbrado CFDI exitoso.');
+  if (facturaVentaEstandar && Object.prototype.hasOwnProperty.call(data, 'estatus_documento')) {
+    validarTransicionFacturaVentaEstandar(current.estatus_documento, estatusSolicitado);
   }
   if (tipoActual === 'pago_cliente' || tipoActual === 'pago_proveedor') {
     const { rows: aplicacionesRows } = await executor.query<{ existe: boolean }>(

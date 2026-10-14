@@ -88,6 +88,9 @@ export async function evaluarEditabilidadNotaVenta(documentoId: number, empresaI
   if (d.derivado_activo) motivos.push('documento_derivado');
   if (d.vinculos_partidas) motivos.push('vinculos_partidas');
   if (d.poliza) motivos.push('poliza_contable');
+  if (String(d.estatus_documento ?? '').trim().toLowerCase() === 'borrador' && motivos.every((motivo) => motivo === 'vinculos_partidas')) {
+    return { esNotaVenta, editable: true, motivos };
+  }
   return { esNotaVenta, editable: motivos.length === 0, motivos };
 }
 

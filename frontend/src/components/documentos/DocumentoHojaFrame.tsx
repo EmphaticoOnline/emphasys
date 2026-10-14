@@ -16,8 +16,8 @@ export function DocumentoHojaViewport({ children }: { children: ReactNode }) {
 export default function DocumentoHojaFrame({ children }: { children: ReactNode }) {
   const tokens = useTheme().emphasys;
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ border: `1px solid ${tokens.content.border}`, borderRadius: 2, p: 1.75, bgcolor: tokens.content.card, color: tokens.content.foreground, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ maxWidth: 800, mx: 'auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ border: `1px solid ${tokens.content.border}`, borderRadius: 2, p: 1.75, bgcolor: tokens.content.card, color: tokens.content.foreground, flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
         {children}
       </Box>
     </Box>

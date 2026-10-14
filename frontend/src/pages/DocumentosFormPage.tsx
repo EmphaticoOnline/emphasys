@@ -58,7 +58,7 @@ import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
-import { resolveDocumentoFormPath, resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
+import { navigateToGeneratedDocument, resolveDocumentoFormPath, resolveDocumentoModulo, resolveDocumentosListPath } from '../modules/documentos/documentoNavigation';
 import DynamicFieldControl from '../components/DynamicFieldControl';
 import MobileBackIconButton from '../components/MobileBackIconButton';
 import MobileSaveFab from '../components/MobileSaveFab';
@@ -2712,6 +2712,8 @@ export default function DocumentosFormPage({
 
   const validarDocumentoAntesDePersistir = useCallback((context: 'save' | 'anticipo' | 'exit' = 'save') => {
     const totalActual = isNotaCreditoManual ? getNotaCreditoManualTotalActual() : Number(form.total || 0);
+    const esFacturaVentaEstandar = tipoDocumento === 'factura'
+      && String(form.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'normal';
 
     if (!form.contacto_principal_id) {
       setSnackbar({
@@ -2766,7 +2768,9 @@ export default function DocumentosFormPage({
       return false;
     }
 
-    const requiereDatosFiscales = !isTraslado && (['factura', 'nota_credito'].includes(tipoDocumento) && form.tratamiento_impuestos !== 'sin_iva');
+    const requiereDatosFiscales = !isTraslado
+      && !esFacturaVentaEstandar
+      && (['factura', 'nota_credito'].includes(tipoDocumento) && form.tratamiento_impuestos !== 'sin_iva');
     if (requiereDatosFiscales) {
       if (!form.rfc_receptor || !validarRFC(form.rfc_receptor)) {
         setSnackbar({ open: true, message: 'RFC receptor es obligatorio y debe ser válido', severity: 'error' });
@@ -2818,8 +2822,9 @@ export default function DocumentosFormPage({
             })
             .filter(Boolean) as NonNullable<CotizacionCrearPayload['aplicaciones_documento']>
         : [];
+      const { estado_seguimiento: _estadoSeguimientoNoEditable, ...formSinSeguimiento } = form;
       const payloadCompleto: CotizacionCrearPayload & { conversacion_id: number | null } = {
-        ...form,
+        ...formSinSeguimiento,
         tipo_documento: tipoDocumento,
         producto_resumen: form.producto_resumen ?? null,
         serie: form.serie?.trim() || null,
@@ -2831,7 +2836,7 @@ export default function DocumentosFormPage({
         empresa_id: getEmpresaActivaId(),
         conversacion_id: conversacionId ? Number(conversacionId) : null,
         usuario_creacion_id: form.usuario_creacion_id ?? sessionUserId ?? null,
-        estado_seguimiento: isCotizacion ? (form.estado_seguimiento ?? DEFAULT_ESTADO_SEGUIMIENTO) : null,
+        ...(isCotizacion ? { estado_seguimiento: form.estado_seguimiento ?? DEFAULT_ESTADO_SEGUIMIENTO } : {}),
         tipo_cambio: form.tipo_cambio ?? 1,
         cuenta_financiera_id: form.cuenta_financiera_id ?? null,
         finanzas_operacion_id: form.finanzas_operacion_id ?? null,
@@ -2906,7 +2911,12 @@ export default function DocumentosFormPage({
           setSnackbar({ open: true, message: textos.guardado, severity: 'success' });
         }
         if (navigateAfterSave && !embedded) {
-          setTimeout(() => navigate(basePath), 400);
+          setTimeout(() => navigateToGeneratedDocument(navigate, {
+            documentoId: docId,
+            tipoDocumento,
+            modulo: moduloDocumento,
+            preserveFilters: true,
+          }), 400);
         }
         if (embedded) {
           onEmbeddedSaved?.(docId);
@@ -2929,7 +2939,15 @@ export default function DocumentosFormPage({
         ? []
         : isNotaCreditoManual
         ? [await construirPartidaTecnicaNotaCredito(calculoNotaCreditoManual ?? undefined)]
-        : partidas.filter((p) => !esPartidaPlaceholder(p)).map((p) => ({
+        : partidas.filter((p) => !esPartidaPlaceholder(p)).map((p) => {
+          // En documentos con trazabilidad, las partidas pertenecen al documento
+          // origen. Enviar sus valores calculados como defaults provoca que el
+          // backend los interprete como cambios aunque el usuario solo haya
+          // editado la fecha u otro dato propio del encabezado.
+          if (trazabilidadDetectada && p.id) {
+            return { id: p.id } as CotizacionPartidaPayload;
+          }
+          return ({
         producto_id: p.producto_id,
         ...(tipoDocumento === 'recepcion' ? { partida_origen_id: (p as any).partida_origen_id ?? null } : {}),
       descripcion_alterna: p.descripcion_alterna ?? null,
@@ -2964,7 +2982,8 @@ export default function DocumentosFormPage({
           base: imp.base ?? null,
           monto: Number(imp.monto ?? 0),
         })),
-      }));
+          } as CotizacionPartidaPayload);
+        });
       const partidasGuardadas = usaPartidas && !edicionFacturaTimbradaRestringida
         ? await replacePartidas(docId, tipoDocumento, partidasPayload)
         : [];
@@ -3017,7 +3036,12 @@ export default function DocumentosFormPage({
       }
 
       if (navigateAfterSave && !embedded) {
-        setTimeout(() => navigate(basePath), 400);
+        setTimeout(() => navigateToGeneratedDocument(navigate, {
+          documentoId: docId,
+          tipoDocumento,
+          modulo: moduloDocumento,
+          preserveFilters: true,
+        }), 400);
       }
 
       if (embedded) {

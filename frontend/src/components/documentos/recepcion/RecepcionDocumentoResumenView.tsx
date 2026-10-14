@@ -83,7 +83,7 @@ export default function RecepcionDocumentoResumenView({
         {folioOrigen ? field('Origen', folioOrigen) : null}
       </Box>
 
-      <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column' }}>
         <Typography sx={{ fontSize: 10.5, fontWeight: 800, color: tokens.content.muted, textTransform: 'uppercase', letterSpacing: 0.3, mb: 0.5, flexShrink: 0 }}>
           Partidas recibidas
         </Typography>
@@ -95,7 +95,7 @@ export default function RecepcionDocumentoResumenView({
         ) : !partidas || partidas.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>Sin partidas.</Typography>
         ) : (
-          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', border: `1px solid ${tokens.content.border}`, borderRadius: 1 }}>
+          <Box sx={{ flex: '1 0 auto', border: `1px solid ${tokens.content.border}`, borderRadius: 1 }}>
             {partidas.map((partida, index) => {
               const impuestos = Array.isArray(partida.impuestos) ? partida.impuestos : [];
               const totalLinea = Number(partida.total_partida ?? partida.subtotal_partida ?? 0);

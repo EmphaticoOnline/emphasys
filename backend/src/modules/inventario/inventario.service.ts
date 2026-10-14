@@ -60,6 +60,7 @@ type PartidaDocumentoRow = {
   cantidad_inventariable: number | null;
   partida_almacen_id: number | null;
   costo: number | null;
+  precio_unitario: number | null;
   tipo_producto: string;
 };
 
@@ -231,6 +232,7 @@ async function obtenerPartidasDocumento(
             dp.cantidad_inventariable,
             dp.almacen_id AS partida_almacen_id,
             dp.costo,
+            dp.precio_unitario,
             COALESCE(p.tipo_producto, '') AS tipo_producto
        FROM documentos_partidas dp
        JOIN productos p ON p.id = dp.producto_id
@@ -240,6 +242,21 @@ async function obtenerPartidasDocumento(
   );
 
   return rows;
+}
+
+function resolverCostoDocumento(
+  documento: DocumentoInventarioRow,
+  partida: PartidaDocumentoRow,
+): number | null {
+  // Sólo las entradas documentales de compras pueden usar el precio como
+  // respaldo. Ventas, salidas, notas de crédito de compra, transferencias y
+  // movimientos manuales conservan su semántica de costo propia.
+  const tipo = String(documento.tipo_documento || '').trim().toLowerCase();
+  const esEntradaCompra = documento.afecta_inventario === 'entrada'
+    && (tipo === 'factura_compra' || tipo === 'recepcion');
+
+  if (partida.costo != null) return partida.costo;
+  return esEntradaCompra ? partida.precio_unitario : null;
 }
 
 async function asegurarMovimientoNoDuplicado(documentoId: number, empresaId: number, client: PoolClient) {
@@ -527,7 +544,7 @@ export async function aplicarInventarioDesdeDocumentoEnTransaccion(
       cantidad,
       signo,
       tipo_partida: 'normal',
-      costo_unitario: p.costo ?? null,
+      costo_unitario: resolverCostoDocumento(documento, p),
     };
   });
 

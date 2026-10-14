@@ -29,7 +29,9 @@
     "test:transporte-viaje": "ts-node src/scripts/testTransporteViaje.ts",
     "test:carta-porte-31": "ts-node src/scripts/testCartaPorte31.ts",
     "test:carta-porte-consistency": "ts-node src/scripts/testCartaPorteConsistency.ts",
-    "test:carta-porte-timbrado": "ts-node src/scripts/testCartaPorteTimbradoIntegration.ts"
+    "test:carta-porte-timbrado": "ts-node src/scripts/testCartaPorteTimbradoIntegration.ts",
+    "test:factura-venta-estandar-transicion": "ts-node src/scripts/testFacturaVentaEstandarTransicion.ts",
+    "test:trazabilidad-partidas": "ts-node src/scripts/testTrazabilidadPartidas.ts"
   },
   "keywords": [],
   "author": "",

@@ -112,8 +112,8 @@ export default function OrdenCompraDocumentoHoja({
 
       {vista === 'partidas' ? (
         <>
-          <Box sx={{ flex: 1, minHeight: 0 }}>
-            <Box sx={{ overflowY: 'auto', border: `1px solid ${tokens.content.border}` }}>
+          <Box sx={{ flex: '1 0 auto' }}>
+            <Box sx={{ border: `1px solid ${tokens.content.border}` }}>
               {detail.loading ? <CircularProgress size={14} sx={{ m: 1 }} /> : lines.length === 0 ? (
                 <Typography variant="caption" sx={{ display: 'block', px: 1, py: 0.75, color: tokens.content.muted }}>Sin partidas</Typography>
               ) : lines.map((partida, index) => {
